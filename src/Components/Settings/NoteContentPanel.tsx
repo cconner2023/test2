@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
-import { FileText, Stethoscope, ClipboardList, TextCursorInput, ChevronRight } from 'lucide-react';
+import { FileText, Stethoscope, ClipboardList, TextCursorInput, ChevronRight, LayoutTemplate } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
+import { useAuthStore } from '../../stores/useAuthStore';
 import type { UserTypes } from '../../Data/User';
 import { ToggleSwitch } from './ToggleSwitch';
 
@@ -10,6 +11,7 @@ interface NoteContentPanelProps {
 
 export const NoteContentPanel = ({ onNavigate }: NoteContentPanelProps) => {
     const { profile, updateProfile, syncProfileField } = useUserProfile();
+    const isProviderRole = useAuthStore((s) => s.isProviderRole);
 
     const includeHPI = profile.noteIncludeHPI ?? true;
     const includePE = profile.noteIncludePE ?? false;
@@ -107,6 +109,32 @@ export const NoteContentPanel = ({ onNavigate }: NoteContentPanelProps) => {
                         );
                     })}
                 </div>
+
+                {isProviderRole && (
+                    <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                        <div
+                            className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
+                            onClick={() => onNavigate?.('provider-templates')}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    onNavigate?.('provider-templates');
+                                }
+                            }}
+                        >
+                            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeblue2/15">
+                                <LayoutTemplate size={18} className="text-themeblue2" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-primary">Provider Templates</p>
+                                <p className="text-[11px] text-tertiary/70 mt-0.5">Note skeletons from your shortcuts</p>
+                            </div>
+                            <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -18,6 +18,7 @@ import { SIGNAL } from '../constants'
 import { createLogger } from '../../Utilities/Logger'
 import { base64ToBytes, bytesToBase64 } from '../base64Utils'
 import { saveMessage, setOnMessageSaved, loadAllConversations } from './messageStore'
+import { isCalendarEvent, routeCalendarEvent } from '../calendarRouting'
 import type { StoredMessage } from './messageStore'
 
 const logger = createLogger('BackupService')
@@ -490,6 +491,8 @@ export async function restoreBackup(userId: string): Promise<void> {
     let restored = 0
     for (const msg of payload.messages) {
       await saveMessage(msg, userId)
+      // Route any calendar events to the calendar store so they render
+      if (isCalendarEvent(msg.content)) routeCalendarEvent(msg.content)
       restored++
     }
 

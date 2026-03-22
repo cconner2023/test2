@@ -57,8 +57,7 @@ import {
   parseMessageContent,
 } from '../lib/signal/messageContent'
 import type { MessageContent, ImageContent, VoiceContent, ReplyTo, CalendarEventContent } from '../lib/signal/messageContent'
-import { useCalendarStore } from '../stores/useCalendarStore'
-import type { CalendarEvent } from '../Types/CalendarTypes'
+import { isCalendarEvent, routeCalendarEvent } from '../lib/calendarRouting'
 import { uploadEncryptedAttachment } from '../lib/signal/attachmentService'
 import { createBackup, markHydrationComplete } from '../lib/signal/backupService'
 import { ok as okResult, err as errResult, type Result } from '../lib/result'
@@ -518,21 +517,13 @@ export function useMessages(): UseMessagesReturn {
     }
 
     // ── Calendar event routing ──
-    // Calendar messages are routed to the calendar store, NOT the chat conversations.
-    // They are NOT saved to the message IndexedDB, NOT added to conversations state,
-    // and do NOT trigger notifications.
-    if (msg.content?.type === 'calendar_event') {
-      const { action, data } = msg.content
-      const calStore = useCalendarStore.getState()
-      if (action === 'create') {
-        calStore.addEvent(data as CalendarEvent)
-      } else if (action === 'update') {
-        calStore.updateEvent(data.id, data as Partial<CalendarEvent>)
-      } else if (action === 'delete') {
-        calStore.removeEvent(data.id)
-      }
-      // IDB persistence handled by calendarPersist middleware on the store mutations above
-      // Mark as read so it is not re-fetched on next poll
+    // Calendar events are routed to the calendar store AND persisted to message
+    // IDB (so vault and backup capture them), but are NOT added to conversations
+    // state and do NOT trigger notifications.
+    if (isCalendarEvent(msg.content)) {
+      routeCalendarEvent(msg.content)
+      // Persist to message IDB so backup includes calendar events
+      saveMessage(msg, userId!).catch(() => {})
       markMessagesRead([msg.id]).catch(() => {})
       return
     }
@@ -1820,11 +1811,26 @@ export function useMessages(): UseMessagesReturn {
         return false
       }
 
+      // Persist outgoing calendar event to message IDB so backup captures it
+      const now = new Date().toISOString()
+      saveMessage({
+        id: result.data,
+        senderId: userId,
+        recipientId: calendarGroupId,
+        plaintext: '[calendar event]',
+        content,
+        messageType: 'message',
+        createdAt: now,
+        readAt: now,
+        groupId: calendarGroupId,
+        originId,
+      }, userId).catch(() => {})
+
       sendSyncToOwnDevices(userId, localDeviceId, {
         forPeerId: calendarGroupId,
         serialized,
         originalMessageType: 'message',
-        originalTimestamp: new Date().toISOString(),
+        originalTimestamp: now,
         originalMessageId: result.data,
       }, calendarGroupId, originId).catch(() => {})
 

@@ -14,7 +14,6 @@ import { isPinEnabled, hydrateFromCloud, removePin, initPinService } from '../li
 import { removeBiometric } from '../lib/biometricService'
 import { clearServiceWorkerCaches } from '../lib/cacheService'
 import { clearPasswordVerification } from '../lib/authService'
-import { isDevUser } from '../lib/adminService'
 import { prefetchBarcodeKey } from '../lib/cryptoService'
 import { startHeartbeat, stopHeartbeat } from '../lib/activityHeartbeat'
 import { initSignalBundle } from '../lib/signal/signalInit'
@@ -534,19 +533,17 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
 
     try {
       const { profile, roles, clinicId, needsPasswordSetup } = await fetchProfileFromSupabase(user.id)
-      const isDev = await isDevUser()
-
       set({
         profile,
         roles,
         clinicId,
-        isDevRole: isDev,
+        isDevRole: roles.includes('dev'),
         isSupervisorRole: roles.includes('supervisor'),
         isProviderRole: roles.includes('provider'),
         needsPasswordSetup,
       })
       saveProfileToStorage(profile)
-      saveRolesToStorage({ roles, clinicId, isDevRole: isDev })
+      saveRolesToStorage({ roles, clinicId, isDevRole: roles.includes('dev') })
 
       // Prefetch barcode encryption key for offline use (fire-and-forget)
       prefetchBarcodeKey().catch(() => {})

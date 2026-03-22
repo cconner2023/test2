@@ -9,7 +9,6 @@ import { useIsMobile } from '../Hooks/useIsMobile'
 import { UI_TIMING } from '../Utilities/constants'
 import { useTrainingCompletions } from '../Hooks/useTrainingCompletions'
 import { useSupervisorData } from './Settings/Supervisor/useSupervisorData'
-import { PersonnelRoster } from './Settings/Supervisor/PersonnelRoster'
 import { SoldierProfile } from './Settings/Supervisor/SoldierProfile'
 import { SoldierCertsEditor } from './Settings/Supervisor/SoldierCertsEditor'
 import { EvaluateFlow } from './Settings/Supervisor/EvaluateFlow'
@@ -41,13 +40,12 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   const [treeSelection, setTreeSelection] = useState<TreeSelection>({ type: 'all-personnel' })
 
   const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
-  const [rosterSearchQuery, setRosterSearchQuery] = useState('')
   const [taskSearchQuery, setTaskSearchQuery] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
   const [focusCertId, setFocusCertId] = useState<string | null>(null)
 
   // Clear search when navigating between views (e.g., clicking a search result)
-  useEffect(() => { setRosterSearchQuery(''); setTaskSearchQuery(''); setSearchFocused(false) }, [view.screen])
+  useEffect(() => { setTaskSearchQuery(''); setSearchFocused(false) }, [view.screen])
 
   const isMobile = useIsMobile()
 
@@ -63,7 +61,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     clinicName,
     certsForSoldier,
     testsForSoldier,
-    overdueItems,
     resolveName,
     updateCert,
     removeTest,
@@ -80,10 +77,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     return entry?.readinessPercent ?? 0
   }, [teamMetrics.soldierReadiness])
 
-  const getOverdueCount = useCallback((userId: string) => {
-    const { expiredCerts, failedTests } = overdueItems(userId)
-    return expiredCerts.length + failedTests.length
-  }, [overdueItems])
+
 
   // ── Slide Animation ────────────────────────────────────────────────────────
 
@@ -95,7 +89,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   // ── Navigation ─────────────────────────────────────────────────────────────
 
   const handleViewProfile = useCallback((soldier: ClinicMedic) => {
-    setRosterSearchQuery('')
+
     if (!isMobile) {
       setTreeSelection({ type: 'soldier', soldierId: soldier.id })
     } else {
@@ -105,13 +99,13 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   }, [isMobile, handleSlideAnimation])
 
   const handleEvaluate = useCallback((soldier: ClinicMedic) => {
-    setRosterSearchQuery('')
+
     handleSlideAnimation('left')
     setView({ screen: 'evaluate-select-task', soldier })
   }, [handleSlideAnimation])
 
   const handleModifyCerts = useCallback((soldier: ClinicMedic) => {
-    setRosterSearchQuery('')
+
     handleSlideAnimation('left')
     setFocusCertId(null)
     setView({ screen: 'soldier-certs', soldier })
@@ -185,7 +179,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     setView({ screen: 'main' })
     setTreeSelection({ type: 'all-personnel' })
     setSlideDirection('')
-    setRosterSearchQuery('')
+
     onClose()
   }, [onClose])
 
@@ -257,7 +251,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
           const titleMap: Record<TreeSelection['type'], string> = {
             'all-personnel': 'Supervisor',
             'soldier': 'Soldier Profile',
-            'team-insights': 'Team Insights',
           }
           return {
             title: titleMap[treeSelection.type] || 'Supervisor',
@@ -333,46 +326,18 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   const renderTreeContent = () => {
     switch (treeSelection.type) {
       case 'all-personnel':
-        // Desktop: tree handles navigation, show team dashboard in right pane
-        if (!isMobile) {
-          return (
-            <div className="px-5 py-5 pb-8">
-              <TeamReporting
-                metrics={teamMetrics}
-                medics={medics}
-                resolveName={resolveName}
-                onViewSoldier={handleViewProfile}
-                testableTaskMap={testableTaskMap}
-                clinicName={clinicName}
-                onNavigateToArea={handleNavigateToArea}
-              />
-            </div>
-          )
-        }
-        // Mobile: scroll-reveal search wrapping roster cards
         return (
-          <MobileSearchBar variant="supervisor"
-            value={rosterSearchQuery}
-            onChange={setRosterSearchQuery}
-            placeholder="Search personnel..."
-            onFocusChange={setSearchFocused}
-          >
-            <PersonnelRoster
+          <div className={isMobile ? 'h-full overflow-y-auto px-4 py-3 pb-8' : 'px-5 py-5 pb-8'}>
+            <TeamReporting
+              metrics={teamMetrics}
               medics={medics}
-              certsForSoldier={certsForSoldier}
-              overdueCount={getOverdueCount}
-              onEvaluate={handleEvaluate}
-              onView={handleViewProfile}
-              onModify={handleModifyCerts}
-              searchQuery={rosterSearchQuery}
+              resolveName={resolveName}
+              onViewSoldier={handleViewProfile}
+              testableTaskMap={testableTaskMap}
               clinicName={clinicName}
-              teamMetrics={teamMetrics}
-              onViewInsights={() => {
-                handleSlideAnimation('left')
-                setTreeSelection({ type: 'team-insights' })
-              }}
+              onNavigateToArea={handleNavigateToArea}
             />
-          </MobileSearchBar>
+          </div>
         )
 
       case 'soldier': {
@@ -399,20 +364,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         )
       }
 
-      case 'team-insights':
-        return (
-          <div className="h-full overflow-y-auto px-4 py-3 md:px-5 md:py-5 pb-8">
-            <TeamReporting
-              metrics={teamMetrics}
-              medics={medics}
-              resolveName={resolveName}
-              onViewSoldier={handleViewProfile}
-              testableTaskMap={testableTaskMap}
-              clinicName={clinicName}
-              onNavigateToArea={handleNavigateToArea}
-            />
-          </div>
-        )
     }
   }
 
@@ -511,8 +462,8 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
 
       case 'main':
       default:
-        // team-insights and all-personnel manage their own scroll/layout
-        if (treeSelection.type === 'team-insights' || treeSelection.type === 'all-personnel') return renderTreeContent()
+        // all-personnel manages its own scroll/layout
+        if (treeSelection.type === 'all-personnel') return renderTreeContent()
         return subViewWrapper(renderTreeContent())
     }
   }

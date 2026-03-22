@@ -9,6 +9,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuthStore } from '../stores/useAuthStore'
 import { usePropertyStore } from '../stores/usePropertyStore'
 import { createLogger } from '../Utilities/Logger'
 import {
@@ -84,7 +85,7 @@ export function useProperty() {
 
     async function init() {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = useAuthStore.getState().user
         if (!user || cancelled) { setIsLoading(false); return }
 
         userIdRef.current = user.id

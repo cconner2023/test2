@@ -7,7 +7,6 @@ import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 export type TreeSelection =
   | { type: 'all-personnel' }
   | { type: 'soldier'; soldierId: string }
-  | { type: 'team-insights' }
 
 interface SupervisorTreeProps {
   medics: ClinicMedic[]

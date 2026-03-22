@@ -1,14 +1,16 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { Pencil, UserPlus, Building2, Trash2, X, Inbox, Users } from 'lucide-react'
+import { Pencil, Plus, Building2, Trash2, X, Inbox, Users, Check } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { MobileSearchBar } from './MobileSearchBar'
-import { HeaderPill, PillButton, VerticalPill } from './HeaderPill'
+import { HeaderPill, PillButton } from './HeaderPill'
 import { ContentWrapper } from './Settings/ContentWrapper'
 import { ConfirmDialog } from './ConfirmDialog'
+import { ActionSheet } from './ActionSheet'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { UI_TIMING } from '../Utilities/constants'
-import { deleteClinic } from '../lib/adminService'
+import { deleteClinic, deleteUser } from '../lib/adminService'
+import { useAuthStore } from '../stores/useAuthStore'
 
 // Admin sub-components
 import { AdminRequestsList } from './Admin/AdminRequestsList'
@@ -57,9 +59,26 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const [confirmDeleteClinic, setConfirmDeleteClinic] = useState(false)
     const [deleteClinicProcessing, setDeleteClinicProcessing] = useState(false)
 
+    // Clinic edit state (Settings toolbar pattern)
+    const [clinicEditing, setClinicEditing] = useState(false)
+    const [clinicSaveRequested, setClinicSaveRequested] = useState(false)
+    const [clinicHasPending, setClinicHasPending] = useState(false)
+
+    // User edit state (Settings toolbar pattern)
+    const [userEditing, setUserEditing] = useState(false)
+    const [userSaveRequested, setUserSaveRequested] = useState(false)
+    const [userHasPending, setUserHasPending] = useState(false)
+
+    // User delete confirmation (moved from AdminUserDetail to header)
+    const [confirmDeleteUser, setConfirmDeleteUser] = useState(false)
+    const [deleteUserProcessing, setDeleteUserProcessing] = useState(false)
+
     // Search state
     const [searchQuery, setSearchQuery] = useState('')
     const [searchFocused, setSearchFocused] = useState(false)
+
+    // FAB action sheet
+    const [showAddSheet, setShowAddSheet] = useState(false)
 
     // Clear search when navigating between views (e.g., clicking a search result)
     useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
@@ -74,6 +93,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // Navigation handlers
     const handleSelectUser = useCallback((user: AdminUser) => {
         setSelectedUser(user)
+        setUserEditing(false)
+        setUserHasPending(false)
         handleSlideAnimation('left')
         setView('admin-user-detail')
     }, [handleSlideAnimation])
@@ -94,6 +115,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     const handleSelectClinic = useCallback((clinic: AdminClinic) => {
         setSelectedClinic(clinic)
+        setClinicEditing(false)
+        setClinicHasPending(false)
         handleSlideAnimation('left')
         setView('admin-clinic-detail')
     }, [handleSlideAnimation])
@@ -113,6 +136,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     }, [handleSlideAnimation])
 
     const handleBack = useCallback(() => {
+        // Reset editing state
+        setClinicEditing(false); setClinicSaveRequested(false); setClinicHasPending(false)
+        setUserEditing(false); setUserSaveRequested(false); setUserHasPending(false)
+
         if (view === 'admin-user-form' && selectedUser) {
             handleSlideAnimation('right')
             setView('admin-user-detail')
@@ -134,7 +161,11 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setSelectedClinic(null)
         setSlideDirection('')
         setConfirmDeleteClinic(false)
+        setConfirmDeleteUser(false)
         setSearchQuery('')
+        // Reset editing state
+        setClinicEditing(false); setClinicSaveRequested(false); setClinicHasPending(false)
+        setUserEditing(false); setUserSaveRequested(false); setUserHasPending(false)
         onClose()
     }, [onClose])
 
@@ -148,6 +179,17 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             handleBack()
         }
     }, [selectedClinic, handleBack])
+
+    const handleDeleteUser = useCallback(async () => {
+        if (!selectedUser) return
+        setDeleteUserProcessing(true)
+        const result = await deleteUser(selectedUser.id)
+        setDeleteUserProcessing(false)
+        setConfirmDeleteUser(false)
+        if (result.success) {
+            handleBack()
+        }
+    }, [selectedUser, handleBack])
 
     // Swipe back for mobile
     const swipeHandlers = useSwipeBack(
@@ -176,54 +218,116 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // Header actions for main 'admin' view
     const mainHeaderActions = useMemo(() => {
         if (view !== 'admin') return undefined
-
-        const tabButtons = (() => {
-            if (activeTab === 'requests') {
-                return (
-                    <>
-                        <PillButton icon={UserPlus} onClick={handleCreateUser} label="New user" iconSize={20} />
-                        <PillButton icon={Building2} onClick={handleCreateClinic} label="New clinic" iconSize={20} />
-                    </>
-                )
-            }
-            if (activeTab === 'users') {
-                return <PillButton icon={UserPlus} onClick={handleCreateUser} label="New user" iconSize={20} />
-            }
-            if (activeTab === 'clinics') {
-                return <PillButton icon={Building2} onClick={handleCreateClinic} label="New clinic" iconSize={20} />
-            }
-            return null
-        })()
-
         return (
             <HeaderPill>
-                {tabButtons}
                 <PillButton icon={X} onClick={handleClose} label="Close" />
             </HeaderPill>
         )
-    }, [view, activeTab, handleCreateUser, handleCreateClinic, handleClose])
+    }, [view, handleClose])
 
     // Header actions for detail/form views
     const detailHeaderActions = useMemo(() => {
         if (view === 'admin-user-detail' && selectedUser) {
+            const currentUserId = useAuthStore.getState().user?.id ?? null
             return (
                 <HeaderPill>
-                    <PillButton icon={Pencil} onClick={() => handleEditUser(selectedUser)} label="Edit" />
-                    <PillButton icon={X} onClick={handleClose} label="Close" />
+                    {/* Cancel — visible when editing */}
+                    <div className={'flex items-center overflow-hidden transition-all duration-200 ease-out ' + (userEditing ? 'max-w-16 opacity-100' : 'max-w-0 opacity-0')}>
+                        <PillButton
+                            icon={X}
+                            iconSize={18}
+                            onClick={() => setUserEditing(false)}
+                            label="Cancel"
+                        />
+                    </div>
+
+                    {/* Edit — visible when NOT editing */}
+                    <div className={'flex items-center overflow-hidden transition-all duration-200 ease-out ' + (!userEditing ? 'max-w-12 opacity-100' : 'max-w-0 opacity-0')}>
+                        <PillButton
+                            icon={Pencil}
+                            iconSize={18}
+                            onClick={() => setUserEditing(true)}
+                            label="Edit"
+                        />
+                    </div>
+
+                    {/* Delete — visible when editing, only for non-self */}
+                    {userEditing && currentUserId !== selectedUser.id && (
+                        <PillButton
+                            icon={Trash2}
+                            iconSize={18}
+                            onClick={() => setConfirmDeleteUser(true)}
+                            label="Delete"
+                        />
+                    )}
+
+                    {/* Save / Close */}
+                    {userEditing ? (
+                        <PillButton
+                            icon={Check}
+                            iconSize={18}
+                            circleBg="bg-themegreen text-white"
+                            onClick={() => setUserSaveRequested(true)}
+                            label="Save"
+                        />
+                    ) : (
+                        <PillButton icon={X} onClick={handleClose} label="Close" />
+                    )}
                 </HeaderPill>
             )
         }
+
         if (view === 'admin-clinic-detail' && selectedClinic) {
             return (
                 <HeaderPill>
-                    <PillButton icon={Pencil} onClick={() => handleEditClinic(selectedClinic)} label="Edit" />
-                    <PillButton icon={Trash2} onClick={() => setConfirmDeleteClinic(true)} label="Delete" />
-                    <PillButton icon={X} onClick={handleClose} label="Close" />
+                    {/* Cancel — visible when editing */}
+                    <div className={'flex items-center overflow-hidden transition-all duration-200 ease-out ' + (clinicEditing ? 'max-w-16 opacity-100' : 'max-w-0 opacity-0')}>
+                        <PillButton
+                            icon={X}
+                            iconSize={18}
+                            onClick={() => setClinicEditing(false)}
+                            label="Cancel"
+                        />
+                    </div>
+
+                    {/* Edit — visible when NOT editing */}
+                    <div className={'flex items-center overflow-hidden transition-all duration-200 ease-out ' + (!clinicEditing ? 'max-w-12 opacity-100' : 'max-w-0 opacity-0')}>
+                        <PillButton
+                            icon={Pencil}
+                            iconSize={18}
+                            onClick={() => setClinicEditing(true)}
+                            label="Edit"
+                        />
+                    </div>
+
+                    {/* Delete — visible when editing */}
+                    {clinicEditing && (
+                        <PillButton
+                            icon={Trash2}
+                            iconSize={18}
+                            onClick={() => setConfirmDeleteClinic(true)}
+                            label="Delete"
+                        />
+                    )}
+
+                    {/* Save / Close */}
+                    {clinicEditing ? (
+                        <PillButton
+                            icon={Check}
+                            iconSize={18}
+                            circleBg="bg-themegreen text-white"
+                            onClick={() => setClinicSaveRequested(true)}
+                            label="Save"
+                        />
+                    ) : (
+                        <PillButton icon={X} onClick={handleClose} label="Close" />
+                    )}
                 </HeaderPill>
             )
         }
+
         return undefined
-    }, [view, selectedUser, selectedClinic, handleEditUser, handleEditClinic, handleClose])
+    }, [view, selectedUser, selectedClinic, userEditing, clinicEditing, handleClose])
 
     // Header config per view
     const headerConfig = useMemo(() => {
@@ -285,9 +389,13 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 return selectedUser ? subViewWrapper(
                     <AdminUserDetail
                         user={selectedUser}
-                        onEdit={handleEditUser}
                         onBack={handleBack}
                         onUserUpdated={(u) => setSelectedUser(u)}
+                        editing={userEditing}
+                        onEditingChange={setUserEditing}
+                        saveRequested={userSaveRequested}
+                        onSaveComplete={() => setUserSaveRequested(false)}
+                        onPendingChangesChange={setUserHasPending}
                     />
                 ) : null
 
@@ -308,6 +416,11 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         clinic={selectedClinic}
                         onClinicUpdated={(c) => setSelectedClinic(c)}
                         onSelectUser={handleSelectUser}
+                        editing={clinicEditing}
+                        onEditingChange={setClinicEditing}
+                        saveRequested={clinicSaveRequested}
+                        onSaveComplete={() => setClinicSaveRequested(false)}
+                        onPendingChangesChange={setClinicHasPending}
                     />
                 ) : null
 
@@ -328,160 +441,179 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         }
     }
 
+    // ActionSheet options per tab
+    const addSheetOptions = useMemo(() => {
+        const options = []
+        if (activeTab !== 'clinics') {
+            options.push({ key: 'user', label: 'New User', onAction: () => { setShowAddSheet(false); handleCreateUser() } })
+        }
+        if (activeTab !== 'users') {
+            options.push({ key: 'clinic', label: 'New Clinic', onAction: () => { setShowAddSheet(false); handleCreateClinic() } })
+        }
+        return options
+    }, [activeTab, handleCreateUser, handleCreateClinic])
+
+    // Bottom island — tab switcher (centered) + FAB (right), matching Property/Calendar pattern
+    const bottomIsland = (
+        <div className="absolute bottom-4 inset-x-0 flex items-center justify-center z-20 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
+            {/* Centered tab switcher */}
+            <div className="bg-themewhite2/90 dark:bg-themewhite3/90 backdrop-blur-sm rounded-full shadow-sm border border-tertiary/10 flex items-center p-1 gap-1 pointer-events-auto">
+                {TABS.map((tab) => {
+                    const TabIcon = TAB_ICONS[tab]
+                    const label = tab.charAt(0).toUpperCase() + tab.slice(1)
+                    return (
+                        <button
+                            key={tab}
+                            onClick={() => handleTabChange(tab)}
+                            aria-label={label}
+                            title={label}
+                            className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors active:scale-95 ${
+                                activeTab === tab
+                                    ? 'bg-themeblue2 text-white shadow-sm'
+                                    : 'text-tertiary/70 hover:text-primary'
+                            }`}
+                        >
+                            <TabIcon size={18} />
+                        </button>
+                    )
+                })}
+            </div>
+
+            {/* FAB — absolute right, aligned to island */}
+            <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
+                <button
+                    onClick={() => setShowAddSheet(true)}
+                    className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
+                    title="Add new"
+                >
+                    <Plus className="w-5 h-5" />
+                </button>
+            </div>
+        </div>
+    )
+
+    // Shared: list content for active tab (no search wrapper)
+    const renderTabLists = () => (
+        <>
+            {activeTab === 'requests' && (
+                <AdminRequestsList
+                    searchQuery={searchQuery}
+                    onUserApproved={(approvedUser) => {
+                        const newUser: AdminUser = {
+                            id: approvedUser.id,
+                            email: approvedUser.email,
+                            first_name: approvedUser.first_name,
+                            last_name: approvedUser.last_name,
+                            middle_initial: null,
+                            credential: null,
+                            component: null,
+                            rank: null,
+                            uic: null,
+                            roles: approvedUser.supervisor ? ['medic', 'supervisor'] : ['medic'],
+                            clinic_id: null,
+                            created_at: new Date().toISOString(),
+                            last_active_at: null,
+                            note_include_hpi: approvedUser.noteIncludeHPI ?? true,
+                            note_include_pe: approvedUser.noteIncludePE ?? false,
+                            pe_depth: approvedUser.peDepth ?? 'standard',
+                            avatar_id: null,
+                        }
+                        handleEditUser(newUser)
+                    }}
+                />
+            )}
+            {activeTab === 'users' && (
+                <AdminUsersList
+                    onSelectUser={handleSelectUser}
+                    onEditUser={handleEditUser}
+                    onCreateUser={handleCreateUser}
+                    searchQuery={searchQuery}
+                />
+            )}
+            {activeTab === 'clinics' && (
+                <AdminClinicsList
+                    onSelectClinic={handleSelectClinic}
+                    onEditClinic={handleEditClinic}
+                    onCreateClinic={handleCreateClinic}
+                    searchQuery={searchQuery}
+                />
+            )}
+        </>
+    )
+
+    // Shared: search results across all tabs
+    const renderSearchResults = () => (
+        <div className="pb-4">
+            <div className="px-5 pb-2">
+                <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Requests</p>
+            </div>
+            <AdminRequestsList
+                searchQuery={searchQuery}
+                onUserApproved={(approvedUser) => {
+                    const newUser: AdminUser = {
+                        id: approvedUser.id,
+                        email: approvedUser.email,
+                        first_name: approvedUser.first_name,
+                        last_name: approvedUser.last_name,
+                        middle_initial: null,
+                        credential: null,
+                        component: null,
+                        rank: null,
+                        uic: null,
+                        roles: approvedUser.supervisor ? ['medic', 'supervisor'] : ['medic'],
+                        clinic_id: null,
+                        created_at: new Date().toISOString(),
+                        last_active_at: null,
+                        note_include_hpi: approvedUser.noteIncludeHPI ?? true,
+                        note_include_pe: approvedUser.noteIncludePE ?? false,
+                        pe_depth: approvedUser.peDepth ?? 'standard',
+                        avatar_id: null,
+                    }
+                    handleEditUser(newUser)
+                }}
+            />
+            <div className="px-5 pb-2 pt-4">
+                <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Users</p>
+            </div>
+            <AdminUsersList
+                onSelectUser={handleSelectUser}
+                onEditUser={handleEditUser}
+                onCreateUser={handleCreateUser}
+                searchQuery={searchQuery}
+            />
+            <div className="px-5 pb-2 pt-4">
+                <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Clinics</p>
+            </div>
+            <AdminClinicsList
+                onSelectClinic={handleSelectClinic}
+                onEditClinic={handleEditClinic}
+                onCreateClinic={handleCreateClinic}
+                searchQuery={searchQuery}
+            />
+        </div>
+    )
+
     const renderMainView = () => (
         <div className="relative h-full">
-            {/* Desktop: vertical tab strip — floating right side */}
-            {!isMobile && (
-                <div className="absolute top-3 right-5 z-20">
-                    <VerticalPill>
-                        {TABS.map((tab) => {
-                            const TabIcon = TAB_ICONS[tab]
-                            const label = tab.charAt(0).toUpperCase() + tab.slice(1)
-                            return (
-                                <button
-                                    key={tab}
-                                    onClick={() => handleTabChange(tab)}
-                                    aria-label={label}
-                                    title={label}
-                                    className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors active:scale-95 ${
-                                        activeTab === tab
-                                            ? 'bg-themeblue2 text-white shadow-sm'
-                                            : 'text-tertiary/70 hover:text-primary'
-                                    }`}
-                                >
-                                    <TabIcon size={18} />
-                                </button>
-                            )
-                        })}
-                    </VerticalPill>
-                </div>
-            )}
-
-            {/* Mobile: horizontal bottom island */}
-            {isMobile && (
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 bg-themewhite2/90 dark:bg-themewhite3/90 backdrop-blur-sm rounded-full shadow-sm border border-tertiary/10 flex items-center p-1 gap-1">
-                    {TABS.map((tab) => {
-                        const TabIcon = TAB_ICONS[tab]
-                        const label = tab.charAt(0).toUpperCase() + tab.slice(1)
-                        return (
-                            <button
-                                key={tab}
-                                onClick={() => handleTabChange(tab)}
-                                aria-label={label}
-                                title={label}
-                                className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors active:scale-95 ${
-                                    activeTab === tab
-                                        ? 'bg-themeblue2 text-white shadow-sm'
-                                        : 'text-tertiary/70 hover:text-primary'
-                                }`}
-                            >
-                                <TabIcon size={18} />
-                            </button>
-                        )
-                    })}
-                </div>
-            )}
-
-            {/* List content — single search bar wrapping all tabs */}
+            {/* List content */}
             <div className="h-full min-h-0">
-                <MobileSearchBar variant="admin" value={searchQuery} onChange={setSearchQuery} onFocusChange={setSearchFocused}>
-                    {searchQuery.trim() ? (
-                        <div className="pb-4">
-                            <div className="px-5 pb-2">
-                                <p className="text-[10pt] font-medium text-tertiary/60 uppercase tracking-wide">Requests</p>
-                            </div>
-                            <AdminRequestsList
-                                searchQuery={searchQuery}
-                                onUserApproved={(approvedUser) => {
-                                    const newUser: AdminUser = {
-                                        id: approvedUser.id,
-                                        email: approvedUser.email,
-                                        first_name: approvedUser.first_name,
-                                        last_name: approvedUser.last_name,
-                                        middle_initial: null,
-                                        credential: null,
-                                        component: null,
-                                        rank: null,
-                                        uic: null,
-                                        roles: approvedUser.supervisor ? ['medic', 'supervisor'] : ['medic'],
-                                        clinic_id: null,
-                                        created_at: new Date().toISOString(),
-                                        last_active_at: null,
-                                        note_include_hpi: approvedUser.noteIncludeHPI ?? true,
-                                        note_include_pe: approvedUser.noteIncludePE ?? false,
-                                        pe_depth: approvedUser.peDepth ?? 'standard',
-                                        avatar_id: null,
-                                    }
-                                    handleEditUser(newUser)
-                                }}
-                            />
-                            <div className="px-5 pb-2 pt-4">
-                                <p className="text-[10pt] font-medium text-tertiary/60 uppercase tracking-wide">Users</p>
-                            </div>
-                            <AdminUsersList
-                                onSelectUser={handleSelectUser}
-                                onEditUser={handleEditUser}
-                                onCreateUser={handleCreateUser}
-                                searchQuery={searchQuery}
-                            />
-                            <div className="px-5 pb-2 pt-4">
-                                <p className="text-[10pt] font-medium text-tertiary/60 uppercase tracking-wide">Clinics</p>
-                            </div>
-                            <AdminClinicsList
-                                onSelectClinic={handleSelectClinic}
-                                onEditClinic={handleEditClinic}
-                                onCreateClinic={handleCreateClinic}
-                                searchQuery={searchQuery}
-                            />
+                {isMobile ? (
+                    // Mobile: MobileSearchBar wraps content, island absolute over it
+                    <div className="relative h-full">
+                        <MobileSearchBar variant="admin" value={searchQuery} onChange={setSearchQuery} onFocusChange={setSearchFocused}>
+                            {searchQuery.trim() ? renderSearchResults() : renderTabLists()}
+                        </MobileSearchBar>
+                        {bottomIsland}
+                    </div>
+                ) : (
+                    // Desktop: scrollable content + absolute-positioned island (like Property)
+                    <div className="relative h-full">
+                        <div className="h-full overflow-y-auto">
+                            {searchQuery.trim() ? renderSearchResults() : renderTabLists()}
                         </div>
-                    ) : (
-                        <>
-                            {activeTab === 'requests' && (
-                                <AdminRequestsList
-                                    searchQuery={searchQuery}
-                                    onUserApproved={(approvedUser) => {
-                                        const newUser: AdminUser = {
-                                            id: approvedUser.id,
-                                            email: approvedUser.email,
-                                            first_name: approvedUser.first_name,
-                                            last_name: approvedUser.last_name,
-                                            middle_initial: null,
-                                            credential: null,
-                                            component: null,
-                                            rank: null,
-                                            uic: null,
-                                            roles: approvedUser.supervisor ? ['medic', 'supervisor'] : ['medic'],
-                                            clinic_id: null,
-                                            created_at: new Date().toISOString(),
-                                            last_active_at: null,
-                                            note_include_hpi: approvedUser.noteIncludeHPI ?? true,
-                                            note_include_pe: approvedUser.noteIncludePE ?? false,
-                                            pe_depth: approvedUser.peDepth ?? 'standard',
-                                            avatar_id: null,
-                                        }
-                                        handleEditUser(newUser)
-                                    }}
-                                />
-                            )}
-                            {activeTab === 'users' && (
-                                <AdminUsersList
-                                    onSelectUser={handleSelectUser}
-                                    onEditUser={handleEditUser}
-                                    onCreateUser={handleCreateUser}
-                                    searchQuery={searchQuery}
-                                />
-                            )}
-                            {activeTab === 'clinics' && (
-                                <AdminClinicsList
-                                    onSelectClinic={handleSelectClinic}
-                                    onEditClinic={handleEditClinic}
-                                    onCreateClinic={handleCreateClinic}
-                                    searchQuery={searchQuery}
-                                />
-                            )}
-                        </>
-                    )}
-                </MobileSearchBar>
+                        {bottomIsland}
+                    </div>
+                )}
             </div>
         </div>
     )
@@ -503,21 +635,29 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     {!isMobile ? (
                         <div className="flex h-full">
                             <div className="w-[260px] shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50">
-                                <div className="shrink-0 px-6 py-3 border-b border-primary/10">
-                                    <p className="text-[10pt] font-medium text-tertiary/70 uppercase tracking-wide">Organization</p>
-                                </div>
-                                <div className="flex-1 overflow-y-auto">
-                                    <AdminTree
-                                        activeClinicId={null}
-                                        activeUserId={null}
-                                        onSelectClinic={handleTreeSelectClinic}
-                                        onSelectUser={handleTreeSelectUser}
-                                        onSelectAll={() => setView('admin')}
-                                        allSelected={view === 'admin'}
-                                        onMoveUser={(_userId, _clinicId) => {}}
-                                        onMoveClinic={(_clinicId, _parentId) => {}}
-                                    />
-                                </div>
+                                <MobileSearchBar
+                                    variant="admin"
+                                    value={searchQuery}
+                                    onChange={setSearchQuery}
+                                    placeholder="Search..."
+                                    onFocusChange={setSearchFocused}
+                                >
+                                    <div className="shrink-0 px-4 py-3 border-b border-primary/10">
+                                        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider px-2">Organization</p>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto">
+                                        <AdminTree
+                                            activeClinicId={null}
+                                            activeUserId={null}
+                                            onSelectClinic={handleTreeSelectClinic}
+                                            onSelectUser={handleTreeSelectUser}
+                                            onSelectAll={() => setView('admin')}
+                                            allSelected={view === 'admin'}
+                                            onMoveUser={(_userId, _clinicId) => {}}
+                                            onMoveClinic={(_clinicId, _parentId) => {}}
+                                        />
+                                    </div>
+                                </MobileSearchBar>
                             </div>
                             <div className="flex-1 min-w-0 overflow-hidden">
                                 {renderContent()}
@@ -528,6 +668,14 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     )}
                 </div>
             </ContentWrapper>
+
+            {/* FAB action sheet — inside BaseDrawer so it's within the z-60 stacking context */}
+            <ActionSheet
+                visible={showAddSheet}
+                title="Add New"
+                options={addSheetOptions}
+                onClose={() => setShowAddSheet(false)}
+            />
         </BaseDrawer>
 
         {/* Clinic delete confirmation — triggered from header pill */}
@@ -540,6 +688,18 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             processing={deleteClinicProcessing}
             onConfirm={handleDeleteClinic}
             onCancel={() => setConfirmDeleteClinic(false)}
+        />
+
+        {/* User delete confirmation — triggered from header pill */}
+        <ConfirmDialog
+            visible={confirmDeleteUser}
+            title={`Delete ${selectedUser?.first_name ?? ''} ${selectedUser?.last_name ?? 'user'}?`}
+            subtitle="This will permanently delete this user and all associated data (notes, training, sync queue). This action cannot be undone."
+            confirmLabel="Delete"
+            variant="danger"
+            processing={deleteUserProcessing}
+            onConfirm={handleDeleteUser}
+            onCancel={() => setConfirmDeleteUser(false)}
         />
         </>
     )

@@ -16,6 +16,7 @@ import { NoteContentPanel } from './NoteContentPanel';
 import { PhysicalExamPanel } from './PhysicalExamPanel';
 import { PlanPanel } from './PlanPanel';
 import { TextTemplatesPanel } from './TextTemplatesPanel';
+import { ProviderTemplatesPanel } from './ProviderTemplatesPanel';
 import { ProfilePage } from './ProfilePage';
 import { ChangePasswordPanel } from './ChangePasswordPanel';
 import { CertificationsPanel } from './CertificationsPanel';
@@ -54,7 +55,7 @@ export const Settings = ({
     initialPanel,
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'sessions-devices' | 'clinic' | 'lora' | 'physical-exam' | 'plan-settings' | 'text-templates'>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'sessions-devices' | 'clinic' | 'lora' | 'physical-exam' | 'plan-settings' | 'text-templates' | 'provider-templates'>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const prevVisibleRef = useRef(false);
@@ -67,6 +68,9 @@ export const Settings = ({
     const [templatesEditing, setTemplatesEditing] = useState(false);
     const [templatesSaveRequested, setTemplatesSaveRequested] = useState(false);
     const [templatesHasPending, setTemplatesHasPending] = useState(false);
+    const [provTemplatesEditing, setProvTemplatesEditing] = useState(false);
+    const [provTemplatesSaveRequested, setProvTemplatesSaveRequested] = useState(false);
+    const [provTemplatesHasPending, setProvTemplatesHasPending] = useState(false);
     const [clinicEditing, setClinicEditing] = useState(false);
     const [clinicSaveRequested, setClinicSaveRequested] = useState(false);
     const [clinicDeleteSelection, setClinicDeleteSelection] = useState<Set<string>>(new Set());
@@ -226,6 +230,9 @@ export const Settings = ({
             if (activePanel === 'text-templates') {
                 return () => { handleSlideAnimation('right'); setTemplatesEditing(false); setActivePanel('note-content'); };
             }
+            if (activePanel === 'provider-templates') {
+                return () => { handleSlideAnimation('right'); setProvTemplatesEditing(false); setProvTemplatesHasPending(false); setActivePanel('note-content'); };
+            }
             return () => { handleSlideAnimation('right'); setActivePanel('main'); };
         }, [activePanel, handleSlideAnimation, guardedClinicAction]),
         activePanel !== 'main',
@@ -241,6 +248,9 @@ export const Settings = ({
         setTemplatesEditing(false);
         setTemplatesSaveRequested(false);
         setTemplatesHasPending(false);
+        setProvTemplatesEditing(false);
+        setProvTemplatesSaveRequested(false);
+        setProvTemplatesHasPending(false);
         setClinicEditing(false);
         setClinicDeleteSelection(new Set());
         onClose();
@@ -339,6 +349,35 @@ export const Settings = ({
                     hideDefaultClose: true,
                 };
             }
+            case 'provider-templates': {
+                const doProvTemplatesBack = () => { handleSlideAnimation('right'); setProvTemplatesEditing(false); setProvTemplatesHasPending(false); setActivePanel('note-content'); };
+                const provTemplatesPills = (
+                    <HeaderPill>
+                        <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
+                            provTemplatesEditing ? 'max-w-16 opacity-100' : 'max-w-0 opacity-0'
+                        }`}>
+                            <PillButton icon={X} iconSize={18} onClick={() => setProvTemplatesEditing(false)} label="Cancel" />
+                        </div>
+                        <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
+                            !provTemplatesEditing ? 'max-w-22 opacity-100' : 'max-w-0 opacity-0'
+                        }`}>
+                            <PillButton icon={Pencil} iconSize={18} onClick={() => setProvTemplatesEditing(true)} label="Edit" />
+                        </div>
+                        {provTemplatesEditing ? (
+                            <PillButton icon={Check} iconSize={18} circleBg="bg-themegreen text-white" onClick={() => setProvTemplatesSaveRequested(true)} label="Save" />
+                        ) : (
+                            <PillButton icon={X} onClick={handleClose} label="Close" />
+                        )}
+                    </HeaderPill>
+                );
+                return {
+                    title: 'Provider Templates',
+                    showBack: true as const,
+                    onBack: doProvTemplatesBack,
+                    rightContent: provTemplatesPills,
+                    hideDefaultClose: true,
+                };
+            }
             case 'plan-settings': {
                 const doPlanBack = () => { handleSlideAnimation('right'); setPlanEditing(false); setPlanHasPending(false); setActivePanel('note-content'); };
                 const planPills = (
@@ -416,7 +455,7 @@ export const Settings = ({
             }
 
         }
-    }, [activePanel, backTo, handleClose, isSupervisorRole, clinicEditing, peEditing, planEditing, planSaveRequested, planHasPending, templatesEditing, templatesSaveRequested, templatesHasPending, handleSlideAnimation, guardedClinicAction]);
+    }, [activePanel, backTo, handleClose, isSupervisorRole, clinicEditing, peEditing, planEditing, planSaveRequested, planHasPending, templatesEditing, templatesSaveRequested, templatesHasPending, provTemplatesEditing, provTemplatesSaveRequested, provTemplatesHasPending, handleSlideAnimation, guardedClinicAction]);
 
     return (<>
         <BaseDrawer
@@ -532,6 +571,14 @@ export const Settings = ({
                                     saveRequested={planSaveRequested}
                                     onSaveComplete={() => { setPlanSaveRequested(false); setPlanEditing(false); }}
                                     onPendingChangesChange={setPlanHasPending}
+                                />
+                            ),
+                            'provider-templates': (
+                                <ProviderTemplatesPanel
+                                    editing={provTemplatesEditing}
+                                    saveRequested={provTemplatesSaveRequested}
+                                    onSaveComplete={() => { setProvTemplatesSaveRequested(false); setProvTemplatesEditing(false); }}
+                                    onPendingChangesChange={setProvTemplatesHasPending}
                                 />
                             ),
                             'text-templates': (

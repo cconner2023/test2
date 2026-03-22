@@ -9,6 +9,7 @@
  */
 
 import { supabase } from './supabase'
+import { useAuthStore } from '../stores/useAuthStore'
 import type { AccountRequest } from './accountRequestService'
 import { createLogger } from '../Utilities/Logger'
 import {
@@ -50,7 +51,7 @@ export interface AdminUser {
  */
 export async function isDevUser(): Promise<boolean> {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = useAuthStore.getState().user
     if (!user) return false
 
     const { data: profile } = await supabase
@@ -121,7 +122,7 @@ export async function approveAccountRequest(
   requestId: string,
 ): Promise<ServiceResult<{ userId?: string; email?: string; firstName?: string; lastName?: string }>> {
   try {
-    const { data: { user: currentUser } } = await supabase.auth.getUser()
+    const currentUser = useAuthStore.getState().user
     if (!currentUser) return fail('Not authenticated')
 
     const { data, error: approveError } = await supabase.rpc('approve_account_request', {
@@ -177,7 +178,7 @@ export async function rejectAccountRequest(
   reason: string
 ): Promise<ServiceResult> {
   try {
-    const { data: { user: currentUser } } = await supabase.auth.getUser()
+    const currentUser = useAuthStore.getState().user
     if (!currentUser) return fail('Not authenticated')
 
     const { error } = await supabase.rpc('reject_account_request', {
@@ -341,7 +342,7 @@ export async function createUser(userData: {
   roles?: ('medic' | 'supervisor' | 'dev' | 'provider')[]
 }): Promise<ServiceResult<{ userId?: string }>> {
   try {
-    const { data: { user: currentUser } } = await supabase.auth.getUser()
+    const currentUser = useAuthStore.getState().user
     if (!currentUser) return fail('Not authenticated')
 
     const createPwError = validatePasswordComplexity(userData.tempPassword)
@@ -380,7 +381,7 @@ export async function resetUserPassword(
   newPassword: string
 ): Promise<ServiceResult> {
   try {
-    const { data: { user: currentUser } } = await supabase.auth.getUser()
+    const currentUser = useAuthStore.getState().user
     if (!currentUser) return fail('Not authenticated')
 
     const resetPwError = validatePasswordComplexity(newPassword)
@@ -409,7 +410,7 @@ export async function deleteUser(
   userId: string
 ): Promise<ServiceResult> {
   try {
-    const { data: { user: currentUser } } = await supabase.auth.getUser()
+    const currentUser = useAuthStore.getState().user
     if (!currentUser) return fail('Not authenticated')
 
     if (currentUser.id === userId) return fail('Cannot delete your own account')
@@ -435,7 +436,7 @@ export async function forceLogoutUser(
   userId: string
 ): Promise<ServiceResult<{ sessionsDeleted?: number; devicesDeleted?: number; bundlesDeleted?: number }>> {
   try {
-    const { data: { user: currentUser } } = await supabase.auth.getUser()
+    const currentUser = useAuthStore.getState().user
     if (!currentUser) return fail('Not authenticated')
 
     const { data, error } = await supabase.rpc('admin_force_logout', {
@@ -658,7 +659,7 @@ export async function setUserClinic(
   clinicId: string | null
 ): Promise<ServiceResult> {
   try {
-    const { data: { user: currentUser } } = await supabase.auth.getUser()
+    const currentUser = useAuthStore.getState().user
     if (!currentUser) return fail('Not authenticated')
 
     const { error } = await supabase.rpc('admin_set_clinic', {
@@ -693,7 +694,7 @@ export async function updateUserProfile(
   }
 ): Promise<ServiceResult> {
   try {
-    const { data: { user: currentUser } } = await supabase.auth.getUser()
+    const currentUser = useAuthStore.getState().user
     if (!currentUser) return fail('Not authenticated')
 
     const { error } = await supabase.rpc('update_user_profile', {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Pencil, Trash2, Building2, Eye } from 'lucide-react'
+import { Pencil, Trash2, Building2, Eye, ChevronRight } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { CardContextMenu } from '../CardContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -115,7 +115,7 @@ export function AdminClinicsList({
 
   return (
     <div>
-      <div className="px-5 pt-4 pb-2 space-y-3">
+      <div className="px-5 pt-4 pb-2 space-y-5">
         {status && <ErrorDisplay type={status.type} message={status.message} />}
       </div>
 
@@ -128,7 +128,7 @@ export function AdminClinicsList({
             title={searchQuery ? 'No clinics match your search' : 'No clinics found'}
           />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
             {filteredClinics.map((clinic) => {
               const assignedUsers = usersInClinic(clinic.id)
               return (
@@ -223,26 +223,23 @@ function ClinicCard({ clinic, assignedUserCount, onTap, onContextMenu }: ClinicC
         onContextMenu(e.clientX, e.clientY)
       }}
       {...longPressHandlers}
-      className="rounded-xl border px-4 py-3.5 transition-colors active:scale-95 cursor-pointer border-tertiary/15 bg-themewhite2 select-none"
+      className="flex items-center gap-3 px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5 cursor-pointer select-none"
     >
-      <div className="flex items-center gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-primary truncate">{clinic.name}</p>
-          {clinic.location && (
-            <p className="text-[10pt] text-tertiary truncate">{clinic.location}</p>
-          )}
-        </div>
-
-        <span className="text-[10pt] text-tertiary shrink-0">
-          {assignedUserCount} user{assignedUserCount !== 1 ? 's' : ''}
-        </span>
+      <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+        <Building2 size={16} className="text-tertiary/50" />
       </div>
 
-      {clinic.uics.length > 0 && (
-        <div className="mt-2">
-          <span className="text-[10pt] text-tertiary">{clinic.uics.join(' · ')}</span>
-        </div>
-      )}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-primary truncate">{clinic.name}</p>
+        <p className="text-[11px] text-tertiary/70 mt-0.5 truncate">
+          {[clinic.location, clinic.uics.length > 0 ? clinic.uics.join(' · ') : null].filter(Boolean).join(' — ') || 'No location'}
+        </p>
+      </div>
+
+      <span className="text-[11px] text-tertiary/50 shrink-0">
+        {assignedUserCount} user{assignedUserCount !== 1 ? 's' : ''}
+      </span>
+      <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
     </div>
   )
 }

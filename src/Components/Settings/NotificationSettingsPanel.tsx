@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { Bell, Mail, Code, Info, Volume2, Plus, Trash2, Wifi, WifiOff } from 'lucide-react'
 import { usePushNotifications } from '../../Hooks/usePushNotifications'
 import { useUserProfile } from '../../Hooks/useUserProfile'
 import { useAuth } from '../../Hooks/useAuth'
-import { isDevUser } from '../../lib/adminService'
 import { isMessageSoundsEnabled, setMessageSoundsEnabled } from '../../lib/soundService'
 import { ToggleSwitch } from './ToggleSwitch'
 import { ErrorDisplay } from '../ErrorDisplay'
@@ -12,17 +11,12 @@ import { UI_TIMING } from '../../Utilities/constants'
 export const NotificationSettingsPanel = () => {
   const { isSupported, isSubscribed, subscriptionInfo, loading, error: pushError, subscribe, unsubscribe } = usePushNotifications()
   const { profile, updateProfile, syncProfileField } = useUserProfile()
-  const { isAuthenticated } = useAuth()
-  const [isDev, setIsDev] = useState(false)
+  const { isAuthenticated, isDevRole } = useAuth()
   const [success, setSuccess] = useState('')
   const [error, setError] = useState('')
 
   const devAlerts = profile.notifyDevAlerts ?? false
   const [soundsEnabled, setSoundsEnabled] = useState(isMessageSoundsEnabled)
-
-  useEffect(() => {
-    isDevUser().then(setIsDev)
-  }, [])
 
   const showSuccess = useCallback((msg: string) => {
     setSuccess(msg)
@@ -166,7 +160,7 @@ export const NotificationSettingsPanel = () => {
                 </div>
 
                 {/* Dev Alerts Toggle — dev users only */}
-                {isDev && (
+                {isDevRole && (
                   <div
                     onClick={() => handleDevAlertToggle(!devAlerts)}
                     className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-tertiary/15 bg-themewhite transition-all cursor-pointer"

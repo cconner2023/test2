@@ -2,378 +2,354 @@
  * AdminCertsSection.tsx
  *
  * Manages certifications for a single user within the admin panel.
- * Supports inline editing, adding, deleting, and verification toggling
- * of certifications with badge-based UI and expandable forms.
+ * Matches the Settings → Certifications panel pattern: each cert is a
+ * card row with icon circle, title, subtitle, and status badge.
+ * CRUD is gated behind the parent's edit mode (header toolbar).
  */
 
-import { useState } from 'react'
-import { Star, X, Plus } from 'lucide-react'
+import { useState, useCallback, useEffect } from 'react'
+import { Award, Plus, Trash2, X, Check, RefreshCw } from 'lucide-react'
 
 import type { Certification } from '../../Data/User'
-import type { AdminUser } from '../../lib/adminService'
 import { credentials } from '../../Data/User'
+import { ConfirmDialog } from '../ConfirmDialog'
+import { ToggleSwitch } from '../Settings/ToggleSwitch'
 import {
   updateCertification,
   adminAddCertification,
   adminDeleteCertification,
   syncPrimaryToProfile,
 } from '../../lib/certificationService'
-import { getExpirationStatus, certBadgeColors } from './adminUtils'
+import { getExpirationStatus } from './adminUtils'
+
+// ─── Helpers ──────────────────────────────────────────────────────────
+
+function statusLabel(s: string) {
+  switch (s) {
+    case 'valid': return { text: 'Valid', cls: 'text-themegreen bg-themegreen/10' }
+    case 'expiring': return { text: 'Expiring', cls: 'text-themeyellow bg-themeyellow/10' }
+    case 'expired': return { text: 'Expired', cls: 'text-themeredred bg-themeredred/10' }
+    default: return { text: 'No Date', cls: 'text-tertiary/50 bg-tertiary/5' }
+  }
+}
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+  })
+}
+
+function toDisplayDate(iso: string): string {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return `${m}/${d}/${y}`
+}
+
+function toIsoDate(display: string): string {
+  const clean = display.replace(/[^0-9/]/g, '')
+  const parts = clean.split('/')
+  if (parts.length === 3 && parts[2].length === 4) {
+    return `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`
+  }
+  return ''
+}
+
+const pillInput = 'w-full rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300'
+
+const emptyForm = { title: '', cert_number: '', issue_date: '', exp_date: '', is_primary: false }
+
+// ─── Types ────────────────────────────────────────────────────────────
 
 interface AdminCertsSectionProps {
   userId: string
   certs: Certification[]
-  currentUserId: string | null
-  allUsers: AdminUser[]
+  editing: boolean
   onChanged: () => void
 }
 
-/** Inline certification management section for admin user detail views */
+// ─── Component ────────────────────────────────────────────────────────
+
 export const AdminCertsSection = ({
   userId,
   certs,
-  currentUserId,
-  allUsers,
+  editing,
   onChanged,
 }: AdminCertsSectionProps) => {
+  const [mode, setMode] = useState<'view' | 'editing' | 'adding'>('view')
   const [editingCertId, setEditingCertId] = useState<string | null>(null)
-  const [deletingCertId, setDeletingCertId] = useState<string | null>(null)
-  const [adding, setAdding] = useState(false)
-
-  // Edit-form state
-  const [editTitle, setEditTitle] = useState('')
-  const [editCertNumber, setEditCertNumber] = useState('')
-  const [editIssueDate, setEditIssueDate] = useState('')
-  const [editExpDate, setEditExpDate] = useState('')
-  const [editIsPrimary, setEditIsPrimary] = useState(false)
+  const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [pendingDeletePrimary, setPendingDeletePrimary] = useState(false)
 
-  // Add-form state
-  const [addTitle, setAddTitle] = useState('')
-  const [addCertNumber, setAddCertNumber] = useState('')
-  const [addIssueDate, setAddIssueDate] = useState('')
-  const [addExpDate, setAddExpDate] = useState('')
-  const [addIsPrimary, setAddIsPrimary] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [addError, setAddError] = useState<string | null>(null)
+  // Reset internal state when parent exits edit mode
+  useEffect(() => {
+    if (!editing) resetForm()
+  }, [editing]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const openEdit = (cert: Certification) => {
-    setDeletingCertId(null)
-    setAdding(false)
-    setEditingCertId(cert.id)
-    setEditTitle(cert.title)
-    setEditCertNumber(cert.cert_number || '')
-    setEditIssueDate(cert.issue_date || '')
-    setEditExpDate(cert.exp_date || '')
-    setEditIsPrimary(cert.is_primary)
-  }
-
-  const openAdd = () => {
+  const resetForm = useCallback(() => {
+    setForm(emptyForm)
+    setMode('view')
     setEditingCertId(null)
-    setDeletingCertId(null)
-    setAdding(true)
-    setAddTitle('')
-    setAddCertNumber('')
-    setAddIssueDate('')
-    setAddExpDate('')
-    setAddIsPrimary(false)
-    setAddError(null)
-  }
-
-  const handleSaveEdit = async () => {
-    if (!editingCertId || !editTitle.trim()) return
-    setSaving(true)
-    const result = await updateCertification(editingCertId, {
-      title: editTitle.trim(),
-      cert_number: editCertNumber.trim() || null,
-      issue_date: editIssueDate || null,
-      exp_date: editExpDate || null,
-      is_primary: editIsPrimary,
-    })
     setSaving(false)
-    if (result.success) {
-      const cert = certs.find(c => c.id === editingCertId)
-      if (cert && editIsPrimary !== cert.is_primary) {
-        await syncPrimaryToProfile(cert.user_id)
-      }
-      setEditingCertId(null)
-      onChanged()
-    }
-  }
+  }, [])
 
-  const handleDelete = async (certId: string, wasPrimary: boolean) => {
-    const result = await adminDeleteCertification(certId, userId, wasPrimary)
-    if (result.success) {
-      setDeletingCertId(null)
-      onChanged()
-    }
-  }
-
-  const handleAdd = async () => {
-    if (!addTitle.trim()) {
-      setAddError('Title is required')
-      return
-    }
-    setSubmitting(true)
-    setAddError(null)
-    const result = await adminAddCertification(userId, {
-      title: addTitle.trim(),
-      cert_number: addCertNumber.trim() || null,
-      issue_date: addIssueDate || null,
-      exp_date: addExpDate || null,
-      is_primary: addIsPrimary,
+  const startEditing = useCallback((cert: Certification) => {
+    setMode('editing')
+    setEditingCertId(cert.id)
+    setForm({
+      title: cert.title,
+      cert_number: cert.cert_number ?? '',
+      issue_date: cert.issue_date ?? '',
+      exp_date: cert.exp_date ?? '',
+      is_primary: cert.is_primary,
     })
-    setSubmitting(false)
+  }, [])
+
+  const handleAdd = useCallback(async () => {
+    if (!form.title.trim()) return
+    setSaving(true)
+    const result = await adminAddCertification(userId, {
+      title: form.title.trim(),
+      cert_number: form.cert_number.trim() || null,
+      issue_date: form.issue_date || null,
+      exp_date: form.exp_date || null,
+      is_primary: form.is_primary,
+    })
     if (result.success) {
-      setAdding(false)
+      resetForm()
       onChanged()
     } else {
-      setAddError(result.error || 'Failed to add')
+      setSaving(false)
     }
-  }
+  }, [form, userId, resetForm, onChanged])
 
-  return (
-    <div className="mt-3 border-t border-tertiary/10 pt-2">
-      {/* Badge row */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        {certs.map(cert => {
-          const status = getExpirationStatus(cert.exp_date)
-          const color = certBadgeColors[status]
+  const handleEdit = useCallback(async (certId: string) => {
+    if (!form.title.trim()) return
+    setSaving(true)
+    const result = await updateCertification(certId, {
+      title: form.title.trim(),
+      cert_number: form.cert_number.trim() || null,
+      issue_date: form.issue_date || null,
+      exp_date: form.exp_date || null,
+      is_primary: form.is_primary,
+    })
+    if (result.success) {
+      const cert = certs.find(c => c.id === certId)
+      if (cert && form.is_primary !== cert.is_primary) {
+        await syncPrimaryToProfile(cert.user_id)
+      }
+      resetForm()
+      onChanged()
+    } else {
+      setSaving(false)
+    }
+  }, [form, certs, resetForm, onChanged])
 
-          if (deletingCertId === cert.id) {
-            return (
-              <span
-                key={cert.id}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border bg-themeredred/10 text-themeredred border-themeredred/30"
-              >
-                Delete?
-                <button
-                  onClick={() => handleDelete(cert.id, cert.is_primary)}
-                  className="font-semibold hover:underline"
-                >
-                  Yes
-                </button>
-                <span className="text-themeredred/40">/</span>
-                <button
-                  onClick={() => setDeletingCertId(null)}
-                  className="font-semibold hover:underline"
-                >
-                  No
-                </button>
-              </span>
-            )
-          }
+  const handleDelete = useCallback(async (certId: string, wasPrimary: boolean) => {
+    setSaving(true)
+    await adminDeleteCertification(certId, userId, wasPrimary)
+    setSaving(false)
+    resetForm()
+    onChanged()
+  }, [userId, resetForm, onChanged])
 
-          return (
-            <span
-              key={cert.id}
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${color}`}
-            >
-              <button onClick={() => openEdit(cert)} className="hover:underline">
-                {cert.title}
-              </button>
-              {cert.is_primary && <Star size={9} className="fill-current" />}
-              <button
-                onClick={() => {
-                  setEditingCertId(null)
-                  setAdding(false)
-                  setDeletingCertId(cert.id)
-                }}
-                className="ml-0.5 opacity-60 hover:opacity-100"
-              >
-                <X size={10} />
-              </button>
-            </span>
-          )
-        })}
+  // ── Edit form (matches CertificationsPanel) ──────────────────────────
 
-        {/* + Add badge */}
-        <button
-          onClick={openAdd}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border border-dashed border-tertiary/30 text-tertiary/50 hover:text-themeblue2 hover:border-themeblue2/40 transition-colors"
+  const renderEditForm = (certId: string | null) => (
+    <div className="px-4 py-3 bg-tertiary/5 space-y-2">
+      <input
+        type="text"
+        list={`cert-sug-${userId}`}
+        value={form.title}
+        onChange={(e) => setForm(f => ({ ...f, title: e.target.value }))}
+        placeholder="Certification title *"
+        className={pillInput}
+      />
+
+      <div className="grid grid-cols-3 gap-2">
+        <input
+          type="text"
+          value={form.cert_number}
+          onChange={(e) => setForm(f => ({ ...f, cert_number: e.target.value }))}
+          placeholder="Cert #"
+          className={pillInput}
+        />
+        <input
+          type="text"
+          inputMode="numeric"
+          value={toDisplayDate(form.issue_date)}
+          onChange={(e) => {
+            const raw = e.target.value
+            setForm(f => ({ ...f, issue_date: toIsoDate(raw) || (raw ? f.issue_date : '') }))
+          }}
+          onBlur={(e) => {
+            if (e.target.value && !toIsoDate(e.target.value)) {
+              setForm(f => ({ ...f, issue_date: '' }))
+            }
+          }}
+          placeholder="Issued (MM/DD/YYYY)"
+          className={pillInput}
+        />
+        <input
+          type="text"
+          inputMode="numeric"
+          value={toDisplayDate(form.exp_date)}
+          onChange={(e) => {
+            const raw = e.target.value
+            setForm(f => ({ ...f, exp_date: toIsoDate(raw) || (raw ? f.exp_date : '') }))
+          }}
+          onBlur={(e) => {
+            if (e.target.value && !toIsoDate(e.target.value)) {
+              setForm(f => ({ ...f, exp_date: '' }))
+            }
+          }}
+          placeholder="Expires (MM/DD/YYYY)"
+          className={pillInput}
+        />
+      </div>
+
+      <div className="flex items-center gap-2 pt-1">
+        <label
+          className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0"
+          onClick={() => setForm(f => ({ ...f, is_primary: !f.is_primary }))}
         >
-          <Plus size={10} /> Add
+          <span className="text-sm text-primary">Primary</span>
+          <ToggleSwitch checked={form.is_primary} />
+        </label>
+
+        {mode === 'editing' && certId && (
+          <button
+            onClick={() => {
+              const cert = certs.find(c => c.id === certId)
+              if (cert) {
+                setPendingDeleteId(cert.id)
+                setPendingDeletePrimary(cert.is_primary)
+              }
+            }}
+            disabled={saving}
+            className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeredred/10 text-themeredred active:scale-95 transition-all"
+          >
+            <Trash2 size={18} />
+          </button>
+        )}
+
+        <button
+          onClick={resetForm}
+          disabled={saving}
+          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+        >
+          <X size={18} />
+        </button>
+
+        <button
+          onClick={() => mode === 'adding' ? handleAdd() : certId && handleEdit(certId)}
+          disabled={saving || !form.title.trim()}
+          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+        >
+          {saving ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
         </button>
       </div>
 
-      {/* Edit form (below badges) */}
-      {editingCertId &&
-        (() => {
-          const cert = certs.find(c => c.id === editingCertId)
-          if (!cert) return null
-          return (
-            <div className="mt-2 rounded-lg border border-themeblue2/30 bg-themewhite2 px-3 py-3 space-y-2.5">
-              <p className="text-xs font-medium text-themeblue2 uppercase tracking-wide">
-                Edit Certification
-              </p>
-              <label className="block">
-                <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
-                  Title
-                </span>
-                <input
-                  type="text"
-                  list={`cert-edit-sug-${userId}`}
-                  value={editTitle}
-                  onChange={e => setEditTitle(e.target.value)}
-                  className="mt-1 w-full px-3 py-2 rounded-lg bg-themewhite text-primary text-sm border border-tertiary/10 focus:border-themeblue2 focus:outline-none transition-colors"
-                />
-                <datalist id={`cert-edit-sug-${userId}`}>
-                  {credentials.map(c => (
-                    <option key={c} value={c} />
-                  ))}
-                </datalist>
-              </label>
-              <label className="block">
-                <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
-                  Cert Number
-                </span>
-                <input
-                  type="text"
-                  value={editCertNumber}
-                  onChange={e => setEditCertNumber(e.target.value)}
-                  placeholder="Optional"
-                  className="mt-1 w-full px-3 py-2 rounded-lg bg-themewhite text-primary text-sm border border-tertiary/10 focus:border-themeblue2 focus:outline-none transition-colors placeholder:text-tertiary/30"
-                />
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="block">
-                  <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
-                    Issue Date
-                  </span>
-                  <input
-                    type="date"
-                    value={editIssueDate}
-                    onChange={e => setEditIssueDate(e.target.value)}
-                    className="mt-1 w-full px-3 py-2 rounded-lg bg-themewhite text-primary text-sm border border-tertiary/10 focus:border-themeblue2 focus:outline-none transition-colors"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
-                    Exp Date
-                  </span>
-                  <input
-                    type="date"
-                    value={editExpDate}
-                    onChange={e => setEditExpDate(e.target.value)}
-                    className="mt-1 w-full px-3 py-2 rounded-lg bg-themewhite text-primary text-sm border border-tertiary/10 focus:border-themeblue2 focus:outline-none transition-colors"
-                  />
-                </label>
-              </div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={editIsPrimary}
-                  onChange={e => setEditIsPrimary(e.target.checked)}
-                  className="rounded border-tertiary/20 text-themeblue2 focus:ring-themeblue2/30"
-                />
-                <span className="text-sm text-primary">Primary certification</span>
-              </label>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleSaveEdit}
-                  disabled={saving || !editTitle.trim()}
-                  className="flex-1 py-2 rounded-lg bg-themeblue3 text-white text-sm font-medium hover:bg-themeblue3/90 disabled:opacity-50 transition-colors"
-                >
-                  {saving ? 'Saving...' : 'Save'}
-                </button>
-                <button
-                  onClick={() => setEditingCertId(null)}
-                  className="px-4 py-2 rounded-lg bg-tertiary/10 text-primary text-sm transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )
-        })()}
+      <datalist id={`cert-sug-${userId}`}>
+        {credentials.map(c => <option key={c} value={c} />)}
+      </datalist>
+    </div>
+  )
 
-      {/* Add form (below badges) */}
-      {adding && (
-        <div className="mt-2 rounded-lg border border-themeblue2/30 bg-themewhite px-3 py-3 space-y-2.5">
-          <p className="text-xs font-medium text-themeblue2 uppercase tracking-wide">
-            Add Certification
-          </p>
-          <label className="block">
-            <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
-              Title <span className="text-themeredred">*</span>
-            </span>
-            <input
-              type="text"
-              list={`cert-add-sug-${userId}`}
-              value={addTitle}
-              onChange={e => setAddTitle(e.target.value)}
-              placeholder="e.g. EMT-B, ACLS, BSN"
-              className="mt-1 w-full px-3 py-2 rounded-lg bg-themewhite2 text-primary text-sm border border-tertiary/10 focus:border-themeblue2 focus:outline-none transition-colors placeholder:text-tertiary/30"
-            />
-            <datalist id={`cert-add-sug-${userId}`}>
-              {credentials.map(c => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
-          </label>
-          <label className="block">
-            <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
-              Cert Number
-            </span>
-            <input
-              type="text"
-              value={addCertNumber}
-              onChange={e => setAddCertNumber(e.target.value)}
-              placeholder="Optional"
-              className="mt-1 w-full px-3 py-2 rounded-lg bg-themewhite2 text-primary text-sm border border-tertiary/10 focus:border-themeblue2 focus:outline-none transition-colors placeholder:text-tertiary/30"
-            />
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="block">
-              <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
-                Issue Date
-              </span>
-              <input
-                type="date"
-                value={addIssueDate}
-                onChange={e => setAddIssueDate(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-lg bg-themewhite2 text-primary text-sm border border-tertiary/10 focus:border-themeblue2 focus:outline-none transition-colors"
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
-                Exp Date
-              </span>
-              <input
-                type="date"
-                value={addExpDate}
-                onChange={e => setAddExpDate(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-lg bg-themewhite2 text-primary text-sm border border-tertiary/10 focus:border-themeblue2 focus:outline-none transition-colors"
-              />
-            </label>
-          </div>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={addIsPrimary}
-              onChange={e => setAddIsPrimary(e.target.checked)}
-              className="rounded border-tertiary/20 text-themeblue2 focus:ring-themeblue2/30"
-            />
-            <span className="text-sm text-primary">Primary</span>
-          </label>
-          {addError && <p className="text-xs text-themeredred">{addError}</p>}
-          <div className="flex gap-2">
-            <button
-              onClick={handleAdd}
-              disabled={submitting || !addTitle.trim()}
-              className="flex-1 py-2 rounded-lg bg-themeblue3 text-white text-sm font-medium hover:bg-themeblue3/90 disabled:opacity-50 transition-colors"
-            >
-              {submitting ? 'Adding...' : 'Add'}
-            </button>
-            <button
-              onClick={() => setAdding(false)}
-              className="px-4 py-2 rounded-lg bg-tertiary/10 text-primary text-sm transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
+  // ── Render ────────────────────────────────────────────────────────────
+
+  if (certs.length === 0 && !editing) {
+    return (
+      <p className="text-sm text-tertiary/50 py-2">No certifications</p>
+    )
+  }
+
+  return (
+    <>
+      {(certs.length > 0 || (editing && mode === 'adding')) && (
+        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          {editing && mode === 'adding' && renderEditForm(null)}
+
+          {certs.map((cert) => {
+            const status = getExpirationStatus(cert.exp_date)
+            const badge = statusLabel(status)
+            const isEditingThis = editing && mode === 'editing' && editingCertId === cert.id
+
+            if (isEditingThis) {
+              return <div key={cert.id}>{renderEditForm(cert.id)}</div>
+            }
+
+            return (
+              <div
+                key={cert.id}
+                className={`px-4 py-3.5 transition-all ${editing ? 'cursor-pointer active:scale-95 hover:bg-themeblue2/5' : ''}`}
+                onClick={editing && mode === 'view' ? () => startEditing(cert) : undefined}
+                role={editing ? 'button' : undefined}
+                tabIndex={editing ? 0 : undefined}
+                onKeyDown={editing && mode === 'view' ? (e) => {
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startEditing(cert) }
+                } : undefined}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                      <Award size={18} className="text-tertiary/50" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-primary truncate">{cert.title}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[11px] text-tertiary/70">
+                          {cert.cert_number ? `#${cert.cert_number}` : 'No cert number'}
+                        </span>
+                        {cert.is_primary && (
+                          <>
+                            <span className="text-[11px] text-tertiary/30">&middot;</span>
+                            <span className="text-[11px] text-tertiary/70">Primary</span>
+                          </>
+                        )}
+                        {cert.exp_date && (
+                          <>
+                            <span className="text-[11px] text-tertiary/30">&middot;</span>
+                            <span className="text-[11px] text-tertiary/70">{formatDate(cert.exp_date)}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{badge.text}</span>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
-    </div>
+
+      {editing && mode === 'view' && (
+        <button
+          onClick={() => { setMode('adding'); setForm(emptyForm) }}
+          className="w-full flex items-center justify-center gap-1.5 py-2.5 mt-2 rounded-lg border border-dashed border-tertiary/20 text-xs text-tertiary/50 hover:border-themeblue2 hover:text-themeblue2 transition-colors active:scale-95"
+        >
+          <Plus size={14} />
+          Add Certification
+        </button>
+      )}
+
+      <ConfirmDialog
+        visible={!!pendingDeleteId}
+        title={`Delete "${certs.find(c => c.id === pendingDeleteId)?.title || 'this certification'}"?`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={async () => {
+          if (pendingDeleteId) {
+            const id = pendingDeleteId
+            const wasPrimary = pendingDeletePrimary
+            setPendingDeleteId(null)
+            await handleDelete(id, wasPrimary)
+          }
+        }}
+        onCancel={() => setPendingDeleteId(null)}
+      />
+    </>
   )
 }

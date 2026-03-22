@@ -7,6 +7,7 @@
  */
 import { supabase } from './supabase'
 import type { User, Session, AuthError } from '@supabase/supabase-js'
+import { useAuthStore } from '../stores/useAuthStore'
 import { createLogger } from '../Utilities/Logger'
 import { hashWithSalt, verifyHash } from './cryptoUtils'
 import { secureSet, secureGet, secureRemove } from './secureStorage'
@@ -216,7 +217,7 @@ async function associateClinic(userId: string, uic: string): Promise<void> {
  */
 export async function deleteOwnAccount(): Promise<ServiceResult> {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = useAuthStore.getState().user
     if (!user) return fail('Not authenticated')
 
     // RPC may not yet exist in generated types — cast to bypass until migration runs

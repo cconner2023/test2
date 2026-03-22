@@ -29,6 +29,7 @@ import { initReceiver, ratchetDecrypt } from './ratchet'
 import { importDhPublicKey } from './keyManager'
 import { uploadKeyBundle, registerDevice } from './signalService'
 import { saveMessage, deleteMessagesByOriginId } from './messageStore'
+import { isCalendarEvent, routeCalendarEvent } from '../calendarRouting'
 import { parseMessageContent } from './messageContent'
 import type { PublicKeyBundle, InitialMessage, EncryptedMessage, RatchetState, RatchetKeyPair } from './types'
 import type { DecryptedSignalMessage, SignalMessageRow, SyncMessagePayload } from './transportTypes'
@@ -668,6 +669,7 @@ export async function processVaultMessages(userId: string): Promise<number> {
           originId: sync.originId ?? row.origin_id ?? undefined,
         }
         await saveMessage(syncMsg, userId)
+        if (isCalendarEvent(syncContent)) routeCalendarEvent(syncContent)
       } else if (row.message_type === 'delete') {
         try {
           const { originIds } = JSON.parse(plaintext) as { originIds: string[] }
@@ -688,6 +690,7 @@ export async function processVaultMessages(userId: string): Promise<number> {
           originId: row.origin_id ?? undefined,
         }
         await saveMessage(msg, userId)
+        if (isCalendarEvent(content)) routeCalendarEvent(content)
       }
 
       processedIds.push(row.id)

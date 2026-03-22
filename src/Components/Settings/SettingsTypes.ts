@@ -28,6 +28,7 @@ export const PANEL = {
     PHYSICAL_EXAM: 30,
     PLAN_SETTINGS: 31,
     TEXT_TEMPLATES: 32,
+    PROVIDER_TEMPLATES: 33,
 } as const;
 
 export type PanelId = (typeof PANEL)[keyof typeof PANEL];
@@ -53,6 +54,7 @@ export const PANEL_TARGET: Partial<Record<PanelId, string>> = {
     [PANEL.PHYSICAL_EXAM]: 'physical-exam',
     [PANEL.PLAN_SETTINGS]: 'plan-settings',
     [PANEL.TEXT_TEMPLATES]: 'text-templates',
+    [PANEL.PROVIDER_TEMPLATES]: 'provider-templates',
 };
 
 export type SettingsItem =

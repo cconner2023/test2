@@ -116,6 +116,25 @@ function RequestCard({
     setExpandedId(isExpanded ? null : request.id)
   }, [hasActions, isExpanded, request.id, setExpandedId])
 
+  const iconBg = isSupport
+    ? 'bg-themeblue2/10'
+    : request.status === 'pending'  ? 'bg-themeyellow/10'
+    : request.status === 'approved' ? 'bg-themegreen/10'
+    : request.status === 'rejected' ? 'bg-themeredred/10'
+    : 'bg-tertiary/10'
+
+  const IconComponent = isSupport
+    ? HelpCircle
+    : request.status === 'pending'  ? Clock
+    : request.status === 'approved' ? UserCheck
+    : X
+
+  const iconColor = isSupport
+    ? 'text-themeblue2'
+    : request.status === 'pending'  ? 'text-themeyellow'
+    : request.status === 'approved' ? 'text-themegreen'
+    : 'text-themeredred'
+
   return (
     <div
       {...longPress}
@@ -124,17 +143,15 @@ function RequestCard({
         setContextMenu({ requestId: request.id, x: e.clientX, y: e.clientY })
       } : undefined}
       onClick={handleTap}
-      className="rounded-xl border px-4 py-3.5 transition-colors border-tertiary/15 bg-themewhite2 cursor-pointer select-none"
+      className="transition-all hover:bg-themeblue2/5 cursor-pointer select-none"
     >
-      {/* Row 1: name + status text */}
-      <div className="flex items-center gap-3">
-        {isSupport && (
-          <div className="w-8 h-8 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
-            <HelpCircle size={16} className="text-themeblue2" />
-          </div>
-        )}
+      {/* Row 1: icon + name/subtitle + status badge */}
+      <div className="flex items-center gap-3 px-4 py-3.5">
+        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
+          <IconComponent size={16} className={iconColor} />
+        </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-primary truncate">
+          <p className="text-sm font-medium text-primary truncate">
             {isSupport ? (
               `${request.first_name}${request.last_name ? ` ${request.last_name}` : ''}`
             ) : (
@@ -146,26 +163,20 @@ function RequestCard({
               </>
             )}
           </p>
-          <p className="text-[10pt] text-tertiary truncate">
+          <p className="text-[11px] text-tertiary/70 mt-0.5 truncate">
             {isSupport
               ? request.email
               : [request.credential, request.email].filter(Boolean).join(' · ')}
           </p>
         </div>
-
-        <span className="text-[10pt] text-tertiary shrink-0 capitalize">
-          {isSupport ? 'Help Request' : request.status}
+        <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0 ${getStatusColor(request.status)}`}>
+          {isSupport ? 'Help' : request.status}
         </span>
       </div>
 
-      {/* Support request: show message preview */}
-      {isSupport && request.notes && !isExpanded && (
-        <p className="text-[10pt] text-tertiary mt-1.5 line-clamp-2">{request.notes}</p>
-      )}
-
-      {/* Row 2: UIC + clinic (plain text) */}
+      {/* Row 2: UIC + clinic */}
       {!isSupport && request.uic && (
-        <div className="flex items-center gap-2 flex-wrap mt-2">
+        <div className="flex items-center gap-2 flex-wrap px-4 pb-2">
           <span className="text-[10pt] text-tertiary">{request.uic}</span>
           {matchedClinic ? (
             <span className="inline-flex items-center gap-1 text-[10pt] text-tertiary">
@@ -178,14 +189,19 @@ function RequestCard({
         </div>
       )}
 
+      {/* Support request: show message preview */}
+      {isSupport && request.notes && !isExpanded && (
+        <p className="text-[10pt] text-tertiary px-4 pb-2 line-clamp-2">{request.notes}</p>
+      )}
+
       {/* Already a user note */}
       {isExistingUser && (
-        <p className="text-[10pt] text-tertiary mt-1">Already a user — safe to clear this request</p>
+        <p className="text-[10pt] text-tertiary px-4 pb-2">Already a user — safe to clear this request</p>
       )}
 
       {/* Expanded detail section */}
       {isExpanded && isSupport && (
-        <div className="mt-3 pt-3 border-t border-tertiary/10 space-y-2" onClick={(e) => e.stopPropagation()}>
+        <div className="px-4 pb-3.5 pt-3 border-t border-tertiary/10 space-y-2" onClick={(e) => e.stopPropagation()}>
           {request.notes && (
             <p className="text-[10pt] text-primary whitespace-pre-wrap">{request.notes}</p>
           )}
@@ -204,7 +220,7 @@ function RequestCard({
       )}
 
       {isExpanded && !isSupport && (
-        <div className="mt-3 pt-3 border-t border-tertiary/10 space-y-2" onClick={(e) => e.stopPropagation()}>
+        <div className="px-4 pb-3.5 pt-3 border-t border-tertiary/10 space-y-2" onClick={(e) => e.stopPropagation()}>
           {request.component && (
             <p className="text-[10pt] text-tertiary">
               Component: <span className="text-primary font-medium">{request.component}</span>
@@ -566,7 +582,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
 
   return (
     <div>
-      <div className="px-5 pt-4 pb-2 space-y-3">
+      <div className="px-5 pt-4 pb-2 space-y-5">
         {status && <ErrorDisplay type={status.type} message={status.message} />}
       </div>
 
@@ -577,13 +593,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
             title={searchQuery ? 'No requests match your search' : 'No requests found'}
           />
         ) : (
-          <div className={`grid gap-3 ${
-            filteredRequests.length === 1
-              ? 'grid-cols-1'
-              : filteredRequests.length === 2
-                ? 'grid-cols-1 md:grid-cols-2'
-                : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
-          }`}>
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-themeblue3/10">
             {filteredRequests.map((request) => {
               const isRejected = request.status === 'rejected'
               const matchedClinic = request.uic
@@ -592,35 +602,34 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
               const isExistingUser = isRejected && userEmails.has(request.email.toLowerCase())
 
               return (
-                <div key={request.id} className={expandedId === request.id ? 'col-span-full' : ''}>
-                  <RequestCard
-                    request={request}
-                    expandedId={expandedId}
-                    setExpandedId={setExpandedId}
-                    approvingId={approvingId}
-                    setApprovingId={setApprovingId}
-                    rejectingId={rejectingId}
-                    setRejectingId={setRejectingId}
-                    processingId={processingId}
-                    rejectReason={rejectReason}
-                    setRejectReason={setRejectReason}
-                    handleApprove={handleApprove}
-                    handleReject={handleReject}
-                    handleReopen={handleReopen}
-                    setConfirmDeleteId={setConfirmDeleteId}
-                    matchedClinic={matchedClinic}
-                    isExistingUser={isExistingUser}
-                    setContextMenu={setContextMenu}
-                    approvalSupervisor={approvalSupervisor}
-                    setApprovalSupervisor={setApprovalSupervisor}
-                    approvalIncludeHPI={approvalIncludeHPI}
-                    setApprovalIncludeHPI={setApprovalIncludeHPI}
-                    approvalIncludePE={approvalIncludePE}
-                    setApprovalIncludePE={setApprovalIncludePE}
-                    approvalPeDepth={approvalPeDepth}
-                    setApprovalPeDepth={setApprovalPeDepth}
-                  />
-                </div>
+                <RequestCard
+                  key={request.id}
+                  request={request}
+                  expandedId={expandedId}
+                  setExpandedId={setExpandedId}
+                  approvingId={approvingId}
+                  setApprovingId={setApprovingId}
+                  rejectingId={rejectingId}
+                  setRejectingId={setRejectingId}
+                  processingId={processingId}
+                  rejectReason={rejectReason}
+                  setRejectReason={setRejectReason}
+                  handleApprove={handleApprove}
+                  handleReject={handleReject}
+                  handleReopen={handleReopen}
+                  setConfirmDeleteId={setConfirmDeleteId}
+                  matchedClinic={matchedClinic}
+                  isExistingUser={isExistingUser}
+                  setContextMenu={setContextMenu}
+                  approvalSupervisor={approvalSupervisor}
+                  setApprovalSupervisor={setApprovalSupervisor}
+                  approvalIncludeHPI={approvalIncludeHPI}
+                  setApprovalIncludeHPI={setApprovalIncludeHPI}
+                  approvalIncludePE={approvalIncludePE}
+                  setApprovalIncludePE={setApprovalIncludePE}
+                  approvalPeDepth={approvalPeDepth}
+                  setApprovalPeDepth={setApprovalPeDepth}
+                />
               )
             })}
           </div>

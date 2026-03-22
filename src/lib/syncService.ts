@@ -79,14 +79,19 @@ export function isOnline(): boolean {
  * the server is reachable before attempting sync operations.
  */
 async function canReachSupabase(): Promise<boolean> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 5000)
   try {
-    const { error } = await supabase
-      .from('training_completions')
-      .select('id')
-      .limit(1)
-    return !error
+    const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/`, {
+      method: 'HEAD',
+      headers: { apikey: import.meta.env.VITE_SUPABASE_ANON_KEY },
+      signal: controller.signal,
+    })
+    return resp.ok
   } catch {
     return false
+  } finally {
+    clearTimeout(timeout)
   }
 }
 

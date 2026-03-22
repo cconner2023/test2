@@ -43,6 +43,7 @@ import {
   fullSync,
 } from '../lib/syncService';
 import { supabase } from '../lib/supabase';
+import { useAuthStore } from '../stores/useAuthStore';
 import { useRealtimeTrainingCompletions } from './useRealtimeTrainingCompletions';
 import { usePageVisibility } from './usePageVisibility';
 import { getTaskData } from '../Data/TrainingData';
@@ -249,9 +250,7 @@ export function useTrainingCompletions() {
     async function init() {
       try {
         // 1. Determine user context
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const user = useAuthStore.getState().user;
         const userId = user?.id || 'guest';
         userIdRef.current = userId;
         setRealtimeUserId(userId);

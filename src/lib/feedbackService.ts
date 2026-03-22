@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { createLogger } from '../Utilities/Logger'
+import { useAuthStore } from '../stores/useAuthStore'
 import { fireNotification } from './notifyDispatcher'
 import { fromSupabase, succeed, fail, type ServiceResult } from './result'
 import { getErrorMessage } from '../Utilities/errorUtils'
@@ -37,7 +38,7 @@ export async function submitFeedback(
     let user_id: string | null = null
     let display_name: string | null = null
 
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = useAuthStore.getState().user
     if (user) {
       user_id = user.id
       const profileResult = fromSupabase<{ display_name: string | null }>(

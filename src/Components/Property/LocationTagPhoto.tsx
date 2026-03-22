@@ -242,6 +242,10 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
           <div
             key={tag.id}
             data-zone-target={tag.target_id}
+            onClick={(e) => {
+              e.stopPropagation()
+              onZoneTap(tag.target_id)
+            }}
             className={[
               'absolute cursor-pointer transition-shadow duration-150 overflow-hidden group',
               isComposite

@@ -128,7 +128,10 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   setRosterSearchQuery: (query) => set({ rosterSearchQuery: query }),
   setShowRosterMobile: (show) => set({ showRosterMobile: show }),
 
-  addEvent: (event) => set((s) => ({ events: [...s.events, event] })),
+  addEvent: (event) => set((s) => {
+    if (s.events.some(e => e.id === event.id)) return s
+    return { events: [...s.events, event] }
+  }),
   updateEvent: (id, updates) => set((s) => ({
     events: s.events.map(e => e.id === id ? { ...e, ...updates, updated_at: new Date().toISOString() } : e),
   })),

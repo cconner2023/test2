@@ -3,6 +3,7 @@ import { Check, RefreshCw, ChevronDown, CheckCircle } from 'lucide-react'
 import type { Component } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import { supabase } from '../../lib/supabase'
+import { useAuthStore } from '../../stores/useAuthStore'
 import { submitProfileChangeRequest } from '../../lib/accountRequestService'
 import { createLogger } from '../../Utilities/Logger'
 import { ErrorDisplay } from '../ErrorDisplay'
@@ -15,6 +16,8 @@ const pillClass =
 const selectClass = `${pillClass} appearance-none`
 
 export const ProfileChangeRequestForm = () => {
+  const user = useAuthStore(s => s.user)
+
   const [currentProfile, setCurrentProfile] = useState({
     email: '',
     firstName: '',
@@ -44,7 +47,6 @@ export const ProfileChangeRequestForm = () => {
   useEffect(() => {
     const loadCurrentProfile = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
         const { data } = await supabase
@@ -79,7 +81,7 @@ export const ProfileChangeRequestForm = () => {
     }
 
     loadCurrentProfile()
-  }, [])
+  }, [user])
 
   const handleComponentChange = (val: string) => {
     setComponent(val)

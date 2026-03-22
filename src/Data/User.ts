@@ -73,6 +73,24 @@ export interface PlanOrderSet {
     presets: Partial<Record<PlanBlockKey, string[]>>;
 }
 
+export interface ProviderNoteTemplate {
+    id: string;
+    name: string;
+    /** Text expander abbr to expand into HPI */
+    hpiExpanderAbbr?: string;
+    hpiText?: string;
+    /** PE depth override for this template */
+    peDepth?: 'focused' | 'comprehensive' | 'custom';
+    peExpanderAbbr?: string;
+    peText?: string;
+    assessmentExpanderAbbr?: string;
+    assessmentText?: string;
+    /** Plan order set ID to auto-apply */
+    planOrderSetId?: string;
+    planExpanderAbbr?: string;
+    planText?: string;
+}
+
 export interface UserTypes {
     firstName?: string;
     lastName?: string;
@@ -114,6 +132,8 @@ export interface UserTypes {
     tc3Mode?: boolean;
     /** Favorite medication trade names (icon field) pinned to the top of the list */
     favoriteMedications?: string[];
+    /** Provider note templates — composable skeletons from expanders + plan blocks */
+    providerNoteTemplates?: ProviderNoteTemplate[];
 }
 
 export const credentials: Credential[] = ['EMT-B', 'EMT-A', 'EMT-P', 'PA-C', 'NP', 'MD', 'DO'];

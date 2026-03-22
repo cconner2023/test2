@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuthStore } from '../stores/useAuthStore'
 import { loadCachedClinicUsers, saveCachedClinicUsers } from '../lib/clinicUsersCache'
 import { createLogger } from '../Utilities/Logger'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
@@ -17,7 +18,7 @@ export function useClinicMedics() {
     setError(null)
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = useAuthStore.getState().user
       if (!user) {
         setError('Not authenticated')
         setLoading(false)

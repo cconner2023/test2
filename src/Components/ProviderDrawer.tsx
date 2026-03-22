@@ -11,7 +11,11 @@ import { useImagePaste } from '../Hooks/useImagePaste'
 import { UI_TIMING } from '../Utilities/constants'
 import { ProviderNote } from './Provider/ProviderNote'
 import { ProviderNoteOutput } from './Provider/ProviderNoteOutput'
+import { ProviderTemplateList } from './Provider/ProviderTemplateList'
 import type { PEState } from '../Types/PETypes'
+import type { ProviderNoteTemplate, TextExpander, PlanOrderSet, PlanBlockKey } from '../Data/User'
+import { PLAN_ORDER_LABELS } from '../Data/User'
+import { useUserProfile } from '../Hooks/useUserProfile'
 import { parseNoteEncoding, findAlgorithmByCode, findSymptomByCode, reconstructCardStates } from '../Utilities/noteParser'
 import { decodePEState } from '../Utilities/peCodec'
 import { isEncryptedBarcode, decryptBarcode } from '../Utilities/NoteCodec'
@@ -69,6 +73,42 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
 
   const isMobile = useIsMobile()
+  const { profile } = useUserProfile()
+  const templates = profile.providerNoteTemplates ?? []
+
+  // ── Template apply (merge — only fills empty provider fields) ──────────────
+
+  const resolveExpander = useCallback((abbr: string | undefined, expanders: TextExpander[]): string => {
+    if (!abbr) return ''
+    const match = expanders.find(e => e.abbr === abbr)
+    return match?.expansion ?? ''
+  }, [])
+
+  const generatePlanFromOrderSet = useCallback((orderSet: PlanOrderSet): string => {
+    const labels: Record<string, string> = { ...PLAN_ORDER_LABELS, instructions: 'Instructions' }
+    const blockOrder: PlanBlockKey[] = ['meds', 'lab', 'radiology', 'referral', 'instructions', 'followUp']
+    const lines: string[] = []
+    for (const key of blockOrder) {
+      const tags = orderSet.presets[key]
+      if (tags?.length) lines.push(`${labels[key]}: ${tags.join('; ')}`)
+    }
+    return lines.join('\n')
+  }, [])
+
+  const handleApplyTemplate = useCallback((template: ProviderNoteTemplate) => {
+    const expanders = profile.textExpanders ?? []
+    if (!hpiNote) setHpiNote(template.hpiText || resolveExpander(template.hpiExpanderAbbr, expanders))
+    if (!peNote) setPeNote(template.peText || resolveExpander(template.peExpanderAbbr, expanders))
+    if (!assessmentNote) setAssessmentNote(template.assessmentText || resolveExpander(template.assessmentExpanderAbbr, expanders))
+    if (!planNote) {
+      let text = template.planText || resolveExpander(template.planExpanderAbbr, expanders)
+      if (!text && template.planOrderSetId) {
+        const orderSet = (profile.planOrderSets ?? []).find(os => os.id === template.planOrderSetId)
+        if (orderSet) text = generatePlanFromOrderSet(orderSet)
+      }
+      if (text) setPlanNote(text)
+    }
+  }, [profile.textExpanders, profile.planOrderSets, hpiNote, peNote, assessmentNote, planNote, resolveExpander, generatePlanFromOrderSet])
 
   // ── Import decode logic ────────────────────────────────────────────────────
 
@@ -338,67 +378,132 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       header={headerConfig}
       blurHeader
     >
-      <ContentWrapper
-        slideDirection={isMobile ? slideDirection : ''}
-        swipeHandlers={isMobile && canSwipeBack ? swipeHandlers : undefined}
-      >
-        {/* Camera scanning overlay */}
-        {(scanRequested || isScanning) && (
-          <div className="px-4 pt-3 pb-2">
-            <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
-              <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
-              <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute inset-4 border-2 border-white/30 rounded-lg" />
-                <div className="absolute inset-x-4 top-1/2 h-0.5 bg-themeblue2 animate-pulse" />
-                <ScanLine className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 text-white/50" />
-              </div>
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
-                Looking for barcode...
-              </div>
-            </div>
-            <div className="flex justify-center pt-2">
-              <button onClick={() => { stopScanning(); setScanRequested(false) }} className="text-xs text-tertiary/60 hover:text-tertiary active:scale-95 transition-colors">Cancel scan</button>
-            </div>
-          </div>
-        )}
-        {/* Decode error */}
-        {decodeError && (
-          <div className="px-4 pt-2">
-            <div className="text-xs text-themeredred">{decodeError}</div>
-          </div>
-        )}
-
-        {/* Content */}
-        <div className="px-5 pt-14 py-3 md:p-5 md:pt-14 pb-8">
-          {view === 'note' ? (
-            <ProviderNote
-              hpiNote={hpiNote}
-              setHpiNote={setHpiNote}
-              peNote={peNote}
-              setPeNote={setPeNote}
-              peState={peState}
-              onPeStateChange={setPeState}
-              peResetKey={peResetKey}
-              assessmentNote={assessmentNote}
-              setAssessmentNote={setAssessmentNote}
-              planNote={planNote}
-              setPlanNote={setPlanNote}
-              onNext={handleGoToOutput}
-              importedMedicNote={importedMedicNote}
+      {!isMobile ? (
+        <div className="flex h-full">
+          {/* Left pane — templates */}
+          <div className="w-[260px] shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50 pt-14">
+            <ProviderTemplateList
+              templates={templates}
+              onSelect={handleApplyTemplate}
             />
-          ) : (
-            <ProviderNoteOutput
-              hpiNote={hpiNote}
-              peNote={peNote}
-              peState={peState}
-              assessmentNote={assessmentNote}
-              planNote={planNote}
-              importedMedicNote={importedMedicNote}
-              medicBarcode={medicBarcode}
-            />
-          )}
+          </div>
+          {/* Right pane — note content */}
+          <div className="flex-1 min-w-0 overflow-y-auto">
+            <ContentWrapper slideDirection="" swipeHandlers={undefined}>
+              {(scanRequested || isScanning) && (
+                <div className="px-4 pt-3 pb-2">
+                  <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
+                    <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+                    <div className="absolute inset-0 pointer-events-none">
+                      <div className="absolute inset-4 border-2 border-white/30 rounded-lg" />
+                      <div className="absolute inset-x-4 top-1/2 h-0.5 bg-themeblue2 animate-pulse" />
+                      <ScanLine className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 text-white/50" />
+                    </div>
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
+                      Looking for barcode...
+                    </div>
+                  </div>
+                  <div className="flex justify-center pt-2">
+                    <button onClick={() => { stopScanning(); setScanRequested(false) }} className="text-xs text-tertiary/60 hover:text-tertiary active:scale-95 transition-colors">Cancel scan</button>
+                  </div>
+                </div>
+              )}
+              {decodeError && (
+                <div className="px-4 pt-2">
+                  <div className="text-xs text-themeredred">{decodeError}</div>
+                </div>
+              )}
+              <div className="p-5 pt-14 pb-8">
+                {view === 'note' ? (
+                  <ProviderNote
+                    hpiNote={hpiNote}
+                    setHpiNote={setHpiNote}
+                    peNote={peNote}
+                    setPeNote={setPeNote}
+                    peState={peState}
+                    onPeStateChange={setPeState}
+                    peResetKey={peResetKey}
+                    assessmentNote={assessmentNote}
+                    setAssessmentNote={setAssessmentNote}
+                    planNote={planNote}
+                    setPlanNote={setPlanNote}
+                    onNext={handleGoToOutput}
+                    importedMedicNote={importedMedicNote}
+                  />
+                ) : (
+                  <ProviderNoteOutput
+                    hpiNote={hpiNote}
+                    peNote={peNote}
+                    peState={peState}
+                    assessmentNote={assessmentNote}
+                    planNote={planNote}
+                    importedMedicNote={importedMedicNote}
+                    medicBarcode={medicBarcode}
+                  />
+                )}
+              </div>
+            </ContentWrapper>
+          </div>
         </div>
-      </ContentWrapper>
+      ) : (
+        <ContentWrapper
+          slideDirection={slideDirection}
+          swipeHandlers={canSwipeBack ? swipeHandlers : undefined}
+        >
+          {(scanRequested || isScanning) && (
+            <div className="px-4 pt-3 pb-2">
+              <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
+                <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+                <div className="absolute inset-0 pointer-events-none">
+                  <div className="absolute inset-4 border-2 border-white/30 rounded-lg" />
+                  <div className="absolute inset-x-4 top-1/2 h-0.5 bg-themeblue2 animate-pulse" />
+                  <ScanLine className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 text-white/50" />
+                </div>
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
+                  Looking for barcode...
+                </div>
+              </div>
+              <div className="flex justify-center pt-2">
+                <button onClick={() => { stopScanning(); setScanRequested(false) }} className="text-xs text-tertiary/60 hover:text-tertiary active:scale-95 transition-colors">Cancel scan</button>
+              </div>
+            </div>
+          )}
+          {decodeError && (
+            <div className="px-4 pt-2">
+              <div className="text-xs text-themeredred">{decodeError}</div>
+            </div>
+          )}
+          <div className="px-5 pt-14 py-3 pb-8">
+            {view === 'note' ? (
+              <ProviderNote
+                hpiNote={hpiNote}
+                setHpiNote={setHpiNote}
+                peNote={peNote}
+                setPeNote={setPeNote}
+                peState={peState}
+                onPeStateChange={setPeState}
+                peResetKey={peResetKey}
+                assessmentNote={assessmentNote}
+                setAssessmentNote={setAssessmentNote}
+                planNote={planNote}
+                setPlanNote={setPlanNote}
+                onNext={handleGoToOutput}
+                importedMedicNote={importedMedicNote}
+              />
+            ) : (
+              <ProviderNoteOutput
+                hpiNote={hpiNote}
+                peNote={peNote}
+                peState={peState}
+                assessmentNote={assessmentNote}
+                planNote={planNote}
+                importedMedicNote={importedMedicNote}
+                medicBarcode={medicBarcode}
+              />
+            )}
+          </div>
+        </ContentWrapper>
+      )}
     </BaseDrawer>
   )
 }

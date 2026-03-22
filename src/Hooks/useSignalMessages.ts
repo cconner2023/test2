@@ -278,10 +278,14 @@ export function useSignalMessages({
       catchUpDone.current = false
       setCatchUpTrigger(t => t + 1)
 
-      // Second catch-up after subscription reconnects to close the gap
+      // Safety-net catch-up: only fires if the immediate catch-up
+      // hasn't already delivered messages (covers slow reconnects
+      // on mobile Safari where tabs are aggressively suspended)
       const timer = setTimeout(() => {
-        catchUpDone.current = false
-        setCatchUpTrigger(t => t + 1)
+        if (!catchUpDone.current) {
+          catchUpDone.current = false
+          setCatchUpTrigger(t => t + 1)
+        }
       }, 2000)
 
       prevVisibleRef.current = isPageVisible

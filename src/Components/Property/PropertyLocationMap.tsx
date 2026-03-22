@@ -100,6 +100,8 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   const [pendingZoneDelete, setPendingZoneDelete] = useState<{ targetId: string; label: string } | null>(null)
   const editRef = useRef<CanvasEditHandle>(null)
   const dragRef = useRef<{ startX: number; startY: number; scrollX: number; scrollY: number; zoneId: string | null } | null>(null)
+  /** Suppress the click event that follows a drag-to-pan or a handled zone tap */
+  const suppressClickRef = useRef(false)
   const lcaCleanupRef = useRef<(() => void) | null>(null)
   // Track edit selection count so toolbar re-renders when shift-selection changes
   const [editSelectionCount, setEditSelectionCount] = useState(0)
@@ -662,8 +664,8 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   }, [store, locations, allWorldTags, zoomToTag, handleResetZoom])
 
   // ── Click-drag panning ──
-  // Always capture the pointer so panning works even over zones.
-  // Zone taps are detected in handlePanEnd via the data-zone-target attribute.
+  // Desktop: capture pointer for drag-to-pan.
+  // Mobile view mode: skip entirely — native scroll handles pan, onClick handles taps.
   const handlePanStart = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return
     if (e.clientX < 20 || e.clientX > window.innerWidth - 20) return
@@ -672,6 +674,10 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     if ((e.target as HTMLElement).closest('[data-zoom-controls]')) return
     // In edit mode, don't pan when interacting with a zone or its controls
     if (isEditing && (e.target as HTMLElement).closest('[data-zone]')) return
+
+    // Mobile view mode: let native scroll handle everything — zone taps use onClick
+    if (isMobile && e.pointerType === 'touch' && !isEditing) return
+
     const el = scrollRef.current
     if (!el) return
 
@@ -690,6 +696,11 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     if (!dragRef.current) return
     // Desktop mouse-drag panning — mobile relies on native scroll
     if (!isMobile && e.pointerType === 'mouse') {
+      const dx = Math.abs(e.clientX - dragRef.current.startX)
+      const dy = Math.abs(e.clientY - dragRef.current.startY)
+      if (dx > TAP_THRESHOLD || dy > TAP_THRESHOLD) {
+        suppressClickRef.current = true
+      }
       const el = scrollRef.current
       if (!el) return
       el.scrollLeft = dragRef.current.scrollX - (e.clientX - dragRef.current.startX)
@@ -709,21 +720,40 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         try { el.releasePointerCapture(e.pointerId) } catch {}
         el.style.cursor = ''
       }
-    }
 
-    // If the pointer barely moved, treat as a tap (view mode only)
-    if (!isEditing) {
-      const dx = Math.abs(e.clientX - d.startX)
-      const dy = Math.abs(e.clientY - d.startY)
-      if (dx < TAP_THRESHOLD && dy < TAP_THRESHOLD) {
-        if (d.zoneId) {
-          handleZoneTap(d.zoneId)
-        } else if (store.selectedZoneId) {
-          store.selectZone(null)
+      // Desktop tap detection — pointer capture prevents zone onClick from firing,
+      // so we detect taps here via drag threshold (mobile uses onClick directly)
+      if (!isEditing) {
+        const dx = Math.abs(e.clientX - d.startX)
+        const dy = Math.abs(e.clientY - d.startY)
+        if (dx < TAP_THRESHOLD && dy < TAP_THRESHOLD) {
+          // Suppress the subsequent click so handleCanvasClick doesn't undo the selection
+          suppressClickRef.current = true
+          if (d.zoneId) {
+            handleZoneTap(d.zoneId)
+          } else if (store.selectedZoneId) {
+            store.selectZone(null)
+          }
         }
       }
     }
-  }, [store, isEditing, handleZoneTap])
+    // Reset suppress flag after click event fires (click comes after pointerup in the same frame)
+    setTimeout(() => { suppressClickRef.current = false }, 0)
+  }, [isMobile, isEditing, store, handleZoneTap])
+
+  // ── Canvas click — deselect when tapping empty canvas (mobile uses this + zone onClick) ──
+  const handleCanvasClick = useCallback((e: React.MouseEvent) => {
+    if (isEditing) return
+    // Suppress click that follows a drag-to-pan
+    if (suppressClickRef.current) return
+    // If the click landed on a zone, its onClick already handled it (stopPropagation)
+    // This only fires for empty canvas clicks
+    if ((e.target as HTMLElement).closest('[data-zone-target]')) return
+    if ((e.target as HTMLElement).closest('[data-zoom-controls]')) return
+    if (store.selectedZoneId) {
+      store.selectZone(null)
+    }
+  }, [isEditing, store])
 
   // ── One-level-deep content for the bottom panel ──
   // Context = selected zone, or null (root) if nothing selected
@@ -997,6 +1027,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
           onPointerMove={handlePanMove}
           onPointerUp={handlePanEnd}
           onPointerCancel={handlePanEnd}
+          onClick={handleCanvasClick}
         >
           {isEditing && parentBounds ? (
             /* ── Nested edit: dimmed background + scoped overlay at parent zone bounds ── */
@@ -1048,7 +1079,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                   drawMode={isDrawing}
                   resizeMode={isResizing}
                   moveMode={isMoving}
-                  scale={canvasScale}
+                  scale={1}
                   editRef={editRef}
                   onSave={handleEditSave}
                   onCancel={handleExitEdit}
@@ -1067,7 +1098,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                   tags={visibleTagsWithPins}
                   selectedZoneId={store.selectedZoneId}
                   onZoneTap={handleZoneTap}
-                  scale={canvasScale}
+                  scale={1}
                   photoMap={photoMap}
                   items={items}
                   onItemTap={onSelectItem}

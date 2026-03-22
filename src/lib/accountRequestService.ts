@@ -16,6 +16,7 @@
 
 import { supabase } from './supabase'
 import { createLogger } from '../Utilities/Logger'
+import { useAuthStore } from '../stores/useAuthStore'
 import { classifySupabaseError, ErrorCode } from './errorCodes'
 import { validateRpcResult } from './validators'
 import { fireNotification } from './notifyDispatcher'
@@ -155,7 +156,7 @@ export async function submitProfileChangeRequest(
   request: AccountRequestSubmission
 ): Promise<SubmitResult> {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = useAuthStore.getState().user
     if (!user) {
       return fail('You must be logged in to request profile changes.')
     }
