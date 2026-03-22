@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
-import { ChevronRight, Lock, BookOpen, CalendarDays } from 'lucide-react'
+import { ChevronRight, Lock, CalendarDays } from 'lucide-react'
 import { getTaskData } from '../../../Data/TrainingData'
-import { subjectAreaIcons, skillLevelLabels } from '../../../Data/TrainingConstants'
+import { skillLevelLabels } from '../../../Data/TrainingConstants'
 import { buildTestableTasksByCategory, formatMedicName } from './supervisorHelpers'
 import type { FlatTask } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
@@ -57,60 +57,55 @@ function SelectTaskForAssignment({
       {totalResults === 0 && isSearching ? (
         <p className="text-sm text-tertiary/40 text-center py-8">No tasks match your search.</p>
       ) : (
-        <div className="space-y-1">
+        <div className="space-y-5">
           {Array.from(displayCategories).map(([categoryName, tasks]) => (
             <div key={categoryName}>
-              <div className="px-6 pt-4 pb-1 flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-tertiary/50">
-                  {subjectAreaIcons[categoryName] ?? <BookOpen size={14} />}
-                  <p className="text-[10px] font-semibold tracking-widest uppercase">
-                    {categoryName}
-                  </p>
-                </div>
-                <p className="text-[10px] text-tertiary/40">
-                  {tasks.length}
-                </p>
-              </div>
+              <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
+                {categoryName} <span className="font-normal text-tertiary/50">({tasks.length})</span>
+              </p>
 
-              {tasks.map((task) => {
-                const hasData = !!getTaskData(task.taskId)
-                const badge = skillLevelLabels[task.levelName] ?? task.levelName
+              <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                {tasks.map((task, idx) => {
+                  const hasData = !!getTaskData(task.taskId)
+                  const badge = skillLevelLabels[task.levelName] ?? task.levelName
 
-                return (
-                  <button
-                    key={task.taskId}
-                    onClick={() => hasData && onSelectTask(task.taskId, task.title)}
-                    disabled={!hasData}
-                    className={`flex items-center w-full px-6 py-3 rounded-lg text-left transition-all
-                      ${hasData
-                        ? 'hover:bg-themewhite2 active:scale-95 cursor-pointer'
-                        : 'opacity-40 cursor-not-allowed'
-                      }`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium truncate ${hasData ? 'text-primary' : 'text-tertiary'}`}>
-                        {task.title}
-                      </p>
-                      <p className="text-[8pt] text-tertiary/50 font-mono">
-                        {task.taskId}
-                      </p>
-                      {!hasData && (
-                        <p className="text-[8pt] text-tertiary/40 flex items-center gap-1 mt-0.5">
-                          <Lock size={9} /> Coming soon
+                  return (
+                    <button
+                      key={task.taskId}
+                      onClick={() => hasData && onSelectTask(task.taskId, task.title)}
+                      disabled={!hasData}
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all
+                        ${idx > 0 ? 'border-t border-themeblue3/10' : ''}
+                        ${hasData
+                          ? 'hover:bg-themeblue2/5 active:scale-95 cursor-pointer'
+                          : 'opacity-40 cursor-not-allowed'
+                        }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium truncate ${hasData ? 'text-primary' : 'text-tertiary'}`}>
+                          {task.title}
                         </p>
-                      )}
-                    </div>
-                    <div className="shrink-0 ml-2 flex items-center gap-2">
-                      <span className="px-1.5 py-0.5 rounded text-[8pt] font-semibold bg-themewhite2 text-tertiary/60">
-                        {badge}
-                      </span>
-                      {hasData && (
-                        <ChevronRight size={16} className="text-tertiary/30" />
-                      )}
-                    </div>
-                  </button>
-                )
-              })}
+                        <p className="text-[8pt] text-tertiary/50 font-mono">
+                          {task.taskId}
+                        </p>
+                        {!hasData && (
+                          <p className="text-[8pt] text-tertiary/40 flex items-center gap-1 mt-0.5">
+                            <Lock size={9} /> Coming soon
+                          </p>
+                        )}
+                      </div>
+                      <div className="shrink-0 flex items-center gap-2">
+                        <span className="px-1.5 py-0.5 rounded text-[8pt] font-semibold bg-themeblue3/10 text-tertiary/60">
+                          {badge}
+                        </span>
+                        {hasData && (
+                          <ChevronRight size={16} className="text-tertiary/30" />
+                        )}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           ))}
         </div>
@@ -203,15 +198,17 @@ function AssignmentDetails({
 interface AssignTaskFlowProps {
   soldier: ClinicMedic
   searchQuery?: string
+  preSelectedTask?: { id: string; title: string }
   onSubmit: (taskId: string, taskTitle: string, dueDate: string, notes: string) => void
 }
 
 export function AssignTaskFlow({
   soldier,
   searchQuery,
+  preSelectedTask,
   onSubmit,
 }: AssignTaskFlowProps) {
-  const [selectedTask, setSelectedTask] = useState<{ id: string; title: string } | null>(null)
+  const [selectedTask, setSelectedTask] = useState<{ id: string; title: string } | null>(preSelectedTask ?? null)
   const medicName = formatMedicName(soldier)
 
   if (selectedTask) {

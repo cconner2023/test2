@@ -319,7 +319,7 @@ function calendarDays(year: number, month: number): (Date | null)[] {
   return days
 }
 
-function DatePickerCalendar({
+export function DatePickerCalendar({
   value,
   onChange,
   onClose,

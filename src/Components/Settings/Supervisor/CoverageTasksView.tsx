@@ -1,8 +1,10 @@
 import { useMemo, useState, useCallback } from 'react'
-import { ChevronRight, Lock, BookOpen, ClipboardCheck } from 'lucide-react'
+import { ChevronRight, Lock } from 'lucide-react'
 import { isTaskTestable } from '../../../Data/TrainingData'
 import { skillLevelLabels } from '../../../Data/TrainingConstants'
 import { formatMedicName, getLatestTestByTask } from './supervisorHelpers'
+import { ActionSheet } from '../../ActionSheet'
+import type { ActionSheetOption } from '../../ActionSheet'
 import type { FlatTask } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { TrainingCompletionUI } from '../../../lib/trainingService'
@@ -37,9 +39,12 @@ interface CoverageTasksViewProps {
   medics: ClinicMedic[]
   testsForSoldier: (userId: string) => TrainingCompletionUI[]
   onEvaluate: (soldier: ClinicMedic, taskId: string, taskTitle: string) => void
+  onAssign: (soldier: ClinicMedic, taskId: string, taskTitle: string) => void
   onBack: () => void
   /** Called when internal navigation changes so parent can update header */
   onViewChange?: (view: 'task-list' | 'soldier-list', taskTitle?: string) => void
+  /** When set, tapping a task shows the action sheet for this soldier directly instead of navigating to the soldier list */
+  preSelectedSoldier?: ClinicMedic
 }
 
 export function CoverageTasksView({
@@ -48,10 +53,15 @@ export function CoverageTasksView({
   medics,
   testsForSoldier,
   onEvaluate,
+  onAssign,
   onBack,
   onViewChange,
+  preSelectedSoldier,
 }: CoverageTasksViewProps) {
   const [view, setView] = useState<CoverageView>({ step: 'task-list' })
+  // Action sheet state: soldier + task to act on
+  const [sheetSoldier, setSheetSoldier] = useState<ClinicMedic | null>(null)
+  const [sheetTask, setSheetTask] = useState<FlatTask | null>(null)
 
   const navigateTo = useCallback((next: CoverageView) => {
     setView(next)
@@ -61,6 +71,36 @@ export function CoverageTasksView({
       onViewChange?.('soldier-list', next.task.title)
     }
   }, [onViewChange])
+
+  const openSheet = useCallback((soldier: ClinicMedic, task: FlatTask) => {
+    setSheetSoldier(soldier)
+    setSheetTask(task)
+  }, [])
+
+  const closeSheet = useCallback(() => {
+    setSheetSoldier(null)
+    setSheetTask(null)
+  }, [])
+
+  const sheetOptions = useMemo<ActionSheetOption[]>(() => {
+    if (!sheetSoldier || !sheetTask) return []
+    return [
+      {
+        key: 'evaluate',
+        label: 'Evaluate',
+        onAction: () => onEvaluate(sheetSoldier, sheetTask.taskId, sheetTask.title),
+      },
+      {
+        key: 'assign',
+        label: 'Assign Task',
+        onAction: () => onAssign(sheetSoldier, sheetTask.taskId, sheetTask.title),
+      },
+    ]
+  }, [sheetSoldier, sheetTask, onEvaluate, onAssign])
+
+  const sheetTitle = sheetSoldier && sheetTask
+    ? `${formatMedicName(sheetSoldier)} · ${sheetTask.title}`
+    : ''
 
   /** For each task, compute how many soldiers passed */
   const taskCoverage = useMemo(() => {
@@ -106,8 +146,7 @@ export function CoverageTasksView({
     }
   }, [view, navigateTo, onBack])
 
-  // Expose handleBack for parent to call
-  // We'll use onBack prop cascade instead
+  // ── Soldier list view (coverage flow: area → task → soldiers) ─────────────
 
   if (view.step === 'soldier-list') {
     const { task } = view
@@ -143,7 +182,7 @@ export function CoverageTasksView({
             return (
               <button
                 key={soldier.id}
-                onClick={() => testable && onEvaluate(soldier, task.taskId, task.title)}
+                onClick={() => testable && openSheet(soldier, task)}
                 disabled={!testable}
                 className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all
                   ${testable ? 'hover:bg-themeblue2/5 active:scale-95' : 'opacity-50 cursor-not-allowed'}`}
@@ -155,17 +194,90 @@ export function CoverageTasksView({
                   {cfg.label}
                 </span>
                 {testable && (
-                  <ClipboardCheck size={16} className="text-tertiary/30 shrink-0" />
+                  <ChevronRight size={16} className="text-tertiary/30 shrink-0" />
                 )}
               </button>
             )
           })}
         </div>
+
+        <ActionSheet
+          visible={!!sheetSoldier}
+          title={sheetTitle}
+          options={sheetOptions}
+          onClose={closeSheet}
+        />
       </div>
     )
   }
 
-  // Task list view
+  // ── Pre-selected soldier: SelectTaskStep-style list (no coverage bars) ────
+
+  if (preSelectedSoldier) {
+    return (
+      <div>
+        <p className="text-xs text-tertiary/60 mb-3">
+          Select a task for <span className="font-medium text-primary">{formatMedicName(preSelectedSoldier)}</span>:
+        </p>
+
+        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
+          {areaName} <span className="font-normal text-tertiary/50">({tasks.length})</span>
+        </p>
+        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          {tasks.map((task, index) => {
+            const testable = isTaskTestable(task.taskId)
+            const badge = skillLevelLabels[task.levelName] ?? task.levelName
+
+            return (
+              <button
+                key={task.taskId}
+                onClick={() => testable && openSheet(preSelectedSoldier, task)}
+                disabled={!testable}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all
+                  ${index > 0 ? 'border-t border-themeblue3/10' : ''}
+                  ${testable
+                    ? 'hover:bg-themeblue2/5 active:scale-95 cursor-pointer'
+                    : 'opacity-40 cursor-not-allowed'
+                  }`}
+              >
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-medium truncate ${testable ? 'text-primary' : 'text-tertiary'}`}>
+                    {task.title}
+                  </p>
+                  <p className="text-[8pt] text-tertiary/50 font-mono">
+                    {task.taskId}
+                  </p>
+                  {!testable && (
+                    <p className="text-[8pt] text-tertiary/40 flex items-center gap-1 mt-0.5">
+                      <Lock size={9} /> Not testable
+                    </p>
+                  )}
+                </div>
+                <div className="shrink-0 ml-2 flex items-center gap-2">
+                  <span className="px-1.5 py-0.5 rounded text-[8pt] font-semibold bg-themeblue3/10 text-tertiary/60">
+                    {badge}
+                  </span>
+                  {testable && (
+                    <ChevronRight size={16} className="text-tertiary/30" />
+                  )}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+
+        <ActionSheet
+          visible={!!sheetSoldier}
+          title={sheetTitle}
+          options={sheetOptions}
+          onClose={closeSheet}
+        />
+      </div>
+    )
+  }
+
+  // ── Default: coverage task list (area → tasks with progress bars) ─────────
+
   const coveragePercent = (taskId: string) => {
     const cov = taskCoverage.get(taskId)
     if (!cov || cov.total === 0) return 0

@@ -238,7 +238,7 @@ const NoteImportContent = ({
     // Focus import input when expanded
     useEffect(() => {
         if (importExpanded && importInputRef.current) {
-            const timer = setTimeout(() => importInputRef.current?.focus(), 120);
+            const timer = setTimeout(() => importInputRef.current?.focus({ preventScroll: true }), 120);
             return () => clearTimeout(timer);
         }
     }, [importExpanded]);
@@ -318,7 +318,7 @@ const NoteImportContent = ({
     );
 
     return (
-        <div className="h-full overflow-y-auto">
+        <div className="h-full overflow-y-auto overscroll-y-contain">
             {/* ── Floating header — matches ProviderDrawer pattern ──────────── */}
             <div
                 className="sticky top-0 z-10 backdrop-blur-sm bg-transparent"

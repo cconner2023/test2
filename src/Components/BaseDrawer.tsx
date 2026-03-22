@@ -363,7 +363,7 @@ export function BaseDrawer({
             >
                 {header ? (
                     blurHeader && useMobileLayout ? (
-                        <div className="flex-1 min-h-0 overflow-y-auto">
+                        <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
                             {!(mobileFullScreen && useMobileLayout) && (
                                 <div
                                     className="sticky top-0 z-10 backdrop-blur-xs bg-transparent"
@@ -406,7 +406,7 @@ export function BaseDrawer({
                                     />
                                 </div>
                             )}
-                            <div className="flex-1 min-h-0 overflow-y-auto">
+                            <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
                                 {resolvedChildren}
                             </div>
                         </>

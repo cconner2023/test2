@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
-import { Building2, ChevronRight } from 'lucide-react'
+import { Building2, ChevronRight, ClipboardList } from 'lucide-react'
 import { getTaskData, isTaskTestable } from '../../../Data/TrainingData'
 import { deleteCompletion as deleteCompletionApi } from '../../../lib/trainingService'
 import { formatMedicName, getExpirationStatus, getLatestTestByTask } from './supervisorHelpers'
@@ -27,6 +27,7 @@ interface SoldierProfileProps {
   soldier: ClinicMedic
   certs: Certification[]
   tests: TrainingCompletionUI[]
+  assignments: TrainingCompletionUI[]
   readinessPercent: number
   compliancePercent: number
   currentUserId: string
@@ -41,6 +42,7 @@ export function SoldierProfile({
   soldier,
   certs,
   tests,
+  assignments,
   readinessPercent,
   compliancePercent,
   currentUserId,
@@ -136,6 +138,61 @@ export function SoldierProfile({
           </div>
         </div>
       </div>
+
+      {/* Assignments */}
+      {assignments.length > 0 && (
+        <div>
+          <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
+            Assignments
+          </p>
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+            {assignments.map((a) => {
+              const taskTitle = getTaskData(a.trainingItemId)?.title ?? a.trainingItemId
+              const isCompleted = !!a.completedAt
+              const isOverdue = !isCompleted && a.dueDate && new Date(a.dueDate) < new Date()
+              const formatDate = (iso: string) => {
+                const d = new Date(iso + 'T00:00:00')
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+              }
+
+              return (
+                <div key={a.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                    isCompleted ? 'bg-themegreen/10' : isOverdue ? 'bg-themeredred/10' : 'bg-themeblue3/10'
+                  }`}>
+                    <ClipboardList size={14} className={
+                      isCompleted ? 'text-themegreen' : isOverdue ? 'text-themeredred' : 'text-themeblue3'
+                    } />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-primary truncate">{taskTitle}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[11px] text-tertiary/60">
+                        {resolveName(a.supervisorId)}
+                      </span>
+                      {a.dueDate && (
+                        <>
+                          <span className="text-tertiary/20">·</span>
+                          <span className={`text-[11px] font-medium ${
+                            isCompleted ? 'text-themegreen' : isOverdue ? 'text-themeredred' : 'text-tertiary/60'
+                          }`}>
+                            {isCompleted ? 'Done' : isOverdue ? 'Overdue' : 'Due'} {formatDate(a.dueDate)}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <span className={`text-[10px] font-medium shrink-0 ${
+                    isCompleted ? 'text-themegreen' : isOverdue ? 'text-themeredred' : 'text-themeblue3'
+                  }`}>
+                    {isCompleted ? 'Complete' : isOverdue ? 'Overdue' : 'Pending'}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Certifications */}
       <div>

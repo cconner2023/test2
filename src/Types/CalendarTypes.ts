@@ -1,6 +1,5 @@
 export type EventCategory =
-  | 'training' | 'sick_call' | 'duty' | 'ftx'
-  | 'equipment_draw' | 'formation' | 'appointment' | 'other'
+  | 'training' | 'duty' | 'range' | 'appointment' | 'other'
 
 export type EventStatus = 'planned' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
 
@@ -42,25 +41,19 @@ export interface EventFormData {
 }
 
 export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: string }[] = [
-  { value: 'formation', label: 'Formation', color: 'bg-themeblue3' },
-  { value: 'sick_call', label: 'Sick Call', color: 'bg-themegreen' },
-  { value: 'training', label: 'Training', color: 'bg-themeyellow' },
-  { value: 'duty', label: 'Duty', color: 'bg-themeredred' },
-  { value: 'ftx', label: 'FTX', color: 'bg-themeblue2' },
-  { value: 'equipment_draw', label: 'Equipment Draw', color: 'bg-tertiary' },
-  { value: 'appointment', label: 'Appointment', color: 'bg-themeblue1' },
+  { value: 'training', label: 'Training', color: 'bg-themeyellow/20' },
+  { value: 'duty', label: 'Duty', color: 'bg-themeredred/20' },
+  { value: 'range', label: 'Range', color: 'bg-themeblue2/20' },
+  { value: 'appointment', label: 'Appointment', color: 'bg-themeblue1/20' },
   { value: 'other', label: 'Other', color: 'bg-tertiary/50' },
 ]
 
 export const CATEGORY_BG_MAP: Record<EventCategory, string> = {
-  formation: 'bg-themeblue3/15 border-themeblue3/30 text-themeblue3',
-  sick_call: 'bg-themegreen/15 border-themegreen/30 text-themegreen',
-  training: 'bg-themeyellow/15 border-themeyellow/30 text-themeyellow',
-  duty: 'bg-themeredred/15 border-themeredred/30 text-themeredred',
-  ftx: 'bg-themeblue2/15 border-themeblue2/30 text-themeblue2',
-  equipment_draw: 'bg-tertiary/10 border-tertiary/20 text-tertiary',
-  appointment: 'bg-themeblue1/15 border-themeblue1/30 text-themeblue1',
-  other: 'bg-tertiary/10 border-tertiary/20 text-tertiary',
+  training: 'bg-themeyellow/20 border-themeyellow/30 text-primary',
+  duty: 'bg-themeredred/20 border-themeredred/30 text-primary',
+  range: 'bg-themeblue2/20 border-themeblue2/30 text-themeblue2',
+  appointment: 'bg-themeblue1/20 border-themeblue1/30 text-themeblue1',
+  other: 'bg-tertiary/20 border-tertiary/20 text-tertiary',
 }
 
 export function getCategoryMeta(category: EventCategory) {

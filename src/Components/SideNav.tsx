@@ -35,7 +35,7 @@ const iconMapDesktop: Record<string, React.ReactNode> = {
   'calendar': <CalendarDays size={16} className="text-primary/70" />,
 }
 
-const BETA_ACTIONS = new Set(['lora', 'mapOverlay', 'calendar'])
+const BETA_ACTIONS = new Set(['lora', 'mapOverlay', 'property'])
 const LONG_PRESS_MS = 500
 
 const subscribeOnline = (cb: () => void) => {

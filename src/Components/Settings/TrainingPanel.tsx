@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback, useMemo } from 'react'
-import { Check, ChevronRight, Lock, CalendarDays } from 'lucide-react'
+import { Check, ChevronRight, Lock, CalendarDays, ClipboardList } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import { useCalendarStore } from '../../stores/useCalendarStore'
@@ -7,7 +7,8 @@ import { stp68wTraining } from '../../Data/TrainingTaskList'
 import { getTaskData } from '../../Data/TrainingData'
 import type { TaskTrainingData } from '../../Data/TrainingData'
 import type { subjectAreaArrayOptions } from '../../Types/CatTypes'
-import { useTrainingCompletions } from '../../Hooks/useTrainingCompletions'
+import { useTrainingCompletions, type TrainingCompletionUI } from '../../Hooks/useTrainingCompletions'
+import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { AudioAidPlayer } from '../AudioAidPlayer'
 import { skillLevelLabels, categoryOrder } from '../../Data/TrainingConstants'
 import { StepCallout, PerformanceStepItem, SectionHeader } from '../TrainingStepComponents'
@@ -70,6 +71,91 @@ function buildAllTasksByCategory(): Map<string, FlatTask[]> {
     }
 
     return grouped
+}
+
+// ─── Assignments Section ────────────────────────────────────────────────────
+
+function AssignmentsSection({
+    assignments,
+    onSelectTask,
+    resolveName,
+}: {
+    assignments: TrainingCompletionUI[]
+    onSelectTask: (t: subjectAreaArrayOptions) => void
+    resolveName: (id: string | null) => string
+}) {
+    if (assignments.length === 0) return null
+
+    const formatDueDate = (iso: string) => {
+        const d = new Date(iso + 'T00:00:00')
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    }
+
+    const now = new Date()
+
+    return (
+        <div className="px-5 pt-4 pb-1">
+            <div className="flex items-center gap-2 mb-2">
+                <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
+                    Assignments
+                </p>
+                <span className="text-[10px] text-tertiary/40">{assignments.length}</span>
+            </div>
+            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                {assignments.map((a, idx) => {
+                    const taskData = getTaskData(a.trainingItemId)
+                    const title = taskData?.title ?? a.trainingItemId
+                    const isOverdue = a.dueDate && new Date(a.dueDate) < now
+
+                    return (
+                        <button
+                            key={a.id}
+                            onClick={() => {
+                                if (!taskData) return
+                                onSelectTask({
+                                    id: 0,
+                                    icon: a.trainingItemId,
+                                    text: title,
+                                    isParent: false,
+                                    parentId: 0,
+                                })
+                            }}
+                            className={`flex items-center gap-3 w-full px-4 py-3.5 text-left active:scale-95 transition-all
+                                hover:bg-themeblue2/5 cursor-pointer
+                                ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
+                        >
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                                isOverdue ? 'bg-themeredred/10' : 'bg-themeblue3/10'
+                            }`}>
+                                <ClipboardList size={14} className={isOverdue ? 'text-themeredred' : 'text-themeblue3'} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-primary truncate">{title}</p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                    <span className="text-[11px] text-tertiary/60">
+                                        {resolveName(a.supervisorId)}
+                                    </span>
+                                    {a.dueDate && (
+                                        <>
+                                            <span className="text-tertiary/20">·</span>
+                                            <span className={`text-[11px] font-medium ${
+                                                isOverdue ? 'text-themeredred' : 'text-tertiary/60'
+                                            }`}>
+                                                {isOverdue ? 'Overdue' : 'Due'} {formatDueDate(a.dueDate)}
+                                            </span>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                            <div className={`shrink-0 w-2 h-2 rounded-full ${
+                                isOverdue ? 'bg-themeredred' : 'bg-themeblue3'
+                            }`} />
+                        </button>
+                    )
+                })}
+            </div>
+        </div>
+    )
 }
 
 // ─── Sub-view: Training List (grouped by subject area headers) ──────────────
@@ -155,7 +241,17 @@ function TrainingList({
     onSelectTask: (task: subjectAreaArrayOptions) => void
     searchQuery: string
 }) {
-    const { isTaskCompleted, isTaskViewed, getAssignment } = useTrainingCompletions()
+    const { isTaskCompleted, isTaskViewed, getAssignment, getPendingAssignments } = useTrainingCompletions()
+    const { medics } = useClinicMedics()
+
+    const pendingAssignments = useMemo(() => getPendingAssignments(), [getPendingAssignments])
+
+    const resolveName = useCallback((id: string | null): string => {
+        if (!id) return 'Unknown'
+        const medic = medics.find(m => m.id === id)
+        if (!medic) return 'Supervisor'
+        return `${medic.rank ? medic.rank + ' ' : ''}${medic.lastName ?? 'Unknown'}`
+    }, [medics])
 
     const allByCategory = useMemo(() => buildAllTasksByCategory(), [])
 
@@ -183,6 +279,14 @@ function TrainingList({
     const isSearching = searchQuery.trim().length > 0
 
     return (
+        <>
+        {!isSearching && pendingAssignments.length > 0 && (
+            <AssignmentsSection
+                assignments={pendingAssignments}
+                onSelectTask={onSelectTask}
+                resolveName={resolveName}
+            />
+        )}
         <div className="px-5 py-4 space-y-5">
             <p className="text-xs text-tertiary/60">
                 Select a task to begin studying.
@@ -222,6 +326,7 @@ function TrainingList({
                 ))
             )}
         </div>
+        </>
     )
 }
 

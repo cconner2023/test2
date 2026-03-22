@@ -86,7 +86,7 @@ export type SearchResultType = {
     };
 }
 
-export type MenuGroup = 'roles' | 'core' | 'field' | 'system' | 'utility'
+export type MenuGroup = 'roles' | 'utility' | 'modules' | 'system'
 
 export interface sideMenuDataType {
     text: string,

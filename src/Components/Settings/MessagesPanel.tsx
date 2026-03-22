@@ -192,10 +192,10 @@ function ConversationPane({
 
   return (
     <div className="flex flex-col">
-      <div className="px-1 pt-1.5 pb-2">
+      <div className="py-1">
         {/* Search results */}
         {searchResults ? (
-          <div className="px-1">
+          <div>
             {searchResults.groups.length === 0 && searchResults.medics.length === 0 && searchResults.messages.length === 0 && (
               <p className="text-xs text-tertiary/30 px-3 py-4 text-center">No results for &ldquo;{searchQuery}&rdquo;</p>
             )}

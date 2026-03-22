@@ -24,40 +24,41 @@ export const menuData: sideMenuDataType[] = [
         group: 'roles',
         gateKey: 'admin'
     },
-    // Core — KB and import
-    {
-        text: "Knowledge Base",
-        icon: 'knowledgebase',
-        action: 'knowledgebase',
-        group: 'core'
-    },
+    // Utility — mobile-only tools
     {
         text: "Import Note",
         icon: 'import',
         action: 'import',
-        group: 'core'
+        group: 'utility'
     },
-    // Field — operational / tactical modules
+    // Modules — ungated
+    {
+        text: "Knowledge Base",
+        icon: 'knowledgebase',
+        action: 'knowledgebase',
+        group: 'modules'
+    },
+    {
+        text: "Calendar",
+        icon: 'calendar',
+        action: 'calendar',
+        group: 'modules',
+        gateKey: 'calendar'
+    },
+    // Modules — gated
     {
         text: "Property Book",
         icon: 'property',
         action: 'property',
-        group: 'field',
+        group: 'modules',
         gateKey: 'property'
     },
     {
         text: "Map Overlay",
         icon: 'mapOverlay',
         action: 'mapOverlay',
-        group: 'field',
+        group: 'modules',
         gateKey: 'mapOverlay'
-    },
-    {
-        text: "Calendar",
-        icon: 'calendar',
-        action: 'calendar',
-        group: 'field',
-        gateKey: 'calendar'
     },
     // System
     {

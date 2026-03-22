@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, useCallback, useEffect } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
 import { CATEGORY_BG_MAP, DAY_START_HOUR, DAY_END_HOUR, HOUR_HEIGHT_PX, toLocalISOString, toDateKey } from '../../Types/CalendarTypes'
 
@@ -8,6 +9,10 @@ interface DayViewProps {
   onSelectEvent: (id: string) => void
   onMoveEvent: (eventId: string, newStartTime: string) => void
   onEventContextMenu?: (eventId: string, x: number, y: number) => void
+  /** Mobile day navigation — when provided, renders interactive header */
+  onPrevDay?: () => void
+  onNextDay?: () => void
+  onDateTap?: () => void
 }
 
 interface ActiveDrag {
@@ -99,7 +104,7 @@ function resolveOverlaps(events: CalendarEvent[], dateKey: string) {
   return columns
 }
 
-export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventContextMenu }: DayViewProps) {
+export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventContextMenu, onPrevDay, onNextDay, onDateTap }: DayViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<ActiveDrag | null>(null)
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -139,6 +144,8 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
     month: 'long',
     day: 'numeric',
   })
+
+  const hasNav = !!(onPrevDay && onNextDay)
 
   const snappedMinutes = useMemo(() => {
     if (!isDragging) return 0
@@ -238,9 +245,35 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
     <div className="flex flex-col h-full">
       {/* Spacer for mobile floating header */}
       <div className="h-[calc(var(--sat,0px)+3.5rem)] md:hidden shrink-0" />
-      <p className="px-3 py-2 text-xs font-medium text-tertiary/50 uppercase tracking-wider border-b border-primary/10">
-        {dateLabel}
-      </p>
+
+      {hasNav ? (
+        <div className="flex items-center justify-between px-3 py-2 border-b border-primary/10">
+          <button
+            onClick={onPrevDay}
+            className="w-8 h-8 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95"
+            aria-label="Previous day"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onDateTap}
+            className="text-xs font-medium text-tertiary/50 uppercase tracking-wider hover:text-primary transition-colors active:scale-95"
+          >
+            {dateLabel}
+          </button>
+          <button
+            onClick={onNextDay}
+            className="w-8 h-8 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95"
+            aria-label="Next day"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      ) : (
+        <p className="px-3 py-2 text-xs font-medium text-tertiary/50 uppercase tracking-wider border-b border-primary/10">
+          {dateLabel}
+        </p>
+      )}
 
       {allDayEvents.length > 0 && (
         <div className="px-3 py-2 border-b border-primary/10 space-y-1">

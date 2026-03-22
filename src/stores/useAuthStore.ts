@@ -4,8 +4,8 @@
  * Centralized user, loading, guest state, profile, and roles.
  * Components subscribe to individual slices (e.g. `useAuthStore(s => s.user)`)
  * for minimal re-renders.
- * The `init()` action sets up `supabase.auth.onAuthStateChange` and returns
- * a cleanup function — call it from a useEffect.
+ * The `init()` action sets up `supabase.auth.onAuthStateChange` and runs
+ * automatically at module load — no useEffect needed.
  */
 
 import { create } from 'zustand'
@@ -399,9 +399,11 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
 
   const cachedRoles = loadRolesFromStorage()
 
+  const hasLocalSession = !!loadLocalSessionSync()
+
   return {
   user: null,
-  loading: true,
+  loading: !hasLocalSession,
   isGuest: false,
   profile: loadProfileFromStorage(),
   roles: cachedRoles?.roles ?? [],
@@ -557,6 +559,9 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     }
   },
 }})
+
+// Auto-initialize auth listener at module load (no useEffect delay)
+useAuthStore.getState().init()
 
 /** Derived selector: true when a real user is authenticated (Supabase session or persistent local session). */
 export const selectIsAuthenticated = (state: AuthState) => !!state.user || !!state.localSession

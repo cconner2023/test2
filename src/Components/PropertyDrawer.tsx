@@ -164,7 +164,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         hideDefaultClose: true,
                     }
                 }
-                return { title: 'Property Book', rightContent: mainHeaderActions, hideDefaultClose: true }
+                return { title: 'Property Book', badge: 'BETA', rightContent: mainHeaderActions, hideDefaultClose: true }
             case 'property-detail':
                 return { title: selectedPropertyItemName ?? 'Item', showBack: true, onBack: handleBack, rightContent: detailHeaderActions, hideDefaultClose: !!detailHeaderActions }
             case 'property-transfer':

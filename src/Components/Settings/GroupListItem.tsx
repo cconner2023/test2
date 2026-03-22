@@ -13,7 +13,7 @@ export function GroupListItem({ group, lastMessage, unreadCount, onClick }: Grou
   return (
     <ListItemRow
       onClick={onClick}
-      className="px-4 py-3 rounded-xl transition-all hover:bg-themewhite2 active:scale-95 cursor-pointer"
+      className="px-4 py-3 transition-all duration-150 hover:bg-primary/3 active:scale-[0.98] cursor-pointer"
       left={
         <div className="w-10 h-10 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
           <Users size={18} className="text-themeblue2" />

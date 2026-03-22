@@ -12,6 +12,7 @@ import { useIsMobile } from '../Hooks/useIsMobile'
 import { useClinicMedics } from '../Hooks/useClinicMedics'
 import { useClinicGroupedMedics } from '../Hooks/useClinicGroupedMedics'
 import { getInitials } from '../Utilities/nameUtils'
+import { UserAvatar } from './Settings/UserAvatar'
 
 function formatMedicName(m: { rank?: string | null; firstName?: string | null; lastName?: string | null }): string {
     const parts: string[] = []
@@ -66,6 +67,76 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
     }, [isVisible, setSelectedDate])
 
     const [showPersonnelDrawer, setShowPersonnelDrawer] = useState(false)
+    const [searchFocused, setSearchFocused] = useState(false)
+    const sidebarScrollRef = useRef<HTMLDivElement>(null)
+    const searchWrapperRef = useRef<HTMLDivElement>(null)
+    const searchInnerRef = useRef<HTMLDivElement>(null)
+    const searchFocusedRef = useRef(false)
+    searchFocusedRef.current = searchFocused
+    const hasSearch = rosterSearchQuery.trim().length > 0
+    const hasSearchRef = useRef(false)
+    hasSearchRef.current = hasSearch
+
+    const SEARCH_BAR_HEIGHT = 48
+
+    // Scroll-collapse animation for search bar — matches ColumnA pattern
+    useEffect(() => {
+        const el = sidebarScrollRef.current
+        const wrapper = searchWrapperRef.current
+        if (!el || !wrapper) return
+
+        let rafId: number | null = null
+        const onScroll = () => {
+            if (rafId !== null) return
+            rafId = requestAnimationFrame(() => {
+                rafId = null
+                if (searchFocusedRef.current || hasSearchRef.current) {
+                    wrapper.style.height = `${SEARCH_BAR_HEIGHT}px`
+                    wrapper.style.opacity = '1'
+                    if (searchInnerRef.current) searchInnerRef.current.style.transform = 'translateY(0px)'
+                    return
+                }
+                const scrollTop = el.scrollTop
+                const collapsed = Math.max(0, Math.min(scrollTop, SEARCH_BAR_HEIGHT))
+                wrapper.style.height = `${SEARCH_BAR_HEIGHT - collapsed}px`
+                wrapper.style.opacity = String(1 - (collapsed / SEARCH_BAR_HEIGHT) * 0.6)
+                if (searchInnerRef.current) {
+                    searchInnerRef.current.style.transform = `translateY(${-collapsed}px)`
+                }
+            })
+        }
+        el.addEventListener('scroll', onScroll, { passive: true })
+        return () => { el.removeEventListener('scroll', onScroll); if (rafId !== null) cancelAnimationFrame(rafId) }
+    }, [isMobile, viewMode])
+
+    // Keep search bar expanded when focused or has value
+    useEffect(() => {
+        if (!searchWrapperRef.current) return
+        if (hasSearch || searchFocused) {
+            searchWrapperRef.current.style.height = `${SEARCH_BAR_HEIGHT}px`
+            searchWrapperRef.current.style.opacity = '1'
+        }
+    }, [hasSearch, searchFocused])
+
+    const handleSearchFocus = useCallback(() => {
+        setSearchFocused(true)
+        sidebarScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+    }, [])
+
+    const handleSearchBlur = useCallback(() => {
+        if (!hasSearchRef.current) {
+            setSearchFocused(false)
+            // Let the scroll position re-collapse the bar naturally
+            const el = sidebarScrollRef.current
+            const wrapper = searchWrapperRef.current
+            if (el && wrapper) {
+                const collapsed = Math.max(0, Math.min(el.scrollTop, SEARCH_BAR_HEIGHT))
+                wrapper.style.height = `${SEARCH_BAR_HEIGHT - collapsed}px`
+                wrapper.style.opacity = String(1 - (collapsed / SEARCH_BAR_HEIGHT) * 0.6)
+            }
+        }
+    }, [])
+
     const { medics } = useClinicMedics()
     const { ownClinicMedics } = useClinicGroupedMedics(medics)
 
@@ -113,34 +184,45 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         }
     }, [selectedEventId, events, assignPersonnel, unassignPersonnel])
 
-    // Personnel filter sidebar panel — shared between month and day views
+    // Personnel filter sidebar panel — matches SupervisorTree pattern
     const personnelFilterPanel = (
         <div className="flex flex-col min-h-0">
-            <div className="px-3 pt-2 pb-1 border-t border-primary/10">
-                <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] font-semibold text-tertiary/60 uppercase tracking-wide">Filter Personnel</span>
-                    {personnelFilter.length > 0 && (
-                        <button
-                            onClick={clearPersonnelFilter}
-                            className="text-[10px] text-themeblue3 font-medium active:scale-95 transition-transform"
-                        >
-                            Clear
-                        </button>
-                    )}
-                </div>
+            <div className="shrink-0 px-4 py-3 border-t border-primary/10 flex items-center justify-between">
+                <p className="text-xs font-medium text-tertiary/70 uppercase tracking-wide">Filter Personnel</p>
+                {ownClinicMedics.length > 0 && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-tertiary/10 text-tertiary/70 font-medium">
+                        {personnelFilter.length > 0 ? `${personnelFilter.length}/${ownClinicMedics.length}` : ownClinicMedics.length}
+                    </span>
+                )}
             </div>
-            <div className="overflow-y-auto flex-1 px-1 pb-2">
+
+            {/* All Personnel — clears filter to show all events */}
+            <button
+                className={`w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 ${
+                    personnelFilter.length === 0
+                        ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
+                        : 'hover:bg-secondary/5'
+                }`}
+                onClick={clearPersonnelFilter}
+            >
+                <span className="text-xs font-medium text-primary truncate flex-1">All Personnel</span>
+            </button>
+
+            {/* Personnel list */}
+            <div>
                 {ownClinicMedics.map(medic => {
                     const isSelected = personnelFilter.includes(medic.id)
                     return (
                         <button
                             key={medic.id}
                             onClick={() => togglePersonnelFilter(medic.id)}
-                            className={`w-full flex items-center gap-2 px-2 py-2 rounded-xl text-left transition-all duration-150 active:scale-[0.98] ${isSelected ? 'bg-themeblue3/8' : ''}`}
+                            className={`w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 ${
+                                isSelected
+                                    ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
+                                    : 'hover:bg-secondary/5'
+                            }`}
                         >
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0 ${isSelected ? 'bg-themeblue3 text-white' : 'bg-primary/8 text-secondary'}`}>
-                                {getInitials(medic.firstName, medic.lastName)}
-                            </div>
+                            <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
                             <div className="flex-1 min-w-0">
                                 <p className="text-xs font-medium text-primary truncate">
                                     {formatMedicName(medic)}
@@ -167,16 +249,6 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
             desktopWidth="w-[90%]"
             header={!isMobile ? {
                 title: 'Calendar',
-                badge: 'DEV',
-                rightContent: (
-                    <SearchInput
-                        value={rosterSearchQuery}
-                        onChange={setRosterSearchQuery}
-                        placeholder="Search personnel"
-                        className="flex-1"
-                        hideSearchIcon
-                    />
-                ),
             } : undefined}
         >
             <div className="relative h-full">
@@ -209,34 +281,37 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                 <div className="flex absolute inset-0 overflow-hidden">
                     {/* Contextual sidebar — desktop only, hidden for troops-to-task (has its own personnel column) */}
                     {!isMobile && viewMode !== 'troops' && (
-                        <div className="w-[280px] shrink-0 flex flex-col overflow-y-auto border-r border-primary/10">
-                            {viewMode === 'month' ? (
-                                /* Month view: mini calendar + personnel filter */
-                                <>
-                                    <MiniCalendar
-                                        selectedDate={selectedDate}
-                                        onSelectDate={setSelectedDate}
-                                        events={events}
+                        <div ref={sidebarScrollRef} className="w-60 shrink-0 overflow-y-auto border-r border-primary/10">
+                            <div
+                                ref={searchWrapperRef}
+                                className="overflow-hidden transition-[height,opacity] duration-200"
+                                style={{ height: SEARCH_BAR_HEIGHT }}
+                            >
+                                <div ref={searchInnerRef} className="px-3 pt-2 pb-1"
+                                    onFocusCapture={handleSearchFocus}
+                                    onBlurCapture={handleSearchBlur}
+                                >
+                                    <SearchInput
+                                        value={rosterSearchQuery}
+                                        onChange={setRosterSearchQuery}
+                                        placeholder="Search personnel"
                                     />
-                                    {personnelFilterPanel}
-                                </>
-                            ) : (
-                                /* Day view: mini calendar + personnel filter + roster */
-                                <>
-                                    <MiniCalendar
-                                        selectedDate={selectedDate}
-                                        onSelectDate={setSelectedDate}
-                                        events={events}
+                                </div>
+                            </div>
+                            <MiniCalendar
+                                selectedDate={selectedDate}
+                                onSelectDate={setSelectedDate}
+                                events={events}
+                            />
+                            {personnelFilterPanel}
+                            {viewMode === 'day' && (
+                                <div className="border-t border-primary/10">
+                                    <RosterPane
+                                        onAssignToEvent={handleRosterAssign}
+                                        assignableEventId={selectedEventId}
+                                        compact
                                     />
-                                    {personnelFilterPanel}
-                                    <div className="flex-1 min-h-0 border-t border-primary/10">
-                                        <RosterPane
-                                            onAssignToEvent={handleRosterAssign}
-                                            assignableEventId={selectedEventId}
-                                            compact
-                                        />
-                                    </div>
-                                </>
+                                </div>
                             )}
                         </div>
                     )}

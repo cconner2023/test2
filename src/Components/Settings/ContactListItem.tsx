@@ -22,7 +22,7 @@ export function ContactListItem({ medic, lastMessage, unreadCount, onClick, unav
   return (
     <ListItemRow
       onClick={onClick}
-      className={`px-4 py-3 rounded-xl transition-all hover:bg-themewhite2 active:scale-95 cursor-pointer${unavailable ? ' opacity-50' : ''}`}
+      className={`px-4 py-3 transition-all duration-150 hover:bg-primary/3 active:scale-[0.98] cursor-pointer${unavailable ? ' opacity-50' : ''}`}
       left={
         <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-10 h-10" />
       }

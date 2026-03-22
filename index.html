@@ -93,15 +93,18 @@
 
     .splash-bar-fill {
       height: 100%;
-      width: 0;
+      width: 30%;
       background: rgba(21, 142, 172, 1);
       border-radius: 2px;
-      animation: splashFill 0.7s ease-out forwards
+      animation: splashPulse 1.2s ease-in-out infinite
     }
 
-    @keyframes splashFill {
-      to {
-        width: 100%
+    @keyframes splashPulse {
+      0% {
+        transform: translateX(-100%)
+      }
+      100% {
+        transform: translateX(467%)
       }
     }
 

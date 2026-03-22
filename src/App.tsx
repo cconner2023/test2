@@ -74,8 +74,7 @@ function AppContent() {
   const searchInputRef = useRef<HTMLInputElement>(null!)
   const { theme, toggleTheme } = useTheme()
 
-  // Initialise the Zustand auth store listener (once per mount)
-  useEffect(() => useAuthStore.getState().init(), [])
+  // Auth store self-initializes at module load (no useEffect needed)
 
   const navigation = useNavigation()
   const search = useSearch()

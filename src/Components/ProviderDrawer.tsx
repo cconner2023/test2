@@ -307,7 +307,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   // Focus import input when expanded
   useEffect(() => {
     if (importExpanded && importInputRef.current) {
-      const timer = setTimeout(() => importInputRef.current?.focus(), 120)
+      const timer = setTimeout(() => importInputRef.current?.focus({ preventScroll: true }), 120)
       return () => clearTimeout(timer)
     }
   }, [importExpanded])

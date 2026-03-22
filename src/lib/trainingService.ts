@@ -370,6 +370,29 @@ export async function fetchClinicTestHistory(
   return (data || []).map(mapRowToTrainingCompletionUI)
 }
 
+/**
+ * Fetch all pending assignments for a set of clinic users.
+ * Used by the supervisor Soldier Profile to show assigned tasks.
+ */
+export async function fetchClinicAssignments(
+  clinicUserIds: string[]
+): Promise<TrainingCompletionUI[]> {
+  if (clinicUserIds.length === 0) return []
+
+  const { data, error } = await supabase
+    .from('training_completions')
+    .select('*')
+    .in('user_id', clinicUserIds)
+    .eq('completion_type', 'assignment')
+    .order('due_date', { ascending: true })
+
+  if (error) {
+    throw new Error(`Failed to fetch clinic assignments: ${error.message}`)
+  }
+
+  return (data || []).map(mapRowToTrainingCompletionUI)
+}
+
 // ============================================================
 // Assignment Operations
 // ============================================================

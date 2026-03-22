@@ -92,20 +92,20 @@ export function MiniCalendar({ selectedDate, onSelectDate, events }: MiniCalenda
   }, [onSelectDate])
 
   return (
-    <div className="p-3 select-none">
+    <div className="px-3 pt-2 pb-1 select-none">
       {/* Month header */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-1">
         <button
           onClick={prevMonth}
-          className="w-7 h-7 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95"
+          className="w-6 h-6 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95"
           aria-label="Previous month"
         >
-          <ChevronLeft className="w-4 h-4" />
+          <ChevronLeft className="w-3.5 h-3.5" />
         </button>
 
         <button
           onClick={jumpToToday}
-          className="text-sm font-semibold text-primary hover:text-themeblue3 transition-colors active:scale-95"
+          className="text-xs font-semibold text-primary hover:text-themeblue3 transition-colors active:scale-95"
           title="Jump to today"
         >
           {monthHeaderLabel}
@@ -113,24 +113,24 @@ export function MiniCalendar({ selectedDate, onSelectDate, events }: MiniCalenda
 
         <button
           onClick={nextMonth}
-          className="w-7 h-7 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95"
+          className="w-6 h-6 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95"
           aria-label="Next month"
         >
-          <ChevronRight className="w-4 h-4" />
+          <ChevronRight className="w-3.5 h-3.5" />
         </button>
       </div>
 
       {/* Day-of-week header */}
-      <div className="grid grid-cols-7 mb-1">
+      <div className="grid grid-cols-7">
         {DOW_LABELS.map((label, i) => (
-          <div key={i} className="text-center text-[10px] font-medium text-tertiary/50 uppercase py-0.5">
+          <div key={i} className="text-center text-[9px] font-medium text-tertiary/50 uppercase py-0.5">
             {label}
           </div>
         ))}
       </div>
 
       {/* Day grid */}
-      <div className="grid grid-cols-7 gap-y-0.5">
+      <div className="grid grid-cols-7">
         {grid.map((date, i) => {
           const key = toDateKey(date)
           const isCurrentMonth = isSameMonth(date, displayMonth)
@@ -147,7 +147,7 @@ export function MiniCalendar({ selectedDate, onSelectDate, events }: MiniCalenda
             >
               <button
                 onClick={() => handleDayClick(date)}
-                className={`w-7 h-7 flex items-center justify-center text-xs transition-transform active:scale-95 ${
+                className={`w-6 h-6 flex items-center justify-center text-[11px] transition-transform active:scale-95 ${
                   isSelected
                     ? 'text-white font-semibold'
                     : isToday

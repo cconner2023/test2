@@ -51,6 +51,7 @@ import {
   updateMessageStatus,
   deleteMessages as deleteMessagesFromDb,
   deleteConversation as deleteConversationFromDb,
+  deleteMessagesByOriginId as deleteMessagesByOriginIdFromDb,
 } from '../lib/signal/messageStore'
 import {
   serializeContent,
@@ -58,8 +59,9 @@ import {
 } from '../lib/signal/messageContent'
 import type { MessageContent, ImageContent, VoiceContent, ReplyTo, CalendarEventContent } from '../lib/signal/messageContent'
 import { isCalendarEvent, routeCalendarEvent } from '../lib/calendarRouting'
+import { useCalendarStore } from '../stores/useCalendarStore'
 import { uploadEncryptedAttachment } from '../lib/signal/attachmentService'
-import { createBackup, markHydrationComplete } from '../lib/signal/backupService'
+import { createBackup, markHydrationComplete, scheduleBackup } from '../lib/signal/backupService'
 import { ok as okResult, err as errResult, type Result } from '../lib/result'
 import { errorBus } from '../lib/errorBus'
 import { ErrorCode } from '../lib/errorCodes'
@@ -554,7 +556,10 @@ export function useMessages(): UseMessagesReturn {
     }
   }, [userId, addMessage])
 
-  /** Remove messages by origin IDs from all conversations (delete callback). */
+  /** Remove messages by origin IDs from all conversations (delete callback).
+   *  Also removes any calendar events whose originId matches — this is the
+   *  cross-device path where a protocol-level 'delete' arrives via catch-up
+   *  or realtime and must propagate to the calendar store. */
   const removeMessagesByOriginIds = useCallback((originIds: string[]) => {
     const originSet = new Set(originIds)
     setConversations(prev => {
@@ -571,6 +576,15 @@ export function useMessages(): UseMessagesReturn {
       }
       return changed ? next : prev
     })
+
+    // Remove any calendar events whose originId matches a deleted message.
+    // This ensures cross-device protocol-level deletes reach the calendar store.
+    const calendarStore = useCalendarStore.getState()
+    for (const event of calendarStore.events) {
+      if (event.originId && originSet.has(event.originId)) {
+        calendarStore.removeEvent(event.id)
+      }
+    }
   }, [])
 
   // Subscribe to realtime incoming messages (pass localDeviceId for filtering)
@@ -1902,6 +1916,14 @@ export function useMessages(): UseMessagesReturn {
     hardDeleteByOriginId(originIds).catch(e =>
       logger.warn('Failed to hard-delete calendar event from Supabase:', e instanceof Error ? e.message : e)
     )
+
+    // 4. Purge create message from local message IDB so backup doesn't resurrect
+    deleteMessagesByOriginIdFromDb(originIds).catch(e =>
+      logger.warn('Failed to purge calendar create from local IDB:', e instanceof Error ? e.message : e)
+    )
+
+    // 5. Schedule backup to flush the cleaned-up state to the server
+    if (userId) scheduleBackup(userId)
   }, [userId, localDeviceId])
 
   // Exclude system groups (e.g. calendar) from unread counts so they

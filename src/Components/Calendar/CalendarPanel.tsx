@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useRef } from 'react'
 import { Clock, Plus, Users2, CalendarDays, X, Check, Pencil, Trash2 } from 'lucide-react'
+import { DatePickerCalendar } from '../FormInputs'
 import { CardContextMenu } from '../CardContextMenu'
 import { useShallow } from 'zustand/react/shallow'
 import { useIsMobile } from '../../Hooks/useIsMobile'
@@ -52,6 +53,7 @@ export function CalendarPanel({ onBack, scrollNonce }: CalendarPanelProps) {
   const [showDayDrawer, setShowDayDrawer] = useState(false)
   const [dayDrawerView, setDayDrawerView] = useState<DayDrawerView>('detail')
   const [dayDrawerEventId, setDayDrawerEventId] = useState<string | null>(null)
+  const [showDatePicker, setShowDatePicker] = useState(false)
 
   const { medics: allMedics } = useClinicMedics()
   const { ownClinicMedics } = useClinicGroupedMedics(allMedics)
@@ -159,6 +161,26 @@ export function CalendarPanel({ onBack, scrollNonce }: CalendarPanelProps) {
       setViewMode('day')
     }
   }, [viewMode])
+
+  const handlePrevDay = useCallback(() => {
+    const prev = new Date(selectedDate)
+    prev.setDate(prev.getDate() - 1)
+    setSelectedDate(prev)
+  }, [selectedDate, setSelectedDate])
+
+  const handleNextDay = useCallback(() => {
+    const next = new Date(selectedDate)
+    next.setDate(next.getDate() + 1)
+    setSelectedDate(next)
+  }, [selectedDate, setSelectedDate])
+
+  const handleDatePickerSelect = useCallback((iso: string) => {
+    storeSetSelectedDate(iso)
+  }, [storeSetSelectedDate])
+
+  const handleDatePickerClose = useCallback(() => {
+    setShowDatePicker(false)
+  }, [])
 
   // ── Event CRUD ──
 
@@ -465,14 +487,16 @@ export function CalendarPanel({ onBack, scrollNonce }: CalendarPanelProps) {
             />
           </HeaderPill>
         </div>
-        <EventForm
-          ref={eventFormRef}
-          initialData={editingEvent ? eventToFormData(editingEvent) : undefined}
-          onSave={handleSaveEvent}
-          isEditing={!!editingEvent}
-          medics={medicList}
-          propertyItems={propertyItems}
-        />
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <EventForm
+            ref={eventFormRef}
+            initialData={editingEvent ? eventToFormData(editingEvent) : undefined}
+            onSave={handleSaveEvent}
+            isEditing={!!editingEvent}
+            medics={medicList}
+            propertyItems={propertyItems}
+          />
+        </div>
         {deleteConfirmDialog}
       </div>
     )
@@ -520,17 +544,23 @@ export function CalendarPanel({ onBack, scrollNonce }: CalendarPanelProps) {
             onSelectEvent={handleSelectEvent}
             onMoveEvent={handleMoveEvent}
             onEventContextMenu={handleEventContextMenu}
+            {...(isMobile ? {
+              onPrevDay: handlePrevDay,
+              onNextDay: handleNextDay,
+              onDateTap: () => setShowDatePicker(true),
+            } : {})}
           />
         )}
 
         {viewMode === 'troops' && (
           <TroopsToTaskView
             date={selectedDate}
-            events={dayEvents}
+            events={filteredEvents}
             medics={ownClinicMedics}
             onSelectEvent={handleSelectEvent}
             onAssign={assignPersonnel}
             onUnassign={unassignPersonnel}
+            onDateChange={setSelectedDate}
           />
         )}
       </div>
@@ -674,6 +704,23 @@ export function CalendarPanel({ onBack, scrollNonce }: CalendarPanelProps) {
             medics={medicList}
           />
         )}
+      </BaseDrawer>
+
+      {/* Mobile date picker drawer — tap date label in day view */}
+      <BaseDrawer
+        isVisible={showDatePicker}
+        onClose={handleDatePickerClose}
+        mobileOnly
+        fullHeight="auto"
+        zIndex="z-50"
+      >
+        <div className="pb-[max(1rem,var(--sab,0px))]">
+          <DatePickerCalendar
+            value={selectedDateKey}
+            onChange={handleDatePickerSelect}
+            onClose={handleDatePickerClose}
+          />
+        </div>
       </BaseDrawer>
 
       {contextMenu && (

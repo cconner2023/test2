@@ -8,26 +8,12 @@ import { PasswordLockScreen } from './PasswordLockScreen'
 import { SetPasswordScreen } from './SetPasswordScreen'
 import { UserAcknowledgment, hasAcceptedAcknowledgment, recordAcknowledgment } from './UserAcknowledgment'
 import { LoginScreen } from './LoginScreen'
-import { LoadingSpinner } from './LoadingSpinner'
-
 const INITIAL_PW_UNLOCKED_KEY = 'adtmc_initial_pw_unlocked'
-
-/** Full-screen loading overlay matching the HTML splash style */
-function LoadingScreen() {
-  return (
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-themewhite dark:bg-themewhite3">
-      <LoadingSpinner size="lg" className="text-[rgba(0,66,92,1)]" />
-      <div className="mt-4 font-semibold text-lg tracking-[2px] text-[rgba(0,66,92,1)] dark:text-[rgba(129,161,181,1)]">
-        ADTMC
-      </div>
-    </div>
-  )
-}
 
 /** Maximum time (ms) to wait for Supabase INITIAL_SESSION before releasing
  *  the loading gate. Prevents an infinite loading screen on mobile PWA if
  *  the auth event never fires (e.g. corrupted session, network stall). */
-const AUTH_TIMEOUT_MS = 6000
+const AUTH_TIMEOUT_MS = 3000
 
 export function LockGate({ children }: { children: ReactNode }) {
   const { user, isGuest, localSession } = useAuth()
@@ -43,6 +29,13 @@ export function LockGate({ children }: { children: ReactNode }) {
     }, AUTH_TIMEOUT_MS)
     return () => clearTimeout(id)
   }, [])
+
+  // Dismiss the HTML splash once auth settles
+  useEffect(() => {
+    if (!loading) {
+      (window as unknown as { dismissSplash?: () => void }).dismissSplash?.()
+    }
+  }, [loading])
 
   const shouldLoad = loading
   const isPasswordRecovery = useAuthStore(s => s.isPasswordRecovery)
@@ -115,18 +108,16 @@ export function LockGate({ children }: { children: ReactNode }) {
   })
 
   // Gate ordering (later = on top):
-  // 1. children (app)
-  // 2. loading screen (z-100) — while auth + SW settle
-  // 3. user acknowledgment (z-100) — PHI disclosure (persistent for authed users, per-session for guests)
-  // 4. login screen (z-90) — when not authenticated
-  // 5. PIN lock (z-100)
-  // 6. inactivity / initial password locks (z-100)
-  // 7. password recovery / setup — always on top
+  // 1. children (app) — deferred until auth settles; HTML splash covers loading
+  // 2. user acknowledgment (z-100) — PHI disclosure (persistent for authed users, per-session for guests)
+  // 3. login screen (z-90) — when not authenticated
+  // 4. PIN lock (z-100)
+  // 5. inactivity / initial password locks (z-100)
+  // 6. password recovery / setup — always on top
   const showLogin = !shouldLoad && !user && !localSession && !isGuest
   return (
     <>
-      {children}
-      {shouldLoad && <LoadingScreen />}
+      {!shouldLoad && children}
       {needsAcknowledgment && !shouldLoad && (
         <UserAcknowledgment
           onAccept={() => setNeedsAcknowledgment(false)}

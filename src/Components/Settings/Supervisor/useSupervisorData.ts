@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useClinicMedics } from '../../../Hooks/useClinicMedics'
 import { useAuth } from '../../../Hooks/useAuth'
 import { fetchClinicCertifications } from '../../../lib/certificationService'
-import { fetchClinicTestHistory, type TrainingCompletionUI } from '../../../lib/trainingService'
+import { fetchClinicTestHistory, fetchClinicAssignments, type TrainingCompletionUI } from '../../../lib/trainingService'
 import { createLogger } from '../../../Utilities/Logger'
 import {
   formatMedicName,
@@ -42,6 +42,8 @@ export interface SupervisorData {
   certsForSoldier: (userId: string) => Certification[]
   /** Get test history for a specific soldier */
   testsForSoldier: (userId: string) => TrainingCompletionUI[]
+  /** Get assignments for a specific soldier */
+  assignmentsForSoldier: (userId: string) => TrainingCompletionUI[]
   /** Get overdue items: expired/expiring certs + NO_GO tests */
   overdueItems: (userId: string) => { expiredCerts: Certification[]; failedTests: TrainingCompletionUI[] }
   /** Resolve a userId to a display name */
@@ -54,6 +56,8 @@ export interface SupervisorData {
   addCert: (cert: Certification) => void
   /** Remove a cert from local state (after server delete) */
   removeCert: (certId: string) => void
+  /** Add an assignment to local state (optimistic after assign) */
+  addAssignment: (assignment: TrainingCompletionUI) => void
   /** Refresh certs + tests from server */
   refreshData: () => void
   /** Competency matrix for all soldiers */
@@ -67,6 +71,7 @@ export interface SupervisorData {
 export function useSupervisorData(): SupervisorData {
   const [certs, setCerts] = useState<Certification[]>([])
   const [tests, setTests] = useState<TrainingCompletionUI[]>([])
+  const [assignments, setAssignments] = useState<TrainingCompletionUI[]>([])
 
   const { medics: allLocationMedics, loading: medicsLoading } = useClinicMedics()
   const { user, clinicId: userClinicId, isSupervisorRole, profile: authProfile, loading: authLoading } = useAuth()
@@ -127,12 +132,14 @@ export function useSupervisorData(): SupervisorData {
     const allIds = [...clinicUserIds, currentUserId]
 
     try {
-      const [certsData, testsData] = await Promise.all([
+      const [certsData, testsData, assignmentsData] = await Promise.all([
         fetchClinicCertifications(allIds),
         fetchClinicTestHistory(allIds, currentUserId),
+        fetchClinicAssignments(allIds),
       ])
       setCerts(certsData)
       setTests(testsData)
+      setAssignments(assignmentsData)
     } catch (err) {
       logger.error('Failed to fetch certs/tests:', err)
     }
@@ -152,6 +159,10 @@ export function useSupervisorData(): SupervisorData {
   const testsForSoldier = useCallback((userId: string) => {
     return tests.filter(t => t.userId === userId)
   }, [tests])
+
+  const assignmentsForSoldier = useCallback((userId: string) => {
+    return assignments.filter(a => a.userId === userId)
+  }, [assignments])
 
   const overdueItems = useCallback((userId: string) => {
     const userCerts = certs.filter(c => c.user_id === userId)
@@ -178,6 +189,10 @@ export function useSupervisorData(): SupervisorData {
 
   const removeCert = useCallback((certId: string) => {
     setCerts(prev => prev.filter(c => c.id !== certId))
+  }, [])
+
+  const addAssignment = useCallback((assignment: TrainingCompletionUI) => {
+    setAssignments(prev => [assignment, ...prev])
   }, [])
 
   // ─── Team Insights Computations ──────────────────────────────────────
@@ -209,12 +224,14 @@ export function useSupervisorData(): SupervisorData {
     tests,
     certsForSoldier,
     testsForSoldier,
+    assignmentsForSoldier,
     overdueItems,
     resolveName,
     updateCert,
     removeTest,
     addCert,
     removeCert,
+    addAssignment,
     refreshData: fetchCertsAndTests,
     competencyMatrix,
     teamMetrics,

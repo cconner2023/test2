@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { Ban, X, ClipboardCheck, Pencil, CalendarDays } from 'lucide-react'
+import { Ban, X, Pencil } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { ContentWrapper } from './Settings/ContentWrapper'
 import { HeaderPill, PillButton } from './HeaderPill'
@@ -32,9 +32,9 @@ type SupervisorView =
   | { screen: 'soldier-certs'; soldier: ClinicMedic }
   | { screen: 'evaluate-select-task'; soldier: ClinicMedic }
   | { screen: 'evaluate-go-nogo'; soldier: ClinicMedic; taskNumber: string; taskTitle: string }
-  | { screen: 'coverage-tasks'; areaName: string }
+  | { screen: 'coverage-tasks'; areaName: string; soldier?: ClinicMedic }
   | { screen: 'coverage-task-evaluate'; areaName: string; soldier: ClinicMedic; taskNumber: string; taskTitle: string }
-  | { screen: 'assign-task'; soldier: ClinicMedic }
+  | { screen: 'assign-task'; soldier: ClinicMedic; preSelectedTask?: { id: string; title: string } }
 
 interface SupervisorDrawerProps {
   isVisible: boolean
@@ -72,11 +72,13 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     clinicName,
     certsForSoldier,
     testsForSoldier,
+    assignmentsForSoldier,
     resolveName,
     updateCert,
     removeTest,
     addCert,
     removeCert,
+    addAssignment,
     refreshData,
     teamMetrics,
     testableTaskMap,
@@ -170,10 +172,13 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       }).catch(() => {})
     }
 
+    if (saved) {
+      addAssignment(saved)
+    }
     refreshData()
     setView({ screen: 'main' })
     setTreeSelection({ type: 'soldier', soldierId: view.soldier.id })
-  }, [view, assignTask, refreshData, calendarGroupId, messagesCtx, user, addCalendarEvent, updateCalendarEvent])
+  }, [view, assignTask, addAssignment, refreshData, calendarGroupId, messagesCtx, user, addCalendarEvent, updateCalendarEvent])
 
   const handleModifyCerts = useCallback((soldier: ClinicMedic) => {
 
@@ -205,6 +210,11 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     handleSlideAnimation('left')
     setView({ screen: 'coverage-task-evaluate', areaName: view.areaName, soldier, taskNumber: taskId, taskTitle })
   }, [view, handleSlideAnimation])
+
+  const handleCoverageAssign = useCallback((soldier: ClinicMedic, taskId: string, taskTitle: string) => {
+    handleSlideAnimation('left')
+    setView({ screen: 'assign-task', soldier, preSelectedTask: { id: taskId, title: taskTitle } })
+  }, [handleSlideAnimation])
 
   const handleSubmitEvaluation = useCallback(async (stepResults: StepResult[], notes: string) => {
     if (view.screen !== 'evaluate-go-nogo' && view.screen !== 'coverage-task-evaluate') return
@@ -298,12 +308,10 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       )
     }
 
-    // Soldier selected: Evaluate + Assign + Edit Certs + Close
+    // Soldier selected: Edit Certs + Close
     if (selectedSoldier) {
       return (
         <HeaderPill>
-          <PillButton icon={ClipboardCheck} iconSize={20} onClick={() => handleEvaluate(selectedSoldier)} label="Evaluate" />
-          <PillButton icon={CalendarDays} iconSize={20} onClick={() => handleAssign(selectedSoldier)} label="Assign" />
           <PillButton icon={Pencil} iconSize={20} onClick={() => handleModifyCerts(selectedSoldier)} label="Edit Certs" />
           <PillButton icon={X} onClick={handleClose} label="Close" />
         </HeaderPill>
@@ -316,7 +324,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         <PillButton icon={X} onClick={handleClose} label="Close" />
       </HeaderPill>
     )
-  }, [view, treeSelection, isMobile, handleClose, selectedSoldier, handleEvaluate, handleModifyCerts])
+  }, [view, treeSelection, isMobile, handleClose, selectedSoldier, handleModifyCerts])
 
   // ── Header Config ──────────────────────────────────────────────────────────
 
@@ -437,6 +445,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
             soldier={soldier}
             certs={certsForSoldier(soldier.id)}
             tests={testsForSoldier(soldier.id)}
+            assignments={assignmentsForSoldier(soldier.id)}
             readinessPercent={readinessForSoldier(soldier.id)}
             compliancePercent={teamMetrics.soldierReadiness.find(s => s.soldierId === soldier.id)?.compliancePercent ?? 100}
             currentUserId={currentUserId}
@@ -446,8 +455,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
             testableTaskMap={testableTaskMap}
             onNavigateToArea={(areaName) => {
               handleSlideAnimation('left')
-              setView({ screen: 'evaluate-select-task', soldier })
-              setTaskSearchQuery(areaName)
+              setView({ screen: 'coverage-tasks', areaName, soldier })
             }}
           />
         )
@@ -532,7 +540,9 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
             medics={medics}
             testsForSoldier={testsForSoldier}
             onEvaluate={handleCoverageEvaluate}
+            onAssign={handleCoverageAssign}
             onBack={handleBack}
+            preSelectedSoldier={view.soldier}
           />
         )
       }
@@ -561,6 +571,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
               <AssignTaskFlow
                 soldier={view.soldier}
                 searchQuery={taskSearchQuery}
+                preSelectedTask={view.preSelectedTask}
                 onSubmit={handleSubmitAssignment}
               />
             </div>

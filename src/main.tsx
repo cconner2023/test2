@@ -72,23 +72,12 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 )
 
-// Dismiss splash screen after bar fill animation completes, then fade out
-const splashEl = document.getElementById('splash')
-const splashBar = document.querySelector('.splash-bar-fill')
-
-function dismissSplash() {
+// Expose splash dismissal for React (called by LockGate when auth settles)
+;(window as unknown as { dismissSplash: () => void }).dismissSplash = () => {
+  const splashEl = document.getElementById('splash')
   if (!splashEl) return
   splashEl.classList.add('splash-out')
   splashEl.addEventListener('transitionend', () => splashEl.remove(), { once: true })
   // Fallback removal if transitionend doesn't fire
   setTimeout(() => { if (splashEl.parentNode) splashEl.remove() }, 500)
-}
-
-if (splashBar && splashEl) {
-  const anim = splashBar.getAnimations()[0]
-  if (anim && anim.playState === 'running') {
-    anim.finished.then(() => dismissSplash())
-  } else {
-    dismissSplash()
-  }
 }

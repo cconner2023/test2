@@ -2,8 +2,25 @@ import { useState, useCallback, useImperativeHandle, forwardRef } from 'react'
 import { Package } from 'lucide-react'
 import type { EventFormData, EventCategory } from '../../Types/CalendarTypes'
 import { createEmptyFormData, EVENT_CATEGORIES } from '../../Types/CalendarTypes'
-import { PickerInput } from '../FormInputs'
+import { PickerInput, DatePickerInput } from '../FormInputs'
 import { UserAvatar } from '../Settings/UserAvatar'
+
+/** Generate 30-min military time options: "0000", "0030", … "2330" */
+const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
+  const h = String(Math.floor(i / 2)).padStart(2, '0')
+  const m = i % 2 === 0 ? '00' : '30'
+  return `${h}${m}`
+})
+
+/** "0630" → "06:30" for datetime-local string */
+function militaryToHHMM(mil: string): string {
+  return `${mil.slice(0, 2)}:${mil.slice(2)}`
+}
+
+/** "06:30" → "0630" for display */
+function hhmmToMilitary(hhmm: string): string {
+  return hhmm.replace(':', '')
+}
 
 export interface EventFormHandle {
   submit: () => void
@@ -80,6 +97,38 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
 
     const categoryLabel = EVENT_CATEGORIES.find(c => c.value === form.category)?.label ?? ''
 
+    // Derive date/time parts from stored datetime strings ("2026-03-22T14:30")
+    const startDate = form.start_time.slice(0, 10)
+    const startTime = form.start_time.slice(11, 16) // "14:30"
+    const endDate = form.end_time.slice(0, 10)
+    const endTime = form.end_time.slice(11, 16)
+
+    const handleStartDateChange = useCallback((dateStr: string) => {
+      const time = form.start_time.slice(11) || '08:00'
+      updateField('start_time', `${dateStr}T${time}`)
+      // If end date is before new start date, sync it
+      const currentEnd = form.end_time.slice(0, 10)
+      if (!currentEnd || currentEnd < dateStr) {
+        const endTime = form.end_time.slice(11) || '09:00'
+        updateField('end_time', `${dateStr}T${endTime}`)
+      }
+    }, [form.start_time, form.end_time, updateField])
+
+    const handleEndDateChange = useCallback((dateStr: string) => {
+      const time = form.end_time.slice(11) || '09:00'
+      updateField('end_time', `${dateStr}T${time}`)
+    }, [form.end_time, updateField])
+
+    const handleStartTimeChange = useCallback((mil: string) => {
+      const date = form.start_time.slice(0, 10) || new Date().toISOString().slice(0, 10)
+      updateField('start_time', `${date}T${militaryToHHMM(mil)}`)
+    }, [form.start_time, updateField])
+
+    const handleEndTimeChange = useCallback((mil: string) => {
+      const date = form.end_time.slice(0, 10) || new Date().toISOString().slice(0, 10)
+      updateField('end_time', `${date}T${militaryToHHMM(mil)}`)
+    }, [form.end_time, updateField])
+
     return (
       <div className="px-4 py-4 space-y-3">
         <div>
@@ -129,27 +178,47 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <input
-              type="datetime-local"
-              value={form.start_time}
-              onChange={e => updateField('start_time', e.target.value)}
-              placeholder="Start"
-              className={inputCx}
+        {/* Start date + time */}
+        <div>
+          <div className={`grid gap-2 ${form.all_day ? '' : 'grid-cols-2'}`}>
+            <DatePickerInput
+              value={startDate}
+              onChange={handleStartDateChange}
+              placeholder="Start date"
             />
-            {errors.start_time && <p className="text-xs text-themeredred mt-1 pl-4">{errors.start_time}</p>}
+            {!form.all_day && (
+              <PickerInput
+                value={startTime ? hhmmToMilitary(startTime) : ''}
+                onChange={handleStartTimeChange}
+                options={TIME_OPTIONS}
+                placeholder="Start time"
+                required
+              />
+            )}
           </div>
-          <div>
-            <input
-              type="datetime-local"
-              value={form.end_time}
-              onChange={e => updateField('end_time', e.target.value)}
-              placeholder="End"
-              className={inputCx}
+          {errors.start_time && <p className="text-xs text-themeredred mt-1 pl-4">{errors.start_time}</p>}
+        </div>
+
+        {/* End date + time */}
+        <div>
+          <div className={`grid gap-2 ${form.all_day ? '' : 'grid-cols-2'}`}>
+            <DatePickerInput
+              value={endDate}
+              onChange={handleEndDateChange}
+              placeholder="End date"
+              minDate={startDate}
             />
-            {errors.end_time && <p className="text-xs text-themeredred mt-1 pl-4">{errors.end_time}</p>}
+            {!form.all_day && (
+              <PickerInput
+                value={endTime ? hhmmToMilitary(endTime) : ''}
+                onChange={handleEndTimeChange}
+                options={TIME_OPTIONS}
+                placeholder="End time"
+                required
+              />
+            )}
           </div>
+          {errors.end_time && <p className="text-xs text-themeredred mt-1 pl-4">{errors.end_time}</p>}
         </div>
 
         <input

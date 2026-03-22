@@ -489,10 +489,25 @@ export async function restoreBackup(userId: string): Promise<void> {
     }
 
     let restored = 0
+
+    // Pre-scan: collect event IDs that have a delete action so we don't
+    // resurrect them when replaying earlier create messages.
+    const deletedEventIds = new Set<string>()
+    for (const msg of payload.messages) {
+      if (isCalendarEvent(msg.content) && msg.content.action === 'delete') {
+        deletedEventIds.add(msg.content.data.id)
+      }
+    }
+
     for (const msg of payload.messages) {
       await saveMessage(msg, userId)
-      // Route any calendar events to the calendar store so they render
-      if (isCalendarEvent(msg.content)) routeCalendarEvent(msg.content)
+      // Route calendar events, but skip create/update for events that
+      // were later deleted — prevents backup from resurrecting them.
+      if (isCalendarEvent(msg.content)) {
+        if (msg.content.action === 'delete' || !deletedEventIds.has(msg.content.data.id)) {
+          routeCalendarEvent(msg.content)
+        }
+      }
       restored++
     }
 
