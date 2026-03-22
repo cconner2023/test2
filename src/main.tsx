@@ -73,11 +73,18 @@ createRoot(document.getElementById('root')!).render(
 )
 
 // Expose splash dismissal for React (called by LockGate when auth settles)
+// Enforce a minimum display time so fast auth doesn't cause a flash
+const SPLASH_MIN_MS = 800
+const splashStart = performance.now()
 ;(window as unknown as { dismissSplash: () => void }).dismissSplash = () => {
   const splashEl = document.getElementById('splash')
   if (!splashEl) return
-  splashEl.classList.add('splash-out')
-  splashEl.addEventListener('transitionend', () => splashEl.remove(), { once: true })
-  // Fallback removal if transitionend doesn't fire
-  setTimeout(() => { if (splashEl.parentNode) splashEl.remove() }, 500)
+  const elapsed = performance.now() - splashStart
+  const remaining = Math.max(0, SPLASH_MIN_MS - elapsed)
+  setTimeout(() => {
+    splashEl.classList.add('splash-out')
+    splashEl.addEventListener('transitionend', () => splashEl.remove(), { once: true })
+    // Fallback removal if transitionend doesn't fire
+    setTimeout(() => { if (splashEl.parentNode) splashEl.remove() }, 500)
+  }, remaining)
 }

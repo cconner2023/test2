@@ -235,13 +235,7 @@ const NoteImportContent = ({
         }
     }, [state.inputText, state.scanError, setState]);
 
-    // Focus import input when expanded
-    useEffect(() => {
-        if (importExpanded && importInputRef.current) {
-            const timer = setTimeout(() => importInputRef.current?.focus({ preventScroll: true }), 120);
-            return () => clearTimeout(timer);
-        }
-    }, [importExpanded]);
+    // No auto-focus on expand — iOS keyboard open shifts the viewport
 
     const handleExpandImport = useCallback(() => {
         setImportExpanded(true);
