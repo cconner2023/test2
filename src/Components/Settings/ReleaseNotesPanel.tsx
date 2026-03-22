@@ -1,18 +1,17 @@
 import { Bug, PlusCircle, RefreshCw, CalendarClock, Loader } from 'lucide-react';
 import { type ReleaseNoteTypes, ReleaseNotes } from '../../Data/Release';
 
-// Extract the note type safely
 type NoteType = Exclude<ReleaseNoteTypes['type'], undefined> | 'default';
 
 const NOTE_ICONS: Record<NoteType, {
     icon: React.ComponentType<{ size: number; className: string }>;
     className: string
 }> = {
-    bug: { icon: Bug, className: "text-red-500" },
-    added: { icon: PlusCircle, className: "text-green-500" },
-    changed: { icon: RefreshCw, className: "text-blue-500" },
-    planned: { icon: CalendarClock, className: "text-yellow-500" },
-    started: { icon: Loader, className: "text-orange-500" },
+    bug: { icon: Bug, className: "text-themeredred" },
+    added: { icon: PlusCircle, className: "text-themegreen" },
+    changed: { icon: RefreshCw, className: "text-themeblue2" },
+    planned: { icon: CalendarClock, className: "text-themeyellow" },
+    started: { icon: Loader, className: "text-themeyellowlow" },
     default: { icon: PlusCircle, className: "text-tertiary" }
 };
 
@@ -21,11 +20,11 @@ const ReleaseNoteItem = ({ note }: { note: ReleaseNoteTypes }) => {
     const { icon: Icon, className } = NOTE_ICONS[noteType];
 
     return (
-        <div className="flex items-start mb-2 last:mb-0">
-            <div className="mt-1.5 mr-3">
+        <div className="flex items-center gap-3 px-4 py-3 hover:bg-themeblue2/5 transition-all">
+            <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
                 <Icon size={14} className={className} />
             </div>
-            <p className="text-sm text-tertiary/80 flex-1">{note.text}</p>
+            <p className="text-sm text-primary/80 flex-1">{note.text}</p>
         </div>
     );
 };
@@ -41,38 +40,41 @@ export const ReleaseNotesPanel = () => {
     const versions = Object.keys(groupedNotes).sort((a, b) => parseFloat(b) - parseFloat(a));
 
     return (
-        <div className="h-full overflow-y-auto px-4 py-3 md:p-5">
-            {versions.map((version, versionIndex) => {
-                const notes = groupedNotes[version];
-                const isLatest = versionIndex === 0;
+        <div className="h-full overflow-y-auto">
+            <div className="px-5 py-4 space-y-5">
+                {versions.map((version, versionIndex) => {
+                    const notes = groupedNotes[version];
+                    const isLatest = versionIndex === 0;
 
-                return (
-                    <div
-                        key={version}
-                        className={`${versionIndex > 0 ? 'pt-6 border-t border-tertiary/10' : 'mb-6'}`}
-                    >
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-semibold text-primary">Version {version}</h3>
-                            {isLatest && (
-                                <span className="text-xs text-tertiary/60 bg-tertiary/10 px-2 py-1 rounded-full">
-                                    Latest
-                                </span>
-                            )}
+                    return (
+                        <div key={version}>
+                            <div className="flex items-center gap-2 mb-2">
+                                <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
+                                    Version {version}
+                                </p>
+                                {isLatest && (
+                                    <span className="text-[9px] font-semibold text-themeblue2 uppercase tracking-wide">
+                                        Latest
+                                    </span>
+                                )}
+                            </div>
+                            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                                {notes.map((note, noteIndex) => (
+                                    <ReleaseNoteItem
+                                        key={`${version}-${noteIndex}`}
+                                        note={note}
+                                    />
+                                ))}
+                                {notes[0]?.date && (
+                                    <div className="px-4 py-2 border-t border-themeblue3/10">
+                                        <p className="text-[11px] text-tertiary/60">{notes[0].date}</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                        <div className="space-y-1">
-                            {notes.map((note, noteIndex) => (
-                                <ReleaseNoteItem
-                                    key={`${version}-${noteIndex}`}
-                                    note={note}
-                                />
-                            ))}
-                        </div>
-                        {notes[0]?.date && (
-                            <p className="text-xs text-tertiary/60 mt-3">Released: {notes[0].date}</p>
-                        )}
-                    </div>
-                );
-            })}
+                    );
+                })}
+            </div>
         </div>
     );
 };

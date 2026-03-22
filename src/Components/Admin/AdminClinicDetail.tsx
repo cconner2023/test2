@@ -6,7 +6,7 @@
  * assigned and additional users. Edit and delete are handled by AdminDrawer header.
  */
 
-import { useEffect, useCallback, useMemo, useState } from 'react'
+import { useEffect, useCallback, useMemo, useState, useRef } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { listClinics, listAllUsers, updateClinic } from '../../lib/adminService'
@@ -56,6 +56,10 @@ const AdminClinicDetail = ({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  /** Stable ref for onClinicUpdated to avoid recreating loadData on every render. */
+  const onClinicUpdatedRef = useRef(onClinicUpdated)
+  onClinicUpdatedRef.current = onClinicUpdated
+
   /** Load clinics, users, and certifications. */
   const loadData = useCallback(async () => {
     const [fetchedClinics, fetchedUsers, certData] = await Promise.all([
@@ -69,16 +73,17 @@ const AdminClinicDetail = ({
 
     // Keep parent in sync with latest clinic data
     const refreshed = fetchedClinics.find((c) => c.id === clinic.id)
-    if (refreshed) onClinicUpdated(refreshed)
-  }, [clinic.id, onClinicUpdated])
+    if (refreshed) onClinicUpdatedRef.current(refreshed)
+  }, [clinic.id])
 
   useEffect(() => {
     loadData()
   }, [loadData])
 
-  /** Populate edit fields when entering edit mode. */
+  /** Populate edit fields only when entering edit mode (not on every clinic ref change). */
+  const prevEditingRef = useRef(false)
   useEffect(() => {
-    if (editing) {
+    if (editing && !prevEditingRef.current) {
       setEditName(clinic.name)
       setEditLocation(clinic.location ?? '')
       setEditUics([...clinic.uics])
@@ -87,6 +92,7 @@ const AdminClinicDetail = ({
       setEditAdditionalUserIds([...clinic.additional_user_ids])
       setError(null)
     }
+    prevEditingRef.current = editing
   }, [editing, clinic])
 
   /** Track pending changes. */

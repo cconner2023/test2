@@ -7,7 +7,12 @@ export interface ReleaseNoteTypes {
 }
 
 export const ReleaseNotes: ReleaseNoteTypes[] = [
-    { version: '2.6.3', type: 'started', text: 'WhisperNet — offline mesh messaging and guardian node relay' },
+    { version: '2.6.4', type: 'added', text: 'encrypted calendar events with troops to task view' },
+    { version: '2.6.4', type: 'added', text: 'training assignment from supervisor panel' },
+    { version: '2.6.4', type: 'changed', text: 'provider view. append medic notes' },
+    { version: '2.6.4', type: 'changed', text: 'text-expander update' },
+    { version: '2.6.4', type: 'bug', text: 'iOS model viewport adjustment' },
+    { version: '2.6.3', type: 'changed', text: 'WhisperNet — offline mesh messaging and guardian node relay' },
     { version: '2.6.3', type: 'added', text: 'manage users in your clinic, and associate your clinic with others via QR' },
     { version: '2.6.3', type: 'added', text: 'extend comms to outside units and parent clinics' },
     { version: '2.6.3', type: 'added', text: 'User credentials managed and updated by supervisors' },

@@ -7,7 +7,7 @@
  * Delete has moved to the header.
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { KeyRound, LogOut } from 'lucide-react'
 import type { Certification } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
@@ -117,6 +117,10 @@ export function AdminUserDetail({
 
   // ── Data loading ────────────────────────────────────────────────────
 
+  /** Stable ref for onUserUpdated to avoid recreating loadData on every render. */
+  const onUserUpdatedRef = useRef(onUserUpdated)
+  onUserUpdatedRef.current = onUserUpdated
+
   const loadData = useCallback(async () => {
     const [userData, clinicData, certData] = await Promise.all([
       listAllUsers(),
@@ -128,14 +132,15 @@ export function AdminUserDetail({
 
     // Sync user prop with latest data so parent stays current
     const refreshed = userData.find((u) => u.id === user.id)
-    if (refreshed) onUserUpdated(refreshed)
-  }, [user.id, onUserUpdated])
+    if (refreshed) onUserUpdatedRef.current(refreshed)
+  }, [user.id])
 
   useEffect(() => { loadData() }, [loadData])
 
-  // ── Edit mode initialization ─────────────────────────────────────────
+  // ── Edit mode initialization (only on false→true transition) ─────────
+  const prevEditingRef = useRef(false)
   useEffect(() => {
-    if (editing) {
+    if (editing && !prevEditingRef.current) {
       setEditFirstName(user.first_name || '')
       setEditLastName(user.last_name || '')
       setEditMiddleInitial(user.middle_initial || '')
@@ -155,6 +160,7 @@ export function AdminUserDetail({
       setEditPeDepth(user.pe_depth ?? 'standard')
       setError(null)
     }
+    prevEditingRef.current = editing
   }, [editing, user])
 
   // ── Pending changes detection ────────────────────────────────────────

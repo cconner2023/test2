@@ -100,12 +100,12 @@ export function ConfirmDialog({
     return (
       <>
         <div
-          className={`fixed inset-0 z-50 bg-black transition-opacity duration-300 ${open ? 'opacity-40' : 'opacity-0'}`}
+          className={`fixed inset-0 z-70 bg-black transition-opacity duration-300 ${open ? 'opacity-40' : 'opacity-0'}`}
           style={{ pointerEvents: open ? 'auto' : 'none' }}
           onClick={handleClose}
         />
         <div
-          className={`fixed left-0 right-0 bottom-0 z-50 bg-themewhite3 rounded-t-[1.25rem] ${isDragging ? '' : 'transition-transform duration-300 ease-out'}`}
+          className={`fixed left-0 right-0 bottom-0 z-70 bg-themewhite3 rounded-t-[1.25rem] ${isDragging ? '' : 'transition-transform duration-300 ease-out'}`}
           style={{
             transform: open ? `translateY(${dragY}px)` : 'translateY(100%)',
             maxHeight: '30dvh',
@@ -157,11 +157,11 @@ export function ConfirmDialog({
   return (
     <>
       <div
-        className={`fixed inset-0 z-50 bg-black transition-opacity duration-300 ${open ? 'opacity-20' : 'opacity-0'}`}
+        className={`fixed inset-0 z-70 bg-black transition-opacity duration-300 ${open ? 'opacity-20' : 'opacity-0'}`}
         style={{ pointerEvents: open ? 'auto' : 'none' }}
         onClick={handleClose}
       />
-      <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+      <div className="fixed inset-0 z-70 flex items-center justify-center pointer-events-none">
         <div
           className={`bg-themewhite rounded-3xl shadow-xl px-8 py-8 max-w-[340px] w-full pointer-events-auto transition-all duration-300 ${open ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
           role="alertdialog"
