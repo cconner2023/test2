@@ -38,8 +38,8 @@
   <meta name="msapplication-starturl" content="/test2/">
   <meta name="msapplication-config" content="/test2/browserconfig.xml">
 
-  <script type="module" crossorigin src="/test2/assets/index-CURcqeo-.js"></script>
-  <link rel="stylesheet" crossorigin href="/test2/assets/index-DlqT4v-G.css">
+  <script type="module" crossorigin src="/test2/assets/index-4PxVNTtR.js"></script>
+  <link rel="stylesheet" crossorigin href="/test2/assets/index-zFSdHnQR.css">
 <link rel="manifest" href="/test2/manifest.webmanifest"></head>
 
 <body>
@@ -95,15 +95,18 @@
 
     .splash-bar-fill {
       height: 100%;
-      width: 0;
+      width: 30%;
       background: rgba(21, 142, 172, 1);
       border-radius: 2px;
-      animation: splashFill 0.7s ease-out forwards
+      animation: splashPulse 1.2s ease-in-out infinite
     }
 
-    @keyframes splashFill {
-      to {
-        width: 100%
+    @keyframes splashPulse {
+      0% {
+        transform: translateX(-100%)
+      }
+      100% {
+        transform: translateX(467%)
       }
     }
 
