@@ -367,14 +367,18 @@ export function useSignalMessages({
             } catch { /* ignore parse errors */ }
           } else {
             onMessageRef.current(decrypted)
-            if (
+            const isUserMessage =
+              decrypted.messageType === 'message' ||
+              decrypted.messageType === 'initial' ||
+              decrypted.messageType === 'request'
+            const isFromOther = decrypted.senderId !== userId
+            const isConversationContent =
+              isUserMessage && isFromOther &&
               !decrypted._deliveryReceipt &&
-              !decrypted._readSync &&
-              decrypted.messageType !== 'sync' &&
-              decrypted.messageType !== 'delete' &&
-              decrypted.senderId !== userId &&
+              !isCalendarEvent(decrypted.content)
+            if (
+              isConversationContent &&
               !decrypted.plaintext.includes('"__type":"delivery-receipt"') &&
-              !isCalendarEvent(decrypted.content) &&
               userIdRef.current &&
               localDeviceId
             ) {
@@ -428,18 +432,23 @@ export function useSignalMessages({
           } catch { /* ignore parse errors */ }
           return
         }
-        onMessageRef.current(decrypted)
-        if (
+        const isUserMessage =
+          decrypted.messageType === 'message' ||
+          decrypted.messageType === 'initial' ||
+          decrypted.messageType === 'request'
+        const isFromOther = decrypted.senderId !== myUuid
+        const isConversationContent =
+          isUserMessage && isFromOther &&
           !decrypted._deliveryReceipt &&
-          !decrypted._readSync &&
-          decrypted.messageType !== 'sync' &&
-          decrypted.messageType !== 'delete' &&
-          decrypted.senderId !== myUuid &&
-          !decrypted.plaintext.includes('"__type":"delivery-receipt"') &&
-          !isCalendarEvent(decrypted.content) &&
-          myUuid &&
-          myDeviceId
-        ) {
+          !isCalendarEvent(decrypted.content)
+
+        if (!isConversationContent) {
+          markMessagesRead([row.id]).catch(() => {})
+        }
+
+        onMessageRef.current(decrypted)
+
+        if (isConversationContent && !decrypted.plaintext.includes('"__type":"delivery-receipt"') && myUuid && myDeviceId) {
           sendDeliveryReceipt(
             decrypted.senderId,
             row.sender_device_id ?? 'unknown',
@@ -491,18 +500,28 @@ export function useSignalMessages({
           } catch { /* ignore parse errors */ }
           return
         }
-        onMessageRef.current(decrypted)
-        if (
+        // Determine if this is a user-visible message from another person (the only
+        // kind that should remain unread until the user opens the conversation).
+        const isUserMessage =
+          decrypted.messageType === 'message' ||
+          decrypted.messageType === 'initial' ||
+          decrypted.messageType === 'request'
+        const isFromOther = decrypted.senderId !== myUuid
+        const isConversationContent =
+          isUserMessage && isFromOther &&
           !decrypted._deliveryReceipt &&
-          !decrypted._readSync &&
-          decrypted.messageType !== 'sync' &&
-          decrypted.messageType !== 'delete' &&
-          decrypted.senderId !== myUuid &&
-          !decrypted.plaintext.includes('"__type":"delivery-receipt"') &&
-          !isCalendarEvent(decrypted.content) &&
-          myUuid &&
-          myDeviceId
-        ) {
+          !isCalendarEvent(decrypted.content)
+
+        // Mark all non-conversation rows as read so the cron cleanup can purge them.
+        // User messages are marked read later when the conversation is opened.
+        if (!isConversationContent) {
+          markMessagesRead([row.id]).catch(() => {})
+        }
+
+        onMessageRef.current(decrypted)
+
+        // Send delivery receipt only for user-visible messages from others
+        if (isConversationContent && !decrypted.plaintext.includes('"__type":"delivery-receipt"') && myUuid && myDeviceId) {
           sendDeliveryReceipt(
             decrypted.senderId,
             row.sender_device_id ?? 'unknown',
