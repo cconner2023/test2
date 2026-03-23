@@ -25,6 +25,8 @@ import { useCallStore } from './useCallStore'
 import { unregisterDevice, deleteKeyBundle, primaryLogoutAll, initLoRaMesh } from '../lib/signal/signalService'
 import { secureSet, secureGet, secureRemove, persistSupabaseAuth, destroySecureStore } from '../lib/secureStorage'
 import { clearOutboundQueue, destroyOutboundQueue } from '../lib/signal/outboundQueue'
+import { destroyCalendarEventStore } from '../lib/calendarEventStore'
+import { useCalendarStore } from './useCalendarStore'
 import { clearBackupKey, createBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
 import { processVaultMessages, clearVaultKey } from '../lib/signal/vaultDevice'
 import { unsubscribeFromPush, resyncPushSubscription } from '../lib/pushNotificationService'
@@ -313,8 +315,9 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
           destroyMessageStore(),
           destroyOutboundQueue(),
           destroySecureStore(),
+          destroyCalendarEventStore(),
         ])
-        const dbNames = ['adtmc-signal-store', 'adtmc-message-store', 'adtmc-outbound-queue', 'adtmc-secure-store']
+        const dbNames = ['adtmc-signal-store', 'adtmc-message-store', 'adtmc-outbound-queue', 'adtmc-secure-store', 'adtmc-calendar-events']
         results.forEach((r, i) => {
           if (r.status === 'rejected') {
             try { indexedDB.deleteDatabase(dbNames[i]) } catch { /* last resort */ }
@@ -331,8 +334,9 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
           clearSignalKeys(),
           clearMessageStore(),
           clearOutboundQueue(),
+          destroyCalendarEventStore(),
         ])
-        const dbNames = ['adtmc-signal-store', 'adtmc-message-store', 'adtmc-outbound-queue']
+        const dbNames = ['adtmc-signal-store', 'adtmc-message-store', 'adtmc-outbound-queue', 'adtmc-calendar-events']
         results.forEach((r, i) => {
           if (r.status === 'rejected') {
             try { indexedDB.deleteDatabase(dbNames[i]) } catch { /* last resort */ }
@@ -346,6 +350,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     }
     clearClinicUsersCache().catch(() => {})
     useCallStore.getState().reset()
+    useCalendarStore.setState({ events: [], hydrated: false, calendarGroupId: null })
 
     // Aggressively wipe browser storage
     try { localStorage.clear() } catch { /* ignore */ }

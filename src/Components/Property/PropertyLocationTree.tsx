@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronRight, ChevronDown, MapPin, Package, Building2, Pencil, Trash2, Eye } from 'lucide-react'
+import { ChevronRight, ChevronDown, Pencil, Trash2, Eye } from 'lucide-react'
 import { useDrag } from '@use-gesture/react'
 import { CardContextMenu } from '../CardContextMenu'
 import type { LocalPropertyLocation, LocalPropertyItem } from '../../Types/PropertyTypes'
@@ -266,7 +266,7 @@ export function PropertyLocationTree({
             isDropTarget
               ? 'bg-themeblue3/10 ring-1 ring-themeblue3/30'
               : isActive
-                ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
+                ? 'bg-primary/5 border-l-2 border-l-primary/40'
                 : 'hover:bg-secondary/5'
           }`}
           style={{ paddingLeft: `${24 + depth * 20}px` }}
@@ -296,7 +296,6 @@ export function PropertyLocationTree({
             onClick={() => onSelectLocation(node.location)}
             onKeyDown={(e) => { if (e.key === 'Enter') onSelectLocation(node.location) }}
           >
-            <MapPin size={16} className="text-themeblue3 shrink-0" />
             <span className="text-[10pt] font-medium text-primary truncate">{node.location.name}</span>
           </div>
 
@@ -330,10 +329,9 @@ export function PropertyLocationTree({
                   data-drag-type="item"
                   data-drag-name={item.name}
                 >
-                  <Package size={16} className="text-tertiary shrink-0" />
                   <span className="text-[10pt] text-primary truncate flex-1">{item.name}</span>
                   {item.quantity > 0 && (
-                    <span className="text-[10pt] px-2 py-0.5 rounded-full font-medium shrink-0 bg-themeblue3/10 text-themeblue3">
+                    <span className="text-[9pt] text-tertiary/60 tabular-nums shrink-0">
                       {item.quantity}
                     </span>
                   )}
@@ -359,7 +357,7 @@ export function PropertyLocationTree({
           tabIndex={0}
           className={`flex items-center gap-2 py-2 pr-6 transition-colors cursor-pointer ${
             allSelected
-              ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
+              ? 'bg-primary/5 border-l-2 border-l-primary/40'
               : 'hover:bg-secondary/5'
           }`}
           style={{ paddingLeft: '24px' }}
@@ -367,7 +365,6 @@ export function PropertyLocationTree({
           onKeyDown={(e) => { if (e.key === 'Enter') onSelectAll() }}
         >
           <span className="w-[18px] shrink-0" />
-          <Building2 size={16} className="text-themeblue3 shrink-0" />
           <span className="text-[10pt] font-medium text-primary truncate">{clinicName || 'Clinic'}</span>
         </div>
       )}
@@ -432,10 +429,9 @@ export function PropertyLocationTree({
                     data-drag-type="item"
                     data-drag-name={item.name}
                   >
-                    <Package size={16} className="text-tertiary shrink-0" />
                     <span className="text-[10pt] text-primary truncate flex-1">{item.name}</span>
                     {item.quantity > 0 && (
-                      <span className="text-[10pt] px-2 py-0.5 rounded-full font-medium shrink-0 bg-themeblue3/10 text-themeblue3">
+                      <span className="text-[9pt] text-tertiary/60 tabular-nums shrink-0">
                         {item.quantity}
                       </span>
                     )}
@@ -488,10 +484,6 @@ export function PropertyLocationTree({
           style={{ transform: 'translate(-9999px, -9999px)' }}
         >
           <div className="flex items-center gap-2 px-3 py-2 rounded-full bg-white shadow-lg border border-tertiary/20 max-w-[200px]">
-            {dragState.type === 'location'
-              ? <MapPin size={16} className="text-themeblue3 shrink-0" />
-              : <Package size={16} className="text-tertiary shrink-0" />
-            }
             <span className="text-[10pt] font-medium text-primary truncate">{dragState.name}</span>
           </div>
         </div>,

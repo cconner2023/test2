@@ -118,10 +118,24 @@ export async function signUp(
     // Auto-associate clinic based on UIC
     await associateClinic(data.user.id, profile.uic)
 
-    // Generate vault device while password is in scope (non-fatal)
-    generateVaultIdentity(data.user.id, password).then(vaultBundle => {
-      if (data.user) uploadVaultDevice(data.user.id, vaultBundle)
-    }).catch(() => {})
+    // Generate vault device while password is in scope.
+    // Awaited with single retry — the vault makes the user messageable immediately.
+    try {
+      const vaultBundle = await generateVaultIdentity(data.user.id, password)
+      const uploadResult = await uploadVaultDevice(data.user.id, vaultBundle)
+      if (!uploadResult.ok) {
+        // Retry once on upload failure
+        await uploadVaultDevice(data.user.id, vaultBundle)
+      }
+    } catch {
+      // Single retry on generation failure
+      try {
+        const vaultBundle = await generateVaultIdentity(data.user.id, password)
+        await uploadVaultDevice(data.user.id, vaultBundle)
+      } catch {
+        logger.warn('Vault creation failed after retry — will be created on next sign-in')
+      }
+    }
   }
 
   return {
@@ -149,11 +163,16 @@ export async function signIn(
     storePasswordHash(password).catch(() => {})
     // Derive non-extractable backup CryptoKey from password (password is NOT cached)
     deriveAndStoreBackupKey(password, data.user.id).catch(() => {})
-    // Ensure vault exists for this user (migration for existing users), then cache wrapping key.
+    // Ensure vault exists (migration for pre-vault users), then cache wrapping key.
     // Sequential: deriveAndCacheVaultKey needs the vault row to exist before fetching salt.
+    // Retry once on failure — vault is critical for messageability.
     ensureVaultExists(data.user.id, password)
       .then(() => deriveAndCacheVaultKey(password))
-      .catch(() => {})
+      .catch(() =>
+        ensureVaultExists(data.user.id, password)
+          .then(() => deriveAndCacheVaultKey(password))
+          .catch(() => logger.warn('Vault ensure failed after retry'))
+      )
 
     fireNotification({
       type: 'user_login',

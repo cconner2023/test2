@@ -334,7 +334,7 @@ export function AdminUserDetail({
       {/* Error banner */}
       {error && <div className="mb-4"><ErrorDisplay message={error} /></div>}
 
-      {/* Main card — consolidated profile + info (view) or all edit fields (edit) */}
+      {/* Main card — compact card in view, form inputs in edit */}
       <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
         {editing ? (
           <div className="px-4 py-3.5 space-y-3">

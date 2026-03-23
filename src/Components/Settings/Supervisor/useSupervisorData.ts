@@ -30,7 +30,7 @@ export interface SupervisorData {
   clinicName: string | null
   /** Current user's profile as a ClinicMedic (for name resolution) */
   currentUserProfile: ClinicMedic | null
-  /** Clinic medics (excluding the current user) */
+  /** Clinic medics (excluding self — self is in currentUserProfile) */
   medics: ClinicMedic[]
   /** All clinic users including self (for name resolution) */
   allClinicUsers: ClinicMedic[]
@@ -98,11 +98,13 @@ export function useSupervisorData(): SupervisorData {
     }
   }, [user, authProfile.firstName, authProfile.lastName, authProfile.middleInitial, authProfile.rank, authProfile.credential])
 
-  // Filter to own clinic only – supervisor view should not include nearby clinics
+  // Filter to own clinic only (excluding self – shown separately via currentUserProfile)
   const medics = useMemo(() => {
-    if (!userClinicId) return allLocationMedics
-    return allLocationMedics.filter(m => !m.clinicId || m.clinicId === userClinicId)
-  }, [allLocationMedics, userClinicId])
+    const base = !userClinicId
+      ? allLocationMedics
+      : allLocationMedics.filter(m => !m.clinicId || m.clinicId === userClinicId)
+    return currentUserId ? base.filter(m => m.id !== currentUserId) : base
+  }, [allLocationMedics, userClinicId, currentUserId])
 
   // All clinic users including self for name resolution
   const allClinicUsers = useMemo(() => {

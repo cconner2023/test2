@@ -224,7 +224,7 @@ const AdminClinicDetail = ({
     <div className={saving ? 'opacity-50 pointer-events-none' : undefined}>
       {error && <div className="mb-3"><ErrorDisplay message={error} /></div>}
 
-      {/* Main card — consolidated info (view) or all edit fields (edit) */}
+      {/* Main card — compact card in view, form inputs in edit */}
       <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
         {editing ? (
           <div className="px-4 py-3.5 space-y-3">

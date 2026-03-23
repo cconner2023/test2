@@ -30,6 +30,7 @@ import { importDhPublicKey } from './keyManager'
 import { uploadKeyBundle, registerDevice } from './signalService'
 import { saveMessage, deleteMessagesByOriginId, getTombstone } from './messageStore'
 import { isCalendarEvent, routeCalendarEvent } from '../calendarRouting'
+import type { CalendarEventContent } from './messageContent'
 import { parseMessageContent } from './messageContent'
 import type { PublicKeyBundle, InitialMessage, EncryptedMessage, RatchetState, RatchetKeyPair } from './types'
 import type { DecryptedSignalMessage, SignalMessageRow, SyncMessagePayload } from './transportTypes'
@@ -543,6 +544,11 @@ export async function processVaultMessages(userId: string): Promise<number> {
   // Track consumed OTP key IDs so we don't reuse them
   const consumedOtpIds = new Set<number>()
 
+  // Collect calendar event routes for delete-aware dispatch after the main loop.
+  // This prevents an earlier create/update from resurrecting an event that is
+  // deleted by a later message in the same vault batch.
+  const calendarRoutes: CalendarEventContent[] = []
+
   // 5. Process each message in order
   for (const row of rows as SignalMessageRow[]) {
     try {
@@ -672,7 +678,7 @@ export async function processVaultMessages(userId: string): Promise<number> {
         const syncTombstoneAt = await getTombstone(syncConversationKey)
         if (!syncTombstoneAt || sync.originalTimestamp >= syncTombstoneAt) {
           await saveMessage(syncMsg, userId)
-          if (isCalendarEvent(syncContent)) routeCalendarEvent(syncContent)
+          if (isCalendarEvent(syncContent)) calendarRoutes.push(syncContent)
         }
       } else if (row.message_type === 'delete') {
         try {
@@ -697,7 +703,7 @@ export async function processVaultMessages(userId: string): Promise<number> {
         const msgTombstoneAt = await getTombstone(msgConversationKey)
         if (!msgTombstoneAt || row.created_at >= msgTombstoneAt) {
           await saveMessage(msg, userId)
-          if (isCalendarEvent(content)) routeCalendarEvent(content)
+          if (isCalendarEvent(content)) calendarRoutes.push(content)
         }
       }
 
@@ -705,6 +711,21 @@ export async function processVaultMessages(userId: string): Promise<number> {
       processedCount++
     } catch (e) {
       logger.error(`Failed to process vault message ${row.id}:`, e instanceof Error ? e.message : e)
+    }
+  }
+
+  // 5b. Dispatch collected calendar routes with delete-awareness.
+  // Pre-scan for deleted event IDs so earlier create/update messages in the
+  // same batch don't resurrect an event that was subsequently deleted.
+  if (calendarRoutes.length > 0) {
+    const deletedEventIds = new Set<string>()
+    for (const c of calendarRoutes) {
+      if (c.action === 'delete') deletedEventIds.add(c.data.id)
+    }
+    for (const c of calendarRoutes) {
+      if (c.action === 'delete' || !deletedEventIds.has(c.data.id)) {
+        routeCalendarEvent(c)
+      }
     }
   }
 

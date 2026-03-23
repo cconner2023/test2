@@ -1,6 +1,6 @@
 import { create, type StateCreator } from 'zustand'
 import type { CalendarEvent, EventCategory } from '../Types/CalendarTypes'
-import { putCalendarEvent, deleteCalendarEvent } from '../lib/calendarEventStore'
+import { putCalendarEvent, deleteCalendarEvent, addCalendarTombstone } from '../lib/calendarEventStore'
 import { createLogger } from '../Utilities/Logger'
 
 const logger = createLogger('CalendarPersist')
@@ -73,6 +73,7 @@ const calendarPersist = (
   const persistDelete = (id: string) => {
     if (!get().hydrated) return
     deleteCalendarEvent(id).catch(e => logger.warn('IDB delete failed:', e))
+    addCalendarTombstone(id).catch(e => logger.warn('IDB tombstone failed:', e))
   }
 
   return {

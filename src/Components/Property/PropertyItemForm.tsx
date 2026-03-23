@@ -13,6 +13,8 @@ interface PropertyItemFormProps {
   onUpdate: (id: string, updates: Partial<PropertyItem>) => Promise<unknown>
   onClose: () => void
   clinicId: string
+  /** Render pickers as inline dropdowns instead of fixed modals */
+  inlinePickers?: boolean
 }
 
 /** Placement value encodes type + id, e.g. "location:uuid" or "item:uuid" */
@@ -40,6 +42,7 @@ export function PropertyItemForm({
   onUpdate,
   onClose,
   clinicId,
+  inlinePickers = false,
 }: PropertyItemFormProps) {
   const isEdit = !!editingItem
   const { defaultLocationId } = usePropertyStore()
@@ -214,6 +217,7 @@ export function PropertyItemForm({
             onChange={setPlacement}
             options={placementOptions}
             placeholder="Select location"
+            inline={inlinePickers}
           />
 
           <PickerInput
@@ -222,6 +226,7 @@ export function PropertyItemForm({
             onChange={setHolderId}
             options={holderOptions}
             placeholder="Unassigned"
+            inline={inlinePickers}
           />
 
           {/* Photo */}

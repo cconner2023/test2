@@ -93,7 +93,6 @@ export function useClinicMedics() {
       }
 
       const medicProfiles: ClinicMedic[] = (clinicProfiles || [])
-        .filter(p => p.id !== user.id)
         .map(p => ({
           id: p.id,
           firstName: p.first_name,

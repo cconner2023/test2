@@ -357,7 +357,7 @@ function ConversationPane({
 
             {/* Contacts: My Clinic (exclude those already in Recent conversations) */}
             {(() => {
-              const filtered = ownClinicMedics.filter(m => !activeConversationIds.has(m.id))
+              const filtered = ownClinicMedics.filter(m => m.id !== userId && !activeConversationIds.has(m.id))
               return filtered.length > 0 ? (
                 <>
                   <div className="flex items-center gap-1.5 px-3 py-1.5">

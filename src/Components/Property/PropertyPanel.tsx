@@ -63,9 +63,11 @@ interface PropertyPanelProps {
   locationListRef?: React.Ref<unknown>
   /** Desktop: callback to update search query (search input lives in the sidebar) */
   onSearchChange?: (query: string) => void
+  /** Edit mode — items become selectable for batch delete */
+  editing?: boolean
 }
 
-export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '', onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onMobileLocationViewChange, onRegisterDetailActions, onRegisterAddLocation, onSearchChange, ...rest }: PropertyPanelProps) {
+export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '', onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onMobileLocationViewChange, onRegisterDetailActions, onRegisterAddLocation, onSearchChange, editing = false, ...rest }: PropertyPanelProps) {
   // Consume unused props passed by PropertyDrawer to avoid lint errors
   void rest
   const { user } = useAuth()
@@ -98,27 +100,30 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
   const showMap = isMobile ? mobileLocationView : desktopMapView
 
   const renderBottomIsland = () => (
-    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 rounded-full border border-tertiary/20 bg-themewhite shadow-lg flex items-center px-1 py-1 gap-1">
-      <button
-        onClick={() => setMapView(false)}
-        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${!showMap ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
-      >
-        <List size={18} />
-      </button>
-      <button
-        onClick={() => setMapView(true)}
-        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${showMap ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
-      >
-        <MapIcon size={18} />
-      </button>
-      <div className="w-px h-6 bg-tertiary/15 mx-0.5" />
-      <button
-        onClick={() => setShowAddSheet(true)}
-        className="w-10 h-10 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
-      >
-        <Plus size={18} />
-      </button>
-    </div>
+    <>
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 rounded-full border border-tertiary/20 bg-themewhite shadow-lg flex items-center px-1 py-1 gap-1">
+        <button
+          onClick={() => setMapView(false)}
+          className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${!showMap ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+        >
+          <List size={18} />
+        </button>
+        <button
+          onClick={() => setMapView(true)}
+          className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${showMap ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+        >
+          <MapIcon size={18} />
+        </button>
+      </div>
+      <div className="absolute bottom-4 right-4 z-20 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg">
+        <button
+          onClick={() => setShowAddSheet(true)}
+          className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
+        >
+          <Plus className="w-5 h-5" />
+        </button>
+      </div>
+    </>
   )
 
   const [transferItems, setTransferItems] = useState<LocalPropertyItem[]>([])
@@ -177,6 +182,12 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
     onSelectItem(item)
   }, [store, onSelectItem])
 
+
+  const handleBatchDelete = useCallback(async (ids: string[]) => {
+    for (const id of ids) {
+      await property.removeItem(id)
+    }
+  }, [property])
 
   const handleMoveLocation = useCallback(async (locationId: string, newParentId: string | null) => {
     await property.editLocation(locationId, { parent_id: newParentId })
@@ -364,8 +375,8 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
     )
   }
 
-  // Item form
-  if (view === 'property-form') {
+  // Item form — desktop renders in side panel, mobile renders full-screen
+  if (view === 'property-form' && isMobile) {
     return (
       <PropertyItemForm
         editingItem={store.editingItem}
@@ -409,7 +420,9 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
         holders={holders}
         searchQuery={searchQuery}
         activeLocationId={desktopLocationId}
+        editing={editing}
         onSelectItem={handleSelectItem}
+        onDeleteItems={handleBatchDelete}
       />
     )
   }
@@ -498,7 +511,9 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
         locations={visibleLocations}
         holders={holders}
         searchQuery={searchQuery}
+        editing={editing}
         onSelectItem={handleSelectItem}
+        onDeleteItems={handleBatchDelete}
       />
 
       {renderBottomIsland()}
@@ -640,6 +655,42 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
         <div className="flex-1 flex flex-col min-w-0 relative">
           {renderViewContent()}
           {view === 'property' && renderBottomIsland()}
+        </div>
+        {/* Desktop form side panel */}
+        <div className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-all duration-300 relative ${
+          view === 'property-form' ? 'w-[380px] opacity-100' : 'w-0 opacity-0 overflow-hidden border-l-0'
+        }`}>
+          {view === 'property-form' && (
+            <>
+              <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
+                <p className="text-sm font-medium text-primary">
+                  {store.editingItem ? 'Edit Item' : 'New Item'}
+                </p>
+                <button
+                  onClick={() => { store.setEditingItem(null); onBack() }}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                <PropertyItemForm
+                  editingItem={store.editingItem}
+                  parentItems={property.items}
+                  locations={visibleLocations}
+                  clinicMembers={clinicMembers}
+                  onSave={property.addItem}
+                  onUpdate={property.editItem}
+                  onClose={() => {
+                    store.setEditingItem(null)
+                    onBack()
+                  }}
+                  clinicId={property.clinicId || ''}
+                  inlinePickers
+                />
+              </div>
+            </>
+          )}
         </div>
       </div>
       <ActionSheet

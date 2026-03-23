@@ -30,9 +30,10 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
 
     const [searchQuery, setSearchQuery] = useState('')
     const [searchFocused, setSearchFocused] = useState(false)
+    const [editing, setEditing] = useState(false)
 
-    // Clear search when navigating between views (e.g., clicking a search result)
-    useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
+    // Clear search and exit edit mode when navigating between views
+    useEffect(() => { setSearchQuery(''); setSearchFocused(false); setEditing(false) }, [view])
 
     // Callbacks for detail-view header actions (set by PropertyPanel)
     const [detailActions, setDetailActions] = useState<{
@@ -93,6 +94,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         setMobileLocationView(false)
         setDrilldownPath([])
         setSearchQuery('')
+        setEditing(false)
         navigateToPath([])
         onClose()
     }, [onClose, navigateToPath])
@@ -121,9 +123,15 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
 
     const mainHeaderActions = useMemo(() => (
         <HeaderPill>
+            <PillButton
+              icon={Pencil}
+              onClick={() => setEditing((e) => !e)}
+              label={editing ? 'Done' : 'Edit'}
+              circleBg={editing ? 'bg-themeblue2/15 text-themeblue2' : undefined}
+            />
             <PillButton icon={X} onClick={handleClose} label="Close" />
         </HeaderPill>
-    ), [handleClose])
+    ), [handleClose, editing])
 
     const locationHeaderActions = useMemo(() => {
         if (!locationActions) return undefined
@@ -170,6 +178,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             case 'property-transfer':
                 return { title: 'Transfer Custody', showBack: true, onBack: handleBack }
             case 'property-form':
+                if (!isMobile) return { title: 'Property Book', badge: 'BETA', rightContent: mainHeaderActions, hideDefaultClose: true }
                 return { title: selectedPropertyItemName ? 'Edit Item' : 'Add Item', showBack: true, onBack: handleBack }
         }
     }, [view, selectedPropertyItemName, handleBack, isMobile, mobileLocationView, drilldownPath, detailHeaderActions, mainHeaderActions, locationHeaderActions, canvasStack, navigateBack])
@@ -197,6 +206,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                                 isMobile={isMobile}
                                 view={view}
                                 searchQuery={searchQuery}
+                                editing={editing}
                                 onSelectItem={handleSelectItem}
                                 onAddItem={handleAddItem}
                                 onEditItem={handleEditItem}
@@ -217,6 +227,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                             isMobile={false}
                             view={view}
                             searchQuery={searchQuery}
+                            editing={editing}
                             onSearchChange={setSearchQuery}
                             onSelectItem={handleSelectItem}
                             onAddItem={handleAddItem}

@@ -16,7 +16,8 @@ import { useShallow } from 'zustand/react/shallow'
 import { useAuth } from './useAuth'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { getOrCreateClinicCalendarGroup } from '../lib/signal/groupService'
-import { loadCalendarEvents } from '../lib/calendarEventStore'
+import { loadCalendarEvents, clearExpiredTombstones } from '../lib/calendarEventStore'
+import { initCalendarTombstones, getTombstones } from '../lib/calendarRouting'
 import { createLogger } from '../Utilities/Logger'
 
 const logger = createLogger('CalendarSync')
@@ -47,12 +48,23 @@ export function useCalendarSync() {
   // 2. Hydrate from IndexedDB (instant render of cached events)
   useEffect(() => {
     if (hydrated) return
-    loadCalendarEvents().then(events => {
-      if (events.length > 0) setEvents(events)
-      setHydrated(true)
-    }).catch(e => {
-      logger.warn('Failed to load cached calendar events:', e)
-      setHydrated(true)
-    })
+    ;(async () => {
+      try {
+        // Init tombstone set first so the in-memory guard is populated before
+        // any message routing happens, and prune stale entries on startup.
+        await initCalendarTombstones()
+        clearExpiredTombstones().catch(() => {})
+
+        const events = await loadCalendarEvents()
+        // Filter out any events whose IDs are now tombstoned (handles stale IDB
+        // entries from a prior delete that didn't fully propagate).
+        const live = events.filter(e => !getTombstones().has(e.id))
+        if (live.length > 0) setEvents(live)
+      } catch (e) {
+        logger.warn('Failed to load cached calendar events:', e)
+      } finally {
+        setHydrated(true)
+      }
+    })()
   }, [hydrated, setEvents, setHydrated])
 }

@@ -19,22 +19,36 @@ const logger = createLogger('CalendarEventStore')
 
 // ---- Schema ----
 
+interface CalendarTombstone {
+  id: string
+  deletedAt: number
+}
+
 interface CalendarEventsDB extends DBSchema {
   events: {
     key: string
     value: CalendarEvent
   }
+  tombstones: {
+    key: string
+    value: CalendarTombstone
+  }
 }
 
 const DB_NAME = 'adtmc-calendar-events'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 const { getDb, destroy: destroyDb } = createIdbSingleton<CalendarEventsDB>(
   DB_NAME,
   DB_VERSION,
   {
-    upgrade(db) {
-      db.createObjectStore('events', { keyPath: 'id' })
+    upgrade(db, oldVersion) {
+      if (oldVersion < 1) {
+        db.createObjectStore('events', { keyPath: 'id' })
+      }
+      if (oldVersion < 2) {
+        db.createObjectStore('tombstones', { keyPath: 'id' })
+      }
     },
   },
 )
@@ -102,4 +116,55 @@ export async function clearCalendarEvents(): Promise<void> {
 /** Destroy the entire database (sign-out / account wipe). */
 export async function destroyCalendarEventStore(): Promise<void> {
   await destroyDb()
+}
+
+// ---- Tombstone API ----
+
+/** Record a durable deletion so replayed messages cannot resurrect the event. */
+export async function addCalendarTombstone(eventId: string): Promise<void> {
+  try {
+    const db = await getDb()
+    await db.put('tombstones', { id: eventId, deletedAt: Date.now() })
+  } catch (e) {
+    logger.warn('Failed to write calendar tombstone:', e)
+  }
+}
+
+/** Return true if the event has been tombstoned. */
+export async function isCalendarTombstoned(eventId: string): Promise<boolean> {
+  try {
+    const db = await getDb()
+    const entry = await db.get('tombstones', eventId)
+    return entry !== undefined
+  } catch {
+    return false
+  }
+}
+
+/** Load all tombstoned event IDs into a Set for O(1) in-memory lookups. */
+export async function loadCalendarTombstones(): Promise<Set<string>> {
+  try {
+    const db = await getDb()
+    const all = await db.getAll('tombstones')
+    return new Set(all.map(t => t.id))
+  } catch (e) {
+    logger.warn('Failed to load calendar tombstones:', e)
+    return new Set()
+  }
+}
+
+/** Prune tombstones older than maxAgeDays to keep the store bounded. */
+export async function clearExpiredTombstones(maxAgeDays = 30): Promise<void> {
+  try {
+    const db = await getDb()
+    const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000
+    const all = await db.getAll('tombstones')
+    const tx = db.transaction('tombstones', 'readwrite')
+    for (const entry of all) {
+      if (entry.deletedAt < cutoff) tx.store.delete(entry.id)
+    }
+    await tx.done
+  } catch (e) {
+    logger.warn('Failed to clear expired tombstones:', e)
+  }
 }

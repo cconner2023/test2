@@ -122,6 +122,7 @@ export const PickerInput = ({
   placeholder,
   required = false,
   label,
+  inline = false,
 }: {
   value: string
   onChange: (val: string) => void
@@ -129,6 +130,8 @@ export const PickerInput = ({
   placeholder?: string
   required?: boolean
   label?: string
+  /** When true, desktop picker renders as an inline dropdown instead of a fixed modal */
+  inline?: boolean
 }) => {
   const isMobile = useIsMobile()
   const [visible, setVisible] = useState(false)
@@ -258,6 +261,57 @@ export const PickerInput = ({
                   </button>
                 )
               })}
+            </div>
+          </div>
+        </>
+      ) : inline ? (
+        <>
+          <div
+            className={`absolute inset-0 z-30 bg-black transition-opacity duration-200 rounded-xl ${open ? 'opacity-15' : 'opacity-0'}`}
+            style={{ pointerEvents: open ? 'auto' : 'none' }}
+            onClick={handleClose}
+          />
+          <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
+            <div
+              className={`bg-themewhite2 rounded-xl shadow-lg border border-primary/10 py-1.5 min-w-[200px] max-w-[260px] w-full pointer-events-auto transition-all duration-200 ease-out ${
+                open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2'
+              }`}
+              role="listbox"
+              aria-label={placeholder}
+            >
+              <p className="px-3.5 py-1.5 text-[10pt] font-medium text-tertiary/60 uppercase tracking-wider">
+                {placeholder}
+              </p>
+              <div className="max-h-60 overflow-y-auto">
+                {options.map((opt) => {
+                  const optVal = getOptionValue(opt)
+                  const optLbl = getOptionLabel(opt)
+                  const selected = optVal === value
+                  return (
+                    <button
+                      key={optVal}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      onClick={() => handleSelect(opt)}
+                      className={`w-full text-left px-3.5 py-2 text-sm hover:bg-primary/5 active:bg-primary/10 transition-colors flex items-center justify-between ${
+                        selected ? 'text-themeblue3 font-medium' : 'text-primary'
+                      }`}
+                    >
+                      {optLbl}
+                      {selected && <Check size={16} className="shrink-0 text-themeblue3" />}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="h-px bg-tertiary/10 mx-2.5 my-1" />
+              <button
+                type="button"
+                onClick={handleClose}
+                className="flex items-center w-full px-3.5 py-2 text-sm text-tertiary hover:bg-primary/5 transition-colors"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </>

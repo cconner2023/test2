@@ -1,5 +1,5 @@
 import { useMemo, useRef, useCallback, useImperativeHandle, forwardRef, useState, useEffect, memo } from 'react'
-import { Package } from 'lucide-react'
+import { Package, Trash2 } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
@@ -14,7 +14,9 @@ interface PropertyDashboardProps {
   holders: Map<string, HolderInfo>
   searchQuery?: string
   activeLocationId?: string | null
+  editing?: boolean
   onSelectItem: (item: LocalPropertyItem) => void
+  onDeleteItems?: (ids: string[]) => void
 }
 
 interface LocationGroup {
@@ -29,10 +31,33 @@ export const PropertyDashboard = memo(forwardRef<DashboardNavHandle, PropertyDas
   holders,
   searchQuery = '',
   activeLocationId,
+  editing = false,
   onSelectItem,
+  onDeleteItems,
 }, ref) {
   const sectionRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const [flashId, setFlashId] = useState<string | null>(null)
+  const [stagedDeletes, setStagedDeletes] = useState<Set<string>>(new Set())
+
+  // Clear staged deletes when edit mode is toggled off
+  useEffect(() => {
+    if (!editing) setStagedDeletes(new Set())
+  }, [editing])
+
+  const toggleStaged = useCallback((id: string) => {
+    setStagedDeletes((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const handleConfirmDelete = useCallback(() => {
+    if (stagedDeletes.size === 0) return
+    onDeleteItems?.([...stagedDeletes])
+    setStagedDeletes(new Set())
+  }, [stagedDeletes, onDeleteItems])
 
   const setSectionRef = useCallback((id: string | null, el: HTMLDivElement | null) => {
     const key = id ?? '__unassigned'
@@ -221,36 +246,48 @@ export const PropertyDashboard = memo(forwardRef<DashboardNavHandle, PropertyDas
             ref={(el) => setSectionRef(group.id, el)}
             className={isFlashing ? 'animate-[dashboardFlash_1.2s_ease-out]' : ''}
           >
-            <p className={`text-[9pt] font-semibold uppercase tracking-wider mb-2 transition-colors duration-300 ${isActive ? 'text-themeblue3' : 'text-primary/80'}`}>
+            <p className={`text-[9pt] font-semibold uppercase tracking-wider mb-2 transition-colors duration-300 ${isActive ? 'text-primary' : 'text-primary/80'}`}>
               {group.name}
             </p>
-            <div className={`rounded-2xl border overflow-hidden transition-colors duration-300 ${isActive ? 'border-themeblue3/30 bg-themeblue2/5' : 'border-themeblue3/10 bg-themewhite2'}`}>
-              {group.items.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => onSelectItem(item)}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-themeblue2/5 text-left active:scale-95 transition-all"
-                >
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm text-primary truncate block">{item.name}</span>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      {resolveLocationName(item.location_id) && group.id !== null && (
-                        <span className="text-[9pt] text-tertiary/60 truncate">
-                          {resolveLocationName(item.location_id)}
-                        </span>
-                      )}
-                      {resolveHolder(item.current_holder_id) && (
-                        <span className="text-[9pt] text-secondary truncate">
-                          {resolveHolder(item.current_holder_id)}
-                        </span>
-                      )}
+            <div className={`rounded-2xl border overflow-hidden transition-colors duration-300 ${isActive ? 'border-themeblue3/20 bg-themewhite2' : 'border-themeblue3/10 bg-themewhite2'}`}>
+              {group.items.map((item, idx) => {
+                const isStaged = stagedDeletes.has(item.id)
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => editing ? toggleStaged(item.id) : onSelectItem(item)}
+                    className={`w-full flex items-center gap-3 px-4 py-3.5 text-left active:scale-[0.98] transition-all ${idx > 0 ? 'border-t border-tertiary/8' : ''} ${
+                      isStaged
+                        ? 'ring-1 ring-inset ring-themeredred/30 bg-themeredred/5'
+                        : editing
+                          ? 'hover:bg-themeredred/5 cursor-pointer'
+                          : 'hover:bg-themeblue2/5'
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <span className={`text-sm font-medium truncate block ${isStaged ? 'text-themeredred/60 line-through' : 'text-primary'}`}>{item.name}</span>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {resolveLocationName(item.location_id) && group.id !== null && (
+                          <span className={`text-[11px] truncate ${isStaged ? 'text-themeredred/40' : 'text-tertiary/70'}`}>
+                            {resolveLocationName(item.location_id)}
+                          </span>
+                        )}
+                        {resolveLocationName(item.location_id) && group.id !== null && resolveHolder(item.current_holder_id) && (
+                          <span className={isStaged ? 'text-themeredred/20' : 'text-tertiary/20'}>·</span>
+                        )}
+                        {resolveHolder(item.current_holder_id) && (
+                          <span className={`text-[11px] truncate ${isStaged ? 'text-themeredred/40' : 'text-tertiary/70'}`}>
+                            {resolveHolder(item.current_holder_id)}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <span className="text-[9pt] text-tertiary/60 shrink-0 tabular-nums">
-                    {item.quantity ?? 1}
-                  </span>
-                </button>
-              ))}
+                    <span className={`text-[11px] shrink-0 tabular-nums ${isStaged ? 'text-themeredred/40' : 'text-tertiary/70'}`}>
+                      {item.quantity ?? 1}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           </div>
           )
@@ -260,6 +297,30 @@ export const PropertyDashboard = memo(forwardRef<DashboardNavHandle, PropertyDas
           <EmptyState title="No items match your search" />
         )}
       </div>
+
+      {/* Edit mode footer */}
+      {editing && stagedDeletes.size > 0 && (
+        <div className="shrink-0 flex items-center justify-between px-4 py-3 border-t border-tertiary/10 bg-themewhite">
+          <span className="text-[11px] text-tertiary">
+            {stagedDeletes.size} item{stagedDeletes.size > 1 ? 's' : ''} selected
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setStagedDeletes(new Set())}
+              className="px-3 py-1.5 rounded-lg text-xs text-tertiary hover:bg-tertiary/10 active:scale-95 transition-all"
+            >
+              Clear
+            </button>
+            <button
+              onClick={handleConfirmDelete}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-themeredred/10 text-themeredred hover:bg-themeredred/15 active:scale-95 transition-all"
+            >
+              <Trash2 size={14} />
+              Delete
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }))

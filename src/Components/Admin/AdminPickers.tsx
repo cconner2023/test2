@@ -5,7 +5,7 @@ import type { AdminUser, AdminClinic } from '../../lib/adminService'
 export const ChipInput = ({
   label, values, onChange, placeholder, transform,
 }: {
-  label: string; values: string[]; onChange: (vals: string[]) => void
+  label?: string; values: string[]; onChange: (vals: string[]) => void
   placeholder?: string; transform?: (val: string) => string
 }) => {
   const [inputValue, setInputValue] = useState('')
@@ -24,7 +24,7 @@ export const ChipInput = ({
 
   return (
     <div>
-      <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">{label}</span>
+      {label && <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">{label}</span>}
       <div className="mt-1 flex flex-wrap gap-1.5 mb-2">
         {values.map((val, idx) => (
           <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-themeblue2/10 text-themeblue2 text-xs font-medium border border-themeblue2/30">
@@ -57,7 +57,7 @@ export const ChipInput = ({
 export const UserPicker = ({
   label, selectedIds, allUsers, onChange,
 }: {
-  label: string; selectedIds: string[]; allUsers: AdminUser[]; onChange: (ids: string[]) => void
+  label?: string; selectedIds: string[]; allUsers: AdminUser[]; onChange: (ids: string[]) => void
 }) => {
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
@@ -84,7 +84,7 @@ export const UserPicker = ({
 
   return (
     <div>
-      <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">{label}</span>
+      {label && <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">{label}</span>}
       <div className="mt-1 flex flex-wrap gap-1.5 mb-2">
         {selectedIds.map((id) => {
           const u = userMap.get(id)
@@ -129,7 +129,7 @@ export const UserPicker = ({
 export const ClinicPicker = ({
   label, selectedIds, allClinics, excludeId, onChange,
 }: {
-  label: string; selectedIds: string[]; allClinics: AdminClinic[]; excludeId?: string; onChange: (ids: string[]) => void
+  label?: string; selectedIds: string[]; allClinics: AdminClinic[]; excludeId?: string; onChange: (ids: string[]) => void
 }) => {
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
@@ -153,7 +153,7 @@ export const ClinicPicker = ({
 
   return (
     <div>
-      <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">{label}</span>
+      {label && <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">{label}</span>}
       <div className="mt-1 flex flex-wrap gap-1.5 mb-2">
         {selectedIds.map((id) => {
           const c = clinicMap.get(id)
