@@ -20,9 +20,12 @@ import { deleteMessagesByOriginId as deleteMessagesByOriginIdFromDb, updateReadA
 import { scheduleBackup } from '../lib/signal/backupService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { processIncomingMessage, encryptMessage } from '../lib/signal/session'
+import { processSenderKeyDistribution, senderKeyDecrypt } from '../lib/signal/senderKey'
+import { useMessagingStore } from '../stores/useMessagingStore'
 import type { SealedEnvelope } from '../lib/signal/sealedSender'
 import type { SignalMessageRow, DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { SyncMessagePayload } from '../lib/signal/transportTypes'
+import type { SenderKeyMessage, SenderKeyDistribution } from '../lib/signal/types'
 import { parseMessageContent } from '../lib/signal/messageContent'
 import { isCalendarEvent } from '../lib/calendarRouting'
 import { errorBus } from '../lib/errorBus'
@@ -194,6 +197,70 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
       }
     }
 
+    // Sender key distribution: arrives via pairwise 1:1 session (Double Ratchet encrypted).
+    // Decrypt through the session, then store the distribution for future group decryption.
+    if (row.message_type === 'sender-key-distribution') {
+      const { plaintext: rawPlaintext, senderUuid } = await processIncomingMessage(
+        senderDeviceId, envelope, myUuid
+      )
+      try {
+        const dist = JSON.parse(rawPlaintext) as SenderKeyDistribution
+        const groupId = dist.groupId ?? row.group_id ?? ''
+        // Fetch actual group members for membership verification.
+        // Fallback to authenticated sender if offline/unavailable (distribution
+        // already arrived via authenticated Double Ratchet session).
+        let memberIds: string[] = [senderUuid]
+        try {
+          const { fetchGroupMembers } = await import('../lib/signal/groupService')
+          const result = await fetchGroupMembers(groupId)
+          if (result.ok && result.data.length > 0) {
+            memberIds = result.data.map(m => m.userId)
+          }
+        } catch {
+          logger.debug(`Offline or failed to fetch members for group ${groupId}, trusting authenticated sender`)
+        }
+        await processSenderKeyDistribution(dist, memberIds)
+        logger.debug(`Stored sender key distribution from ${senderUuid} for group ${groupId}`)
+      } catch (e) {
+        logger.warn(`Failed to process sender-key-distribution from ${senderUuid}:`, e instanceof Error ? e.message : e)
+      }
+      // Do not surface as a user-visible message
+      return null
+    }
+
+    // Sender key message: payload IS the SenderKeyMessage JSON — NOT pairwise encrypted.
+    // Parse and decrypt with senderKeyDecrypt.
+    if (row.message_type === 'sender-key-message') {
+      try {
+        const senderKeyMsg = row.payload as unknown as SenderKeyMessage
+        const rawPlaintext = await senderKeyDecrypt(senderKeyMsg)
+        const { plaintext, content, replyTo } = parseMessageContent(rawPlaintext)
+        return {
+          id: row.id,
+          senderId: senderKeyMsg.senderId,
+          recipientId: row.recipient_id,
+          plaintext,
+          content,
+          messageType: 'message' as const,
+          createdAt: row.created_at,
+          readAt: row.read_at,
+          ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
+          ...(row.group_id && { groupId: row.group_id }),
+          originId: row.origin_id ?? undefined,
+        }
+      } catch (e) {
+        logger.error(`Failed to decrypt sender-key-message ${row.id}:`, e instanceof Error ? e.message : e)
+        errorBus.emit({
+          code: ErrorCode.DECRYPT_FAILED,
+          source: 'decryptRow:sender-key-message',
+          message: 'A group message could not be decrypted. Sender key may need redistribution.',
+          timestamp: Date.now(),
+          metadata: { messageId: row.id, groupId: row.group_id },
+        })
+        return null
+      }
+    }
+
     // Initial and message types: both go through processIncomingMessage
     const { plaintext: rawPlaintext, senderUuid } = await processIncomingMessage(
       senderDeviceId, envelope, myUuid
@@ -354,42 +421,45 @@ export function useSignalMessages({
         if (processedIds.current.has(row.id)) continue
         trackProcessed(row.id)
         const decrypted = await decryptRow(row, userId)
-        if (decrypted) {
-          processedRowIds.push(row.id)
-          if (decrypted.messageType === 'delete') {
-            try {
-              const { originIds } = JSON.parse(decrypted.plaintext) as { originIds: string[] }
-              await deleteMessagesByOriginIdFromDb(originIds).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useSignalMessages.catchUp', message: 'Failed to delete messages from local DB', timestamp: Date.now(), metadata: { error: e } }))
-              onDeleteRef.current?.(originIds)
-              hardDeleteByOriginId(originIds).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useSignalMessages.catchUp', message: 'Failed to hard-delete origin messages from server', timestamp: Date.now(), metadata: { error: e } }))
-              await hardDeleteMessages([decrypted.id]).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useSignalMessages.catchUp', message: 'Failed to hard-delete processed message from server', timestamp: Date.now(), metadata: { error: e } }))
-              if (userIdRef.current) scheduleBackup(userIdRef.current)
-            } catch { /* ignore parse errors */ }
-          } else {
-            onMessageRef.current(decrypted)
-            const isUserMessage =
-              decrypted.messageType === 'message' ||
-              decrypted.messageType === 'initial' ||
-              decrypted.messageType === 'request'
-            const isFromOther = decrypted.senderId !== userId
-            const isConversationContent =
-              isUserMessage && isFromOther &&
-              !decrypted._deliveryReceipt &&
-              !isCalendarEvent(decrypted.content)
-            if (
-              isConversationContent &&
-              !decrypted.plaintext.includes('"__type":"delivery-receipt"') &&
-              userIdRef.current &&
-              localDeviceId
-            ) {
-              sendDeliveryReceipt(
-                decrypted.senderId,
-                row.sender_device_id ?? 'unknown',
-                [row.id],
-                userIdRef.current,
-                localDeviceId,
-              ).catch(() => {})
-            }
+        // Sender key distributions return null (not user-visible) but still need marking as read
+        if (!decrypted) {
+          if (row.message_type === 'sender-key-distribution') processedRowIds.push(row.id)
+          continue
+        }
+        processedRowIds.push(row.id)
+        if (decrypted.messageType === 'delete') {
+          try {
+            const { originIds } = JSON.parse(decrypted.plaintext) as { originIds: string[] }
+            await deleteMessagesByOriginIdFromDb(originIds).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useSignalMessages.catchUp', message: 'Failed to delete messages from local DB', timestamp: Date.now(), metadata: { error: e } }))
+            onDeleteRef.current?.(originIds)
+            hardDeleteByOriginId(originIds).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useSignalMessages.catchUp', message: 'Failed to hard-delete origin messages from server', timestamp: Date.now(), metadata: { error: e } }))
+            await hardDeleteMessages([decrypted.id]).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useSignalMessages.catchUp', message: 'Failed to hard-delete processed message from server', timestamp: Date.now(), metadata: { error: e } }))
+            if (userIdRef.current) scheduleBackup(userIdRef.current)
+          } catch { /* ignore parse errors */ }
+        } else {
+          onMessageRef.current(decrypted)
+          const isUserMessage =
+            decrypted.messageType === 'message' ||
+            decrypted.messageType === 'initial' ||
+            decrypted.messageType === 'request'
+          const isFromOther = decrypted.senderId !== userId
+          const isConversationContent =
+            isUserMessage && isFromOther &&
+            !decrypted._deliveryReceipt &&
+            !isCalendarEvent(decrypted.content)
+          if (
+            isConversationContent &&
+            !decrypted.plaintext.includes('"__type":"delivery-receipt"') &&
+            userIdRef.current &&
+            localDeviceId
+          ) {
+            sendDeliveryReceipt(
+              decrypted.senderId,
+              row.sender_device_id ?? 'unknown',
+              [row.id],
+              userIdRef.current,
+              localDeviceId,
+            ).catch(() => {})
           }
         }
       }
@@ -420,7 +490,12 @@ export function useSignalMessages({
       trackProcessed(row.id)
 
       decryptRow(row, myUuid).then((decrypted) => {
-        if (!decrypted) return
+        if (!decrypted) {
+          if (row.message_type === 'sender-key-distribution') {
+            markMessagesRead([row.id]).catch(() => {})
+          }
+          return
+        }
         if (decrypted.messageType === 'delete') {
           try {
             const { originIds } = JSON.parse(decrypted.plaintext) as { originIds: string[] }
@@ -488,7 +563,14 @@ export function useSignalMessages({
       trackProcessed(row.id)
 
       decryptRow(row, myUuid).then((decrypted) => {
-        if (!decrypted) return
+        if (!decrypted) {
+          // Sender key distributions are processed internally but return null —
+          // mark as read so the cron can purge them
+          if (row.message_type === 'sender-key-distribution') {
+            markMessagesRead([row.id]).catch(() => {})
+          }
+          return
+        }
         if (decrypted.messageType === 'delete') {
           try {
             const { originIds } = JSON.parse(decrypted.plaintext) as { originIds: string[] }

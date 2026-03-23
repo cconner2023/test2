@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Check, X, Trash2 } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
+import { COMPREHENSIVE_DEFAULT_BLOCK_IDS, getBlockByKey } from '../../Data/PhysicalExamData';
 import type { UserTypes, ProviderNoteTemplate } from '../../Data/User';
 
 const TEXTAREA_CLASS =
@@ -15,6 +16,7 @@ interface EditCardState {
     hpiText: string;
     peAbbr: string;
     peText: string;
+    peBlockKeys: string[];
     assessAbbr: string;
     assessText: string;
     planAbbr: string;
@@ -117,7 +119,7 @@ export const ProviderTemplatesPanel = ({
             name: trimmed,
             isNew: true,
             hpiAbbr: '', hpiText: '',
-            peAbbr: '', peText: '',
+            peAbbr: '', peText: '', peBlockKeys: [],
             assessAbbr: '', assessText: '',
             planAbbr: '', planSetId: '', planText: '',
         });
@@ -140,6 +142,7 @@ export const ProviderTemplatesPanel = ({
             hpiText: t.hpiText ?? '',
             peAbbr: t.peExpanderAbbr ?? '',
             peText: t.peText ?? '',
+            peBlockKeys: t.peBlockKeys ?? [],
             assessAbbr: t.assessmentExpanderAbbr ?? '',
             assessText: t.assessmentText ?? '',
             planAbbr: t.planExpanderAbbr ?? '',
@@ -151,13 +154,15 @@ export const ProviderTemplatesPanel = ({
     // Accept edit card
     const handleEditCardAccept = useCallback(() => {
         if (!editCard) return;
+        const hasPeBlocks = editCard.peBlockKeys.length > 0;
         const entry: ProviderNoteTemplate = {
             id: editCard.id,
             name: editCard.name,
             hpiExpanderAbbr: editCard.hpiAbbr || undefined,
             hpiText: !editCard.hpiAbbr && editCard.hpiText ? editCard.hpiText : undefined,
-            peExpanderAbbr: editCard.peAbbr || undefined,
-            peText: !editCard.peAbbr && editCard.peText ? editCard.peText : undefined,
+            peExpanderAbbr: !hasPeBlocks && editCard.peAbbr ? editCard.peAbbr : undefined,
+            peText: !hasPeBlocks && !editCard.peAbbr && editCard.peText ? editCard.peText : undefined,
+            peBlockKeys: hasPeBlocks ? editCard.peBlockKeys : undefined,
             assessmentExpanderAbbr: editCard.assessAbbr || undefined,
             assessmentText: !editCard.assessAbbr && editCard.assessText ? editCard.assessText : undefined,
             planExpanderAbbr: editCard.planAbbr || undefined,
@@ -247,7 +252,8 @@ export const ProviderTemplatesPanel = ({
     const fieldPreview = (t: ProviderNoteTemplate): string => {
         const parts: string[] = [];
         if (t.hpiExpanderAbbr || t.hpiText) parts.push('HPI');
-        if (t.peExpanderAbbr || t.peText) parts.push('PE');
+        if (t.peBlockKeys?.length) parts.push(`PE (${t.peBlockKeys.length})`);
+        else if (t.peExpanderAbbr || t.peText) parts.push('PE');
         if (t.assessmentExpanderAbbr || t.assessmentText) parts.push('Assess');
         if (t.planExpanderAbbr || t.planOrderSetId || t.planText) parts.push('Plan');
         return parts.join(' · ') || 'Empty template';
@@ -293,12 +299,55 @@ export const ProviderTemplatesPanel = ({
                                     (text) => setEditCard({ ...editCard, hpiText: text }),
                                     'Custom HPI text…'
                                 )}
-                                {renderSection('Physical Exam', editCard.peAbbr,
-                                    (abbr) => setEditCard({ ...editCard, peAbbr: abbr }),
-                                    editCard.peText,
-                                    (text) => setEditCard({ ...editCard, peText: text }),
-                                    'Custom PE text…'
-                                )}
+                                {/* PE — block picker or expander/text */}
+                                <div className="px-4 py-3.5">
+                                    <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">Physical Exam</p>
+                                    {/* Block picker pills */}
+                                    <p className="text-[9pt] text-tertiary/50 uppercase tracking-wider mb-1.5">Exam Blocks</p>
+                                    <div className="flex flex-wrap gap-1.5 mb-2">
+                                        {COMPREHENSIVE_DEFAULT_BLOCK_IDS.map(key => {
+                                            const block = getBlockByKey(key);
+                                            if (!block) return null;
+                                            const selected = editCard.peBlockKeys.includes(key);
+                                            return (
+                                                <button
+                                                    key={key}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const next = selected
+                                                            ? editCard.peBlockKeys.filter(k => k !== key)
+                                                            : [...editCard.peBlockKeys, key];
+                                                        setEditCard({ ...editCard, peBlockKeys: next, peAbbr: '', peText: '' });
+                                                    }}
+                                                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all active:scale-95 ${
+                                                        selected
+                                                            ? 'bg-themegreen/15 text-themegreen ring-1 ring-inset ring-themegreen/20'
+                                                            : 'bg-tertiary/8 text-tertiary hover:bg-tertiary/12'
+                                                    }`}
+                                                >
+                                                    {block.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    {editCard.peBlockKeys.length > 0 ? (
+                                        <p className="text-[11px] text-tertiary/50 mt-1">
+                                            {editCard.peBlockKeys.length} block{editCard.peBlockKeys.length !== 1 ? 's' : ''} → all normal on apply
+                                        </p>
+                                    ) : (
+                                        <>
+                                            {renderExpanderPills(editCard.peAbbr, (abbr) => setEditCard({ ...editCard, peAbbr: abbr }))}
+                                            {editCard.peAbbr ? renderPreview(editCard.peAbbr) : (
+                                                <textarea
+                                                    value={editCard.peText}
+                                                    onChange={(e) => setEditCard({ ...editCard, peText: e.target.value })}
+                                                    placeholder="Custom PE text…"
+                                                    className={TEXTAREA_CLASS}
+                                                />
+                                            )}
+                                        </>
+                                    )}
+                                </div>
                                 {renderSection('Assessment', editCard.assessAbbr,
                                     (abbr) => setEditCard({ ...editCard, assessAbbr: abbr }),
                                     editCard.assessText,

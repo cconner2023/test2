@@ -29,10 +29,10 @@ export function ProviderTemplateList({ templates, onSelect }: ProviderTemplateLi
             key={t.id}
             type="button"
             onClick={() => onSelect(t)}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 md:py-1.5 rounded-xl text-left
               hover:bg-themeblue2/8 active:scale-95 transition-all duration-200"
           >
-            <div className="w-8 h-8 rounded-lg bg-themeblue2/10 flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 md:w-7 md:h-7 rounded-lg bg-themeblue2/10 flex items-center justify-center shrink-0">
               <FileText size={15} className="text-themeblue2" />
             </div>
             <div className="flex-1 min-w-0">
@@ -40,7 +40,7 @@ export function ProviderTemplateList({ templates, onSelect }: ProviderTemplateLi
               <p className="text-[10px] text-tertiary/50 mt-0.5 truncate">
                 {[
                   (t.hpiExpanderAbbr || t.hpiText) ? 'HPI' : null,
-                  (t.peExpanderAbbr || t.peText) ? 'PE' : null,
+                  t.peBlockKeys?.length ? `PE (${t.peBlockKeys.length})` : (t.peExpanderAbbr || t.peText) ? 'PE' : null,
                   (t.assessmentExpanderAbbr || t.assessmentText) ? 'Assess' : null,
                   (t.planExpanderAbbr || t.planOrderSetId || t.planText) ? 'Plan' : null,
                 ].filter(Boolean).join(' · ') || 'Empty template'}

@@ -28,7 +28,7 @@ import { x3dhRespond } from './x3dh'
 import { initReceiver, ratchetDecrypt } from './ratchet'
 import { importDhPublicKey } from './keyManager'
 import { uploadKeyBundle, registerDevice } from './signalService'
-import { saveMessage, deleteMessagesByOriginId } from './messageStore'
+import { saveMessage, deleteMessagesByOriginId, getTombstone } from './messageStore'
 import { isCalendarEvent, routeCalendarEvent } from '../calendarRouting'
 import { parseMessageContent } from './messageContent'
 import type { PublicKeyBundle, InitialMessage, EncryptedMessage, RatchetState, RatchetKeyPair } from './types'
@@ -668,8 +668,12 @@ export async function processVaultMessages(userId: string): Promise<number> {
           ...(sync.forGroupId && { groupId: sync.forGroupId }),
           originId: sync.originId ?? row.origin_id ?? undefined,
         }
-        await saveMessage(syncMsg, userId)
-        if (isCalendarEvent(syncContent)) routeCalendarEvent(syncContent)
+        const syncConversationKey = sync.forGroupId ?? sync.forPeerId
+        const syncTombstoneAt = await getTombstone(syncConversationKey)
+        if (!syncTombstoneAt || sync.originalTimestamp >= syncTombstoneAt) {
+          await saveMessage(syncMsg, userId)
+          if (isCalendarEvent(syncContent)) routeCalendarEvent(syncContent)
+        }
       } else if (row.message_type === 'delete') {
         try {
           const { originIds } = JSON.parse(plaintext) as { originIds: string[] }
@@ -689,8 +693,12 @@ export async function processVaultMessages(userId: string): Promise<number> {
           ...(row.group_id && { groupId: row.group_id }),
           originId: row.origin_id ?? undefined,
         }
-        await saveMessage(msg, userId)
-        if (isCalendarEvent(content)) routeCalendarEvent(content)
+        const msgConversationKey = row.group_id ?? (senderUuid === userId ? row.recipient_id : senderUuid)
+        const msgTombstoneAt = await getTombstone(msgConversationKey)
+        if (!msgTombstoneAt || row.created_at >= msgTombstoneAt) {
+          await saveMessage(msg, userId)
+          if (isCalendarEvent(content)) routeCalendarEvent(content)
+        }
       }
 
       processedIds.push(row.id)

@@ -27,7 +27,7 @@ interface ProviderNoteProps {
 }
 
 const TEXTAREA_CLASS =
-  'w-full min-h-[120px] rounded-xl border border-themeblue3/10 shadow-xs bg-themewhite p-3 text-sm text-primary ' +
+  'w-full min-h-[120px] md:min-h-[72px] rounded-xl border border-themeblue3/10 shadow-xs bg-themewhite p-3 text-sm text-primary ' +
   'placeholder:text-tertiary/30 focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none resize-none transition-all duration-300';
 
 export function ProviderNote({
@@ -65,10 +65,10 @@ export function ProviderNote({
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 md:space-y-3">
       {piiWarnings.length > 0 && <PIIWarningBanner warnings={piiWarnings} />}
 
-      <div className="space-y-3">
+      <div className="space-y-3 md:space-y-2">
         <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">History of Present Illness</p>
         {importedMedicNote?.medicHpi && (
           <div className="rounded-xl bg-themewhite2 px-4 py-3">
@@ -87,7 +87,7 @@ export function ProviderNote({
         />
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-3 md:space-y-2">
         <div className="flex items-center justify-between">
           <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Physical Exam</p>
           <label
@@ -139,7 +139,7 @@ export function ProviderNote({
         )}
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-3 md:space-y-2">
         <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Assessment</p>
         {importedMedicNote?.medicAssessment && (
           <div className="rounded-xl bg-themewhite2 px-4 py-3">
@@ -158,7 +158,7 @@ export function ProviderNote({
         />
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-3 md:space-y-2">
         <div className="flex items-center justify-between">
           <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Plan</p>
           <label

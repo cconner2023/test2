@@ -83,6 +83,8 @@ export interface ProviderNoteTemplate {
     peDepth?: 'focused' | 'comprehensive' | 'custom';
     peExpanderAbbr?: string;
     peText?: string;
+    /** PE block keys to auto-mark "all normal" when template is applied */
+    peBlockKeys?: string[];
     assessmentExpanderAbbr?: string;
     assessmentText?: string;
     /** Plan order set ID to auto-apply */

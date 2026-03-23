@@ -183,3 +183,81 @@ export interface InitialMessage {
   /** The first encrypted message (Double Ratchet output). */
   message: EncryptedMessage
 }
+
+// ---- Sender Keys (Group Messaging) ----
+
+/**
+ * Sender key state for group messaging — one record per (group, member, device).
+ *
+ * Each group member maintains their own sender key. To send a group message the
+ * member encrypts once with AES-256-GCM using a key derived from this chain,
+ * then publishes the single ciphertext to the group. Recipients decrypt using
+ * their locally-stored copy of the sender's key (received via distribution).
+ */
+export interface SenderKeyState {
+  /** ID of the group this key belongs to. */
+  groupId: string
+  /** User ID of the key owner. */
+  memberId: string
+  /** Device ID of the key owner. */
+  deviceId: string
+  /** Compound key: `${groupId}:${memberId}:${deviceId}` — used as IndexedDB key. */
+  senderKeyId: string
+  /** Symmetric chain key for message key derivation (base64). */
+  chainKey: string
+  /** Current message index in the chain — increments on every send. */
+  iteration: number
+  /** ECDSA P-256 signing public key exported in SPKI format (base64).
+   *  Authenticates messages from this sender to all group members. */
+  signingPublicKey: string
+  /** ECDSA P-256 signing private key — present only for OUR own sender keys.
+   *  Non-extractable; stored by structured-clone in IndexedDB. */
+  signingPrivateKey?: CryptoKey
+  createdAt: string
+}
+
+/**
+ * Distribution message — the public portion of a SenderKeyState.
+ *
+ * Sent via an existing 1:1 pairwise session to share the sender's key
+ * material with each group member. The recipient stores this in their
+ * local senderKeys IDB store so they can decrypt future group messages.
+ */
+export interface SenderKeyDistribution {
+  /** Wire-type discriminator. */
+  type: 'sender-key-distribution'
+  /** Group this distribution belongs to. */
+  groupId: string
+  /** User ID of the distributing member. */
+  memberId: string
+  /** Device ID of the distributing member. */
+  deviceId: string
+  /** Current chain key (base64) — allows recipient to start from this point. */
+  chainKey: string
+  /** Current iteration at time of distribution. */
+  iteration: number
+  /** ECDSA P-256 signing public key (SPKI base64) — used to verify future messages. */
+  signingPublicKey: string
+}
+
+/**
+ * Wire format for a sender-key encrypted group message.
+ *
+ * Encrypted once by the sender and fanned out to all group members
+ * at the transport layer. Each recipient independently decrypts using
+ * their locally-stored copy of the sender's SenderKeyState.
+ */
+export interface SenderKeyMessage {
+  /** Group this message belongs to. */
+  groupId: string
+  /** Sender's user ID. */
+  senderId: string
+  /** Sender's device ID. */
+  senderDeviceId: string
+  /** Chain iteration at which this message was encrypted. */
+  iteration: number
+  /** AES-256-GCM ciphertext with 12-byte IV prepended (base64). */
+  ciphertext: string
+  /** ECDSA-SHA256 signature over (groupId + senderId + iteration + ciphertext) (base64). */
+  signature: string
+}

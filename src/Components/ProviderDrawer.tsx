@@ -16,6 +16,7 @@ import type { PEState } from '../Types/PETypes'
 import type { ProviderNoteTemplate, TextExpander, PlanOrderSet, PlanBlockKey } from '../Data/User'
 import { PLAN_ORDER_LABELS } from '../Data/User'
 import { useUserProfile } from '../Hooks/useUserProfile'
+import { getBlockByKey } from '../Data/PhysicalExamData'
 import { parseNoteEncoding, findAlgorithmByCode, findSymptomByCode, reconstructCardStates } from '../Utilities/noteParser'
 import { decodePEState } from '../Utilities/peCodec'
 import { isEncryptedBarcode, decryptBarcode } from '../Utilities/NoteCodec'
@@ -98,7 +99,40 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   const handleApplyTemplate = useCallback((template: ProviderNoteTemplate) => {
     const expanders = profile.textExpanders ?? []
     if (!hpiNote) setHpiNote(template.hpiText || resolveExpander(template.hpiExpanderAbbr, expanders))
-    if (!peNote) setPeNote(template.peText || resolveExpander(template.peExpanderAbbr, expanders))
+    if (!peNote && !template.peBlockKeys?.length) {
+      setPeNote(template.peText || resolveExpander(template.peExpanderAbbr, expanders))
+    }
+    // PE structured blocks — build PEState with all-normal for each selected block
+    if (template.peBlockKeys?.length && !peState) {
+      const items: Record<string, { status: 'normal'; selectedNormals: string[]; selectedAbnormals: string[]; findings: string }> = {}
+      const textLines: string[] = []
+      for (const key of template.peBlockKeys) {
+        const block = getBlockByKey(key)
+        if (block) {
+          const normals = block.findings.filter(f => f.normal).map(f => f.key)
+          items[key] = {
+            status: 'normal',
+            selectedNormals: normals,
+            selectedAbnormals: [],
+            findings: '',
+          }
+          const normalLabels = block.findings.filter(f => f.normal && normals.includes(f.key)).map(f => f.normal!)
+          textLines.push(`${block.label.toUpperCase()}: ${normalLabels.join(', ') || 'Normal'}`)
+        }
+      }
+      setPeNote(textLines.join('\n'))
+      setPeState({
+        categoryLetter: 'A',
+        laterality: 'right',
+        spineRegion: 'lumbar',
+        items,
+        vitals: {},
+        additional: '',
+        depth: 'comprehensive',
+        blockOrder: template.peBlockKeys,
+      })
+      setPeResetKey(k => k + 1)
+    }
     if (!assessmentNote) setAssessmentNote(template.assessmentText || resolveExpander(template.assessmentExpanderAbbr, expanders))
     if (!planNote) {
       let text = template.planText || resolveExpander(template.planExpanderAbbr, expanders)
@@ -108,7 +142,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       }
       if (text) setPlanNote(text)
     }
-  }, [profile.textExpanders, profile.planOrderSets, hpiNote, peNote, assessmentNote, planNote, resolveExpander, generatePlanFromOrderSet])
+  }, [profile.textExpanders, profile.planOrderSets, hpiNote, peNote, peState, assessmentNote, planNote, resolveExpander, generatePlanFromOrderSet])
 
   // ── Import decode logic ────────────────────────────────────────────────────
 

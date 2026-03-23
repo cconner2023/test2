@@ -5,6 +5,7 @@ import { MobileSearchBar } from '../MobileSearchBar'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
+import { useMessagingStore } from '../../stores/useMessagingStore'
 import type { RequestStatus } from '../../Hooks/useMessages'
 import { ContactListItem } from './ContactListItem'
 import { GroupListItem } from './GroupListItem'
@@ -786,13 +787,29 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   }
 
   const {
-    conversations, unreadCounts, sendMessage, sendImage, sendVoice, sending,
+    sendMessage, sendImage, sendVoice,
     markAsRead, fetchHistory, acceptRequest, editMessage, deleteMessages,
     deleteConversation,
-    getRequestStatusForPeer, groups, sendGroupMessage, sendGroupImage, sendGroupVoice,
+    getRequestStatusForPeer, sendGroupMessage, sendGroupImage, sendGroupVoice,
     createGroup, leaveGroup, renameGroup, addGroupMember, removeGroupMember,
     fetchGroupMembers, fetchGroupHistory,
   } = messagesCtx
+
+  // Read state from store — granular subscriptions, no re-render on unrelated state
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const conversations = useMessagingStore(s => s.conversations)
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const unreadCounts = useMessagingStore(s => s.unreadCounts)
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const groups = useMessagingStore(s => s.groups)
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const sendingMap = useMessagingStore(s => s.sendingMap)
+
+  const activeSending = selectedPeerId
+    ? (sendingMap[selectedPeerId] ?? false)
+    : selectedGroupId
+      ? (sendingMap[selectedGroupId] ?? false)
+      : false
 
   // Determine main content based on view
   let mainContent: React.ReactNode
@@ -807,7 +824,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         sendGroupMessage={sendGroupMessage}
         sendGroupImage={sendGroupImage}
         sendGroupVoice={sendGroupVoice}
-        sending={sending}
+        sending={activeSending}
         markAsRead={markAsRead}
         fetchGroupHistory={fetchGroupHistory}
         editMessage={editMessage}
@@ -837,7 +854,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         sendMessage={sendMessage}
         sendImage={sendImage}
         sendVoice={sendVoice}
-        sending={sending}
+        sending={activeSending}
         markAsRead={markAsRead}
         fetchHistory={fetchHistory}
         requestStatus={getRequestStatusForPeer(selectedPeerId)}

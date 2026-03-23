@@ -67,7 +67,7 @@ function OverlaySection({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full min-h-[80px] rounded-xl border border-themeblue3/10 shadow-xs bg-themewhite p-3 text-sm text-primary placeholder:text-tertiary/30 focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none resize-none transition-all duration-300"
+        className="w-full min-h-[80px] md:min-h-[56px] rounded-xl border border-themeblue3/10 shadow-xs bg-themewhite p-3 text-sm text-primary placeholder:text-tertiary/30 focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none resize-none transition-all duration-300"
       />
     </div>
   );
@@ -181,7 +181,7 @@ export function ProviderImport({
 
   if (phase === 'overlay' && medicData) {
     return (
-      <div className="h-full overflow-y-auto px-4 py-4 space-y-5 pb-8">
+      <div className="h-full overflow-y-auto px-4 py-4 space-y-5 md:space-y-3 pb-8">
         <OverlaySection
           label="HPI"
           medicContent={medicData.hpi}

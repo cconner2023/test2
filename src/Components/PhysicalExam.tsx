@@ -1171,7 +1171,7 @@ export function PhysicalExam({
                 <div className="px-4 py-3 relative">
                     <button
                         onClick={cycleExamStatus}
-                        className={`absolute top-3 right-4 w-11 h-11 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all z-10 ${
+                        className={`absolute top-3 right-4 w-11 h-11 md:w-8 md:h-8 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all z-10 ${
                             examStatus === 'all-normal'
                                 ? 'bg-themegreen text-white'
                                 : examStatus === 'has-abnormal'

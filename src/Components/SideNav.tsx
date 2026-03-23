@@ -1,8 +1,8 @@
-import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useRef, useState, useSyncExternalStore } from 'react'
 import { Upload, BookOpen, Mail, Package, ClipboardCheck, Settings, HelpCircle, UserCog, Radio, Map as MapIcon, Eye, CalendarDays, Stethoscope } from 'lucide-react'
 import { useAuth } from '../Hooks/useAuth'
 import { useAvatar } from '../Utilities/AvatarContext'
-import { useMessagesContext } from '../Hooks/MessagesContext'
+import { useTotalUnread } from '../stores/useMessagingStore'
 import { getInitials } from '../Utilities/nameUtils'
 import { useNavItems } from '../Hooks/useNavItems'
 import { NavItemContextMenu } from './NavItemContextMenu'
@@ -57,7 +57,7 @@ interface SideNavProps {
 export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavProps) {
   const { currentAvatar, customImage, isCustom, isInitials } = useAvatar()
   const { profile } = useAuth()
-  const messagesCtx = useMessagesContext()
+  const totalUnread = useTotalUnread()
   const isConnected = useSyncExternalStore(subscribeOnline, getOnline)
 
   const iconMap = isMobile ? iconMapMobile : iconMapDesktop
@@ -76,11 +76,6 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
 
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressFired = useRef(false)
-
-  const totalUnread = useMemo(() => {
-    if (!messagesCtx) return 0
-    return Object.values(messagesCtx.unreadCounts).reduce((sum, n) => sum + n, 0)
-  }, [messagesCtx?.unreadCounts])
 
   const handleItemClick = (action: string) => {
     onMenuItemClick(action)

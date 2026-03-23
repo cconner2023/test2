@@ -1,18 +1,21 @@
 /**
- * MessagesContext — Keeps messaging state alive across Settings drawer open/close.
+ * MessagesContext — Keeps messaging orchestration alive across Settings drawer open/close.
  *
- * The useMessages() hook lives here at the app level, so conversations,
- * unread counts, and the realtime subscription persist even when
- * MessagesPanel unmounts.
+ * The useMessages() hook lives here at the app level, so realtime subscriptions
+ * and crypto state persist even when MessagesPanel unmounts.
+ *
+ * Messaging state (conversations, unreadCounts, groups, etc.) is in useMessagingStore.
+ * This context only holds the hook's action API + notification state.
  *
  * Also wires up message notifications (toast + sound) for incoming messages.
  */
 
-import { createContext, useContext, useEffect, useMemo, useRef } from 'react'
+import { createContext, useContext, useEffect, useMemo } from 'react'
 import { useMessages, type UseMessagesReturn } from './useMessages'
 import { useAuth } from './useAuth'
 import { useClinicMedics } from './useClinicMedics'
 import { useMessageNotifications, type MessageNotification } from './useMessageNotifications'
+import { useMessagingStore } from '../stores/useMessagingStore'
 import type { DecryptedSignalMessage } from '../lib/signal/transportTypes'
 
 interface MessagesContextValue extends UseMessagesReturn {
@@ -25,6 +28,7 @@ const MessagesContext = createContext<MessagesContextValue | null>(null)
 export function MessagesProvider({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user } = useAuth()
   const messages = useMessages()
+  const { onIncomingRef, activePeerRef } = messages
   const { medics } = useClinicMedics()
   const { notification, notify, dismiss } = useMessageNotifications()
 
@@ -48,14 +52,15 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return
 
-    messages.onIncomingRef.current = (msg: DecryptedSignalMessage) => {
+    onIncomingRef.current = (msg: DecryptedSignalMessage) => {
       // Skip if the user is currently viewing this conversation
       const conversationKey = msg.groupId ?? msg.senderId
-      if (messages.activePeerRef.current === conversationKey) return
+      if (activePeerRef.current === conversationKey) return
 
       const senderName = nameMap.get(msg.senderId) ?? 'Unknown'
       const isGroup = !!msg.groupId
-      const groupName = isGroup ? (messages.groups[msg.groupId!]?.name ?? 'Group') : undefined
+      const groups = useMessagingStore.getState().groups
+      const groupName = isGroup ? (groups[msg.groupId!]?.name ?? 'Group') : undefined
       const preview = msg.plaintext || 'Photo'
 
       notify({
@@ -68,23 +73,19 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       })
     }
 
-    return () => { messages.onIncomingRef.current = null }
-  }, [isAuthenticated, user?.id, nameMap, messages.onIncomingRef, messages.activePeerRef, messages.groups, notify])
+    return () => { onIncomingRef.current = null }
+  }, [isAuthenticated, user?.id, nameMap, onIncomingRef, activePeerRef, notify])
 
-  // Hold messages via ref so we always spread the latest value without
-  // depending on the (unstable) messages object identity itself.
-  const messagesRef = useRef(messages)
-  messagesRef.current = messages
-
-  // Memoize context value using fine-grained deps that actually change —
-  // conversations, unreadCounts, sending, and groups are the mutable parts.
-  // Also track sendMessage identity: it changes when localDeviceId loads
-  // (null → real ID), which is critical for sends to work. Without this,
-  // the context can hold a stale sendMessage that silently returns false.
+  // Memoize context value — only the action functions and notification state.
+  // State reads go through useMessagingStore selectors directly.
   const value = useMemo<MessagesContextValue | null>(() => {
     if (!isAuthenticated) return null
-    return { ...messagesRef.current, notification, dismissNotification: dismiss }
-  }, [isAuthenticated, messages.conversations, messages.unreadCounts, messages.sending, messages.groups, messages.sendMessage, messages.sendCalendarEvent, messages.deleteCalendarEventMessages, notification, dismiss])
+    return {
+      ...messages,
+      notification,
+      dismissNotification: dismiss,
+    }
+  }, [isAuthenticated, messages, notification, dismiss])
 
   return (
     <MessagesContext.Provider value={value}>
@@ -93,7 +94,8 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
   )
 }
 
-/** Consume the app-level messaging state. Returns null if not authenticated. */
+/** Consume the app-level messaging action API. Returns null if not authenticated. */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useMessagesContext(): MessagesContextValue | null {
   return useContext(MessagesContext)
 }

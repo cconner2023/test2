@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react'
-import { Plus, AlertTriangle, X, Check } from 'lucide-react'
+import { Plus, AlertTriangle, X, Check, List, MapIcon } from 'lucide-react'
 import { ActionSheet } from '../ActionSheet'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { useProperty } from '../../Hooks/useProperty'
@@ -10,6 +10,7 @@ import { PropertyItemDetail } from './PropertyItemDetail'
 import { PropertyItemForm } from './PropertyItemForm'
 import { PropertyLocationTree } from './PropertyLocationTree'
 import { PropertyDashboard } from './PropertyDashboard'
+import type { DashboardNavHandle } from './PropertyDashboard'
 import { SearchInput } from '../SearchInput'
 import { CustodyTransferForm } from './CustodyTransferForm'
 import { LoadingSpinner } from '../LoadingSpinner'
@@ -64,7 +65,7 @@ interface PropertyPanelProps {
   onSearchChange?: (query: string) => void
 }
 
-export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '', onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onRegisterDetailActions, onRegisterAddLocation, onSearchChange, ...rest }: PropertyPanelProps) {
+export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '', onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onMobileLocationViewChange, onRegisterDetailActions, onRegisterAddLocation, onSearchChange, ...rest }: PropertyPanelProps) {
   // Consume unused props passed by PropertyDrawer to avoid lint errors
   void rest
   const { user } = useAuth()
@@ -78,11 +79,47 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
   const [csvImport, setCsvImport] = useState<{ rows: ParsedRow[]; errors: string[] } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const mapRef = useRef<MapNavHandle>(null)
+  const dashboardRef = useRef<DashboardNavHandle>(null)
   const [showNewLocation, setShowNewLocation] = useState(false)
   const [newLocationName, setNewLocationName] = useState('')
   const [rootError, setRootError] = useState(false)
   const [renamingLocation, setRenamingLocation] = useState<{ id: string; name: string } | null>(null)
   const [showAddSheet, setShowAddSheet] = useState(false)
+  const [desktopMapView, setDesktopMapView] = useState(false)
+
+  const setMapView = useCallback((showMap: boolean) => {
+    if (isMobile) {
+      onMobileLocationViewChange?.(showMap)
+    } else {
+      setDesktopMapView(showMap)
+    }
+  }, [isMobile, onMobileLocationViewChange])
+
+  const showMap = isMobile ? mobileLocationView : desktopMapView
+
+  const renderBottomIsland = () => (
+    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 rounded-full border border-tertiary/20 bg-themewhite shadow-lg flex items-center px-1 py-1 gap-1">
+      <button
+        onClick={() => setMapView(false)}
+        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${!showMap ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+      >
+        <List size={18} />
+      </button>
+      <button
+        onClick={() => setMapView(true)}
+        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${showMap ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+      >
+        <MapIcon size={18} />
+      </button>
+      <div className="w-px h-6 bg-tertiary/15 mx-0.5" />
+      <button
+        onClick={() => setShowAddSheet(true)}
+        className="w-10 h-10 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
+      >
+        <Plus size={18} />
+      </button>
+    </div>
+  )
 
   const [transferItems, setTransferItems] = useState<LocalPropertyItem[]>([])
   const [pendingDelete, setPendingDelete] = useState<{ kind: 'single'; item: LocalPropertyItem } | { kind: 'detail' } | null>(null)
@@ -214,6 +251,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
     } else {
       setDesktopLocationId(loc.id)
       mapRef.current?.navigateToZone(loc.id)
+      dashboardRef.current?.scrollToSection(loc.id)
     }
   }, [desktopLocationId, store])
 
@@ -345,14 +383,32 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
     )
   }
 
-  // Desktop: dashboard as default right-pane content
+  // Desktop: dashboard or map as default right-pane content
   if (!isMobile) {
+    if (desktopMapView) {
+      return (
+        <PropertyLocationMap
+          ref={mapRef}
+          clinicId={property.clinicId!}
+          clinicName={clinicName}
+          locations={visibleLocations}
+          items={property.items}
+          onCreateLocation={property.addLocation}
+          onDeleteLocation={property.removeLocation}
+          onEditItem={property.editItem}
+          onUpdateLocation={property.editLocation}
+          onSelectItem={handleSelectItem}
+        />
+      )
+    }
     return (
       <PropertyDashboard
+        ref={dashboardRef}
         items={property.items}
         locations={visibleLocations}
         holders={holders}
         searchQuery={searchQuery}
+        activeLocationId={desktopLocationId}
         onSelectItem={handleSelectItem}
       />
     )
@@ -374,22 +430,13 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
           onUpdateLocation={property.editLocation}
           onSelectItem={handleSelectItem}
         />
-        {/* FAB */}
-        <div className="absolute bottom-4 right-4 z-20 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg">
-          <button
-            onClick={() => setShowAddSheet(true)}
-            className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
-          >
-            <Plus className="w-5 h-5" />
-          </button>
-        </div>
+        {renderBottomIsland()}
         <ActionSheet
           visible={showAddSheet}
           title="Add to Property Book"
           options={[
             { key: 'item', label: 'New Item', onAction: onAddItem },
             { key: 'location', label: 'New Location', onAction: () => { setNewLocationName(''); setShowNewLocation(true) } },
-            { key: 'csv', label: 'Import CSV', onAction: () => fileInputRef.current?.click() },
           ]}
           onClose={() => setShowAddSheet(false)}
         />
@@ -398,7 +445,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
   }
 
   return (
-    <div className="flex flex-col h-full relative">
+    <div className="flex flex-col h-full overflow-hidden relative">
       <input
         ref={fileInputRef}
         type="file"
@@ -446,6 +493,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
 
       {/* Dashboard — location-grouped item sections */}
       <PropertyDashboard
+        ref={dashboardRef}
         items={property.items}
         locations={visibleLocations}
         holders={holders}
@@ -453,15 +501,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
         onSelectItem={handleSelectItem}
       />
 
-      {/* FAB */}
-      <div className="absolute bottom-4 right-4 z-20 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg">
-        <button
-          onClick={() => setShowAddSheet(true)}
-          className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
-        >
-          <Plus className="w-5 h-5" />
-        </button>
-      </div>
+      {renderBottomIsland()}
 
       <ActionSheet
         visible={showAddSheet}
@@ -599,15 +639,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
         </div>
         <div className="flex-1 flex flex-col min-w-0 relative">
           {renderViewContent()}
-          {/* FAB */}
-          <div className="absolute bottom-4 right-4 z-20 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg">
-            <button
-              onClick={() => setShowAddSheet(true)}
-              className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
-            >
-              <Plus className="w-5 h-5" />
-            </button>
-          </div>
+          {view === 'property' && renderBottomIsland()}
         </div>
       </div>
       <ActionSheet

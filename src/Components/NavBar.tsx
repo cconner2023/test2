@@ -1,8 +1,7 @@
 import { BookOpen, Mail, Package, Radio, Map } from "lucide-react";
-import { useMemo } from "react";
 import { useAvatar } from "../Utilities/AvatarContext";
 import { useAuth } from "../Hooks/useAuth";
-import { useMessagesContext } from "../Hooks/MessagesContext";
+import { useTotalUnread } from "../stores/useMessagingStore";
 import { getInitials } from "../Utilities/nameUtils";
 import { PROPERTY_MANAGEMENT_ENABLED, LORA_MESH_ENABLED, MAP_OVERLAY_ENABLED } from "../lib/featureFlags";
 
@@ -20,11 +19,7 @@ const BTN = "h-8 flex items-center justify-center px-3 lg:px-4 py-1.5 bg-themewh
 export function NavBar({ onKnowledgeBaseClick, onMessagesClick, onPropertyClick, onLoRaClick, onMapOverlayClick, onAvatarClick }: NavBarProps) {
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar()
     const { profile, isAuthenticated, isDevRole } = useAuth()
-    const messagesCtx = useMessagesContext()
-    const totalUnread = useMemo(() => {
-        if (!messagesCtx) return 0
-        return Object.values(messagesCtx.unreadCounts).reduce((sum, n) => sum + n, 0)
-    }, [messagesCtx?.unreadCounts])
+    const totalUnread = useTotalUnread()
 
     return (
         <div className="hidden md:flex items-center h-10 w-full px-3 bg-themewhite gap-2">

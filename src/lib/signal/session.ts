@@ -47,33 +47,33 @@ const logger = createLogger('SignalSession')
 
 // ---- Pre-Key Replenishment ----
 
-let _replenishing = false
+let _replenishPromise: Promise<void> | null = null
 
 async function replenishPreKeysIfNeeded(myUserId: string): Promise<void> {
-  if (_replenishing) return
-  _replenishing = true
-  try {
-    const currentCount = await getPreKeyCount()
-    const threshold = Math.floor(SIGNAL.PREKEY_BATCH_SIZE / 2)
-    if (currentCount >= threshold) return
+  if (_replenishPromise) return _replenishPromise
+  _replenishPromise = (async () => {
+    try {
+      const currentCount = await getPreKeyCount()
+      const threshold = Math.floor(SIGNAL.PREKEY_BATCH_SIZE / 2)
+      if (currentCount >= threshold) return
 
-    const needed = SIGNAL.PREKEY_BATCH_SIZE - currentCount
-    await generatePreKeys(needed)
+      const needed = SIGNAL.PREKEY_BATCH_SIZE - currentCount
+      await generatePreKeys(needed)
 
-    const identity = await ensureLocalIdentity()
-    const bundle = await assemblePublicKeyBundle(myUserId, identity.deviceId)
-    if (!bundle) {
-      logger.warn('replenishPreKeysIfNeeded: could not assemble bundle after generating pre-keys')
-      return
+      const identity = await ensureLocalIdentity()
+      const bundle = await assemblePublicKeyBundle(myUserId, identity.deviceId)
+      if (!bundle) {
+        logger.warn('replenishPreKeysIfNeeded: could not assemble bundle after generating pre-keys')
+        return
+      }
+
+      await uploadKeyBundle(bundle)
+      logger.info(`Pre-key pool replenished: generated ${needed}, uploaded updated bundle`)
+    } catch (err) {
+      logger.warn('replenishPreKeysIfNeeded failed', err)
     }
-
-    await uploadKeyBundle(bundle)
-    logger.info(`Pre-key pool replenished: generated ${needed}, uploaded updated bundle`)
-  } catch (err) {
-    logger.warn('replenishPreKeysIfNeeded failed', err)
-  } finally {
-    _replenishing = false
-  }
+  })().finally(() => { _replenishPromise = null })
+  return _replenishPromise
 }
 
 // ---- Helpers ----
@@ -160,6 +160,7 @@ export async function createOutboundSession(
 ): Promise<SealedEnvelope & { identityKeyChanged?: boolean }> {
   const identity = await ensureLocalIdentity()
 
+  return withSessionLock(makeSessionKey(peerId, peerDeviceId), async () => {
   // X3DH key agreement
   const x3dh = await x3dhInitiate(identity, peerBundle)
 
@@ -231,6 +232,7 @@ export async function createOutboundSession(
   )
 
   return { ...envelope, identityKeyChanged }
+  }) // end withSessionLock
 }
 
 // ---- Message Encryption ----
@@ -410,6 +412,25 @@ export async function deleteSession(peerId: string, peerDeviceId: string): Promi
   sessionCache.delete(key)
   await store.deleteSession(key)
   logger.info(`Deleted session with peer ${peerId} device ${peerDeviceId}`)
+}
+
+/**
+ * Delete all sessions with a peer across all their registered devices.
+ *
+ * Used when a 1:1 conversation is deleted — purges all pairwise ratchet
+ * state so the peer cannot be messaged until a new X3DH handshake occurs.
+ * Group sessions with the same peer are handled separately (sender keys,
+ * not pairwise ratchet) and are unaffected by this call.
+ *
+ * @param peerId - The peer's user UUID
+ */
+export async function deleteSessionsForPeer(peerId: string): Promise<void> {
+  const sessions = await store.loadSessionsForPeer(peerId)
+  for (const session of sessions) {
+    sessionCache.delete(session.sessionKey)
+    await store.deleteSession(session.sessionKey)
+  }
+  logger.info(`Deleted ${sessions.length} session(s) for peer ${peerId}`)
 }
 
 /** Clear all sessions (called on sign-out alongside clearSignalKeys). */

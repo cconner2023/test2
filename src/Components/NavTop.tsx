@@ -2,22 +2,18 @@
 import { X, ChevronLeft, Info, Mail, Upload, BookOpen } from "lucide-react";
 import { ImportInputBar } from "./ImportInputBar";
 import { HeaderPill, PillButton } from "./HeaderPill";
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useSpring, animated, to } from '@react-spring/web';
 import type { NavTopProps } from "../Types/NavTopTypes";
 import { useAvatar } from "../Utilities/AvatarContext";
 import { useAuth } from "../Hooks/useAuth";
-import { useMessagesContext } from "../Hooks/MessagesContext";
+import { useTotalUnread } from "../stores/useMessagingStore";
 import { getInitials } from "../Utilities/nameUtils";
 
 export function NavTop({ search, import: importProps, actions, ui }: NavTopProps) {
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar()
     const { profile, isAuthenticated } = useAuth()
-    const messagesCtx = useMessagesContext()
-    const totalUnread = useMemo(() => {
-        if (!messagesCtx) return 0
-        return Object.values(messagesCtx.unreadCounts).reduce((sum, n) => sum + n, 0)
-    }, [messagesCtx?.unreadCounts])
+    const totalUnread = useTotalUnread()
 
     // Destructure grouped props for cleaner usage
     const {

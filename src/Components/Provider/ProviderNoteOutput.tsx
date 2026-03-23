@@ -196,7 +196,7 @@ export function ProviderNoteOutput({
                     </div>
                 </div>
                 <div className="rounded-xl bg-themewhite2 overflow-hidden">
-                    <div className="px-4 py-3 text-tertiary text-[8pt] whitespace-pre-wrap max-h-48 overflow-y-auto">
+                    <div className="px-4 py-3 text-tertiary text-[8pt] whitespace-pre-wrap max-h-48 md:max-h-80 overflow-y-auto">
                         {previewNote || 'No content available'}
                     </div>
                 </div>

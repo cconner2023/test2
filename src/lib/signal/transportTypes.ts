@@ -9,13 +9,15 @@
 
 /** All wire-level message types in the Signal transport layer. */
 export type SignalMessageType =
-  | 'initial'          // X3DH key exchange (first message to a new device)
-  | 'message'          // User-visible chat message
-  | 'request'          // Contact/group request
-  | 'request-accepted' // Contact/group request acceptance
-  | 'sync'             // Multi-device sync (own devices only)
-  | 'delete'           // Delete-for-everyone
-  | 'receipt'          // Delivery receipt (not user-visible, no push notification)
+  | 'initial'                   // X3DH key exchange (first message to a new device)
+  | 'message'                   // User-visible chat message
+  | 'request'                   // Contact/group request
+  | 'request-accepted'          // Contact/group request acceptance
+  | 'sync'                      // Multi-device sync (own devices only)
+  | 'delete'                    // Delete-for-everyone
+  | 'receipt'                   // Delivery receipt (not user-visible, no push notification)
+  | 'sender-key-distribution'   // Sender key distribution via 1:1 pairwise session
+  | 'sender-key-message'        // Group message encrypted with sender key (pre-encrypted, no Double Ratchet)
 
 // ---- Device Hierarchy ----
 

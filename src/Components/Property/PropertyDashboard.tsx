@@ -1,14 +1,19 @@
-import { useMemo, memo } from 'react'
+import { useMemo, useRef, useCallback, useImperativeHandle, forwardRef, useState, useEffect, memo } from 'react'
 import { Package } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
+
+export interface DashboardNavHandle {
+  scrollToSection: (locationId: string | null) => void
+}
 
 interface PropertyDashboardProps {
   items: LocalPropertyItem[]
   locations: LocalPropertyLocation[]
   holders: Map<string, HolderInfo>
   searchQuery?: string
+  activeLocationId?: string | null
   onSelectItem: (item: LocalPropertyItem) => void
 }
 
@@ -18,13 +23,40 @@ interface LocationGroup {
   items: LocalPropertyItem[]
 }
 
-export const PropertyDashboard = memo(function PropertyDashboard({
+export const PropertyDashboard = memo(forwardRef<DashboardNavHandle, PropertyDashboardProps>(function PropertyDashboard({
   items,
   locations,
   holders,
   searchQuery = '',
+  activeLocationId,
   onSelectItem,
-}: PropertyDashboardProps) {
+}, ref) {
+  const sectionRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const [flashId, setFlashId] = useState<string | null>(null)
+
+  const setSectionRef = useCallback((id: string | null, el: HTMLDivElement | null) => {
+    const key = id ?? '__unassigned'
+    if (el) sectionRefs.current.set(key, el)
+    else sectionRefs.current.delete(key)
+  }, [])
+
+  useImperativeHandle(ref, () => ({
+    scrollToSection(locationId: string | null) {
+      const key = locationId ?? '__unassigned'
+      const el = sectionRefs.current.get(key)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        setFlashId(key)
+      }
+    },
+  }), [])
+
+  // Clear flash after animation
+  useEffect(() => {
+    if (!flashId) return
+    const t = setTimeout(() => setFlashId(null), 1200)
+    return () => clearTimeout(t)
+  }, [flashId])
   const visibleLocations = useMemo(
     () => locations.filter((l) => l.name !== ROOT_LOCATION_NAME),
     [locations],
@@ -149,7 +181,7 @@ export const PropertyDashboard = memo(function PropertyDashboard({
   }
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
+    <div className="flex flex-col flex-1 min-h-0 overflow-y-auto">
       {/* Summary bar */}
       <div className="shrink-0 px-4 py-3 border-b border-tertiary/10">
         <div className="flex items-center gap-3 text-[9pt] text-tertiary">
@@ -179,12 +211,20 @@ export const PropertyDashboard = memo(function PropertyDashboard({
 
       {/* Location-grouped sections */}
       <div className="flex-1 min-h-0 px-4 py-4 space-y-5">
-        {locationGroups.map((group) => (
-          <div key={group.id ?? '__unassigned'}>
-            <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
+        {locationGroups.map((group) => {
+          const key = group.id ?? '__unassigned'
+          const isActive = activeLocationId !== undefined && group.id === activeLocationId
+          const isFlashing = flashId === key
+          return (
+          <div
+            key={key}
+            ref={(el) => setSectionRef(group.id, el)}
+            className={isFlashing ? 'animate-[dashboardFlash_1.2s_ease-out]' : ''}
+          >
+            <p className={`text-[9pt] font-semibold uppercase tracking-wider mb-2 transition-colors duration-300 ${isActive ? 'text-themeblue3' : 'text-primary/80'}`}>
               {group.name}
             </p>
-            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+            <div className={`rounded-2xl border overflow-hidden transition-colors duration-300 ${isActive ? 'border-themeblue3/30 bg-themeblue2/5' : 'border-themeblue3/10 bg-themewhite2'}`}>
               {group.items.map((item) => (
                 <button
                   key={item.id}
@@ -213,7 +253,8 @@ export const PropertyDashboard = memo(function PropertyDashboard({
               ))}
             </div>
           </div>
-        ))}
+          )
+        })}
 
         {locationGroups.length === 0 && searchQuery.trim() && (
           <EmptyState title="No items match your search" />
@@ -221,4 +262,4 @@ export const PropertyDashboard = memo(function PropertyDashboard({
       </div>
     </div>
   )
-})
+}))

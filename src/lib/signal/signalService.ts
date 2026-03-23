@@ -240,6 +240,36 @@ export async function sendMessage(
 }
 
 /**
+ * Send a pre-encrypted group message to a single recipient.
+ *
+ * Used for sender-key-message and sender-key-distribution types where the
+ * payload is ALREADY encrypted by the sender key protocol — no Double Ratchet
+ * wrapping should occur. The payload is stored as-is in the signal_messages row.
+ */
+export async function sendRawGroupMessage(
+  senderId: string,
+  recipientId: string,
+  payload: Record<string, unknown>,
+  messageType: 'sender-key-message' | 'sender-key-distribution',
+  senderDeviceId: string,
+  groupId: string,
+  originId?: string,
+  silent?: boolean,
+): Promise<Result<string>> {
+  return transportManager.send({
+    id: crypto.randomUUID(),
+    senderId,
+    recipientId,
+    senderDeviceId,
+    messageType,
+    payload,
+    groupId,
+    originId,
+    silent,
+  })
+}
+
+/**
  * Fan-out send: one message per recipient device.
  * Same signature as before — hooks don't change.
  */

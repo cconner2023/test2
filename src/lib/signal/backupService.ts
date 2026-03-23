@@ -17,7 +17,7 @@ import { supabase } from '../supabase'
 import { SIGNAL } from '../constants'
 import { createLogger } from '../../Utilities/Logger'
 import { base64ToBytes, bytesToBase64 } from '../base64Utils'
-import { saveMessage, setOnMessageSaved, loadAllConversations } from './messageStore'
+import { saveMessage, setOnMessageSaved, loadAllConversations, getAllTombstones, saveTombstone } from './messageStore'
 import { isCalendarEvent, routeCalendarEvent } from '../calendarRouting'
 import type { StoredMessage } from './messageStore'
 
@@ -340,11 +340,20 @@ export async function decryptWithPassword(ciphertextB64: string, saltB64: string
 
 // ---- Backup payload ----
 
-interface BackupPayload {
+interface BackupPayloadV1 {
   version: 1
   createdAt: string
   messages: StoredMessage[]
 }
+
+interface BackupPayloadV2 {
+  version: 2
+  createdAt: string
+  messages: StoredMessage[]
+  tombstones: Record<string, string>  // conversationKey → deletedAt ISO
+}
+
+type BackupPayload = BackupPayloadV1 | BackupPayloadV2
 
 // ---- Load messages from IndexedDB directly (bypasses at-rest encryption) ----
 
@@ -400,10 +409,13 @@ export async function createBackup(userId: string): Promise<void> {
       messages = messages.slice(0, SIGNAL.BACKUP_MAX_MESSAGES)
     }
 
-    const payload: BackupPayload = {
-      version: 1,
+    const tombstones = await getAllTombstones()
+
+    const payload: BackupPayloadV2 = {
+      version: 2,
       createdAt: new Date().toISOString(),
       messages,
+      tombstones,
     }
 
     // Compress, enforce size limit by halving message count
@@ -423,7 +435,7 @@ export async function createBackup(userId: string): Promise<void> {
         salt,
         ciphertext,
         message_count: messages.length,
-        backup_version: 1,
+        backup_version: 2,
         created_at: new Date().toISOString(),
       }, { onConflict: 'user_id' })
 
@@ -483,12 +495,20 @@ export async function restoreBackup(userId: string): Promise<void> {
     const json = new TextDecoder().decode(inflateRaw(compressed))
     const payload: BackupPayload = JSON.parse(json)
 
-    if (payload.version !== 1) {
+    if (payload.version !== 1 && payload.version !== 2) {
       logger.warn(`Unknown backup version: ${payload.version}`)
       return
     }
 
     let restored = 0
+
+    // V2: restore tombstones FIRST so the saveMessage tombstone guard fires correctly
+    if (payload.version === 2 && payload.tombstones) {
+      for (const [conversationKey, deletedAt] of Object.entries(payload.tombstones)) {
+        await saveTombstone(conversationKey, deletedAt)
+      }
+      logger.info(`Restored ${Object.keys(payload.tombstones).length} conversation tombstones`)
+    }
 
     // Pre-scan: collect event IDs that have a delete action so we don't
     // resurrect them when replaying earlier create messages.

@@ -8,7 +8,7 @@ import { supabase } from '../supabase'
 import { callRpc, type Result } from '../result'
 import { createLogger } from '../../Utilities/Logger'
 import type { GroupInfo, GroupMember } from './groupTypes'
-import { encryptGroupName, decryptGroupName } from './groupNameCrypto'
+import { encryptGroupName, decryptGroupName, generateGroupSecret, setGroupSecret } from './groupNameCrypto'
 
 const logger = createLogger('GroupService')
 
@@ -29,6 +29,13 @@ export async function createGroup(params: {
   if (!result.ok) return result
 
   const { groupId } = result.data
+
+  // Generate and persist a random group secret so name encryption is not
+  // derivable from the public groupId. Distribution to other members will
+  // piggyback on sender key distribution (future integration work).
+  const secret = generateGroupSecret()
+  await setGroupSecret(groupId, secret)
+
   const encryptedName = await encryptGroupName(groupId, params.name)
   await callRpc(
     () => supabase.rpc('rename_message_group', { p_group_id: groupId, p_name: encryptedName }),

@@ -43,10 +43,17 @@ interface MessageDB extends DBSchema {
       'by-peer-time': [string, string]
     }
   }
+  conversationTombstones: {
+    key: string // conversationKey
+    value: {
+      conversationKey: string
+      deletedAt: string // ISO 8601
+    }
+  }
 }
 
 const MESSAGE_DB_NAME = 'adtmc-message-store'
-const MESSAGE_DB_VERSION = 2
+const MESSAGE_DB_VERSION = 3
 
 const { getDb, destroy: destroyMessageDb } = createIdbSingleton<MessageDB>(
   MESSAGE_DB_NAME,
@@ -62,6 +69,11 @@ const { getDb, destroy: destroyMessageDb } = createIdbSingleton<MessageDB>(
         }
         if (!store.indexNames.contains('by-peer-time')) {
           store.createIndex('by-peer-time', ['peerId', 'createdAt'])
+        }
+      }
+      if (oldVersion < 3) {
+        if (!db.objectStoreNames.contains('conversationTombstones')) {
+          db.createObjectStore('conversationTombstones', { keyPath: 'conversationKey' })
         }
       }
     },
@@ -113,15 +125,91 @@ export function setOnMessageSaved(cb: ((localUserId: string) => void) | null): v
   _onMessageSaved = cb
 }
 
+// ---- Tombstone CRUD ----
+
+/** Persist a conversation tombstone (conversationKey → deletedAt). */
+export async function saveTombstone(conversationKey: string, deletedAt: string): Promise<void> {
+  try {
+    const db = await getDb()
+    await db.put('conversationTombstones', { conversationKey, deletedAt })
+  } catch (err) {
+    logger.warn('Failed to save tombstone:', err)
+  }
+}
+
+/** Get the deletedAt timestamp for a conversation, or null if no tombstone. */
+export async function getTombstone(conversationKey: string): Promise<string | null> {
+  try {
+    const db = await getDb()
+    const row = await db.get('conversationTombstones', conversationKey)
+    return row?.deletedAt ?? null
+  } catch (err) {
+    logger.warn('Failed to get tombstone:', err)
+    return null
+  }
+}
+
+/** Load all tombstones as a map of conversationKey → deletedAt. */
+export async function getAllTombstones(): Promise<Record<string, string>> {
+  try {
+    const db = await getDb()
+    const all = await db.getAll('conversationTombstones')
+    const result: Record<string, string> = {}
+    for (const row of all) {
+      result[row.conversationKey] = row.deletedAt
+    }
+    return result
+  } catch (err) {
+    logger.warn('Failed to load tombstones:', err)
+    return {}
+  }
+}
+
+/** Remove a tombstone (called when a genuinely new post-deletion message clears it). */
+export async function deleteTombstone(conversationKey: string): Promise<void> {
+  try {
+    const db = await getDb()
+    await db.delete('conversationTombstones', conversationKey)
+  } catch (err) {
+    logger.warn('Failed to delete tombstone:', err)
+  }
+}
+
+/** Delete tombstones older than 30 days. */
+export async function cleanExpiredTombstones(): Promise<void> {
+  try {
+    const db = await getDb()
+    const all = await db.getAll('conversationTombstones')
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    const tx = db.transaction('conversationTombstones', 'readwrite')
+    await Promise.all(
+      all
+        .filter(row => row.deletedAt < cutoff)
+        .map(row => tx.store.delete(row.conversationKey)),
+    )
+    await tx.done
+  } catch (err) {
+    logger.warn('Failed to clean expired tombstones:', err)
+  }
+}
+
 // ---- Save ----
 
-/** Persist a single decrypted message to IndexedDB. */
+/** Persist a single decrypted message to IndexedDB.
+ *  Checks tombstone store first — skips messages created before the tombstone. */
 export async function saveMessage(
   msg: DecryptedSignalMessage,
   localUserId: string,
 ): Promise<void> {
   try {
     const peerId = msg.groupId ?? (msg.senderId === localUserId ? msg.recipientId : msg.senderId)
+
+    // Tombstone guard: skip messages that predate a conversation deletion
+    const tombstone = await getTombstone(peerId)
+    if (tombstone && msg.createdAt < tombstone) {
+      return
+    }
+
     const stored: StoredMessage = { ...msg, peerId }
     const encrypted = await encryptMessage(stored)
     const db = await getDb()

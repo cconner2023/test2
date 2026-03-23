@@ -26,6 +26,7 @@ import type {
   StoredSignedPreKey,
   StoredPeerIdentity,
   StoredSession,
+  SenderKeyState,
 } from './types'
 
 const logger = createLogger('SignalKeyStore')
@@ -54,13 +55,25 @@ interface SignalDB extends DBSchema {
     value: StoredSession
     indexes: { 'by-peerId': string }
   }
+  senderKeys: {
+    key: string               // senderKeyId: `${groupId}:${memberId}:${deviceId}`
+    value: SenderKeyState
+    indexes: {
+      'by-groupId': string
+      'by-memberId': string
+    }
+  }
+  groupSecrets: {
+    key: string               // groupId
+    value: { groupId: string; secret: string /* base64 */ }
+  }
 }
 
 const SIGNAL_DB_NAME = 'adtmc-signal-store'
-const SIGNAL_DB_VERSION = 3
+const SIGNAL_DB_VERSION = 5
 const LOCAL_IDENTITY_KEY = 'self'
 
-const { getDb, destroy: destroySignalDb } = createIdbSingleton<SignalDB>(
+export const { getDb, destroy: destroySignalDb } = createIdbSingleton<SignalDB>(
   SIGNAL_DB_NAME,
   SIGNAL_DB_VERSION,
   {
@@ -83,6 +96,20 @@ const { getDb, destroy: destroySignalDb } = createIdbSingleton<SignalDB>(
         const store = tx.objectStore('sessions')
         if (!store.indexNames.contains('by-peerId')) {
           store.createIndex('by-peerId', 'peerId')
+        }
+      }
+      // v4: Sender keys for group messaging (one per group × member × device)
+      if (oldVersion < 4) {
+        if (!db.objectStoreNames.contains('senderKeys')) {
+          const senderKeyStore = db.createObjectStore('senderKeys')
+          senderKeyStore.createIndex('by-groupId', 'groupId')
+          senderKeyStore.createIndex('by-memberId', 'memberId')
+        }
+      }
+      // v5: Group secrets for group name encryption
+      if (oldVersion < 5) {
+        if (!db.objectStoreNames.contains('groupSecrets')) {
+          db.createObjectStore('groupSecrets')
         }
       }
     },
@@ -298,7 +325,7 @@ export async function clearSignalStore(): Promise<void> {
   try {
     const db = await getDb()
     const tx = db.transaction(
-      ['localIdentity', 'preKeys', 'signedPreKeys', 'peerIdentities', 'sessions'],
+      ['localIdentity', 'preKeys', 'signedPreKeys', 'peerIdentities', 'sessions', 'senderKeys', 'groupSecrets'],
       'readwrite'
     )
     await Promise.all([
@@ -307,6 +334,8 @@ export async function clearSignalStore(): Promise<void> {
       tx.objectStore('signedPreKeys').clear(),
       tx.objectStore('peerIdentities').clear(),
       tx.objectStore('sessions').clear(),
+      tx.objectStore('senderKeys').clear(),
+      tx.objectStore('groupSecrets').clear(),
       tx.done,
     ])
     logger.info('Cleared signal key store')

@@ -33,13 +33,12 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
 
     const messagesCtx = useMessagesContext()
+    const activePeerRef = messagesCtx?.activePeerRef ?? null
     const { user } = useAuth()
     const { profile } = useUserProfile()
     const panelRef = useRef<MessagesPanelHandle>(null)
     const isMobile = useIsMobile()
     const callActions = useCallActions()
-    const selectedGroup = selectedGroupId && messagesCtx ? messagesCtx.groups[selectedGroupId] : null
-
     // Apply deep-link when drawer opens
     useMemo(() => {
         if (!isVisible) return false
@@ -58,7 +57,6 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             return true
         }
         return false
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isVisible, initialPeerId, initialGroupId, initialPeerName])
 
     const handleSelectPeer = useCallback((medic: ClinicMedic) => {
@@ -85,18 +83,20 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             setSelectedPeerId(null)
             setSelectedPeerName(null)
             setSelectedGroupId(null)
-            if (messagesCtx) messagesCtx.activePeerRef.current = null
+            // eslint-disable-next-line react-hooks/immutability
+            if (activePeerRef) activePeerRef.current = null
         }
-    }, [view, messagesCtx])
+    }, [view, activePeerRef])
 
     const handleClose = useCallback(() => {
         setView('messages')
         setSelectedPeerId(null)
         setSelectedPeerName(null)
         setSelectedGroupId(null)
-        if (messagesCtx) messagesCtx.activePeerRef.current = null
+        // eslint-disable-next-line react-hooks/immutability
+        if (activePeerRef) activePeerRef.current = null
         onClose()
-    }, [onClose, messagesCtx])
+    }, [onClose, activePeerRef])
 
     // Left-edge swipe-back to close messages panel (contacts list view only)
     const contactsSwipeBack = useSwipeBack(view === 'messages' ? handleClose : undefined, isMobile)
@@ -128,6 +128,45 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             headerCollapse={headerCollapseSpring.collapse}
         />
     )
+
+    // ── Desktop header config (must be before any conditional returns) ──────
+    const desktopHeaderConfig = useMemo(() => {
+        if (view === 'messages-chat' && selectedPeerId) {
+            return {
+                title: selectedPeerName ?? 'Chat',
+                showBack: true,
+                onBack: handleBack,
+                rightContent: callActions ? (
+                    <HeaderPill>
+                        <PillButton icon={Video} onClick={() => callActions.startVideoCall({ userId: selectedPeerId, displayName: selectedPeerName ?? 'Unknown' })} label="Video call" compact />
+                        <PillButton icon={Phone} onClick={() => callActions.startCall({ userId: selectedPeerId, displayName: selectedPeerName ?? 'Unknown' })} label="Voice call" compact />
+                    </HeaderPill>
+                ) : undefined,
+            }
+        }
+        if (view === 'messages-group-chat' && selectedGroupId) {
+            return {
+                title: selectedPeerName ?? 'Group',
+                showBack: true,
+                onBack: handleBack,
+                rightContent: (
+                    <HeaderPill>
+                        <PillButton icon={Info} onClick={() => panelRef.current?.showGroupInfo()} label="Group info" compact />
+                    </HeaderPill>
+                ),
+            }
+        }
+        return {
+            title: 'Messages',
+            hideDefaultClose: true,
+            rightContent: (
+                <HeaderPill>
+                    <PillButton icon={PenLine} onClick={() => panelRef.current?.createGroup()} label="New message" />
+                    <PillButton icon={X} onClick={handleClose} label="Close" />
+                </HeaderPill>
+            ),
+        }
+    }, [view, selectedPeerId, selectedGroupId, selectedPeerName, handleBack, handleClose, callActions])
 
     // ── Mobile: full-screen content (animation handled by App.tsx) ────────
     if (isMobile) {
@@ -170,44 +209,6 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     }
 
     // ── Desktop: BaseDrawer overlay ───────────────────────────────────────
-
-    const desktopHeaderConfig = useMemo(() => {
-        if (view === 'messages-chat' && selectedPeerId) {
-            return {
-                title: selectedPeerName ?? 'Chat',
-                showBack: true,
-                onBack: handleBack,
-                rightContent: callActions ? (
-                    <HeaderPill>
-                        <PillButton icon={Video} onClick={() => callActions.startVideoCall({ userId: selectedPeerId, displayName: selectedPeerName ?? 'Unknown' })} label="Video call" compact />
-                        <PillButton icon={Phone} onClick={() => callActions.startCall({ userId: selectedPeerId, displayName: selectedPeerName ?? 'Unknown' })} label="Voice call" compact />
-                    </HeaderPill>
-                ) : undefined,
-            }
-        }
-        if (view === 'messages-group-chat' && selectedGroupId) {
-            return {
-                title: selectedPeerName ?? 'Group',
-                showBack: true,
-                onBack: handleBack,
-                rightContent: (
-                    <HeaderPill>
-                        <PillButton icon={Info} onClick={() => panelRef.current?.showGroupInfo()} label="Group info" compact />
-                    </HeaderPill>
-                ),
-            }
-        }
-        return {
-            title: 'Messages',
-            hideDefaultClose: true,
-            rightContent: (
-                <HeaderPill>
-                    <PillButton icon={PenLine} onClick={() => panelRef.current?.createGroup()} label="New message" />
-                    <PillButton icon={X} onClick={handleClose} label="Close" />
-                </HeaderPill>
-            ),
-        }
-    }, [view, selectedPeerId, selectedGroupId, selectedPeerName, handleBack, handleClose, callActions])
 
     return (
         <BaseDrawer

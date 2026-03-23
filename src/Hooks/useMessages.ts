@@ -1,14 +1,14 @@
 /**
  * useMessages — Orchestration hook for Signal Protocol messaging UI.
  *
- * Combines useSignalMessages (realtime incoming) with signalService CRUD
- * and session encrypt/decrypt to provide a single API for the MessagesPanel.
+ * Wires up Supabase realtime subscriptions, decryption routing, send logic,
+ * and sync — delegating ALL state to useMessagingStore.
  *
  * Multi-device: messages are fan-out encrypted to all recipient devices.
- * State lives in this hook (no Zustand store). Mounted once in MessagesPanel.
+ * State lives in useMessagingStore. This hook is mounted once in MessagesContext.
  */
 
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { useCallback, useRef, useEffect } from 'react'
 import { createLogger } from '../Utilities/Logger'
 import { useAuth } from './useAuth'
 import { usePageVisibility } from './usePageVisibility'
@@ -18,6 +18,7 @@ import {
   fetchPeerBundleForDevice,
   sendMessage as sendSignalMessage,
   sendMessageFanOut,
+  sendRawGroupMessage,
   fetchPeerDevices,
   fetchOwnDevices,
   fetchGroupConversation,
@@ -38,24 +39,33 @@ import {
   createOutboundSession,
   encryptMessage,
   hasSession,
+  deleteSessionsForPeer,
 } from '../lib/signal/session'
 import {
   getLocalDeviceId,
 } from '../lib/signal/keyManager'
 import {
+  generateSenderKey,
+  createDistribution,
+  processSenderKeyDistribution,
+  senderKeyEncrypt,
+  senderKeyDecrypt,
+} from '../lib/signal/senderKey'
+import {
+  loadSenderKey,
+  deleteSenderKeysForGroup,
+} from '../lib/signal/senderKeyStore'
+import type { SenderKeyMessage, SenderKeyDistribution } from '../lib/signal/types'
+import {
   saveMessage,
-  loadAllConversations,
-  loadUnreadCounts,
   updateReadAt,
   updateMessageText,
-  updateMessageStatus,
+  updateMessageStatus as updateMessageStatusInDb,
   deleteMessages as deleteMessagesFromDb,
-  deleteConversation as deleteConversationFromDb,
   deleteMessagesByOriginId as deleteMessagesByOriginIdFromDb,
 } from '../lib/signal/messageStore'
 import {
   serializeContent,
-  parseMessageContent,
 } from '../lib/signal/messageContent'
 import type { MessageContent, ImageContent, VoiceContent, ReplyTo, CalendarEventContent } from '../lib/signal/messageContent'
 import { isCalendarEvent, routeCalendarEvent } from '../lib/calendarRouting'
@@ -70,6 +80,7 @@ import type { VoiceRecordingResult } from '../Utilities/voiceUtils'
 import type { DecryptedSignalMessage, PeerDevice, FanOutMessageInput, SyncMessagePayload } from '../lib/signal/transportTypes'
 import type { PublicKeyBundle } from '../lib/signal/types'
 import type { PeerBundleRpcResult } from '../lib/signal/transportTypes'
+import { useMessagingStore } from '../stores/useMessagingStore'
 
 const logger = createLogger('Messages')
 
@@ -123,9 +134,6 @@ function rpcResultToBundle(rpc: PeerBundleRpcResult): PublicKeyBundle {
  * Encrypt a serialized payload for all of a peer's devices.
  * For each device: if no session exists, performs X3DH first.
  * Returns FanOutMessageInput[] ready for sendMessageFanOut.
- *
- * `serialized` should already be the output of serializeContent().
- * `senderUuid` is the current user's UUID — required for sealed sender envelope.
  */
 async function encryptForAllDevices(
   peerId: string,
@@ -140,7 +148,6 @@ async function encryptForAllDevices(
       const sessionExists = await hasSession(peerId, device.deviceId)
 
       if (!sessionExists) {
-        // X3DH for this device
         const bundleResult = await fetchPeerBundleForDevice(peerId, device.deviceId)
         if (!bundleResult.ok) {
           logger.warn(`No bundle for ${peerId}:${device.deviceId}, skipping`)
@@ -155,7 +162,6 @@ async function encryptForAllDevices(
           messageType: 'initial',
         })
       } else {
-        // Existing session — encrypt
         const sealedEnvelope = await encryptMessage(peerId, device.deviceId, serialized, senderUuid)
         results.push({
           recipientDeviceId: device.deviceId,
@@ -193,7 +199,6 @@ async function sendSyncToOwnDevices(
   const serialized = JSON.stringify(syncPayload)
   const fanOutInputs = await encryptForAllDevices(userId, otherDevices, serialized, userId)
 
-  // Tag all as sync
   for (const input of fanOutInputs) {
     input.messageType = 'sync'
   }
@@ -205,8 +210,6 @@ async function sendSyncToOwnDevices(
 
 /**
  * Send a read-sync message to all own devices (except the current one).
- * Payload is a pre-serialized ReadSyncPayload JSON string.
- * Fire-and-forget — errors are silently swallowed.
  */
 async function sendReadSyncToOwnDevices(
   userId: string,
@@ -228,7 +231,6 @@ async function sendReadSyncToOwnDevices(
 
 /**
  * Encrypt serialized content and send to a single peer's devices.
- * Handles multi-device fan-out and legacy single-device fallback.
  */
 async function encryptAndSendToPeer(
   userId: string,
@@ -244,7 +246,6 @@ async function encryptAndSendToPeer(
 
   if (peerDevices.length > 0) {
     const fanOutInputs = await encryptForAllDevices(peerId, peerDevices, serialized, userId)
-    // Tag as 'request' if needed (X3DH creates 'initial' type, but requests need the tag)
     if (messageType === 'request') {
       for (const input of fanOutInputs) input.messageType = 'request'
     }
@@ -273,8 +274,68 @@ async function encryptAndSendToPeer(
 }
 
 /**
- * Encrypt and send serialized content to all group members (pairwise fan-out).
- * Returns the first server message ID on success.
+ * Ensure we have a sender key for the group, generating and distributing one if needed.
+ *
+ * Distribution is sent via pairwise 1:1 sessions to every group member who does not
+ * yet have our key. Returns the sender key state ready for encryption.
+ */
+async function ensureSenderKey(
+  userId: string,
+  localDeviceId: string,
+  groupId: string,
+  members: GroupMember[],
+): Promise<void> {
+  let senderKey = await loadSenderKey(groupId, userId, localDeviceId)
+
+  if (!senderKey) {
+    senderKey = await generateSenderKey(groupId, userId, localDeviceId)
+    logger.info(`Generated new sender key for group ${groupId}`)
+  }
+
+  const dist = createDistribution(senderKey)
+  const distJson = JSON.stringify(dist)
+
+  // Distribute to all group members (excluding current device)
+  const otherMembers = members.filter(m => m.userId !== userId)
+  for (const member of otherMembers) {
+    const devicesResult = await fetchPeerDevices(member.userId)
+    if (!devicesResult.ok) continue
+
+    const fanOutInputs = await encryptForAllDevices(member.userId, devicesResult.data, distJson, userId)
+    for (const input of fanOutInputs) {
+      input.messageType = 'sender-key-distribution'
+    }
+    if (fanOutInputs.length > 0) {
+      await sendMessageFanOut(userId, localDeviceId, member.userId, fanOutInputs, groupId, undefined, true).catch(e =>
+        logger.warn(`Failed to distribute sender key to ${member.userId}:`, e instanceof Error ? e.message : e)
+      )
+    }
+  }
+
+  // Distribute to own other devices so they can decrypt our future group messages
+  const ownDevicesResult = await fetchOwnDevices(userId)
+  if (ownDevicesResult.ok) {
+    const otherOwnDevices = ownDevicesResult.data.filter(d => d.deviceId !== localDeviceId)
+    if (otherOwnDevices.length > 0) {
+      const fanOutInputs = await encryptForAllDevices(userId, otherOwnDevices, distJson, userId)
+      for (const input of fanOutInputs) input.messageType = 'sender-key-distribution'
+      if (fanOutInputs.length > 0) {
+        await sendMessageFanOut(userId, localDeviceId, userId, fanOutInputs, groupId, undefined, true).catch(e =>
+          logger.warn('Failed to distribute sender key to own devices:', e instanceof Error ? e.message : e)
+        )
+      }
+    }
+  }
+}
+
+/**
+ * Encrypt content with sender key and deliver to all group members.
+ *
+ * New flow (Sender Keys):
+ * 1. Load/generate sender key for (groupId, userId, localDeviceId)
+ * 2. If missing: generate + distribute via pairwise 1:1 sessions
+ * 3. Encrypt once with senderKeyEncrypt — O(1) encryption
+ * 4. Fan-out the single ciphertext to every member as 'sender-key-message'
  */
 async function encryptAndSendToGroupMembers(
   userId: string,
@@ -285,32 +346,43 @@ async function encryptAndSendToGroupMembers(
   members: GroupMember[],
   silent?: boolean,
 ): Promise<Result<string>> {
-  const otherMembers = members.filter(m => m.userId !== userId)
+  // Ensure sender key exists and all members have a copy
+  await ensureSenderKey(userId, localDeviceId, groupId, members)
+
+  // Encrypt once with sender key
+  const senderKeyMsg = await senderKeyEncrypt(groupId, userId, localDeviceId, serialized)
+  const payload = senderKeyMsg as unknown as Record<string, unknown>
+
+  // Fan out the same ciphertext to all group members (including ourselves for sync)
   let firstServerId: string | null = null
+  const allRecipients = members.filter(m => m.userId !== userId)
 
-  for (const member of otherMembers) {
-    const devicesResult = await fetchPeerDevices(member.userId)
-    const peerDevices = devicesResult.ok ? devicesResult.data : []
-
-    if (peerDevices.length > 0) {
-      const fanOutInputs = await encryptForAllDevices(member.userId, peerDevices, serialized, userId)
-      if (fanOutInputs.length === 0) {
-        logger.warn(`Could not encrypt group message for ${member.userId}`)
-        continue
-      }
-      const sendResult = await sendMessageFanOut(userId, localDeviceId, member.userId, fanOutInputs, groupId, originId, silent)
-      if (sendResult.ok && !firstServerId) {
-        firstServerId = sendResult.data[0]
-      }
+  for (const member of allRecipients) {
+    const result = await sendRawGroupMessage(
+      userId, member.userId, payload,
+      'sender-key-message', localDeviceId, groupId, originId, silent,
+    ).catch(e => {
+      logger.warn(`Failed to send sender-key-message to ${member.userId}:`, e instanceof Error ? e.message : e)
+      return errResult<string>(e instanceof Error ? e.message : 'send failed')
+    })
+    if (result.ok && !firstServerId) {
+      firstServerId = result.data
     }
   }
 
-  return firstServerId ? okResult(firstServerId) : errResult('All group sends failed')
+  // Own devices receive group content via sendSyncToOwnDevices (called by each caller).
+  // Sender key distribution to own devices is handled by ensureSenderKey above.
+
+  if (!firstServerId) {
+    // No other members — still a successful send if we encrypted without error
+    firstServerId = crypto.randomUUID()
+  }
+
+  return okResult(firstServerId)
 }
 
 /**
  * Resize an image and generate a thumbnail for inline preview.
- * Returns intermediate data needed for both the optimistic placeholder and upload.
  */
 async function resizeAndThumbnail(file: File): Promise<{
   resizedDataUrl: string
@@ -325,10 +397,6 @@ async function resizeAndThumbnail(file: File): Promise<{
 }
 
 export interface UseMessagesReturn {
-  /** All conversations keyed by peerId (or groupId for groups), messages sorted oldest-first. */
-  conversations: Record<string, DecryptedSignalMessage[]>
-  /** Unread count per peer/group. */
-  unreadCounts: Record<string, number>
   /** Send a plaintext message to a peer. Handles session creation if needed. Optional threadId for thread replies. */
   sendMessage: (peerId: string, text: string, threadId?: string) => Promise<boolean>
   /** Send an image to a peer. Compresses, encrypts, uploads, and sends via Signal. */
@@ -347,12 +415,8 @@ export interface UseMessagesReturn {
   editMessage: (peerId: string, messageId: string, newText: string) => void
   /** Delete messages (state + IndexedDB + protocol-level delete to peer and own devices). */
   deleteMessages: (peerId: string, messageIds: string[]) => Promise<void>
-  /** Delete an entire conversation (state + unread + IndexedDB). */
-  deleteConversation: (conversationKey: string) => void
-  /** Whether a send is currently in progress. */
-  sending: boolean
-  /** Group metadata keyed by groupId. */
-  groups: Record<string, GroupInfo>
+  /** Delete an entire conversation (state + unread + IndexedDB + tombstone). */
+  deleteConversation: (conversationKey: string) => Promise<void>
   /** Send a text message to a group (encrypts to each member's devices). */
   sendGroupMessage: (groupId: string, text: string, threadId?: string) => Promise<boolean>
   /** Send an image to a group. */
@@ -375,7 +439,7 @@ export interface UseMessagesReturn {
   fetchGroupHistory: (groupId: string) => Promise<void>
   /** Refresh group list from server. */
   refreshGroups: () => Promise<void>
-  /** Send a calendar event to the clinic calendar group. Bypasses chat state entirely. Returns the originId on success. */
+  /** Send a calendar event to the clinic calendar group. Returns the originId on success. */
   sendCalendarEvent: (calendarGroupId: string, content: CalendarEventContent) => Promise<string | null>
   /** Hard-delete calendar event messages from Supabase and broadcast protocol-level delete to group. */
   deleteCalendarEventMessages: (calendarGroupId: string, originIds: string[]) => Promise<void>
@@ -385,16 +449,13 @@ export interface UseMessagesReturn {
   activePeerRef: React.MutableRefObject<string | null>
 }
 
+// Stable module-level reference to Zustand getState — never changes, safe to omit from deps.
+const store = useMessagingStore.getState
+
 export function useMessages(): UseMessagesReturn {
   const { user, isAuthenticated } = useAuth()
   const userId = user?.id ?? null
   const isPageVisible = usePageVisibility()
-
-  const [conversations, setConversations] = useState<Record<string, DecryptedSignalMessage[]>>({})
-  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
-  const [sending, setSending] = useState(false)
-  const [localDeviceId, setLocalDeviceId] = useState<string | null>(null)
-  const [groups, setGroups] = useState<Record<string, GroupInfo>>({})
 
   // Track which peer's chat is currently open (for auto-mark-read)
   const activePeerRef = useRef<string | null>(null)
@@ -402,7 +463,7 @@ export function useMessages(): UseMessagesReturn {
   // External listener ref — MessagesContext sets this to fire notifications
   const onIncomingRef = useRef<((msg: DecryptedSignalMessage) => void) | null>(null)
 
-  // Load local device ID — retry until available (identity may not exist until after initSignalBundle)
+  // Load local device ID — retry until available
   useEffect(() => {
     if (!isAuthenticated) return
     let cancelled = false
@@ -412,7 +473,7 @@ export function useMessages(): UseMessagesReturn {
       const id = await getLocalDeviceId()
       if (cancelled) return
       if (id) {
-        setLocalDeviceId(id)
+        useMessagingStore.getState().setLocalDeviceId(id)
       } else {
         timer = setTimeout(load, 300)
       }
@@ -422,111 +483,72 @@ export function useMessages(): UseMessagesReturn {
     return () => { cancelled = true; clearTimeout(timer) }
   }, [isAuthenticated])
 
-  /** Add a decrypted message to the conversations map, deduplicating by ID and originId. */
+  /** Add a message — delegates to store (which has the tombstone guard). */
   const addMessage = useCallback((msg: DecryptedSignalMessage) => {
-    // Route by conversation key: groupId for group messages, peerId for 1:1
-    const conversationKey = msg.groupId ?? (msg.senderId === userId ? msg.recipientId : msg.senderId)
-
-    setConversations(prev => {
-      const existing = prev[conversationKey] ?? []
-      // Deduplicate by ID
-      if (existing.some(m => m.id === msg.id)) return prev
-
-      // Deduplicate by originId — fan-out creates one row per device with
-      // different IDs but the same originId. After backup restore, IDB may
-      // contain a row from another device; catch-up then delivers this
-      // device's own row. Without this check both copies appear.
-      if (msg.originId && existing.some(m => m.originId === msg.originId)) return prev
-
-      // Deduplicate request-accepted by sender (fan-out creates one per device)
-      if (msg.messageType === 'request-accepted') {
-        if (existing.some(m => m.messageType === 'request-accepted' && m.senderId === msg.senderId)) {
-          return prev
-        }
-      }
-
-      const updated = [...existing, msg].sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      )
-      return { ...prev, [conversationKey]: updated }
-    })
-
-    // Update unread count if it's an incoming message and not the active chat
-    // Skip request-accepted — it's a signal, not user content
-    if (msg.senderId !== userId && !msg.readAt && msg.messageType !== 'request-accepted') {
-      const unreadKey = msg.groupId ?? msg.senderId
-      if (activePeerRef.current !== unreadKey) {
-        setUnreadCounts(prev => ({
-          ...prev,
-          [unreadKey]: (prev[unreadKey] ?? 0) + 1,
-        }))
-      }
-    }
+    store().addMessage(msg)
 
     // Skip IDB persist for optimistic messages — persist on confirmation
     if (msg.status === 'sending') return
 
-    // Persist to IndexedDB (fire-and-forget)
     if (userId) {
-      saveMessage(msg, userId).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.addMessage', message: 'Failed to save message locally', timestamp: Date.now(), metadata: { error: e } }))
+      saveMessage(msg, userId).catch(e =>
+        errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.addMessage', message: 'Failed to save message locally', timestamp: Date.now(), metadata: { error: e } })
+      )
     }
   }, [userId])
 
-  // Wrap addMessage to auto-mark incoming self-notes as read
-  const handleIncomingMessage = useCallback((msg: DecryptedSignalMessage) => {
-    // Delivery receipt — update status on our outgoing messages, don't display as message
+  /** Handle incoming message — delivery receipts, read-syncs, calendar routing, then addMessage. */
+  const handleIncomingMessage = useCallback(async (msg: DecryptedSignalMessage) => {
+    // Delivery receipt
     if (msg._deliveryReceipt) {
-      const { messageIds, deliveredAt: _ } = msg._deliveryReceipt
-      setConversations(prev => {
-        let changed = false
-        const next = { ...prev }
-        for (const [peerId, msgs] of Object.entries(next)) {
-          if (msgs.some(m => messageIds.includes(m.id))) {
-            next[peerId] = msgs.map(m =>
-              messageIds.includes(m.id) ? { ...m, status: 'delivered' as const } : m
-            )
-            changed = true
-          }
-        }
-        return changed ? next : prev
-      })
-      updateMessageStatus(messageIds, 'delivered').catch(() => {})
+      const { messageIds } = msg._deliveryReceipt
+      store().applyDeliveryReceipt(messageIds)
+      updateMessageStatusInDb(messageIds, 'delivered').catch(() => {})
       markMessagesRead([msg.id]).catch(() => {})
       return
     }
 
-    // Read-sync from another own device — update local read state, don't display as message
+    // Read-sync from another own device
     if (msg._readSync) {
       const { peerId, messageIds, readAt } = msg._readSync
-      updateReadAt(messageIds, readAt).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.handleIncomingMessage', message: 'Failed to apply remote read sync to IDB', timestamp: Date.now(), metadata: { error: e } }))
-      setConversations(prev => {
-        const msgs = prev[peerId]
-        if (!msgs) return prev
-        const updated = msgs.map(m => messageIds.includes(m.id) ? { ...m, readAt } : m)
-        return { ...prev, [peerId]: updated }
-      })
-      setUnreadCounts(prev => {
-        if (!prev[peerId]) return prev
-        const next = { ...prev }
-        delete next[peerId]
-        return next
-      })
+      updateReadAt(messageIds, readAt).catch(e =>
+        errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.handleIncomingMessage', message: 'Failed to apply remote read sync to IDB', timestamp: Date.now(), metadata: { error: e } })
+      )
+      store().applyReadSync(peerId, messageIds, readAt)
       markMessagesRead([msg.id]).catch(() => {})
       return
+    }
+
+    // Conversation-deleted sync from another own device
+    if (msg.messageType === 'sync') {
+      try {
+        const parsed = JSON.parse(msg.plaintext) as Record<string, unknown>
+        if (parsed.__syncType === 'conversation-deleted') {
+          const conversationKey = parsed.conversationKey as string
+          const { groups } = store()
+          const isGroup = !!groups[conversationKey]
+          await store().deleteConversation(conversationKey)
+          if (isGroup) {
+            deleteSenderKeysForGroup(conversationKey).catch(() => {})
+          } else {
+            deleteSessionsForPeer(conversationKey).catch(() => {})
+          }
+          markMessagesRead([msg.id]).catch(() => {})
+          return
+        }
+      } catch { /* not JSON or not conversation-deleted sync — fall through */ }
     }
 
     if (msg.senderId === userId && msg.recipientId === userId && !msg.readAt) {
       msg.readAt = new Date().toISOString()
-      markMessagesRead([msg.id]).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.handleIncomingMessage', message: 'Failed to mark self-note as read', timestamp: Date.now(), metadata: { error: e } }))
+      markMessagesRead([msg.id]).catch(e =>
+        errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.handleIncomingMessage', message: 'Failed to mark self-note as read', timestamp: Date.now(), metadata: { error: e } })
+      )
     }
 
-    // ── Calendar event routing ──
-    // Calendar events are routed to the calendar store AND persisted to message
-    // IDB (so vault and backup capture them), but are NOT added to conversations
-    // state and do NOT trigger notifications.
+    // Calendar event routing
     if (isCalendarEvent(msg.content)) {
       routeCalendarEvent(msg.content)
-      // Persist to message IDB so backup includes calendar events
       saveMessage(msg, userId!).catch(() => {})
       markMessagesRead([msg.id]).catch(() => {})
       return
@@ -540,8 +562,12 @@ export function useMessages(): UseMessagesReturn {
     ) {
       const readAtTs = new Date().toISOString()
       msg.readAt = readAtTs
-      markMessagesRead([msg.id]).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.handleIncomingMessage', message: 'Failed to mark message as read on server', timestamp: Date.now(), metadata: { error: e } }))
-      updateReadAt([msg.id], readAtTs).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.handleIncomingMessage', message: 'Failed to mark message as read in IDB', timestamp: Date.now(), metadata: { error: e } }))
+      markMessagesRead([msg.id]).catch(e =>
+        errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.handleIncomingMessage', message: 'Failed to mark message as read on server', timestamp: Date.now(), metadata: { error: e } })
+      )
+      updateReadAt([msg.id], readAtTs).catch(e =>
+        errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.handleIncomingMessage', message: 'Failed to mark message as read in IDB', timestamp: Date.now(), metadata: { error: e } })
+      )
     }
 
     addMessage(msg)
@@ -556,29 +582,12 @@ export function useMessages(): UseMessagesReturn {
     }
   }, [userId, addMessage])
 
-  /** Remove messages by origin IDs from all conversations (delete callback).
-   *  Also removes any calendar events whose originId matches — this is the
-   *  cross-device path where a protocol-level 'delete' arrives via catch-up
-   *  or realtime and must propagate to the calendar store. */
+  /** Remove messages by origin IDs from all conversations. */
   const removeMessagesByOriginIds = useCallback((originIds: string[]) => {
-    const originSet = new Set(originIds)
-    setConversations(prev => {
-      let changed = false
-      const next: Record<string, DecryptedSignalMessage[]> = {}
-      for (const [key, msgs] of Object.entries(prev)) {
-        const filtered = msgs.filter(m => !(m.originId && originSet.has(m.originId)))
-        if (filtered.length !== msgs.length) changed = true
-        if (filtered.length > 0) {
-          next[key] = filtered
-        } else {
-          changed = true
-        }
-      }
-      return changed ? next : prev
-    })
+    store().removeMessagesByOriginIds(originIds)
 
     // Remove any calendar events whose originId matches a deleted message.
-    // This ensures cross-device protocol-level deletes reach the calendar store.
+    const originSet = new Set(originIds)
     const calendarStore = useCalendarStore.getState()
     for (const event of calendarStore.events) {
       if (event.originId && originSet.has(event.originId)) {
@@ -587,62 +596,25 @@ export function useMessages(): UseMessagesReturn {
     }
   }, [])
 
-  // Subscribe to realtime incoming messages (pass localDeviceId for filtering)
-  // Require localDeviceId before subscribing to prevent unfiltered catch-up/realtime
+  // Subscribe to realtime incoming messages
   useSignalMessages({
     userId,
-    localDeviceId,
-    isAuthenticated: isAuthenticated && !!localDeviceId,
+    localDeviceId: useMessagingStore.getState().localDeviceId,
+    isAuthenticated: isAuthenticated && !!useMessagingStore.getState().localDeviceId,
     isPageVisible,
     onMessage: handleIncomingMessage,
     onDelete: removeMessagesByOriginIds,
   })
 
-  // Hydrate conversations and unread counts from IndexedDB on mount
-  // and re-hydrate when a backup restore completes
+  // Hydrate from IDB on mount and re-hydrate after backup restore
   useEffect(() => {
     if (!userId) return
 
     let cancelled = false
 
     async function hydrate() {
-      const [convos, counts] = await Promise.all([
-        loadAllConversations(),
-        loadUnreadCounts(userId!),
-      ])
-      if (cancelled) return
-
-      if (Object.keys(convos).length > 0) {
-        // Merge IDB data with any messages already in state (e.g. from
-        // catch-up that ran concurrently). Deduplicate by id and originId.
-        setConversations(prev => {
-          const merged = { ...convos }
-          for (const [key, msgs] of Object.entries(prev)) {
-            if (!merged[key]) {
-              merged[key] = msgs
-              continue
-            }
-            const ids = new Set(merged[key].map(m => m.id))
-            const origins = new Set(merged[key].map(m => m.originId).filter(Boolean))
-            for (const msg of msgs) {
-              if (ids.has(msg.id)) continue
-              if (msg.originId && origins.has(msg.originId)) continue
-              merged[key].push(msg)
-              ids.add(msg.id)
-              if (msg.originId) origins.add(msg.originId)
-            }
-            merged[key].sort(
-              (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-            )
-          }
-          return merged
-        })
-      }
-      if (Object.keys(counts).length > 0) {
-        setUnreadCounts(counts)
-      }
-      logger.info(`Hydrated ${Object.keys(convos).length} conversations from IDB`)
-      markHydrationComplete()
+      await useMessagingStore.getState().hydrateFromIdb(userId!)
+      if (!cancelled) markHydrationComplete()
     }
 
     hydrate().catch(err => logger.warn('IDB hydration failed:', err))
@@ -669,7 +641,7 @@ export function useMessages(): UseMessagesReturn {
     for (const g of result.data) {
       map[g.groupId] = g
     }
-    setGroups(map)
+    useMessagingStore.getState().setGroups(map)
   }, [])
 
   useEffect(() => {
@@ -677,9 +649,14 @@ export function useMessages(): UseMessagesReturn {
     refreshGroups().catch(e => logger.warn('Group hydration failed:', e))
   }, [userId, refreshGroups])
 
-  // Ref to track latest conversations without adding to callback deps
-  const conversationsRef = useRef(conversations)
-  useEffect(() => { conversationsRef.current = conversations }, [conversations])
+  /** Build replyTo metadata from a threadId by looking up the root message. */
+  const buildReplyTo = useCallback((peerId: string, threadId: string): ReplyTo | undefined => {
+    const msgs = useMessagingStore.getState().conversations[peerId]
+    const root = msgs?.find(m => m.originId === threadId) ?? msgs?.find(m => m.id === threadId)
+    if (!root) return undefined
+    const preview = (root.plaintext || 'Photo').slice(0, 50)
+    return { messageId: root.originId ?? root.id, preview }
+  }, [])
 
   /** Update an optimistic message's ID and status after server confirms, then persist. */
   const updateMessageStatus = useCallback((
@@ -687,60 +664,36 @@ export function useMessages(): UseMessagesReturn {
     localId: string,
     serverId: string,
   ) => {
-    setConversations(prev => {
-      const msgs = prev[peerId]
-      if (!msgs) return prev
-      const updated = msgs.map(m => {
-        if (m.id === localId) {
-          const confirmed = { ...m, id: serverId, status: undefined }
-          // Persist confirmed message to IDB directly from the updater where we
-          // have the data. db.put is idempotent so harmless if called twice.
-          if (userId) {
-            saveMessage(confirmed, userId).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.updateMessageStatus', message: 'Failed to persist confirmed message', timestamp: Date.now(), metadata: { error: e } }))
-          }
-          return confirmed
-        }
-        return m
-      })
-      return { ...prev, [peerId]: updated }
-    })
+    store().updateMessageStatus(peerId, localId, serverId)
+
+    // Persist confirmed message to IDB
+    if (userId) {
+      const msgs = useMessagingStore.getState().conversations[peerId]
+      const confirmed = msgs?.find(m => m.id === serverId)
+      if (confirmed) {
+        saveMessage(confirmed, userId).catch(e =>
+          errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.updateMessageStatus', message: 'Failed to persist confirmed message', timestamp: Date.now(), metadata: { error: e } })
+        )
+      }
+    }
   }, [userId])
 
   /** Remove an optimistic message from state (on send failure). */
   const removeOptimisticMessage = useCallback((peerId: string, localId: string) => {
-    setConversations(prev => {
-      const msgs = prev[peerId]
-      if (!msgs) return prev
-      const filtered = msgs.filter(m => m.id !== localId)
-      if (filtered.length === 0) {
-        const next = { ...prev }
-        delete next[peerId]
-        return next
-      }
-      return { ...prev, [peerId]: filtered }
-    })
-  }, [])
-
-  /** Build replyTo metadata from a threadId by looking up the root message. */
-  const buildReplyTo = useCallback((peerId: string, threadId: string): ReplyTo | undefined => {
-    const msgs = conversationsRef.current[peerId]
-    const root = msgs?.find(m => m.originId === threadId) ?? msgs?.find(m => m.id === threadId)
-    if (!root) return undefined
-    const preview = (root.plaintext || 'Photo').slice(0, 50)
-    return { messageId: root.originId ?? root.id, preview }
+    store().removeOptimisticMessage(peerId, localId)
   }, [])
 
   /** Send a plaintext message to a peer. */
   const sendMessage = useCallback(async (peerId: string, text: string, threadId?: string): Promise<boolean> => {
+    const localDeviceId = useMessagingStore.getState().localDeviceId
     if (!userId || !localDeviceId) {
       logger.error('sendMessage blocked: userId=', userId, 'localDeviceId=', localDeviceId)
       return false
     }
 
-    // Build replyTo if this is a thread reply
     const replyTo = threadId ? buildReplyTo(peerId, threadId) : undefined
 
-    // Self-notes: encrypt to own devices (E2EE even for notes to self)
+    // Self-notes: encrypt to own devices
     if (peerId === userId) {
       const localId = crypto.randomUUID()
       const originId = crypto.randomUUID()
@@ -762,8 +715,6 @@ export function useMessages(): UseMessagesReturn {
       const serialized = serializeContent({ type: 'text', text, ...(replyTo && { replyTo }) })
 
       try {
-        // Exclude current device — we already have the message locally (optimistic + IDB).
-        // Only encrypt to OTHER devices, same pattern as sendSyncToOwnDevices.
         const devicesResult = await fetchOwnDevices(userId)
         const otherDevices = devicesResult.ok
           ? devicesResult.data.filter(d => d.deviceId !== localDeviceId)
@@ -779,12 +730,9 @@ export function useMessages(): UseMessagesReturn {
           }
         }
 
-        // Confirm optimistic message (local-only, no server row targets this device)
         const confirmedId = crypto.randomUUID()
         updateMessageStatus(userId, localId, confirmedId)
 
-        // Persist directly to IDB — updateMessageStatus relies on a setTimeout
-        // that reads conversationsRef, which may not have flushed yet (race condition).
         saveMessage({
           id: confirmedId,
           senderId: userId,
@@ -796,7 +744,9 @@ export function useMessages(): UseMessagesReturn {
           readAt: now,
           originId,
           ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
-        }, userId).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.sendSelfNote', message: 'Failed to save self-note locally', timestamp: Date.now(), metadata: { error: e } }))
+        }, userId).catch(e =>
+          errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.sendSelfNote', message: 'Failed to save self-note locally', timestamp: Date.now(), metadata: { error: e } })
+        )
 
         return true
       } catch (e) {
@@ -806,16 +756,12 @@ export function useMessages(): UseMessagesReturn {
       }
     }
 
-    // Request gate: check if we need to send a request first
-    const status = getRequestStatus(conversationsRef.current[peerId], userId)
+    // Request gate
+    const status = getRequestStatus(useMessagingStore.getState().conversations[peerId], userId)
 
-    if (status === 'sent') {
-      // Already sent a request — don't allow another message until accepted
-      return false
-    }
+    if (status === 'sent') return false
 
     if (status === 'none') {
-      // No prior interaction — send as an encrypted request (X3DH)
       const localId = crypto.randomUUID()
       const originId = crypto.randomUUID()
       addMessage({
@@ -831,7 +777,7 @@ export function useMessages(): UseMessagesReturn {
         ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
       })
 
-      setSending(true)
+      store().setSending(peerId, true)
       try {
         const serialized = serializeContent({ type: 'text', text, ...(replyTo && { replyTo }) })
         const result = await encryptAndSendToPeer(userId, localDeviceId, peerId, serialized, 'request', undefined, originId)
@@ -845,18 +791,20 @@ export function useMessages(): UseMessagesReturn {
         sendSyncToOwnDevices(userId, localDeviceId, {
           forPeerId: peerId, serialized, originalMessageType: 'request',
           originalTimestamp: new Date().toISOString(), originalMessageId: result.data,
-        }, undefined, originId).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendRequest', message: 'Failed to sync request to own devices', timestamp: Date.now(), metadata: { error: e } }))
+        }, undefined, originId).catch(e =>
+          errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendRequest', message: 'Failed to sync request to own devices', timestamp: Date.now(), metadata: { error: e } })
+        )
         return true
       } catch (e) {
         logger.error('sendMessage (request) error:', e instanceof Error ? e.message : e)
         removeOptimisticMessage(peerId, localId)
         return false
       } finally {
-        setSending(false)
+        store().setSending(peerId, false)
       }
     }
 
-    // status === 'received' or 'accepted' — fall through to X3DH / encrypt path
+    // status === 'received' or 'accepted'
     const localId = crypto.randomUUID()
     const originId = crypto.randomUUID()
     const textContent: MessageContent = { type: 'text', text, ...(replyTo && { replyTo }) }
@@ -874,7 +822,7 @@ export function useMessages(): UseMessagesReturn {
       ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
     })
 
-    setSending(true)
+    store().setSending(peerId, true)
     try {
       const serialized = serializeContent(textContent)
       const result = await encryptAndSendToPeer(userId, localDeviceId, peerId, serialized, 'message', undefined, originId)
@@ -888,27 +836,29 @@ export function useMessages(): UseMessagesReturn {
       sendSyncToOwnDevices(userId, localDeviceId, {
         forPeerId: peerId, serialized, originalMessageType: 'message',
         originalTimestamp: new Date().toISOString(), originalMessageId: result.data,
-      }, undefined, originId).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendMessage', message: 'Failed to sync message to own devices', timestamp: Date.now(), metadata: { error: e } }))
+      }, undefined, originId).catch(e =>
+        errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendMessage', message: 'Failed to sync message to own devices', timestamp: Date.now(), metadata: { error: e } })
+      )
       return true
     } catch (e) {
       logger.error('sendMessage error:', e instanceof Error ? e.message : e)
       removeOptimisticMessage(peerId, localId)
       return false
     } finally {
-      setSending(false)
+      store().setSending(peerId, false)
     }
-  }, [userId, localDeviceId, addMessage, updateMessageStatus, removeOptimisticMessage, buildReplyTo])
+  }, [userId, addMessage, updateMessageStatus, removeOptimisticMessage, buildReplyTo])
 
-  /** Send an image message to a peer. Compresses, encrypts, uploads, then sends via Signal. */
+  /** Send an image message to a peer. */
   const sendImage = useCallback(async (peerId: string, file: File): Promise<boolean> => {
+    const localDeviceId = useMessagingStore.getState().localDeviceId
     if (!userId || !localDeviceId) return false
 
-    // Self-notes: encrypt to own devices (E2EE even for notes to self)
     if (peerId === userId) {
       const localId = crypto.randomUUID()
       const originId = crypto.randomUUID()
       const now = new Date().toISOString()
-      setSending(true)
+      store().setSending(peerId, true)
       try {
         const { resizedDataUrl, width, height, thumbnail } = await resizeAndThumbnail(file)
 
@@ -941,14 +891,8 @@ export function useMessages(): UseMessagesReturn {
           type: 'image', mime: 'image/jpeg', key, path, width, height, thumbnail,
         }
 
-        // Update optimistic message with real path/key
-        setConversations(prev => {
-          const msgs = prev[userId]
-          if (!msgs) return prev
-          return { ...prev, [userId]: msgs.map(m => m.id === localId ? { ...m, content: imageContent } : m) }
-        })
+        store().updateMessageContent(userId, localId, imageContent)
 
-        // Fan out to OTHER own devices only
         const serialized = serializeContent(imageContent)
         const devicesResult = await fetchOwnDevices(userId)
         const otherDevices = devicesResult.ok
@@ -965,11 +909,9 @@ export function useMessages(): UseMessagesReturn {
           }
         }
 
-        // Confirm optimistic message
         const confirmedId = crypto.randomUUID()
         updateMessageStatus(userId, localId, confirmedId)
 
-        // Persist directly to IDB
         saveMessage({
           id: confirmedId,
           senderId: userId,
@@ -980,7 +922,9 @@ export function useMessages(): UseMessagesReturn {
           createdAt: now,
           readAt: now,
           originId,
-        }, userId).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.sendSelfNoteImage', message: 'Failed to save self-note image locally', timestamp: Date.now(), metadata: { error: e } }))
+        }, userId).catch(e =>
+          errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.sendSelfNoteImage', message: 'Failed to save self-note image locally', timestamp: Date.now(), metadata: { error: e } })
+        )
 
         return true
       } catch (e) {
@@ -988,12 +932,11 @@ export function useMessages(): UseMessagesReturn {
         removeOptimisticMessage(userId, localId)
         return false
       } finally {
-        setSending(false)
+        store().setSending(peerId, false)
       }
     }
 
-    // Images require an accepted conversation (not allowed in requests)
-    const status = getRequestStatus(conversationsRef.current[peerId], userId)
+    const status = getRequestStatus(useMessagingStore.getState().conversations[peerId], userId)
     if (status !== 'accepted' && status !== 'received') {
       logger.warn('Cannot send image: conversation not yet accepted')
       return false
@@ -1001,9 +944,8 @@ export function useMessages(): UseMessagesReturn {
 
     let localId: string | null = null
     const originId = crypto.randomUUID()
-    setSending(true)
+    store().setSending(peerId, true)
     try {
-      // 1. Resize + thumbnail for immediate placeholder
       const { resizedDataUrl, width, height, thumbnail } = await resizeAndThumbnail(file)
 
       localId = crypto.randomUUID()
@@ -1023,7 +965,6 @@ export function useMessages(): UseMessagesReturn {
         originId,
       })
 
-      // 2. Encrypt + upload to Supabase Storage
       const imageBlob = dataUrlToBlob(resizedDataUrl)
       const uploadResult = await uploadEncryptedAttachment(userId, imageBlob)
       if (!uploadResult.ok) {
@@ -1037,14 +978,8 @@ export function useMessages(): UseMessagesReturn {
         type: 'image', mime: 'image/jpeg', key, path, width, height, thumbnail,
       }
 
-      // Update optimistic message with real path/key
-      setConversations(prev => {
-        const msgs = prev[peerId]
-        if (!msgs) return prev
-        return { ...prev, [peerId]: msgs.map(m => m.id === localId ? { ...m, content: imageContent } : m) }
-      })
+      store().updateMessageContent(peerId, localId, imageContent)
 
-      // 3. Encrypt + send
       const serialized = serializeContent(imageContent)
       const result = await encryptAndSendToPeer(userId, localDeviceId, peerId, serialized, 'message', undefined, originId)
       if (!result.ok) {
@@ -1057,26 +992,28 @@ export function useMessages(): UseMessagesReturn {
       sendSyncToOwnDevices(userId, localDeviceId, {
         forPeerId: peerId, serialized, originalMessageType: 'message',
         originalTimestamp: new Date().toISOString(), originalMessageId: result.data,
-      }, undefined, originId).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendImage', message: 'Failed to sync image to own devices', timestamp: Date.now(), metadata: { error: e } }))
+      }, undefined, originId).catch(e =>
+        errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendImage', message: 'Failed to sync image to own devices', timestamp: Date.now(), metadata: { error: e } })
+      )
       return true
     } catch (e) {
       logger.error('sendImage error:', e instanceof Error ? e.message : e)
       if (localId) removeOptimisticMessage(peerId, localId)
       return false
     } finally {
-      setSending(false)
+      store().setSending(peerId, false)
     }
-  }, [userId, localDeviceId, addMessage, updateMessageStatus, removeOptimisticMessage])
+  }, [userId, addMessage, updateMessageStatus, removeOptimisticMessage])
 
   const sendVoice = useCallback(async (peerId: string, recording: VoiceRecordingResult): Promise<boolean> => {
+    const localDeviceId = useMessagingStore.getState().localDeviceId
     if (!userId || !localDeviceId) return false
 
-    // Self-notes path
     if (peerId === userId) {
       const localId = crypto.randomUUID()
       const originId = crypto.randomUUID()
       const now = new Date().toISOString()
-      setSending(true)
+      store().setSending(peerId, true)
       try {
         const placeholderContent: VoiceContent = {
           type: 'voice', mime: recording.mime, key: '', path: '',
@@ -1102,11 +1039,7 @@ export function useMessages(): UseMessagesReturn {
           duration: recording.duration, waveform: recording.waveform,
         }
 
-        setConversations(prev => {
-          const msgs = prev[userId]
-          if (!msgs) return prev
-          return { ...prev, [userId]: msgs.map(m => m.id === localId ? { ...m, content: voiceContent } : m) }
-        })
+        store().updateMessageContent(userId, localId, voiceContent)
 
         const serialized = serializeContent(voiceContent)
         const devicesResult = await fetchOwnDevices(userId)
@@ -1131,7 +1064,9 @@ export function useMessages(): UseMessagesReturn {
           id: confirmedId, senderId: userId, recipientId: userId,
           plaintext: 'Voice message', content: voiceContent,
           messageType: 'message', createdAt: now, readAt: now, originId,
-        }, userId).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.sendSelfNoteVoice', message: 'Failed to save self-note voice locally', timestamp: Date.now(), metadata: { error: e } }))
+        }, userId).catch(e =>
+          errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.sendSelfNoteVoice', message: 'Failed to save self-note voice locally', timestamp: Date.now(), metadata: { error: e } })
+        )
 
         return true
       } catch (e) {
@@ -1139,12 +1074,11 @@ export function useMessages(): UseMessagesReturn {
         removeOptimisticMessage(userId, localId)
         return false
       } finally {
-        setSending(false)
+        store().setSending(peerId, false)
       }
     }
 
-    // Regular peer path
-    const status = getRequestStatus(conversationsRef.current[peerId], userId)
+    const status = getRequestStatus(useMessagingStore.getState().conversations[peerId], userId)
     if (status !== 'accepted' && status !== 'received') {
       logger.warn('Cannot send voice: conversation not yet accepted')
       return false
@@ -1152,7 +1086,7 @@ export function useMessages(): UseMessagesReturn {
 
     let localId: string | null = null
     const originId = crypto.randomUUID()
-    setSending(true)
+    store().setSending(peerId, true)
     try {
       localId = crypto.randomUUID()
       const placeholderContent: VoiceContent = {
@@ -1179,11 +1113,7 @@ export function useMessages(): UseMessagesReturn {
         duration: recording.duration, waveform: recording.waveform,
       }
 
-      setConversations(prev => {
-        const msgs = prev[peerId]
-        if (!msgs) return prev
-        return { ...prev, [peerId]: msgs.map(m => m.id === localId ? { ...m, content: voiceContent } : m) }
-      })
+      store().updateMessageContent(peerId, localId, voiceContent)
 
       const serialized = serializeContent(voiceContent)
       const result = await encryptAndSendToPeer(userId, localDeviceId, peerId, serialized, 'message', undefined, originId)
@@ -1197,19 +1127,22 @@ export function useMessages(): UseMessagesReturn {
       sendSyncToOwnDevices(userId, localDeviceId, {
         forPeerId: peerId, serialized, originalMessageType: 'message',
         originalTimestamp: new Date().toISOString(), originalMessageId: result.data,
-      }, undefined, originId).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendVoice', message: 'Failed to sync voice to own devices', timestamp: Date.now(), metadata: { error: e } }))
+      }, undefined, originId).catch(e =>
+        errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendVoice', message: 'Failed to sync voice to own devices', timestamp: Date.now(), metadata: { error: e } })
+      )
       return true
     } catch (e) {
       logger.error('sendVoice error:', e instanceof Error ? e.message : e)
       if (localId) removeOptimisticMessage(peerId, localId)
       return false
     } finally {
-      setSending(false)
+      store().setSending(peerId, false)
     }
-  }, [userId, localDeviceId, addMessage, updateMessageStatus, removeOptimisticMessage])
+  }, [userId, addMessage, updateMessageStatus, removeOptimisticMessage])
 
   /** Fetch conversation history — no-op, IDB + catch-up handle hydration. */
-  const fetchHistory = useCallback(async (peerId: string) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const fetchHistory = useCallback(async (_peerId: string) => {
     logger.debug('fetchHistory: no-op (IDB + catch-up handle hydration)')
   }, [])
 
@@ -1217,21 +1150,15 @@ export function useMessages(): UseMessagesReturn {
   const markAsRead = useCallback((peerId: string) => {
     activePeerRef.current = peerId
 
-    // Clear local unread count
-    setUnreadCounts(prev => {
-      if (!prev[peerId]) return prev
-      const next = { ...prev }
-      delete next[peerId]
-      return next
-    })
-
-    // Mark on server — use ref to avoid conversations dependency cascade
-    const msgs = conversationsRef.current[peerId]
+    const msgs = useMessagingStore.getState().conversations[peerId]
     if (!msgs) return
 
     const unreadIds = msgs
       .filter(m => m.senderId !== userId && !m.readAt)
       .map(m => m.id)
+
+    // Clear local unread immediately
+    store().markAsRead(peerId, unreadIds, new Date().toISOString())
 
     if (unreadIds.length > 0) {
       const readAtTs = new Date().toISOString()
@@ -1240,10 +1167,11 @@ export function useMessages(): UseMessagesReturn {
         if (!result.ok) logger.warn('markMessagesRead failed:', result.error)
       })
 
-      // Persist readAt to IndexedDB (fire-and-forget)
-      updateReadAt(unreadIds, readAtTs).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.markConversationRead', message: 'Failed to persist read status locally', timestamp: Date.now(), metadata: { error: e } }))
+      updateReadAt(unreadIds, readAtTs).catch(e =>
+        errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.markConversationRead', message: 'Failed to persist read status locally', timestamp: Date.now(), metadata: { error: e } })
+      )
 
-      // Cross-device read sync — notify other own devices
+      const localDeviceId = useMessagingStore.getState().localDeviceId
       if (userId && localDeviceId) {
         const readSyncPayload = JSON.stringify({
           __syncType: 'read',
@@ -1253,26 +1181,18 @@ export function useMessages(): UseMessagesReturn {
         })
         sendReadSyncToOwnDevices(userId, localDeviceId, readSyncPayload).catch(() => {})
       }
-
-      // Update local state to reflect read status
-      setConversations(prev => {
-        const updated = (prev[peerId] ?? []).map(m =>
-          unreadIds.includes(m.id) ? { ...m, readAt: readAtTs } : m
-        )
-        return { ...prev, [peerId]: updated }
-      })
     }
   }, [userId])
 
   // Guard against concurrent acceptRequest calls
   const acceptingRef = useRef<Set<string>>(new Set())
 
-  /** Accept a message request from a peer (fan out to all peer devices). */
+  /** Accept a message request from a peer. */
   const acceptRequest = useCallback(async (peerId: string): Promise<void> => {
+    const localDeviceId = useMessagingStore.getState().localDeviceId
     if (!userId || !localDeviceId) return
 
-    // Idempotency: skip if already accepted or accept in-flight
-    const status = getRequestStatus(conversationsRef.current[peerId], userId)
+    const status = getRequestStatus(useMessagingStore.getState().conversations[peerId], userId)
     if (status === 'accepted') {
       logger.info(`Request from ${peerId} already accepted, skipping`)
       return
@@ -1284,8 +1204,6 @@ export function useMessages(): UseMessagesReturn {
     acceptingRef.current.add(peerId)
 
     try {
-      // Encrypt the accept signal through established sessions (created when
-      // the inbound request was decrypted via X3DH).
       const serialized = serializeContent({ type: 'text', text: '' })
       const originId = crypto.randomUUID()
       const devicesResult = await fetchPeerDevices(peerId)
@@ -1295,7 +1213,6 @@ export function useMessages(): UseMessagesReturn {
 
       if (peerDevices.length > 0) {
         const fanOutInputs = await encryptForAllDevices(peerId, peerDevices, serialized, userId)
-        // Tag all as request-accepted (encryptForAllDevices sets 'initial' or 'message')
         for (const input of fanOutInputs) {
           input.messageType = 'request-accepted'
         }
@@ -1313,7 +1230,6 @@ export function useMessages(): UseMessagesReturn {
 
         messageId = sendResult.data[0] ?? crypto.randomUUID()
       } else {
-        // Legacy single-device fallback: encrypt through existing session
         const sessionExists = await hasSession(peerId, 'unknown')
 
         if (sessionExists) {
@@ -1352,61 +1268,52 @@ export function useMessages(): UseMessagesReturn {
         readAt: null,
       })
 
-      // Sync accept to own devices
       sendSyncToOwnDevices(userId, localDeviceId, {
         forPeerId: peerId, serialized, originalMessageType: 'request-accepted',
         originalTimestamp: new Date().toISOString(), originalMessageId: messageId,
-      }).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.acceptRequest', message: 'Failed to sync accept to own devices', timestamp: Date.now(), metadata: { error: e } }))
+      }).catch(e =>
+        errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.acceptRequest', message: 'Failed to sync accept to own devices', timestamp: Date.now(), metadata: { error: e } })
+      )
     } catch (e) {
       logger.error('acceptRequest error:', e instanceof Error ? e.message : e)
     } finally {
       acceptingRef.current.delete(peerId)
     }
-  }, [userId, localDeviceId, addMessage])
+  }, [userId, addMessage])
 
   /** Get request status for a specific peer. */
   const getRequestStatusForPeer = useCallback((peerId: string): RequestStatus => {
-    return getRequestStatus(conversations[peerId], userId ?? '')
-  }, [conversations, userId])
+    return getRequestStatus(useMessagingStore.getState().conversations[peerId], userId ?? '')
+  }, [userId])
 
   /** Edit a message's plaintext locally (state + IndexedDB). */
   const editMessage = useCallback((peerId: string, messageId: string, newText: string) => {
-    setConversations(prev => {
-      const msgs = prev[peerId]
-      if (!msgs) return prev
+    // Update state
+    const msgs = useMessagingStore.getState().conversations[peerId]
+    if (msgs) {
       const updated = msgs.map(m => m.id === messageId ? { ...m, plaintext: newText } : m)
-      return { ...prev, [peerId]: updated }
-    })
+      useMessagingStore.setState(s => ({
+        conversations: { ...s.conversations, [peerId]: updated },
+      }))
+    }
 
-    // Persist to IndexedDB (fire-and-forget)
-    updateMessageText(messageId, newText).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.editMessage', message: 'Failed to persist message edit locally', timestamp: Date.now(), metadata: { error: e } }))
+    updateMessageText(messageId, newText).catch(e =>
+      errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.editMessage', message: 'Failed to persist message edit locally', timestamp: Date.now(), metadata: { error: e } })
+    )
   }, [])
 
-  /** Delete messages via protocol-level 'delete' messages (state + IndexedDB + peer notification). */
+  /** Delete messages via protocol-level 'delete' messages. */
   const deleteMessages = useCallback(async (peerId: string, messageIds: string[]) => {
+    const localDeviceId = useMessagingStore.getState().localDeviceId
     if (!userId || !localDeviceId) return
 
-    // 1. Collect originIds from the messages being deleted
-    const msgs = conversationsRef.current[peerId] ?? []
+    const msgs = useMessagingStore.getState().conversations[peerId] ?? []
     const originIds = messageIds
       .map(id => msgs.find(m => m.id === id)?.originId)
       .filter((oid): oid is string => !!oid)
 
-    // 2. Remove from React state
-    const idSet = new Set(messageIds)
-    setConversations(prev => {
-      const existing = prev[peerId]
-      if (!existing) return prev
-      const filtered = existing.filter(m => !idSet.has(m.id))
-      if (filtered.length === 0) {
-        const next = { ...prev }
-        delete next[peerId]
-        return next
-      }
-      return { ...prev, [peerId]: filtered }
-    })
+    store().deleteMessages(peerId, messageIds)
 
-    // 3. Delete from local IDB, then re-sync backup
     deleteMessagesFromDb(messageIds)
       .then(() => createBackup(userId))
       .catch(e => logger.warn('Failed to delete/re-sync:', e instanceof Error ? e.message : e))
@@ -1416,7 +1323,6 @@ export function useMessages(): UseMessagesReturn {
     const deletePayload = JSON.stringify({ originIds })
     const deleteOriginId = crypto.randomUUID()
 
-    // 4. Send protocol-level 'delete' to peer's devices
     try {
       const devicesResult = await fetchPeerDevices(peerId)
       if (devicesResult.ok && devicesResult.data.length > 0) {
@@ -1434,7 +1340,6 @@ export function useMessages(): UseMessagesReturn {
       logger.warn('Failed to send delete to peer:', e instanceof Error ? e.message : e)
     }
 
-    // 5. Send 'delete' to own other devices (sync)
     try {
       const ownDevicesResult = await fetchOwnDevices(userId)
       if (ownDevicesResult.ok) {
@@ -1455,48 +1360,69 @@ export function useMessages(): UseMessagesReturn {
       logger.warn('Failed to sync delete to own devices:', e instanceof Error ? e.message : e)
     }
 
-    // 6. Hard-delete both sent and received rows from Supabase by origin_id
     hardDeleteByOriginId(originIds).catch(e =>
       logger.warn('Failed to hard-delete from Supabase:', e instanceof Error ? e.message : e)
     )
-  }, [userId, localDeviceId])
+  }, [userId])
 
-  /** Delete an entire conversation from state, unread counts, IndexedDB, Supabase, and backup. */
-  const deleteConversation = useCallback((conversationKey: string) => {
-    // 1. Collect originIds BEFORE removing from state
-    const msgs = conversationsRef.current[conversationKey] ?? []
+  /** Delete an entire conversation from state, unread counts, IDB, Supabase, and write tombstone. */
+  const deleteConversation = useCallback(async (conversationKey: string) => {
+    const localDeviceId = useMessagingStore.getState().localDeviceId
+    const { groups } = useMessagingStore.getState()
+    const isGroup = !!groups[conversationKey]
+
+    // Collect originIds BEFORE store().deleteConversation removes messages from state
+    const msgs = useMessagingStore.getState().conversations[conversationKey] ?? []
     const originIds = msgs.map(m => m.originId).filter((oid): oid is string => !!oid)
 
-    // 2. Remove from React state
-    setConversations(prev => {
-      if (!prev[conversationKey]) return prev
-      const next = { ...prev }
-      delete next[conversationKey]
-      return next
-    })
-    setUnreadCounts(prev => {
-      if (!prev[conversationKey]) return prev
-      const next = { ...prev }
-      delete next[conversationKey]
-      return next
-    })
+    // Write tombstone to store + IDB, remove from state
+    await store().deleteConversation(conversationKey)
 
-    // 3. Delete from IDB, then re-sync backup
-    deleteConversationFromDb(conversationKey)
-      .then(() => { if (userId) return createBackup(userId) })
-      .catch(e => logger.warn('Failed to delete conversation/re-sync:', e instanceof Error ? e.message : e))
+    // Crypto cleanup
+    if (isGroup) {
+      // Group: delete sender keys only — pairwise sessions serve other groups + DMs
+      deleteSenderKeysForGroup(conversationKey).catch(e =>
+        logger.warn('Failed to delete sender keys for group:', e instanceof Error ? e.message : e)
+      )
+    } else {
+      // 1:1: delete all pairwise sessions for this peer
+      deleteSessionsForPeer(conversationKey).catch(e =>
+        logger.warn('Failed to delete sessions for peer:', e instanceof Error ? e.message : e)
+      )
+    }
 
-    // 4. Hard-delete from Supabase (sender rows + vault copies)
+    // Hard-delete from Supabase
     if (originIds.length > 0) {
       hardDeleteByOriginId(originIds).catch(e =>
-        logger.warn('Failed to hard-delete conversation from Supabase:', e instanceof Error ? e.message : e))
+        logger.warn('Failed to hard-delete conversation from Supabase:', e instanceof Error ? e.message : e)
+      )
+    }
+
+    // Multi-device sync — notify own devices to delete this conversation too
+    if (userId && localDeviceId) {
+      const deletedAt = new Date().toISOString()
+      sendSyncToOwnDevices(userId, localDeviceId, {
+        forPeerId: conversationKey,
+        serialized: JSON.stringify({ __syncType: 'conversation-deleted', conversationKey, deletedAt }),
+        originalMessageType: 'sync',
+        originalTimestamp: deletedAt,
+        originalMessageId: crypto.randomUUID(),
+      }).catch(() => {})
+    }
+
+    // Re-sync backup
+    if (userId) {
+      createBackup(userId).catch(e =>
+        logger.warn('Failed to re-sync backup after conversation delete:', e instanceof Error ? e.message : e)
+      )
     }
   }, [userId])
 
-  // ── Group messaging ────────────────────────────────────────────────────
+  // ── Group messaging ──────────────────────────────────────────────────────
 
-  /** Send a text message to a group (pairwise fan-out to each member's devices). */
+  /** Send a text message to a group. */
   const sendGroupMessage = useCallback(async (groupId: string, text: string, threadId?: string): Promise<boolean> => {
+    const localDeviceId = useMessagingStore.getState().localDeviceId
     if (!userId || !localDeviceId) return false
 
     const replyTo = threadId ? buildReplyTo(groupId, threadId) : undefined
@@ -1521,7 +1447,7 @@ export function useMessages(): UseMessagesReturn {
       ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
     })
 
-    setSending(true)
+    store().setSending(groupId, true)
     try {
       const serialized = serializeContent(textContent)
 
@@ -1542,26 +1468,28 @@ export function useMessages(): UseMessagesReturn {
       sendSyncToOwnDevices(userId, localDeviceId, {
         forPeerId: groupId, serialized, originalMessageType: 'message',
         originalTimestamp: now, originalMessageId: result.data,
-      }, groupId, originId).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendGroupMessage', message: 'Failed to sync group message to own devices', timestamp: Date.now(), metadata: { error: e } }))
+      }, groupId, originId).catch(e =>
+        errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendGroupMessage', message: 'Failed to sync group message to own devices', timestamp: Date.now(), metadata: { error: e } })
+      )
       return true
     } catch (e) {
       logger.error('sendGroupMessage error:', e instanceof Error ? e.message : e)
       removeOptimisticMessage(groupId, localId)
       return false
     } finally {
-      setSending(false)
+      store().setSending(groupId, false)
     }
-  }, [userId, localDeviceId, addMessage, updateMessageStatus, removeOptimisticMessage, buildReplyTo])
+  }, [userId, addMessage, updateMessageStatus, removeOptimisticMessage, buildReplyTo])
 
   /** Send an image to a group. */
   const sendGroupImage = useCallback(async (groupId: string, file: File): Promise<boolean> => {
+    const localDeviceId = useMessagingStore.getState().localDeviceId
     if (!userId || !localDeviceId) return false
 
     let localId: string | null = null
     const originId = crypto.randomUUID()
-    setSending(true)
+    store().setSending(groupId, true)
     try {
-      // 1. Resize + thumbnail for immediate placeholder
       const { resizedDataUrl, width, height, thumbnail } = await resizeAndThumbnail(file)
 
       localId = crypto.randomUUID()
@@ -1582,7 +1510,6 @@ export function useMessages(): UseMessagesReturn {
         originId,
       })
 
-      // 2. Encrypt + upload
       const imageBlob = dataUrlToBlob(resizedDataUrl)
       const uploadResult = await uploadEncryptedAttachment(userId, imageBlob)
       if (!uploadResult.ok) {
@@ -1596,14 +1523,8 @@ export function useMessages(): UseMessagesReturn {
         type: 'image', mime: 'image/jpeg', key, path, width, height, thumbnail,
       }
 
-      // Update optimistic message with real path/key
-      setConversations(prev => {
-        const msgs = prev[groupId]
-        if (!msgs) return prev
-        return { ...prev, [groupId]: msgs.map(m => m.id === localId ? { ...m, content: imageContent } : m) }
-      })
+      store().updateMessageContent(groupId, localId, imageContent)
 
-      // 3. Encrypt + send to group members
       const serialized = serializeContent(imageContent)
 
       const membersResult = await fetchGroupMembersRpc(groupId)
@@ -1623,23 +1544,26 @@ export function useMessages(): UseMessagesReturn {
       sendSyncToOwnDevices(userId, localDeviceId, {
         forPeerId: groupId, serialized, originalMessageType: 'message',
         originalTimestamp: new Date().toISOString(), originalMessageId: result.data,
-      }, groupId, originId).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendGroupImage', message: 'Failed to sync group image to own devices', timestamp: Date.now(), metadata: { error: e } }))
+      }, groupId, originId).catch(e =>
+        errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendGroupImage', message: 'Failed to sync group image to own devices', timestamp: Date.now(), metadata: { error: e } })
+      )
       return true
     } catch (e) {
       logger.error('sendGroupImage error:', e instanceof Error ? e.message : e)
       if (localId) removeOptimisticMessage(groupId, localId)
       return false
     } finally {
-      setSending(false)
+      store().setSending(groupId, false)
     }
-  }, [userId, localDeviceId, addMessage, updateMessageStatus, removeOptimisticMessage])
+  }, [userId, addMessage, updateMessageStatus, removeOptimisticMessage])
 
   const sendGroupVoice = useCallback(async (groupId: string, recording: VoiceRecordingResult): Promise<boolean> => {
+    const localDeviceId = useMessagingStore.getState().localDeviceId
     if (!userId || !localDeviceId) return false
 
     let localId: string | null = null
     const originId = crypto.randomUUID()
-    setSending(true)
+    store().setSending(groupId, true)
     try {
       localId = crypto.randomUUID()
       const placeholderContent: VoiceContent = {
@@ -1667,11 +1591,7 @@ export function useMessages(): UseMessagesReturn {
         duration: recording.duration, waveform: recording.waveform,
       }
 
-      setConversations(prev => {
-        const msgs = prev[groupId]
-        if (!msgs) return prev
-        return { ...prev, [groupId]: msgs.map(m => m.id === localId ? { ...m, content: voiceContent } : m) }
-      })
+      store().updateMessageContent(groupId, localId, voiceContent)
 
       const serialized = serializeContent(voiceContent)
 
@@ -1692,18 +1612,20 @@ export function useMessages(): UseMessagesReturn {
       sendSyncToOwnDevices(userId, localDeviceId, {
         forPeerId: groupId, serialized, originalMessageType: 'message',
         originalTimestamp: new Date().toISOString(), originalMessageId: result.data,
-      }, groupId, originId).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendGroupVoice', message: 'Failed to sync group voice to own devices', timestamp: Date.now(), metadata: { error: e } }))
+      }, groupId, originId).catch(e =>
+        errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendGroupVoice', message: 'Failed to sync group voice to own devices', timestamp: Date.now(), metadata: { error: e } })
+      )
       return true
     } catch (e) {
       logger.error('sendGroupVoice error:', e instanceof Error ? e.message : e)
       if (localId) removeOptimisticMessage(groupId, localId)
       return false
     } finally {
-      setSending(false)
+      store().setSending(groupId, false)
     }
-  }, [userId, localDeviceId, addMessage, updateMessageStatus, removeOptimisticMessage])
+  }, [userId, addMessage, updateMessageStatus, removeOptimisticMessage])
 
-  /** Create a new group. Returns the groupId on success, null on failure. */
+  /** Create a new group. */
   const createGroup = useCallback(async (name: string, memberIds: string[]): Promise<string | null> => {
     const result = await createGroupRpc({ name, memberIds })
     if (!result.ok) {
@@ -1721,17 +1643,7 @@ export function useMessages(): UseMessagesReturn {
       logger.error('leaveGroup failed:', result.error)
       return
     }
-    // Remove from local state
-    setGroups(prev => {
-      const next = { ...prev }
-      delete next[groupId]
-      return next
-    })
-    setConversations(prev => {
-      const next = { ...prev }
-      delete next[groupId]
-      return next
-    })
+    store().removeGroup(groupId)
   }, [])
 
   /** Rename a group. */
@@ -1741,10 +1653,10 @@ export function useMessages(): UseMessagesReturn {
       logger.error('renameGroup failed:', result.error)
       return
     }
-    setGroups(prev => ({
-      ...prev,
-      [groupId]: { ...prev[groupId], name },
-    }))
+    const existing = useMessagingStore.getState().groups[groupId]
+    if (existing) {
+      store().addGroup({ ...existing, name })
+    }
   }, [])
 
   /** Add a member to a group. */
@@ -1787,9 +1699,6 @@ export function useMessages(): UseMessagesReturn {
       return
     }
 
-    // Rows come newest-first — reverse for chronological order
-    // Like 1:1, we can't re-decrypt received messages here (ratchet state)
-    // They come through the realtime subscription catch-up instead
     logger.info(`fetchGroupHistory: ${result.data.length} rows for group ${groupId}`)
   }, [userId])
 
@@ -1800,13 +1709,12 @@ export function useMessages(): UseMessagesReturn {
 
   /**
    * Send a calendar event to the clinic calendar group.
-   * Bypasses chat state entirely — no optimistic insertion, no IDB message store,
-   * no notification. Uses the same encrypt-and-fan-out primitives as sendGroupMessage.
    */
   const sendCalendarEvent = useCallback(async (
     calendarGroupId: string,
     content: CalendarEventContent,
   ): Promise<string | null> => {
+    const localDeviceId = useMessagingStore.getState().localDeviceId
     if (!userId || !localDeviceId) return null
 
     const originId = crypto.randomUUID()
@@ -1827,7 +1735,6 @@ export function useMessages(): UseMessagesReturn {
         return null
       }
 
-      // Persist outgoing calendar event to message IDB so backup captures it
       const now = new Date().toISOString()
       saveMessage({
         id: result.data,
@@ -1855,23 +1762,21 @@ export function useMessages(): UseMessagesReturn {
       logger.warn('sendCalendarEvent error:', e instanceof Error ? e.message : e)
       return null
     }
-  }, [userId, localDeviceId])
+  }, [userId])
 
   /**
-   * Hard-delete calendar event messages from Supabase and broadcast protocol-level
-   * delete to all group members' devices + own devices. Mirrors the message deletion
-   * pattern: purge server rows so they can't be replayed, notify all devices to remove.
+   * Hard-delete calendar event messages from Supabase and broadcast protocol-level delete.
    */
   const deleteCalendarEventMessages = useCallback(async (
     calendarGroupId: string,
     originIds: string[],
   ): Promise<void> => {
+    const localDeviceId = useMessagingStore.getState().localDeviceId
     if (!userId || !localDeviceId || originIds.length === 0) return
 
     const deletePayload = JSON.stringify({ originIds })
     const deleteOriginId = crypto.randomUUID()
 
-    // 1. Send protocol-level 'delete' to all group members' devices
     try {
       const membersResult = await fetchGroupMembersRpc(calendarGroupId)
       if (membersResult.ok) {
@@ -1893,7 +1798,6 @@ export function useMessages(): UseMessagesReturn {
       logger.warn('Failed to broadcast calendar delete to group:', e instanceof Error ? e.message : e)
     }
 
-    // 2. Send delete to own other devices (sync)
     try {
       const ownDevicesResult = await fetchOwnDevices(userId)
       if (ownDevicesResult.ok) {
@@ -1912,37 +1816,18 @@ export function useMessages(): UseMessagesReturn {
       logger.warn('Failed to sync calendar delete to own devices:', e instanceof Error ? e.message : e)
     }
 
-    // 3. Hard-delete from Supabase so replayed history never resurrects the event
     hardDeleteByOriginId(originIds).catch(e =>
       logger.warn('Failed to hard-delete calendar event from Supabase:', e instanceof Error ? e.message : e)
     )
 
-    // 4. Purge create message from local message IDB so backup doesn't resurrect
     deleteMessagesByOriginIdFromDb(originIds).catch(e =>
       logger.warn('Failed to purge calendar create from local IDB:', e instanceof Error ? e.message : e)
     )
 
-    // 5. Schedule backup to flush the cleaned-up state to the server
     if (userId) scheduleBackup(userId)
-  }, [userId, localDeviceId])
-
-  // Exclude system groups (e.g. calendar) from unread counts so they
-  // don't contribute to the badge total shown in nav bars.
-  const filteredUnreadCounts = useMemo(() => {
-    const systemGroupIds = new Set(
-      Object.values(groups).filter(g => g.systemType).map(g => g.groupId),
-    )
-    if (systemGroupIds.size === 0) return unreadCounts
-    const filtered: Record<string, number> = {}
-    for (const [key, count] of Object.entries(unreadCounts)) {
-      if (!systemGroupIds.has(key)) filtered[key] = count
-    }
-    return filtered
-  }, [unreadCounts, groups])
+  }, [userId])
 
   return {
-    conversations,
-    unreadCounts: filteredUnreadCounts,
     sendMessage,
     sendImage,
     sendVoice,
@@ -1953,8 +1838,6 @@ export function useMessages(): UseMessagesReturn {
     editMessage,
     deleteMessages,
     deleteConversation,
-    sending,
-    groups,
     sendGroupMessage,
     sendGroupImage,
     sendGroupVoice,
