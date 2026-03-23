@@ -8,7 +8,7 @@
 
 import { ok, err, type Result } from '../result'
 import { createLogger } from '../../Utilities/Logger'
-import type { SignalMessageRow, FanOutMessageInput } from './transportTypes'
+import type { SignalMessageRow, FanOutMessageInput, SignalMessageType } from './transportTypes'
 
 const logger = createLogger('TransportManager')
 
@@ -20,7 +20,7 @@ export interface SendMessageParams {
   recipientId: string
   senderDeviceId?: string
   recipientDeviceId?: string
-  messageType: 'initial' | 'message' | 'request' | 'request-accepted' | 'sync' | 'delete'
+  messageType: SignalMessageType
   payload: Record<string, unknown>
   groupId?: string         // set for group messages
   originId?: string        // shared UUID for delete-for-everyone

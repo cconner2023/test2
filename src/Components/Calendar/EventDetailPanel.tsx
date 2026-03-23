@@ -4,6 +4,7 @@ import { getCategoryMeta } from '../../Types/CalendarTypes'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { shareSingleEvent } from '../../lib/calendarExport'
+import { useIsMobile } from '../../Hooks/useIsMobile'
 
 interface AssignedPerson {
   id: string
@@ -40,6 +41,7 @@ function formatDateTime(iso: string, allDay: boolean): string {
 }
 
 export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, assignedNames = [], linkedPropertyItems = [], hideHeader }: EventDetailPanelProps) {
+  const isMobile = useIsMobile()
   const cat = getCategoryMeta(event.category)
 
   return (
@@ -54,17 +56,17 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
         </div>
       )}
 
-      <div className={`${hideHeader ? '' : 'flex-1 overflow-y-auto'} px-4 py-4 space-y-4`}>
+      <div className={`${hideHeader ? '' : 'flex-1 overflow-y-auto'} ${isMobile ? 'px-4 py-4 space-y-4' : 'px-3 py-3 space-y-3'}`}>
         {/* Event card */}
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 p-4 space-y-3">
+        <div className={`rounded-2xl border border-themeblue3/10 bg-themewhite2 space-y-3 ${isMobile ? 'p-4' : 'p-3'}`}>
           <div className="flex items-center gap-2">
             <span className={`h-2 w-2 rounded-full ${cat.color}`} />
             <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">{cat.label}</span>
           </div>
 
-          <h2 className="text-lg font-bold text-primary">{event.title}</h2>
+          <h2 className={`font-bold text-primary ${isMobile ? 'text-lg' : 'text-sm'}`}>{event.title}</h2>
 
-          <div className="space-y-2 text-sm">
+          <div className={`space-y-2 ${isMobile ? 'text-sm' : 'text-xs'}`}>
             <p className="text-primary">
               {formatDateTime(event.start_time, event.all_day)}
               {!event.all_day && (
@@ -87,7 +89,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
 
           {event.description && (
             <div className="pt-3 border-t border-primary/8">
-              <p className="text-sm text-secondary whitespace-pre-wrap">{event.description}</p>
+              <p className={`text-secondary whitespace-pre-wrap ${isMobile ? 'text-sm' : 'text-xs'}`}>{event.description}</p>
             </div>
           )}
         </div>
@@ -102,17 +104,17 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
           </div>
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
             {assignedNames.length === 0 ? (
-              <p className="text-sm text-tertiary px-4 py-4">Unassigned</p>
+              <p className={`text-tertiary ${isMobile ? 'text-sm px-4 py-4' : 'text-xs px-3 py-3'}`}>Unassigned</p>
             ) : (
               assignedNames.map((person) => (
-                <div key={person.id} className="flex items-center gap-3 px-4 py-3">
+                <div key={person.id} className={`flex items-center ${isMobile ? 'gap-3 px-4 py-3' : 'gap-2 px-3 py-2'}`}>
                   <UserAvatar
                     avatarId={person.avatarId}
                     firstName={person.firstName}
                     lastName={person.lastName}
-                    className="w-10 h-10"
+                    className={isMobile ? 'w-10 h-10' : 'w-7 h-7'}
                   />
-                  <span className="text-sm font-medium text-primary">{person.name}</span>
+                  <span className={`font-medium text-primary ${isMobile ? 'text-sm' : 'text-xs'}`}>{person.name}</span>
                 </div>
               ))
             )}
@@ -130,9 +132,9 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
             </div>
             <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
               {linkedPropertyItems.map((item) => (
-                <div key={item.id} className="flex items-center gap-3 px-4 py-3">
+                <div key={item.id} className={`flex items-center ${isMobile ? 'gap-3 px-4 py-3' : 'gap-2 px-3 py-2'}`}>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-primary truncate">{item.name}</p>
+                    <p className={`font-medium text-primary truncate ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.name}</p>
                     {item.nsn && <p className="text-[10px] text-tertiary">{item.nsn}</p>}
                   </div>
                 </div>
@@ -144,13 +146,15 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
         {/* Add to phone calendar */}
         <button
           onClick={() => shareSingleEvent(event).catch(() => {})}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border border-themeblue3/20 bg-themewhite2 text-sm font-medium text-themeblue3 active:scale-95 transition-all duration-200"
+          className={`w-full flex items-center justify-center gap-2 rounded-2xl border border-themeblue3/20 bg-themewhite2 font-medium text-themeblue3 active:scale-95 transition-all duration-200 ${
+            isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-xs'
+          }`}
         >
-          <CalendarPlus className="w-4 h-4" />
+          <CalendarPlus className={isMobile ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
           Add to Phone Calendar
         </button>
 
-        <div className="h-16 shrink-0" />
+        <div className={isMobile ? 'h-16 shrink-0' : 'h-8 shrink-0'} />
       </div>
     </div>
   )

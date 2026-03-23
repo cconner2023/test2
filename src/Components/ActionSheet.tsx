@@ -1,9 +1,12 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useIsMobile } from '../Hooks/useIsMobile'
+import type { LucideIcon } from 'lucide-react'
 
 export interface ActionSheetOption {
   key: string
   label: string
+  icon?: LucideIcon
+  variant?: 'default' | 'danger'
   onAction: () => void
 }
 
@@ -103,15 +106,22 @@ export function ActionSheet({ visible, title, options, onClose }: ActionSheetPro
             </h2>
 
             <div className="flex flex-col gap-2.5">
-              {options.map((opt) => (
-                <button
-                  key={opt.key}
-                  onClick={() => handleOption(opt)}
-                  className="w-full py-3 rounded-full text-[15px] font-medium bg-themeblue3 text-white active:scale-95 transition-all"
-                >
-                  {opt.label}
-                </button>
-              ))}
+              {options.map((opt) => {
+                const isDanger = opt.variant === 'danger'
+                return (
+                  <button
+                    key={opt.key}
+                    onClick={() => handleOption(opt)}
+                    className={`w-full py-3 rounded-full text-[15px] font-medium active:scale-95 transition-all ${
+                      isDanger
+                        ? 'bg-themeredred/10 text-themeredred'
+                        : 'bg-themeblue3 text-white'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                )
+              })}
               <button
                 onClick={handleClose}
                 className="w-full py-3 rounded-full text-[15px] font-medium text-tertiary active:scale-95 transition-all"
@@ -125,42 +135,50 @@ export function ActionSheet({ visible, title, options, onClose }: ActionSheetPro
     )
   }
 
-  /* Desktop: centered modal */
+  /* Desktop: dropdown-style menu */
   return (
     <>
       <div
-        className={`fixed inset-0 z-50 bg-black transition-opacity duration-300 ${open ? 'opacity-20' : 'opacity-0'}`}
+        className={`fixed inset-0 z-50 bg-black transition-opacity duration-300 ${open ? 'opacity-15' : 'opacity-0'}`}
         style={{ pointerEvents: open ? 'auto' : 'none' }}
         onClick={handleClose}
       />
       <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
         <div
-          className={`bg-themewhite rounded-3xl shadow-xl px-8 py-8 max-w-[340px] w-full pointer-events-auto transition-all duration-300 ease-out ${open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-90 translate-y-4'}`}
+          className={`bg-themewhite2 rounded-xl shadow-lg border border-primary/10 py-1.5 min-w-[200px] max-w-[260px] w-full pointer-events-auto transition-all duration-200 ease-out ${open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2'}`}
           role="dialog"
           aria-modal="true"
           aria-labelledby="action-sheet-title"
         >
-          <p id="action-sheet-title" className="text-lg font-medium text-primary text-center mb-6">
+          <p id="action-sheet-title" className="px-3.5 py-1.5 text-[10pt] font-medium text-tertiary/60 uppercase tracking-wider">
             {title}
           </p>
 
-          <div className="flex flex-col gap-3 max-w-[260px] mx-auto">
-            {options.map((opt) => (
+          {options.map((opt) => {
+            const isDanger = opt.variant === 'danger'
+            const Icon = opt.icon
+            return (
               <button
                 key={opt.key}
                 onClick={() => handleOption(opt)}
-                className="w-full py-3 rounded-full text-[15px] font-medium bg-themeblue3 text-white active:scale-95 transition-all"
+                className={`flex items-center gap-2.5 w-full px-3.5 py-2 text-sm hover:bg-primary/5 active:bg-primary/10 transition-colors ${
+                  isDanger ? 'text-themeredred' : 'text-primary'
+                }`}
               >
+                {Icon && (
+                  <Icon size={14} className={isDanger ? 'text-themeredred/60' : 'text-tertiary/50'} />
+                )}
                 {opt.label}
               </button>
-            ))}
-            <button
-              onClick={handleClose}
-              className="w-full py-3 rounded-full text-[15px] font-medium text-tertiary active:scale-95 transition-all"
-            >
-              Cancel
-            </button>
-          </div>
+            )
+          })}
+          <div className="h-px bg-tertiary/10 mx-2.5 my-1" />
+          <button
+            onClick={handleClose}
+            className="flex items-center w-full px-3.5 py-2 text-sm text-tertiary hover:bg-primary/5 transition-colors"
+          >
+            Cancel
+          </button>
         </div>
       </div>
     </>

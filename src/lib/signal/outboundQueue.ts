@@ -14,6 +14,7 @@ import { createLogger } from '../../Utilities/Logger'
 import { createIdbSingleton } from '../idbFactory'
 import { encryptString, decryptString } from '../secureStorage'
 import type { SendMessageParams, SendBatchParams } from './transport'
+import type { SignalMessageType } from './transportTypes'
 
 const logger = createLogger('OutboundQueue')
 
@@ -26,7 +27,7 @@ export interface OutboundQueueEntry {
   senderDeviceId: string | null
   recipientDeviceId: string | null
   groupId: string | null  // set for group messages
-  messageType: 'initial' | 'message' | 'request' | 'request-accepted' | 'sync' | 'delete'
+  messageType: SignalMessageType
   payload: string         // encrypted via encryptString()
   createdAt: string       // ISO timestamp
   status: 'pending' | 'sending' | 'failed'

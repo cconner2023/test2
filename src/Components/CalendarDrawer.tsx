@@ -55,6 +55,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
     })))
 
     const [scrollNonce, setScrollNonce] = useState(1)
+    const [rightPanelOpen, setRightPanelOpen] = useState(false)
 
     // Reset to today and trigger scroll whenever the drawer opens
     useEffect(() => {
@@ -281,7 +282,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                 <div className="flex absolute inset-0 overflow-hidden">
                     {/* Contextual sidebar — desktop only, hidden for troops-to-task (has its own personnel column) */}
                     {!isMobile && viewMode !== 'troops' && (
-                        <div ref={sidebarScrollRef} className="w-60 shrink-0 overflow-y-auto border-r border-primary/10">
+                        <div ref={sidebarScrollRef} className={`shrink-0 overflow-y-auto border-r border-primary/10 transition-all duration-300 ${rightPanelOpen ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-60'}`}>
                             <div
                                 ref={searchWrapperRef}
                                 className="overflow-hidden transition-[height,opacity] duration-200"
@@ -318,7 +319,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
 
                     {/* Schedule — right pane (or full width on mobile) */}
                     <div className="flex-1 min-w-0">
-                        <CalendarPanel onBack={onClose} scrollNonce={scrollNonce} />
+                        <CalendarPanel onBack={onClose} scrollNonce={scrollNonce} onPanelStateChange={setRightPanelOpen} />
                     </div>
 
                     {/* Personnel filter drawer — mobile */}

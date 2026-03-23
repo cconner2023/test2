@@ -117,6 +117,25 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
   const [days, setDays] = useState(() => generateDays(date, DAYS_BUFFER, DAYS_BUFFER))
   const [visibleDateLabel, setVisibleDateLabel] = useState('')
   const initialScrollDone = useRef(false)
+  const [nowLineX, setNowLineX] = useState<number | null>(null)
+
+  // Compute the horizontal pixel position of "now" relative to the timeline origin
+  const computeNowX = useCallback(() => {
+    const now = new Date()
+    const nowKey = toDateKey(now)
+    const dayIndex = days.findIndex(d => d.dateKey === nowKey)
+    if (dayIndex < 0) return null
+    const fractionalHours = now.getHours() + now.getMinutes() / 60
+    return dayIndex * DAY_WIDTH + fractionalHours * HOUR_COL_WIDTH
+  }, [days])
+
+  // Update now-line every 60 seconds
+  useEffect(() => {
+    const update = () => setNowLineX(computeNowX())
+    update()
+    const interval = setInterval(update, 60_000)
+    return () => clearInterval(interval)
+  }, [computeNowX])
 
   const totalWidth = NAME_COL_WIDTH + days.length * DAY_WIDTH
 
@@ -154,21 +173,35 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
     [visibleEvents, days]
   )
 
-  // Scroll to selected date on mount
+  // Scroll to current time on mount (or selected date center if not today)
   useEffect(() => {
     if (initialScrollDone.current) return
     const el = scrollRef.current
     if (!el) return
 
-    const dayIndex = days.findIndex(d => d.dateKey === toDateKey(date))
-    if (dayIndex >= 0) {
-      // Center the selected day horizontally
-      const dayLeft = dayIndex * DAY_WIDTH
-      const viewportWidth = el.clientWidth - NAME_COL_WIDTH
-      const sl = Math.max(0, dayLeft - viewportWidth / 2 + DAY_WIDTH / 2)
+    const viewportWidth = el.clientWidth - NAME_COL_WIDTH
+    const now = new Date()
+    const todayKey = toDateKey(now)
+    const todayIndex = days.findIndex(d => d.dateKey === todayKey)
+
+    if (todayIndex >= 0) {
+      // Center on current time within today
+      const fractionalHours = now.getHours() + now.getMinutes() / 60
+      const nowX = todayIndex * DAY_WIDTH + fractionalHours * HOUR_COL_WIDTH
+      const sl = Math.max(0, nowX - viewportWidth / 2)
       el.scrollLeft = sl
       el.style.setProperty('--sl', String(sl))
       initialScrollDone.current = true
+    } else {
+      // Fallback: center on the selected date
+      const dayIndex = days.findIndex(d => d.dateKey === toDateKey(date))
+      if (dayIndex >= 0) {
+        const dayLeft = dayIndex * DAY_WIDTH
+        const sl = Math.max(0, dayLeft - viewportWidth / 2 + DAY_WIDTH / 2)
+        el.scrollLeft = sl
+        el.style.setProperty('--sl', String(sl))
+        initialScrollDone.current = true
+      }
     }
   }, [days, date])
 
@@ -287,7 +320,20 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
       className="touch-pan-xy h-full min-h-0 min-w-0 overflow-auto overscroll-contain"
       onScroll={handleScroll}
     >
-      <div style={{ minWidth: totalWidth, display: 'grid', gridTemplateRows: `auto auto repeat(${medics.length + (unassignedLanes.length > 0 ? 1 : 0)}, auto) auto` }}>
+      <div className="relative" style={{ minWidth: totalWidth, display: 'grid', gridTemplateRows: `auto auto repeat(${medics.length + (unassignedLanes.length > 0 ? 1 : 0)}, auto) auto` }}>
+        {/* Current time indicator — vertical red line spanning all rows */}
+        {nowLineX !== null && (
+          <div
+            className="absolute top-0 bottom-0 z-[3] pointer-events-none"
+            style={{ left: NAME_COL_WIDTH + nowLineX }}
+          >
+            <div className="relative h-full">
+              <div className="absolute top-0 w-2 h-2 -translate-x-1/2 rounded-full bg-themeredred" />
+              <div className="absolute top-0 bottom-0 w-px -translate-x-1/2 bg-themeredred" />
+            </div>
+          </div>
+        )}
+
         {/* Spacer for mobile floating header */}
         <div className="h-[calc(var(--sat,0px)+3.5rem)] md:hidden" />
 
@@ -364,7 +410,7 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
                   <button
                     key={event.id}
                     onClick={() => onSelectEvent(event.id)}
-                    className={`absolute rounded border text-left overflow-clip transition-all duration-150 active:scale-[0.98] ${CATEGORY_BG_MAP[event.category]}`}
+                    className={`absolute rounded border text-left overflow-hidden transition-all duration-150 active:scale-[0.98] ${CATEGORY_BG_MAP[event.category]}`}
                     style={{
                       left,
                       width,
@@ -373,8 +419,11 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
                     }}
                   >
                     <p
-                      className="text-[10px] font-semibold truncate leading-tight px-1.5 will-change-transform"
-                      style={{ transform: `translateX(max(0px, calc(var(--sl, 0) * 1px + ${NAME_COL_WIDTH}px - ${left}px)))` }}
+                      className="absolute inset-y-0 right-0 text-[10px] font-semibold truncate px-1.5"
+                      style={{
+                        left: `clamp(0px, calc(var(--sl, 0) * 1px - ${left}px), ${Math.max(0, width - 40)}px)`,
+                        lineHeight: `${LANE_HEIGHT}px`,
+                      }}
                     >
                       {event.title}
                       {width > 80 && (
@@ -416,7 +465,7 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
                   <button
                     key={event.id}
                     onClick={() => onSelectEvent(event.id)}
-                    className="absolute rounded border-2 border-dashed overflow-clip transition-all duration-150 active:scale-[0.98] border-themeredred/30 bg-themeredred/5 text-themeredred"
+                    className="absolute rounded border-2 border-dashed overflow-hidden transition-all duration-150 active:scale-[0.98] border-themeredred/30 bg-themeredred/5 text-themeredred"
                     style={{
                       left,
                       width,
@@ -425,8 +474,11 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
                     }}
                   >
                     <p
-                      className="text-[10px] font-semibold truncate leading-tight px-1.5 will-change-transform"
-                      style={{ transform: `translateX(max(0px, calc(var(--sl, 0) * 1px + ${NAME_COL_WIDTH}px - ${left}px)))` }}
+                      className="absolute inset-y-0 right-0 text-[10px] font-semibold truncate px-1.5"
+                      style={{
+                        left: `clamp(0px, calc(var(--sl, 0) * 1px - ${left}px), ${Math.max(0, width - 40)}px)`,
+                        lineHeight: `${LANE_HEIGHT}px`,
+                      }}
                     >
                       {event.title}
                     </p>

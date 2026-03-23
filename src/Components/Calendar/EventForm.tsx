@@ -4,6 +4,7 @@ import type { EventFormData, EventCategory } from '../../Types/CalendarTypes'
 import { createEmptyFormData, EVENT_CATEGORIES } from '../../Types/CalendarTypes'
 import { PickerInput, DatePickerInput } from '../FormInputs'
 import { UserAvatar } from '../Settings/UserAvatar'
+import { useIsMobile } from '../../Hooks/useIsMobile'
 
 /** Generate 30-min military time options: "0000", "0030", … "2330" */
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
@@ -43,6 +44,7 @@ interface EventFormProps {
 
 export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
   function EventForm({ initialData, onSave, isEditing, medics, propertyItems }, ref) {
+    const isMobile = useIsMobile()
     const [form, setForm] = useState<EventFormData>(initialData ?? createEmptyFormData())
     const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -93,7 +95,9 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
       }))
     }, [])
 
-    const inputCx = 'w-full rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite2 text-primary placeholder:text-tertiary/30 transition-all duration-300'
+    const inputCx = `w-full rounded-full border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none bg-themewhite2 text-primary placeholder:text-tertiary/30 transition-all duration-300 ${
+      isMobile ? 'py-2.5 px-4 text-sm' : 'py-2 px-3 text-xs'
+    }`
 
     const categoryLabel = EVENT_CATEGORIES.find(c => c.value === form.category)?.label ?? ''
 
@@ -153,40 +157,43 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           required
         />
 
-        <div className="flex items-center justify-between px-4 py-2.5 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite2">
-          <span className="text-sm text-tertiary/50">All day</span>
-          <button
-            type="button"
-            onClick={() => {
-              const next = !form.all_day
-              updateField('all_day', next)
-              if (next) {
-                const dateStr = form.start_time.slice(0, 10)
-                if (dateStr) {
-                  updateField('start_time', dateStr + 'T00:00')
-                  updateField('end_time', dateStr + 'T23:59')
-                }
-              }
-            }}
-            className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
-              form.all_day ? 'bg-themeblue3' : 'bg-tertiary/30'
-            }`}
-          >
-            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${
-              form.all_day ? 'translate-x-5' : ''
-            }`} />
-          </button>
-        </div>
-
         {/* Start date + time */}
         <div>
-          <div className={`grid gap-2 ${form.all_day ? '' : 'grid-cols-2'}`}>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Start</span>
+            <label
+              className="flex items-center gap-2 cursor-pointer"
+              onClick={() => {
+                const next = !form.all_day
+                updateField('all_day', next)
+                if (next) {
+                  const dateStr = form.start_time.slice(0, 10)
+                  if (dateStr) {
+                    updateField('start_time', dateStr + 'T00:00')
+                    updateField('end_time', dateStr + 'T23:59')
+                  }
+                }
+              }}
+            >
+              <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">All day</span>
+              <div
+                className={`relative w-9 h-5 shrink-0 rounded-full transition-colors duration-200 ${
+                  form.all_day ? 'bg-themeblue3' : 'bg-tertiary/20'
+                }`}
+              >
+                <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                  form.all_day ? 'translate-x-4' : 'translate-x-0'
+                }`} />
+              </div>
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
             <DatePickerInput
               value={startDate}
               onChange={handleStartDateChange}
               placeholder="Start date"
             />
-            {!form.all_day && (
+            {!form.all_day ? (
               <PickerInput
                 value={startTime ? hhmmToMilitary(startTime) : ''}
                 onChange={handleStartTimeChange}
@@ -194,21 +201,22 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                 placeholder="Start time"
                 required
               />
-            )}
+            ) : <div />}
           </div>
           {errors.start_time && <p className="text-xs text-themeredred mt-1 pl-4">{errors.start_time}</p>}
         </div>
 
         {/* End date + time */}
         <div>
-          <div className={`grid gap-2 ${form.all_day ? '' : 'grid-cols-2'}`}>
+          <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1.5 block">End</span>
+          <div className="grid grid-cols-2 gap-2">
             <DatePickerInput
               value={endDate}
               onChange={handleEndDateChange}
               placeholder="End date"
               minDate={startDate}
             />
-            {!form.all_day && (
+            {!form.all_day ? (
               <PickerInput
                 value={endTime ? hhmmToMilitary(endTime) : ''}
                 onChange={handleEndTimeChange}
@@ -216,7 +224,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                 placeholder="End time"
                 required
               />
-            )}
+            ) : <div />}
           </div>
           {errors.end_time && <p className="text-xs text-themeredred mt-1 pl-4">{errors.end_time}</p>}
         </div>
@@ -234,7 +242,9 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           onChange={e => updateField('description', e.target.value)}
           placeholder="Description / OPORD notes"
           rows={3}
-          className="w-full rounded-2xl py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite2 text-primary placeholder:text-tertiary/30 transition-all duration-300 resize-none"
+          className={`w-full rounded-2xl border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none bg-themewhite2 text-primary placeholder:text-tertiary/30 transition-all duration-300 resize-none ${
+            isMobile ? 'py-2.5 px-4 text-sm' : 'py-2 px-3 text-xs'
+          }`}
         />
 
         {medics && medics.length > 0 && (
@@ -253,18 +263,18 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                     key={medic.id}
                     type="button"
                     onClick={() => toggleAssigned(medic.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-150 active:scale-[0.98] ${
-                      isSelected ? 'bg-themeblue3/8' : ''
-                    }`}
+                    className={`w-full flex items-center text-left transition-all duration-150 active:scale-[0.98] ${
+                      isMobile ? 'gap-3 px-4 py-3' : 'gap-2 px-3 py-2'
+                    } ${isSelected ? 'bg-themeblue3/8' : ''}`}
                   >
                     <UserAvatar
                       avatarId={medic.avatarId}
                       firstName={medic.firstName}
                       lastName={medic.lastName}
-                      className="w-10 h-10"
+                      className={isMobile ? 'w-10 h-10' : 'w-7 h-7'}
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-primary truncate">{medic.name}</p>
+                      <p className={`font-medium text-primary truncate ${isMobile ? 'text-sm' : 'text-xs'}`}>{medic.name}</p>
                       {medic.credential && (
                         <p className="text-[10px] text-tertiary/50 truncate">{medic.credential}</p>
                       )}
@@ -295,13 +305,13 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                     key={item.id}
                     type="button"
                     onClick={() => togglePropertyItem(item.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-150 active:scale-[0.98] ${
-                      isSelected ? 'bg-themeblue3/8' : ''
-                    }`}
+                    className={`w-full flex items-center text-left transition-all duration-150 active:scale-[0.98] ${
+                      isMobile ? 'gap-3 px-4 py-3' : 'gap-2 px-3 py-2'
+                    } ${isSelected ? 'bg-themeblue3/8' : ''}`}
                   >
-                    <Package size={16} className={isSelected ? 'text-themeblue3 shrink-0' : 'text-tertiary shrink-0'} />
+                    <Package size={isMobile ? 16 : 14} className={isSelected ? 'text-themeblue3 shrink-0' : 'text-tertiary shrink-0'} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-primary truncate">{item.name}</p>
+                      <p className={`font-medium text-primary truncate ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.name}</p>
                       {item.nsn && <p className="text-[10px] text-tertiary truncate">{item.nsn}</p>}
                     </div>
                     {item.serial_number && (

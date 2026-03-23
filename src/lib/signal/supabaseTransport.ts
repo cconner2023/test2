@@ -197,7 +197,8 @@ export class SupabaseTransport implements SignalTransport {
   }
 
   private fireNotif(recipientId: string, messageType: string): void {
-    if (messageType === 'sync' || messageType === 'delete') return
+    // Only notify for user-visible message types — receipts, syncs, deletes are protocol-level
+    if (messageType !== 'message' && messageType !== 'initial' && messageType !== 'request') return
 
     fireNotification({
       user_id: recipientId,

@@ -24,6 +24,7 @@ import type { SealedEnvelope } from '../lib/signal/sealedSender'
 import type { SignalMessageRow, DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { SyncMessagePayload } from '../lib/signal/transportTypes'
 import { parseMessageContent } from '../lib/signal/messageContent'
+import { isCalendarEvent } from '../lib/calendarRouting'
 import { errorBus } from '../lib/errorBus'
 import { ErrorCode } from '../lib/errorCodes'
 
@@ -48,7 +49,7 @@ async function sendDeliveryReceipt(
       myUuid,
       senderUuid,
       envelope as unknown as Record<string, never>,
-      'message',
+      'receipt',
       myDeviceId,
       senderDeviceId,
     )
@@ -172,12 +173,33 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
       }
     }
 
+    // Delivery receipt: dedicated protocol type — decrypt and surface as _deliveryReceipt
+    if (row.message_type === 'receipt') {
+      const { plaintext: rawPlaintext, senderUuid } = await processIncomingMessage(
+        senderDeviceId, envelope, myUuid
+      )
+      const parsed = JSON.parse(rawPlaintext) as Record<string, unknown>
+      return {
+        id: row.id,
+        senderId: senderUuid,
+        recipientId: row.recipient_id,
+        plaintext: rawPlaintext,
+        messageType: row.message_type,
+        createdAt: row.created_at,
+        readAt: row.read_at,
+        _deliveryReceipt: {
+          messageIds: parsed.messageIds as string[],
+          deliveredAt: parsed.deliveredAt as string,
+        },
+      }
+    }
+
     // Initial and message types: both go through processIncomingMessage
     const { plaintext: rawPlaintext, senderUuid } = await processIncomingMessage(
       senderDeviceId, envelope, myUuid
     )
 
-    // Check for delivery receipt BEFORE parsing as user content
+    // Legacy: receipts sent as 'message' before protocol upgrade — still handle gracefully
     try {
       const parsed = JSON.parse(rawPlaintext) as Record<string, unknown>
       if (parsed.__type === 'delivery-receipt') {
@@ -352,6 +374,7 @@ export function useSignalMessages({
               decrypted.messageType !== 'delete' &&
               decrypted.senderId !== userId &&
               !decrypted.plaintext.includes('"__type":"delivery-receipt"') &&
+              !isCalendarEvent(decrypted.content) &&
               userIdRef.current &&
               localDeviceId
             ) {
@@ -413,6 +436,7 @@ export function useSignalMessages({
           decrypted.messageType !== 'delete' &&
           decrypted.senderId !== myUuid &&
           !decrypted.plaintext.includes('"__type":"delivery-receipt"') &&
+          !isCalendarEvent(decrypted.content) &&
           myUuid &&
           myDeviceId
         ) {
@@ -475,6 +499,7 @@ export function useSignalMessages({
           decrypted.messageType !== 'delete' &&
           decrypted.senderId !== myUuid &&
           !decrypted.plaintext.includes('"__type":"delivery-receipt"') &&
+          !isCalendarEvent(decrypted.content) &&
           myUuid &&
           myDeviceId
         ) {

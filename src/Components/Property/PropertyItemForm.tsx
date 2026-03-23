@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useMemo } from 'react'
 import { Camera, Image, X } from 'lucide-react'
 import { usePropertyStore } from '../../stores/usePropertyStore'
+import { TextInput, PickerInput } from '../FormInputs'
 import type { PropertyItem, LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 
 interface PropertyItemFormProps {
@@ -13,9 +14,6 @@ interface PropertyItemFormProps {
   onClose: () => void
   clinicId: string
 }
-
-const inputClass = 'w-full px-3 py-2 text-base rounded-lg border border-tertiary/20 bg-themewhite text-primary placeholder:text-tertiary/50 focus:outline-none focus:border-themeblue2 transition-colors'
-const labelClass = 'block text-xs font-medium text-secondary mb-1'
 
 /** Placement value encodes type + id, e.g. "location:uuid" or "item:uuid" */
 function encodePlacement(item: LocalPropertyItem | null): string {
@@ -63,9 +61,10 @@ export function PropertyItemForm({
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
 
-  // Build sorted location tree for picker (indented by depth)
-  const locationOptions = useMemo(() => {
-    const result: { id: string; name: string; depth: number }[] = []
+  const placementOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = []
+
+    // Build sorted location tree (indented by depth)
     const childrenOf = new Map<string | null, LocalPropertyLocation[]>()
     for (const loc of locations) {
       const key = loc.parent_id ?? null
@@ -75,13 +74,31 @@ export function PropertyItemForm({
     function walk(parentId: string | null, depth: number) {
       const children = childrenOf.get(parentId) ?? []
       for (const child of children.sort((a, b) => a.name.localeCompare(b.name))) {
-        result.push({ id: child.id, name: child.name, depth })
+        opts.push({ value: `location:${child.id}`, label: '\u00A0\u00A0'.repeat(depth) + child.name })
         walk(child.id, depth + 1)
       }
     }
     walk(null, 0)
-    return result
-  }, [locations])
+
+    // Parent items
+    for (const p of parentItems
+      .filter((p) => p.id !== editingItem?.id)
+      .sort((a, b) => a.name.localeCompare(b.name))
+    ) {
+      opts.push({ value: `item:${p.id}`, label: p.name })
+    }
+
+    return opts
+  }, [locations, parentItems, editingItem?.id])
+
+  const holderOptions = useMemo(
+    () =>
+      clinicMembers
+        .slice()
+        .sort((a, b) => a.displayName.localeCompare(b.displayName))
+        .map((m) => ({ value: m.id, label: m.displayName })),
+    [clinicMembers]
+  )
 
   const handlePhotoSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -147,105 +164,89 @@ export function PropertyItemForm({
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto">
         <div className="flex flex-col gap-4 px-4 py-3">
-          {/* Name */}
-          <div>
-            <label className={labelClass}>Item Name *</label>
-            <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. ACOG Sight" autoFocus />
-          </div>
+          <TextInput
+            label="Item Name"
+            required
+            value={name}
+            onChange={setName}
+            placeholder="e.g. ACOG Sight"
+          />
 
-          {/* Nomenclature */}
-          <div>
-            <label className={labelClass}>Nomenclature</label>
-            <input className={inputClass} value={nomenclature} onChange={(e) => setNomenclature(e.target.value)} placeholder="Official nomenclature" />
-          </div>
+          <TextInput
+            label="Nomenclature"
+            value={nomenclature}
+            onChange={setNomenclature}
+            placeholder="Official nomenclature"
+          />
 
-          {/* NSN + LIN */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>NSN</label>
-              <input className={inputClass} value={nsn} onChange={(e) => setNsn(e.target.value)} placeholder="XXXX-XX-XXX-XXXX" />
-            </div>
-            <div>
-              <label className={labelClass}>LIN</label>
-              <input className={inputClass} value={lin} onChange={(e) => setLin(e.target.value)} placeholder="e.g. A12345" />
-            </div>
+            <TextInput
+              label="NSN"
+              value={nsn}
+              onChange={setNsn}
+              placeholder="XXXX-XX-XXX-XXXX"
+            />
+            <TextInput
+              label="LIN"
+              value={lin}
+              onChange={setLin}
+              placeholder="e.g. A12345"
+            />
           </div>
 
-          {/* Serial Number */}
-          <div>
-            <label className={labelClass}>Serial Number</label>
-            <input className={inputClass} value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} placeholder="Serial number" />
-          </div>
+          <TextInput
+            label="Serial Number"
+            value={serialNumber}
+            onChange={setSerialNumber}
+            placeholder="Serial number"
+          />
 
-          {/* Quantity */}
-          <div>
-            <label className={labelClass}>Quantity</label>
-            <input className={inputClass} type="number" min={1} value={quantity} onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))} />
-          </div>
+          <TextInput
+            label="Quantity"
+            type="number"
+            value={String(quantity)}
+            onChange={(v) => setQuantity(Math.max(1, parseInt(v) || 1))}
+          />
 
-          {/* Placement — combined location + parent item picker */}
-          <div>
-            <label className={labelClass}>Location / Parent Item</label>
-            <select className={inputClass} value={placement} onChange={(e) => setPlacement(e.target.value)}>
-              <option value="">None</option>
-              {locationOptions.length > 0 && (
-                <optgroup label="Locations">
-                  {locationOptions.map((loc) => (
-                    <option key={`loc-${loc.id}`} value={`location:${loc.id}`}>
-                      {'\u00A0\u00A0'.repeat(loc.depth)}{loc.name}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-              {parentItems.length > 0 && (
-                <optgroup label="Items">
-                  {parentItems
-                    .filter((p) => p.id !== editingItem?.id)
-                    .sort((a, b) => a.name.localeCompare(b.name))
-                    .map((p) => (
-                      <option key={`item-${p.id}`} value={`item:${p.id}`}>{p.name}</option>
-                    ))}
-                </optgroup>
-              )}
-            </select>
-          </div>
+          <PickerInput
+            label="Location / Parent Item"
+            value={placement}
+            onChange={setPlacement}
+            options={placementOptions}
+            placeholder="Select location"
+          />
 
-          {/* Assigned To */}
-          <div>
-            <label className={labelClass}>Assigned To</label>
-            <select className={inputClass} value={holderId} onChange={(e) => setHolderId(e.target.value)}>
-              <option value="">Unassigned</option>
-              {clinicMembers
-                .sort((a, b) => a.displayName.localeCompare(b.displayName))
-                .map((m) => (
-                  <option key={m.id} value={m.id}>{m.displayName}</option>
-                ))}
-            </select>
-          </div>
+          <PickerInput
+            label="Assigned To"
+            value={holderId}
+            onChange={setHolderId}
+            options={holderOptions}
+            placeholder="Unassigned"
+          />
 
           {/* Photo */}
           <div>
-            <label className={labelClass}>Photo</label>
+            <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Photo</span>
             {photoUrl ? (
-              <div className="relative">
+              <div className="relative mt-1">
                 <img src={photoUrl} alt="Item" className="w-full max-h-40 object-contain rounded-lg bg-secondary/5" />
                 <button
-                  className="absolute top-1 right-1 p-1 rounded-full bg-black/50 text-white"
+                  className="absolute top-1 right-1 p-1 rounded-full bg-black/50 text-white active:scale-95 transition-transform"
                   onClick={() => setPhotoUrl(null)}
                 >
                   <X size={14} />
                 </button>
               </div>
             ) : (
-              <div className="flex gap-2">
+              <div className="flex gap-2 mt-1">
                 <button
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border border-dashed border-tertiary/30 text-sm text-tertiary hover:border-themeblue3/40 hover:text-themeblue3 transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border border-dashed border-tertiary/30 text-sm text-tertiary hover:border-themeblue3/40 hover:text-themeblue3 transition-colors active:scale-95"
                   onClick={() => cameraInputRef.current?.click()}
                 >
                   <Camera size={16} /> Camera
                 </button>
                 <button
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border border-dashed border-tertiary/30 text-sm text-tertiary hover:border-themeblue3/40 hover:text-themeblue3 transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border border-dashed border-tertiary/30 text-sm text-tertiary hover:border-themeblue3/40 hover:text-themeblue3 transition-colors active:scale-95"
                   onClick={() => galleryInputRef.current?.click()}
                 >
                   <Image size={16} /> Gallery
@@ -258,9 +259,9 @@ export function PropertyItemForm({
 
           {/* Notes */}
           <div>
-            <label className={labelClass}>Notes</label>
+            <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Notes</span>
             <textarea
-              className={`${inputClass} resize-none`}
+              className="mt-1 w-full px-4 py-2.5 rounded-2xl text-primary text-sm border border-themeblue3/10 shadow-xs bg-themewhite dark:bg-themewhite3 focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all duration-300 placeholder:text-tertiary/30 resize-none"
               rows={3}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -268,9 +269,8 @@ export function PropertyItemForm({
             />
           </div>
 
-          {/* Save */}
           <button
-            className="w-full py-3 rounded-lg bg-themeblue3 text-white text-sm font-medium hover:bg-themeblue3/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+            className="w-full py-3 rounded-full bg-themeblue3 text-white text-sm font-medium hover:bg-themeblue3/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 mb-4"
             disabled={!name.trim() || isSaving}
             onClick={handleSave}
           >

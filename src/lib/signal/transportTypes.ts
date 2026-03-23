@@ -5,6 +5,18 @@
  * and the `consume_peer_bundle` RPC return shape.
  */
 
+// ---- Protocol Message Types ----
+
+/** All wire-level message types in the Signal transport layer. */
+export type SignalMessageType =
+  | 'initial'          // X3DH key exchange (first message to a new device)
+  | 'message'          // User-visible chat message
+  | 'request'          // Contact/group request
+  | 'request-accepted' // Contact/group request acceptance
+  | 'sync'             // Multi-device sync (own devices only)
+  | 'delete'           // Delete-for-everyone
+  | 'receipt'          // Delivery receipt (not user-visible, no push notification)
+
 // ---- Device Hierarchy ----
 
 export type DeviceRole = 'primary' | 'linked' | 'provisional'
@@ -65,7 +77,7 @@ export interface SignalMessageRow {
   recipient_device_id: string | null
   group_id: string | null
   origin_id: string | null
-  message_type: 'initial' | 'message' | 'request' | 'request-accepted' | 'sync' | 'delete'
+  message_type: SignalMessageType
   payload: Record<string, unknown>
   created_at: string
   read_at: string | null
@@ -82,7 +94,7 @@ export interface PeerDevice {
 export interface FanOutMessageInput {
   recipientDeviceId: string
   payload: Record<string, unknown>
-  messageType: 'initial' | 'message' | 'request' | 'request-accepted' | 'sync' | 'delete'
+  messageType: SignalMessageType
 }
 
 // ---- Decrypted message surfaced to the UI ----
@@ -96,7 +108,7 @@ export interface DecryptedSignalMessage {
   plaintext: string
   /** Structured content (text or image). Populated after parsing the decrypted payload. */
   content?: MessageContent
-  messageType: 'initial' | 'message' | 'request' | 'request-accepted' | 'sync' | 'delete'
+  messageType: SignalMessageType
   createdAt: string
   readAt: string | null
   /** Delivery status for outgoing messages (undefined = delivered/incoming). */

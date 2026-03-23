@@ -105,18 +105,30 @@ export const SelectInput = ({
 
 /* ── Picker Input (drawer/modal selection) ── */
 
+type PickerOption = string | { value: string; label: string }
+
+function getOptionValue(opt: PickerOption): string {
+  return typeof opt === 'string' ? opt : opt.value
+}
+
+function getOptionLabel(opt: PickerOption): string {
+  return typeof opt === 'string' ? opt : opt.label
+}
+
 export const PickerInput = ({
   value,
   onChange,
   options,
   placeholder,
   required = false,
+  label,
 }: {
   value: string
   onChange: (val: string) => void
-  options: readonly string[]
+  options: readonly PickerOption[]
   placeholder?: string
   required?: boolean
+  label?: string
 }) => {
   const isMobile = useIsMobile()
   const [visible, setVisible] = useState(false)
@@ -125,6 +137,9 @@ export const PickerInput = ({
   const [dragY, setDragY] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const dragStartY = useRef(0)
+
+  const displayValue = options.find((o) => getOptionValue(o) === value)
+  const displayLabel = displayValue ? getOptionLabel(displayValue) : ''
 
   useEffect(() => {
     if (visible) {
@@ -147,8 +162,8 @@ export const PickerInput = ({
     setTimeout(() => setVisible(false), 300)
   }, [])
 
-  const handleSelect = useCallback((opt: string) => {
-    onChange(opt)
+  const handleSelect = useCallback((opt: PickerOption) => {
+    onChange(getOptionValue(opt))
     handleClose()
   }, [onChange, handleClose])
 
@@ -173,22 +188,29 @@ export const PickerInput = ({
   }, [isDragging, dragY, handleClose])
 
   return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setVisible(true)}
-        className={`w-full px-4 py-2.5 rounded-full text-left text-sm
-                   border border-themeblue3/10 shadow-xs bg-themewhite dark:bg-themewhite3
-                   transition-all duration-200 flex items-center justify-between active:scale-[0.98] ${
-                     value ? 'text-primary' : 'text-tertiary/30'
-                   }`}
-      >
-        <span className="truncate">{value || placeholder || 'Select...'}</span>
-        <ChevronDown size={16} className="shrink-0 ml-2 text-tertiary/40" />
-      </button>
-      {required && !value && (
-        <input tabIndex={-1} className="absolute inset-0 opacity-0 pointer-events-none" required value="" onChange={() => {}} />
+    <div>
+      {label && (
+        <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
+          {label} {required && <span className="text-themeredred">*</span>}
+        </span>
       )}
+      <div className={`relative ${label ? 'mt-1' : ''}`}>
+        <button
+          type="button"
+          onClick={() => setVisible(true)}
+          className={`w-full px-4 py-2.5 rounded-full text-left text-sm
+                     border border-themeblue3/10 shadow-xs bg-themewhite dark:bg-themewhite3
+                     transition-all duration-200 flex items-center justify-between active:scale-[0.98] ${
+                       value ? 'text-primary' : 'text-tertiary/30'
+                     }`}
+        >
+          <span className="truncate">{displayLabel || placeholder || 'Select...'}</span>
+          <ChevronDown size={16} className="shrink-0 ml-2 text-tertiary/40" />
+        </button>
+        {required && !value && (
+          <input tabIndex={-1} className="absolute inset-0 opacity-0 pointer-events-none" required value="" onChange={() => {}} />
+        )}
+      </div>
 
       {mounted && (isMobile ? (
         <>
@@ -216,63 +238,74 @@ export const PickerInput = ({
               {placeholder}
             </p>
             <div className="px-3 pb-5 overflow-y-auto" style={{ maxHeight: 'calc(50dvh - 3.5rem)' }}>
-              {options.map((opt) => (
-                <button
-                  key={opt}
-                  type="button"
-                  role="option"
-                  aria-selected={opt === value}
-                  onClick={() => handleSelect(opt)}
-                  className={`w-full text-left px-4 py-3 rounded-xl text-sm transition-colors active:scale-95 flex items-center justify-between ${
-                    opt === value ? 'text-themeblue3 font-medium bg-themeblue3/5' : 'text-primary'
-                  }`}
-                >
-                  {opt}
-                  {opt === value && <Check size={16} className="shrink-0 text-themeblue3" />}
-                </button>
-              ))}
+              {options.map((opt) => {
+                const optVal = getOptionValue(opt)
+                const optLbl = getOptionLabel(opt)
+                const selected = optVal === value
+                return (
+                  <button
+                    key={optVal}
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    onClick={() => handleSelect(opt)}
+                    className={`w-full text-left px-4 py-3 rounded-xl text-sm transition-colors active:scale-95 flex items-center justify-between ${
+                      selected ? 'text-themeblue3 font-medium bg-themeblue3/5' : 'text-primary'
+                    }`}
+                  >
+                    {optLbl}
+                    {selected && <Check size={16} className="shrink-0 text-themeblue3" />}
+                  </button>
+                )
+              })}
             </div>
           </div>
         </>
       ) : (
         <>
           <div
-            className={`fixed inset-0 z-50 bg-black transition-opacity duration-300 ${open ? 'opacity-20' : 'opacity-0'}`}
+            className={`fixed inset-0 z-50 bg-black transition-opacity duration-200 ${open ? 'opacity-15' : 'opacity-0'}`}
             style={{ pointerEvents: open ? 'auto' : 'none' }}
             onClick={handleClose}
           />
           <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
             <div
-              className={`bg-themewhite rounded-3xl shadow-xl px-6 py-6 max-w-[300px] w-full pointer-events-auto transition-all duration-300 ease-out ${
-                open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-90 translate-y-4'
+              className={`bg-themewhite2 rounded-xl shadow-lg border border-primary/10 py-1.5 min-w-[200px] max-w-[260px] w-full pointer-events-auto transition-all duration-200 ease-out ${
+                open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2'
               }`}
               role="listbox"
               aria-label={placeholder}
             >
-              <p className="pb-3 text-xs font-medium text-tertiary/50 uppercase tracking-wide">
+              <p className="px-3.5 py-1.5 text-[10pt] font-medium text-tertiary/60 uppercase tracking-wider">
                 {placeholder}
               </p>
-              <div className="max-h-60 overflow-y-auto -mx-2">
-                {options.map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    role="option"
-                    aria-selected={opt === value}
-                    onClick={() => handleSelect(opt)}
-                    className={`w-full text-left px-4 py-2.5 rounded-xl text-sm transition-colors active:scale-95 flex items-center justify-between ${
-                      opt === value ? 'text-themeblue3 font-medium bg-themeblue3/5' : 'text-primary hover:bg-themeblue3/5'
-                    }`}
-                  >
-                    {opt}
-                    {opt === value && <Check size={16} className="shrink-0 text-themeblue3" />}
-                  </button>
-                ))}
+              <div className="max-h-60 overflow-y-auto">
+                {options.map((opt) => {
+                  const optVal = getOptionValue(opt)
+                  const optLbl = getOptionLabel(opt)
+                  const selected = optVal === value
+                  return (
+                    <button
+                      key={optVal}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      onClick={() => handleSelect(opt)}
+                      className={`w-full text-left px-3.5 py-2 text-sm hover:bg-primary/5 active:bg-primary/10 transition-colors flex items-center justify-between ${
+                        selected ? 'text-themeblue3 font-medium' : 'text-primary'
+                      }`}
+                    >
+                      {optLbl}
+                      {selected && <Check size={16} className="shrink-0 text-themeblue3" />}
+                    </button>
+                  )
+                })}
               </div>
+              <div className="h-px bg-tertiary/10 mx-2.5 my-1" />
               <button
                 type="button"
                 onClick={handleClose}
-                className="mt-3 w-full py-2.5 rounded-full text-sm font-medium text-tertiary active:scale-95 transition-all"
+                className="flex items-center w-full px-3.5 py-2 text-sm text-tertiary hover:bg-primary/5 transition-colors"
               >
                 Cancel
               </button>
@@ -307,7 +340,7 @@ function toIso(date: Date): string {
 function formatDisplay(iso: string): string {
   const d = parseIso(iso)
   if (!d) return ''
-  return `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}, ${d.getFullYear()}`
+  return `${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3).toUpperCase()} ${String(d.getFullYear()).slice(2)}`
 }
 
 function calendarDays(year: number, month: number): (Date | null)[] {

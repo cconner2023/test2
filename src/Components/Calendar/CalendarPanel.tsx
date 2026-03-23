@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { Clock, Plus, Users2, CalendarDays, X, Check, Pencil, Trash2 } from 'lucide-react'
 import { DatePickerCalendar } from '../FormInputs'
 import { CardContextMenu } from '../CardContextMenu'
@@ -32,12 +32,17 @@ type DayDrawerView = 'detail' | 'edit'
 interface CalendarPanelProps {
   onBack: () => void
   scrollNonce?: number
+  onPanelStateChange?: (open: boolean) => void
 }
 
-export function CalendarPanel({ onBack, scrollNonce }: CalendarPanelProps) {
+export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange }: CalendarPanelProps) {
   const isMobile = useIsMobile()
   const [panelView, setPanelView] = useState<PanelView>('calendar')
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
+
+  useEffect(() => {
+    onPanelStateChange?.(panelView !== 'calendar')
+  }, [panelView, onPanelStateChange])
   const eventFormRef = useRef<EventFormHandle>(null)
 
   const { clinicId, user } = useAuth()
@@ -466,262 +471,271 @@ export function CalendarPanel({ onBack, scrollNonce }: CalendarPanelProps) {
     />
   )
 
-  if (!isMobile && panelView === 'form') {
-    return (
-      <div className="flex flex-col h-full">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-tertiary/10">
-          <h2 className="text-base font-semibold text-primary">
-            {editingEvent ? 'Edit Event' : 'New Event'}
-          </h2>
-          <HeaderPill>
-            {editingEvent && (
-              <PillButton icon={Trash2} iconSize={18} onClick={() => setConfirmDeleteEvent(editingEvent.id)} label="Delete" variant="danger" />
-            )}
-            <PillButton icon={X} iconSize={18} onClick={handleFormCancel} label="Cancel" />
-            <PillButton
-              icon={Check}
-              iconSize={18}
-              circleBg="bg-themegreen text-white"
-              onClick={() => eventFormRef.current?.submit()}
-              label="Save"
-            />
-          </HeaderPill>
-        </div>
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          <EventForm
-            ref={eventFormRef}
-            initialData={editingEvent ? eventToFormData(editingEvent) : undefined}
-            onSave={handleSaveEvent}
-            isEditing={!!editingEvent}
-            medics={medicList}
-            propertyItems={propertyItems}
-          />
-        </div>
-        {deleteConfirmDialog}
-      </div>
-    )
-  }
-
-  if (panelView === 'detail' && selectedEvent) {
-    return (
-      <EventDetailPanel
-        event={selectedEvent}
-        onClose={handleDetailBack}
-        onEdit={handleEditEvent}
-        onDelete={handleDeleteEvent}
-        assignedNames={resolveAssigned(selectedEvent.assigned_to)}
-        linkedPropertyItems={resolvePropertyItems(selectedEvent.property_item_ids ?? [])}
-      />
-    )
-  }
-
   // ── Calendar views ──
 
   const showFormDrawer = isMobile && panelView === 'form'
+  const showDesktopPanel = !isMobile && (panelView === 'detail' || panelView === 'form')
 
   return (
-    <div className="relative h-full">
-      {/* View content — fills entire area, island floats over */}
-      <div className="absolute inset-0 flex flex-col">
-        {viewMode === 'month' && (
-          <InfiniteScrollCalendar
-            events={filteredEvents}
-            selectedDate={selectedDate}
-            onSelectDate={handleSelectDate}
-            onMonthChange={setMonthLabel}
-            onMoveEvent={handleMoveEventToDate}
-            onSelectEvent={handleSelectEvent}
-            onEventContextMenu={handleEventContextMenu}
-            scrollTargetDate={selectedDateStr}
-            scrollNonce={scrollNonce}
-          />
-        )}
-
-        {viewMode === 'day' && (
-          <DayView
-            date={selectedDate}
-            events={dayEvents}
-            onSelectEvent={handleSelectEvent}
-            onMoveEvent={handleMoveEvent}
-            onEventContextMenu={handleEventContextMenu}
-            {...(isMobile ? {
-              onPrevDay: handlePrevDay,
-              onNextDay: handleNextDay,
-              onDateTap: () => setShowDatePicker(true),
-            } : {})}
-          />
-        )}
-
-        {viewMode === 'troops' && (
-          <TroopsToTaskView
-            date={selectedDate}
-            events={filteredEvents}
-            medics={ownClinicMedics}
-            onSelectEvent={handleSelectEvent}
-            onAssign={assignPersonnel}
-            onUnassign={unassignPersonnel}
-            onDateChange={setSelectedDate}
-          />
-        )}
-      </div>
-
-      <div className="absolute bottom-4 inset-x-0 flex items-center justify-center z-20 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
-        <div className="flex items-center gap-1.5 rounded-full bg-themewhite border border-tertiary/20 px-0.5 py-0.5 shadow-lg pointer-events-auto">
-          <button
-            onClick={() => setViewMode('month')}
-            className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
-              viewMode === 'month' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
-            }`}
-            title="Month"
-          >
-            <CalendarDays className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setViewMode('day')}
-            className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
-              viewMode === 'day' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
-            }`}
-            title="Day"
-          >
-            <Clock className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setViewMode('troops')}
-            className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
-              viewMode === 'troops' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
-            }`}
-            title="Troops to Task"
-          >
-            <Users2 className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
-          <button
-            onClick={handleNewEvent}
-            className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
-          >
-            <Plus className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-
-      {/* Mobile form drawer — uses BaseDrawer for consistent animation/drag */}
-      <BaseDrawer
-        isVisible={showFormDrawer}
-        onClose={handleFormCancel}
-        mobileOnly
-        fullHeight="85dvh"
-        zIndex="z-50"
-        blurHeader
-        header={{
-          title: editingEvent ? 'Edit Event' : 'New Event',
-          rightContent: (
-            <HeaderPill>
-              {editingEvent && (
-                <PillButton icon={Trash2} iconSize={18} onClick={() => setConfirmDeleteEvent(editingEvent.id)} label="Delete" variant="danger" />
-              )}
-              <PillButton icon={X} iconSize={18} onClick={handleFormCancel} label="Cancel" />
-              <PillButton
-                icon={Check}
-                iconSize={18}
-                circleBg="bg-themegreen text-white"
-                onClick={() => eventFormRef.current?.submit()}
-                label="Save"
+    <>
+      <div className="relative h-full flex">
+        {/* Calendar — always visible */}
+        <div className="flex-1 min-w-0 relative">
+          <div className="absolute inset-0 flex flex-col">
+            {viewMode === 'month' && (
+              <InfiniteScrollCalendar
+                events={filteredEvents}
+                selectedDate={selectedDate}
+                onSelectDate={handleSelectDate}
+                onMonthChange={setMonthLabel}
+                onMoveEvent={handleMoveEventToDate}
+                onSelectEvent={handleSelectEvent}
+                onEventContextMenu={handleEventContextMenu}
+                scrollTargetDate={selectedDateStr}
+                scrollNonce={scrollNonce}
               />
-            </HeaderPill>
-          ),
-          hideDefaultClose: true,
-        }}
-      >
-        <EventForm
-          ref={eventFormRef}
-          initialData={editingEvent ? eventToFormData(editingEvent) : undefined}
-          onSave={handleSaveEvent}
-          isEditing={!!editingEvent}
-          medics={medicList}
-          propertyItems={propertyItems}
-        />
-      </BaseDrawer>
+            )}
 
-      {/* Mobile event drawer — tap an event to view/edit */}
-      <BaseDrawer
-        isVisible={showDayDrawer}
-        onClose={handleDayDrawerClose}
-        mobileOnly
-        fullHeight="85dvh"
-        zIndex="z-50"
-        blurHeader
-        header={dayDrawerView === 'edit' ? {
-          title: 'Edit Event',
-          rightContent: (
-            <HeaderPill>
-              {editingEvent && (
-                <PillButton icon={Trash2} iconSize={18} onClick={() => setConfirmDeleteEvent(editingEvent.id)} label="Delete" variant="danger" />
-              )}
-              <PillButton icon={X} iconSize={18} onClick={handleDayDrawerEditCancel} label="Cancel" />
-              <PillButton
-                icon={Check}
-                iconSize={18}
-                circleBg="bg-themegreen text-white"
-                onClick={() => eventFormRef.current?.submit()}
-                label="Save"
+            {viewMode === 'day' && (
+              <DayView
+                date={selectedDate}
+                events={dayEvents}
+                onSelectEvent={handleSelectEvent}
+                onMoveEvent={handleMoveEvent}
+                onEventContextMenu={handleEventContextMenu}
+                {...(isMobile ? {
+                  onPrevDay: handlePrevDay,
+                  onNextDay: handleNextDay,
+                  onDateTap: () => setShowDatePicker(true),
+                } : {})}
               />
-            </HeaderPill>
-          ),
-          hideDefaultClose: true,
-        } : {
-          title: dayDrawerEvent?.title ?? '',
-          rightContent: dayDrawerEvent ? (
-            <HeaderPill>
-              <PillButton icon={Pencil} iconSize={16} onClick={() => handleDayDrawerEdit(dayDrawerEvent.id)} label="Edit" />
-              <PillButton icon={X} iconSize={16} onClick={handleDayDrawerDetailBack} label="Close" />
-            </HeaderPill>
-          ) : undefined,
-          hideDefaultClose: true,
-        }}
-      >
-        {dayDrawerView === 'detail' && dayDrawerEvent && (
-          <EventDetailPanel
-            event={dayDrawerEvent}
-            onClose={handleDayDrawerDetailBack}
-            onEdit={handleDayDrawerEdit}
-            onDelete={(id) => {
-              handleDeleteEvent(id)
-              handleDayDrawerClose()
+            )}
+
+            {viewMode === 'troops' && (
+              <TroopsToTaskView
+                date={selectedDate}
+                events={filteredEvents}
+                medics={ownClinicMedics}
+                onSelectEvent={handleSelectEvent}
+                onAssign={assignPersonnel}
+                onUnassign={unassignPersonnel}
+                onDateChange={setSelectedDate}
+              />
+            )}
+          </div>
+
+          <div className="absolute bottom-4 inset-x-0 flex items-center justify-center z-20 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
+            <div className="flex items-center gap-1.5 rounded-full bg-themewhite border border-tertiary/20 px-0.5 py-0.5 shadow-lg pointer-events-auto">
+              <button
+                onClick={() => setViewMode('month')}
+                className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
+                  viewMode === 'month' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
+                }`}
+                title="Month"
+              >
+                <CalendarDays className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setViewMode('day')}
+                className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
+                  viewMode === 'day' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
+                }`}
+                title="Day"
+              >
+                <Clock className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setViewMode('troops')}
+                className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
+                  viewMode === 'troops' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
+                }`}
+                title="Troops to Task"
+              >
+                <Users2 className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
+              <button
+                onClick={handleNewEvent}
+                className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Mobile form drawer — uses BaseDrawer for consistent animation/drag */}
+          <BaseDrawer
+            isVisible={showFormDrawer}
+            onClose={handleFormCancel}
+            mobileOnly
+            fullHeight="85dvh"
+            zIndex="z-50"
+            blurHeader
+            header={{
+              title: editingEvent ? 'Edit Event' : 'New Event',
+              rightContent: (
+                <HeaderPill>
+                  {editingEvent && (
+                    <PillButton icon={Trash2} iconSize={18} onClick={() => setConfirmDeleteEvent(editingEvent.id)} label="Delete" variant="danger" />
+                  )}
+                  <PillButton icon={X} iconSize={18} onClick={handleFormCancel} label="Cancel" />
+                  <PillButton
+                    icon={Check}
+                    iconSize={18}
+                    circleBg="bg-themegreen text-white"
+                    onClick={() => eventFormRef.current?.submit()}
+                    label="Save"
+                  />
+                </HeaderPill>
+              ),
+              hideDefaultClose: true,
             }}
-            assignedNames={resolveAssigned(dayDrawerEvent.assigned_to)}
-            linkedPropertyItems={resolvePropertyItems(dayDrawerEvent.property_item_ids ?? [])}
-            hideHeader
-          />
-        )}
+          >
+            <EventForm
+              ref={eventFormRef}
+              initialData={editingEvent ? eventToFormData(editingEvent) : undefined}
+              onSave={handleSaveEvent}
+              isEditing={!!editingEvent}
+              medics={medicList}
+              propertyItems={propertyItems}
+            />
+          </BaseDrawer>
 
-        {dayDrawerView === 'edit' && editingEvent && (
-          <EventForm
-            ref={eventFormRef}
-            initialData={eventToFormData(editingEvent)}
-            onSave={handleDayDrawerSave}
-            isEditing
-            medics={medicList}
-          />
-        )}
-      </BaseDrawer>
+          {/* Mobile event drawer — tap an event to view/edit */}
+          <BaseDrawer
+            isVisible={showDayDrawer}
+            onClose={handleDayDrawerClose}
+            mobileOnly
+            fullHeight="85dvh"
+            zIndex="z-50"
+            blurHeader
+            header={dayDrawerView === 'edit' ? {
+              title: 'Edit Event',
+              rightContent: (
+                <HeaderPill>
+                  {editingEvent && (
+                    <PillButton icon={Trash2} iconSize={18} onClick={() => setConfirmDeleteEvent(editingEvent.id)} label="Delete" variant="danger" />
+                  )}
+                  <PillButton icon={X} iconSize={18} onClick={handleDayDrawerEditCancel} label="Cancel" />
+                  <PillButton
+                    icon={Check}
+                    iconSize={18}
+                    circleBg="bg-themegreen text-white"
+                    onClick={() => eventFormRef.current?.submit()}
+                    label="Save"
+                  />
+                </HeaderPill>
+              ),
+              hideDefaultClose: true,
+            } : {
+              title: dayDrawerEvent?.title ?? '',
+              rightContent: dayDrawerEvent ? (
+                <HeaderPill>
+                  <PillButton icon={Pencil} iconSize={16} onClick={() => handleDayDrawerEdit(dayDrawerEvent.id)} label="Edit" />
+                  <PillButton icon={X} iconSize={16} onClick={handleDayDrawerDetailBack} label="Close" />
+                </HeaderPill>
+              ) : undefined,
+              hideDefaultClose: true,
+            }}
+          >
+            {dayDrawerView === 'detail' && dayDrawerEvent && (
+              <EventDetailPanel
+                event={dayDrawerEvent}
+                onClose={handleDayDrawerDetailBack}
+                onEdit={handleDayDrawerEdit}
+                onDelete={(id) => {
+                  handleDeleteEvent(id)
+                  handleDayDrawerClose()
+                }}
+                assignedNames={resolveAssigned(dayDrawerEvent.assigned_to)}
+                linkedPropertyItems={resolvePropertyItems(dayDrawerEvent.property_item_ids ?? [])}
+                hideHeader
+              />
+            )}
 
-      {/* Mobile date picker drawer — tap date label in day view */}
-      <BaseDrawer
-        isVisible={showDatePicker}
-        onClose={handleDatePickerClose}
-        mobileOnly
-        fullHeight="auto"
-        zIndex="z-50"
-      >
-        <div className="pb-[max(1rem,var(--sab,0px))]">
-          <DatePickerCalendar
-            value={selectedDateKey}
-            onChange={handleDatePickerSelect}
+            {dayDrawerView === 'edit' && editingEvent && (
+              <EventForm
+                ref={eventFormRef}
+                initialData={eventToFormData(editingEvent)}
+                onSave={handleDayDrawerSave}
+                isEditing
+                medics={medicList}
+              />
+            )}
+          </BaseDrawer>
+
+          {/* Mobile date picker drawer — tap date label in day view */}
+          <BaseDrawer
+            isVisible={showDatePicker}
             onClose={handleDatePickerClose}
-          />
+            mobileOnly
+            fullHeight="auto"
+            zIndex="z-50"
+          >
+            <div className="pb-[max(1rem,var(--sab,0px))]">
+              <DatePickerCalendar
+                value={selectedDateKey}
+                onChange={handleDatePickerSelect}
+                onClose={handleDatePickerClose}
+              />
+            </div>
+          </BaseDrawer>
         </div>
-      </BaseDrawer>
+
+        {/* Desktop right panel — form or detail alongside calendar */}
+        {!isMobile && (
+          <div className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-all duration-300 ${
+            showDesktopPanel ? 'w-[380px] opacity-100' : 'w-0 opacity-0 overflow-hidden border-l-0'
+          }`}>
+            {showDesktopPanel && (
+              panelView === 'form' ? (
+                <>
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-tertiary/10">
+                    <h2 className="text-sm font-semibold text-primary whitespace-nowrap">
+                      {editingEvent ? 'Edit Event' : 'New Event'}
+                    </h2>
+                    <HeaderPill>
+                      {editingEvent && (
+                        <PillButton icon={Trash2} iconSize={18} onClick={() => setConfirmDeleteEvent(editingEvent.id)} label="Delete" variant="danger" />
+                      )}
+                      <PillButton icon={X} iconSize={18} onClick={handleFormCancel} label="Cancel" />
+                      <PillButton
+                        icon={Check}
+                        iconSize={18}
+                        circleBg="bg-themegreen text-white"
+                        onClick={() => eventFormRef.current?.submit()}
+                        label="Save"
+                      />
+                    </HeaderPill>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    <EventForm
+                      ref={eventFormRef}
+                      initialData={editingEvent ? eventToFormData(editingEvent) : undefined}
+                      onSave={handleSaveEvent}
+                      isEditing={!!editingEvent}
+                      medics={medicList}
+                      propertyItems={propertyItems}
+                    />
+                  </div>
+                </>
+              ) : panelView === 'detail' && selectedEvent ? (
+                <EventDetailPanel
+                  event={selectedEvent}
+                  onClose={handleDetailBack}
+                  onEdit={handleEditEvent}
+                  onDelete={handleDeleteEvent}
+                  assignedNames={resolveAssigned(selectedEvent.assigned_to)}
+                  linkedPropertyItems={resolvePropertyItems(selectedEvent.property_item_ids ?? [])}
+                />
+              ) : null
+            )}
+          </div>
+        )}
+      </div>
+
+      {deleteConfirmDialog}
 
       {contextMenu && (
         <CardContextMenu
@@ -734,8 +748,6 @@ export function CalendarPanel({ onBack, scrollNonce }: CalendarPanelProps) {
           ]}
         />
       )}
-
-      {deleteConfirmDialog}
-    </div>
+    </>
   )
 }

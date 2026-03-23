@@ -1,26 +1,21 @@
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react'
-import { Plus, Upload, Download, FileSpreadsheet, Eye, ArrowRightLeft, Trash2, AlertTriangle, X, Check } from 'lucide-react'
+import { Plus, AlertTriangle, X, Check } from 'lucide-react'
 import { ActionSheet } from '../ActionSheet'
-import { EmptyState } from '../EmptyState'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { useProperty } from '../../Hooks/useProperty'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuth } from '../../Hooks/useAuth'
 import { supabase } from '../../lib/supabase'
-import { CardContextMenu } from '../CardContextMenu'
-import { CardActionBar, type ActionBarAction } from '../CardActionBar'
-import { PropertyItemRow } from './PropertyItemRow'
 import { PropertyItemDetail } from './PropertyItemDetail'
 import { PropertyItemForm } from './PropertyItemForm'
 import { PropertyLocationTree } from './PropertyLocationTree'
-import { PropertyLocationList } from './PropertyLocationList'
+import { PropertyDashboard } from './PropertyDashboard'
 import { SearchInput } from '../SearchInput'
-import type { PropertyLocationListHandle } from './PropertyLocationList'
 import { CustodyTransferForm } from './CustodyTransferForm'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { PropertyCSVImport } from './PropertyCSVImport'
-import { exportPropertyCSV, parsePropertyCSV, downloadCSVTemplate } from '../../Utilities/PropertyCSV'
+import { parsePropertyCSV } from '../../Utilities/PropertyCSV'
 import { ensureRootLocation, fetchLocationTags, upsertLocationTags } from '../../lib/propertyService'
 import { PropertyLocationMap } from './PropertyLocationMap'
 import type { MapNavHandle } from './PropertyLocationMap'
@@ -64,12 +59,14 @@ interface PropertyPanelProps {
   /** Called when drill-down path changes so PropertyDrawer can update header */
   onDrilldownChange?: (path: Array<{ id: string; name: string }>) => void
   /** Ref to the PropertyLocationList so drawer can call popPath() imperatively */
-  locationListRef?: React.Ref<PropertyLocationListHandle>
+  locationListRef?: React.Ref<unknown>
   /** Desktop: callback to update search query (search input lives in the sidebar) */
   onSearchChange?: (query: string) => void
 }
 
-export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '', onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onMobileLocationViewChange, onRegisterDetailActions, onRegisterAddLocation, onRegisterLocationActions, onDrilldownChange, locationListRef, onSearchChange }: PropertyPanelProps) {
+export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '', onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onRegisterDetailActions, onRegisterAddLocation, onSearchChange, ...rest }: PropertyPanelProps) {
+  // Consume unused props passed by PropertyDrawer to avoid lint errors
+  void rest
   const { user } = useAuth()
   const property = useProperty()
   const showLoading = useMinLoadTime(property.isLoading)
@@ -87,14 +84,8 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
   const [renamingLocation, setRenamingLocation] = useState<{ id: string; name: string } | null>(null)
   const [showAddSheet, setShowAddSheet] = useState(false)
 
-  // ── Selection state ──
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [transferItems, setTransferItems] = useState<LocalPropertyItem[]>([])
-  const [openCardId, setOpenCardId] = useState<string | null>(null)
-  const [contextMenu, setContextMenu] = useState<{ itemId: string; x: number; y: number } | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<{ kind: 'single'; item: LocalPropertyItem } | { kind: 'detail' } | { kind: 'batch'; items: LocalPropertyItem[] } | null>(null)
-  const hasSelection = selectedIds.size > 0
-  const multiSelectMode = hasSelection
+  const [pendingDelete, setPendingDelete] = useState<{ kind: 'single'; item: LocalPropertyItem } | { kind: 'detail' } | null>(null)
 
   // Load clinic members for holder display names and transfer picker
   useEffect(() => {
@@ -142,67 +133,6 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
     [property.locations],
   )
 
-  // Sub-item counts for list view
-  const subItemCounts = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const item of property.items) {
-      if (item.parent_item_id) {
-        counts.set(item.parent_item_id, (counts.get(item.parent_item_id) ?? 0) + 1)
-      }
-    }
-    return counts
-  }, [property.items])
-
-  // Filtered items for list
-  const filteredItems = useMemo(() => {
-    let list = property.items.filter((i) => !i.parent_item_id) // top-level only
-    if (store.holderFilter) {
-      list = list.filter((i) => i.current_holder_id === store.holderFilter)
-    }
-    if (!isMobile && desktopLocationId) {
-      list = list.filter((i) => i.location_id === desktopLocationId)
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      list = list.filter((i) =>
-        i.name.toLowerCase().includes(q) ||
-        i.nomenclature?.toLowerCase().includes(q) ||
-        i.nsn?.toLowerCase().includes(q) ||
-        i.serial_number?.toLowerCase().includes(q)
-      )
-    }
-    return list.sort((a, b) => a.name.localeCompare(b.name))
-  }, [property.items, store.holderFilter, searchQuery, isMobile, desktopLocationId])
-
-  // ── Selection handlers ──
-
-  const handleToggleSelect = useCallback((item: LocalPropertyItem) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(item.id)) next.delete(item.id)
-      else next.add(item.id)
-      return next
-    })
-  }, [])
-
-  const handleViewItem = useCallback((item: LocalPropertyItem) => {
-    setOpenCardId(null)
-    store.selectItem(item)
-    onSelectItem(item)
-  }, [store, onSelectItem])
-
-  const handleTransferSingle = useCallback((item: LocalPropertyItem) => {
-    setOpenCardId(null)
-    setTransferItems([item])
-    onTransferItem()
-  }, [onTransferItem])
-
-  const handleDeleteSingle = useCallback((item: LocalPropertyItem) => {
-    setOpenCardId(null)
-    setPendingDelete({ kind: 'single', item })
-  }, [])
-
-  const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
 
   // Navigate to detail from sub-panels (hand-receipt, locations, etc.)
   const handleSelectItem = useCallback((item: LocalPropertyItem) => {
@@ -210,26 +140,6 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
     onSelectItem(item)
   }, [store, onSelectItem])
 
-  const handleTreeSelectLocation = useCallback((loc: LocalPropertyLocation) => {
-    if (isMobile) {
-      // Switch to canvas view first, then navigate — map handles deferred nav if tags aren't loaded
-      onMobileLocationViewChange?.(true)
-      setTimeout(() => mapRef.current?.navigateToZone(loc.id), 60)
-    } else {
-      mapRef.current?.navigateToZone(loc.id)
-    }
-  }, [isMobile, onMobileLocationViewChange])
-
-  // Clinic name tap → zoom canvas back to root
-  const handleSelectAllLocations = useCallback(() => {
-    store.selectZone(null)
-    if (isMobile) {
-      onMobileLocationViewChange?.(true)
-      setTimeout(() => mapRef.current?.resetZoom(), 60)
-    } else {
-      mapRef.current?.resetZoom()
-    }
-  }, [store, isMobile, onMobileLocationViewChange])
 
   const handleMoveLocation = useCallback(async (locationId: string, newParentId: string | null) => {
     await property.editLocation(locationId, { parent_id: newParentId })
@@ -245,7 +155,6 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
       setNewLocationName('')
       setShowNewLocation(true)
     })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onRegisterAddLocation])
 
   const handleCreateLocation = useCallback(async () => {
@@ -340,24 +249,6 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
     if (fileInputRef.current) fileInputRef.current.value = ''
   }, [])
 
-  // ── Action bar handlers ──
-
-  const selectedItems = useMemo(() => {
-    return filteredItems.filter((i) => selectedIds.has(i.id))
-  }, [filteredItems, selectedIds])
-
-  const handleActionTransfer = useCallback(() => {
-    if (selectedItems.length === 0) return
-    setTransferItems(selectedItems)
-    clearSelection()
-    onTransferItem()
-  }, [selectedItems, clearSelection, onTransferItem])
-
-  const handleActionDelete = useCallback(() => {
-    if (selectedItems.length === 0) return
-    setPendingDelete({ kind: 'batch', items: selectedItems })
-  }, [selectedItems])
-
   const handleConfirmDelete = useCallback(async () => {
     if (!pendingDelete) return
     if (pendingDelete.kind === 'single') {
@@ -366,14 +257,9 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
       await property.removeItem(store.selectedItem.id)
       store.selectItem(null)
       onBack()
-    } else if (pendingDelete.kind === 'batch') {
-      for (const item of pendingDelete.items) {
-        await property.removeItem(item.id)
-      }
-      clearSelection()
     }
     setPendingDelete(null)
-  }, [pendingDelete, property, store, onBack, clearSelection])
+  }, [pendingDelete, property, store, onBack])
 
   if (showLoading) {
     return (
@@ -459,19 +345,14 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
     )
   }
 
-  // Desktop: always show canvas (with zone highlighted if selected)
+  // Desktop: dashboard as default right-pane content
   if (!isMobile) {
     return (
-      <PropertyLocationMap
-        ref={mapRef}
-        clinicId={property.clinicId!}
-        clinicName={clinicName}
-        locations={visibleLocations}
+      <PropertyDashboard
         items={property.items}
-        onCreateLocation={property.addLocation}
-        onDeleteLocation={property.removeLocation}
-        onEditItem={property.editItem}
-        onUpdateLocation={property.editLocation}
+        locations={visibleLocations}
+        holders={holders}
+        searchQuery={searchQuery}
         onSelectItem={handleSelectItem}
       />
     )
@@ -481,7 +362,6 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
   if (isMobile && mobileLocationView) {
     return (
       <div className="flex flex-col h-full relative">
-        <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleCSVFile} />
         <PropertyLocationMap
           ref={mapRef}
           clinicId={property.clinicId!}
@@ -494,56 +374,22 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
           onUpdateLocation={property.editLocation}
           onSelectItem={handleSelectItem}
         />
-        {/* Bottom island — CSV actions + Add FAB */}
-        <div className="sticky bottom-4 inset-x-0 flex items-center justify-center z-20 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
-          <div className="flex items-center gap-1.5 rounded-full bg-themewhite border border-tertiary/20 px-0.5 py-0.5 shadow-lg pointer-events-auto">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200 active:scale-95"
-              title="Import CSV"
-            >
-              <Upload className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => exportPropertyCSV(property.items, visibleLocations)}
-              className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200 active:scale-95"
-              title="Export CSV"
-            >
-              <Download className="w-5 h-5" />
-            </button>
-            <button
-              onClick={downloadCSVTemplate}
-              className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200 active:scale-95"
-              title="Download Template"
-            >
-              <FileSpreadsheet className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
-            <button
-              onClick={() => setShowAddSheet(true)}
-              className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
-            >
-              <Plus className="w-5 h-5" />
-            </button>
-          </div>
+        {/* FAB */}
+        <div className="absolute bottom-4 right-4 z-20 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg">
+          <button
+            onClick={() => setShowAddSheet(true)}
+            className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
         </div>
-        {csvImport && (
-          <PropertyCSVImport
-            rows={csvImport.rows}
-            errors={csvImport.errors}
-            locations={visibleLocations}
-            clinicId={property.clinicId || ''}
-            onImport={property.addItem}
-            onClose={() => setCsvImport(null)}
-          />
-        )}
         <ActionSheet
           visible={showAddSheet}
           title="Add to Property Book"
           options={[
             { key: 'item', label: 'New Item', onAction: onAddItem },
             { key: 'location', label: 'New Location', onAction: () => { setNewLocationName(''); setShowNewLocation(true) } },
+            { key: 'csv', label: 'Import CSV', onAction: () => fileInputRef.current?.click() },
           ]}
           onClose={() => setShowAddSheet(false)}
         />
@@ -552,7 +398,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
       <input
         ref={fileInputRef}
         type="file"
@@ -567,131 +413,55 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
         </div>
       )}
 
-      {/* Content area */}
-      <div className="flex-1 flex min-h-0">
-        <div className="flex-1 min-w-0">
-        {isMobile ? (
-          <>
-            {/* Mobile new-location inline form — triggered by header FolderPlus button */}
-            {showNewLocation && (
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-primary/10 bg-themewhite2/50">
-                <input
-                  type="text"
-                  value={newLocationName}
-                  onChange={(e) => setNewLocationName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleCreateLocation()
-                    if (e.key === 'Escape') setShowNewLocation(false)
-                  }}
-                  placeholder="Location name"
-                  autoFocus
-                  className="flex-1 min-w-0 px-3 py-2.5 rounded-lg text-primary text-base border border-tertiary/10 focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none transition-all placeholder:text-tertiary/30"
-                />
-                <button
-                  onClick={() => setShowNewLocation(false)}
-                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
-                >
-                  <X size={18} />
-                </button>
-                <button
-                  onClick={handleCreateLocation}
-                  disabled={!newLocationName.trim()}
-                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
-                >
-                  <Check size={18} />
-                </button>
-              </div>
-            )}
-            <PropertyLocationList
-              ref={locationListRef}
-              locations={visibleLocations}
-              items={property.items}
-              clinicName={clinicName}
-              searchQuery={searchQuery}
-              onSelectItem={handleSelectItem}
-              onEditLocation={(loc) => { setRenamingLocation({ id: loc.id, name: loc.name }) }}
-              onDeleteLocation={(locId) => property.removeLocation(locId)}
-              onDeleteItem={(item) => setPendingDelete({ kind: 'single', item })}
-              onViewOnMap={(locationId) => {
-                onMobileLocationViewChange?.(true)
-                setTimeout(() => mapRef.current?.navigateToZone(locationId), 60)
-              }}
-              onDrilldownChange={onDrilldownChange}
-            />
-          </>
-        ) : (
-          <>
-            {filteredItems.map((item) => (
-              <PropertyItemRow
-                key={item.id}
-                item={item}
-                holderName={item.current_holder_id ? holders.get(item.current_holder_id)?.displayName : undefined}
-                subItemCount={subItemCounts.get(item.id)}
-                isSelected={selectedIds.has(item.id)}
-                isOpen={openCardId === item.id}
-                multiSelectMode={multiSelectMode}
-                onOpen={() => { setOpenCardId(item.id) }}
-                onClose={() => setOpenCardId(prev => prev === item.id ? null : prev)}
-                onTap={() => {
-                  setOpenCardId(null)
-                  if (!multiSelectMode) {
-                    const isTogglingOff = selectedIds.has(item.id)
-                    setSelectedIds(isTogglingOff ? new Set() : new Set([item.id]))
-                  }
-                }}
-                onView={() => handleViewItem(item)}
-                onTransfer={() => handleTransferSingle(item)}
-                onDelete={() => handleDeleteSingle(item)}
-                onContextMenu={(e) => { e.preventDefault(); setContextMenu({ itemId: item.id, x: e.clientX, y: e.clientY }) }}
-                onToggleSelect={() => handleToggleSelect(item)}
-              />
-            ))}
-            {filteredItems.length === 0 && (
-              <EmptyState
-                title={searchQuery ? 'No items match your search' : desktopLocationId ? 'No items at this location' : 'No items in property book'}
-              />
-            )}
-          </>
-        )}
-        </div>
-      </div>
-
-      {/* Bottom island — CSV actions + Add FAB */}
-      {!hasSelection && (
-        <div className="sticky bottom-4 inset-x-0 flex items-center justify-center z-20 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
-          <div className="flex items-center gap-1.5 rounded-full bg-themewhite border border-tertiary/20 px-0.5 py-0.5 shadow-lg pointer-events-auto">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200 active:scale-95"
-              title="Import CSV"
-            >
-              <Upload className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => exportPropertyCSV(property.items, visibleLocations)}
-              className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200 active:scale-95"
-              title="Export CSV"
-            >
-              <Download className="w-5 h-5" />
-            </button>
-            <button
-              onClick={downloadCSVTemplate}
-              className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200 active:scale-95"
-              title="Download Template"
-            >
-              <FileSpreadsheet className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
-            <button
-              onClick={() => setShowAddSheet(true)}
-              className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
-            >
-              <Plus className="w-5 h-5" />
-            </button>
-          </div>
+      {/* Mobile new-location inline form */}
+      {showNewLocation && (
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-primary/10 bg-themewhite2/50">
+          <input
+            type="text"
+            value={newLocationName}
+            onChange={(e) => setNewLocationName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleCreateLocation()
+              if (e.key === 'Escape') setShowNewLocation(false)
+            }}
+            placeholder="Location name"
+            autoFocus
+            className="flex-1 min-w-0 px-3 py-2.5 rounded-lg text-primary text-base border border-tertiary/10 focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none transition-all placeholder:text-tertiary/30"
+          />
+          <button
+            onClick={() => setShowNewLocation(false)}
+            className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+          >
+            <X size={18} />
+          </button>
+          <button
+            onClick={handleCreateLocation}
+            disabled={!newLocationName.trim()}
+            className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+          >
+            <Check size={18} />
+          </button>
         </div>
       )}
+
+      {/* Dashboard — location-grouped item sections */}
+      <PropertyDashboard
+        items={property.items}
+        locations={visibleLocations}
+        holders={holders}
+        searchQuery={searchQuery}
+        onSelectItem={handleSelectItem}
+      />
+
+      {/* FAB */}
+      <div className="absolute bottom-4 right-4 z-20 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg">
+        <button
+          onClick={() => setShowAddSheet(true)}
+          className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
+        >
+          <Plus className="w-5 h-5" />
+        </button>
+      </div>
 
       <ActionSheet
         visible={showAddSheet}
@@ -702,69 +472,6 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
         ]}
         onClose={() => setShowAddSheet(false)}
       />
-
-      {/* Bottom action bar — shown when items are selected */}
-      {hasSelection && (() => {
-        const singleSelected = selectedIds.size === 1
-        const barActions: ActionBarAction[] = []
-        if (singleSelected) {
-          const item = filteredItems.find(i => selectedIds.has(i.id))
-          if (item) {
-            barActions.push(
-              { key: 'view', label: 'View', icon: Eye, iconBg: 'bg-themegreen/15', iconColor: 'text-themegreen', onAction: () => handleViewItem(item) },
-              { key: 'transfer', label: 'Transfer', icon: ArrowRightLeft, iconBg: 'bg-themeblue2/15', iconColor: 'text-themeblue2', onAction: () => handleTransferSingle(item) },
-              { key: 'delete', label: 'Delete', icon: Trash2, iconBg: 'bg-themeredred/15', iconColor: 'text-themeredred', onAction: () => handleDeleteSingle(item) },
-            )
-          }
-        } else {
-          barActions.push(
-            { key: 'transfer', label: 'Transfer', icon: ArrowRightLeft, iconBg: 'bg-themeblue2/15', iconColor: 'text-themeblue2', onAction: handleActionTransfer },
-            { key: 'delete', label: 'Delete', icon: Trash2, iconBg: 'bg-themeredred/15', iconColor: 'text-themeredred', onAction: handleActionDelete },
-          )
-        }
-        return (
-          <CardActionBar
-            selectedCount={selectedIds.size}
-            onClear={clearSelection}
-            actions={barActions}
-          />
-        )
-      })()}
-
-      {/* Right-click context menu */}
-      {contextMenu && (() => {
-        const item = filteredItems.find(i => i.id === contextMenu.itemId)
-        if (!item) return null
-        return (
-          <CardContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            onClose={() => setContextMenu(null)}
-            items={[
-              {
-                key: 'view',
-                label: 'View',
-                icon: Eye,
-                onAction: () => handleViewItem(item),
-              },
-              {
-                key: 'transfer',
-                label: 'Transfer',
-                icon: ArrowRightLeft,
-                onAction: () => handleTransferSingle(item),
-              },
-              {
-                key: 'delete',
-                label: 'Delete',
-                icon: Trash2,
-                destructive: true,
-                onAction: () => handleDeleteSingle(item),
-              },
-            ]}
-          />
-        )
-      })()}
-
 
       {/* CSV Import modal */}
       {csvImport && (
@@ -781,9 +488,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
     )
   }
 
-  const deleteDialogTitle = pendingDelete?.kind === 'batch'
-    ? `Delete ${pendingDelete.items.length} item${pendingDelete.items.length > 1 ? 's' : ''}? This cannot be undone.`
-    : 'Delete this item? This cannot be undone.'
+  const deleteDialogTitle = 'Delete this item? This cannot be undone.'
 
   // Desktop: split layout with locations sidebar
   if (!isMobile) {
@@ -894,39 +599,14 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
         </div>
         <div className="flex-1 flex flex-col min-w-0 relative">
           {renderViewContent()}
-          {/* Bottom island — CSV actions + Add FAB */}
-          <div className="absolute bottom-4 inset-x-0 flex items-center justify-center z-20 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
-            <div className="flex items-center gap-1.5 rounded-full bg-themewhite border border-tertiary/20 px-0.5 py-0.5 shadow-lg pointer-events-auto">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200 active:scale-95"
-                title="Import CSV"
-              >
-                <Upload className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => exportPropertyCSV(property.items, visibleLocations)}
-                className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200 active:scale-95"
-                title="Export CSV"
-              >
-                <Download className="w-5 h-5" />
-              </button>
-              <button
-                onClick={downloadCSVTemplate}
-                className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200 active:scale-95"
-                title="Download Template"
-              >
-                <FileSpreadsheet className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
-              <button
-                onClick={() => setShowAddSheet(true)}
-                className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
-              >
-                <Plus className="w-5 h-5" />
-              </button>
-            </div>
+          {/* FAB */}
+          <div className="absolute bottom-4 right-4 z-20 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg">
+            <button
+              onClick={() => setShowAddSheet(true)}
+              className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
           </div>
         </div>
       </div>
@@ -936,6 +616,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
         options={[
           { key: 'item', label: 'New Item', onAction: () => { store.setDefaultLocationId(null); store.setEditingItem(null); onAddItem() } },
           { key: 'location', label: 'New Location', onAction: () => { setNewLocationName(''); setShowNewLocation(true) } },
+          { key: 'csv', label: 'Import CSV', onAction: () => fileInputRef.current?.click() },
         ]}
         onClose={() => setShowAddSheet(false)}
       />
