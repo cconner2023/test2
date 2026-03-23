@@ -14,7 +14,7 @@ import { isPinEnabled, hydrateFromCloud, removePin, initPinService } from '../li
 import { removeBiometric } from '../lib/biometricService'
 import { clearServiceWorkerCaches } from '../lib/cacheService'
 import { clearPasswordVerification } from '../lib/authService'
-import { prefetchBarcodeKey } from '../lib/cryptoService'
+import { prefetchBarcodeKey, clearKeyStore } from '../lib/cryptoService'
 import { startHeartbeat, stopHeartbeat } from '../lib/activityHeartbeat'
 import { initSignalBundle } from '../lib/signal/signalInit'
 import { clearSignalKeys, destroySignalKeys, getLocalDeviceId } from '../lib/signal/keyManager'
@@ -300,21 +300,45 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     clearBackupKey()
     // Clear in-memory session cache
     clearAllSessions()
+    // Clear clinic encryption key cache
+    clearKeyStore().catch(() => {})
 
     if (wasPrimary) {
       // Primary logout: destroy entire IDB databases (nuke containers + encryption key).
       // This ensures no residual data survives — a full clean slate.
-      destroySignalKeys().catch(() => {})
-      destroyMessageStore().catch(() => {})
-      destroyOutboundQueue().catch(() => {})
-      destroySecureStore().catch(() => {})
+      // Use allSettled so one failure doesn't block others, with nuclear fallback.
+      ;(async () => {
+        const results = await Promise.allSettled([
+          destroySignalKeys(),
+          destroyMessageStore(),
+          destroyOutboundQueue(),
+          destroySecureStore(),
+        ])
+        const dbNames = ['adtmc-signal-store', 'adtmc-message-store', 'adtmc-outbound-queue', 'adtmc-secure-store']
+        results.forEach((r, i) => {
+          if (r.status === 'rejected') {
+            try { indexedDB.deleteDatabase(dbNames[i]) } catch { /* last resort */ }
+          }
+        })
+      })()
     } else {
       // Linked/provisional logout: purge data from stores but keep
       // database containers and the device encryption key intact so
       // the device can re-authenticate cleanly on next login.
-      clearSignalKeys().catch(() => {})
-      clearMessageStore().catch(() => {})
-      clearOutboundQueue().catch(() => {})
+      // Nuclear fallback: if clear fails, force-delete the databases.
+      ;(async () => {
+        const results = await Promise.allSettled([
+          clearSignalKeys(),
+          clearMessageStore(),
+          clearOutboundQueue(),
+        ])
+        const dbNames = ['adtmc-signal-store', 'adtmc-message-store', 'adtmc-outbound-queue']
+        results.forEach((r, i) => {
+          if (r.status === 'rejected') {
+            try { indexedDB.deleteDatabase(dbNames[i]) } catch { /* last resort */ }
+          }
+        })
+      })()
     }
 
     if (LORA_MESH_ENABLED) {

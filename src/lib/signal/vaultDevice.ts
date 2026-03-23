@@ -369,7 +369,7 @@ export async function deriveAndCacheVaultKey(
     const { data } = await supabase
       .from('vault_device_keys')
       .select('salt, kdf_iterations')
-      .single()
+      .maybeSingle()
 
     if (!data) {
       // No vault exists yet — nothing to cache

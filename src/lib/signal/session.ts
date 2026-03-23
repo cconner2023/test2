@@ -27,12 +27,14 @@
 
 import { createLogger } from '../../Utilities/Logger'
 import { uint8ToBase64, base64ToUint8 } from '../../Utilities/textCodec'
-import { ensureLocalIdentity, consumePreKey, storePeerIdentity } from './keyManager'
+import { ensureLocalIdentity, consumePreKey, storePeerIdentity, getPreKeyCount, generatePreKeys, assemblePublicKeyBundle } from './keyManager'
 import * as store from './keyStore'
 import { x3dhInitiate, x3dhRespond } from './x3dh'
 import { initSender, initReceiver, ratchetEncrypt, ratchetDecrypt } from './ratchet'
 import { importDhPublicKey } from './keyManager'
 import { seal, unseal } from './sealedSender'
+import { uploadKeyBundle } from './signalService'
+import { SIGNAL } from '../constants'
 import type { SealedEnvelope } from './sealedSender'
 import type {
   PublicKeyBundle,
@@ -42,6 +44,37 @@ import type {
 } from './types'
 
 const logger = createLogger('SignalSession')
+
+// ---- Pre-Key Replenishment ----
+
+let _replenishing = false
+
+async function replenishPreKeysIfNeeded(myUserId: string): Promise<void> {
+  if (_replenishing) return
+  _replenishing = true
+  try {
+    const currentCount = await getPreKeyCount()
+    const threshold = Math.floor(SIGNAL.PREKEY_BATCH_SIZE / 2)
+    if (currentCount >= threshold) return
+
+    const needed = SIGNAL.PREKEY_BATCH_SIZE - currentCount
+    await generatePreKeys(needed)
+
+    const identity = await ensureLocalIdentity()
+    const bundle = await assemblePublicKeyBundle(myUserId, identity.deviceId)
+    if (!bundle) {
+      logger.warn('replenishPreKeysIfNeeded: could not assemble bundle after generating pre-keys')
+      return
+    }
+
+    await uploadKeyBundle(bundle)
+    logger.info(`Pre-key pool replenished: generated ${needed}, uploaded updated bundle`)
+  } catch (err) {
+    logger.warn('replenishPreKeysIfNeeded failed', err)
+  } finally {
+    _replenishing = false
+  }
+}
 
 // ---- Helpers ----
 
@@ -336,6 +369,8 @@ export async function processIncomingMessage(
         updatedAt: new Date().toISOString(),
       }
       await persistSession(session)
+
+      replenishPreKeysIfNeeded(myUuid).catch(() => {})
 
       logger.info(`Inbound session created with peer ${senderUuid} device ${senderDeviceId}`)
       return { plaintext: new TextDecoder().decode(plaintext), senderUuid, identityKeyChanged }

@@ -149,9 +149,11 @@ export async function signIn(
     storePasswordHash(password).catch(() => {})
     // Derive non-extractable backup CryptoKey from password (password is NOT cached)
     deriveAndStoreBackupKey(password, data.user.id).catch(() => {})
-    // Ensure vault exists for this user (migration for existing users) and cache wrapping key
-    ensureVaultExists(data.user.id, password).catch(() => {})
-    deriveAndCacheVaultKey(password).catch(() => {})
+    // Ensure vault exists for this user (migration for existing users), then cache wrapping key.
+    // Sequential: deriveAndCacheVaultKey needs the vault row to exist before fetching salt.
+    ensureVaultExists(data.user.id, password)
+      .then(() => deriveAndCacheVaultKey(password))
+      .catch(() => {})
 
     fireNotification({
       type: 'user_login',
