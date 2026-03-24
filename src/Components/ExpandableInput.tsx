@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useTextExpander } from '../Hooks/useTextExpander';
 import { TextExpanderSuggestion } from './TextExpanderSuggestion';
@@ -88,6 +88,15 @@ export function ExpandableInput({
     const handleBlur = useCallback(() => {
         if (!value.trim()) setFocused(false);
     }, [value]);
+
+    // Auto-resize textarea to fit content
+    useEffect(() => {
+        const el = inputRef.current;
+        if (el && multiline) {
+            el.style.height = 'auto';
+            el.style.height = `${el.scrollHeight}px`;
+        }
+    }, [value, multiline]);
 
     const sharedProps = {
         value,

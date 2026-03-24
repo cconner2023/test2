@@ -1,8 +1,8 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Check, X, Trash2 } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { COMPREHENSIVE_DEFAULT_BLOCK_IDS, getBlockByKey } from '../../Data/PhysicalExamData';
-import type { UserTypes, ProviderNoteTemplate } from '../../Data/User';
+import type { UserTypes, ProviderNoteTemplate, TextExpander } from '../../Data/User';
 
 const TEXTAREA_CLASS =
     'w-full min-h-[80px] rounded-xl border border-themeblue3/10 shadow-xs bg-themewhite p-3 text-sm text-primary ' +
@@ -12,16 +12,142 @@ interface EditCardState {
     id: string;
     name: string;
     isNew: boolean;
-    hpiAbbr: string;
     hpiText: string;
-    peAbbr: string;
     peText: string;
     peBlockKeys: string[];
-    assessAbbr: string;
     assessText: string;
-    planAbbr: string;
     planSetId: string;
     planText: string;
+}
+
+function TemplateFieldInput({
+    value,
+    onChange,
+    expanders,
+    placeholder,
+}: {
+    value: string;
+    onChange: (value: string) => void;
+    expanders: TextExpander[];
+    placeholder?: string;
+}) {
+    const [cursorPosition, setCursorPosition] = useState(0);
+    const inputRef = useRef<HTMLTextAreaElement>(null);
+
+    const detectedAbbrs = useMemo(() => {
+        if (!value.trim()) return [];
+        const tokens = value.split(/\s+/).filter(Boolean);
+        const seen = new Set<string>();
+        return expanders.filter(e => {
+            if (seen.has(e.abbr)) return false;
+            const found = tokens.some(t => t === e.abbr);
+            if (found) seen.add(e.abbr);
+            return found;
+        });
+    }, [value, expanders]);
+
+    const currentWord = useMemo(() => {
+        if (cursorPosition <= 0 || cursorPosition > value.length) return '';
+        let start = cursorPosition;
+        while (start > 0 && !/\s/.test(value[start - 1])) start--;
+        return value.slice(start, cursorPosition);
+    }, [value, cursorPosition]);
+
+    const suggestions = useMemo(() => {
+        if (!currentWord || currentWord.length < 2) return [];
+        const lc = currentWord.toLowerCase();
+        return expanders.filter(e => {
+            const abbrLc = e.abbr.toLowerCase();
+            return abbrLc.startsWith(lc) && abbrLc !== lc;
+        }).slice(0, 5);
+    }, [currentWord, expanders]);
+
+    const handleAcceptSuggestion = (expander: TextExpander) => {
+        const start = cursorPosition - currentWord.length;
+        const newText = value.slice(0, start) + expander.abbr + ' ' + value.slice(cursorPosition);
+        const newCursor = start + expander.abbr.length + 1;
+        onChange(newText);
+        setCursorPosition(newCursor);
+        requestAnimationFrame(() => {
+            inputRef.current?.setSelectionRange(newCursor, newCursor);
+        });
+    };
+
+    const handleRemoveAbbr = (abbr: string) => {
+        const tokens = value.split(/(\s+)/);
+        const filtered = tokens.filter(t => t.trim() !== abbr);
+        onChange(filtered.join('').trim());
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (suggestions.length > 0 && e.key === 'Enter') {
+            e.preventDefault();
+            handleAcceptSuggestion(suggestions[0]);
+        }
+    };
+
+    useEffect(() => {
+        const el = inputRef.current;
+        if (el) {
+            el.style.height = 'auto';
+            el.style.height = `${el.scrollHeight}px`;
+        }
+    }, [value]);
+
+    return (
+        <div>
+            {detectedAbbrs.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                    {detectedAbbrs.map(e => (
+                        <span
+                            key={e.abbr}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-themeblue2/15 text-themeblue2 ring-1 ring-inset ring-themeblue2/20"
+                        >
+                            {e.abbr}
+                            <button
+                                type="button"
+                                onClick={() => handleRemoveAbbr(e.abbr)}
+                                className="ml-0.5 hover:text-themeredred transition-colors active:scale-95"
+                            >
+                                <X size={10} />
+                            </button>
+                        </span>
+                    ))}
+                </div>
+            )}
+            <div className="relative">
+                <textarea
+                    ref={inputRef}
+                    value={value}
+                    onChange={(e) => { onChange(e.target.value); setCursorPosition(e.target.selectionStart ?? 0); }}
+                    onSelect={(e) => setCursorPosition(e.currentTarget.selectionStart ?? 0)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={placeholder}
+                    className={TEXTAREA_CLASS}
+                />
+                {suggestions.length > 0 && (
+                    <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-themewhite rounded-xl border border-tertiary/10 shadow-lg overflow-hidden max-h-40 overflow-y-auto">
+                        {suggestions.map((e, i) => (
+                            <button
+                                key={e.abbr}
+                                type="button"
+                                onMouseDown={(ev) => ev.preventDefault()}
+                                onClick={() => handleAcceptSuggestion(e)}
+                                className={`w-full text-left px-3 py-2 text-sm hover:bg-themeblue2/8 active:scale-[0.98] transition-all ${
+                                    i === 0 ? 'bg-themeblue2/5' : ''
+                                }`}
+                            >
+                                <span className="font-medium text-themeblue2">{e.abbr}</span>
+                                <span className="text-tertiary/50 ml-2 text-xs truncate">
+                                    {e.template?.length ? 'Template' : e.expansion.length > 60 ? e.expansion.slice(0, 57) + '...' : e.expansion}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 }
 
 interface ProviderTemplatesPanelProps {
@@ -118,10 +244,10 @@ export const ProviderTemplatesPanel = ({
             id: crypto.randomUUID(),
             name: trimmed,
             isNew: true,
-            hpiAbbr: '', hpiText: '',
-            peAbbr: '', peText: '', peBlockKeys: [],
-            assessAbbr: '', assessText: '',
-            planAbbr: '', planSetId: '', planText: '',
+            hpiText: '',
+            peText: '', peBlockKeys: [],
+            assessText: '',
+            planSetId: '', planText: '',
         });
         setInputName('');
         setInputError('');
@@ -134,20 +260,23 @@ export const ProviderTemplatesPanel = ({
 
     // Open inline edit card for existing template (non-edit mode tap)
     const handleCardTap = useCallback((t: ProviderNoteTemplate) => {
+        const mergeField = (abbrs: string[] | undefined, legacyAbbr: string | undefined, text: string | undefined): string => {
+            const parts: string[] = [];
+            if (abbrs?.length) parts.push(...abbrs);
+            else if (legacyAbbr) parts.push(legacyAbbr);
+            if (text) parts.push(text);
+            return parts.join(' ');
+        };
         setEditCard({
             id: t.id,
             name: t.name,
             isNew: false,
-            hpiAbbr: t.hpiExpanderAbbr ?? '',
-            hpiText: t.hpiText ?? '',
-            peAbbr: t.peExpanderAbbr ?? '',
-            peText: t.peText ?? '',
+            hpiText: mergeField(t.hpiExpanderAbbrs, t.hpiExpanderAbbr, t.hpiText),
+            peText: mergeField(t.peExpanderAbbrs, t.peExpanderAbbr, t.peText),
             peBlockKeys: t.peBlockKeys ?? [],
-            assessAbbr: t.assessmentExpanderAbbr ?? '',
-            assessText: t.assessmentText ?? '',
-            planAbbr: t.planExpanderAbbr ?? '',
+            assessText: mergeField(t.assessmentExpanderAbbrs, t.assessmentExpanderAbbr, t.assessmentText),
             planSetId: t.planOrderSetId ?? '',
-            planText: t.planText ?? '',
+            planText: mergeField(t.planExpanderAbbrs, t.planExpanderAbbr, t.planText),
         });
     }, []);
 
@@ -158,16 +287,12 @@ export const ProviderTemplatesPanel = ({
         const entry: ProviderNoteTemplate = {
             id: editCard.id,
             name: editCard.name,
-            hpiExpanderAbbr: editCard.hpiAbbr || undefined,
-            hpiText: !editCard.hpiAbbr && editCard.hpiText ? editCard.hpiText : undefined,
-            peExpanderAbbr: !hasPeBlocks && editCard.peAbbr ? editCard.peAbbr : undefined,
-            peText: !hasPeBlocks && !editCard.peAbbr && editCard.peText ? editCard.peText : undefined,
+            hpiText: editCard.hpiText || undefined,
+            peText: !hasPeBlocks && editCard.peText ? editCard.peText : undefined,
             peBlockKeys: hasPeBlocks ? editCard.peBlockKeys : undefined,
-            assessmentExpanderAbbr: editCard.assessAbbr || undefined,
-            assessmentText: !editCard.assessAbbr && editCard.assessText ? editCard.assessText : undefined,
-            planExpanderAbbr: editCard.planAbbr || undefined,
-            planOrderSetId: !editCard.planAbbr && editCard.planSetId ? editCard.planSetId : undefined,
-            planText: !editCard.planAbbr && !editCard.planSetId && editCard.planText ? editCard.planText : undefined,
+            assessmentText: editCard.assessText || undefined,
+            planOrderSetId: editCard.planSetId || undefined,
+            planText: editCard.planText || undefined,
         };
 
         if (editCard.isNew) {
@@ -190,57 +315,15 @@ export const ProviderTemplatesPanel = ({
         setEditCard(null);
     }, [editCard, profile.providerNoteTemplates, handleUpdate]);
 
-    // ── Shared pill renderers ──
-
-    const renderExpanderPills = (selectedAbbr: string, onSelect: (abbr: string) => void) => {
-        if (!expanders.length) return null;
-        return (
-            <div className="flex flex-wrap gap-1.5 mb-2">
-                {expanders.map(e => (
-                    <button
-                        key={e.abbr}
-                        type="button"
-                        onClick={() => onSelect(selectedAbbr === e.abbr ? '' : e.abbr)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all active:scale-95 ${
-                            selectedAbbr === e.abbr
-                                ? 'bg-themeblue2/15 text-themeblue2 ring-1 ring-inset ring-themeblue2/20'
-                                : 'bg-tertiary/8 text-tertiary hover:bg-tertiary/12'
-                        }`}
-                    >
-                        {e.abbr}
-                    </button>
-                ))}
-            </div>
-        );
-    };
-
-    const renderPreview = (abbr: string) => {
-        if (!abbr) return null;
-        const match = expanders.find(e => e.abbr === abbr);
-        if (!match) return null;
-        const text = match.template?.length ? 'Template shortcut' : match.expansion;
-        return <p className="text-[11px] text-tertiary/50 mt-1 line-clamp-2">{text}</p>;
-    };
-
     const renderSection = (
         label: string,
-        selectedAbbr: string,
-        onSelectAbbr: (abbr: string) => void,
-        customText: string,
-        onCustomText: (text: string) => void,
+        text: string,
+        onText: (text: string) => void,
         placeholder: string,
     ) => (
         <div className="px-4 py-3.5">
             <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">{label}</p>
-            {renderExpanderPills(selectedAbbr, onSelectAbbr)}
-            {selectedAbbr ? renderPreview(selectedAbbr) : (
-                <textarea
-                    value={customText}
-                    onChange={(e) => onCustomText(e.target.value)}
-                    placeholder={placeholder}
-                    className={TEXTAREA_CLASS}
-                />
-            )}
+            <TemplateFieldInput value={text} onChange={onText} expanders={expanders} placeholder={placeholder} />
         </div>
     );
 
@@ -251,12 +334,12 @@ export const ProviderTemplatesPanel = ({
 
     const fieldPreview = (t: ProviderNoteTemplate): string => {
         const parts: string[] = [];
-        if (t.hpiExpanderAbbr || t.hpiText) parts.push('HPI');
+        if (t.hpiExpanderAbbrs?.length || t.hpiExpanderAbbr || t.hpiText) parts.push('HPI');
         if (t.peBlockKeys?.length) parts.push(`PE (${t.peBlockKeys.length})`);
-        else if (t.peExpanderAbbr || t.peText) parts.push('PE');
-        if (t.assessmentExpanderAbbr || t.assessmentText) parts.push('Assess');
-        if (t.planExpanderAbbr || t.planOrderSetId || t.planText) parts.push('Plan');
-        return parts.join(' · ') || 'Empty template';
+        else if (t.peExpanderAbbrs?.length || t.peExpanderAbbr || t.peText) parts.push('PE');
+        if (t.assessmentExpanderAbbrs?.length || t.assessmentExpanderAbbr || t.assessmentText) parts.push('Assess');
+        if (t.planExpanderAbbrs?.length || t.planExpanderAbbr || t.planOrderSetId || t.planText) parts.push('Plan');
+        return parts.join(' · ') || 'Empty';
     };
 
     return (
@@ -293,16 +376,14 @@ export const ProviderTemplatesPanel = ({
                                 </div>
 
                                 {/* SOAP sections */}
-                                {renderSection('HPI', editCard.hpiAbbr,
-                                    (abbr) => setEditCard({ ...editCard, hpiAbbr: abbr }),
+                                {renderSection('HPI',
                                     editCard.hpiText,
                                     (text) => setEditCard({ ...editCard, hpiText: text }),
-                                    'Custom HPI text…'
+                                    'Type shortcuts or free text…'
                                 )}
                                 {/* PE — block picker or expander/text */}
                                 <div className="px-4 py-3.5">
                                     <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">Physical Exam</p>
-                                    {/* Block picker pills */}
                                     <p className="text-[9pt] text-tertiary/50 uppercase tracking-wider mb-1.5">Exam Blocks</p>
                                     <div className="flex flex-wrap gap-1.5 mb-2">
                                         {COMPREHENSIVE_DEFAULT_BLOCK_IDS.map(key => {
@@ -317,7 +398,7 @@ export const ProviderTemplatesPanel = ({
                                                         const next = selected
                                                             ? editCard.peBlockKeys.filter(k => k !== key)
                                                             : [...editCard.peBlockKeys, key];
-                                                        setEditCard({ ...editCard, peBlockKeys: next, peAbbr: '', peText: '' });
+                                                        setEditCard({ ...editCard, peBlockKeys: next, peText: '' });
                                                     }}
                                                     className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all active:scale-95 ${
                                                         selected
@@ -335,69 +416,53 @@ export const ProviderTemplatesPanel = ({
                                             {editCard.peBlockKeys.length} block{editCard.peBlockKeys.length !== 1 ? 's' : ''} → all normal on apply
                                         </p>
                                     ) : (
-                                        <>
-                                            {renderExpanderPills(editCard.peAbbr, (abbr) => setEditCard({ ...editCard, peAbbr: abbr }))}
-                                            {editCard.peAbbr ? renderPreview(editCard.peAbbr) : (
-                                                <textarea
-                                                    value={editCard.peText}
-                                                    onChange={(e) => setEditCard({ ...editCard, peText: e.target.value })}
-                                                    placeholder="Custom PE text…"
-                                                    className={TEXTAREA_CLASS}
-                                                />
-                                            )}
-                                        </>
+                                        <TemplateFieldInput
+                                            value={editCard.peText}
+                                            onChange={(text) => setEditCard({ ...editCard, peText: text })}
+                                            expanders={expanders}
+                                            placeholder="Type shortcuts or free text…"
+                                        />
                                     )}
                                 </div>
-                                {renderSection('Assessment', editCard.assessAbbr,
-                                    (abbr) => setEditCard({ ...editCard, assessAbbr: abbr }),
+                                {renderSection('Assessment',
                                     editCard.assessText,
                                     (text) => setEditCard({ ...editCard, assessText: text }),
-                                    'Custom assessment text…'
+                                    'Type shortcuts or free text…'
                                 )}
 
-                                {/* Plan — expanders + order sets */}
+                                {/* Plan — text input + order sets */}
                                 <div className="px-4 py-3.5">
                                     <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">Plan</p>
-                                    {renderExpanderPills(editCard.planAbbr, (abbr) => {
-                                        setEditCard({ ...editCard, planAbbr: abbr, ...(abbr ? { planSetId: '', planText: '' } : {}) });
-                                    })}
-                                    {editCard.planAbbr ? renderPreview(editCard.planAbbr) : (
+                                    {orderSets.length > 0 && (
                                         <>
-                                            {orderSets.length > 0 && (
-                                                <>
-                                                    <p className="text-[9pt] text-tertiary/50 uppercase tracking-wider mb-1.5 mt-1">Order Sets</p>
-                                                    <div className="flex flex-wrap gap-1.5 mb-2">
-                                                        {orderSets.map(os => (
-                                                            <button
-                                                                key={os.id}
-                                                                type="button"
-                                                                onClick={() => setEditCard({
-                                                                    ...editCard,
-                                                                    planSetId: editCard.planSetId === os.id ? '' : os.id,
-                                                                    planText: editCard.planSetId !== os.id ? '' : editCard.planText,
-                                                                })}
-                                                                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all active:scale-95 ${
-                                                                    editCard.planSetId === os.id
-                                                                        ? 'bg-themeblue2/15 text-themeblue2 ring-1 ring-inset ring-themeblue2/20'
-                                                                        : 'bg-tertiary/8 text-tertiary hover:bg-tertiary/12'
-                                                                }`}
-                                                            >
-                                                                {os.name}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </>
-                                            )}
-                                            {!editCard.planSetId && (
-                                                <textarea
-                                                    value={editCard.planText}
-                                                    onChange={(e) => setEditCard({ ...editCard, planText: e.target.value })}
-                                                    placeholder="Custom plan text…"
-                                                    className={TEXTAREA_CLASS}
-                                                />
-                                            )}
+                                            <p className="text-[9pt] text-tertiary/50 uppercase tracking-wider mb-1.5">Order Sets</p>
+                                            <div className="flex flex-wrap gap-1.5 mb-2">
+                                                {orderSets.map(os => (
+                                                    <button
+                                                        key={os.id}
+                                                        type="button"
+                                                        onClick={() => setEditCard({
+                                                            ...editCard,
+                                                            planSetId: editCard.planSetId === os.id ? '' : os.id,
+                                                        })}
+                                                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all active:scale-95 ${
+                                                            editCard.planSetId === os.id
+                                                                ? 'bg-themeblue2/15 text-themeblue2 ring-1 ring-inset ring-themeblue2/20'
+                                                                : 'bg-tertiary/8 text-tertiary hover:bg-tertiary/12'
+                                                        }`}
+                                                    >
+                                                        {os.name}
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </>
                                     )}
+                                    <TemplateFieldInput
+                                        value={editCard.planText}
+                                        onChange={(text) => setEditCard({ ...editCard, planText: text })}
+                                        expanders={expanders}
+                                        placeholder="Type shortcuts or free text…"
+                                    />
                                 </div>
 
                                 {/* Footer */}

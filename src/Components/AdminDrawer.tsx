@@ -14,7 +14,6 @@ import { useAuthStore } from '../stores/useAuthStore'
 
 // Admin sub-components
 import { AdminRequestsList } from './Admin/AdminRequestsList'
-import { AdminRequestDetail } from './Admin/AdminRequestDetail'
 import { AdminUsersList } from './Admin/AdminUsersList'
 import { AdminUserDetail } from './Admin/AdminUserDetail'
 import AdminUserForm from './Admin/AdminUserForm'
@@ -31,7 +30,6 @@ export type AdminView =
     | 'admin-user-form'
     | 'admin-clinic-detail'
     | 'admin-clinic-form'
-    | 'admin-request-detail'
 
 const TABS = ['requests', 'users', 'clinics'] as const
 type AdminTab = typeof TABS[number]
@@ -55,7 +53,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // Selected entity for detail/form views
     const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
     const [selectedClinic, setSelectedClinic] = useState<AdminClinic | null>(null)
-    const [selectedRequest, setSelectedRequest] = useState<AccountRequest | null>(null)
     const [isEditMode, setIsEditMode] = useState(false)
 
     // Clinic delete confirmation (triggered from header pill)
@@ -124,11 +121,28 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setView('admin-clinic-detail')
     }, [handleSlideAnimation])
 
-    const handleSelectRequest = useCallback((request: AccountRequest) => {
-        setSelectedRequest(request)
-        handleSlideAnimation('left')
-        setView('admin-request-detail')
-    }, [handleSlideAnimation])
+    const handleRequestApproved = useCallback((userId: string, request: AccountRequest) => {
+        const newUser: AdminUser = {
+            id: userId,
+            email: request.email,
+            first_name: request.first_name,
+            last_name: request.last_name,
+            middle_initial: request.middle_initial ?? null,
+            credential: request.credential ?? null,
+            component: request.component ?? null,
+            rank: request.rank ?? null,
+            uic: request.uic ?? null,
+            roles: ['medic'],
+            clinic_id: null,
+            created_at: new Date().toISOString(),
+            last_active_at: null,
+            note_include_hpi: true,
+            note_include_pe: false,
+            pe_depth: 'standard',
+            avatar_id: null,
+        }
+        handleSelectUser(newUser)
+    }, [handleSelectUser])
 
     const handleEditClinic = useCallback((clinic: AdminClinic) => {
         setSelectedClinic(clinic)
@@ -155,10 +169,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         } else if (view === 'admin-clinic-form' && selectedClinic) {
             handleSlideAnimation('right')
             setView('admin-clinic-detail')
-        } else if (view === 'admin-request-detail') {
-            handleSlideAnimation('right')
-            setView('admin')
-            setSelectedRequest(null)
         } else if (view !== 'admin') {
             handleSlideAnimation('right')
             setView('admin')
@@ -172,7 +182,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setActiveTab('requests')
         setSelectedUser(null)
         setSelectedClinic(null)
-        setSelectedRequest(null)
         setSlideDirection('')
         setConfirmDeleteClinic(false)
         setConfirmDeleteUser(false)
@@ -382,14 +391,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     showBack: true,
                     onBack: handleBack,
                 }
-            case 'admin-request-detail': {
-                const reqName = selectedRequest
-                    ? `${selectedRequest.first_name || ''} ${selectedRequest.last_name || ''}`.trim() || 'Request'
-                    : 'Request'
-                return { title: reqName, showBack: true, onBack: handleBack }
-            }
         }
-    }, [view, selectedUser, selectedClinic, selectedRequest, handleBack, detailHeaderActions, mainHeaderActions])
+    }, [view, selectedUser, selectedClinic, handleBack, detailHeaderActions, mainHeaderActions])
 
     // Scrollable padded wrapper for sub-views (detail/form)
     const subViewWrapper = (children: React.ReactNode) => (
@@ -452,44 +455,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         }}
                     />
                 )
-
-            case 'admin-request-detail':
-                return selectedRequest ? subViewWrapper(
-                    <AdminRequestDetail
-                        request={selectedRequest}
-                        onApproved={(userId) => {
-                            const newUser: AdminUser = {
-                                id: userId,
-                                email: selectedRequest.email,
-                                first_name: selectedRequest.first_name,
-                                last_name: selectedRequest.last_name,
-                                middle_initial: selectedRequest.middle_initial ?? null,
-                                credential: selectedRequest.credential ?? null,
-                                component: selectedRequest.component ?? null,
-                                rank: selectedRequest.rank ?? null,
-                                uic: selectedRequest.uic ?? null,
-                                roles: ['medic'],
-                                clinic_id: null,
-                                created_at: new Date().toISOString(),
-                                last_active_at: null,
-                                note_include_hpi: true,
-                                note_include_pe: false,
-                                pe_depth: 'standard',
-                                avatar_id: null,
-                            }
-                            setSelectedRequest(null)
-                            handleSelectUser(newUser)
-                        }}
-                        onRejected={() => {
-                            setSelectedRequest(null)
-                            setView('admin')
-                        }}
-                        onReopened={() => {
-                            setSelectedRequest(null)
-                            setView('admin')
-                        }}
-                    />
-                ) : null
 
             case 'admin':
             default:
@@ -554,7 +519,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             {activeTab === 'requests' && (
                 <AdminRequestsList
                     searchQuery={searchQuery}
-                    onSelectRequest={handleSelectRequest}
+                    onApproved={handleRequestApproved}
                 />
             )}
             {activeTab === 'users' && (
@@ -583,7 +548,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 <AdminRequestsList
                     searchQuery={searchQuery}
                     bare
-                    onSelectRequest={handleSelectRequest}
+                    onApproved={handleRequestApproved}
                 />
                 <AdminUsersList
                     onSelectUser={handleSelectUser}

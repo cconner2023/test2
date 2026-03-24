@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Check, X, UserPlus, Pill, ScanLine, FlaskConical, CalendarCheck, ClipboardList, ChevronDown } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { PlanOrderTags, PlanOrderCategory, PlanBlockKey } from '../../Data/User';
@@ -44,6 +44,19 @@ export const PlanTagManager = ({
     const [input, setInput] = useState('');
     const [activeCategory, setActiveCategory] = useState<PlanBlockKey>('referral');
     const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+    const pickerRef = useRef<HTMLDivElement>(null);
+
+    // Close dropdown on outside tap
+    useEffect(() => {
+        if (!showCategoryPicker) return;
+        const handleDown = (e: PointerEvent) => {
+            if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+                setShowCategoryPicker(false);
+            }
+        };
+        document.addEventListener('pointerdown', handleDown);
+        return () => document.removeEventListener('pointerdown', handleDown);
+    }, [showCategoryPicker]);
 
     const getTagsForKey = (key: PlanBlockKey): string[] => {
         if (key === 'instructions') return instructionTags;
@@ -85,16 +98,18 @@ export const PlanTagManager = ({
                 )}
             </div>
 
-            <div className={`rounded-xl bg-themewhite2 overflow-hidden transition-colors ${
+            <div className={`rounded-xl bg-themewhite2 transition-colors ${
+                showCategoryPicker ? 'overflow-visible' : 'overflow-hidden'
+            } ${
                 selectMode ? 'ring-2 ring-themeblue2/20' : ''
             }`}>
                 <div className="px-4 py-3">
                     {/* Add input with category picker — edit-gated, hidden during selectMode */}
-                    <div className={`overflow-hidden transition-all duration-300 ease-out ${
+                    <div className={`transition-all duration-300 ease-out ${
                         editing && !selectMode ? 'max-h-32 opacity-100 mb-2' : 'max-h-0 opacity-0'
-                    }`}>
+                    } ${showCategoryPicker ? 'overflow-visible' : 'overflow-hidden'}`}>
                         <div className="flex items-center gap-1.5">
-                            <div className="relative">
+                            <div className="relative" ref={pickerRef}>
                                 <button
                                     type="button"
                                     onClick={() => setShowCategoryPicker(!showCategoryPicker)}

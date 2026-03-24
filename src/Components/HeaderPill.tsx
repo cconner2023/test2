@@ -15,8 +15,11 @@ interface PillButtonProps {
 }
 
 export function PillButton({ icon: Icon, onClick, label, variant = 'default', iconSize, compact, disabled, circleBg }: PillButtonProps) {
-    const size = compact ? 'w-8 h-8' : 'w-9 h-9'   // 32px compact, 36px default
-    const resolvedIconSize = iconSize ?? (compact ? 18 : 20)
+    const isMobile = useIsMobile()
+    const size = compact
+        ? (isMobile ? 'w-[2.125rem] h-[2.125rem]' : 'w-8 h-8')    // 34px mobile, 32px desktop
+        : (isMobile ? 'w-[2.375rem] h-[2.375rem]' : 'w-9 h-9')    // 38px mobile, 36px desktop
+    const resolvedIconSize = iconSize ?? (compact ? (isMobile ? 20 : 18) : (isMobile ? 22 : 20))
 
     const color = circleBg
         ? ''

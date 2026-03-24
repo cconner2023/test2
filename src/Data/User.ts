@@ -76,20 +76,24 @@ export interface PlanOrderSet {
 export interface ProviderNoteTemplate {
     id: string;
     name: string;
-    /** Text expander abbr to expand into HPI */
+    /** @deprecated Use hpiExpanderAbbrs */
     hpiExpanderAbbr?: string;
+    hpiExpanderAbbrs?: string[];
     hpiText?: string;
-    /** PE depth override for this template */
     peDepth?: 'focused' | 'comprehensive' | 'custom';
+    /** @deprecated Use peExpanderAbbrs */
     peExpanderAbbr?: string;
+    peExpanderAbbrs?: string[];
     peText?: string;
-    /** PE block keys to auto-mark "all normal" when template is applied */
     peBlockKeys?: string[];
+    /** @deprecated Use assessmentExpanderAbbrs */
     assessmentExpanderAbbr?: string;
+    assessmentExpanderAbbrs?: string[];
     assessmentText?: string;
-    /** Plan order set ID to auto-apply */
     planOrderSetId?: string;
+    /** @deprecated Use planExpanderAbbrs */
     planExpanderAbbr?: string;
+    planExpanderAbbrs?: string[];
     planText?: string;
 }
 

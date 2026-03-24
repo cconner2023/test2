@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Clock, Building2, Trash2, UserCheck, Eye, X, HelpCircle } from 'lucide-react'
+import { Clock, Building2, Trash2, UserCheck, Eye, X, HelpCircle, Check, RefreshCw } from 'lucide-react'
+import { TextInput, PickerInput, UicPinInput } from '../FormInputs'
 import { EmptyState } from '../EmptyState'
 import { CardContextMenu } from '../CardContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -7,15 +8,27 @@ import { LoadingSpinner } from '../LoadingSpinner'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useLongPress } from '../../Hooks/useLongPress'
+import { credentials, components, ranksByComponent } from '../../Data/User'
+import type { Component } from '../../Data/User'
 import {
   getAllAccountRequests,
   deleteAccountRequest,
   listClinics,
   listAllUsers,
+  approveAccountRequest,
+  rejectAccountRequest,
+  reopenAccountRequest,
+  updateUserProfile,
+  addUserRole,
+  setUserClinic,
 } from '../../lib/adminService'
 import type { AdminClinic } from '../../lib/adminService'
 import type { AccountRequest } from '../../lib/accountRequestService'
 import { UI_TIMING } from '../../Utilities/constants'
+
+// ─── Constants ──────────────────────────────────────────────
+const AVAILABLE_ROLES = ['medic', 'supervisor', 'dev', 'provider'] as const
+type Role = (typeof AVAILABLE_ROLES)[number]
 
 // ─── Status badge colors ────────────────────────────────────
 function getStatusColor(status: string): string {
@@ -32,19 +45,22 @@ interface AdminRequestsListProps {
   searchQuery?: string
   /** When true, renders items without wrapper chrome (for unified search results) */
   bare?: boolean
-  onSelectRequest?: (request: AccountRequest) => void
+  onApproved?: (userId: string, request: AccountRequest) => void
 }
 
-// ─── Per-card long-press wrapper ────────────────────────────
+// ─── Per-card component ─────────────────────────────────────
 function RequestCard({
   request,
   expandedId,
   setExpandedId,
   setConfirmDeleteId,
-  matchedClinic,
+  matchedClinic: cardMatchedClinic,
   isExistingUser,
   setContextMenu,
-  onSelectRequest,
+  clinics,
+  uicToClinic,
+  onApproved,
+  onRefresh,
 }: {
   request: AccountRequest
   expandedId: string | null
@@ -53,7 +69,10 @@ function RequestCard({
   matchedClinic: AdminClinic | undefined
   isExistingUser: boolean
   setContextMenu: (v: { requestId: string; x: number; y: number } | null) => void
-  onSelectRequest?: (request: AccountRequest) => void
+  clinics: AdminClinic[]
+  uicToClinic: Map<string, AdminClinic>
+  onApproved?: (userId: string, request: AccountRequest) => void
+  onRefresh: () => void
 }) {
   const isSupport = request.request_type === 'support'
   const isPending = request.status === 'pending'
@@ -61,20 +80,142 @@ function RequestCard({
   const hasActions = isSupport ? true : (isPending || isRejected)
   const isExpanded = expandedId === request.id
 
+  // ── Form state (only used when expanded + pending) ──────
+  const [firstName, setFirstName] = useState(request.first_name || '')
+  const [lastName, setLastName] = useState(request.last_name || '')
+  const [middleInitial, setMiddleInitial] = useState(request.middle_initial || '')
+  const [credential, setCredential] = useState(request.credential || '')
+  const [component, setComponent] = useState(request.component || '')
+  const [rank, setRank] = useState(request.rank || '')
+  const [uic, setUic] = useState(request.uic || '')
+  const [roles, setRoles] = useState<Record<Role, boolean>>({ medic: true, supervisor: false, dev: false, provider: false })
+  const [selectedClinicId, setSelectedClinicId] = useState('')
+  const [noteIncludeHPI, setNoteIncludeHPI] = useState(true)
+  const [noteIncludePE, setNoteIncludePE] = useState(false)
+  const [peDepth, setPeDepth] = useState('standard')
+  const [processing, setProcessing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [rejectMode, setRejectMode] = useState(false)
+  const [rejectReason, setRejectReason] = useState('')
+
+  // ── Derived ─────────────────────────────────────────────
+  const componentRanks = component ? ranksByComponent[component as Component] : []
+
+  const clinicOptions = useMemo(
+    () => clinics.map((c) => ({ value: c.id, label: `${c.name} (${c.uics.join(', ')})` })),
+    [clinics],
+  )
+
+  const formMatchedClinic = uic ? uicToClinic.get(uic.toUpperCase()) : undefined
+
+  // ── Auto-set clinic from UIC ────────────────────────────
+  useEffect(() => {
+    if (!isExpanded || !isPending || !uic || selectedClinicId) return
+    const matched = uicToClinic.get(uic.toUpperCase())
+    if (matched) setSelectedClinicId(matched.id)
+  }, [isExpanded, isPending, uic, uicToClinic, selectedClinicId])
+
+  // ── Component → rank filtering ──────────────────────────
+  const handleComponentChange = useCallback((val: string) => {
+    setComponent(val)
+    if (val && rank && !ranksByComponent[val as Component]?.includes(rank)) {
+      setRank('')
+    }
+  }, [rank])
+
+  // ── Handlers ────────────────────────────────────────────
+  const handleApprove = useCallback(async () => {
+    const chosenRoles = AVAILABLE_ROLES.filter((r) => roles[r])
+    if (chosenRoles.length === 0) {
+      setError('At least one role must be selected')
+      return
+    }
+
+    setProcessing(true)
+    setError(null)
+
+    const approveResult = await approveAccountRequest(request.id)
+    if (!approveResult.success || !approveResult.data?.userId) {
+      setError(approveResult.error || 'Failed to approve request')
+      setProcessing(false)
+      return
+    }
+
+    const userId = approveResult.data.userId
+
+    await updateUserProfile(userId, {
+      firstName: firstName || undefined,
+      lastName: lastName || undefined,
+      middleInitial,
+      credential,
+      component,
+      rank,
+      uic: uic || undefined,
+      noteIncludeHPI,
+      noteIncludePE,
+      peDepth,
+    })
+
+    for (const role of chosenRoles) {
+      if (role !== 'medic') {
+        await addUserRole(userId, role)
+      }
+    }
+
+    if (selectedClinicId) {
+      await setUserClinic(userId, selectedClinicId)
+    }
+
+    setProcessing(false)
+    onApproved?.(userId, request)
+    onRefresh()
+  }, [
+    request, firstName, lastName, middleInitial, credential, component, rank, uic,
+    roles, selectedClinicId, noteIncludeHPI, noteIncludePE, peDepth, onApproved, onRefresh,
+  ])
+
+  const handleReject = useCallback(async () => {
+    if (!rejectReason.trim()) {
+      setError('Please provide a rejection reason')
+      return
+    }
+    setProcessing(true)
+    setError(null)
+    const result = await rejectAccountRequest(request.id, rejectReason.trim())
+    setProcessing(false)
+    if (result.success) {
+      setExpandedId(null)
+      onRefresh()
+    } else {
+      setError(result.error || 'Failed to reject request')
+    }
+  }, [request.id, rejectReason, setExpandedId, onRefresh])
+
+  const handleReopen = useCallback(async () => {
+    setProcessing(true)
+    setError(null)
+    const result = await reopenAccountRequest(request.id)
+    setProcessing(false)
+    if (result.success) {
+      setExpandedId(null)
+      onRefresh()
+    } else {
+      setError(result.error || 'Failed to reopen request')
+    }
+  }, [request.id, setExpandedId, onRefresh])
+
+  // ── Long press ──────────────────────────────────────────
   const longPress = useLongPress((x: number, y: number) => {
     if (!hasActions) return
     setContextMenu({ requestId: request.id, x, y })
   }, { delay: 500 })
 
   const handleTap = useCallback(() => {
-    if (!isSupport && onSelectRequest) {
-      onSelectRequest(request)
-      return
-    }
     if (!hasActions) return
     setExpandedId(isExpanded ? null : request.id)
-  }, [isSupport, onSelectRequest, request, hasActions, isExpanded, setExpandedId])
+  }, [hasActions, isExpanded, setExpandedId, request.id])
 
+  // ── Icon styling ────────────────────────────────────────
   const iconBg = isSupport
     ? 'bg-themeblue2/10'
     : request.status === 'pending'  ? 'bg-themeyellow/10'
@@ -137,10 +278,10 @@ function RequestCard({
       {!isSupport && request.uic && (
         <div className="flex items-center gap-2 flex-wrap px-4 pb-2">
           <span className="text-[10pt] text-tertiary">{request.uic}</span>
-          {matchedClinic ? (
+          {cardMatchedClinic ? (
             <span className="inline-flex items-center gap-1 text-[10pt] text-tertiary">
               <Building2 size={12} />
-              {matchedClinic.name}
+              {cardMatchedClinic.name}
             </span>
           ) : (
             <span className="text-[10pt] text-tertiary">No clinic match</span>
@@ -158,7 +299,7 @@ function RequestCard({
         <p className="text-[10pt] text-tertiary px-4 pb-2">Already a user — safe to clear this request</p>
       )}
 
-      {/* Expanded detail section — support requests only */}
+      {/* ── Expanded: support request (simple) ─────────────── */}
       {isExpanded && isSupport && (
         <div className="px-4 pb-3.5 pt-3 border-t border-tertiary/10 space-y-2" onClick={(e) => e.stopPropagation()}>
           {request.notes && (
@@ -177,12 +318,217 @@ function RequestCard({
           </div>
         </div>
       )}
+
+      {/* ── Expanded: pending request (full edit form) ──────── */}
+      {isExpanded && isPending && !isSupport && (
+        <div
+          className="border-t border-tertiary/10 px-4 pb-4 pt-3"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className={`space-y-3 ${processing ? 'opacity-50 pointer-events-none' : ''}`}>
+            {error && <ErrorDisplay message={error} />}
+
+            {/* Request metadata */}
+            <div className="flex items-baseline justify-between">
+              <p className="text-sm text-tertiary/60">{request.email}</p>
+              <p className="text-[11px] text-tertiary/40">
+                {new Date(request.requested_at).toLocaleDateString()}
+              </p>
+            </div>
+            {request.notes && (
+              <p className="text-[11px] text-tertiary/50 italic">{request.notes}</p>
+            )}
+
+            {/* Profile — matches AccountRequestForm layout */}
+            <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
+              <div className="space-y-3">
+                <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Edit Account</p>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <TextInput value={firstName} onChange={setFirstName} placeholder="First Name *" required />
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <TextInput value={lastName} onChange={setLastName} placeholder="Last Name *" required />
+                    </div>
+                    <div className="w-11 shrink-0">
+                      <TextInput value={middleInitial} onChange={(v) => setMiddleInitial(v.toUpperCase().slice(0, 1))} placeholder="MI" maxLength={1} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <PickerInput value={credential} onChange={setCredential} options={credentials} placeholder="Credential" inline />
+                  <PickerInput value={component} onChange={handleComponentChange} options={components} placeholder="Component" inline />
+                </div>
+
+                {component && (
+                  <PickerInput value={rank} onChange={setRank} options={componentRanks} placeholder="Rank" inline />
+                )}
+
+                <div>
+                  <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1.5 block">UIC</span>
+                  <UicPinInput value={uic} onChange={setUic} spread />
+                </div>
+
+                <PickerInput value={selectedClinicId} onChange={setSelectedClinicId} options={clinicOptions} placeholder="Clinic" inline />
+                {formMatchedClinic && selectedClinicId === formMatchedClinic.id && (
+                  <p className="-mt-2 text-[11px] text-themegreen flex items-center gap-1">
+                    <Building2 size={12} />
+                    Auto-matched from UIC
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Roles */}
+            <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
+              <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-2">Roles</p>
+              <div className="flex gap-3 flex-wrap">
+                {AVAILABLE_ROLES.map((role) => (
+                  <label key={role} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={roles[role]}
+                      onChange={() => setRoles((prev) => ({ ...prev, [role]: !prev[role] }))}
+                      className="w-4 h-4 rounded border-tertiary/30"
+                    />
+                    <span className="text-sm text-primary capitalize">{role}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Note Defaults */}
+            <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
+              <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-2">Note Defaults</p>
+              <div className="space-y-1">
+                <label className="flex items-center justify-between cursor-pointer py-1">
+                  <span className="text-sm text-primary">Include HPI</span>
+                  <input
+                    type="checkbox"
+                    checked={noteIncludeHPI}
+                    onChange={() => setNoteIncludeHPI(!noteIncludeHPI)}
+                    className="w-4 h-4 rounded border-tertiary/30"
+                  />
+                </label>
+                <label className="flex items-center justify-between cursor-pointer py-1">
+                  <span className="text-sm text-primary">Include PE</span>
+                  <input
+                    type="checkbox"
+                    checked={noteIncludePE}
+                    onChange={() => setNoteIncludePE(!noteIncludePE)}
+                    className="w-4 h-4 rounded border-tertiary/30"
+                  />
+                </label>
+                <PickerInput value={peDepth} onChange={setPeDepth} options={['focused', 'standard', 'comprehensive']} placeholder="PE Depth" inline />
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            {rejectMode ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Rejection reason..."
+                  className="flex-1 min-w-0 px-4 py-2.5 rounded-full bg-themewhite2 border border-tertiary/10 text-sm text-primary placeholder:text-tertiary/40 focus:outline-none focus:border-themeblue2"
+                />
+                <button
+                  onClick={() => { setRejectMode(false); setRejectReason('') }}
+                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                >
+                  <X size={18} />
+                </button>
+                <button
+                  onClick={handleReject}
+                  disabled={processing || !rejectReason.trim()}
+                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeredred text-white disabled:opacity-30 active:scale-95 transition-all"
+                >
+                  {processing ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  onClick={() => setRejectMode(true)}
+                  disabled={processing}
+                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-themeredred active:scale-95 transition-all disabled:opacity-30"
+                >
+                  <Trash2 size={18} />
+                </button>
+                <button
+                  onClick={handleApprove}
+                  disabled={processing}
+                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+                >
+                  {processing ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Expanded: rejected request (read-only + reopen) ── */}
+      {isExpanded && isRejected && !isSupport && (
+        <div
+          className="border-t border-tertiary/10 px-4 pb-4 pt-3"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className={`space-y-3 ${processing ? 'opacity-50 pointer-events-none' : ''}`}>
+            {error && <ErrorDisplay message={error} />}
+
+            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden px-4 py-3.5 space-y-2">
+              <p className="text-sm font-medium text-primary">
+                {request.rank ? `${request.rank} ` : ''}
+                {request.first_name}
+                {request.middle_initial ? ` ${request.middle_initial}` : ''}{' '}
+                {request.last_name}
+              </p>
+              {request.credential && (
+                <p className="text-xs text-tertiary/60">
+                  Credential: <span className="text-primary">{request.credential}</span>
+                </p>
+              )}
+              {request.component && (
+                <p className="text-xs text-tertiary/60">
+                  Component: <span className="text-primary">{request.component}</span>
+                </p>
+              )}
+              {request.uic && (
+                <p className="text-xs text-tertiary/60">
+                  UIC: <span className="text-primary">{request.uic}</span>
+                </p>
+              )}
+            </div>
+
+            {request.rejection_reason && (
+              <div className="rounded-2xl border border-themeredred/10 bg-themeredred/5 overflow-hidden px-4 py-3.5">
+                <p className="text-xs text-themeredred">
+                  Rejected: {request.rejection_reason}
+                </p>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end">
+              <button
+                onClick={handleReopen}
+                disabled={processing}
+                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+              >
+                {processing ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 // ─── Component ──────────────────────────────────────────────
-export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onSelectRequest }: AdminRequestsListProps) {
+export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApproved }: AdminRequestsListProps) {
   const searchQuery = searchQueryProp ?? ''
 
   // Data
@@ -278,6 +624,11 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onSelect
     setDeleteProcessing(false)
   }, [loadRequests])
 
+  // ── Context menu helper: expand the card ────────────────
+  const handleContextView = useCallback((requestId: string) => {
+    setExpandedId(requestId)
+  }, [])
+
   // ── Loading state ───────────────────────────────────────
   if (showLoading && !bare) {
     return (
@@ -285,6 +636,21 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onSelect
         <LoadingSpinner className="text-tertiary" />
       </div>
     )
+  }
+
+  // ── Shared context menu items builder ───────────────────
+  const buildContextItems = (ctxRequest: AccountRequest | undefined, requestId: string) => {
+    if (!ctxRequest) return []
+    if (ctxRequest.request_type === 'support') {
+      return [
+        { key: 'view', label: 'View', icon: Eye, onAction: () => handleContextView(requestId) },
+        { key: 'delete', label: 'Dismiss', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteId(requestId) },
+      ]
+    }
+    return [
+      { key: 'view', label: 'View', icon: Eye, onAction: () => handleContextView(requestId) },
+      { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteId(requestId) },
+    ]
   }
 
   // ── Bare mode: just the items (no wrapper chrome) ──────
@@ -309,23 +675,17 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onSelect
               matchedClinic={matchedClinic}
               isExistingUser={isExistingUser}
               setContextMenu={setContextMenu}
-              onSelectRequest={onSelectRequest}
+              clinics={clinics}
+              uicToClinic={uicToClinic}
+              onApproved={onApproved}
+              onRefresh={loadRequests}
             />
           )
         })}
 
         {contextMenu && (() => {
           const ctxRequest = requests.find(r => r.id === contextMenu.requestId)
-          const ctxItems = ctxRequest?.request_type === 'support' ? [
-            { key: 'view', label: 'View', icon: Eye, onAction: () => setExpandedId(contextMenu.requestId) },
-            { key: 'delete', label: 'Dismiss', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteId(contextMenu.requestId) },
-          ] : ctxRequest?.status === 'rejected' ? [
-            { key: 'view', label: 'View', icon: Eye, onAction: () => { if (onSelectRequest) { const r = requests.find(r => r.id === contextMenu.requestId); if (r) onSelectRequest(r) } } },
-            { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteId(contextMenu.requestId) },
-          ] : [
-            { key: 'view', label: 'View', icon: Eye, onAction: () => { if (onSelectRequest) { const r = requests.find(r => r.id === contextMenu.requestId); if (r) onSelectRequest(r) } } },
-            { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteId(contextMenu.requestId) },
-          ]
+          const ctxItems = buildContextItems(ctxRequest, contextMenu.requestId)
           return <CardContextMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} items={ctxItems} />
         })()}
 
@@ -374,7 +734,10 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onSelect
                   matchedClinic={matchedClinic}
                   isExistingUser={isExistingUser}
                   setContextMenu={setContextMenu}
-                  onSelectRequest={onSelectRequest}
+                  clinics={clinics}
+                  uicToClinic={uicToClinic}
+                  onApproved={onApproved}
+                  onRefresh={loadRequests}
                 />
               )
             })}
@@ -385,49 +748,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onSelect
       {/* Right-click / long-press context menu */}
       {contextMenu && (() => {
         const ctxRequest = requests.find(r => r.id === contextMenu.requestId)
-        const ctxItems = ctxRequest?.request_type === 'support' ? [
-          {
-            key: 'view',
-            label: 'View',
-            icon: Eye,
-            onAction: () => setExpandedId(contextMenu.requestId),
-          },
-          {
-            key: 'delete',
-            label: 'Dismiss',
-            icon: Trash2,
-            destructive: true,
-            onAction: () => setConfirmDeleteId(contextMenu.requestId),
-          },
-        ] : ctxRequest?.status === 'rejected' ? [
-          {
-            key: 'view',
-            label: 'View',
-            icon: Eye,
-            onAction: () => { if (onSelectRequest) { const r = requests.find(r => r.id === contextMenu.requestId); if (r) onSelectRequest(r) } },
-          },
-          {
-            key: 'delete',
-            label: 'Delete',
-            icon: Trash2,
-            destructive: true,
-            onAction: () => setConfirmDeleteId(contextMenu.requestId),
-          },
-        ] : [
-          {
-            key: 'view',
-            label: 'View',
-            icon: Eye,
-            onAction: () => { if (onSelectRequest) { const r = requests.find(r => r.id === contextMenu.requestId); if (r) onSelectRequest(r) } },
-          },
-          {
-            key: 'delete',
-            label: 'Delete',
-            icon: Trash2,
-            destructive: true,
-            onAction: () => setConfirmDeleteId(contextMenu.requestId),
-          },
-        ]
+        const ctxItems = buildContextItems(ctxRequest, contextMenu.requestId)
 
         return (
           <CardContextMenu

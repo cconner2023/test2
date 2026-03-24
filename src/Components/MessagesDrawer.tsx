@@ -171,7 +171,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     // ── Mobile: full-screen content (animation handled by App.tsx) ────────
     if (isMobile) {
         const mobileHeader = view === 'messages' ? (
-            <div className="shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center gap-2 backdrop-blur-xs bg-themewhite3/80">
+            <div className="shrink-0 px-3 py-3 pt-[max(0.75rem,var(--sat,0px))] flex items-center gap-2 backdrop-blur-xs bg-themewhite3/80">
                 <HeaderPill>
                     <PillButton icon={ChevronLeft} onClick={handleClose} label="Back" />
                 </HeaderPill>
@@ -190,7 +190,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                         className="absolute top-0 left-0 right-0 z-10 overflow-hidden"
                         style={{
                             height: headerCollapseSpring.collapse.to(
-                                (c: number) => `calc((var(--sat, 0px) + 3.4375rem) * ${1 - c})`
+                                (c: number) => `calc((var(--sat, 0px) + 4.375rem) * ${1 - c})`
                             ),
                             opacity: headerCollapseSpring.collapse.to((c: number) => 1 - c),
                             transform: headerCollapseSpring.collapse.to(

@@ -27,8 +27,8 @@ interface ProviderNoteProps {
 }
 
 const TEXTAREA_CLASS =
-  'w-full min-h-[120px] md:min-h-[72px] rounded-xl border border-themeblue3/10 shadow-xs bg-themewhite p-3 text-sm text-primary ' +
-  'placeholder:text-tertiary/30 focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none resize-none transition-all duration-300';
+  'w-full rounded-xl border border-themeblue3/10 shadow-xs bg-themewhite p-3 text-sm text-primary ' +
+  'placeholder:text-tertiary/30 focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none resize-none transition-all duration-300 overflow-hidden';
 
 export function ProviderNote({
   hpiNote,

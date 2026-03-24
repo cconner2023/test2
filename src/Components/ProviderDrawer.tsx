@@ -79,10 +79,19 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
 
   // ── Template apply (merge — only fills empty provider fields) ──────────────
 
-  const resolveExpander = useCallback((abbr: string | undefined, expanders: TextExpander[]): string => {
-    if (!abbr) return ''
-    const match = expanders.find(e => e.abbr === abbr)
-    return match?.expansion ?? ''
+  const expandTemplateText = useCallback((text: string | undefined, abbrs: string[] | undefined, legacyAbbr: string | undefined, expanders: TextExpander[]): string => {
+    // Unified model: abbreviations are embedded in text, expand tokens in-place
+    if (text?.trim()) {
+      const abbrMap = new Map(expanders.map(e => [e.abbr, e.expansion]));
+      return text.split(/(\s+)/).map(token => abbrMap.get(token) ?? token).join('');
+    }
+    // Legacy model: separate abbreviation fields
+    const list = abbrs?.length ? abbrs : legacyAbbr ? [legacyAbbr] : [];
+    if (!list.length) return '';
+    return list
+      .map(abbr => expanders.find(e => e.abbr === abbr)?.expansion ?? '')
+      .filter(Boolean)
+      .join('\n\n');
   }, [])
 
   const generatePlanFromOrderSet = useCallback((orderSet: PlanOrderSet): string => {
@@ -98,9 +107,13 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
 
   const handleApplyTemplate = useCallback((template: ProviderNoteTemplate) => {
     const expanders = profile.textExpanders ?? []
-    if (!hpiNote) setHpiNote(template.hpiText || resolveExpander(template.hpiExpanderAbbr, expanders))
+    if (!hpiNote) {
+      const text = expandTemplateText(template.hpiText, template.hpiExpanderAbbrs, template.hpiExpanderAbbr, expanders)
+      if (text) setHpiNote(text)
+    }
     if (!peNote && !template.peBlockKeys?.length) {
-      setPeNote(template.peText || resolveExpander(template.peExpanderAbbr, expanders))
+      const text = expandTemplateText(template.peText, template.peExpanderAbbrs, template.peExpanderAbbr, expanders)
+      if (text) setPeNote(text)
     }
     // PE structured blocks — build PEState with all-normal for each selected block
     if (template.peBlockKeys?.length && !peState) {
@@ -133,16 +146,19 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       })
       setPeResetKey(k => k + 1)
     }
-    if (!assessmentNote) setAssessmentNote(template.assessmentText || resolveExpander(template.assessmentExpanderAbbr, expanders))
+    if (!assessmentNote) {
+      const text = expandTemplateText(template.assessmentText, template.assessmentExpanderAbbrs, template.assessmentExpanderAbbr, expanders)
+      if (text) setAssessmentNote(text)
+    }
     if (!planNote) {
-      let text = template.planText || resolveExpander(template.planExpanderAbbr, expanders)
+      let text = expandTemplateText(template.planText, template.planExpanderAbbrs, template.planExpanderAbbr, expanders)
       if (!text && template.planOrderSetId) {
         const orderSet = (profile.planOrderSets ?? []).find(os => os.id === template.planOrderSetId)
         if (orderSet) text = generatePlanFromOrderSet(orderSet)
       }
       if (text) setPlanNote(text)
     }
-  }, [profile.textExpanders, profile.planOrderSets, hpiNote, peNote, peState, assessmentNote, planNote, resolveExpander, generatePlanFromOrderSet])
+  }, [profile.textExpanders, profile.planOrderSets, hpiNote, peNote, peState, assessmentNote, planNote, expandTemplateText, generatePlanFromOrderSet])
 
   // ── Import decode logic ────────────────────────────────────────────────────
 

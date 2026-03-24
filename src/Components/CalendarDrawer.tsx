@@ -256,7 +256,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                 {/* Mobile header — floats over content for scroll-behind blur */}
                 {isMobile && (
                     <div className="md:hidden absolute top-0 inset-x-0 z-10 backdrop-blur-sm bg-transparent">
-                        <div className="px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center justify-between">
+                        <div className="px-3 py-3 pt-[max(0.75rem,var(--sat,0px))] flex items-center justify-between">
                             <HeaderPill>
                                 <PillButton icon={ListFilter} onClick={() => setShowPersonnelDrawer(true)} label="Filter" />
                             </HeaderPill>

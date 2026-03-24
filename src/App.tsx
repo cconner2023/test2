@@ -475,12 +475,12 @@ case 'mapOverlay':
           >
           {/* Navbar - overlaps content on mobile for blur effect, extends into safe area on iOS */}
           <animated.div className={`${navigation.isMobile
-            ? 'absolute top-0 left-0 right-0 z-30 pt-[var(--sat)] backdrop-blur-xs bg-themewhite/10 overflow-hidden'
-            : 'relative'
-            } h-13.75 w-full rounded-t-md flex justify-end`}
+            ? 'absolute top-0 left-0 right-0 z-30 pt-[var(--sat)] backdrop-blur-xs bg-themewhite/10 overflow-hidden h-[4.375rem]'
+            : 'relative h-13.75'
+            } w-full rounded-t-md flex justify-end`}
             style={navigation.isMobile ? {
               height: headerCollapseSpring.collapse.to(
-                (c: number) => `calc((var(--sat, 0px) + 3.4375rem) * ${1 - c})`
+                (c: number) => `calc((var(--sat, 0px) + 4.375rem) * ${1 - c})`
               ),
               opacity: headerCollapseSpring.collapse.to((c: number) => 1 - c),
               transform: headerCollapseSpring.collapse.to(

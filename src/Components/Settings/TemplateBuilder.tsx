@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, Type, TextCursor, ChevronDown, GitBranch } from 'lucide-react';
+import { Plus, Trash2, Type, TextCursor, ChevronDown, GitBranch, GitMerge, ChevronRight } from 'lucide-react';
 import type { TemplateNode, TextNode, StepNode, ChoiceNode, BranchNode } from '../../Data/TemplateTypes';
 import { getChoiceLabels, findChoiceByLabel } from '../../Utilities/templateEngine';
 
@@ -122,6 +122,170 @@ export const TemplateBuilder = ({ nodes, onChange, depth = 0, rootNodes }: Templ
                 {nodes.map((node, i) => {
                     const isExpanded = expandedIndex === i;
 
+                    {/* ── BRANCH node — special start/end card rendering ── */}
+                    if (node.type === 'branch') {
+                        const branchCount = Object.keys(node.branches).length;
+                        return (
+                            <div key={i} className="relative pl-7">
+                                {/* Pipeline dot — start */}
+                                <span className="absolute left-[7px] top-[10px] w-2.5 h-2.5 rounded-full bg-themepurple -translate-x-1/2 z-10" />
+
+                                {/* ── Branch Start Card ── */}
+                                <div className="px-3 py-2 rounded-lg border border-themepurple/20 bg-themepurple/5">
+                                    <div className="flex items-center gap-2">
+                                        <GitBranch size={12} className="text-themepurple/70 shrink-0" />
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleExpand(i)}
+                                            className="flex-1 min-w-0 flex items-center gap-1.5 text-left active:scale-95 transition-transform"
+                                        >
+                                            <span className="text-xs text-themepurple/80 font-medium truncate">
+                                                {nodePreview(node)}
+                                            </span>
+                                            <ChevronRight
+                                                size={11}
+                                                className={`shrink-0 text-themepurple/40 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                                            />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDelete(i)}
+                                            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full hover:bg-themeredred/10 transition-colors active:scale-95"
+                                            aria-label="Delete branch"
+                                        >
+                                            <Trash2 size={12} className="text-themeredred/50" />
+                                        </button>
+                                    </div>
+
+                                    {/* Branch config — expanded */}
+                                    {isExpanded && (
+                                        <div className="mt-2 space-y-2">
+                                            {(() => {
+                                                const isInline = !!(node.label || node.options?.length);
+                                                return isInline ? (
+                                                    <div className="space-y-1.5">
+                                                        <input
+                                                            type="text"
+                                                            value={node.label ?? ''}
+                                                            onChange={(e) =>
+                                                                updateNode(i, { ...node, label: e.target.value })
+                                                            }
+                                                            placeholder="Prompt label (e.g. treatment path)"
+                                                            className={INPUT_CLASS}
+                                                        />
+                                                        <textarea
+                                                            value={(node.options ?? []).join('\n')}
+                                                            onChange={(e) => {
+                                                                const opts = e.target.value.split('\n');
+                                                                const filtered = opts.filter(o => o.trim());
+                                                                const newBranches: Record<string, TemplateNode[]> = {};
+                                                                for (const opt of filtered) {
+                                                                    newBranches[opt] = node.branches[opt] ?? [];
+                                                                }
+                                                                updateNode(i, {
+                                                                    ...node,
+                                                                    options: opts,
+                                                                    branches: newBranches,
+                                                                });
+                                                            }}
+                                                            placeholder="Options (one per line)"
+                                                            className={`${INPUT_CLASS} min-h-[3rem] resize-none leading-5 font-mono`}
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <select
+                                                        value={node.triggerField}
+                                                        onChange={(e) => {
+                                                            const tf = e.target.value;
+                                                            const choiceNode = findChoiceByLabel(topNodes, tf);
+                                                            const newBranches: Record<string, TemplateNode[]> = {};
+                                                            if (choiceNode) {
+                                                                for (const opt of choiceNode.options.filter(o =>
+                                                                    o.trim(),
+                                                                )) {
+                                                                    newBranches[opt] = node.branches[opt] ?? [];
+                                                                }
+                                                            }
+                                                            updateNode(i, {
+                                                                ...node,
+                                                                triggerField: tf,
+                                                                branches: newBranches,
+                                                            });
+                                                        }}
+                                                        className={INPUT_CLASS}
+                                                    >
+                                                        <option value="">Link to a Choice field...</option>
+                                                        {getChoiceLabels(topNodes).map(l => (
+                                                            <option key={l} value={l}>
+                                                                {l}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                );
+                                            })()}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ── Branch option sub-builders ── */}
+                                {branchCount > 0 && (
+                                    <div className="mt-1 ml-3 space-y-1 border-l-2 border-themepurple/15 pl-3">
+                                        {Object.entries(node.branches).map(([optVal, optNodes]) => (
+                                            <div key={optVal}>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="text-[10px] font-semibold text-themepurple">
+                                                        {optVal}
+                                                    </span>
+                                                    <div className="flex-1" />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const newBranches = { ...node.branches };
+                                                            delete newBranches[optVal];
+                                                            updateNode(i, { ...node, branches: newBranches });
+                                                        }}
+                                                        className="shrink-0 p-0.5 rounded hover:bg-themeredred/10 transition-colors active:scale-95"
+                                                        aria-label={`Delete ${optVal} branch`}
+                                                    >
+                                                        <Trash2 size={10} className="text-themeredred/40" />
+                                                    </button>
+                                                </div>
+                                                <div className="pl-2">
+                                                    <TemplateBuilder
+                                                        nodes={optNodes}
+                                                        onChange={(updated) =>
+                                                            updateNode(i, {
+                                                                ...node,
+                                                                branches: {
+                                                                    ...node.branches,
+                                                                    [optVal]: updated,
+                                                                },
+                                                            })
+                                                        }
+                                                        depth={depth + 1}
+                                                        rootNodes={topNodes}
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* ── Branch End Card ── */}
+                                <div className="relative mt-1">
+                                    <span className="absolute left-[-21px] top-[8px] w-2 h-2 rounded-full bg-themepurple/40 -translate-x-1/2 z-10" />
+                                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-themepurple/10 bg-themepurple/3">
+                                        <GitMerge size={10} className="text-themepurple/40" />
+                                        <span className="text-[10px] text-themepurple/40">
+                                            End branch{branchCount > 0 ? ` · ${branchCount} path${branchCount !== 1 ? 's' : ''}` : ''}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    }
+
+                    {/* ── Standard nodes (text, step, choice) ── */}
                     return (
                         <div key={i} className="relative pl-7">
                             {/* Pipeline dot */}
@@ -221,115 +385,6 @@ export const TemplateBuilder = ({ nodes, onChange, depth = 0, rootNodes }: Templ
                                                         ))}
                                                     </div>
                                                 )}
-                                            </div>
-                                        )}
-
-                                        {/* ── BRANCH node ── */}
-                                        {node.type === 'branch' && (
-                                            <div className="space-y-2">
-                                                {(() => {
-                                                    const isInline = !!(node.label || node.options?.length);
-                                                    return isInline ? (
-                                                        <div className="space-y-1.5">
-                                                            <input
-                                                                type="text"
-                                                                value={node.label ?? ''}
-                                                                onChange={(e) =>
-                                                                    updateNode(i, { ...node, label: e.target.value })
-                                                                }
-                                                                placeholder="Prompt label (e.g. treatment path)"
-                                                                className={INPUT_CLASS}
-                                                            />
-                                                            <textarea
-                                                                value={(node.options ?? []).join('\n')}
-                                                                onChange={(e) => {
-                                                                    const opts = e.target.value.split('\n');
-                                                                    const filtered = opts.filter(o => o.trim());
-                                                                    const newBranches: Record<string, TemplateNode[]> = {};
-                                                                    for (const opt of filtered) {
-                                                                        newBranches[opt] = node.branches[opt] ?? [];
-                                                                    }
-                                                                    updateNode(i, {
-                                                                        ...node,
-                                                                        options: opts,
-                                                                        branches: newBranches,
-                                                                    });
-                                                                }}
-                                                                placeholder="Options (one per line)"
-                                                                className={`${INPUT_CLASS} min-h-[3rem] resize-none leading-5 font-mono`}
-                                                            />
-                                                        </div>
-                                                    ) : (
-                                                        <select
-                                                            value={node.triggerField}
-                                                            onChange={(e) => {
-                                                                const tf = e.target.value;
-                                                                const choiceNode = findChoiceByLabel(topNodes, tf);
-                                                                const newBranches: Record<string, TemplateNode[]> = {};
-                                                                if (choiceNode) {
-                                                                    for (const opt of choiceNode.options.filter(o =>
-                                                                        o.trim(),
-                                                                    )) {
-                                                                        newBranches[opt] = node.branches[opt] ?? [];
-                                                                    }
-                                                                }
-                                                                updateNode(i, {
-                                                                    ...node,
-                                                                    triggerField: tf,
-                                                                    branches: newBranches,
-                                                                });
-                                                            }}
-                                                            className={INPUT_CLASS}
-                                                        >
-                                                            <option value="">Link to a Choice field...</option>
-                                                            {getChoiceLabels(topNodes).map(l => (
-                                                                <option key={l} value={l}>
-                                                                    {l}
-                                                                </option>
-                                                            ))}
-                                                        </select>
-                                                    );
-                                                })()}
-
-                                                {/* Branch option sub-builders */}
-                                                {Object.entries(node.branches).map(([optVal, optNodes]) => (
-                                                    <div key={optVal} className="ml-5">
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <span className="text-[10px] font-semibold text-themepurple">
-                                                                {optVal}
-                                                            </span>
-                                                            <div className="flex-1" />
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    const newBranches = { ...node.branches };
-                                                                    delete newBranches[optVal];
-                                                                    updateNode(i, { ...node, branches: newBranches });
-                                                                }}
-                                                                className="shrink-0 p-0.5 rounded hover:bg-themeredred/10 transition-colors active:scale-95"
-                                                                aria-label={`Delete ${optVal} branch`}
-                                                            >
-                                                                <Trash2 size={10} className="text-themeredred/40" />
-                                                            </button>
-                                                        </div>
-                                                        <div className="pl-2.5 border-l-2 border-themepurple/15">
-                                                            <TemplateBuilder
-                                                                nodes={optNodes}
-                                                                onChange={(updated) =>
-                                                                    updateNode(i, {
-                                                                        ...node,
-                                                                        branches: {
-                                                                            ...node.branches,
-                                                                            [optVal]: updated,
-                                                                        },
-                                                                    })
-                                                                }
-                                                                depth={depth + 1}
-                                                                rootNodes={topNodes}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                ))}
                                             </div>
                                         )}
                                     </div>
