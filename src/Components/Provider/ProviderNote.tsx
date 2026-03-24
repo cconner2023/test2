@@ -68,10 +68,10 @@ export function ProviderNote({
     <div className="space-y-4 md:space-y-3">
       {piiWarnings.length > 0 && <PIIWarningBanner warnings={piiWarnings} />}
 
-      <div className="space-y-3 md:space-y-2">
+      <div className="space-y-3 md:space-y-2" data-tour="provider-hpi">
         <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">History of Present Illness</p>
         {importedMedicNote?.medicHpi && (
-          <div className="rounded-xl bg-themewhite2 px-4 py-3">
+          <div className="rounded-xl bg-themewhite2 px-4 py-3" data-tour="provider-medic-context">
             <p className="text-[10pt] text-tertiary/50 mb-1">{importedMedicNote.medicName}</p>
             <div className="text-sm text-primary whitespace-pre-wrap">{importedMedicNote.medicHpi}</div>
           </div>
@@ -87,7 +87,7 @@ export function ProviderNote({
         />
       </div>
 
-      <div className="space-y-3 md:space-y-2">
+      <div className="space-y-3 md:space-y-2" data-tour="provider-pe">
         <div className="flex items-center justify-between">
           <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Physical Exam</p>
           <label
@@ -139,7 +139,7 @@ export function ProviderNote({
         )}
       </div>
 
-      <div className="space-y-3 md:space-y-2">
+      <div className="space-y-3 md:space-y-2" data-tour="provider-assessment">
         <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Assessment</p>
         {importedMedicNote?.medicAssessment && (
           <div className="rounded-xl bg-themewhite2 px-4 py-3">
@@ -158,7 +158,7 @@ export function ProviderNote({
         />
       </div>
 
-      <div className="space-y-3 md:space-y-2">
+      <div className="space-y-3 md:space-y-2" data-tour="provider-plan">
         <div className="flex items-center justify-between">
           <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Plan</p>
           <label
@@ -209,6 +209,7 @@ export function ProviderNote({
       <div className="flex items-center justify-end pt-4">
         <button
           onClick={onNext}
+          data-tour="provider-generate"
           className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2 bg-themeblue3 text-white"
           aria-label="Next"
         >

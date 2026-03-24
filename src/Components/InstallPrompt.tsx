@@ -1,10 +1,14 @@
 // Components/InstallPrompt.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, Download, Share } from 'lucide-react';
 import { useInstallPrompt } from '../Hooks/useInstallPrompt';
 
-const InstallPrompt: React.FC = () => {
+const InstallPrompt: React.FC<{ onVisibilityChange?: (visible: boolean) => void }> = ({ onVisibilityChange }) => {
     const { showPrompt, install, dismiss, isInstalling, isIOS } = useInstallPrompt();
+
+    useEffect(() => {
+        onVisibilityChange?.(showPrompt);
+    }, [showPrompt, onVisibilityChange]);
 
     if (!showPrompt) return null;
 

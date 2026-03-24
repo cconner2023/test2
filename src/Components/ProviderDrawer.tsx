@@ -354,6 +354,29 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     canSwipeBack,
   )
 
+  // ── Tour events ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    const handleTourImport = (e: Event) => {
+      const barcode = (e as CustomEvent).detail as string
+      if (barcode) handleDecode(barcode)
+    }
+    const handleTourApplyTemplate = () => {
+      const demoTemplate = templates.find(t => t.id.startsWith('tour_provider_'))
+      if (demoTemplate) handleApplyTemplate(demoTemplate)
+    }
+    const handleTourGoToOutput = () => {
+      handleGoToOutput()
+    }
+    window.addEventListener('tour:provider-import', handleTourImport)
+    window.addEventListener('tour:provider-apply-template', handleTourApplyTemplate)
+    window.addEventListener('tour:provider-go-to-output', handleTourGoToOutput)
+    return () => {
+      window.removeEventListener('tour:provider-import', handleTourImport)
+      window.removeEventListener('tour:provider-apply-template', handleTourApplyTemplate)
+      window.removeEventListener('tour:provider-go-to-output', handleTourGoToOutput)
+    }
+  }, [handleDecode, templates, handleApplyTemplate, handleGoToOutput])
+
   // No auto-focus on expand — iOS keyboard open shifts the viewport
 
   // ── Header right content (import bar) ──────────────────────────────────────

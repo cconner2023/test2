@@ -43,7 +43,7 @@ export const OrderSetManager = ({
     };
 
     return (
-        <section>
+        <section data-tour="plan-orderset-section">
             <div className="pb-2 flex items-center gap-2">
                 <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Order Sets</p>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
@@ -159,6 +159,7 @@ export const OrderSetManager = ({
                                 return (
                                     <div
                                         key={os.id}
+                                        data-tour="plan-orderset-staged"
                                         onClick={editing && !composing ? () => onUnstageAdd(os.id) : undefined}
                                         className="py-2 px-2 rounded-lg border border-dashed border-themeblue2/30 bg-themeblue2/5 cursor-pointer active:scale-[0.98] transition-all"
                                     >

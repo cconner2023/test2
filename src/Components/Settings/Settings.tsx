@@ -184,6 +184,22 @@ export const Settings = ({
         };
     }, []);
 
+    // Tour system: enable/disable editing mode for plan & order sets demo
+    useEffect(() => {
+        const enableEdit = () => setPlanEditing(true);
+        const cancelEdit = () => {
+            setPlanEditing(false);
+            setPlanHasPending(false);
+            setPlanSaveRequested(false);
+        };
+        window.addEventListener('tour:plan-enable-edit', enableEdit);
+        window.addEventListener('tour:plan-cancel-edit', cancelEdit);
+        return () => {
+            window.removeEventListener('tour:plan-enable-edit', enableEdit);
+            window.removeEventListener('tour:plan-cancel-edit', cancelEdit);
+        };
+    }, []);
+
     const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         if (id === PANEL.CLOSE) { closeDrawer(); return; }
         if (id === PANEL.BACK_TO_MAIN) { handleSlideAnimation('right'); setActivePanel('main'); return; }
@@ -484,6 +500,7 @@ export const Settings = ({
                                     iconSize={18}
                                     onClick={() => setClinicEditing(true)}
                                     label="Edit"
+                                    data-tour="clinic-edit-button"
                                 />
                             </div>
                             {clinicEditing ? (
@@ -493,6 +510,7 @@ export const Settings = ({
                                     circleBg="bg-themegreen text-white"
                                     onClick={() => setClinicSaveRequested(true)}
                                     label="Save"
+                                    data-tour="clinic-save-button"
                                 />
                             ) : (
                                 <PillButton icon={X} onClick={() => guardedClinicAction(handleClose)} label="Close" />

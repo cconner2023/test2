@@ -227,6 +227,32 @@ export const GUIDED_ANONYMOUS_USER = {
   uic: '',
 }
 
+// ─── Provider Tour Demo Template ─────────────────────────────────────────────
+
+/** Stable ID prefix so the tour can find and clean up its demo template */
+export const PROVIDER_TOUR_TEMPLATE_PREFIX = 'tour_provider_'
+
+/** Demo ProviderNoteTemplate injected during the provider tour */
+export const GUIDED_PROVIDER_TEMPLATE = {
+  id: `${PROVIDER_TOUR_TEMPLATE_PREFIX}demo`,
+  name: 'URI Encounter',
+  peBlockKeys: [...GUIDED_PE_BLOCKS] as string[],
+  assessmentText: GUIDED_ASSESSMENT,
+  planText: GUIDED_PLAN_TEXT,
+} as const
+
+// ─── Plan & Order Sets Tour Demo ─────────────────────────────────────────────
+
+export const PLAN_TOUR_PREFIX = 'tour_plan_'
+
+export const PLAN_TOUR_TAGS = {
+  meds: ['Tylenol 325mg tab', 'Mucinex 500mg tab'],
+  instructions: ['Encouraged adequate hand hygiene and hydration, rest.'],
+  followUp: ['F/U in 10-14 days if persists; sooner if worsens or changes significantly.'],
+} as const
+
+export const PLAN_TOUR_ORDER_SET_NAME = 'URI Basic'
+
 // ─── Encoded Note Generator ──────────────────────────────────────────────────
 // Generates a plain (unencrypted) barcode string from the guided tour data.
 // Called at tour time so pako compression runs in the browser.

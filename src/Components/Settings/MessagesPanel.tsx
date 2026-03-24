@@ -277,7 +277,7 @@ function ConversationPane({
           <>
             {/* Conversations section */}
             {selfMedic && (
-              <div data-tour={tourVariant ? (tourVariant === 'desktop' ? 'messages-desktop-self-notes' : 'messages-self-notes') : undefined}>
+              <div data-tour={tourVariant ? 'messages-self-notes' : undefined}>
                 <ContactListItem
                   medic={selfMedic}
                   lastMessage={conversations[userId!]?.filter(m => !m.threadId).at(-1)?.plaintext}
@@ -365,7 +365,7 @@ function ConversationPane({
               </>
             )}
 
-            <div data-tour={tourVariant ? (tourVariant === 'desktop' ? 'messages-desktop-roster' : 'messages-roster') : undefined}>
+            <div data-tour={tourVariant ? 'messages-roster' : undefined}>
               <div className="mx-3 my-2 border-b border-primary/10" />
 
               {/* Contacts: My Clinic (exclude those already in Recent conversations) */}

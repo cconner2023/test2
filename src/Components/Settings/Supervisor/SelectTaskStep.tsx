@@ -53,7 +53,7 @@ export function SelectTaskStep({
       {totalResults === 0 && isSearching ? (
         <p className="text-sm text-tertiary/40 text-center py-8">No tasks match your search.</p>
       ) : (
-        <div className="space-y-5">
+        <div data-tour="supervisor-task-list" className="space-y-5">
           {Array.from(displayCategories).map(([categoryName, tasks]) => (
             <div key={categoryName}>
               {/* Section header */}

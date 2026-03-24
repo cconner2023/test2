@@ -173,7 +173,7 @@ export function ProviderNoteOutput({
             : 'busy';
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-4" data-tour="provider-output">
             {/* Note Preview */}
             <div>
                 <div className="pb-2 flex items-center justify-between">

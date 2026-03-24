@@ -2,6 +2,7 @@ import { FileText, LayoutTemplate } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { ListItemRow } from '../ListItemRow'
 import type { ProviderNoteTemplate } from '../../Data/User'
+import { PROVIDER_TOUR_TEMPLATE_PREFIX } from '../../Data/GuidedTourData'
 
 interface ProviderTemplateListProps {
   templates: ProviderNoteTemplate[]
@@ -35,24 +36,28 @@ export function ProviderTemplateList({ templates, onSelect }: ProviderTemplateLi
       </div>
       <div className="flex-1 overflow-y-auto px-2 pb-3">
         <div className="rounded-xl bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
-          {templates.map((t) => (
-            <ListItemRow
-              key={t.id}
-              onClick={() => onSelect(t)}
-              className="px-3 py-2.5 md:py-1.5 hover:bg-themeblue2/8 active:scale-95 transition-all duration-200"
-              left={
-                <div className="w-8 h-8 md:w-7 md:h-7 rounded-lg bg-themeblue2/10 flex items-center justify-center shrink-0">
-                  <FileText size={15} className="text-themeblue2" />
-                </div>
-              }
-              center={
-                <>
-                  <p className="text-sm font-medium text-primary truncate">{t.name}</p>
-                  <p className="text-[10px] text-tertiary/50 mt-0.5 truncate">{fieldPreview(t)}</p>
-                </>
-              }
-            />
-          ))}
+          {templates.map((t) => {
+            const isTourTemplate = t.id.startsWith(PROVIDER_TOUR_TEMPLATE_PREFIX)
+            return (
+              <div key={t.id} data-tour={isTourTemplate ? 'provider-template-apply' : undefined}>
+                <ListItemRow
+                  onClick={() => onSelect(t)}
+                  className="px-3 py-2.5 md:py-1.5 hover:bg-themeblue2/8 active:scale-95 transition-all duration-200"
+                  left={
+                    <div className="w-8 h-8 md:w-7 md:h-7 rounded-lg bg-themeblue2/10 flex items-center justify-center shrink-0">
+                      <FileText size={15} className="text-themeblue2" />
+                    </div>
+                  }
+                  center={
+                    <>
+                      <p className="text-sm font-medium text-primary truncate">{t.name}</p>
+                      <p className="text-[10px] text-tertiary/50 mt-0.5 truncate">{fieldPreview(t)}</p>
+                    </>
+                  }
+                />
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>

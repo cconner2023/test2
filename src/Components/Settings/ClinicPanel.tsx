@@ -176,6 +176,28 @@ export function ClinicPanel({
     if (addEmailVisible) addEmailRef.current?.focus()
   }, [addEmailVisible])
 
+  // Tour: stage demo clinic code or cancel edit mode when guided tour requests it
+  useEffect(() => {
+    const handleStageDemo = () => {
+      setStagedClinics(prev => {
+        if (prev.some(c => c.code === 'X7K2M9P4')) return prev
+        return [...prev, { code: 'X7K2M9P4' }]
+      })
+    }
+    const handleCancelEdit = () => {
+      setStagedClinics([])
+      setStagedMembers([])
+      onDeleteSelectionChange(new Set())
+      onEditingChange(false)
+    }
+    window.addEventListener('tour:clinic-stage-demo', handleStageDemo)
+    window.addEventListener('tour:clinic-cancel-edit', handleCancelEdit)
+    return () => {
+      window.removeEventListener('tour:clinic-stage-demo', handleStageDemo)
+      window.removeEventListener('tour:clinic-cancel-edit', handleCancelEdit)
+    }
+  }, [onDeleteSelectionChange, onEditingChange])
+
   // ─── QR Rendering ─────────────────────────────────────────────────
 
   const qrCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
@@ -652,7 +674,7 @@ export function ClinicPanel({
         {success && <ErrorDisplay type="success" message={success} />}
 
         {/* ── Clinic Identity Card ──────────────────────────────────── */}
-        <section className="rounded-xl bg-themewhite2 px-4 py-3">
+        <section data-tour="clinic-identity-card" className="rounded-xl bg-themewhite2 px-4 py-3">
           {!clinicEditing ? (
             <div className="flex items-start gap-3">
               <div className="flex-1 min-w-0">
@@ -711,7 +733,7 @@ export function ClinicPanel({
         </section>
 
         {/* ── Associated Clinics ────────────────────────────────────── */}
-        <section>
+        <section data-tour="clinic-associated">
           <div className="pb-2 flex items-center gap-2">
             <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Associated Clinics</p>
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
@@ -724,7 +746,7 @@ export function ClinicPanel({
               <div className={`overflow-hidden transition-all duration-300 ease-out ${
                 clinicEditing ? 'max-h-150 opacity-100 mb-3' : 'max-h-0 opacity-0'
               }`}>
-                <div className="flex items-center gap-1.5">
+                <div data-tour="clinic-join-input" className="flex items-center gap-1.5">
                   <div className="relative flex flex-1 items-center rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
                     <div className="pl-2 shrink-0 flex items-center gap-0.5">
                       <button
@@ -913,7 +935,7 @@ export function ClinicPanel({
 
         {/* ── Personnel (supervisor-gated) ──────────────────────────── */}
         {isSupervisorRole && clinicId && (
-          <section>
+          <section data-tour="clinic-personnel">
             <div className="pb-2 flex items-center gap-2">
               <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Personnel</p>
               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
@@ -973,7 +995,7 @@ export function ClinicPanel({
                   clinicEditing && addMode !== 'create' ? 'max-h-40 opacity-100 mb-3' : 'max-h-0 opacity-0'
                 }`}>
                   <div className="space-y-3">
-                    <div className="flex items-center gap-1.5">
+                    <div data-tour="clinic-add-member" className="flex items-center gap-1.5">
                       <div className="relative flex flex-1 items-center rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
                         <input
                           type="email"

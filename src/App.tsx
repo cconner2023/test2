@@ -127,6 +127,8 @@ function AppContent() {
     onClose: handleMessagesClose,
   })
   const [updateVisible, setUpdateVisible] = useState(false)
+  const [installVisible, setInstallVisible] = useState(false)
+  const [postUpdatePending, setPostUpdatePending] = useState(!!_postUpdateNav)
   const [importInitialView, setImportInitialView] = useState<'input' | 'scanning' | undefined>(
     _initialViewParam === 'import' ? 'scanning' : undefined
   )
@@ -453,7 +455,7 @@ case 'mapOverlay':
 
   return (
     <AvatarProvider value={avatarState}>
-    <TourProvider>
+    <TourProvider onboardingBlocked={updateVisible || installVisible || postUpdatePending}>
     <MessagesProvider>
     <CallProvider>
     <div className='h-screen bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden'>
@@ -682,7 +684,7 @@ case 'mapOverlay':
         <Suspense fallback={null}>
         <Settings
           isVisible={navigation.showSettings}
-          onClose={() => { navigation.setShowSettings(false); resetSettingsPanel() }}
+          onClose={() => { navigation.setShowSettings(false); resetSettingsPanel(); setPostUpdatePending(false) }}
           isDarkMode={theme === 'dark'}
           onToggleTheme={toggleTheme}
           initialPanel={settingsInitialPanel}
@@ -801,7 +803,7 @@ case 'mapOverlay':
           </ErrorBoundary>
         )}
         <UpdateNotification onVisibilityChange={setUpdateVisible} />
-        {!updateVisible && <InstallPrompt />}
+        {!updateVisible && <InstallPrompt onVisibilityChange={setInstallVisible} />}
       </div>
       <CallOverlay />
       <MessageToastBridge onTap={handleNotificationTap} />

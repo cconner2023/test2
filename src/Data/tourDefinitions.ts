@@ -73,6 +73,21 @@ export interface TourDefinition {
 //   'calendar:open-controls'  — open mobile controls drawer
 //   'calendar:close-controls' — close mobile controls drawer
 //   'calendar:cleanup'        — delete mock event, return to guided tours
+//   'supervisor:open-first-area'  — navigate into first coverage area in supervisor panel
+//   'supervisor:cleanup'          — reset to base state, close supervisor, return to guided tours
+//   'clinic:open'                 — close all, open Settings → Clinic panel
+//   'clinic:enable-edit'          — click the clinic edit button
+//   'clinic:stage-demo-clinic'    — stage a demo clinic code (TEST CDID)
+//   'clinic:cleanup'              — cancel edit mode, return to guided tours
+//   'planorderset:setup'          — open Settings → Plan panel, enable edit mode
+//   'planorderset:add-med-1'      — stage Tylenol 325mg tab tag
+//   'planorderset:add-med-2'      — stage Mucinex 500mg tab tag
+//   'planorderset:add-instruction' — stage instruction tag
+//   'planorderset:add-followup'   — stage follow-up tag
+//   'planorderset:start-compose'  — enter order set name and begin composing
+//   'planorderset:select-tags'    — select all staged tags in compose mode
+//   'planorderset:save-compose'   — save the composed order set
+//   'planorderset:cleanup'        — cancel edit (discards staging), return to guided tours
 
 // ─── Tier 1: Medic Tours ─────────────────────────────────────────────────────
 
@@ -433,11 +448,97 @@ const textExpanderTour: TourDefinition = {
   ],
 }
 
+const plansOrderSetsTour: TourDefinition = {
+  id: 'plans-order-sets',
+  name: 'Plans & Order Sets',
+  tier: 'medic',
+  description: 'Build plan tags and compose a reusable order set from scratch.',
+  steps: [
+    {
+      target: 'plan-settings-panel',
+      text: 'The Plan panel manages your order tags and order sets — building blocks for treatment plans in your notes.',
+      placement: 'bottom',
+      beforeStep: 'planorderset:setup',
+      delay: 600,
+      duration: 5000,
+    },
+    {
+      target: 'plan-tag-input',
+      text: 'Edit mode is on. Add tags under any category — medications, instructions, follow-up, referrals, labs, or radiology.',
+      placement: 'bottom',
+      duration: 5000,
+    },
+    {
+      target: 'plan-tag-meds',
+      text: 'Tylenol 325mg tab staged under Medications.',
+      placement: 'bottom',
+      beforeStep: 'planorderset:add-med-1',
+      delay: 400,
+      duration: 4000,
+    },
+    {
+      target: 'plan-tag-meds',
+      text: 'Mucinex 500mg tab added. Both medications staged with dashed borders — not saved yet.',
+      placement: 'bottom',
+      beforeStep: 'planorderset:add-med-2',
+      delay: 400,
+      duration: 5000,
+    },
+    {
+      target: 'plan-tag-instructions',
+      text: 'Patient instructions staged — hand hygiene, hydration, and rest.',
+      placement: 'bottom',
+      beforeStep: 'planorderset:add-instruction',
+      delay: 400,
+      duration: 5000,
+    },
+    {
+      target: 'plan-tag-followup',
+      text: 'Follow-up instructions staged — 10-14 days, sooner if worsening.',
+      placement: 'bottom',
+      beforeStep: 'planorderset:add-followup',
+      delay: 400,
+      duration: 5000,
+      pausePoint: true,
+    },
+    {
+      target: 'plan-orderset-section',
+      text: "Now we'll bundle these into a reusable order set. 'URI Basic' entered — confirm starts composition mode.",
+      placement: 'bottom',
+      beforeStep: 'planorderset:start-compose',
+      delay: 500,
+      duration: 6000,
+    },
+    {
+      target: 'plan-tag-section',
+      text: 'In composition mode, tags become selectable. All four selected — they highlight in blue.',
+      placement: 'bottom',
+      beforeStep: 'planorderset:select-tags',
+      delay: 400,
+      duration: 5000,
+    },
+    {
+      target: 'plan-orderset-footer',
+      text: 'The compose footer shows your order set name and selected tag count. Tap the checkmark to stage.',
+      placement: 'top',
+      pausePoint: true,
+    },
+    {
+      target: 'plan-orderset-staged',
+      text: "URI Basic is staged. Save in the header to commit tags and order sets together. We'll cancel to discard the demo.",
+      placement: 'bottom',
+      beforeStep: 'planorderset:save-compose',
+      delay: 400,
+      pausePoint: true,
+      afterStep: 'planorderset:cleanup',
+    },
+  ],
+}
+
 const knowledgeBaseTour: TourDefinition = {
   id: 'knowledge-base',
   name: 'Knowledge Base',
   tier: 'medic',
-  devOnly: true,
   description: 'Medications, STP tasks, screeners, and calculators.',
   steps: [
     {
@@ -536,7 +637,6 @@ const calendarTour: TourDefinition = {
   id: 'calendar',
   name: 'Calendar',
   tier: 'medic',
-  devOnly: true,
   description: 'Events, views, personnel filters, and troops-to-task.',
   steps: [
     // ── Setup: inject mock event, open calendar, land on month view ──
@@ -632,39 +732,53 @@ const calendarTour: TourDefinition = {
 
 const settingsTour: TourDefinition = {
   id: 'settings',
-  name: 'Settings & Security',
+  name: 'Settings & Preferences',
   tier: 'medic',
-  devOnly: true,
-  description: 'Theme, PIN lock, notifications, and profile.',
+  description: 'Profile, security, notifications, and where to find tours.',
   steps: [
     {
-      target: 'settings-theme',
-      text: 'Switch between light and dark mode.',
+      target: 'settings-profile',
+      text: 'Your profile card — tap to view or edit your rank, credentials, and component.',
       placement: 'bottom',
       beforeStep: 'open:settings',
       delay: 400,
+      duration: 5000,
+    },
+    {
+      target: 'settings-theme',
+      text: 'Toggle between light and dark mode. Your preference persists across sessions.',
+      placement: 'bottom',
+      duration: 4000,
     },
     {
       target: 'settings-pin',
-      text: 'Set up a PIN for extra security — the app locks after inactivity.',
+      text: 'Set a PIN to lock the app after inactivity. Required for handling sensitive patient data in the field.',
       placement: 'bottom',
+      pausePoint: true,
     },
     {
       target: 'settings-notifications',
-      text: 'Configure push notifications for messages and calendar events.',
+      text: 'Enable push notifications for incoming messages and calendar alerts.',
       placement: 'bottom',
+      duration: 5000,
     },
+    // Mobile: guided tours item is further below fold — tooltip on top keeps it visible above the spotlight
     {
-      target: 'settings-note-content',
-      text: 'Customize your default note sections and templates.',
-      placement: 'bottom',
+      target: 'settings-guided-tours',
+      text: 'All interactive walkthroughs live here — replay any tour or pick up where you left off.',
+      placement: 'top',
+      pausePoint: true,
+      afterStep: 'return:guided-tours',
+      mobileOnly: true,
     },
+    // Desktop: more vertical room — tooltip below the item
     {
-      target: 'settings-profile',
-      text: 'Edit your profile, avatar, rank, and credentials.',
+      target: 'settings-guided-tours',
+      text: 'All interactive walkthroughs live here — replay any tour or pick up where you left off.',
       placement: 'bottom',
       pausePoint: true,
       afterStep: 'return:guided-tours',
+      desktopOnly: true,
     },
   ],
 }
@@ -675,48 +789,119 @@ const supervisorTour: TourDefinition = {
   id: 'supervisor-panel',
   name: 'Supervisor Panel',
   tier: 'supervisor',
-  devOnly: true,
-  description: 'Team roster, readiness, evaluations, and task assignment.',
+  description: 'Clinic stats, soldier readiness, coverage gaps, and task evaluation.',
   steps: [
+    // ── Overview: clinic stats card ──
     {
-      target: 'supervisor-roster',
-      text: 'Your team roster with readiness percentages and compliance status.',
+      target: 'supervisor-clinic-stats',
+      text: 'Clinic overview — team readiness and cert compliance at a glance. These aggregate across all assigned personnel.',
       placement: 'bottom',
       beforeStep: 'open:supervisor',
       delay: 400,
+      duration: 5000,
     },
+    // ── Soldier Readiness section ──
     {
-      target: 'supervisor-soldier',
-      text: 'Tap a soldier to view their profile, certs, and training history.',
+      target: 'supervisor-soldier-readiness',
+      text: 'Soldier readiness — each medic sorted by readiness percentage. Overdue certs and failed evaluations are flagged.',
+      placement: 'bottom',
+      duration: 5000,
+    },
+    // ── Highlight first soldier ──
+    {
+      target: 'supervisor-first-soldier',
+      text: 'Tap any soldier to drill into their profile, certifications, and training history.',
       placement: 'bottom',
       pausePoint: true,
     },
+    // ── Coverage Gaps section ──
     {
-      target: 'supervisor-readiness',
-      text: 'Readiness score — based on completed training tasks and valid certifications.',
-      placement: 'bottom',
+      target: 'supervisor-coverage-gaps',
+      text: 'Coverage gaps by STP subject area. Low percentages mean your team has training deficiencies in that category.',
+      placement: 'top',
+      duration: 5000,
     },
+    // ── Drill into a category ──
     {
-      target: 'supervisor-evaluate',
-      text: 'Evaluate a soldier on an STP task — GO / NO-GO with step-by-step grading.',
-      placement: 'bottom',
-    },
-    {
-      target: 'supervisor-assign',
-      text: 'Assign a training task with a due date — creates a calendar event automatically.',
-      placement: 'bottom',
-    },
-    {
-      target: 'supervisor-certs',
-      text: 'Manage a soldier\'s certifications — add, update, or remove.',
-      placement: 'bottom',
-    },
-    {
-      target: 'supervisor-coverage',
-      text: 'Coverage Tasks — see which STP areas your team needs work on.',
+      target: 'supervisor-first-area',
+      text: 'Tap a category to see which tasks your team needs evaluated — and who needs work.',
       placement: 'bottom',
       pausePoint: true,
-      afterStep: 'return:guided-tours',
+    },
+    // ── Task list (after navigating into a coverage area) ──
+    {
+      target: 'supervisor-task-list',
+      text: 'Tasks in this area. Select a task to see which soldiers are deficient, then evaluate or assign it directly. From a soldier profile you can evaluate with GO/NO-GO grading, or assign a task with a due date.',
+      placement: 'bottom',
+      beforeStep: 'supervisor:open-first-area',
+      delay: 500,
+      pausePoint: true,
+      afterStep: 'supervisor:cleanup',
+    },
+  ],
+}
+
+const clinicManagementTour: TourDefinition = {
+  id: 'clinic-management',
+  name: 'Clinic Management',
+  tier: 'supervisor',
+  description: 'Edit clinic details, manage associations, and add personnel.',
+  steps: [
+    // ── Navigate to Settings → Clinic ──
+    {
+      target: 'clinic-identity-card',
+      text: 'Your clinic identity — name, location, UICs, and invite code. The QR code lets nearby clinics request association.',
+      placement: 'bottom',
+      beforeStep: 'clinic:open',
+      delay: 600,
+      duration: 5000,
+    },
+    // ── Highlight edit button ──
+    {
+      target: 'clinic-edit-button',
+      text: 'Tap edit to modify clinic details, manage associations, and add or remove personnel. All changes are staged until you confirm.',
+      placement: 'bottom',
+      pausePoint: true,
+    },
+    // ── Associated Clinics section ──
+    {
+      target: 'clinic-associated',
+      text: 'Associated clinics share personnel visibility. Scan a QR code, upload an image, or type an invite code to stage a new association.',
+      placement: 'bottom',
+      beforeStep: 'clinic:enable-edit',
+      delay: 400,
+      duration: 6000,
+    },
+    // ── Stage a demo clinic code ──
+    {
+      target: 'clinic-join-input',
+      text: 'Enter a clinic invite code here. Staged associations appear with a dashed border — nothing is final until you save.',
+      placement: 'bottom',
+      beforeStep: 'clinic:stage-demo-clinic',
+      delay: 400,
+      duration: 5000,
+    },
+    // ── Personnel section ──
+    {
+      target: 'clinic-personnel',
+      text: 'Your assigned personnel. In edit mode, tap a member to mark them for removal — they highlight in red.',
+      placement: 'top',
+      duration: 5000,
+    },
+    // ── Add member ──
+    {
+      target: 'clinic-add-member',
+      text: 'Look up an existing user by email, or create a new account with a temporary password. New members stage with a dashed border.',
+      placement: 'top',
+      duration: 6000,
+    },
+    // ── Save / confirm ──
+    {
+      target: 'clinic-save-button',
+      text: 'All changes are batched — member adds, clinic associations, and removals commit together when you tap save. Nothing is permanent until you confirm.',
+      placement: 'bottom',
+      pausePoint: true,
+      afterStep: 'clinic:cleanup',
     },
   ],
 }
@@ -727,47 +912,64 @@ const providerTour: TourDefinition = {
   id: 'provider-notes',
   name: 'Provider Notes',
   tier: 'provider',
-  devOnly: true,
-  description: 'Clinical documentation — import, SOAP sections, templates, output.',
+  description: 'Quick note templates and clinical documentation — import, template apply, export.',
   steps: [
     {
-      target: 'provider-import',
-      text: 'Import a medic\'s field note via barcode scan or paste.',
+      target: 'settings-provider-templates',
+      text: 'Note templates live here. Each one pre-fills SOAP sections using your text shortcuts and order sets.',
       placement: 'bottom',
-      beforeStep: 'open:provider',
-      delay: 400,
+      beforeStep: 'provider:setup',
+      delay: 600,
+    },
+    {
+      target: 'provider-demo-template',
+      text: 'A demo template — URI encounter with PE exam blocks, assessment, and plan.',
+      placement: 'bottom',
+      pausePoint: true,
+    },
+    {
+      target: 'provider-medic-context',
+      text: 'Medic notes arrive as encoded barcodes. This one decoded — the field assessment shows inline.',
+      placement: 'bottom',
+      beforeStep: 'provider:open-and-import',
+      delay: 800,
     },
     {
       target: 'provider-hpi',
-      text: 'History of Present Illness — write or expand from the imported medic note.',
+      text: 'History of Present Illness — write freehand, use text shortcuts, or reference the medic note above.',
       placement: 'bottom',
     },
     {
+      target: 'provider-template-apply',
+      text: 'Apply a saved template to pre-fill all empty sections at once.',
+      placement: 'right',
+      desktopOnly: true,
+    },
+    {
       target: 'provider-pe',
-      text: 'Physical Exam — structured exam with normal/abnormal toggles per system.',
+      text: 'Physical Exam — structured blocks with normal/abnormal toggles, pre-filled by the template.',
       placement: 'top',
+      beforeStep: 'provider:apply-template',
+      delay: 400,
     },
     {
       target: 'provider-assessment',
-      text: 'Assessment — your clinical impression and diagnosis.',
+      text: 'Assessment — clinical impression and diagnosis, filled from the template.',
       placement: 'top',
     },
     {
       target: 'provider-plan',
-      text: 'Plan — orders, follow-up, return-to-duty criteria.',
+      text: 'Plan — medications, instructions, and follow-up from the template.',
       placement: 'top',
     },
     {
-      target: 'provider-templates',
-      text: 'Apply a saved template to pre-fill sections — customize these in Settings.',
-      placement: 'bottom',
-    },
-    {
-      target: 'provider-generate',
-      text: 'Generate the final formatted note for documentation.',
+      target: 'provider-output',
+      text: 'Generate the final formatted note — barcode, SF600 export, share, or copy.',
       placement: 'top',
+      beforeStep: 'provider:go-to-output',
+      delay: 400,
       pausePoint: true,
-      afterStep: 'return:guided-tours',
+      afterStep: 'provider:cleanup',
     },
   ],
 }
@@ -780,12 +982,14 @@ export const allTours: TourDefinition[] = [
   algorithmNavTour,
   noteLifecycleTour,
   textExpanderTour,
+  plansOrderSetsTour,
   knowledgeBaseTour,
   messagingTour,
   calendarTour,
   settingsTour,
   // Tier 2: Supervisor
   supervisorTour,
+  clinicManagementTour,
   // Tier 3: Provider
   providerTour,
 ]

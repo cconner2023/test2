@@ -53,6 +53,16 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   // Clear search when navigating between views (e.g., clicking a search result)
   useEffect(() => { setTaskSearchQuery(''); setSearchFocused(false) }, [view.screen])
 
+  // Tour: guided tour navigation events
+  useEffect(() => {
+    const handleBack = () => {
+      setView({ screen: 'main' })
+      setTreeSelection({ type: 'all-personnel' })
+    }
+    window.addEventListener('tour:supervisor-back', handleBack)
+    return () => window.removeEventListener('tour:supervisor-back', handleBack)
+  }, [])
+
   const isMobile = useIsMobile()
 
   // ── Data ───────────────────────────────────────────────────────────────────
@@ -90,7 +100,21 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     return entry?.readinessPercent ?? 0
   }, [teamMetrics.soldierReadiness])
 
-
+  // Tour: navigate into first coverage area programmatically
+  useEffect(() => {
+    const handleOpenFirstArea = () => {
+      const firstGap = teamMetrics.subjectAreaGaps
+        .slice()
+        .sort((a, b) => a.coveragePercent - b.coveragePercent)[0]
+      if (firstGap) {
+        setView({ screen: 'coverage-tasks', areaName: firstGap.areaName })
+      }
+    }
+    window.addEventListener('tour:supervisor-open-first-area', handleOpenFirstArea)
+    return () => {
+      window.removeEventListener('tour:supervisor-open-first-area', handleOpenFirstArea)
+    }
+  }, [teamMetrics])
 
   // ── Slide Animation ────────────────────────────────────────────────────────
 

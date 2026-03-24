@@ -6,6 +6,7 @@ import { catData } from '../../Data/CatData'
 import { useAuth } from '../../Hooks/useAuth'
 import { useTheme } from '../../Utilities/ThemeContext'
 import { GUIDED_TOURS_ENABLED } from '../../lib/featureFlags'
+import { useOnboardingReady } from '../../Hooks/useOnboardingReady'
 
 const TourOverlay = lazy(() => import('./TourOverlay').then(m => ({ default: m.TourOverlay })))
 const GettingStartedScene = lazy(() => import('./scenes/GettingStartedScene'))
@@ -58,13 +59,13 @@ function waitForTarget(target: string, timeout = 3000): Promise<boolean> {
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
-export function TourProvider({ children }: { children: React.ReactNode }) {
+export function TourProvider({ children, onboardingBlocked = false }: { children: React.ReactNode; onboardingBlocked?: boolean }) {
   const { isDevRole } = useAuth()
   if (!GUIDED_TOURS_ENABLED && !isDevRole) return <>{children}</>
-  return <TourProviderInner>{children}</TourProviderInner>
+  return <TourProviderInner onboardingBlocked={onboardingBlocked}>{children}</TourProviderInner>
 }
 
-function TourProviderInner({ children }: { children: React.ReactNode }) {
+function TourProviderInner({ children, onboardingBlocked }: { children: React.ReactNode; onboardingBlocked: boolean }) {
   const nav = useNavigationStore
   const isMobile = nav((s) => s.isMobile)
   const { theme } = useTheme()
@@ -449,6 +450,245 @@ function TourProviderInner({ children }: { children: React.ReactNode }) {
       return
     }
 
+    // ── supervisor:open-first-area — click the first coverage area to navigate into it ──
+    if (action === 'supervisor:open-first-area') {
+      window.dispatchEvent(new CustomEvent('tour:supervisor-open-first-area'))
+      await waitForTarget('supervisor-task-list', 5000)
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+
+    // ── supervisor:cleanup — reset to base state, close supervisor, return to guided tours ──
+    if (action === 'supervisor:cleanup') {
+      // Reset supervisor drawer to base view before closing
+      window.dispatchEvent(new CustomEvent('tour:supervisor-back'))
+      await new Promise(r => setTimeout(r, 100))
+      setTooltipHidden(true)
+      await new Promise(r => setTimeout(r, 250))
+      setCurtainVisible(true)
+      await new Promise(r => setTimeout(r, 350))
+      closeAllDrawers()
+      store.closeMenu()
+      store.setShowSettings(true)
+      await new Promise(r => setTimeout(r, 350))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'guided-tours' }))
+      setCurtainVisible(false)
+      await new Promise(r => setTimeout(r, 350))
+      return
+    }
+
+    // ── clinic:open — close all, open Settings → Clinic panel ──
+    if (action === 'clinic:open') {
+      closeAllDrawers()
+      store.closeMenu()
+      await new Promise(r => setTimeout(r, 50))
+      store.setShowSettings(true)
+      await new Promise(r => setTimeout(r, 350))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'clinic' }))
+      await waitForTarget('clinic-identity-card', 5000)
+      await new Promise(r => setTimeout(r, 400))
+      return
+    }
+
+    // ── clinic:enable-edit — click the clinic edit button ──
+    if (action === 'clinic:enable-edit') {
+      clickTarget('clinic-edit-button')
+      await new Promise(r => setTimeout(r, 400))
+      return
+    }
+
+    // ── clinic:stage-demo-clinic — stage a TEST CDID code ──
+    if (action === 'clinic:stage-demo-clinic') {
+      window.dispatchEvent(new CustomEvent('tour:clinic-stage-demo'))
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+
+    // ── clinic:cleanup — cancel edit, return to guided tours ──
+    if (action === 'clinic:cleanup') {
+      window.dispatchEvent(new CustomEvent('tour:clinic-cancel-edit'))
+      await new Promise(r => setTimeout(r, 300))
+
+      setTooltipHidden(true)
+      await new Promise(r => setTimeout(r, 250))
+      setCurtainVisible(true)
+      await new Promise(r => setTimeout(r, 350))
+      closeAllDrawers()
+      store.closeMenu()
+      store.setShowSettings(true)
+      await new Promise(r => setTimeout(r, 350))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'guided-tours' }))
+      setCurtainVisible(false)
+      await new Promise(r => setTimeout(r, 350))
+      return
+    }
+
+    // ── planorderset:setup — open Settings → Plan panel, enable edit ──
+    if (action === 'planorderset:setup') {
+      closeAllDrawers()
+      store.closeMenu()
+      await new Promise(r => setTimeout(r, 50))
+      store.setShowSettings(true)
+      await new Promise(r => setTimeout(r, 350))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'plan-settings' }))
+      await new Promise(r => setTimeout(r, 400))
+      window.dispatchEvent(new CustomEvent('tour:plan-enable-edit'))
+      await waitForTarget('plan-settings-panel', 3000)
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+
+    // ── planorderset:add-med-1 — stage Tylenol 325mg tab ──
+    if (action === 'planorderset:add-med-1') {
+      window.dispatchEvent(new CustomEvent('tour:plan-stage-tag', { detail: { key: 'meds', tag: 'Tylenol 325mg tab' } }))
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+
+    // ── planorderset:add-med-2 — stage Mucinex 500mg tab ──
+    if (action === 'planorderset:add-med-2') {
+      window.dispatchEvent(new CustomEvent('tour:plan-stage-tag', { detail: { key: 'meds', tag: 'Mucinex 500mg tab' } }))
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+
+    // ── planorderset:add-instruction — stage instruction tag ──
+    if (action === 'planorderset:add-instruction') {
+      window.dispatchEvent(new CustomEvent('tour:plan-stage-tag', { detail: { key: 'instructions', tag: 'Encouraged adequate hand hygiene and hydration, rest.' } }))
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+
+    // ── planorderset:add-followup — stage follow-up tag ──
+    if (action === 'planorderset:add-followup') {
+      window.dispatchEvent(new CustomEvent('tour:plan-stage-tag', { detail: { key: 'followUp', tag: 'F/U in 10-14 days if persists; sooner if worsens or changes significantly.' } }))
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+
+    // ── planorderset:start-compose — start composing an order set ──
+    if (action === 'planorderset:start-compose') {
+      window.dispatchEvent(new CustomEvent('tour:plan-start-compose', { detail: { name: 'URI Basic' } }))
+      await new Promise(r => setTimeout(r, 400))
+      return
+    }
+
+    // ── planorderset:select-tags — select all staged tags in compose mode ──
+    if (action === 'planorderset:select-tags') {
+      const tags = [
+        { key: 'meds', tag: 'Tylenol 325mg tab' },
+        { key: 'meds', tag: 'Mucinex 500mg tab' },
+        { key: 'instructions', tag: 'Encouraged adequate hand hygiene and hydration, rest.' },
+        { key: 'followUp', tag: 'F/U in 10-14 days if persists; sooner if worsens or changes significantly.' },
+      ]
+      for (const t of tags) {
+        window.dispatchEvent(new CustomEvent('tour:plan-toggle-preset', { detail: t }))
+        await new Promise(r => setTimeout(r, 100))
+      }
+      await new Promise(r => setTimeout(r, 200))
+      return
+    }
+
+    // ── planorderset:save-compose — save the composed order set ──
+    if (action === 'planorderset:save-compose') {
+      window.dispatchEvent(new CustomEvent('tour:plan-save-compose'))
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+
+    // ── planorderset:cleanup — cancel edit (discards staging), return to guided tours ──
+    if (action === 'planorderset:cleanup') {
+      window.dispatchEvent(new CustomEvent('tour:plan-cancel-edit'))
+      await new Promise(r => setTimeout(r, 300))
+
+      setTooltipHidden(true)
+      await new Promise(r => setTimeout(r, 250))
+      setCurtainVisible(true)
+      await new Promise(r => setTimeout(r, 350))
+      closeAllDrawers()
+      store.closeMenu()
+      store.setShowSettings(true)
+      await new Promise(r => setTimeout(r, 350))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'guided-tours' }))
+      setCurtainVisible(false)
+      await new Promise(r => setTimeout(r, 350))
+      return
+    }
+
+    // ── provider:setup — inject demo template, open Settings → Provider Templates ──
+    if (action === 'provider:setup') {
+      const { GUIDED_PROVIDER_TEMPLATE, PROVIDER_TOUR_TEMPLATE_PREFIX } = await import('../../Data/GuidedTourData')
+      const { useAuthStore } = await import('../../stores/useAuthStore')
+      const authStore = useAuthStore.getState()
+      const current = authStore.profile.providerNoteTemplates ?? []
+      const cleaned = current.filter(t => !t.id.startsWith(PROVIDER_TOUR_TEMPLATE_PREFIX))
+      authStore.patchProfile({ providerNoteTemplates: [...cleaned, { ...GUIDED_PROVIDER_TEMPLATE }] })
+
+      closeAllDrawers()
+      store.closeMenu()
+      await new Promise(r => setTimeout(r, 50))
+      store.setShowSettings(true)
+      await new Promise(r => setTimeout(r, 350))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'provider-templates' }))
+      await waitForTarget('settings-provider-templates', 3000)
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+
+    // ── provider:open-and-import — close settings, open provider, decode guided barcode ──
+    if (action === 'provider:open-and-import') {
+      const { generateGuidedBarcode } = await import('../../Data/GuidedTourData')
+      const barcode = generateGuidedBarcode()
+
+      closeAllDrawers()
+      store.closeMenu()
+      await new Promise(r => setTimeout(r, 50))
+      store.setShowProviderDrawer(true)
+      await waitForTarget('provider-hpi', 3000)
+      await new Promise(r => setTimeout(r, 300))
+      window.dispatchEvent(new CustomEvent('tour:provider-import', { detail: barcode }))
+      await waitForTarget('provider-medic-context', 5000)
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+
+    // ── provider:apply-template — apply the demo template to fill SOAP sections ──
+    if (action === 'provider:apply-template') {
+      window.dispatchEvent(new CustomEvent('tour:provider-apply-template'))
+      await new Promise(r => setTimeout(r, 400))
+      return
+    }
+
+    // ── provider:go-to-output — navigate to output view ──
+    if (action === 'provider:go-to-output') {
+      window.dispatchEvent(new CustomEvent('tour:provider-go-to-output'))
+      await waitForTarget('provider-output', 3000)
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+
+    // ── provider:cleanup — remove demo template, return to guided tours ──
+    if (action === 'provider:cleanup') {
+      const { PROVIDER_TOUR_TEMPLATE_PREFIX } = await import('../../Data/GuidedTourData')
+      const { useAuthStore } = await import('../../stores/useAuthStore')
+      const authStore = useAuthStore.getState()
+      const current = authStore.profile.providerNoteTemplates ?? []
+      authStore.patchProfile({ providerNoteTemplates: current.filter(t => !t.id.startsWith(PROVIDER_TOUR_TEMPLATE_PREFIX)) })
+
+      setTooltipHidden(true)
+      await new Promise(r => setTimeout(r, 250))
+      setCurtainVisible(true)
+      await new Promise(r => setTimeout(r, 350))
+      closeAllDrawers()
+      store.closeMenu()
+      store.setShowSettings(true)
+      await new Promise(r => setTimeout(r, 350))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'guided-tours' }))
+      setCurtainVisible(false)
+      await new Promise(r => setTimeout(r, 350))
+      return
+    }
+
     // ── return:guided-tours — fade tooltip, fade to black, navigate back, open Settings → Guided Tours ──
     if (action === 'return:guided-tours') {
       // 1. Fade out tooltip + spotlight first (200ms matches tooltip transition)
@@ -508,6 +748,13 @@ function TourProviderInner({ children }: { children: React.ReactNode }) {
   }, [nav, closeAllDrawers])
 
   const tour = useTour(handleAction, isMobile)
+
+  // ── Onboarding readiness (drain infrastructure — no auto-start yet) ─────
+  // Tracks when all blocking overlays (update, install prompt, post-update
+  // release notes) have cleared. Available for future use when we decide
+  // how/when to trigger the welcome tour.
+  const _onboardingReady = useOnboardingReady(onboardingBlocked)
+  void _onboardingReady
 
   // Reset tooltip visibility when a new tour starts
   useEffect(() => {

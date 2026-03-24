@@ -133,6 +133,48 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
         }
     }, [editing]);
 
+    // Tour system: listen for plan tour events
+    useEffect(() => {
+        const handleStageTag = (e: Event) => {
+            const { key, tag } = (e as CustomEvent).detail as { key: PlanBlockKey; tag: string };
+            setStagedTagAdds(prev => ({ ...prev, [key]: [...(prev[key] ?? []), tag] }));
+        };
+        const handleStartCompose = (e: Event) => {
+            const { name } = (e as CustomEvent).detail as { name: string };
+            setComposing({ editId: null, name, presets: {} });
+        };
+        const handleTogglePreset = (e: Event) => {
+            const { key, tag } = (e as CustomEvent).detail as { key: PlanBlockKey; tag: string };
+            setComposing(prev => {
+                if (!prev) return prev;
+                const current = prev.presets[key] ?? [];
+                const next = current.includes(tag) ? current.filter(t => t !== tag) : [...current, tag];
+                return { ...prev, presets: { ...prev.presets, [key]: next } };
+            });
+        };
+        const handleSaveCompose = () => {
+            setComposing(prev => {
+                if (!prev || !prev.name.trim()) return prev;
+                const cleaned: Partial<Record<PlanBlockKey, string[]>> = {};
+                for (const [key, tags] of Object.entries(prev.presets)) {
+                    if (tags && tags.length > 0) cleaned[key as PlanBlockKey] = tags;
+                }
+                setStagedAdds(a => [...a, { id: crypto.randomUUID(), name: prev.name.trim(), presets: cleaned }]);
+                return null;
+            });
+        };
+        window.addEventListener('tour:plan-stage-tag', handleStageTag);
+        window.addEventListener('tour:plan-start-compose', handleStartCompose);
+        window.addEventListener('tour:plan-toggle-preset', handleTogglePreset);
+        window.addEventListener('tour:plan-save-compose', handleSaveCompose);
+        return () => {
+            window.removeEventListener('tour:plan-stage-tag', handleStageTag);
+            window.removeEventListener('tour:plan-start-compose', handleStartCompose);
+            window.removeEventListener('tour:plan-toggle-preset', handleTogglePreset);
+            window.removeEventListener('tour:plan-save-compose', handleSaveCompose);
+        };
+    }, []);
+
     // --- Order set handlers ---
 
     const handleStartAdd = useCallback((name: string) => {
@@ -246,7 +288,7 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
         : 0;
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full" data-tour="plan-settings-panel">
             <div className="flex-1 overflow-y-auto">
                 <div className="px-5 py-4 space-y-5">
                     <p className="text-xs text-tertiary leading-relaxed">
@@ -284,7 +326,7 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
             </div>
 
             {/* Sticky footer — visible during order set composition */}
-            <div className={`overflow-hidden transition-all duration-300 ease-out ${
+            <div data-tour="plan-orderset-footer" className={`overflow-hidden transition-all duration-300 ease-out ${
                 composing ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'
             }`}>
                 <div className="px-5 py-3 border-t border-themeblue2/15 bg-themewhite2">

@@ -31,6 +31,8 @@ export const MainSettingsPanel = ({
         15: 'settings-pin',
         17: 'settings-notifications',
         19: 'settings-note-content',
+        28: 'settings-clinic',
+        34: 'settings-guided-tours',
     };
     // Separate top row items (no header before them) from card sections
     const topItems: Extract<SettingsItem, { type: 'option' }>[] = [];

@@ -285,7 +285,7 @@ export function CoverageTasksView({
   }
 
   return (
-    <div>
+    <div data-tour="supervisor-task-list">
       <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
         {areaName}
       </p>

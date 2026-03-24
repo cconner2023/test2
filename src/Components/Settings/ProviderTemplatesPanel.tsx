@@ -3,6 +3,7 @@ import { Check, X, Trash2 } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { COMPREHENSIVE_DEFAULT_BLOCK_IDS, getBlockByKey } from '../../Data/PhysicalExamData';
 import type { UserTypes, ProviderNoteTemplate, TextExpander } from '../../Data/User';
+import { PROVIDER_TOUR_TEMPLATE_PREFIX } from '../../Data/GuidedTourData';
 
 const TEXTAREA_CLASS =
     'w-full min-h-[80px] rounded-xl border border-themeblue3/10 shadow-xs bg-themewhite p-3 text-sm text-primary ' +
@@ -343,7 +344,7 @@ export const ProviderTemplatesPanel = ({
     };
 
     return (
-        <div className="h-full overflow-y-auto">
+        <div className="h-full overflow-y-auto" data-tour="settings-provider-templates">
             <div className="px-5 py-4 space-y-5">
                 <p className="text-xs text-tertiary leading-relaxed">
                     Compose note skeletons from your text shortcuts. Apply them in the Provider drawer to pre-fill fields.
@@ -561,9 +562,11 @@ export const ProviderTemplatesPanel = ({
 
                                 {templates.map(t => {
                                     const isMarkedDelete = stagedDeletes.has(t.id);
+                                    const isTourTemplate = t.id.startsWith(PROVIDER_TOUR_TEMPLATE_PREFIX);
                                     return (
                                         <div
                                             key={t.id}
+                                            data-tour={isTourTemplate ? 'provider-demo-template' : undefined}
                                             onClick={editing ? () => handleToggleDelete(t.id) : () => handleCardTap(t)}
                                             className={`flex items-start py-2.5 px-2 rounded-lg transition-colors ${
                                                 isMarkedDelete

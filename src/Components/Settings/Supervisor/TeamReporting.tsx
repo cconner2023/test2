@@ -57,7 +57,7 @@ export function TeamReporting({
   return (
     <div className="space-y-5">
       {/* Clinic Overview Card */}
-      <div className="rounded-xl bg-themewhite2 px-4 py-3 mb-5">
+      <div data-tour="supervisor-clinic-stats" className="rounded-xl bg-themewhite2 px-4 py-3 mb-5">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
             <Building2 size={16} className="text-tertiary/50" />
@@ -86,12 +86,12 @@ export function TeamReporting({
       </div>
 
       {/* Soldier Readiness */}
-      <div>
+      <div data-tour="supervisor-soldier-readiness">
         <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
           Soldier Readiness
         </p>
         <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-          {sortedSoldiers.map((entry) => {
+          {sortedSoldiers.map((entry, index) => {
             const soldier = medics.find(m => m.id === entry.soldierId)
             if (!soldier) return null
             return (
@@ -99,6 +99,7 @@ export function TeamReporting({
                 key={entry.soldierId}
                 onClick={() => onViewSoldier(soldier)}
                 className="w-full flex items-center gap-3 px-4 py-3 hover:bg-themeblue2/5 text-left active:scale-95 transition-all"
+                {...(index === 0 && { 'data-tour': 'supervisor-first-soldier' })}
               >
                 <span className="text-sm text-primary min-w-0 truncate shrink-0 w-36">
                   {formatMedicName(soldier)}
@@ -141,14 +142,15 @@ export function TeamReporting({
       </div>
 
       {/* Coverage Gaps */}
-      <div>
+      <div data-tour="supervisor-coverage-gaps">
         <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
           Coverage Gaps
         </p>
         <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-          {sortedGaps.map((gap) => (
+          {sortedGaps.map((gap, index) => (
             <button
               key={gap.areaName}
+              {...(index === 0 && { 'data-tour': 'supervisor-first-area' })}
               onClick={() => {
                 if (onNavigateToArea) {
                   onNavigateToArea(gap.areaName)

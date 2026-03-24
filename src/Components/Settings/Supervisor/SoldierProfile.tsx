@@ -109,7 +109,7 @@ export function SoldierProfile({
   return (
     <div className="space-y-5">
       {/* Soldier Card */}
-      <div className="rounded-xl bg-themewhite2 px-4 py-3">
+      <div data-tour="supervisor-soldier-card" className="rounded-xl bg-themewhite2 px-4 py-3">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
             <Building2 size={16} className="text-tertiary/50" />
@@ -238,7 +238,7 @@ export function SoldierProfile({
       </div>
 
       {/* Training Competency by Category */}
-      <div>
+      <div data-tour="supervisor-competency">
         <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
           Training Competency
         </p>

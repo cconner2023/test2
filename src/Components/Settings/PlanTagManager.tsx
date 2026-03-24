@@ -85,7 +85,7 @@ export const PlanTagManager = ({
     const activeMeta = CATEGORY_META[activeCategory];
 
     return (
-        <section>
+        <section data-tour="plan-tag-section">
             <div className="pb-2 flex items-center gap-2">
                 <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Plan Tags</p>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
@@ -105,7 +105,7 @@ export const PlanTagManager = ({
             }`}>
                 <div className="px-4 py-3">
                     {/* Add input with category picker — edit-gated, hidden during selectMode */}
-                    <div className={`transition-all duration-300 ease-out ${
+                    <div data-tour="plan-tag-input" className={`transition-all duration-300 ease-out ${
                         editing && !selectMode ? 'max-h-32 opacity-100 mb-2' : 'max-h-0 opacity-0'
                     } ${showCategoryPicker ? 'overflow-visible' : 'overflow-hidden'}`}>
                         <div className="flex items-center gap-1.5">
@@ -188,7 +188,7 @@ export const PlanTagManager = ({
                                 const deletedSet = stagedTagDeletes?.[key];
 
                                 return (
-                                    <div key={key}>
+                                    <div key={key} data-tour={`plan-tag-${key}`}>
                                         <p className="text-[10px] font-semibold text-tertiary/40 tracking-widest uppercase mb-0.5 px-2">
                                             {meta.label}
                                         </p>
@@ -239,19 +239,40 @@ export const PlanTagManager = ({
                                                 );
                                             })}
 
-                                            {/* Staged adds — dashed blue border */}
-                                            {addedTags.map((tag, i) => (
-                                                <div
-                                                    key={`add-${i}`}
-                                                    onClick={editing ? () => onUnstageTagAdd?.(key, tag) : undefined}
-                                                    className="flex items-center gap-2.5 py-1.5 px-2 rounded-lg border border-dashed border-themeblue2/30 bg-themeblue2/5 cursor-pointer active:scale-95 transition-all"
-                                                >
-                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${meta.bg}`}>
-                                                        <CatIcon size={11} className={meta.color} />
+                                            {/* Staged adds — selectable in compose mode, removable in edit mode */}
+                                            {addedTags.map((tag, i) => {
+                                                if (selectMode) {
+                                                    const isSelected = selectedPresets?.[key]?.includes(tag) ?? false;
+                                                    return (
+                                                        <div
+                                                            key={`add-${i}`}
+                                                            onClick={() => onTogglePreset?.(key, tag)}
+                                                            className={`flex items-center gap-2.5 py-1.5 px-2 rounded-lg border border-dashed cursor-pointer active:scale-95 transition-colors ${
+                                                                isSelected
+                                                                    ? 'border-themeblue2/30 ring-1 ring-inset ring-themeblue2/30 bg-themeblue2/5'
+                                                                    : 'border-themeblue2/20 hover:bg-tertiary/5'
+                                                            }`}
+                                                        >
+                                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${meta.bg}`}>
+                                                                <CatIcon size={11} className={meta.color} />
+                                                            </div>
+                                                            <p className={`text-sm ${isSelected ? 'text-primary font-medium' : 'text-primary'}`}>{tag}</p>
+                                                        </div>
+                                                    );
+                                                }
+                                                return (
+                                                    <div
+                                                        key={`add-${i}`}
+                                                        onClick={editing ? () => onUnstageTagAdd?.(key, tag) : undefined}
+                                                        className="flex items-center gap-2.5 py-1.5 px-2 rounded-lg border border-dashed border-themeblue2/30 bg-themeblue2/5 cursor-pointer active:scale-95 transition-all"
+                                                    >
+                                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${meta.bg}`}>
+                                                            <CatIcon size={11} className={meta.color} />
+                                                        </div>
+                                                        <p className="text-sm text-primary">{tag}</p>
                                                     </div>
-                                                    <p className="text-sm text-primary">{tag}</p>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 );

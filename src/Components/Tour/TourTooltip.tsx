@@ -21,6 +21,15 @@ const TOOLTIP_MAX_W = 280
 const TOOLTIP_GAP = 12
 const VIEWPORT_PAD = 12
 
+/** Read CSS safe-area insets (--sat / --sab set in App.css, patched in main.tsx for iOS 15). */
+function getSafeAreaInsets() {
+  const style = getComputedStyle(document.documentElement)
+  return {
+    top: parseFloat(style.getPropertyValue('--sat')) || 0,
+    bottom: parseFloat(style.getPropertyValue('--sab')) || 0,
+  }
+}
+
 function clamp(val: number, min: number, max: number) {
   return Math.max(min, Math.min(max, val))
 }
@@ -78,10 +87,13 @@ export function TourTooltip({
 
     calc(placement)
 
-    // Flip if overflowing
-    if (placement === 'bottom' && top + tt.height > vh - VIEWPORT_PAD) {
+    // Flip if overflowing (account for safe areas on top/bottom)
+    const safeArea = getSafeAreaInsets()
+    const safeTop = Math.max(VIEWPORT_PAD, safeArea.top + VIEWPORT_PAD)
+    const safeBottom = Math.max(VIEWPORT_PAD, safeArea.bottom + VIEWPORT_PAD)
+    if (placement === 'bottom' && top + tt.height > vh - safeBottom) {
       actual = 'top'; calc('top')
-    } else if (placement === 'top' && top < VIEWPORT_PAD) {
+    } else if (placement === 'top' && top < safeTop) {
       actual = 'bottom'; calc('bottom')
     } else if (placement === 'right' && left + tt.width > vw - VIEWPORT_PAD) {
       actual = 'left'; calc('left')
@@ -89,9 +101,9 @@ export function TourTooltip({
       actual = 'right'; calc('right')
     }
 
-    // Clamp to viewport
+    // Clamp to viewport, respecting device safe areas (notch / home indicator)
     left = clamp(left, VIEWPORT_PAD, vw - tt.width - VIEWPORT_PAD)
-    top = clamp(top, VIEWPORT_PAD, vh - tt.height - VIEWPORT_PAD)
+    top = clamp(top, safeTop, vh - tt.height - safeBottom)
 
     setPos({ top, left })
   }, [targetRect, placement])
