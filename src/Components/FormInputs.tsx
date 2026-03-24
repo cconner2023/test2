@@ -714,7 +714,7 @@ export const DatePickerInput = ({
 
 /* ── UIC Pin Input (6-digit auto-advance) ── */
 
-export function UicPinInput({ value, onChange, spread }: { value: string; onChange: (v: string) => void; spread?: boolean }) {
+export function UicPinInput({ value, onChange, spread, label }: { value: string; onChange: (v: string) => void; spread?: boolean; label?: string }) {
   const refs = useRef<(HTMLInputElement | null)[]>([])
   const chars = (value + '      ').slice(0, 6).split('')
 
@@ -747,9 +747,11 @@ export function UicPinInput({ value, onChange, spread }: { value: string; onChan
   }
 
   return (
-    <div className={spread ? 'grid grid-cols-6 gap-2' : 'flex items-center gap-1.5'}>
-      {!spread && <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mr-1">UIC</span>}
-      {chars.map((c, i) => (
+    <div>
+      {label && <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">{label}</span>}
+      <div className={`${label ? 'mt-1 ' : ''}${spread ? 'grid grid-cols-6 gap-2' : 'flex items-center gap-1.5'}`}>
+        {!spread && !label && <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mr-1">UIC</span>}
+        {chars.map((c, i) => (
         <input
           key={i}
           ref={el => { refs.current[i] = el }}
@@ -762,7 +764,8 @@ export function UicPinInput({ value, onChange, spread }: { value: string; onChan
           onFocus={(e) => e.target.select()}
           className={`h-10 text-center rounded-full border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm font-mono bg-themewhite dark:bg-themewhite3 text-primary transition-all duration-300 ${spread ? 'w-full' : 'w-8'}`}
         />
-      ))}
+        ))}
+      </div>
     </div>
   )
 }

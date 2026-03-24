@@ -7,7 +7,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { TextInput } from '../FormInputs'
+import { X } from 'lucide-react'
+import { TextInput, UicPinInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { ChipInput, UserPicker, ClinicPicker } from './AdminPickers'
 import { createClinic, updateClinic, listAllUsers, listClinics } from '../../lib/adminService'
@@ -45,6 +46,25 @@ const AdminClinicForm = ({ clinic, onBack, onSaved }: AdminClinicFormProps) => {
   const [additionalUserIds, setAdditionalUserIds] = useState<string[]>(clinic?.additional_user_ids ?? [])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [uicDraft, setUicDraft] = useState('')
+  const [uicError, setUicError] = useState<string | null>(null)
+
+  const handleAddUic = useCallback(() => {
+    if (uicDraft.length !== 6) return
+    const upper = uicDraft.toUpperCase()
+    if (uics.includes(upper)) {
+      setUicError('This UIC is already added')
+      return
+    }
+    const owner = allClinics.find(c => c.id !== clinic?.id && c.uics.includes(upper))
+    if (owner) {
+      setUicError(`UIC ${upper} is already assigned to ${owner.name}`)
+      return
+    }
+    setUics(prev => [...prev, upper])
+    setUicDraft('')
+    setUicError(null)
+  }, [uicDraft, uics, allClinics, clinic?.id])
 
   /** Shared validation and submit handler for both modes. */
   const handleSubmit = useCallback(async (e?: React.FormEvent) => {
@@ -95,13 +115,35 @@ const AdminClinicForm = ({ clinic, onBack, onSaved }: AdminClinicFormProps) => {
     <>
       <TextInput label="Clinic Name" value={name} onChange={setName} placeholder="e.g. TMC Alpha" required />
       <TextInput label="Location" value={location} onChange={setLocation} placeholder="e.g. Building 123, Fort Example" />
-      <ChipInput
-        label="UICs"
-        values={uics}
-        onChange={setUics}
-        placeholder="Add UIC (e.g. W12345)..."
-        transform={(v) => v.toUpperCase()}
-      />
+      <div>
+        <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">UICs</span>
+        {uics.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1.5 mb-2">
+            {uics.map((val, idx) => (
+              <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-themeblue2/10 text-themeblue2 text-xs font-medium border border-themeblue2/30">
+                {val}
+                <button type="button" onClick={() => setUics(prev => prev.filter((_, i) => i !== idx))} className="hover:text-themeredred transition-colors">
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="flex items-end gap-2">
+          <div className="flex-1">
+            <UicPinInput value={uicDraft} onChange={(v) => { setUicDraft(v); setUicError(null) }} spread />
+          </div>
+          <button
+            type="button"
+            onClick={handleAddUic}
+            disabled={uicDraft.length !== 6}
+            className="px-3 h-10 rounded-lg bg-themeblue3 text-white text-sm font-medium hover:bg-themeblue3/90 disabled:opacity-50 transition-colors shrink-0"
+          >
+            Add
+          </button>
+        </div>
+        {uicError && <p className="text-xs text-themeredred mt-1">{uicError}</p>}
+      </div>
       <ClinicPicker
         label="Child Clinics"
         selectedIds={childClinicIds}

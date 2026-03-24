@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { TextInput, SelectInput } from '../FormInputs'
+import { TextInput, PickerInput, UicPinInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import type { Component } from '../../Data/User'
@@ -280,33 +280,28 @@ const AdminUserForm = ({ user, onBack, onSaved }: AdminUserFormProps) => {
         />
 
         {/* ── Service details ───────────────────────────────────────── */}
-        <SelectInput label="Credential" value={credential} onChange={setCredential} options={credentials} />
-        <SelectInput label="Component" value={component} onChange={handleComponentChange} options={components} />
-        {component && <SelectInput label="Rank" value={rank} onChange={setRank} options={componentRanks} />}
-        <TextInput label="UIC" value={uic} onChange={(v) => setUic(v.toUpperCase())} maxLength={6} />
+        <div className="grid grid-cols-2 gap-3">
+          <PickerInput label="Credential" value={credential} onChange={setCredential} options={credentials} inline />
+          <PickerInput label="Component" value={component} onChange={handleComponentChange} options={components} inline />
+        </div>
+        {component && <PickerInput label="Rank" value={rank} onChange={setRank} options={componentRanks} inline />}
+        <UicPinInput label="UIC" value={uic} onChange={setUic} spread />
 
         {/* ── Edit-only: clinic assignment ───────────────────────────── */}
         {isEditMode && (
-          <label className="block">
-            <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Clinic</span>
-            <select
+          <>
+            <PickerInput
+              label="Clinic"
               value={selectedClinicId}
-              onChange={(e) => setSelectedClinicId(e.target.value)}
-              className="mt-1 w-full px-3 py-2.5 rounded-lg bg-themewhite2 text-primary text-base
-                         border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                         transition-colors appearance-none"
-            >
-              <option value="">No clinic assigned</option>
-              {clinics.map((clinic) => (
-                <option key={clinic.id} value={clinic.id}>
-                  {clinic.name} ({clinic.uics.join(', ')})
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedClinicId}
+              options={clinics.map(c => ({ value: c.id, label: `${c.name} (${c.uics.join(', ')})` }))}
+              placeholder="No clinic assigned"
+              inline
+            />
             {selectedClinic?.location && (
-              <p className="mt-1 text-xs text-tertiary/50">{selectedClinic.location}</p>
+              <p className="-mt-2 text-xs text-tertiary/50">{selectedClinic.location}</p>
             )}
-          </label>
+          </>
         )}
 
         {/* ── Roles ─────────────────────────────────────────────────── */}
@@ -350,11 +345,12 @@ const AdminUserForm = ({ user, onBack, onSaved }: AdminUserFormProps) => {
                   className="w-4 h-4 rounded border-tertiary/30"
                 />
               </label>
-              <SelectInput
+              <PickerInput
                 label="PE Depth"
                 value={peDepth}
                 onChange={setPeDepth}
                 options={['focused', 'standard', 'comprehensive'] as const}
+                inline
               />
             </div>
           </div>

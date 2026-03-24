@@ -15,7 +15,7 @@ import type { Component } from '../../Data/User'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { AdminCertsSection } from './AdminCertsSection'
 import { formatLastActive, lastActiveColor, RoleBadge } from './adminUtils'
-import { TextInput, SelectInput } from '../FormInputs'
+import { TextInput, PickerInput, UicPinInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
 import {
   listAllUsers,
@@ -109,7 +109,7 @@ export function AdminUserDetail({
 
   const componentRanks = editComponent ? ranksByComponent[editComponent as Component] : []
 
-  // ── Clinic options for edit SelectInput ─────────────────────────────
+  // ── Clinic options for edit PickerInput ─────────────────────────────
   const clinicOptions = useMemo(
     () => clinics.map(c => ({ value: c.id, label: `${c.name} (${c.uics.join(', ')})` })),
     [clinics],
@@ -359,11 +359,13 @@ export function AdminUserDetail({
               onChange={v => setEditMiddleInitial(v.toUpperCase().slice(0, 1))}
               maxLength={1}
             />
-            <SelectInput label="Credential" value={editCredential} onChange={setEditCredential} options={credentials} />
-            <SelectInput label="Component" value={editComponent} onChange={handleComponentChange} options={components} />
-            {editComponent && <SelectInput label="Rank" value={editRank} onChange={setEditRank} options={componentRanks} />}
-            <TextInput label="UIC" value={editUic} onChange={v => setEditUic(v.toUpperCase())} maxLength={6} />
-            <SelectInput label="Clinic" value={editClinicId} onChange={setEditClinicId} options={clinicOptions} placeholder="No clinic assigned" />
+            <div className="grid grid-cols-2 gap-3">
+              <PickerInput label="Credential" value={editCredential} onChange={setEditCredential} options={credentials} inline />
+              <PickerInput label="Component" value={editComponent} onChange={handleComponentChange} options={components} inline />
+            </div>
+            {editComponent && <PickerInput label="Rank" value={editRank} onChange={setEditRank} options={componentRanks} inline />}
+            <UicPinInput label="UIC" value={editUic} onChange={setEditUic} spread />
+            <PickerInput label="Clinic" value={editClinicId} onChange={setEditClinicId} options={clinicOptions} placeholder="No clinic assigned" inline />
             <div>
               <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Roles</span>
               <div className="flex gap-3 mt-2 flex-wrap">
@@ -388,7 +390,7 @@ export function AdminUserDetail({
               <span className="text-sm text-primary">Include PE</span>
               <input type="checkbox" checked={editNoteIncludePE} onChange={() => setEditNoteIncludePE(!editNoteIncludePE)} className="w-4 h-4 rounded border-tertiary/30" />
             </label>
-            <SelectInput label="PE Depth" value={editPeDepth} onChange={setEditPeDepth} options={['focused', 'standard', 'comprehensive']} />
+            <PickerInput label="PE Depth" value={editPeDepth} onChange={setEditPeDepth} options={['focused', 'standard', 'comprehensive']} inline />
           </div>
         ) : (
           <div className="px-4 py-3">

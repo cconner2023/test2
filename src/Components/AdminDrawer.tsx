@@ -14,6 +14,7 @@ import { useAuthStore } from '../stores/useAuthStore'
 
 // Admin sub-components
 import { AdminRequestsList } from './Admin/AdminRequestsList'
+import { AdminRequestDetail } from './Admin/AdminRequestDetail'
 import { AdminUsersList } from './Admin/AdminUsersList'
 import { AdminUserDetail } from './Admin/AdminUserDetail'
 import AdminUserForm from './Admin/AdminUserForm'
@@ -22,6 +23,7 @@ import AdminClinicDetail from './Admin/AdminClinicDetail'
 import AdminClinicForm from './Admin/AdminClinicForm'
 import { AdminTree } from './Admin/AdminTree'
 import type { AdminUser, AdminClinic } from '../lib/adminService'
+import type { AccountRequest } from '../lib/accountRequestService'
 
 export type AdminView =
     | 'admin'
@@ -53,6 +55,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // Selected entity for detail/form views
     const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
     const [selectedClinic, setSelectedClinic] = useState<AdminClinic | null>(null)
+    const [selectedRequest, setSelectedRequest] = useState<AccountRequest | null>(null)
     const [isEditMode, setIsEditMode] = useState(false)
 
     // Clinic delete confirmation (triggered from header pill)
@@ -121,6 +124,12 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setView('admin-clinic-detail')
     }, [handleSlideAnimation])
 
+    const handleSelectRequest = useCallback((request: AccountRequest) => {
+        setSelectedRequest(request)
+        handleSlideAnimation('left')
+        setView('admin-request-detail')
+    }, [handleSlideAnimation])
+
     const handleEditClinic = useCallback((clinic: AdminClinic) => {
         setSelectedClinic(clinic)
         setIsEditMode(true)
@@ -146,6 +155,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         } else if (view === 'admin-clinic-form' && selectedClinic) {
             handleSlideAnimation('right')
             setView('admin-clinic-detail')
+        } else if (view === 'admin-request-detail') {
+            handleSlideAnimation('right')
+            setView('admin')
+            setSelectedRequest(null)
         } else if (view !== 'admin') {
             handleSlideAnimation('right')
             setView('admin')
@@ -159,6 +172,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setActiveTab('requests')
         setSelectedUser(null)
         setSelectedClinic(null)
+        setSelectedRequest(null)
         setSlideDirection('')
         setConfirmDeleteClinic(false)
         setConfirmDeleteUser(false)
@@ -368,10 +382,14 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     showBack: true,
                     onBack: handleBack,
                 }
-            case 'admin-request-detail':
-                return { title: 'Request', showBack: true, onBack: handleBack }
+            case 'admin-request-detail': {
+                const reqName = selectedRequest
+                    ? `${selectedRequest.first_name || ''} ${selectedRequest.last_name || ''}`.trim() || 'Request'
+                    : 'Request'
+                return { title: reqName, showBack: true, onBack: handleBack }
+            }
         }
-    }, [view, selectedUser, selectedClinic, handleBack, detailHeaderActions, mainHeaderActions])
+    }, [view, selectedUser, selectedClinic, selectedRequest, handleBack, detailHeaderActions, mainHeaderActions])
 
     // Scrollable padded wrapper for sub-views (detail/form)
     const subViewWrapper = (children: React.ReactNode) => (
@@ -434,6 +452,44 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         }}
                     />
                 )
+
+            case 'admin-request-detail':
+                return selectedRequest ? subViewWrapper(
+                    <AdminRequestDetail
+                        request={selectedRequest}
+                        onApproved={(userId) => {
+                            const newUser: AdminUser = {
+                                id: userId,
+                                email: selectedRequest.email,
+                                first_name: selectedRequest.first_name,
+                                last_name: selectedRequest.last_name,
+                                middle_initial: selectedRequest.middle_initial ?? null,
+                                credential: selectedRequest.credential ?? null,
+                                component: selectedRequest.component ?? null,
+                                rank: selectedRequest.rank ?? null,
+                                uic: selectedRequest.uic ?? null,
+                                roles: ['medic'],
+                                clinic_id: null,
+                                created_at: new Date().toISOString(),
+                                last_active_at: null,
+                                note_include_hpi: true,
+                                note_include_pe: false,
+                                pe_depth: 'standard',
+                                avatar_id: null,
+                            }
+                            setSelectedRequest(null)
+                            handleSelectUser(newUser)
+                        }}
+                        onRejected={() => {
+                            setSelectedRequest(null)
+                            setView('admin')
+                        }}
+                        onReopened={() => {
+                            setSelectedRequest(null)
+                            setView('admin')
+                        }}
+                    />
+                ) : null
 
             case 'admin':
             default:
@@ -498,28 +554,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             {activeTab === 'requests' && (
                 <AdminRequestsList
                     searchQuery={searchQuery}
-                    onUserApproved={(approvedUser) => {
-                        const newUser: AdminUser = {
-                            id: approvedUser.id,
-                            email: approvedUser.email,
-                            first_name: approvedUser.first_name,
-                            last_name: approvedUser.last_name,
-                            middle_initial: null,
-                            credential: null,
-                            component: null,
-                            rank: null,
-                            uic: null,
-                            roles: approvedUser.supervisor ? ['medic', 'supervisor'] : ['medic'],
-                            clinic_id: null,
-                            created_at: new Date().toISOString(),
-                            last_active_at: null,
-                            note_include_hpi: approvedUser.noteIncludeHPI ?? true,
-                            note_include_pe: approvedUser.noteIncludePE ?? false,
-                            pe_depth: approvedUser.peDepth ?? 'standard',
-                            avatar_id: null,
-                        }
-                        handleEditUser(newUser)
-                    }}
+                    onSelectRequest={handleSelectRequest}
                 />
             )}
             {activeTab === 'users' && (
@@ -541,55 +576,30 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         </>
     )
 
-    // Shared: search results across all tabs
+    // Shared: unified search results across all tabs
     const renderSearchResults = () => (
-        <div className="pb-4">
-            <div className="px-5 pb-2">
-                <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Requests</p>
+        <div className="px-5 pb-4">
+            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-themeblue3/10">
+                <AdminRequestsList
+                    searchQuery={searchQuery}
+                    bare
+                    onSelectRequest={handleSelectRequest}
+                />
+                <AdminUsersList
+                    onSelectUser={handleSelectUser}
+                    onEditUser={handleEditUser}
+                    onCreateUser={handleCreateUser}
+                    searchQuery={searchQuery}
+                    bare
+                />
+                <AdminClinicsList
+                    onSelectClinic={handleSelectClinic}
+                    onEditClinic={handleEditClinic}
+                    onCreateClinic={handleCreateClinic}
+                    searchQuery={searchQuery}
+                    bare
+                />
             </div>
-            <AdminRequestsList
-                searchQuery={searchQuery}
-                onUserApproved={(approvedUser) => {
-                    const newUser: AdminUser = {
-                        id: approvedUser.id,
-                        email: approvedUser.email,
-                        first_name: approvedUser.first_name,
-                        last_name: approvedUser.last_name,
-                        middle_initial: null,
-                        credential: null,
-                        component: null,
-                        rank: null,
-                        uic: null,
-                        roles: approvedUser.supervisor ? ['medic', 'supervisor'] : ['medic'],
-                        clinic_id: null,
-                        created_at: new Date().toISOString(),
-                        last_active_at: null,
-                        note_include_hpi: approvedUser.noteIncludeHPI ?? true,
-                        note_include_pe: approvedUser.noteIncludePE ?? false,
-                        pe_depth: approvedUser.peDepth ?? 'standard',
-                        avatar_id: null,
-                    }
-                    handleEditUser(newUser)
-                }}
-            />
-            <div className="px-5 pb-2 pt-4">
-                <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Users</p>
-            </div>
-            <AdminUsersList
-                onSelectUser={handleSelectUser}
-                onEditUser={handleEditUser}
-                onCreateUser={handleCreateUser}
-                searchQuery={searchQuery}
-            />
-            <div className="px-5 pb-2 pt-4">
-                <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Clinics</p>
-            </div>
-            <AdminClinicsList
-                onSelectClinic={handleSelectClinic}
-                onEditClinic={handleEditClinic}
-                onCreateClinic={handleCreateClinic}
-                searchQuery={searchQuery}
-            />
         </div>
     )
 

@@ -17,6 +17,8 @@ interface AdminClinicsListProps {
   onCreateClinic: () => void
   filterClinicId?: string | null
   searchQuery?: string
+  /** When true, renders items without wrapper chrome (for unified search results) */
+  bare?: boolean
 }
 
 export function AdminClinicsList({
@@ -25,6 +27,7 @@ export function AdminClinicsList({
   onCreateClinic,
   filterClinicId,
   searchQuery: searchQueryProp,
+  bare,
 }: AdminClinicsListProps) {
   const searchQuery = searchQueryProp ?? ''
 
@@ -111,40 +114,23 @@ export function AdminClinicsList({
     setDeleteTarget(null)
   }
 
-  // ── Render ──────────────────────────────────────────────────
+  // ── Shared: render clinic row items ─────────────────────
+  const renderClinicItems = () => filteredClinics.map((clinic) => {
+    const assignedUsers = usersInClinic(clinic.id)
+    return (
+      <ClinicCard
+        key={clinic.id}
+        clinic={clinic}
+        assignedUserCount={assignedUsers.length}
+        onTap={() => onSelectClinic(clinic)}
+        onContextMenu={(x, y) => setContextMenu({ clinicId: clinic.id, x, y })}
+      />
+    )
+  })
 
-  return (
-    <div>
-      <div className="px-5 pt-4 pb-2 space-y-5">
-        {status && <ErrorDisplay type={status.type} message={status.message} />}
-      </div>
-
-      <div className="px-5 pb-4">
-        {showLoading ? (
-          <LoadingSpinner label="Loading clinics..." className="py-12 text-tertiary" />
-        ) : filteredClinics.length === 0 ? (
-          <EmptyState
-            icon={<Building2 size={28} />}
-            title={searchQuery ? 'No clinics match your search' : 'No clinics found'}
-          />
-        ) : (
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-            {filteredClinics.map((clinic) => {
-              const assignedUsers = usersInClinic(clinic.id)
-              return (
-                <ClinicCard
-                  key={clinic.id}
-                  clinic={clinic}
-                  assignedUserCount={assignedUsers.length}
-                  onTap={() => onSelectClinic(clinic)}
-                  onContextMenu={(x, y) => setContextMenu({ clinicId: clinic.id, x, y })}
-                />
-              )
-            })}
-          </div>
-        )}
-      </div>
-
+  // ── Shared: overlays ──────────────────────────────────────
+  const renderOverlays = () => (
+    <>
       {contextMenu && (
         <CardContextMenu
           x={contextMenu.x}
@@ -193,6 +179,44 @@ export function AdminClinicsList({
         onConfirm={handleDeleteConfirm}
         onCancel={handleDeleteCancel}
       />
+    </>
+  )
+
+  // ── Bare mode: just the items (no wrapper chrome) ──────
+  if (bare) {
+    if (filteredClinics.length === 0) return null
+    return (
+      <>
+        {renderClinicItems()}
+        {renderOverlays()}
+      </>
+    )
+  }
+
+  // ── Render ──────────────────────────────────────────────────
+
+  return (
+    <div>
+      <div className="px-5 pt-4 pb-2 space-y-5">
+        {status && <ErrorDisplay type={status.type} message={status.message} />}
+      </div>
+
+      <div className="px-5 pb-4">
+        {showLoading ? (
+          <LoadingSpinner label="Loading clinics..." className="py-12 text-tertiary" />
+        ) : filteredClinics.length === 0 ? (
+          <EmptyState
+            icon={<Building2 size={28} />}
+            title={searchQuery ? 'No clinics match your search' : 'No clinics found'}
+          />
+        ) : (
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+            {renderClinicItems()}
+          </div>
+        )}
+      </div>
+
+      {renderOverlays()}
     </div>
   )
 }

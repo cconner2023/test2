@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Clock, Building2, RotateCcw, Trash2, UserCheck, Eye, Check, X, HelpCircle } from 'lucide-react'
+import { Clock, Building2, Trash2, UserCheck, Eye, X, HelpCircle } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { CardContextMenu } from '../CardContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -9,9 +9,6 @@ import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useLongPress } from '../../Hooks/useLongPress'
 import {
   getAllAccountRequests,
-  approveAccountRequest,
-  rejectAccountRequest,
-  reopenAccountRequest,
   deleteAccountRequest,
   listClinics,
   listAllUsers,
@@ -33,17 +30,9 @@ function getStatusColor(status: string): string {
 // ─── Public Interface ───────────────────────────────────────
 interface AdminRequestsListProps {
   searchQuery?: string
-  /** Called after a request is approved — passes the new user so the parent can open the edit form */
-  onUserApproved?: (user: {
-    id: string
-    first_name: string
-    last_name: string
-    email: string
-    supervisor?: boolean
-    noteIncludeHPI?: boolean
-    noteIncludePE?: boolean
-    peDepth?: string
-  }) => void
+  /** When true, renders items without wrapper chrome (for unified search results) */
+  bare?: boolean
+  onSelectRequest?: (request: AccountRequest) => void
 }
 
 // ─── Per-card long-press wrapper ────────────────────────────
@@ -51,54 +40,20 @@ function RequestCard({
   request,
   expandedId,
   setExpandedId,
-  approvingId,
-  setApprovingId,
-  rejectingId,
-  setRejectingId,
-  processingId,
-  rejectReason,
-  setRejectReason,
-  handleApprove,
-  handleReject,
-  handleReopen,
   setConfirmDeleteId,
   matchedClinic,
   isExistingUser,
   setContextMenu,
-  approvalSupervisor,
-  setApprovalSupervisor,
-  approvalIncludeHPI,
-  setApprovalIncludeHPI,
-  approvalIncludePE,
-  setApprovalIncludePE,
-  approvalPeDepth,
-  setApprovalPeDepth,
+  onSelectRequest,
 }: {
   request: AccountRequest
   expandedId: string | null
   setExpandedId: (id: string | null) => void
-  approvingId: string | null
-  setApprovingId: (id: string | null) => void
-  rejectingId: string | null
-  setRejectingId: (id: string | null) => void
-  processingId: string | null
-  rejectReason: string
-  setRejectReason: (v: string) => void
-  handleApprove: (id: string) => void
-  handleReject: (id: string) => void
-  handleReopen: (id: string) => void
   setConfirmDeleteId: (id: string | null) => void
   matchedClinic: AdminClinic | undefined
   isExistingUser: boolean
   setContextMenu: (v: { requestId: string; x: number; y: number } | null) => void
-  approvalSupervisor: boolean
-  setApprovalSupervisor: (v: boolean) => void
-  approvalIncludeHPI: boolean
-  setApprovalIncludeHPI: (v: boolean) => void
-  approvalIncludePE: boolean
-  setApprovalIncludePE: (v: boolean) => void
-  approvalPeDepth: string
-  setApprovalPeDepth: (v: string) => void
+  onSelectRequest?: (request: AccountRequest) => void
 }) {
   const isSupport = request.request_type === 'support'
   const isPending = request.status === 'pending'
@@ -112,9 +67,13 @@ function RequestCard({
   }, { delay: 500 })
 
   const handleTap = useCallback(() => {
+    if (!isSupport && onSelectRequest) {
+      onSelectRequest(request)
+      return
+    }
     if (!hasActions) return
     setExpandedId(isExpanded ? null : request.id)
-  }, [hasActions, isExpanded, request.id, setExpandedId])
+  }, [isSupport, onSelectRequest, request, hasActions, isExpanded, setExpandedId])
 
   const iconBg = isSupport
     ? 'bg-themeblue2/10'
@@ -199,7 +158,7 @@ function RequestCard({
         <p className="text-[10pt] text-tertiary px-4 pb-2">Already a user — safe to clear this request</p>
       )}
 
-      {/* Expanded detail section */}
+      {/* Expanded detail section — support requests only */}
       {isExpanded && isSupport && (
         <div className="px-4 pb-3.5 pt-3 border-t border-tertiary/10 space-y-2" onClick={(e) => e.stopPropagation()}>
           {request.notes && (
@@ -218,189 +177,12 @@ function RequestCard({
           </div>
         </div>
       )}
-
-      {isExpanded && !isSupport && (
-        <div className="px-4 pb-3.5 pt-3 border-t border-tertiary/10 space-y-2" onClick={(e) => e.stopPropagation()}>
-          {request.component && (
-            <p className="text-[10pt] text-tertiary">
-              Component: <span className="text-primary font-medium">{request.component}</span>
-            </p>
-          )}
-
-          {matchedClinic ? (
-            <p className="text-[10pt] text-tertiary">
-              Suggested clinic: <span className="text-primary font-medium">{matchedClinic.name}</span>
-              {matchedClinic.location ? ` — ${matchedClinic.location}` : ''}
-            </p>
-          ) : request.uic ? (
-            <p className="text-[10pt] text-tertiary">
-              No clinic found for UIC {request.uic} — assign manually after approval
-            </p>
-          ) : null}
-
-          {request.notes && (
-            <p className="text-[10pt] text-tertiary">
-              Notes: <span className="text-primary">{request.notes}</span>
-            </p>
-          )}
-
-          <p className="text-[10pt] text-tertiary">
-            Requested: {new Date(request.requested_at).toLocaleString()}
-          </p>
-
-          {/* Approval confirmation panel */}
-          {isPending && approvingId === request.id && (
-            <div className="p-3 bg-themewhite rounded-lg border border-tertiary/10 space-y-3">
-              <p className="text-[10pt] text-primary font-medium">
-                Create account and send setup email to {request.email}?
-              </p>
-
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={approvalSupervisor}
-                    onChange={(e) => setApprovalSupervisor(e.target.checked)}
-                    className="w-4 h-4 rounded border-tertiary/30"
-                  />
-                  <span className="text-[10pt] text-primary">Supervisor</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={approvalIncludeHPI}
-                    onChange={(e) => setApprovalIncludeHPI(e.target.checked)}
-                    className="w-4 h-4 rounded border-tertiary/30"
-                  />
-                  <span className="text-[10pt] text-primary">Include HPI</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={approvalIncludePE}
-                    onChange={(e) => setApprovalIncludePE(e.target.checked)}
-                    className="w-4 h-4 rounded border-tertiary/30"
-                  />
-                  <span className="text-[10pt] text-primary">Include PE</span>
-                </label>
-
-                {approvalIncludePE && (
-                  <div className="pl-6">
-                    <select
-                      value={approvalPeDepth}
-                      onChange={(e) => setApprovalPeDepth(e.target.value)}
-                      className="px-2.5 py-1.5 rounded-lg bg-themewhite2 border border-tertiary/10 text-[10pt] text-primary focus:border-themeblue2 focus:outline-none"
-                    >
-                      <option value="focused">Focused</option>
-                      <option value="standard">Standard</option>
-                      <option value="comprehensive">Comprehensive</option>
-                    </select>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => handleApprove(request.id)}
-                  disabled={processingId === request.id}
-                  className="px-4 py-1.5 rounded-lg bg-themeblue3 text-white text-[10pt] font-medium disabled:opacity-50 transition-colors active:scale-95"
-                >
-                  {processingId === request.id ? 'Creating...' : 'Confirm'}
-                </button>
-                <button
-                  onClick={() => setApprovingId(null)}
-                  className="text-[10pt] text-tertiary hover:text-primary transition-colors active:scale-95"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-
-          {isPending && rejectingId === request.id && (
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Rejection reason..."
-                className="flex-1 px-3 py-1.5 rounded-lg bg-themewhite border border-tertiary/10 text-[10pt] text-primary placeholder:text-tertiary/40 focus:outline-none focus:border-themeblue2"
-              />
-              <button
-                onClick={() => handleReject(request.id)}
-                disabled={processingId === request.id}
-                className="px-3 py-1.5 rounded-lg bg-themeblue3 text-white text-[10pt] font-medium disabled:opacity-50 transition-colors active:scale-95"
-              >
-                Confirm
-              </button>
-              <button
-                onClick={() => { setRejectingId(null); setRejectReason('') }}
-                className="text-[10pt] text-tertiary hover:text-primary transition-colors active:scale-95"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
-
-          {isPending && approvingId !== request.id && rejectingId !== request.id && (
-            <div className="flex items-center gap-3 pt-1">
-              <button
-                onClick={() => { setApprovingId(request.id); setRejectingId(null) }}
-                disabled={processingId === request.id}
-                className="px-4 py-1.5 rounded-lg bg-themeblue3 text-white font-medium text-[10pt] disabled:opacity-50 transition-colors active:scale-95"
-              >
-                Approve
-              </button>
-              <button
-                onClick={() => { setRejectingId(request.id); setApprovingId(null) }}
-                disabled={processingId === request.id}
-                className="text-[10pt] text-themeredred font-medium disabled:opacity-50 transition-colors active:scale-95"
-              >
-                Reject
-              </button>
-            </div>
-          )}
-
-          {request.status === 'approved' && (
-            <p className="text-[10pt] text-tertiary">
-              Account created — user can sign in with the password set during registration.
-            </p>
-          )}
-
-          {request.status === 'rejected' && request.rejection_reason && (
-            <p className="text-[10pt] text-tertiary">
-              Rejected: <span className="text-primary">{request.rejection_reason}</span>
-            </p>
-          )}
-
-          {isRejected && (
-            <div className="flex items-center gap-3 pt-1">
-              <button
-                onClick={() => handleReopen(request.id)}
-                disabled={processingId === request.id}
-                className="px-4 py-1.5 rounded-lg bg-themeblue3 text-white font-medium text-[10pt] disabled:opacity-50 transition-colors active:scale-95"
-              >
-                Return to Pending
-              </button>
-              <button
-                onClick={() => setConfirmDeleteId(request.id)}
-                disabled={processingId === request.id}
-                className="text-[10pt] text-themeredred font-medium disabled:opacity-50 transition-colors active:scale-95"
-              >
-                Delete
-              </button>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }
 
 // ─── Component ──────────────────────────────────────────────
-export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved }: AdminRequestsListProps) {
+export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onSelectRequest }: AdminRequestsListProps) {
   const searchQuery = searchQueryProp ?? ''
 
   // Data
@@ -412,24 +194,8 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
 
   // Processing state
   const [processingId, setProcessingId] = useState<string | null>(null)
-  const [approvingId, setApprovingId] = useState<string | null>(null)
-  const [rejectingId, setRejectingId] = useState<string | null>(null)
-  const [rejectReason, setRejectReason] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [deleteProcessing, setDeleteProcessing] = useState(false)
-
-  // Approval options — reset when approvingId changes
-  const [approvalSupervisor, setApprovalSupervisor] = useState(false)
-  const [approvalIncludeHPI, setApprovalIncludeHPI] = useState(true)
-  const [approvalIncludePE, setApprovalIncludePE] = useState(false)
-  const [approvalPeDepth, setApprovalPeDepth] = useState('standard')
-
-  useEffect(() => {
-    setApprovalSupervisor(false)
-    setApprovalIncludeHPI(true)
-    setApprovalIncludePE(false)
-    setApprovalPeDepth('standard')
-  }, [approvingId])
 
   // Status feedback
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
@@ -498,65 +264,6 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
     })
   }, [requests, searchQuery])
 
-  // ── Approve handler ─────────────────────────────────────
-  const handleApprove = useCallback(async (requestId: string) => {
-    setProcessingId(requestId)
-    const result = await approveAccountRequest(requestId)
-    if (result.success) {
-      setApprovingId(null)
-      setStatus({ type: 'success', message: 'Account approved and setup email sent' })
-      await loadRequests()
-
-      if (onUserApproved && result.data?.userId) {
-        onUserApproved({
-          id: result.data.userId,
-          first_name: result.data.firstName ?? '',
-          last_name: result.data.lastName ?? '',
-          email: result.data.email ?? '',
-          supervisor: approvalSupervisor,
-          noteIncludeHPI: approvalIncludeHPI,
-          noteIncludePE: approvalIncludePE,
-          peDepth: approvalPeDepth,
-        })
-      }
-    } else {
-      setStatus({ type: 'error', message: `Failed to approve: ${result.error}` })
-    }
-    setProcessingId(null)
-  }, [loadRequests, onUserApproved, approvalSupervisor, approvalIncludeHPI, approvalIncludePE, approvalPeDepth])
-
-  // ── Reject handler ──────────────────────────────────────
-  const handleReject = useCallback(async (requestId: string) => {
-    if (!rejectReason.trim()) {
-      setStatus({ type: 'error', message: 'Please provide a rejection reason' })
-      return
-    }
-    setProcessingId(requestId)
-    const result = await rejectAccountRequest(requestId, rejectReason)
-    if (result.success) {
-      setRejectingId(null)
-      setRejectReason('')
-      setStatus({ type: 'success', message: 'Request rejected' })
-      await loadRequests()
-    } else {
-      setStatus({ type: 'error', message: `Failed to reject: ${result.error}` })
-    }
-    setProcessingId(null)
-  }, [rejectReason, loadRequests])
-
-  // ── Reopen handler ──────────────────────────────────────
-  const handleReopen = useCallback(async (requestId: string) => {
-    setProcessingId(requestId)
-    const result = await reopenAccountRequest(requestId)
-    if (result.success) {
-      setStatus({ type: 'success', message: 'Request reopened — moved back to pending' })
-      await loadRequests()
-    } else {
-      setStatus({ type: 'error', message: `Failed to reopen: ${result.error}` })
-    }
-    setProcessingId(null)
-  }, [loadRequests])
-
   // ── Delete handler ──────────────────────────────────────
   const handleDeleteRequest = useCallback(async (requestId: string) => {
     setDeleteProcessing(true)
@@ -572,11 +279,67 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
   }, [loadRequests])
 
   // ── Loading state ───────────────────────────────────────
-  if (showLoading) {
+  if (showLoading && !bare) {
     return (
       <div className="h-full flex items-center justify-center">
         <LoadingSpinner className="text-tertiary" />
       </div>
+    )
+  }
+
+  // ── Bare mode: just the items (no wrapper chrome) ──────
+  if (bare) {
+    if (filteredRequests.length === 0) return null
+    return (
+      <>
+        {filteredRequests.map((request) => {
+          const isRejected = request.status === 'rejected'
+          const matchedClinic = request.uic
+            ? uicToClinic.get(request.uic.toUpperCase())
+            : undefined
+          const isExistingUser = isRejected && userEmails.has(request.email.toLowerCase())
+
+          return (
+            <RequestCard
+              key={request.id}
+              request={request}
+              expandedId={expandedId}
+              setExpandedId={setExpandedId}
+              setConfirmDeleteId={setConfirmDeleteId}
+              matchedClinic={matchedClinic}
+              isExistingUser={isExistingUser}
+              setContextMenu={setContextMenu}
+              onSelectRequest={onSelectRequest}
+            />
+          )
+        })}
+
+        {contextMenu && (() => {
+          const ctxRequest = requests.find(r => r.id === contextMenu.requestId)
+          const ctxItems = ctxRequest?.request_type === 'support' ? [
+            { key: 'view', label: 'View', icon: Eye, onAction: () => setExpandedId(contextMenu.requestId) },
+            { key: 'delete', label: 'Dismiss', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteId(contextMenu.requestId) },
+          ] : ctxRequest?.status === 'rejected' ? [
+            { key: 'view', label: 'View', icon: Eye, onAction: () => { if (onSelectRequest) { const r = requests.find(r => r.id === contextMenu.requestId); if (r) onSelectRequest(r) } } },
+            { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteId(contextMenu.requestId) },
+          ] : [
+            { key: 'view', label: 'View', icon: Eye, onAction: () => { if (onSelectRequest) { const r = requests.find(r => r.id === contextMenu.requestId); if (r) onSelectRequest(r) } } },
+            { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteId(contextMenu.requestId) },
+          ]
+          return <CardContextMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} items={ctxItems} />
+        })()}
+
+        <ConfirmDialog
+          visible={!!confirmDeleteId}
+          title="Delete this request?"
+          subtitle="This action cannot be undone."
+          confirmLabel="Delete"
+          variant="danger"
+          processing={deleteProcessing}
+          onConfirm={() => { if (confirmDeleteId) handleDeleteRequest(confirmDeleteId) }}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
+      </>
     )
   }
 
@@ -607,28 +370,11 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
                   request={request}
                   expandedId={expandedId}
                   setExpandedId={setExpandedId}
-                  approvingId={approvingId}
-                  setApprovingId={setApprovingId}
-                  rejectingId={rejectingId}
-                  setRejectingId={setRejectingId}
-                  processingId={processingId}
-                  rejectReason={rejectReason}
-                  setRejectReason={setRejectReason}
-                  handleApprove={handleApprove}
-                  handleReject={handleReject}
-                  handleReopen={handleReopen}
                   setConfirmDeleteId={setConfirmDeleteId}
                   matchedClinic={matchedClinic}
                   isExistingUser={isExistingUser}
                   setContextMenu={setContextMenu}
-                  approvalSupervisor={approvalSupervisor}
-                  setApprovalSupervisor={setApprovalSupervisor}
-                  approvalIncludeHPI={approvalIncludeHPI}
-                  setApprovalIncludeHPI={setApprovalIncludeHPI}
-                  approvalIncludePE={approvalIncludePE}
-                  setApprovalIncludePE={setApprovalIncludePE}
-                  approvalPeDepth={approvalPeDepth}
-                  setApprovalPeDepth={setApprovalPeDepth}
+                  onSelectRequest={onSelectRequest}
                 />
               )
             })}
@@ -658,13 +404,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
             key: 'view',
             label: 'View',
             icon: Eye,
-            onAction: () => setExpandedId(contextMenu.requestId),
-          },
-          {
-            key: 'return',
-            label: 'Return',
-            icon: RotateCcw,
-            onAction: () => handleReopen(contextMenu.requestId),
+            onAction: () => { if (onSelectRequest) { const r = requests.find(r => r.id === contextMenu.requestId); if (r) onSelectRequest(r) } },
           },
           {
             key: 'delete',
@@ -678,27 +418,14 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
             key: 'view',
             label: 'View',
             icon: Eye,
-            onAction: () => setExpandedId(contextMenu.requestId),
+            onAction: () => { if (onSelectRequest) { const r = requests.find(r => r.id === contextMenu.requestId); if (r) onSelectRequest(r) } },
           },
           {
-            key: 'approve',
-            label: 'Approve',
-            icon: Check,
-            onAction: () => {
-              setExpandedId(contextMenu.requestId)
-              setApprovingId(contextMenu.requestId)
-            },
-          },
-          {
-            key: 'reject',
-            label: 'Reject',
-            icon: X,
+            key: 'delete',
+            label: 'Delete',
+            icon: Trash2,
             destructive: true,
-            onAction: () => {
-              setExpandedId(contextMenu.requestId)
-              setRejectingId(contextMenu.requestId)
-              setApprovingId(null)
-            },
+            onAction: () => setConfirmDeleteId(contextMenu.requestId),
           },
         ]
 

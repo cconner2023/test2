@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useCallback, useMemo, useState, useRef } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, X } from 'lucide-react'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { listClinics, listAllUsers, updateClinic } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
@@ -17,7 +17,7 @@ import {
   formatLastActive,
   lastActiveColor,
 } from './adminUtils'
-import { TextInput } from '../FormInputs'
+import { TextInput, UicPinInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { ChipInput, UserPicker, ClinicPicker } from './AdminPickers'
 
@@ -55,6 +55,25 @@ const AdminClinicDetail = ({
   const [editAdditionalUserIds, setEditAdditionalUserIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [uicDraft, setUicDraft] = useState('')
+  const [uicError, setUicError] = useState<string | null>(null)
+
+  const handleAddUic = useCallback(() => {
+    if (uicDraft.length !== 6) return
+    const upper = uicDraft.toUpperCase()
+    if (editUics.includes(upper)) {
+      setUicError('This UIC is already added')
+      return
+    }
+    const owner = clinics.find(c => c.id !== clinic.id && c.uics.includes(upper))
+    if (owner) {
+      setUicError(`UIC ${upper} is already assigned to ${owner.name}`)
+      return
+    }
+    setEditUics(prev => [...prev, upper])
+    setUicDraft('')
+    setUicError(null)
+  }, [uicDraft, editUics, clinics, clinic.id])
 
   /** Stable ref for onClinicUpdated to avoid recreating loadData on every render. */
   const onClinicUpdatedRef = useRef(onClinicUpdated)
@@ -230,7 +249,35 @@ const AdminClinicDetail = ({
           <div className="px-4 py-3.5 space-y-3">
             <TextInput label="Name" value={editName} onChange={setEditName} placeholder="Clinic name..." />
             <TextInput label="Location" value={editLocation} onChange={setEditLocation} placeholder="Location..." />
-            <ChipInput label="UICs" values={editUics} onChange={setEditUics} placeholder="Add UIC..." transform={v => v.toUpperCase()} />
+            <div>
+              <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">UICs</span>
+              {editUics.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1.5 mb-2">
+                  {editUics.map((val, idx) => (
+                    <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-themeblue2/10 text-themeblue2 text-xs font-medium border border-themeblue2/30">
+                      {val}
+                      <button type="button" onClick={() => setEditUics(prev => prev.filter((_, i) => i !== idx))} className="hover:text-themeredred transition-colors">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <UicPinInput value={uicDraft} onChange={(v) => { setUicDraft(v); setUicError(null) }} spread />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddUic}
+                  disabled={uicDraft.length !== 6}
+                  className="px-3 h-10 rounded-lg bg-themeblue3 text-white text-sm font-medium hover:bg-themeblue3/90 disabled:opacity-50 transition-colors shrink-0"
+                >
+                  Add
+                </button>
+              </div>
+              {uicError && <p className="text-xs text-themeredred mt-1">{uicError}</p>}
+            </div>
             <ClinicPicker label="Sub-clinics" selectedIds={editChildClinicIds} allClinics={clinics} excludeId={clinic.id} onChange={setEditChildClinicIds} />
             <ClinicPicker label="Associated Clinics" selectedIds={editAssociatedClinicIds} allClinics={clinics} excludeId={clinic.id} onChange={setEditAssociatedClinicIds} />
             <UserPicker label="Additional Users" selectedIds={editAdditionalUserIds} allUsers={users} onChange={setEditAdditionalUserIds} />

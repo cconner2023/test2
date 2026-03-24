@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { ArrowRightLeft, Pencil, Trash2, X } from 'lucide-react'
+import { ArrowRightLeft, Check, Pencil, Trash2, X } from 'lucide-react'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { BaseDrawer } from './BaseDrawer'
 import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
@@ -31,9 +31,11 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const [searchQuery, setSearchQuery] = useState('')
     const [searchFocused, setSearchFocused] = useState(false)
     const [editing, setEditing] = useState(false)
+    const [detailEditing, setDetailEditing] = useState(false)
+    const [saveRequested, setSaveRequested] = useState(false)
 
     // Clear search and exit edit mode when navigating between views
-    useEffect(() => { setSearchQuery(''); setSearchFocused(false); setEditing(false) }, [view])
+    useEffect(() => { setSearchQuery(''); setSearchFocused(false); setEditing(false); setDetailEditing(false); setSaveRequested(false) }, [view])
 
     // Callbacks for detail-view header actions (set by PropertyPanel)
     const [detailActions, setDetailActions] = useState<{
@@ -65,12 +67,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         setView('property-form')
     }, [handleSlideAnimation])
 
-    const handleEditItem = useCallback((item: LocalPropertyItem) => {
-        setSelectedPropertyItemName(item.name)
-        handleSlideAnimation('left')
-        setView('property-form')
-    }, [handleSlideAnimation])
-
     const handleTransfer = useCallback(() => {
         handleSlideAnimation('left')
         setView('property-transfer')
@@ -81,6 +77,8 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             handleSlideAnimation('right')
             setView('property-detail')
         } else if (view === 'property-detail' || view === 'property-form') {
+            setDetailEditing(false)
+            setSaveRequested(false)
             handleSlideAnimation('right')
             setView('property')
             setSelectedPropertyItemName(null)
@@ -95,6 +93,8 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         setDrilldownPath([])
         setSearchQuery('')
         setEditing(false)
+        setDetailEditing(false)
+        setSaveRequested(false)
         navigateToPath([])
         onClose()
     }, [onClose, navigateToPath])
@@ -107,18 +107,31 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         view !== 'property',
     )
 
+    const handleSaveComplete = useCallback(() => {
+        setSaveRequested(false)
+        setDetailEditing(false)
+    }, [])
+
     const detailHeaderActions = useMemo(() => {
         if (!detailActions) return undefined
-        const { onEdit, onTransfer, onDelete } = detailActions
+        const { onTransfer, onDelete } = detailActions
+        if (detailEditing) {
+            return (
+                <HeaderPill>
+                    <PillButton icon={Check} onClick={() => setSaveRequested(true)} label="Save" circleBg="bg-themegreen/15 text-themegreen" />
+                    <PillButton icon={X} onClick={() => setDetailEditing(false)} label="Cancel" />
+                </HeaderPill>
+            )
+        }
         return (
             <HeaderPill>
                 <PillButton icon={ArrowRightLeft} onClick={onTransfer} label="Transfer" />
-                <PillButton icon={Pencil} onClick={onEdit} label="Edit" />
+                <PillButton icon={Pencil} onClick={() => setDetailEditing(true)} label="Edit" />
                 <PillButton icon={Trash2} onClick={onDelete} label="Delete" variant="danger" />
                 <PillButton icon={X} onClick={handleClose} label="Close" />
             </HeaderPill>
         )
-    }, [detailActions, handleClose])
+    }, [detailActions, detailEditing, handleClose])
 
 
     const mainHeaderActions = useMemo(() => (
@@ -179,7 +192,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 return { title: 'Transfer Custody', showBack: true, onBack: handleBack }
             case 'property-form':
                 if (!isMobile) return { title: 'Property Book', badge: 'BETA', rightContent: mainHeaderActions, hideDefaultClose: true }
-                return { title: selectedPropertyItemName ? 'Edit Item' : 'Add Item', showBack: true, onBack: handleBack }
+                return { title: 'Add Item', showBack: true, onBack: handleBack }
         }
     }, [view, selectedPropertyItemName, handleBack, isMobile, mobileLocationView, drilldownPath, detailHeaderActions, mainHeaderActions, locationHeaderActions, canvasStack, navigateBack])
 
@@ -207,9 +220,12 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                                 view={view}
                                 searchQuery={searchQuery}
                                 editing={editing}
+                                detailEditing={detailEditing}
+                                saveRequested={saveRequested}
+                                onSaveComplete={handleSaveComplete}
                                 onSelectItem={handleSelectItem}
                                 onAddItem={handleAddItem}
-                                onEditItem={handleEditItem}
+                                onEditItem={() => {}}
                                 onTransferItem={handleTransfer}
                                 onBack={handleBack}
                                 mobileLocationView={mobileLocationView}
@@ -228,10 +244,13 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                             view={view}
                             searchQuery={searchQuery}
                             editing={editing}
+                            detailEditing={detailEditing}
+                            saveRequested={saveRequested}
+                            onSaveComplete={handleSaveComplete}
                             onSearchChange={setSearchQuery}
                             onSelectItem={handleSelectItem}
                             onAddItem={handleAddItem}
-                            onEditItem={handleEditItem}
+                            onEditItem={() => {}}
                             onTransferItem={handleTransfer}
                             onBack={handleBack}
                             onRegisterDetailActions={setDetailActions}

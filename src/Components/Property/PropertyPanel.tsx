@@ -65,9 +65,15 @@ interface PropertyPanelProps {
   onSearchChange?: (query: string) => void
   /** Edit mode — items become selectable for batch delete */
   editing?: boolean
+  /** Inline editing state for detail view */
+  detailEditing?: boolean
+  /** Triggers save on the inline detail form */
+  saveRequested?: boolean
+  /** Called after inline detail save completes */
+  onSaveComplete?: () => void
 }
 
-export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '', onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onMobileLocationViewChange, onRegisterDetailActions, onRegisterAddLocation, onSearchChange, editing = false, ...rest }: PropertyPanelProps) {
+export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '', onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onMobileLocationViewChange, onRegisterDetailActions, onRegisterAddLocation, onSearchChange, editing = false, detailEditing = false, saveRequested = false, onSaveComplete, ...rest }: PropertyPanelProps) {
   // Consume unused props passed by PropertyDrawer to avoid lint errors
   void rest
   const { user } = useAuth()
@@ -276,8 +282,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
     if (view === 'property-detail' && store.selectedItem) {
       onRegisterDetailActions?.({
         onEdit: () => {
-          store.setEditingItem(store.selectedItem!)
-          onEditItem(store.selectedItem!)
+          // Inline editing — drawer will toggle detailEditing state
         },
         onTransfer: () => {
           setTransferItems([store.selectedItem!])
@@ -288,7 +293,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
     } else {
       onRegisterDetailActions?.(null)
     }
-  }, [view, store.selectedItem, onRegisterDetailActions, store, onEditItem, onTransferItem, handleDeleteItem])
+  }, [view, store.selectedItem, onRegisterDetailActions, store, onTransferItem, handleDeleteItem])
 
   const handleCSVFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -359,7 +364,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
     )
   }
 
-  // Item detail view
+  // Item detail view (with inline editing support)
   if (view === 'property-detail' && store.selectedItem) {
     return (
       <div className="flex flex-col h-full overflow-y-auto">
@@ -370,6 +375,14 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
           getSubItems={property.getSubItems}
           getLedger={property.getLedger}
           onSelectSubItem={handleSelectItem}
+          editing={detailEditing}
+          locations={visibleLocations}
+          parentItems={property.items}
+          clinicMembers={clinicMembers}
+          onUpdate={property.editItem}
+          inlinePickers={!isMobile}
+          saveRequested={saveRequested}
+          onSaveComplete={onSaveComplete}
         />
       </div>
     )

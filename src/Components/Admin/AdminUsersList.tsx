@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { UserPlus, Pencil, KeyRound, Trash2, LogOut, Eye, Users, ChevronRight } from 'lucide-react'
+import { UserPlus, Pencil, KeyRound, Trash2, LogOut, Eye, ChevronRight } from 'lucide-react'
+import { UserAvatar } from '../Settings/UserAvatar'
 import { EmptyState } from '../EmptyState'
 import { CardContextMenu } from '../CardContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -27,6 +28,8 @@ export interface AdminUsersListProps {
   onCreateUser: () => void
   filterUserId?: string | null
   searchQuery?: string
+  /** When true, renders items without wrapper chrome (for unified search results) */
+  bare?: boolean
 }
 
 // ─── Per-card wrapper with long-press support ─────────────────────────────
@@ -65,6 +68,7 @@ export function AdminUsersList({
   onCreateUser,
   filterUserId,
   searchQuery: searchQueryProp,
+  bare,
 }: AdminUsersListProps) {
   const searchQuery = searchQueryProp ?? ''
   const currentUser = useAuthStore(s => s.user)
@@ -266,6 +270,120 @@ export function AdminUsersList({
     ? users.find((u) => u.id === confirmDeleteId)
     : null
 
+  // ── Shared: render user row items ──────────────────────
+  const renderUserItems = () => filteredUsers.map((user) => {
+    const clinicName = user.clinic_id ? clinicById.get(user.clinic_id)?.name : undefined
+
+    return (
+      <UserCard
+        key={user.id}
+        user={user}
+        onTap={() => onSelectUser(user)}
+        onContextMenu={(x, y) => setContextMenu({ userId: user.id, x, y })}
+      >
+        <div className="flex items-center gap-3 px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5">
+          <div className="relative shrink-0">
+            <UserAvatar avatarId={user.avatar_id} firstName={user.first_name} lastName={user.last_name} className="w-9 h-9" />
+            <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-themewhite2 ${lastActiveColor(user.last_active_at)}`} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-primary truncate">
+              {user.rank ? `${user.rank} ` : ''}{user.first_name || ''} {user.last_name || ''}
+            </p>
+            <p className="text-[11px] text-tertiary/70 mt-0.5 truncate">
+              {[user.credential, user.roles?.join(' · '), clinicName].filter(Boolean).join(' · ') || user.email || ''}
+            </p>
+          </div>
+          <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+        </div>
+
+        {resetPwUserId === user.id && (
+          <div
+            className="mx-4 mb-3 p-3 bg-tertiary/5 rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-[10pt] text-primary font-medium mb-2">
+              Set new password:
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={resetPwValue}
+                onChange={(e) => setResetPwValue(e.target.value)}
+                placeholder="New password (min 12 chars)..."
+                className="flex-1 px-3 py-1.5 rounded-lg bg-themewhite2 border border-tertiary/20 text-[10pt]
+                           focus:border-themeblue2 focus:outline-none transition-colors placeholder:text-tertiary/30"
+              />
+              <button
+                onClick={() => handleResetPassword(user.id)}
+                disabled={resetPwProcessing || resetPwValue.length < 12}
+                className="px-4 py-1.5 rounded-lg bg-themeblue3 text-white text-[10pt] font-medium disabled:opacity-50 active:scale-95"
+              >
+                {resetPwProcessing ? 'Resetting...' : 'Reset'}
+              </button>
+              <button
+                onClick={() => {
+                  setResetPwUserId(null)
+                  setResetPwValue('')
+                }}
+                className="px-3 py-1.5 rounded-lg bg-tertiary/10 text-primary text-[10pt] active:scale-95"
+              >
+                Cancel
+              </button>
+            </div>
+            {resetPwValue.length > 0 && resetPwValue.length < 12 && (
+              <p className="text-[10pt] text-themeredred mt-1">
+                Password must be at least 12 characters
+              </p>
+            )}
+          </div>
+        )}
+      </UserCard>
+    )
+  })
+
+  // ── Shared: overlays (context menu + confirm dialog) ──
+  const renderOverlays = () => (
+    <>
+      {contextMenu && (() => {
+        const contextUser = users.find((u) => u.id === contextMenu.userId)
+        if (!contextUser) return null
+        return (
+          <CardContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            onClose={() => setContextMenu(null)}
+            items={buildContextMenuItems(contextUser)}
+          />
+        )
+      })()}
+
+      <ConfirmDialog
+        visible={!!confirmDeleteId}
+        title={`Delete ${deleteTargetUser?.first_name || ''} ${deleteTargetUser?.last_name || ''}?`}
+        subtitle="This will permanently remove the user and all associated data. This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        processing={deleteProcessing}
+        onConfirm={() => {
+          if (confirmDeleteId) handleDeleteUser(confirmDeleteId)
+        }}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
+    </>
+  )
+
+  // ── Bare mode: just the items (no wrapper chrome) ──────
+  if (bare) {
+    if (filteredUsers.length === 0) return null
+    return (
+      <>
+        {renderUserItems()}
+        {renderOverlays()}
+      </>
+    )
+  }
+
   return (
     <div>
       <div className="px-5 pt-4 pb-2 space-y-5">
@@ -282,117 +400,12 @@ export function AdminUsersList({
           />
         ) : (
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-            {filteredUsers.map((user) => {
-              const clinicName = user.clinic_id ? clinicById.get(user.clinic_id)?.name : undefined
-
-              return (
-                <UserCard
-                  key={user.id}
-                  user={user}
-                  onTap={() => onSelectUser(user)}
-                  onContextMenu={(x, y) =>
-                    setContextMenu({ userId: user.id, x, y })
-                  }
-                >
-                  <div className="flex items-center gap-3 px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5">
-                    {/* Icon circle with last-active dot */}
-                    <div className="relative shrink-0">
-                      <div className="w-9 h-9 rounded-full flex items-center justify-center bg-tertiary/10">
-                        <Users size={16} className="text-tertiary/50" />
-                      </div>
-                      <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-themewhite2 ${lastActiveColor(user.last_active_at)}`} />
-                    </div>
-
-                    {/* Name + subtitle */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-primary truncate">
-                        {user.rank ? `${user.rank} ` : ''}{user.first_name || ''} {user.last_name || ''}
-                      </p>
-                      <p className="text-[11px] text-tertiary/70 mt-0.5 truncate">
-                        {[user.credential, user.roles?.join(' · '), clinicName].filter(Boolean).join(' · ') || user.email || ''}
-                      </p>
-                    </div>
-
-                    {/* Chevron */}
-                    <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
-                  </div>
-
-                  {/* Inline: Reset password form */}
-                  {resetPwUserId === user.id && (
-                    <div
-                      className="mx-4 mb-3 p-3 bg-tertiary/5 rounded-lg"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <p className="text-[10pt] text-primary font-medium mb-2">
-                        Set new password:
-                      </p>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={resetPwValue}
-                          onChange={(e) => setResetPwValue(e.target.value)}
-                          placeholder="New password (min 12 chars)..."
-                          className="flex-1 px-3 py-1.5 rounded-lg bg-themewhite2 border border-tertiary/20 text-[10pt]
-                                     focus:border-themeblue2 focus:outline-none transition-colors placeholder:text-tertiary/30"
-                        />
-                        <button
-                          onClick={() => handleResetPassword(user.id)}
-                          disabled={resetPwProcessing || resetPwValue.length < 12}
-                          className="px-4 py-1.5 rounded-lg bg-themeblue3 text-white text-[10pt] font-medium disabled:opacity-50 active:scale-95"
-                        >
-                          {resetPwProcessing ? 'Resetting...' : 'Reset'}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setResetPwUserId(null)
-                            setResetPwValue('')
-                          }}
-                          className="px-3 py-1.5 rounded-lg bg-tertiary/10 text-primary text-[10pt] active:scale-95"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                      {resetPwValue.length > 0 && resetPwValue.length < 12 && (
-                        <p className="text-[10pt] text-themeredred mt-1">
-                          Password must be at least 12 characters
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </UserCard>
-              )
-            })}
+            {renderUserItems()}
           </div>
         )}
       </div>
 
-      {/* Right-click / long-press context menu */}
-      {contextMenu && (() => {
-        const contextUser = users.find((u) => u.id === contextMenu.userId)
-        if (!contextUser) return null
-        return (
-          <CardContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            onClose={() => setContextMenu(null)}
-            items={buildContextMenuItems(contextUser)}
-          />
-        )
-      })()}
-
-      {/* Single-user delete confirmation */}
-      <ConfirmDialog
-        visible={!!confirmDeleteId}
-        title={`Delete ${deleteTargetUser?.first_name || ''} ${deleteTargetUser?.last_name || ''}?`}
-        subtitle="This will permanently remove the user and all associated data. This action cannot be undone."
-        confirmLabel="Delete"
-        variant="danger"
-        processing={deleteProcessing}
-        onConfirm={() => {
-          if (confirmDeleteId) handleDeleteUser(confirmDeleteId)
-        }}
-        onCancel={() => setConfirmDeleteId(null)}
-      />
+      {renderOverlays()}
     </div>
   )
 }

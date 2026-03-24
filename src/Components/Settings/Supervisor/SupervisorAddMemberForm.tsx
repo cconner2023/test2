@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { UserPlus, Search, UserCheck } from 'lucide-react'
-import { TextInput, SelectInput, PasswordInput } from '../../FormInputs'
+import { TextInput, PickerInput, PasswordInput, UicPinInput } from '../../FormInputs'
 import { ErrorDisplay } from '../../ErrorDisplay'
 import { credentials, components, ranksByComponent } from '../../../Data/User'
 import type { Component } from '../../../Data/User'
@@ -224,10 +224,12 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
             maxLength={1}
           />
 
-          <SelectInput label="Credential" value={credential} onChange={setCredential} options={credentials} />
-          <SelectInput label="Component" value={component} onChange={handleComponentChange} options={components} />
-          {component && <SelectInput label="Rank" value={rank} onChange={setRank} options={componentRanks} />}
-          <TextInput label="UIC" value={uic} onChange={(v) => setUic(v.toUpperCase())} maxLength={6} />
+          <div className="grid grid-cols-2 gap-3">
+            <PickerInput label="Credential" value={credential} onChange={setCredential} options={credentials} inline />
+            <PickerInput label="Component" value={component} onChange={handleComponentChange} options={components} inline />
+          </div>
+          {component && <PickerInput label="Rank" value={rank} onChange={setRank} options={componentRanks} inline />}
+          <UicPinInput label="UIC" value={uic} onChange={setUic} spread />
 
           <button
             onClick={handleCreate}
