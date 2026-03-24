@@ -2,7 +2,10 @@ import { useState, useCallback } from 'react';
 import { Trash2, X, Check } from 'lucide-react';
 import type { TextExpander } from '../../Data/User';
 import type { TemplateNode } from '../../Data/TemplateTypes';
+import type { FieldInfo } from '../../Utilities/templateParser';
+import { templateNodesToFieldText, parseFieldText, isFlatTemplate } from '../../Utilities/templateParser';
 import { TemplateBuilder } from './TemplateBuilder';
+import { FieldTextEditor } from './FieldTextEditor';
 
 interface TextTemplateDetailPanelProps {
     /** The expander to edit, or a seed with just abbr for new */
@@ -27,10 +30,17 @@ export const TextTemplateDetailPanel = ({
 }: TextTemplateDetailPanelProps) => {
     const isNew = isNewProp ?? !expander;
     const [abbr, setAbbr] = useState(expander?.abbr ?? '');
+
+    // If existing template is flat (no branches), show in simple mode with fields
+    const flatResult = expander?.template?.length && isFlatTemplate(expander.template)
+        ? templateNodesToFieldText(expander.template)
+        : null;
+
     const [mode, setMode] = useState<'simple' | 'template'>(
-        expander?.template?.length ? 'template' : 'simple',
+        expander?.template?.length && !flatResult ? 'template' : 'simple',
     );
-    const [expansion, setExpansion] = useState(expander?.expansion ?? '');
+    const [expansion, setExpansion] = useState(flatResult?.text ?? expander?.expansion ?? '');
+    const [fields, setFields] = useState<Record<string, FieldInfo>>(flatResult?.fields ?? {});
     const [templateNodes, setTemplateNodes] = useState<TemplateNode[]>(
         expander?.template ?? [],
     );
@@ -54,12 +64,25 @@ export const TextTemplateDetailPanel = ({
         if (mode === 'simple' && !expansion.trim()) return;
         if (mode === 'template' && templateNodes.length === 0) return;
 
-        const entry: TextExpander = mode === 'template'
-            ? { abbr: trimmed, expansion: '', template: templateNodes }
-            : { abbr: trimmed, expansion: expansion.trim() };
+        let entry: TextExpander;
+
+        if (mode === 'template') {
+            entry = { abbr: trimmed, expansion: '', template: templateNodes };
+        } else {
+            // If simple text has tracked fields, parse into template nodes
+            const hasFields = Object.keys(fields).some(
+                label => expansion.includes(`[${label}]`),
+            );
+            if (hasFields) {
+                const nodes = parseFieldText(expansion, fields);
+                entry = { abbr: trimmed, expansion: '', template: nodes };
+            } else {
+                entry = { abbr: trimmed, expansion: expansion.trim() };
+            }
+        }
 
         onSave(entry, isNew ? undefined : expander?.abbr);
-    }, [abbr, mode, expansion, templateNodes, existingAbbrs, expander, isNew, onSave]);
+    }, [abbr, mode, expansion, fields, templateNodes, existingAbbrs, expander, isNew, onSave]);
 
     const saveDisabled = mode === 'simple'
         ? !expansion.trim() || !abbr.trim()
@@ -125,11 +148,12 @@ export const TextTemplateDetailPanel = ({
                     </p>
                     <div className="rounded-xl bg-themewhite2 px-4 py-3">
                         {mode === 'simple' ? (
-                            <textarea
+                            <FieldTextEditor
                                 value={expansion}
-                                onChange={(e) => setExpansion(e.target.value)}
+                                onChange={setExpansion}
+                                fields={fields}
+                                onFieldsChange={setFields}
                                 placeholder="Text that replaces the shortcut..."
-                                className="w-full min-h-[140px] bg-transparent outline-none text-sm text-primary placeholder:text-tertiary/30 resize-none leading-relaxed"
                             />
                         ) : (
                             <TemplateBuilder

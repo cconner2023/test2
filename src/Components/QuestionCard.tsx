@@ -69,7 +69,7 @@ export const QuestionCard = memo(function QuestionCard({
 
                     return (
                         <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardAppearIn' : ''}`}>
-                            <div className={`flex flex-col rounded-md w-full overflow-hidden shadow-sm bg-themewhite2 border-3 border-dashed border-themeblue2/30`}>
+                            <div className={`flex flex-col rounded-2xl w-full overflow-hidden shadow-sm bg-themewhite2 border-3 border-dashed border-themeblue2/30`}>
                                 <div className="px-4 py-3 text-center">
                                     <div className="text-[9pt] font-semibold mb-1 uppercase tracking-wider text-themeblue2">
                                         Screening Tool
@@ -125,7 +125,7 @@ export const QuestionCard = memo(function QuestionCard({
 
                     return (
                         <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardAppearIn' : ''}`}>
-                            <div className={`flex flex-col rounded-md w-full overflow-hidden shadow-sm bg-themewhite2 border-3 border-dashed ${isDeferred ? 'border-themered/30' : 'border-themeblue2/30'}`}>
+                            <div className={`flex flex-col rounded-2xl w-full overflow-hidden shadow-sm bg-themewhite2 border-3 border-dashed ${isDeferred ? 'border-themered/30' : 'border-themeblue2/30'}`}>
                                 <div className="px-4 py-3 text-center">
                                     <div className={`text-[9pt] font-semibold mb-1 uppercase tracking-wider ${isDeferred ? 'text-themered' : 'text-themeblue2'}`}>
                                         Action Required
@@ -199,11 +199,11 @@ export const QuestionCard = memo(function QuestionCard({
                     <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardAppearIn' : ''}`}>
                         <div
                             className={`
-              flex flex-col rounded-md w-full overflow-hidden shadow-sm
+              flex flex-col rounded-2xl w-full overflow-hidden shadow-sm
               bg-themewhite2 border
               ${isRF
                                     ? 'border-2 border-dashed border-themeredred/30'
-                                    : 'border-themewhite/10'
+                                    : 'border-themeblue3/10'
                                 }
             `}
                         >
@@ -221,7 +221,7 @@ export const QuestionCard = memo(function QuestionCard({
 
                             {/* Question Options */}
                             {question.questionOptions && question.questionOptions.length > 0 && (
-                                <div className="px-3 pt-2 pb-10">
+                                <div className="px-3 pt-2 pb-3">
                                     <div className="space-y-2">
                                         {question.questionOptions.map((opt, optIndex) => {
                                             const isSelected = card.selectedOptions.includes(optIndex);

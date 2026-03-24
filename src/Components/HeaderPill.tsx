@@ -17,8 +17,8 @@ interface PillButtonProps {
 export function PillButton({ icon: Icon, onClick, label, variant = 'default', iconSize, compact, disabled, circleBg }: PillButtonProps) {
     const isMobile = useIsMobile()
     const size = compact
-        ? (isMobile ? 'w-[2.125rem] h-[2.125rem]' : 'w-8 h-8')    // 34px mobile, 32px desktop
-        : (isMobile ? 'w-[2.375rem] h-[2.375rem]' : 'w-9 h-9')    // 38px mobile, 36px desktop
+        ? (isMobile ? 'w-[2.4375rem] h-[2.4375rem]' : 'w-8 h-8')  // 39px mobile, 32px desktop
+        : (isMobile ? 'w-[2.6875rem] h-[2.6875rem]' : 'w-9 h-9')  // 43px mobile, 36px desktop
     const resolvedIconSize = iconSize ?? (compact ? (isMobile ? 20 : 18) : (isMobile ? 22 : 20))
 
     const color = circleBg
@@ -55,7 +55,7 @@ export function HeaderPill({ children, multi }: { children: ReactNode; multi?: b
     return (
         <div className={isMulti
             ? 'rounded-full bg-themewhite border border-tertiary/20 flex items-center px-1 py-0.5 gap-1'
-            : 'rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5'
+            : 'rounded-full bg-themewhite border border-tertiary/20 flex items-center justify-center p-0.5 aspect-square'
         }>
             {children}
         </div>

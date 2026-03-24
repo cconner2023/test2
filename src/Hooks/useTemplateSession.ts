@@ -87,6 +87,13 @@ export function useTemplateSession() {
 
             // step or choice — pause
             if (node.type === 'step' || node.type === 'choice') {
+                // Pre-select the default option for choice nodes
+                let defaultIdx = -1;
+                if (node.type === 'choice' && node.defaultValue) {
+                    const filtered = node.options.filter(o => o.trim() !== '');
+                    defaultIdx = filtered.indexOf(node.defaultValue);
+                }
+
                 return {
                     newText: text,
                     cursorPosition: cursor,
@@ -98,7 +105,7 @@ export function useTemplateSession() {
                         insertPosition: cursor,
                         showDropdown: node.type === 'choice',
                         dropdownDismissed: false,
-                        selectedChoiceIndex: -1,
+                        selectedChoiceIndex: defaultIdx,
                     },
                 };
             }

@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Check, X } from 'lucide-react'
 import { getTaskData, type PerformanceStep } from '../../../Data/TrainingData'
 import type { StepResult } from '../../../Types/SupervisorTestTypes'
-import { StepCallout, SectionHeader } from '../../TrainingStepComponents'
+import { StepCallout } from '../../TrainingStepComponents'
+import { SectionHeader } from '../../Section'
 
 // ─── EvaluationStep ──────────────────────────────────────────────────────────
 

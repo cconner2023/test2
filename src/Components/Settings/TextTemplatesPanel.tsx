@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import type { UserTypes, TextExpander } from '../../Data/User';
 import type { TemplateNode } from '../../Data/TemplateTypes';
+import { parseFieldText } from '../../Utilities/templateParser';
 import { TextExpanderManager } from './TextExpanderManager';
 import type { EditCardState } from './TextExpanderManager';
 import { TextTemplateDetailPanel } from './TextTemplateDetailPanel';
@@ -116,6 +117,7 @@ export const TextTemplatesPanel = ({
             type: selectedType,
             expansion: '',
             nodes: [],
+            fields: {},
             isNew: true,
         });
     }, [inputAbbr, textExpanders, stagedAdds, selectedType]);
@@ -129,9 +131,22 @@ export const TextTemplatesPanel = ({
     const handleEditCardAccept = useCallback(() => {
         if (!editCard) return;
 
-        const entry: TextExpander = editCard.type === 'template'
-            ? { abbr: editCard.abbr, expansion: '', template: editCard.nodes }
-            : { abbr: editCard.abbr, expansion: editCard.expansion.trim() };
+        let entry: TextExpander;
+
+        if (editCard.type === 'template') {
+            entry = { abbr: editCard.abbr, expansion: '', template: editCard.nodes };
+        } else {
+            // If the simple text has tracked fields, parse into template nodes
+            const hasFields = Object.keys(editCard.fields).some(
+                label => editCard.expansion.includes(`[${label}]`),
+            );
+            if (hasFields) {
+                const nodes = parseFieldText(editCard.expansion, editCard.fields);
+                entry = { abbr: editCard.abbr, expansion: '', template: nodes };
+            } else {
+                entry = { abbr: editCard.abbr, expansion: editCard.expansion.trim() };
+            }
+        }
 
         if (editCard.isNew) {
             setStagedAdds(prev => [...prev, entry]);

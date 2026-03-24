@@ -36,11 +36,5 @@ export function PerformanceStepItem({ step }: { step: PerformanceStep }) {
     )
 }
 
-/** Section header used across training detail views */
-export function SectionHeader({ children }: { children: React.ReactNode }) {
-    return (
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-1.5">
-            {children}
-        </p>
-    )
-}
+/** @deprecated Import from './Section' instead */
+export { SectionHeader } from './Section'

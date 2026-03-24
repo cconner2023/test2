@@ -11,7 +11,8 @@ import { useTrainingCompletions, type TrainingCompletionUI } from '../../Hooks/u
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { AudioAidPlayer } from '../AudioAidPlayer'
 import { skillLevelLabels, categoryOrder } from '../../Data/TrainingConstants'
-import { StepCallout, PerformanceStepItem, SectionHeader } from '../TrainingStepComponents'
+import { StepCallout, PerformanceStepItem } from '../TrainingStepComponents'
+import { SectionHeader } from '../Section'
 
 interface FlatTask {
     taskId: string

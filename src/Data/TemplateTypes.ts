@@ -12,6 +12,8 @@ export interface ChoiceNode {
     type: 'choice';
     label: string;
     options: string[];
+    /** Pre-selected value when expanded inline (first option used if unset) */
+    defaultValue?: string;
 }
 
 export interface BranchNode {

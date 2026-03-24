@@ -1,7 +1,14 @@
 import { TextCursorInput, Layers, Check, X } from 'lucide-react';
 import type { TextExpander } from '../../Data/User';
 import type { TemplateNode } from '../../Data/TemplateTypes';
+import type { FieldInfo } from '../../Utilities/templateParser';
+import { isFlatTemplate } from '../../Utilities/templateParser';
 import { ShortcutStepBuilder } from './ShortcutStepBuilder';
+import { FieldTextEditor } from './FieldTextEditor';
+
+/** True only for templates with branches — flat field templates are "simple" */
+const hasBranches = (e: TextExpander): boolean =>
+    !!(e.template && e.template.length > 0 && !isFlatTemplate(e.template));
 
 const templatePreview = (nodes: TemplateNode[]): string =>
     nodes.map(n => {
@@ -23,6 +30,7 @@ export interface EditCardState {
     type: 'simple' | 'template';
     expansion: string;
     nodes: TemplateNode[];
+    fields: Record<string, FieldInfo>;
     isNew: boolean;
 }
 
@@ -82,7 +90,7 @@ export const TextExpanderManager = ({
                 editCard ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
             }`}>
                 {editCard && editCard.type === 'simple' ? (
-                    /* Simple — unified card: header, textarea, footer */
+                    /* Simple — unified card: header, field editor, footer */
                     <div className="rounded-xl bg-themewhite2 divide-y divide-tertiary/10">
                         <div className="flex items-center gap-2 px-4 py-3">
                             <p className="text-base font-semibold text-primary font-mono flex-1 min-w-0 truncate">
@@ -93,11 +101,12 @@ export const TextExpanderManager = ({
                             </span>
                         </div>
                         <div className="px-4 py-3">
-                            <textarea
+                            <FieldTextEditor
                                 value={editCard.expansion}
-                                onChange={(e) => onEditCardChange({ ...editCard, expansion: e.target.value })}
+                                onChange={(v) => onEditCardChange({ ...editCard, expansion: v })}
+                                fields={editCard.fields}
+                                onFieldsChange={(f) => onEditCardChange({ ...editCard, fields: f })}
                                 placeholder="Text that replaces the shortcut…"
-                                className="w-full min-h-[100px] bg-transparent outline-none text-sm text-primary placeholder:text-tertiary/30 resize-none leading-relaxed"
                                 autoFocus
                             />
                         </div>
@@ -224,7 +233,7 @@ export const TextExpanderManager = ({
                     <div className="divide-y divide-tertiary/8 px-2">
                         {/* Staged adds — top of list */}
                         {stagedAdds.map(e => {
-                            const isTemplate = e.template && e.template.length > 0;
+                            const isTemplate = hasBranches(e);
                             const Icon = isTemplate ? Layers : TextCursorInput;
                             const iconBg = isTemplate ? 'bg-themepurple/15' : 'bg-themeblue2/15';
                             const iconColor = isTemplate ? 'text-themepurple' : 'text-themeblue2';
@@ -250,7 +259,7 @@ export const TextExpanderManager = ({
 
                         {/* Existing expanders */}
                         {expanders.map(e => {
-                            const isTemplate = e.template && e.template.length > 0;
+                            const isTemplate = hasBranches(e);
                             const isMarkedDelete = stagedDeletes.has(e.abbr);
                             const Icon = isTemplate ? Layers : TextCursorInput;
                             const iconBg = isTemplate ? 'bg-themepurple/15' : 'bg-themeblue2/15';

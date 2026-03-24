@@ -244,7 +244,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
   return (
     <div className="flex flex-col h-full">
       {/* Spacer for mobile floating header */}
-      <div className="h-[calc(var(--sat,0px)+4.375rem)] md:hidden shrink-0" />
+      <div className="h-[calc(var(--sat,0px)+3.75rem)] md:hidden shrink-0" />
 
       {hasNav ? (
         <div className="flex items-center justify-between px-3 py-2 border-b border-primary/10">

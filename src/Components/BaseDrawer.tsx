@@ -68,7 +68,7 @@ function DrawerHeader({
                             <div
                                 className="shrink-0 overflow-hidden transition-all duration-200"
                                 style={{
-                                    width: showBack && onBack ? (isMobile ? 40 : 36) : 0,
+                                    width: showBack && onBack ? (isMobile ? 45 : 36) : 0,
                                     opacity: showBack && onBack ? 1 : 0,
                                 }}
                             >

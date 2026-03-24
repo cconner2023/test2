@@ -6,7 +6,8 @@ import { useTrainingCompletions } from '../Hooks/useTrainingCompletions'
 import { useMessagesContext } from '../Hooks/MessagesContext'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { AudioAidPlayer } from './AudioAidPlayer'
-import { StepCallout, PerformanceStepItem, SectionHeader } from './TrainingStepComponents'
+import { StepCallout, PerformanceStepItem } from './TrainingStepComponents'
+import { SectionHeader } from './Section'
 
 interface TrainingDrawerProps {
     isVisible: boolean

@@ -3,6 +3,7 @@ import type { catDataTypes, subCatDataTypes, SearchResultType } from '../Types/C
 import { catData } from '../Data/CatData'
 import { useAppAnimate } from '../Utilities/AnimationConfig'
 import { useNavigationStore } from '../stores/useNavigationStore'
+import { SectionHeader, SectionCard } from './Section'
 
 // Shared shape for guideline-like items (DDX, medcom, stp, gen all have text + optional id)
 export interface GuidelineItemData {
@@ -53,95 +54,68 @@ export function SymptomGuidelines({
     }
 
     return (
-        <div className="space-y-0">
-            {/* Symptom Header Card — includes general guideline info */}
-            <div className="flex flex-col items-center">
-                <div className="flex flex-col rounded-md w-full overflow-hidden shadow-sm bg-themewhite2 border border-themewhite/10">
-                    <div className="px-4 py-3 text-primary/80">
-                        <div className="text-[10pt] font-semibold">
-                            {symptom.text}
-                        </div>
-                        <div className="text-[8pt] text-secondary mt-0.5">
-                            {category.text}
-                        </div>
-                        {symptom.description && (
-                            <div className="text-[9pt] text-secondary leading-relaxed mt-2">
-                                {symptom.description}
-                            </div>
-                        )}
+        <div className="space-y-5">
+            {/* Symptom Header Card */}
+            <SectionCard>
+                <div className="px-4 py-3.5 text-primary/80">
+                    <div className="text-[10pt] font-semibold">
+                        {symptom.text}
                     </div>
-
-                    {/* General Information inline in header card */}
-                    {genText && genText.length > 0 && (
-                        <div className="px-3 pt-0 pb-3">
-                            <div className="text-[9pt] font-semibold uppercase tracking-wider text-primary/80 px-1 mb-2">
-                                General Information
-                            </div>
-                            <div className="space-y-2">
-                                {genText.map((item, index) => (
-                                    <div
-                                        key={`gen-${item.id || index}`}
-                                        onClick={() => onNavigate(guidelineToResult('gen', item, index, symptom, category))}
-                                        className="text-xs p-2 rounded-md bg-themewhite3 text-tertiary cursor-pointer transition-all duration-200 hover:bg-themewhite"
-                                    >
-                                        <div className="font-normal">
-                                            {item.text}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                    <div className="text-[8pt] text-secondary mt-0.5">
+                        {category.text}
+                    </div>
+                    {symptom.description && (
+                        <div className="text-[9pt] text-secondary leading-relaxed mt-2">
+                            {symptom.description}
                         </div>
                     )}
                 </div>
+            </SectionCard>
 
-                {/* Connector to first section */}
-                {sections.length > 0 && (
-                    <div className="flex flex-col items-center py-1">
+            {/* General Information section */}
+            {genText && genText.length > 0 && (
+                <div>
+                    <div className="mb-2">
+                        <SectionHeader>General Information</SectionHeader>
                     </div>
-                )}
-            </div>
+                    <SectionCard>
+                        {genText.map((item, index) => (
+                            <div
+                                key={`gen-${item.id || index}`}
+                                onClick={() => onNavigate(guidelineToResult('gen', item, index, symptom, category))}
+                                className="flex items-center px-4 py-3.5 text-xs text-tertiary cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
+                            >
+                                {item.text}
+                            </div>
+                        ))}
+                    </SectionCard>
+                </div>
+            )}
 
             {/* Guideline Section Cards */}
-            {sections.map((section, sectionIdx) => {
+            {sections.map((section) => {
                 const isTraining = section.type === 'medcom' || section.type === 'stp'
                 const isDDX = section.type === 'DDX'
 
                 return (
-                    <div key={section.key} className="flex flex-col items-center">
-                        <div className="flex flex-col rounded-md w-full overflow-hidden shadow-sm bg-themewhite2 border border-themewhite/10">
-                            {/* Section Header */}
-                            <div className="px-4 py-3 text-primary/80">
-                                <div className="text-[9pt] font-semibold uppercase tracking-wider">
-                                    {section.label}
-                                </div>
-                            </div>
-
-                            {/* Section Items */}
-                            <div className="px-3 pt-0 pb-3">
-                                <div className="space-y-2">
-                                    {section.items.map((item, index) => (
-                                        <div
-                                            key={`${section.key}-${item.id || index}`}
-                                            {...(!isDDX ? { onClick: () => onNavigate(guidelineToResult(section.type, item, index, symptom, category)) } : {})}
-                                            className={`text-xs p-2 rounded-md bg-themewhite3 text-tertiary transition-all duration-200 ${isDDX ? '' : 'cursor-pointer hover:bg-themewhite'}`}
-                                        >
-                                            <div className="font-normal">
-                                                {isTraining && item.icon && (
-                                                    <span className="text-tertiary mr-1.5 text-[8pt]">{item.icon}</span>
-                                                )}
-                                                {item.text}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
+                    <div key={section.key}>
+                        <div className="mb-2">
+                            <SectionHeader>{section.label}</SectionHeader>
                         </div>
-
-                        {/* Dot connector between sections */}
-                        {sectionIdx < sections.length - 1 && (
-                            <div className="flex flex-col items-center py-1">
-                            </div>
-                        )}
+                        <SectionCard>
+                            {section.items.map((item, index) => (
+                                <div
+                                    key={`${section.key}-${item.id || index}`}
+                                    {...(!isDDX ? { onClick: () => onNavigate(guidelineToResult(section.type, item, index, symptom, category)) } : {})}
+                                    className={`flex items-center px-4 py-3.5 text-xs text-tertiary transition-all ${isDDX ? '' : 'cursor-pointer active:scale-95 hover:bg-themeblue2/5'}`}
+                                >
+                                    {isTraining && item.icon && (
+                                        <span className="text-tertiary mr-1.5 text-[8pt]">{item.icon}</span>
+                                    )}
+                                    {item.text}
+                                </div>
+                            ))}
+                        </SectionCard>
                     </div>
                 )
             })}

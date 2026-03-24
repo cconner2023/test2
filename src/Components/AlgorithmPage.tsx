@@ -250,7 +250,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
                                     key={`dispo-${currentDisposition.type}-${currentDisposition.text}`}
                                     className="w-full animate-cardAppearIn"
                                 >
-                                    <div className={`flex flex-col rounded-md w-full overflow-hidden shadow-sm
+                                    <div className={`flex flex-col rounded-2xl w-full overflow-hidden shadow-sm
                                             bg-themewhite2 border ${colors.badgeBorder}`}>
                                         <div className="p-4">
                                             <div className="flex items-center justify-between">

@@ -49,7 +49,7 @@ export const TC3MobileWizard = memo(function TC3MobileWizard() {
   return (
     <div
       className="h-full flex flex-col bg-themewhite"
-      style={{ paddingTop: 'calc(var(--sat, 0px) + 4.375rem)' }}
+      style={{ paddingTop: 'calc(var(--sat, 0px) + 3.75rem)' }}
     >
       {/* Header — TC3 red theme */}
       <div className="px-4 border-b border-themeredred/10 py-3">

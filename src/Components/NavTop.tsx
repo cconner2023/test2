@@ -172,7 +172,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                     {isMobile && (
                         <div className="relative">
                             {/* Invisible spacer to maintain navbar layout */}
-                            <div className="w-[2.875rem] h-[2.875rem]" />
+                            <div className="w-[3.1875rem] h-[3.1875rem]" />
 
                             {/* Back button - slides in from right, out to right */}
                             <animated.div
@@ -199,7 +199,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                 <HeaderPill>
                                     <button
                                         onClick={onMenuClick}
-                                        className="w-[2.375rem] h-[2.375rem] rounded-full flex items-center justify-center active:scale-95 transition-transform overflow-hidden"
+                                        className="w-[2.6875rem] h-[2.6875rem] rounded-full flex items-center justify-center active:scale-95 transition-transform overflow-hidden"
                                         aria-label="Open menu"
                                     >
                                         {isCustom && customImage ? (
@@ -323,13 +323,13 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                             <HeaderPill multi={shouldShowMessagesButton && shouldShowInfoButton}>
                                 <div className={`
                                     transition-all duration-300 ease-out overflow-hidden
-                                    ${shouldShowMessagesButton ? 'w-[2.375rem] opacity-100' : 'w-0 opacity-0'}
+                                    ${shouldShowMessagesButton ? 'w-[2.6875rem] opacity-100' : 'w-0 opacity-0'}
                                     flex items-center justify-center
                                 `}>
                                     {shouldShowMessagesButton && (
                                         <button
                                             onClick={onMessagesClick}
-                                            className="w-[2.375rem] h-[2.375rem] rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200 relative"
+                                            className="w-[2.6875rem] h-[2.6875rem] rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200 relative"
                                             aria-label="Messages"
                                             title="Messages"
                                         >
@@ -345,13 +345,13 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
 
                                 <div className={`
                                     transition-all duration-300 ease-out overflow-hidden
-                                    ${shouldShowInfoButton ? 'w-[2.375rem] opacity-100' : 'w-0 opacity-0'}
+                                    ${shouldShowInfoButton ? 'w-[2.6875rem] opacity-100' : 'w-0 opacity-0'}
                                     flex items-center justify-center
                                 `}>
                                     {shouldShowInfoButton && (
                                         <button
                                             onClick={onInfoClick}
-                                            className="w-[2.375rem] h-[2.375rem] rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200"
+                                            className="w-[2.6875rem] h-[2.6875rem] rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200"
                                             aria-label="Info"
                                             title="Info"
                                         >

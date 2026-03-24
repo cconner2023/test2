@@ -2,6 +2,7 @@
 import { useMemo, memo } from 'react'
 import type { decisionMakingType } from '../Types/AlgorithmTypes'
 import type { medListTypes } from '../Data/MedData'
+import { SectionHeader, SectionCard } from './Section'
 
 interface DecisionMakingItemProps {
     item: decisionMakingType;
@@ -152,12 +153,12 @@ export const DecisionMakingItem = memo(function DecisionMakingItem({
         <div>
             {/* DDx as section header above card */}
             {hasDDx && (
-                <div className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider pb-2">
+                <div className="pb-2"><SectionHeader>
                     {item.ddx!.join(' · ')}
-                </div>
+                </SectionHeader></div>
             )}
 
-            <div className="rounded-xl bg-themewhite2 overflow-hidden">
+            <SectionCard>
                 <div className="px-4 py-3 space-y-3">
                     {/* Parent section */}
                     <div>
@@ -173,7 +174,7 @@ export const DecisionMakingItem = memo(function DecisionMakingItem({
                         </div>
                     )}
                 </div>
-            </div>
+            </SectionCard>
         </div>
     );
 });
