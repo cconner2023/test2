@@ -222,7 +222,7 @@ export function KnowledgeBaseDrawer({
         >
             <ContentWrapper slideDirection={slideDirection} swipeHandlers={canSwipeBack ? swipeHandlers : undefined}>
                 {view === 'home' && (
-                    <MobileSearchBar value={searchQuery} onChange={setSearchQuery} onFocusChange={setSearchFocused} inheritScroll>
+                    <MobileSearchBar value={searchQuery} onChange={setSearchQuery} onFocusChange={setSearchFocused} inheritScroll dataTour="kb-search">
                         <KBHome
                             onCategoryClick={handleCategoryClick}
                             searchQuery={searchQuery}
@@ -434,8 +434,16 @@ function KBHome({
     }
 
     // ── Default category grid ─────────────────────────────────
+    // Map category IDs to data-tour values; first screener gets 'kb-screener'
+    const tourMap: Record<string, string> = {
+        medications: 'kb-medications',
+        stp: 'kb-stp',
+        'vital-signs': 'kb-vitals',
+    }
+    let firstScreenerTagged = false
+
     return (
-        <div className="px-4 py-3 md:p-5">
+        <div className="px-4 py-3 md:p-5" data-tour="kb-category-grid">
             {kbGroupOrder.map(group => {
                     const items = grouped.get(group)
                     if (!items?.length) return null
@@ -445,11 +453,18 @@ function KBHome({
                                 {kbGroupLabels[group]}
                             </p>
                             <div className="rounded-xl bg-themewhite2/50 overflow-hidden">
-                                {items.map((cat, idx) => (
+                                {items.map((cat, idx) => {
+                                    let tourAttr = tourMap[cat.id]
+                                    if (!tourAttr && cat.group === 'screening' && !cat.comingSoon && !firstScreenerTagged) {
+                                        tourAttr = 'kb-screener'
+                                        firstScreenerTagged = true
+                                    }
+                                    return (
                                     <button
                                         key={cat.id}
                                         onClick={() => onCategoryClick(cat)}
                                         disabled={cat.comingSoon}
+                                        {...(tourAttr ? { 'data-tour': tourAttr } : {})}
                                         className={`flex items-center w-full px-4 py-3.5 text-left transition-all
                                             ${cat.comingSoon
                                                 ? 'opacity-40 cursor-not-allowed'
@@ -471,7 +486,8 @@ function KBHome({
                                             <ChevronRight size={16} className="text-tertiary/30 shrink-0" />
                                         )}
                                     </button>
-                                ))}
+                                    )
+                                })}
                             </div>
                         </div>
                     )

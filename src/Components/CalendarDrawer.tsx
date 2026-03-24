@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { X, ListFilter, Check } from 'lucide-react'
+import { X, ListFilter, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { CalendarPanel } from './Calendar/CalendarPanel'
@@ -11,7 +11,6 @@ import { useCalendarStore } from '../stores/useCalendarStore'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { useClinicMedics } from '../Hooks/useClinicMedics'
 import { useClinicGroupedMedics } from '../Hooks/useClinicGroupedMedics'
-import { getInitials } from '../Utilities/nameUtils'
 import { UserAvatar } from './Settings/UserAvatar'
 
 function formatMedicName(m: { rank?: string | null; firstName?: string | null; lastName?: string | null }): string {
@@ -67,7 +66,57 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         }
     }, [isVisible, setSelectedDate])
 
-    const [showPersonnelDrawer, setShowPersonnelDrawer] = useState(false)
+    // Tour events — open/close the mobile controls drawer programmatically
+    useEffect(() => {
+        const openHandler = () => setShowControlsDrawer(true)
+        const closeHandler = () => setShowControlsDrawer(false)
+        window.addEventListener('tour:calendar-open-controls', openHandler)
+        window.addEventListener('tour:calendar-close-controls', closeHandler)
+        return () => {
+            window.removeEventListener('tour:calendar-open-controls', openHandler)
+            window.removeEventListener('tour:calendar-close-controls', closeHandler)
+        }
+    }, [])
+
+    const [showControlsDrawer, setShowControlsDrawer] = useState(false)
+    const [controlsDisplayMonth, setControlsDisplayMonth] = useState(() => {
+        const [y, m] = selectedDate.split('-').map(Number)
+        return new Date(y, m - 1, 1)
+    })
+
+    const controlsMonthLabel = controlsDisplayMonth.toLocaleDateString('en-US', {
+        month: 'long',
+        year: 'numeric',
+    })
+
+    const controlsPrevMonth = useCallback(() => {
+        setControlsDisplayMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))
+    }, [])
+
+    const controlsNextMonth = useCallback(() => {
+        setControlsDisplayMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))
+    }, [])
+
+    const controlsMonthNav = (
+        <div className="flex items-center gap-3 flex-1 justify-center">
+            <button
+                onClick={controlsPrevMonth}
+                className="w-8 h-8 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95"
+            >
+                <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-sm font-semibold text-primary min-w-[120px] text-center">
+                {controlsMonthLabel}
+            </span>
+            <button
+                onClick={controlsNextMonth}
+                className="w-8 h-8 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95"
+            >
+                <ChevronRight className="w-4 h-4" />
+            </button>
+        </div>
+    )
+
     const [searchFocused, setSearchFocused] = useState(false)
     const sidebarScrollRef = useRef<HTMLDivElement>(null)
     const searchWrapperRef = useRef<HTMLDivElement>(null)
@@ -141,38 +190,10 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
     const { medics } = useClinicMedics()
     const { ownClinicMedics } = useClinicGroupedMedics(medics)
 
-    const drawerRef = useRef<HTMLDivElement>(null)
-    const touchStartY = useRef(0)
-    const touchCurrentY = useRef(0)
-    const isDragging = useRef(false)
-
-    const handleTouchStart = useCallback((e: React.TouchEvent) => {
-        touchStartY.current = e.touches[0].clientY
-        touchCurrentY.current = e.touches[0].clientY
-        isDragging.current = false
-    }, [])
-
-    const handleTouchMove = useCallback((e: React.TouchEvent) => {
-        const deltaY = e.touches[0].clientY - touchStartY.current
-        touchCurrentY.current = e.touches[0].clientY
-        if (deltaY > 10) {
-            isDragging.current = true
-            if (drawerRef.current) {
-                drawerRef.current.style.transform = `translateY(${Math.max(0, deltaY)}px)`
-            }
-        }
-    }, [])
-
-    const handleTouchEnd = useCallback(() => {
-        const deltaY = touchCurrentY.current - touchStartY.current
-        if (drawerRef.current) {
-            drawerRef.current.style.transform = ''
-        }
-        if (isDragging.current && deltaY > 100) {
-            setShowPersonnelDrawer(false)
-        }
-        isDragging.current = false
-    }, [])
+    const handleMobileDateSelect = useCallback((dateKey: string) => {
+        setSelectedDate(dateKey)
+        setShowControlsDrawer(false)
+    }, [setSelectedDate])
 
     const handleRosterAssign = useCallback((userId: string) => {
         if (!selectedEventId) return
@@ -187,7 +208,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
 
     // Personnel filter sidebar panel — matches SupervisorTree pattern
     const personnelFilterPanel = (
-        <div className="flex flex-col min-h-0">
+        <div data-tour="calendar-personnel-filter" className="flex flex-col min-h-0">
             <div className="shrink-0 px-4 py-3 border-t border-primary/10 flex items-center justify-between">
                 <p className="text-xs font-medium text-tertiary/70 uppercase tracking-wide">Filter Personnel</p>
                 {ownClinicMedics.length > 0 && (
@@ -258,7 +279,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                     <div className="md:hidden absolute top-0 inset-x-0 z-10 backdrop-blur-sm bg-transparent">
                         <div className="px-3 py-3 pt-[max(0.75rem,var(--sat,0px))] flex items-center justify-between">
                             <HeaderPill>
-                                <PillButton icon={ListFilter} onClick={() => setShowPersonnelDrawer(true)} label="Filter" />
+                                <PillButton data-tour="calendar-mobile-filter" icon={ListFilter} onClick={() => setShowControlsDrawer(true)} label="Filter" />
                             </HeaderPill>
                             <span className="text-sm font-semibold text-primary">
                                 {monthLabel}
@@ -282,7 +303,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                 <div className="flex absolute inset-0 overflow-hidden">
                     {/* Contextual sidebar — desktop only, hidden for troops-to-task (has its own personnel column) */}
                     {!isMobile && viewMode !== 'troops' && (
-                        <div ref={sidebarScrollRef} className={`shrink-0 overflow-y-auto border-r border-primary/10 transition-all duration-300 ${rightPanelOpen ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-60'}`}>
+                        <div ref={sidebarScrollRef} data-tour="calendar-desktop-sidebar" className={`shrink-0 overflow-y-auto border-r border-primary/10 transition-all duration-300 ${rightPanelOpen ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-60'}`}>
                             <div
                                 ref={searchWrapperRef}
                                 className="overflow-hidden transition-[height,opacity] duration-200"
@@ -319,62 +340,37 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
 
                     {/* Schedule — right pane (or full width on mobile) */}
                     <div className="flex-1 min-w-0">
-                        <CalendarPanel onBack={onClose} scrollNonce={scrollNonce} onPanelStateChange={setRightPanelOpen} />
+                        <CalendarPanel onBack={onClose} scrollNonce={scrollNonce} onPanelStateChange={setRightPanelOpen} onOpenControls={() => setShowControlsDrawer(true)} />
                     </div>
 
-                    {/* Personnel filter drawer — mobile */}
-                    {isMobile && (
-                        <>
-                            <div
-                                className={`fixed inset-0 z-30 bg-black/40 transition-opacity duration-300 ${showPersonnelDrawer ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                                    }`}
-                                onClick={() => setShowPersonnelDrawer(false)}
-                            />
-                            <div
-                                ref={drawerRef}
-                                onTouchStart={handleTouchStart}
-                                onTouchMove={handleTouchMove}
-                                onTouchEnd={handleTouchEnd}
-                                className={`fixed inset-x-0 bottom-0 z-40 bg-themewhite3 rounded-t-2xl shadow-xl transition-transform duration-300 ease-out ${showPersonnelDrawer ? 'translate-y-0' : 'translate-y-full'
-                                    }`}
-                                style={{ maxHeight: '70vh' }}
-                            >
-                                <div className="flex justify-center py-3">
-                                    <div className="w-10 h-1 rounded-full bg-tertiary/30" />
-                                </div>
-                                <div className="overflow-y-auto px-2 pb-[max(1rem,var(--sab,0px))]" style={{ maxHeight: 'calc(70vh - 48px)' }}>
-                                    {ownClinicMedics.map(medic => {
-                                        const isSelected = personnelFilter.includes(medic.id)
-                                        return (
-                                            <button
-                                                key={medic.id}
-                                                onClick={() => togglePersonnelFilter(medic.id)}
-                                                className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all duration-150 active:scale-[0.98] ${isSelected ? 'bg-themeblue3/8' : ''
-                                                    }`}
-                                            >
-                                                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${isSelected ? 'bg-themeblue3 text-white' : 'bg-primary/8 text-secondary'
-                                                    }`}>
-                                                    {getInitials(medic.firstName, medic.lastName)}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-primary truncate">
-                                                        {formatMedicName(medic)}
-                                                    </p>
-                                                    {medic.credential && (
-                                                        <p className="text-[10px] text-tertiary/50 truncate">{medic.credential}</p>
-                                                    )}
-                                                </div>
-                                                {isSelected && (
-                                                    <Check size={16} className="text-themeblue3 shrink-0" />
-                                                )}
-                                            </button>
-                                        )
-                                    })}
-                                </div>
-                            </div>
-                        </>
-                    )}
                 </div>
+
+                {/* Mobile controls drawer — date picker + personnel filter */}
+                <BaseDrawer
+                    isVisible={showControlsDrawer}
+                    onClose={() => setShowControlsDrawer(false)}
+                    mobileOnly
+                    fullHeight="90dvh"
+                    zIndex="z-50"
+                    header={{ title: '', hideDefaultClose: true, rightContentFill: true, rightContent: controlsMonthNav }}
+                >
+                    <div data-tour="calendar-controls-drawer" className="flex flex-col h-full">
+                        <div className="shrink-0 px-3">
+                            <MiniCalendar
+                                selectedDate={selectedDate}
+                                onSelectDate={handleMobileDateSelect}
+                                events={events}
+                                hideHeader
+                                displayMonth={controlsDisplayMonth}
+                                onDisplayMonthChange={setControlsDisplayMonth}
+                            />
+                        </div>
+                        <div className="border-t border-primary/10 mt-2" />
+                        <div className="flex-1 min-h-0 overflow-y-auto pb-[max(1rem,var(--sab,0px))]">
+                            {personnelFilterPanel}
+                        </div>
+                    </div>
+                </BaseDrawer>
             </div>
         </BaseDrawer>
     )

@@ -316,6 +316,7 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
 
   return (
     <div
+      data-tour="calendar-troops-view"
       ref={scrollRef}
       className="touch-pan-xy h-full min-h-0 min-w-0 overflow-auto overscroll-contain"
       onScroll={handleScroll}
@@ -335,10 +336,10 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
         )}
 
         {/* Spacer for mobile floating header */}
-        <div className="h-[calc(var(--sat,0px)+3.5rem)] md:hidden" />
+        <div className="h-[calc(var(--sat,0px)+3.75rem)] md:hidden" />
 
         {/* Time header with day boundaries */}
-        <div className="sticky top-[calc(var(--sat,0px)+3.5rem)] md:top-0 z-10 flex items-end backdrop-blur-xs bg-transparent border-b border-primary/10">
+        <div className="sticky top-[calc(var(--sat,0px)+3.75rem)] md:top-0 z-10 flex items-end backdrop-blur-xs bg-transparent border-b border-primary/10">
           {/* Date nav in personnel column */}
           <div className="sticky left-0 z-20 shrink-0 border-r border-primary/10 flex items-center justify-between px-1.5 py-1 bg-themewhite3" style={{ width: NAME_COL_WIDTH }}>
             <button onClick={prevDay} className="w-6 h-6 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95">
@@ -419,7 +420,7 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
                     }}
                   >
                     <p
-                      className="absolute inset-y-0 right-0 text-[10px] font-semibold truncate px-1.5"
+                      className="absolute inset-y-0 right-0 text-[10px] font-normal truncate px-1.5"
                       style={{
                         left: `clamp(0px, calc(var(--sl, 0) * 1px - ${left}px), ${Math.max(0, width - 40)}px)`,
                         lineHeight: `${LANE_HEIGHT}px`,
@@ -474,7 +475,7 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
                     }}
                   >
                     <p
-                      className="absolute inset-y-0 right-0 text-[10px] font-semibold truncate px-1.5"
+                      className="absolute inset-y-0 right-0 text-[10px] font-normal truncate px-1.5"
                       style={{
                         left: `clamp(0px, calc(var(--sl, 0) * 1px - ${left}px), ${Math.max(0, width - 40)}px)`,
                         lineHeight: `${LANE_HEIGHT}px`,

@@ -25,6 +25,13 @@ export const MainSettingsPanel = ({
 }: MainSettingsPanelProps) => {
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar();
     const { profile } = useAuth();
+
+    const tourTargets: Record<number, string> = {
+        0: 'settings-theme',
+        15: 'settings-pin',
+        17: 'settings-notifications',
+        19: 'settings-note-content',
+    };
     // Separate top row items (no header before them) from card sections
     const topItems: Extract<SettingsItem, { type: 'option' }>[] = [];
     const cardSections: { label: string; items: Extract<SettingsItem, { type: 'option' }>[] }[] = [];
@@ -47,6 +54,7 @@ export const MainSettingsPanel = ({
                 {/* Profile card */}
                 <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
                     <div
+                        data-tour="settings-profile"
                         onClick={onProfileClick}
                         role="button"
                         tabIndex={0}
@@ -81,6 +89,7 @@ export const MainSettingsPanel = ({
                         {topItems.map((item, idx) => (
                             <button
                                 key={item.id}
+                                data-tour={tourTargets[item.id]}
                                 onClick={() => {
                                     item.action();
                                     onItemClick(item.id);
@@ -117,6 +126,7 @@ export const MainSettingsPanel = ({
                             {section.items.map((item, idx) => (
                                 <button
                                     key={item.id}
+                                    data-tour={tourTargets[item.id]}
                                     onClick={() => {
                                         if (item.disabled) return;
                                         item.action();

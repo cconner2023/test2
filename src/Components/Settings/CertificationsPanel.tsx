@@ -302,6 +302,7 @@ export const CertificationsPanel = () => {
       <ConfirmDialog
         visible={!!pendingDeleteId}
         title={`Delete "${certs.find(c => c.id === pendingDeleteId)?.title || 'this certification'}"?`}
+        subtitle="Permanent."
         confirmLabel="Delete"
         variant="danger"
         onConfirm={async () => {

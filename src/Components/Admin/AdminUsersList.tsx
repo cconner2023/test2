@@ -167,7 +167,7 @@ export function AdminUsersList({
       setConfirmDeleteId(null)
 
       if (result.success) {
-        setFeedback({ type: 'success', message: 'User deleted successfully' })
+        setFeedback({ type: 'success', message: 'Deleted.' })
         await loadUsers()
       } else {
         setFeedback({
@@ -189,7 +189,7 @@ export function AdminUsersList({
       if (result.success) {
         setResetPwUserId(null)
         setResetPwValue('')
-        setFeedback({ type: 'success', message: 'Password reset successfully' })
+        setFeedback({ type: 'success', message: 'Password reset.' })
       } else {
         setFeedback({
           type: 'error',
@@ -333,7 +333,7 @@ export function AdminUsersList({
             </div>
             {resetPwValue.length > 0 && resetPwValue.length < 12 && (
               <p className="text-[10pt] text-themeredred mt-1">
-                Password must be at least 12 characters
+                Minimum 12 characters.
               </p>
             )}
           </div>
@@ -361,7 +361,7 @@ export function AdminUsersList({
       <ConfirmDialog
         visible={!!confirmDeleteId}
         title={`Delete ${deleteTargetUser?.first_name || ''} ${deleteTargetUser?.last_name || ''}?`}
-        subtitle="This will permanently remove the user and all associated data. This action cannot be undone."
+        subtitle="Permanent. All associated data removed."
         confirmLabel="Delete"
         variant="danger"
         processing={deleteProcessing}

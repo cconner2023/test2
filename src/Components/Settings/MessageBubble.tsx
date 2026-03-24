@@ -516,6 +516,7 @@ export function MessageBubble({
             {/* Thread reply count badge */}
             {!!threadReplyCount && threadReplyCount > 0 && (
               <button
+                data-tour="messages-thread-badge"
                 onClick={e => { e.stopPropagation(); onOpenThread?.(message.originId ?? message.id) }}
                 className={`flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium
                            text-themeblue2 hover:bg-themeblue2/10 active:scale-95 transition-all

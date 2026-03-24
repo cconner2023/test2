@@ -11,9 +11,9 @@ export function PIIWarningBanner({ warnings }: { warnings: string[] }) {
     <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-themeredred/10 border border-themeredred/40 mt-1">
       <ShieldAlert size={16} className="text-themeredred shrink-0 mt-0.5" />
       <div className="text-xs text-themeredred">
-        <span className="font-semibold">PII/PHI Blocked — </span>
+        <span className="font-semibold">PII/PHI detected: </span>
         <span>
-          Remove patient-identifiable information before saving. Detected: {warnings.join(', ')}.
+          {warnings.join(', ')}. Remove before saving.
         </span>
       </div>
     </div>

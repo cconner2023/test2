@@ -242,7 +242,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
   }, [onSelectEvent])
 
   return (
-    <div className="flex flex-col h-full">
+    <div data-tour="calendar-day-view" className="flex flex-col h-full">
       {/* Spacer for mobile floating header */}
       <div className="h-[calc(var(--sat,0px)+3.75rem)] md:hidden shrink-0" />
 
@@ -287,7 +287,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
                   onEventContextMenu(e.id, ev.clientX, ev.clientY)
                 }
               }}
-              className={`w-full text-left text-xs font-medium px-2 py-1 rounded border ${CATEGORY_BG_MAP[e.category]} active:scale-95 transition-all duration-200 truncate`}
+              className={`w-full text-left text-xs font-normal px-2 py-1 rounded border ${CATEGORY_BG_MAP[e.category]} active:scale-95 transition-all duration-200 truncate`}
             >
               {e.title}
             </button>
@@ -361,7 +361,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
                   transition: isBeingDragged ? 'none' : undefined,
                 }}
               >
-                <p className="text-xs font-semibold truncate leading-tight">{event.title}</p>
+                <p className="text-xs font-normal truncate leading-tight">{event.title}</p>
                 {height > 36 && (
                   <p className="text-[10px] opacity-70 truncate">
                     {new Date(event.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', '')}

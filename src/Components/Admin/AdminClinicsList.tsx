@@ -102,7 +102,7 @@ export function AdminClinicsList({
     setDeleteTarget(null)
 
     if (failures.length === 0) {
-      setStatus({ type: 'success', message: `Deleted ${deleteTarget.label} successfully` })
+      setStatus({ type: 'success', message: 'Deleted.' })
     } else {
       setStatus({ type: 'error', message: `Failed to delete ${failures.length} clinic(s)` })
     }
@@ -172,7 +172,7 @@ export function AdminClinicsList({
       <ConfirmDialog
         visible={deleteTarget !== null}
         title={`Delete ${deleteTarget?.label ?? ''}?`}
-        subtitle="This action cannot be undone."
+        subtitle="Permanent."
         confirmLabel="Delete"
         variant="danger"
         processing={deleteProcessing}
@@ -207,7 +207,7 @@ export function AdminClinicsList({
         ) : filteredClinics.length === 0 ? (
           <EmptyState
             icon={<Building2 size={28} />}
-            title={searchQuery ? 'No clinics match your search' : 'No clinics found'}
+            title={searchQuery ? 'No matches.' : 'No clinics.'}
           />
         ) : (
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">

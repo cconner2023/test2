@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Clock, Building2, Trash2, UserCheck, Eye, X, HelpCircle, Check, RefreshCw } from 'lucide-react'
-import { TextInput, PickerInput, UicPinInput } from '../FormInputs'
+import { TextInput, PickerInput, MultiPickerInput, UicPinInput } from '../FormInputs'
 import { EmptyState } from '../EmptyState'
 import { CardContextMenu } from '../CardContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -88,7 +88,7 @@ function RequestCard({
   const [component, setComponent] = useState(request.component || '')
   const [rank, setRank] = useState(request.rank || '')
   const [uic, setUic] = useState(request.uic || '')
-  const [roles, setRoles] = useState<Record<Role, boolean>>({ medic: true, supervisor: false, dev: false, provider: false })
+  const [roles, setRoles] = useState<string[]>(['medic'])
   const [selectedClinicId, setSelectedClinicId] = useState('')
   const [noteIncludeHPI, setNoteIncludeHPI] = useState(true)
   const [noteIncludePE, setNoteIncludePE] = useState(false)
@@ -125,9 +125,9 @@ function RequestCard({
 
   // ── Handlers ────────────────────────────────────────────
   const handleApprove = useCallback(async () => {
-    const chosenRoles = AVAILABLE_ROLES.filter((r) => roles[r])
+    const chosenRoles = roles
     if (chosenRoles.length === 0) {
-      setError('At least one role must be selected')
+      setError('Select at least one role.')
       return
     }
 
@@ -274,8 +274,8 @@ function RequestCard({
         </span>
       </div>
 
-      {/* Row 2: UIC + clinic */}
-      {!isSupport && request.uic && (
+      {/* Row 2: UIC + clinic (hidden when expanded — form has these fields) */}
+      {!isSupport && !isExpanded && request.uic && (
         <div className="flex items-center gap-2 flex-wrap px-4 pb-2">
           <span className="text-[10pt] text-tertiary">{request.uic}</span>
           {cardMatchedClinic ? (
@@ -289,13 +289,18 @@ function RequestCard({
         </div>
       )}
 
-      {/* Support request: show message preview */}
-      {isSupport && request.notes && !isExpanded && (
+      {/* Notes/justification preview (collapsed only) */}
+      {!isSupport && !isExpanded && request.notes && (
+        <p className="text-[10pt] text-tertiary/70 italic px-4 pb-2 line-clamp-2">{request.notes}</p>
+      )}
+
+      {/* Support request: show message preview (collapsed only) */}
+      {isSupport && !isExpanded && request.notes && (
         <p className="text-[10pt] text-tertiary px-4 pb-2 line-clamp-2">{request.notes}</p>
       )}
 
       {/* Already a user note */}
-      {isExistingUser && (
+      {!isExpanded && isExistingUser && (
         <p className="text-[10pt] text-tertiary px-4 pb-2">Already a user — safe to clear this request</p>
       )}
 
@@ -311,9 +316,10 @@ function RequestCard({
           <div className="flex items-center gap-3 pt-1">
             <button
               onClick={() => setConfirmDeleteId(request.id)}
-              className="text-[10pt] text-themeredred font-medium transition-colors active:scale-95"
+              className="shrink-0 w-10 h-10 rounded-full text-themeredred flex items-center justify-center active:scale-95 transition-all"
+              title="Dismiss"
             >
-              Dismiss
+              <Trash2 size={16} />
             </button>
           </div>
         </div>
@@ -328,16 +334,13 @@ function RequestCard({
           <div className={`space-y-3 ${processing ? 'opacity-50 pointer-events-none' : ''}`}>
             {error && <ErrorDisplay message={error} />}
 
-            {/* Request metadata */}
-            <div className="flex items-baseline justify-between">
-              <p className="text-sm text-tertiary/60">{request.email}</p>
-              <p className="text-[11px] text-tertiary/40">
-                {new Date(request.requested_at).toLocaleDateString()}
+            {/* User justification */}
+            <div className="rounded-xl bg-themeblue2/5 border border-themeblue2/10 px-3.5 py-2.5">
+              <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1">Justification</p>
+              <p className={`text-sm whitespace-pre-wrap ${request.notes ? 'text-primary' : 'text-tertiary/40 italic'}`}>
+                {request.notes || 'No justification provided'}
               </p>
             </div>
-            {request.notes && (
-              <p className="text-[11px] text-tertiary/50 italic">{request.notes}</p>
-            )}
 
             {/* Profile — matches AccountRequestForm layout */}
             <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
@@ -357,12 +360,12 @@ function RequestCard({
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <PickerInput value={credential} onChange={setCredential} options={credentials} placeholder="Credential" inline />
-                  <PickerInput value={component} onChange={handleComponentChange} options={components} placeholder="Component" inline />
+                  <PickerInput value={credential} onChange={setCredential} options={credentials} placeholder="Credential" />
+                  <PickerInput value={component} onChange={handleComponentChange} options={components} placeholder="Component" />
                 </div>
 
                 {component && (
-                  <PickerInput value={rank} onChange={setRank} options={componentRanks} placeholder="Rank" inline />
+                  <PickerInput value={rank} onChange={setRank} options={componentRanks} placeholder="Rank" />
                 )}
 
                 <div>
@@ -370,7 +373,7 @@ function RequestCard({
                   <UicPinInput value={uic} onChange={setUic} spread />
                 </div>
 
-                <PickerInput value={selectedClinicId} onChange={setSelectedClinicId} options={clinicOptions} placeholder="Clinic" inline />
+                <PickerInput value={selectedClinicId} onChange={setSelectedClinicId} options={clinicOptions} placeholder="Clinic" />
                 {formMatchedClinic && selectedClinicId === formMatchedClinic.id && (
                   <p className="-mt-2 text-[11px] text-themegreen flex items-center gap-1">
                     <Building2 size={12} />
@@ -382,20 +385,14 @@ function RequestCard({
 
             {/* Roles */}
             <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
-              <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-2">Roles</p>
-              <div className="flex gap-3 flex-wrap">
-                {AVAILABLE_ROLES.map((role) => (
-                  <label key={role} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={roles[role]}
-                      onChange={() => setRoles((prev) => ({ ...prev, [role]: !prev[role] }))}
-                      className="w-4 h-4 rounded border-tertiary/30"
-                    />
-                    <span className="text-sm text-primary capitalize">{role}</span>
-                  </label>
-                ))}
-              </div>
+              <MultiPickerInput
+                label="Roles"
+                value={roles}
+                onChange={setRoles}
+                options={AVAILABLE_ROLES.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))}
+                placeholder="Roles"
+                required
+              />
             </div>
 
             {/* Note Defaults */}
@@ -420,7 +417,7 @@ function RequestCard({
                     className="w-4 h-4 rounded border-tertiary/30"
                   />
                 </label>
-                <PickerInput value={peDepth} onChange={setPeDepth} options={['focused', 'standard', 'comprehensive']} placeholder="PE Depth" inline />
+                <PickerInput value={peDepth} onChange={setPeDepth} options={['focused', 'standard', 'comprehensive']} placeholder="PE Depth" />
               </div>
             </div>
 
@@ -479,35 +476,18 @@ function RequestCard({
           <div className={`space-y-3 ${processing ? 'opacity-50 pointer-events-none' : ''}`}>
             {error && <ErrorDisplay message={error} />}
 
-            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden px-4 py-3.5 space-y-2">
-              <p className="text-sm font-medium text-primary">
-                {request.rank ? `${request.rank} ` : ''}
-                {request.first_name}
-                {request.middle_initial ? ` ${request.middle_initial}` : ''}{' '}
-                {request.last_name}
+            {/* User justification */}
+            <div className="rounded-xl bg-themeblue2/5 border border-themeblue2/10 px-3.5 py-2.5">
+              <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1">Justification</p>
+              <p className={`text-sm whitespace-pre-wrap ${request.notes ? 'text-primary' : 'text-tertiary/40 italic'}`}>
+                {request.notes || 'No justification provided'}
               </p>
-              {request.credential && (
-                <p className="text-xs text-tertiary/60">
-                  Credential: <span className="text-primary">{request.credential}</span>
-                </p>
-              )}
-              {request.component && (
-                <p className="text-xs text-tertiary/60">
-                  Component: <span className="text-primary">{request.component}</span>
-                </p>
-              )}
-              {request.uic && (
-                <p className="text-xs text-tertiary/60">
-                  UIC: <span className="text-primary">{request.uic}</span>
-                </p>
-              )}
             </div>
 
             {request.rejection_reason && (
-              <div className="rounded-2xl border border-themeredred/10 bg-themeredred/5 overflow-hidden px-4 py-3.5">
-                <p className="text-xs text-themeredred">
-                  Rejected: {request.rejection_reason}
-                </p>
+              <div className="rounded-xl border border-themeredred/10 bg-themeredred/5 px-3.5 py-2.5">
+                <p className="text-[10px] font-semibold text-themeredred/60 tracking-widest uppercase mb-1">Rejection Reason</p>
+                <p className="text-sm text-themeredred">{request.rejection_reason}</p>
               </div>
             )}
 
@@ -692,7 +672,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
         <ConfirmDialog
           visible={!!confirmDeleteId}
           title="Delete this request?"
-          subtitle="This action cannot be undone."
+          subtitle="Permanent."
           confirmLabel="Delete"
           variant="danger"
           processing={deleteProcessing}
@@ -764,7 +744,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
       <ConfirmDialog
         visible={!!confirmDeleteId}
         title="Permanently delete this request?"
-        subtitle="This action cannot be undone."
+        subtitle="Permanent."
         confirmLabel="Delete"
         variant="danger"
         processing={deleteProcessing}

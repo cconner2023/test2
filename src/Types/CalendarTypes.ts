@@ -51,9 +51,9 @@ export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: str
 export const CATEGORY_BG_MAP: Record<EventCategory, string> = {
   training: 'bg-themeyellow/20 border-themeyellow/30 text-primary',
   duty: 'bg-themeredred/20 border-themeredred/30 text-primary',
-  range: 'bg-themeblue2/20 border-themeblue2/30 text-themeblue2',
-  appointment: 'bg-themeblue1/20 border-themeblue1/30 text-themeblue1',
-  other: 'bg-tertiary/20 border-tertiary/20 text-tertiary',
+  range: 'bg-themeblue2/20 border-themeblue2/30 text-primary',
+  appointment: 'bg-themeblue1/20 border-themeblue1/30 text-primary',
+  other: 'bg-tertiary/20 border-tertiary/20 text-secondary',
 }
 
 export function getCategoryMeta(category: EventCategory) {

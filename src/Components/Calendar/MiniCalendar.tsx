@@ -7,6 +7,12 @@ interface MiniCalendarProps {
   selectedDate: string        // dateKey format "YYYY-MM-DD"
   onSelectDate: (dateKey: string) => void
   events: CalendarEvent[]
+  /** Hide the built-in month nav header (caller renders it externally) */
+  hideHeader?: boolean
+  /** Controlled display month — when provided, component won't manage its own */
+  displayMonth?: Date
+  /** Called when display month changes (for controlled mode) */
+  onDisplayMonthChange?: (month: Date) => void
 }
 
 const DOW_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
@@ -38,14 +44,21 @@ function isSameMonth(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth()
 }
 
-export function MiniCalendar({ selectedDate, onSelectDate, events }: MiniCalendarProps) {
+export function MiniCalendar({ selectedDate, onSelectDate, events, hideHeader, displayMonth: controlledMonth, onDisplayMonthChange }: MiniCalendarProps) {
   const todayKey = useMemo(() => toDateKey(new Date()), [])
 
-  // displayMonth tracks which month is shown in the mini calendar
-  const [displayMonth, setDisplayMonth] = useState(() => {
+  // Internal state — used when not controlled externally
+  const [internalMonth, setInternalMonth] = useState(() => {
     const [y, m] = selectedDate.split('-').map(Number)
     return new Date(y, m - 1, 1)
   })
+
+  const displayMonth = controlledMonth ?? internalMonth
+  const setDisplayMonth = useCallback((updater: Date | ((d: Date) => Date)) => {
+    const next = typeof updater === 'function' ? updater(displayMonth) : updater
+    if (onDisplayMonthChange) onDisplayMonthChange(next)
+    else setInternalMonth(next)
+  }, [displayMonth, onDisplayMonthChange])
 
   // Sync displayMonth when selectedDate changes to a different month
   useEffect(() => {
@@ -76,16 +89,16 @@ export function MiniCalendar({ selectedDate, onSelectDate, events }: MiniCalenda
 
   const prevMonth = useCallback(() => {
     setDisplayMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))
-  }, [])
+  }, [setDisplayMonth])
 
   const nextMonth = useCallback(() => {
     setDisplayMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))
-  }, [])
+  }, [setDisplayMonth])
 
   const jumpToToday = useCallback(() => {
     const now = new Date()
     setDisplayMonth(new Date(now.getFullYear(), now.getMonth(), 1))
-  }, [])
+  }, [setDisplayMonth])
 
   const handleDayClick = useCallback((date: Date) => {
     onSelectDate(toDateKey(date))
@@ -93,32 +106,34 @@ export function MiniCalendar({ selectedDate, onSelectDate, events }: MiniCalenda
 
   return (
     <div className="px-3 pt-2 pb-1 select-none">
-      {/* Month header */}
-      <div className="flex items-center justify-between mb-1">
-        <button
-          onClick={prevMonth}
-          className="w-6 h-6 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95"
-          aria-label="Previous month"
-        >
-          <ChevronLeft className="w-3.5 h-3.5" />
-        </button>
+      {/* Month header — hidden when caller renders it externally (e.g. in drawer header) */}
+      {!hideHeader && (
+        <div className="flex items-center justify-between mb-1">
+          <button
+            onClick={prevMonth}
+            className="w-6 h-6 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95"
+            aria-label="Previous month"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </button>
 
-        <button
-          onClick={jumpToToday}
-          className="text-xs font-semibold text-primary hover:text-themeblue3 transition-colors active:scale-95"
-          title="Jump to today"
-        >
-          {monthHeaderLabel}
-        </button>
+          <button
+            onClick={jumpToToday}
+            className="text-xs font-semibold text-primary hover:text-themeblue3 transition-colors active:scale-95"
+            title="Jump to today"
+          >
+            {monthHeaderLabel}
+          </button>
 
-        <button
-          onClick={nextMonth}
-          className="w-6 h-6 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95"
-          aria-label="Next month"
-        >
-          <ChevronRight className="w-3.5 h-3.5" />
-        </button>
-      </div>
+          <button
+            onClick={nextMonth}
+            className="w-6 h-6 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95"
+            aria-label="Next month"
+          >
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Day-of-week header */}
       <div className="grid grid-cols-7">

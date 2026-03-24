@@ -13,6 +13,7 @@ import { getColorClasses } from '../Utilities/ColorUtilities';
 import { ConnectorDots } from './ConnectorDots';
 import { ALGORITHM_TIMING } from '../Utilities/constants';
 import { useNavigationStore } from '../stores/useNavigationStore';
+import { useTourContext } from './Tour/TourProvider';
 import type { SearchResultType } from '../Types/CatTypes';
 
 interface AlgorithmPageProps {
@@ -29,6 +30,8 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
     const selectedSymptom = useNavigationStore((s) => s.selectedSymptom);
     const isMobile = useNavigationStore((s) => s.isMobile);
     const openWriteNote = useNavigationStore((s) => s.openWriteNote);
+    const tourCtx = useTourContext();
+    const tourActive = tourCtx?.isActive ?? false;
 
     const containerRef = useRef<HTMLDivElement>(null);
     const markerRef = useRef<HTMLDivElement>(null);
@@ -66,8 +69,9 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
         }
     }, [currentDisposition]);
 
-    // Scroll function
+    // Scroll function — suppressed during guided tour (spotlight handles scroll)
     const scrollToMarker = useCallback(() => {
+        if (tourActive) { setIsTransitioning(false); return; }
         if (!markerRef.current || !containerRef.current) {
             setTimeout(scrollToMarker, ALGORITHM_TIMING.SCROLL_RETRY);
             return;
@@ -80,7 +84,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
             behavior: 'smooth'
         });
         setIsTransitioning(false);
-    }, []);
+    }, [tourActive]);
 
     // Scroll effect — only fires when scrollTrigger increments
     useEffect(() => {
@@ -192,7 +196,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
     if (!selectedSymptom) {
         return (
             <div className="w-full h-full flex items-center justify-center">
-                <p className="text-primary">No symptom selected</p>
+                <p className="text-primary">No symptom selected.</p>
             </div>
         );
     }
@@ -231,7 +235,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
                         />
                     </div>
                 ) : (
-                    <div className="flex flex-col px-4 pt-5 pb-32 space-y-1 w-full">
+                    <div data-tour="algorithm-cards" className="flex flex-col px-4 pt-5 pb-32 space-y-1 w-full">
                         <QuestionCard
                             algorithmOptions={algorithmOptions}
                             cardStates={cardStates}
@@ -250,7 +254,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
                                     key={`dispo-${currentDisposition.type}-${currentDisposition.text}`}
                                     className="w-full animate-cardAppearIn"
                                 >
-                                    <div className={`flex flex-col rounded-2xl w-full overflow-hidden shadow-sm
+                                    <div data-tour="algorithm-disposition" className={`flex flex-col rounded-2xl w-full overflow-hidden shadow-sm
                                             bg-themewhite2 border ${colors.badgeBorder}`}>
                                         <div className="p-4">
                                             <div className="flex items-center justify-between">
@@ -272,6 +276,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
                                                     </div>
                                                 </div>
                                                 <button
+                                                    data-tour="algorithm-expand-note"
                                                     onClick={handleExpandNote}
                                                     className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all ${colors.buttonClass}`}
                                                     aria-label="Continue"

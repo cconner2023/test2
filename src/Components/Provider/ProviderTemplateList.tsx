@@ -23,7 +23,7 @@ export function ProviderTemplateList({ templates, onSelect }: ProviderTemplateLi
       <EmptyState
         icon={<LayoutTemplate size={32} />}
         title="No Templates"
-        subtitle="Create note templates in Settings → Note Content to quickly populate provider fields."
+        subtitle="No templates. Create in Settings → Note Content."
       />
     )
   }

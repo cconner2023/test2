@@ -29,6 +29,7 @@ export const PANEL = {
     PLAN_SETTINGS: 31,
     TEXT_TEMPLATES: 32,
     PROVIDER_TEMPLATES: 33,
+    GUIDED_TOURS: 34,
 } as const;
 
 export type PanelId = (typeof PANEL)[keyof typeof PANEL];
@@ -55,6 +56,7 @@ export const PANEL_TARGET: Partial<Record<PanelId, string>> = {
     [PANEL.PLAN_SETTINGS]: 'plan-settings',
     [PANEL.TEXT_TEMPLATES]: 'text-templates',
     [PANEL.PROVIDER_TEMPLATES]: 'provider-templates',
+    [PANEL.GUIDED_TOURS]: 'guided-tours',
 };
 
 export type SettingsItem =

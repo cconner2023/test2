@@ -60,7 +60,7 @@ export function RosterPane({ onAssignToEvent, assignableEventId, compact }: Rost
           <EmptyState
             icon={<Users className="w-8 h-8" />}
             title="No personnel"
-            subtitle={rosterSearchQuery ? 'No matches found' : 'Roster is empty'}
+            subtitle={rosterSearchQuery ? 'No matches.' : 'Roster empty.'}
           />
         ) : (
           <div className="py-1">

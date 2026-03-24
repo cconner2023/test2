@@ -32,6 +32,7 @@ import { MessagesProvider, useMessagesContext } from './Hooks/MessagesContext'
 import { CallProvider } from './Hooks/CallContext'
 import { CallOverlay } from './Components/Settings/CallOverlay'
 import { MessageNotificationToast } from './Components/MessageNotificationToast'
+import { TourProvider } from './Components/Tour/TourProvider'
 import { PushNotificationToast } from './Components/PushNotificationToast'
 import { usePushNotifications } from './Hooks/usePushNotifications'
 import type { MessageNotification } from './Hooks/useMessageNotifications'
@@ -161,6 +162,18 @@ function AppContent() {
       if (importAutoPickImage) setImportAutoPickImage(false)
     }
   }, [navigation.showNoteImport, importInitialView, importInitialBarcode, importAutoPickImage])
+
+  // Tour system: listen for demo import requests
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const barcode = (e as CustomEvent).detail as string
+      setImportInitialBarcode(barcode)
+      setImportInitialView(undefined)
+      navigation.setShowNoteImport(true)
+    }
+    window.addEventListener('tour:open-import', handler)
+    return () => window.removeEventListener('tour:open-import', handler)
+  }, [navigation])
 
   const showImportError = useCallback((msg: string) => {
     clearTimeout(importErrorTimer.current)
@@ -440,6 +453,7 @@ case 'mapOverlay':
 
   return (
     <AvatarProvider value={avatarState}>
+    <TourProvider>
     <MessagesProvider>
     <CallProvider>
     <div className='h-screen bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden'>
@@ -795,6 +809,7 @@ case 'mapOverlay':
     </div>
     </CallProvider>
     </MessagesProvider>
+    </TourProvider>
     </AvatarProvider>
   )
 }

@@ -29,3 +29,10 @@ export const MAP_OVERLAY_ENABLED = true;
  * and readiness gap tracking for unit operations.
  */
 export const CALENDAR_ENABLED = false;
+
+/**
+ * GUIDED_TOURS_ENABLED: When true, the Guided Tours interactive walkthrough
+ * system is available. Provides auto-playing step-by-step feature tours
+ * with spotlight overlays and tooltip navigation.
+ */
+export const GUIDED_TOURS_ENABLED = true;

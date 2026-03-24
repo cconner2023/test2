@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { dispositionType, AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 import { useNoteEditor } from '../Hooks/useNoteEditor';
@@ -17,6 +17,7 @@ import {
 } from './WriteNoteHelpers';
 import { useAuthStore } from '../stores/useAuthStore';
 import { BrainCircuit, FileText, Stethoscope, ClipboardList } from 'lucide-react';
+import { GUIDED_HPI_EXPANDED, GUIDED_PE_TEXT, GUIDED_PLAN_TEXT } from '../Data/GuidedTourData';
 
 type DispositionType = dispositionType['type'];
 
@@ -53,9 +54,26 @@ export const WriteNotePage = ({
     const { profile } = useUserProfile();
     const isDevRole = useAuthStore(s => s.isDevRole);
     const colors = getColorClasses(disposition.type);
-    const defaultHPI = profile.noteIncludeHPI ?? true;
-    const defaultPE = profile.noteIncludePE ?? false;
-    const defaultPlan = profile.noteIncludePlan ?? false;
+
+    // Tour override: temporarily show all note sections during guided tour
+    // Uses a global flag so the value is available even before mount
+    const [tourOverrideAll, setTourOverrideAll] = useState(() => !!window.__tourNoteOverride);
+    useEffect(() => {
+        const onEnable = () => setTourOverrideAll(true);
+        const onRestore = () => { setTourOverrideAll(false); window.__tourNoteOverride = false; };
+        window.addEventListener('tour:enable-all-note-sections', onEnable);
+        window.addEventListener('tour:restore-note-sections', onRestore);
+        return () => {
+            window.removeEventListener('tour:enable-all-note-sections', onEnable);
+            window.removeEventListener('tour:restore-note-sections', onRestore);
+            // Clean up global flag on unmount (e.g., tour skipped while drawer open)
+            window.__tourNoteOverride = false;
+        };
+    }, []);
+
+    const defaultHPI = tourOverrideAll || (profile.noteIncludeHPI ?? true);
+    const defaultPE = tourOverrideAll || (profile.noteIncludePE ?? false);
+    const defaultPlan = tourOverrideAll || (profile.noteIncludePlan ?? false);
 
     // Build visible wizard pages — hide HPI/PE/Plan when disabled in settings
     const visiblePages = useMemo(() => {
@@ -109,6 +127,22 @@ export const WriteNotePage = ({
         profile: editorProfile, authUserId,
     } = editor;
 
+    // ── Tour injection listeners ────────────────────────────────────────────
+    useEffect(() => {
+        const onInjectHPI = () => { setNote(GUIDED_HPI_EXPANDED); setIncludeHPI(true); };
+        const onInjectPE = () => { setPeNote(GUIDED_PE_TEXT); setIncludePhysicalExam(true); };
+        const onInjectPlan = () => { setPlanNote(GUIDED_PLAN_TEXT); setIncludePlan(true); };
+
+        window.addEventListener('tour:inject-hpi', onInjectHPI);
+        window.addEventListener('tour:inject-pe', onInjectPE);
+        window.addEventListener('tour:inject-plan', onInjectPlan);
+        return () => {
+            window.removeEventListener('tour:inject-hpi', onInjectHPI);
+            window.removeEventListener('tour:inject-pe', onInjectPE);
+            window.removeEventListener('tour:inject-plan', onInjectPlan);
+        };
+    }, [setNote, setIncludeHPI, setPeNote, setIncludePhysicalExam, setPlanNote, setIncludePlan]);
+
     return (
         <BaseDrawer
             isVisible={isVisible}
@@ -133,7 +167,7 @@ export const WriteNotePage = ({
                 >
                     <SlideWrapper slideDirection={slideDirection}>
                         {/* Decision Making */}
-                            <div className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'decision' ? 'hidden' : ''}`}>
+                            <div data-tour="writenote-decision" className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'decision' ? 'hidden' : ''}`}>
                                 <div className="space-y-4">
                                     <div className="mx-2 mt-2">
                                         <ToggleOption
@@ -161,7 +195,7 @@ export const WriteNotePage = ({
 
                         {/* HPI */}
                         {defaultHPI && (
-                            <div className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'hpi' ? 'hidden' : ''}`}>
+                            <div data-tour="writenote-hpi" className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'hpi' ? 'hidden' : ''}`}>
                                 <div className="space-y-3">
                                     <div className="mx-2 mt-2">
                                         <ToggleOption
@@ -191,7 +225,7 @@ export const WriteNotePage = ({
 
                         {/* Physical Exam */}
                         {defaultPE && (
-                            <div className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'pe' ? 'hidden' : ''}`}>
+                            <div data-tour="writenote-pe" className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'pe' ? 'hidden' : ''}`}>
                                 <div className="space-y-3">
                                     <div className="mx-2 mt-2">
                                         <ToggleOption
@@ -228,7 +262,7 @@ export const WriteNotePage = ({
 
                         {/* Plan */}
                         {defaultPlan && (
-                            <div className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'plan' ? 'hidden' : ''}`}>
+                            <div data-tour="writenote-plan" className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'plan' ? 'hidden' : ''}`}>
                                 <div className="space-y-3">
                                     <div className="mx-2 mt-2">
                                         <ToggleOption
@@ -267,7 +301,7 @@ export const WriteNotePage = ({
                                         <PIIWarningBanner warnings={[...new Set([...piiWarnings, ...pePiiWarnings])]} />
                                     )}
                                     {/* Note Preview */}
-                                    <section>
+                                    <section data-tour="writenote-preview">
                                         <div className="pb-2 flex items-center justify-between">
                                             <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Note Preview</p>
                                             <div className="flex items-center gap-0.5">
@@ -295,7 +329,7 @@ export const WriteNotePage = ({
                                     </section>
 
                                     {/* Encoded Note / Barcode */}
-                                    <section>
+                                    <section data-tour="writenote-encoded">
                                         <div className="pb-2 flex items-center justify-between">
                                             <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Encoded Note</p>
                                             <div className="flex items-center gap-0.5">

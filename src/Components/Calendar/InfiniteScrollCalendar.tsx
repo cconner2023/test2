@@ -152,7 +152,7 @@ function EventPill({ event, eventId, onTap, onContextMenu, isDragging, dragHandl
           onContextMenu(eventId, e.clientX, e.clientY)
         }
       }}
-      className={`w-full rounded px-1.5 text-[9px] leading-tight truncate font-medium text-white transition-opacity duration-150 cursor-pointer active:scale-95 ${cat.color} ${isDragging ? 'opacity-30' : ''}`}
+      className={`w-full rounded px-1.5 text-[9px] leading-tight truncate font-normal text-white transition-opacity duration-150 cursor-pointer active:scale-95 ${cat.color} ${isDragging ? 'opacity-30' : ''}`}
       style={{ height: LANE_HEIGHT - 2, display: 'flex', alignItems: 'center' }}
     >
       <span className="truncate">{event.title}</span>
@@ -342,7 +342,7 @@ export function InfiniteScrollCalendar({
   }, [])
 
   return (
-    <div className="flex flex-col h-full">
+    <div data-tour="calendar-month-grid" className="flex flex-col h-full">
       {/* Scrollable weeks */}
       <div
         ref={scrollRef}
@@ -382,7 +382,7 @@ export function InfiniteScrollCalendar({
                         onEventContextMenu(seg.event.id, e.clientX, e.clientY)
                       }
                     }}
-                    className={`absolute z-[2] flex items-center ${cat.color} text-white text-[9px] font-medium px-1.5 truncate cursor-pointer active:scale-[0.98] transition-all duration-150 ${
+                    className={`absolute z-[2] flex items-center ${cat.color} text-white text-[9px] font-normal px-1.5 truncate cursor-pointer active:scale-[0.98] transition-all duration-150 ${
                       seg.isStart ? 'rounded-l' : ''
                     } ${seg.isEnd ? 'rounded-r' : ''} ${isDrag ? 'opacity-30' : ''}`}
                     style={{

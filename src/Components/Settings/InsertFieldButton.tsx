@@ -238,6 +238,7 @@ export const InsertFieldButton = ({ onInsert }: InsertFieldButtonProps) => {
             <button
                 ref={triggerRef}
                 type="button"
+                data-tour="expander-insert-field"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => { setOpen(!open); setMode('pick'); }}
                 className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold tracking-wide transition-all active:scale-95 ${

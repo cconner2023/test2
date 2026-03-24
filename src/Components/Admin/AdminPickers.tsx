@@ -46,8 +46,8 @@ export const ChipInput = ({
                      transition-colors placeholder:text-tertiary/30"
         />
         <button type="button" onClick={addChip} disabled={!inputValue.trim()}
-          className="px-3 py-2 rounded-lg bg-themeblue3 text-white text-sm font-medium hover:bg-themeblue3/90 disabled:opacity-50 transition-colors">
-          <Plus size={14} />
+          className="shrink-0 w-10 h-10 rounded-full bg-themeblue3 text-white flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all">
+          <Plus size={16} />
         </button>
       </div>
     </div>
@@ -114,7 +114,7 @@ export const UserPicker = ({
             {filtered.map((u) => (
               <button key={u.id} type="button"
                 onClick={() => addUser(u.id)}
-                className="w-full text-left px-3 py-2 text-sm hover:bg-themeblue2/10 transition-colors">
+                className="w-full text-left px-3 py-2 text-sm hover:bg-themeblue2/10 active:scale-95 transition-all">
                 <span className="text-primary font-medium">{u.first_name} {u.last_name}</span>
                 <span className="text-tertiary/50 ml-2">{u.email}</span>
               </button>
@@ -183,7 +183,7 @@ export const ClinicPicker = ({
             {filtered.map((c) => (
               <button key={c.id} type="button"
                 onClick={() => addClinic(c.id)}
-                className="w-full text-left px-3 py-2 text-sm hover:bg-themeblue2/10 transition-colors">
+                className="w-full text-left px-3 py-2 text-sm hover:bg-themeblue2/10 active:scale-95 transition-all">
                 <span className="text-primary font-medium">{c.name}</span>
                 {c.uics.length > 0 && <span className="text-tertiary/50 ml-2">{c.uics.join(', ')}</span>}
               </button>

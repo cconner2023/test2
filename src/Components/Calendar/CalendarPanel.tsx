@@ -1,6 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { Clock, Plus, Users2, CalendarDays, X, Check, Pencil, Trash2 } from 'lucide-react'
-import { DatePickerCalendar } from '../FormInputs'
 import { CardContextMenu } from '../CardContextMenu'
 import { useShallow } from 'zustand/react/shallow'
 import { useIsMobile } from '../../Hooks/useIsMobile'
@@ -33,9 +32,10 @@ interface CalendarPanelProps {
   onBack: () => void
   scrollNonce?: number
   onPanelStateChange?: (open: boolean) => void
+  onOpenControls?: () => void
 }
 
-export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange }: CalendarPanelProps) {
+export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenControls }: CalendarPanelProps) {
   const isMobile = useIsMobile()
   const [panelView, setPanelView] = useState<PanelView>('calendar')
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
@@ -58,7 +58,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange }: Calen
   const [showDayDrawer, setShowDayDrawer] = useState(false)
   const [dayDrawerView, setDayDrawerView] = useState<DayDrawerView>('detail')
   const [dayDrawerEventId, setDayDrawerEventId] = useState<string | null>(null)
-  const [showDatePicker, setShowDatePicker] = useState(false)
 
   const { medics: allMedics } = useClinicMedics()
   const { ownClinicMedics } = useClinicGroupedMedics(allMedics)
@@ -179,13 +178,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange }: Calen
     setSelectedDate(next)
   }, [selectedDate, setSelectedDate])
 
-  const handleDatePickerSelect = useCallback((iso: string) => {
-    storeSetSelectedDate(iso)
-  }, [storeSetSelectedDate])
-
-  const handleDatePickerClose = useCallback(() => {
-    setShowDatePicker(false)
-  }, [])
 
   // ── Event CRUD ──
 
@@ -456,7 +448,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange }: Calen
     <ConfirmDialog
       visible={!!confirmDeleteEvent}
       title="Delete event?"
-      subtitle="This will permanently remove the event for all clinic members."
+      subtitle="Permanent. Removed for all clinic members."
       confirmLabel="Delete"
       variant="danger"
       onConfirm={() => {
@@ -506,7 +498,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange }: Calen
                 {...(isMobile ? {
                   onPrevDay: handlePrevDay,
                   onNextDay: handleNextDay,
-                  onDateTap: () => setShowDatePicker(true),
+                  onDateTap: onOpenControls,
                 } : {})}
               />
             )}
@@ -525,8 +517,9 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange }: Calen
           </div>
 
           <div className="absolute bottom-4 inset-x-0 flex items-center justify-center z-20 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
-            <div className="flex items-center gap-1.5 rounded-full bg-themewhite border border-tertiary/20 px-0.5 py-0.5 shadow-lg pointer-events-auto">
+            <div data-tour="calendar-view-switcher" className="flex items-center gap-1.5 rounded-full bg-themewhite border border-tertiary/20 px-0.5 py-0.5 shadow-lg pointer-events-auto">
               <button
+                data-tour="calendar-view-month"
                 onClick={() => setViewMode('month')}
                 className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
                   viewMode === 'month' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
@@ -536,6 +529,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange }: Calen
                 <CalendarDays className="w-5 h-5" />
               </button>
               <button
+                data-tour="calendar-view-day"
                 onClick={() => setViewMode('day')}
                 className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
                   viewMode === 'day' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
@@ -545,6 +539,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange }: Calen
                 <Clock className="w-5 h-5" />
               </button>
               <button
+                data-tour="calendar-view-troops"
                 onClick={() => setViewMode('troops')}
                 className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
                   viewMode === 'troops' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
@@ -556,6 +551,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange }: Calen
             </div>
             <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
               <button
+                data-tour="calendar-add-event"
                 onClick={handleNewEvent}
                 className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
               >
@@ -665,22 +661,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange }: Calen
             )}
           </BaseDrawer>
 
-          {/* Mobile date picker drawer — tap date label in day view */}
-          <BaseDrawer
-            isVisible={showDatePicker}
-            onClose={handleDatePickerClose}
-            mobileOnly
-            fullHeight="auto"
-            zIndex="z-50"
-          >
-            <div className="pb-[max(1rem,var(--sab,0px))]">
-              <DatePickerCalendar
-                value={selectedDateKey}
-                onChange={handleDatePickerSelect}
-                onClose={handleDatePickerClose}
-              />
-            </div>
-          </BaseDrawer>
         </div>
 
         {/* Desktop right panel — form or detail alongside calendar */}

@@ -8,6 +8,7 @@ import { PasswordLockScreen } from './PasswordLockScreen'
 import { SetPasswordScreen } from './SetPasswordScreen'
 import { UserAcknowledgment, hasAcceptedAcknowledgment, recordAcknowledgment } from './UserAcknowledgment'
 import { LoginScreen } from './LoginScreen'
+import { PostLoginLoader } from './PostLoginLoader'
 const INITIAL_PW_UNLOCKED_KEY = 'adtmc_initial_pw_unlocked'
 
 /** Maximum time (ms) to wait for Supabase INITIAL_SESSION before releasing
@@ -38,6 +39,8 @@ export function LockGate({ children }: { children: ReactNode }) {
   }, [loading])
 
   const shouldLoad = loading
+  const sessionReady = useAuthStore(s => s.sessionReady)
+  const [showPostLoginLoader, setShowPostLoginLoader] = useState(false)
   const isPasswordRecovery = useAuthStore(s => s.isPasswordRecovery)
   const needsPasswordSetup = useAuthStore(s => s.needsPasswordSetup)
   const [isPinLocked, setIsPinLocked] = useState(() => isPinEnabled() && !isSessionUnlocked())
@@ -107,17 +110,29 @@ export function LockGate({ children }: { children: ReactNode }) {
     onTimeout: handleInactivityTimeout,
   })
 
+  // Show the post-login loader when authenticated but session init hasn't finished
+  // (first-time login only — returning users have sessionReady=true at start)
+  useEffect(() => {
+    if (!shouldLoad && !sessionReady && (user || localSession) && !isGuest) {
+      setShowPostLoginLoader(true)
+    }
+  }, [shouldLoad, sessionReady, user, localSession, isGuest])
+
+  const handlePostLoginDone = useCallback(() => setShowPostLoginLoader(false), [])
+
   // Gate ordering (later = on top):
-  // 1. children (app) — deferred until auth settles; HTML splash covers loading
-  // 2. user acknowledgment (z-100) — PHI disclosure (persistent for authed users, per-session for guests)
-  // 3. login screen (z-90) — when not authenticated
-  // 4. PIN lock (z-100)
-  // 5. inactivity / initial password locks (z-100)
-  // 6. password recovery / setup — always on top
+  // 1. children (app) — deferred until auth settles AND session ready
+  // 2. post-login loader (z-9998) — first-time login: covers app until Signal + profile resolve
+  // 3. user acknowledgment (z-100) — PHI disclosure (persistent for authed users, per-session for guests)
+  // 4. login screen (z-90) — when not authenticated
+  // 5. PIN lock (z-100)
+  // 6. inactivity / initial password locks (z-100)
+  // 7. password recovery / setup — always on top
   const showLogin = !shouldLoad && !user && !localSession && !isGuest
   return (
     <>
-      {!shouldLoad && children}
+      {!shouldLoad && sessionReady && children}
+      {showPostLoginLoader && <PostLoginLoader ready={sessionReady} onDone={handlePostLoginDone} />}
       {needsAcknowledgment && !shouldLoad && (
         <UserAcknowledgment
           onAccept={() => setNeedsAcknowledgment(false)}

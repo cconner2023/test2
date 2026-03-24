@@ -9,27 +9,23 @@ import { ActionSheet } from './ActionSheet'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { UI_TIMING } from '../Utilities/constants'
-import { deleteClinic, deleteUser } from '../lib/adminService'
+import { deleteClinic, deleteUser, listAllUsers, listClinics } from '../lib/adminService'
 import { useAuthStore } from '../stores/useAuthStore'
 
 // Admin sub-components
 import { AdminRequestsList } from './Admin/AdminRequestsList'
 import { AdminUsersList } from './Admin/AdminUsersList'
 import { AdminUserDetail } from './Admin/AdminUserDetail'
-import AdminUserForm from './Admin/AdminUserForm'
 import { AdminClinicsList } from './Admin/AdminClinicsList'
 import AdminClinicDetail from './Admin/AdminClinicDetail'
-import AdminClinicForm from './Admin/AdminClinicForm'
-import { AdminTree } from './Admin/AdminTree'
+import { AdminSummary } from './Admin/AdminSummary'
 import type { AdminUser, AdminClinic } from '../lib/adminService'
 import type { AccountRequest } from '../lib/accountRequestService'
 
 export type AdminView =
     | 'admin'
     | 'admin-user-detail'
-    | 'admin-user-form'
     | 'admin-clinic-detail'
-    | 'admin-clinic-form'
 
 const TABS = ['requests', 'users', 'clinics'] as const
 type AdminTab = typeof TABS[number]
@@ -50,10 +46,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const [activeTab, setActiveTab] = useState<AdminTab>('requests')
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
 
-    // Selected entity for detail/form views
+    // Selected entity for detail views (null = create mode)
     const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
     const [selectedClinic, setSelectedClinic] = useState<AdminClinic | null>(null)
-    const [isEditMode, setIsEditMode] = useState(false)
 
     // Clinic delete confirmation (triggered from header pill)
     const [confirmDeleteClinic, setConfirmDeleteClinic] = useState(false)
@@ -101,16 +96,18 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     const handleEditUser = useCallback((user: AdminUser) => {
         setSelectedUser(user)
-        setIsEditMode(true)
+        setUserEditing(true)
+        setUserHasPending(false)
         handleSlideAnimation('left')
-        setView('admin-user-form')
+        setView('admin-user-detail')
     }, [handleSlideAnimation])
 
     const handleCreateUser = useCallback(() => {
         setSelectedUser(null)
-        setIsEditMode(false)
+        setUserEditing(true)
+        setUserHasPending(false)
         handleSlideAnimation('left')
-        setView('admin-user-form')
+        setView('admin-user-detail')
     }, [handleSlideAnimation])
 
     const handleSelectClinic = useCallback((clinic: AdminClinic) => {
@@ -146,16 +143,18 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     const handleEditClinic = useCallback((clinic: AdminClinic) => {
         setSelectedClinic(clinic)
-        setIsEditMode(true)
+        setClinicEditing(true)
+        setClinicHasPending(false)
         handleSlideAnimation('left')
-        setView('admin-clinic-form')
+        setView('admin-clinic-detail')
     }, [handleSlideAnimation])
 
     const handleCreateClinic = useCallback(() => {
         setSelectedClinic(null)
-        setIsEditMode(false)
+        setClinicEditing(true)
+        setClinicHasPending(false)
         handleSlideAnimation('left')
-        setView('admin-clinic-form')
+        setView('admin-clinic-detail')
     }, [handleSlideAnimation])
 
     const handleBack = useCallback(() => {
@@ -163,19 +162,13 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setClinicEditing(false); setClinicSaveRequested(false); setClinicHasPending(false)
         setUserEditing(false); setUserSaveRequested(false); setUserHasPending(false)
 
-        if (view === 'admin-user-form' && selectedUser) {
-            handleSlideAnimation('right')
-            setView('admin-user-detail')
-        } else if (view === 'admin-clinic-form' && selectedClinic) {
-            handleSlideAnimation('right')
-            setView('admin-clinic-detail')
-        } else if (view !== 'admin') {
+        if (view !== 'admin') {
             handleSlideAnimation('right')
             setView('admin')
             setSelectedUser(null)
             setSelectedClinic(null)
         }
-    }, [view, selectedUser, selectedClinic, handleSlideAnimation])
+    }, [view, handleSlideAnimation])
 
     const handleClose = useCallback(() => {
         setView('admin')
@@ -223,16 +216,19 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         view !== 'admin',
     )
 
-    // Tree selection handlers
-    const handleTreeSelectClinic = useCallback((clinic: AdminClinic | null) => {
-        if (clinic) {
-            handleSelectClinic(clinic)
-        }
+    // Sidebar summary handlers
+    const handleSummarySelectClinic = useCallback((clinic: AdminClinic) => {
+        handleSelectClinic(clinic)
     }, [handleSelectClinic])
 
-    const handleTreeSelectUser = useCallback((user: AdminUser) => {
-        handleSelectUser(user)
-    }, [handleSelectUser])
+    const handleSummarySwitchTab = useCallback((tab: 'requests' | 'users' | 'clinics') => {
+        setActiveTab(tab)
+        if (view !== 'admin') {
+            setView('admin')
+            setSelectedUser(null)
+            setSelectedClinic(null)
+        }
+    }, [view])
 
     const handleTabChange = useCallback((tab: AdminTab) => {
         setActiveTab(tab)
@@ -248,34 +244,41 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         )
     }, [view, handleClose])
 
-    // Header actions for detail/form views
+    const isUserCreateMode = view === 'admin-user-detail' && selectedUser === null
+    const isClinicCreateMode = view === 'admin-clinic-detail' && selectedClinic === null
+
+    // Header actions for detail views (handles both view/edit and create modes)
     const detailHeaderActions = useMemo(() => {
-        if (view === 'admin-user-detail' && selectedUser) {
+        if (view === 'admin-user-detail') {
             const currentUserId = useAuthStore.getState().user?.id ?? null
             return (
                 <HeaderPill>
-                    {/* Cancel — visible when editing */}
-                    <div className={'flex items-center overflow-hidden transition-all duration-200 ease-out ' + (userEditing ? 'max-w-16 opacity-100' : 'max-w-0 opacity-0')}>
-                        <PillButton
-                            icon={X}
-                            iconSize={18}
-                            onClick={() => setUserEditing(false)}
-                            label="Cancel"
-                        />
-                    </div>
+                    {/* Cancel — visible when editing (in create mode, back button handles cancel) */}
+                    {!isUserCreateMode && (
+                        <div className={'flex items-center overflow-hidden transition-all duration-200 ease-out ' + (userEditing ? 'max-w-16 opacity-100' : 'max-w-0 opacity-0')}>
+                            <PillButton
+                                icon={X}
+                                iconSize={18}
+                                onClick={() => setUserEditing(false)}
+                                label="Cancel"
+                            />
+                        </div>
+                    )}
 
-                    {/* Edit — visible when NOT editing */}
-                    <div className={'flex items-center overflow-hidden transition-all duration-200 ease-out ' + (!userEditing ? 'max-w-12 opacity-100' : 'max-w-0 opacity-0')}>
-                        <PillButton
-                            icon={Pencil}
-                            iconSize={18}
-                            onClick={() => setUserEditing(true)}
-                            label="Edit"
-                        />
-                    </div>
+                    {/* Edit — visible when NOT editing, hidden in create mode */}
+                    {!isUserCreateMode && (
+                        <div className={'flex items-center overflow-hidden transition-all duration-200 ease-out ' + (!userEditing ? 'max-w-12 opacity-100' : 'max-w-0 opacity-0')}>
+                            <PillButton
+                                icon={Pencil}
+                                iconSize={18}
+                                onClick={() => setUserEditing(true)}
+                                label="Edit"
+                            />
+                        </div>
+                    )}
 
-                    {/* Delete — visible when editing, only for non-self */}
-                    {userEditing && currentUserId !== selectedUser.id && (
+                    {/* Delete — visible when editing existing user, only for non-self */}
+                    {userEditing && !isUserCreateMode && selectedUser && currentUserId !== selectedUser.id && (
                         <PillButton
                             icon={Trash2}
                             iconSize={18}
@@ -300,31 +303,35 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             )
         }
 
-        if (view === 'admin-clinic-detail' && selectedClinic) {
+        if (view === 'admin-clinic-detail') {
             return (
                 <HeaderPill>
-                    {/* Cancel — visible when editing */}
-                    <div className={'flex items-center overflow-hidden transition-all duration-200 ease-out ' + (clinicEditing ? 'max-w-16 opacity-100' : 'max-w-0 opacity-0')}>
-                        <PillButton
-                            icon={X}
-                            iconSize={18}
-                            onClick={() => setClinicEditing(false)}
-                            label="Cancel"
-                        />
-                    </div>
+                    {/* Cancel — visible when editing, hidden in create mode */}
+                    {!isClinicCreateMode && (
+                        <div className={'flex items-center overflow-hidden transition-all duration-200 ease-out ' + (clinicEditing ? 'max-w-16 opacity-100' : 'max-w-0 opacity-0')}>
+                            <PillButton
+                                icon={X}
+                                iconSize={18}
+                                onClick={() => setClinicEditing(false)}
+                                label="Cancel"
+                            />
+                        </div>
+                    )}
 
-                    {/* Edit — visible when NOT editing */}
-                    <div className={'flex items-center overflow-hidden transition-all duration-200 ease-out ' + (!clinicEditing ? 'max-w-12 opacity-100' : 'max-w-0 opacity-0')}>
-                        <PillButton
-                            icon={Pencil}
-                            iconSize={18}
-                            onClick={() => setClinicEditing(true)}
-                            label="Edit"
-                        />
-                    </div>
+                    {/* Edit — visible when NOT editing, hidden in create mode */}
+                    {!isClinicCreateMode && (
+                        <div className={'flex items-center overflow-hidden transition-all duration-200 ease-out ' + (!clinicEditing ? 'max-w-12 opacity-100' : 'max-w-0 opacity-0')}>
+                            <PillButton
+                                icon={Pencil}
+                                iconSize={18}
+                                onClick={() => setClinicEditing(true)}
+                                label="Edit"
+                            />
+                        </div>
+                    )}
 
-                    {/* Delete — visible when editing */}
-                    {clinicEditing && (
+                    {/* Delete — visible when editing existing clinic */}
+                    {clinicEditing && !isClinicCreateMode && (
                         <PillButton
                             icon={Trash2}
                             iconSize={18}
@@ -350,7 +357,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         }
 
         return undefined
-    }, [view, selectedUser, selectedClinic, userEditing, clinicEditing, handleClose])
+    }, [view, selectedUser, selectedClinic, userEditing, clinicEditing, isUserCreateMode, isClinicCreateMode, handleClose])
 
     // Header config per view
     const headerConfig = useMemo(() => {
@@ -365,31 +372,19 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 return {
                     title: selectedUser
                         ? `${selectedUser.first_name || ''} ${selectedUser.last_name || ''}`.trim() || 'User'
-                        : 'User',
+                        : 'New User',
                     showBack: true,
                     onBack: handleBack,
                     rightContent: detailHeaderActions,
                     hideDefaultClose: !!detailHeaderActions,
-                }
-            case 'admin-user-form':
-                return {
-                    title: selectedUser ? 'Edit User' : 'Create User',
-                    showBack: true,
-                    onBack: handleBack,
                 }
             case 'admin-clinic-detail':
                 return {
-                    title: selectedClinic?.name || 'Clinic',
+                    title: selectedClinic?.name || 'New Clinic',
                     showBack: true,
                     onBack: handleBack,
                     rightContent: detailHeaderActions,
                     hideDefaultClose: !!detailHeaderActions,
-                }
-            case 'admin-clinic-form':
-                return {
-                    title: selectedClinic ? 'Edit Clinic' : 'Create Clinic',
-                    showBack: true,
-                    onBack: handleBack,
                 }
         }
     }, [view, selectedUser, selectedClinic, handleBack, detailHeaderActions, mainHeaderActions])
@@ -403,56 +398,60 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         </div>
     )
 
+    // After creating a user, load full user and switch to view mode
+    const handleUserCreated = useCallback(async (userId: string) => {
+        const users = await listAllUsers()
+        const newUser = users.find(u => u.id === userId)
+        if (newUser) {
+            setSelectedUser(newUser)
+            setUserEditing(false)
+        } else {
+            handleBack()
+        }
+    }, [handleBack])
+
+    // After creating a clinic, load full clinic and switch to view mode
+    const handleClinicCreated = useCallback(async (clinicId: string) => {
+        const clinics = await listClinics()
+        const newClinic = clinics.find(c => c.id === clinicId)
+        if (newClinic) {
+            setSelectedClinic(newClinic)
+            setClinicEditing(false)
+        } else {
+            handleBack()
+        }
+    }, [handleBack])
+
     // Render active content
     const renderContent = () => {
         switch (view) {
             case 'admin-user-detail':
-                return selectedUser ? subViewWrapper(
+                return subViewWrapper(
                     <AdminUserDetail
                         user={selectedUser}
                         onBack={handleBack}
                         onUserUpdated={(u) => setSelectedUser(u)}
+                        onCreated={handleUserCreated}
                         editing={userEditing}
                         onEditingChange={setUserEditing}
                         saveRequested={userSaveRequested}
                         onSaveComplete={() => setUserSaveRequested(false)}
                         onPendingChangesChange={setUserHasPending}
                     />
-                ) : null
-
-            case 'admin-user-form':
-                return subViewWrapper(
-                    <AdminUserForm
-                        user={selectedUser}
-                        onBack={handleBack}
-                        onSaved={() => {
-                            handleBack()
-                        }}
-                    />
                 )
 
             case 'admin-clinic-detail':
-                return selectedClinic ? subViewWrapper(
+                return subViewWrapper(
                     <AdminClinicDetail
                         clinic={selectedClinic}
                         onClinicUpdated={(c) => setSelectedClinic(c)}
                         onSelectUser={handleSelectUser}
+                        onCreated={handleClinicCreated}
                         editing={clinicEditing}
                         onEditingChange={setClinicEditing}
                         saveRequested={clinicSaveRequested}
                         onSaveComplete={() => setClinicSaveRequested(false)}
                         onPendingChangesChange={setClinicHasPending}
-                    />
-                ) : null
-
-            case 'admin-clinic-form':
-                return subViewWrapper(
-                    <AdminClinicForm
-                        clinic={selectedClinic}
-                        onBack={handleBack}
-                        onSaved={() => {
-                            handleBack()
-                        }}
                     />
                 )
 
@@ -617,21 +616,15 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                     placeholder="Search..."
                                     onFocusChange={setSearchFocused}
                                 >
-                                    <div className="shrink-0 px-4 py-3 border-b border-primary/10">
-                                        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider px-2">Organization</p>
-                                    </div>
-                                    <div className="flex-1 overflow-y-auto">
-                                        <AdminTree
-                                            activeClinicId={null}
-                                            activeUserId={null}
-                                            onSelectClinic={handleTreeSelectClinic}
-                                            onSelectUser={handleTreeSelectUser}
-                                            onSelectAll={() => setView('admin')}
-                                            allSelected={view === 'admin'}
-                                            onMoveUser={(_userId, _clinicId) => {}}
-                                            onMoveClinic={(_clinicId, _parentId) => {}}
-                                        />
-                                    </div>
+                                    <AdminSummary
+                                        onSelectClinic={handleSummarySelectClinic}
+                                        onSelectUser={handleSelectUser}
+                                        onSelectAll={() => { setView('admin'); setSelectedUser(null); setSelectedClinic(null) }}
+                                        onSwitchTab={handleSummarySwitchTab}
+                                        activeClinicId={selectedClinic?.id}
+                                        activeUserId={selectedUser?.id}
+                                        allSelected={view === 'admin'}
+                                    />
                                 </MobileSearchBar>
                             </div>
                             <div className="flex-1 min-w-0 overflow-hidden">
@@ -657,7 +650,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         <ConfirmDialog
             visible={confirmDeleteClinic}
             title={`Delete ${selectedClinic?.name ?? 'clinic'}?`}
-            subtitle="This will permanently remove the clinic and all associated data. This action cannot be undone."
+            subtitle="Permanent. All associated data removed."
             confirmLabel="Delete"
             variant="danger"
             processing={deleteClinicProcessing}
@@ -669,7 +662,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         <ConfirmDialog
             visible={confirmDeleteUser}
             title={`Delete ${selectedUser?.first_name ?? ''} ${selectedUser?.last_name ?? 'user'}?`}
-            subtitle="This will permanently delete this user and all associated data (notes, training, sync queue). This action cannot be undone."
+            subtitle="Permanent. All data removed — notes, training, sync queue."
             confirmLabel="Delete"
             variant="danger"
             processing={deleteUserProcessing}

@@ -7,9 +7,9 @@
  */
 
 import { useEffect, useCallback, useMemo, useState, useRef } from 'react'
-import { ChevronRight, X } from 'lucide-react'
+import { ChevronRight, X, Plus } from 'lucide-react'
 import { UserAvatar } from '../Settings/UserAvatar'
-import { listClinics, listAllUsers, updateClinic } from '../../lib/adminService'
+import { listClinics, listAllUsers, updateClinic, createClinic } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import { fetchAllCertifications } from '../../lib/certificationService'
 import type { Certification } from '../../Data/User'
@@ -22,7 +22,7 @@ import { ErrorDisplay } from '../ErrorDisplay'
 import { ChipInput, UserPicker, ClinicPicker } from './AdminPickers'
 
 interface AdminClinicDetailProps {
-  clinic: AdminClinic
+  clinic: AdminClinic | null
   onClinicUpdated: (clinic: AdminClinic) => void
   onSelectUser?: (user: AdminUser) => void
   editing: boolean
@@ -30,6 +30,7 @@ interface AdminClinicDetailProps {
   saveRequested: boolean
   onSaveComplete: () => void
   onPendingChangesChange?: (hasPending: boolean) => void
+  onCreated?: (clinicId: string) => void
 }
 
 const AdminClinicDetail = ({
@@ -41,6 +42,7 @@ const AdminClinicDetail = ({
   saveRequested,
   onSaveComplete,
   onPendingChangesChange,
+  onCreated,
 }: AdminClinicDetailProps) => {
   const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
@@ -58,22 +60,24 @@ const AdminClinicDetail = ({
   const [uicDraft, setUicDraft] = useState('')
   const [uicError, setUicError] = useState<string | null>(null)
 
+  const isCreateMode = clinic === null
+
   const handleAddUic = useCallback(() => {
     if (uicDraft.length !== 6) return
     const upper = uicDraft.toUpperCase()
     if (editUics.includes(upper)) {
-      setUicError('This UIC is already added')
+      setUicError('UIC already added.')
       return
     }
-    const owner = clinics.find(c => c.id !== clinic.id && c.uics.includes(upper))
+    const owner = clinics.find(c => c.id !== clinic?.id && c.uics.includes(upper))
     if (owner) {
-      setUicError(`UIC ${upper} is already assigned to ${owner.name}`)
+      setUicError(`UIC ${upper} assigned to ${owner.name}.`)
       return
     }
     setEditUics(prev => [...prev, upper])
     setUicDraft('')
     setUicError(null)
-  }, [uicDraft, editUics, clinics, clinic.id])
+  }, [uicDraft, editUics, clinics, clinic?.id])
 
   /** Stable ref for onClinicUpdated to avoid recreating loadData on every render. */
   const onClinicUpdatedRef = useRef(onClinicUpdated)
@@ -84,16 +88,17 @@ const AdminClinicDetail = ({
     const [fetchedClinics, fetchedUsers, certData] = await Promise.all([
       listClinics(),
       listAllUsers(),
-      fetchAllCertifications(),
+      isCreateMode ? Promise.resolve([]) : fetchAllCertifications(),
     ])
     setClinics(fetchedClinics)
     setUsers(fetchedUsers)
     setAllCerts(certData)
 
-    // Keep parent in sync with latest clinic data
-    const refreshed = fetchedClinics.find((c) => c.id === clinic.id)
-    if (refreshed) onClinicUpdatedRef.current(refreshed)
-  }, [clinic.id])
+    if (!isCreateMode) {
+      const refreshed = fetchedClinics.find((c) => c.id === clinic?.id)
+      if (refreshed) onClinicUpdatedRef.current(refreshed)
+    }
+  }, [isCreateMode, clinic?.id])
 
   useEffect(() => {
     loadData()
@@ -103,12 +108,12 @@ const AdminClinicDetail = ({
   const prevEditingRef = useRef(false)
   useEffect(() => {
     if (editing && !prevEditingRef.current) {
-      setEditName(clinic.name)
-      setEditLocation(clinic.location ?? '')
-      setEditUics([...clinic.uics])
-      setEditChildClinicIds([...clinic.child_clinic_ids])
-      setEditAssociatedClinicIds([...clinic.associated_clinic_ids])
-      setEditAdditionalUserIds([...clinic.additional_user_ids])
+      setEditName(clinic?.name ?? '')
+      setEditLocation(clinic?.location ?? '')
+      setEditUics([...(clinic?.uics ?? [])])
+      setEditChildClinicIds([...(clinic?.child_clinic_ids ?? [])])
+      setEditAssociatedClinicIds([...(clinic?.associated_clinic_ids ?? [])])
+      setEditAdditionalUserIds([...(clinic?.additional_user_ids ?? [])])
       setError(null)
     }
     prevEditingRef.current = editing
@@ -118,30 +123,43 @@ const AdminClinicDetail = ({
   useEffect(() => {
     if (!editing) { onPendingChangesChange?.(false); return }
     const changed =
-      editName !== clinic.name ||
-      editLocation !== (clinic.location ?? '') ||
-      JSON.stringify(editUics) !== JSON.stringify(clinic.uics) ||
-      JSON.stringify(editChildClinicIds) !== JSON.stringify(clinic.child_clinic_ids) ||
-      JSON.stringify(editAssociatedClinicIds) !== JSON.stringify(clinic.associated_clinic_ids) ||
-      JSON.stringify(editAdditionalUserIds) !== JSON.stringify(clinic.additional_user_ids)
+      editName !== (clinic?.name ?? '') ||
+      editLocation !== (clinic?.location ?? '') ||
+      JSON.stringify(editUics) !== JSON.stringify(clinic?.uics ?? []) ||
+      JSON.stringify(editChildClinicIds) !== JSON.stringify(clinic?.child_clinic_ids ?? []) ||
+      JSON.stringify(editAssociatedClinicIds) !== JSON.stringify(clinic?.associated_clinic_ids ?? []) ||
+      JSON.stringify(editAdditionalUserIds) !== JSON.stringify(clinic?.additional_user_ids ?? [])
     onPendingChangesChange?.(changed)
   }, [editing, editName, editLocation, editUics, editChildClinicIds, editAssociatedClinicIds, editAdditionalUserIds, clinic, onPendingChangesChange])
 
   const handleSave = useCallback(async () => {
     if (!editName.trim()) {
-      setError('Clinic name is required')
+      setError('Clinic name required.')
       return
     }
     setSaving(true)
     setError(null)
-    const result = await updateClinic(clinic.id, {
+
+    const payload = {
       name: editName.trim(),
-      location: editLocation.trim() || null,
       uics: editUics,
       child_clinic_ids: editChildClinicIds,
       associated_clinic_ids: editAssociatedClinicIds,
       additional_user_ids: editAdditionalUserIds,
-    })
+    }
+
+    if (isCreateMode) {
+      const result = await createClinic({ ...payload, location: editLocation.trim() || undefined })
+      setSaving(false)
+      if (result.success && result.id) {
+        onCreated?.(result.id)
+      } else {
+        setError(!result.success ? result.error : 'Failed to create clinic')
+      }
+      return
+    }
+
+    const result = await updateClinic(clinic!.id, { ...payload, location: editLocation.trim() || null })
     setSaving(false)
     if (result.success) {
       onEditingChange(false)
@@ -149,7 +167,7 @@ const AdminClinicDetail = ({
     } else {
       setError(result.error || 'Failed to update clinic')
     }
-  }, [editName, editLocation, editUics, editChildClinicIds, editAssociatedClinicIds, editAdditionalUserIds, clinic.id, onEditingChange, loadData])
+  }, [editName, editLocation, editUics, editChildClinicIds, editAssociatedClinicIds, editAdditionalUserIds, isCreateMode, clinic, onEditingChange, loadData, onCreated])
 
   useEffect(() => {
     if (saveRequested) {
@@ -160,20 +178,20 @@ const AdminClinicDetail = ({
 
   /** Users whose clinic_id matches this clinic. */
   const assignedUsers = useMemo(
-    () => users.filter((u) => u.clinic_id === clinic.id),
-    [users, clinic.id],
+    () => isCreateMode ? [] : users.filter((u) => u.clinic_id === clinic?.id),
+    [users, clinic?.id, isCreateMode],
   )
 
   /** Users referenced by additional_user_ids (resolved from full user list). */
   const additionalUsers = useMemo(
-    () => users.filter((u) => clinic.additional_user_ids.includes(u.id)),
-    [users, clinic.additional_user_ids],
+    () => isCreateMode ? [] : users.filter((u) => (clinic?.additional_user_ids ?? []).includes(u.id)),
+    [users, clinic?.additional_user_ids, isCreateMode],
   )
 
   /** Additional users who are NOT already in assignedUsers. */
   const additionalOnly = useMemo(
-    () => additionalUsers.filter((u) => u.clinic_id !== clinic.id),
-    [additionalUsers, clinic.id],
+    () => additionalUsers.filter((u) => u.clinic_id !== clinic?.id),
+    [additionalUsers, clinic?.id],
   )
 
   /** All users to show (assigned + additional, deduplicated). */
@@ -271,18 +289,18 @@ const AdminClinicDetail = ({
                   type="button"
                   onClick={handleAddUic}
                   disabled={uicDraft.length !== 6}
-                  className="px-3 h-10 rounded-lg bg-themeblue3 text-white text-sm font-medium hover:bg-themeblue3/90 disabled:opacity-50 transition-colors shrink-0"
+                  className="shrink-0 w-10 h-10 rounded-full bg-themeblue3 text-white flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
                 >
-                  Add
+                  <Plus size={16} />
                 </button>
               </div>
               {uicError && <p className="text-xs text-themeredred mt-1">{uicError}</p>}
             </div>
-            <ClinicPicker label="Sub-clinics" selectedIds={editChildClinicIds} allClinics={clinics} excludeId={clinic.id} onChange={setEditChildClinicIds} />
-            <ClinicPicker label="Associated Clinics" selectedIds={editAssociatedClinicIds} allClinics={clinics} excludeId={clinic.id} onChange={setEditAssociatedClinicIds} />
+            <ClinicPicker label="Sub-clinics" selectedIds={editChildClinicIds} allClinics={clinics} excludeId={clinic?.id} onChange={setEditChildClinicIds} />
+            <ClinicPicker label="Associated Clinics" selectedIds={editAssociatedClinicIds} allClinics={clinics} excludeId={clinic?.id} onChange={setEditAssociatedClinicIds} />
             <UserPicker label="Additional Users" selectedIds={editAdditionalUserIds} allUsers={users} onChange={setEditAdditionalUserIds} />
           </div>
-        ) : (
+        ) : clinic ? (
           <div className="px-4 py-3">
             <p className="text-sm font-semibold text-primary">{clinic.name}</p>
             {clinic.location && (
@@ -313,11 +331,11 @@ const AdminClinicDetail = ({
               {assignedUsers.length} member{assignedUsers.length !== 1 ? 's' : ''}
             </p>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Assigned Users */}
-      {assignedUsers.length > 0 && (
+      {!isCreateMode && assignedUsers.length > 0 && (
         <div className="mt-4">
           <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
             Assigned Users ({assignedUsers.length})
@@ -329,7 +347,7 @@ const AdminClinicDetail = ({
       )}
 
       {/* Additional Users — view mode only (edit mode has UserPicker in main card) */}
-      {!editing && additionalOnly.length > 0 && (
+      {!isCreateMode && !editing && additionalOnly.length > 0 && (
         <div className="mt-4">
           <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
             Additional Users ({additionalOnly.length})
@@ -341,7 +359,7 @@ const AdminClinicDetail = ({
       )}
 
       {/* Empty state */}
-      {!editing && allClinicUsers.length === 0 && (
+      {!isCreateMode && !editing && allClinicUsers.length === 0 && (
         <div className="text-center py-8 mt-4">
           <p className="text-tertiary/60 text-sm">No users assigned to this clinic</p>
         </div>

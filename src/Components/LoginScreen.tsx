@@ -53,7 +53,7 @@ export function LoginScreen() {
         body: { email, pin },
       })
       if (fnError || !data?.token) {
-        setPinError(data?.error || 'Invalid email or PIN')
+        setPinError(data?.error || 'Invalid email or PIN.')
         setPinLoading(false)
         return
       }

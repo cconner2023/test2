@@ -1394,7 +1394,8 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       {/* Cascade delete confirmation */}
       <ConfirmDialog
         visible={!!pendingZoneDelete}
-        title={`Delete "${pendingZoneDelete?.label}"? This will remove the location, its children, and all zone tags. Items will be unassigned.`}
+        title={`Delete "${pendingZoneDelete?.label}"?`}
+        subtitle="Permanent. Removes location, children, and zone tags. Items unassigned."
         confirmLabel="Delete"
         variant="danger"
         onConfirm={handleConfirmZoneDelete}

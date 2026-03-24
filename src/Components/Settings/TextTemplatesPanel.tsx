@@ -6,6 +6,7 @@ import { parseFieldText } from '../../Utilities/templateParser';
 import { TextExpanderManager } from './TextExpanderManager';
 import type { EditCardState } from './TextExpanderManager';
 import { TextTemplateDetailPanel } from './TextTemplateDetailPanel';
+import { DEMO_EXPANDER_ABBR, DEMO_EXPANDER_BUILDS } from '../../Data/GuidedTourData';
 
 interface TextTemplatesPanelProps {
     editing?: boolean;
@@ -81,6 +82,61 @@ export const TextTemplatesPanel = ({
             setEditCard(null);
         }
     }, [editing]);
+
+    // Tour system: listen for demo build events
+    useEffect(() => {
+        const handleSetAbbr = (e: Event) => {
+            const abbr = (e as CustomEvent).detail as string;
+            setInputAbbr(abbr);
+            setSelectedType('simple');
+        };
+        const handleSubmit = () => {
+            setInputAbbr('');
+            setInputError('');
+            setEditCard({
+                abbr: DEMO_EXPANDER_ABBR,
+                type: 'simple',
+                expansion: '',
+                nodes: [],
+                fields: {},
+                isNew: true,
+            });
+        };
+        const handleBuild = (e: Event) => {
+            const step = (e as CustomEvent).detail as string;
+            const build = DEMO_EXPANDER_BUILDS[step];
+            if (!build) return;
+            setEditCard(prev => {
+                if (!prev) return prev;
+                return { ...prev, expansion: build.expansion, fields: { ...build.fields } };
+            });
+        };
+        const handleAccept = () => {
+            const build = DEMO_EXPANDER_BUILDS.complete;
+            const nodes = parseFieldText(build.expansion, build.fields);
+            setStagedAdds(adds => [...adds, { abbr: DEMO_EXPANDER_ABBR, expansion: '', template: nodes }]);
+            setEditCard(null);
+        };
+        const handleCleanup = () => {
+            setStagedAdds([]);
+            setEditCard(null);
+            setInputAbbr('');
+            setInputError('');
+        };
+
+        window.addEventListener('tour:expander-set-abbr', handleSetAbbr);
+        window.addEventListener('tour:expander-submit', handleSubmit);
+        window.addEventListener('tour:expander-build', handleBuild);
+        window.addEventListener('tour:expander-accept', handleAccept);
+        window.addEventListener('tour:expander-cleanup', handleCleanup);
+        return () => {
+            window.removeEventListener('tour:expander-set-abbr', handleSetAbbr);
+            window.removeEventListener('tour:expander-submit', handleSubmit);
+            window.removeEventListener('tour:expander-build', handleBuild);
+            window.removeEventListener('tour:expander-accept', handleAccept);
+            window.removeEventListener('tour:expander-cleanup', handleCleanup);
+        };
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleToggleDelete = useCallback((abbr: string) => {
         setStagedDeletes(prev => {
@@ -200,9 +256,9 @@ export const TextTemplatesPanel = ({
 
     // ── List view ──
     return (
-        <div className="h-full overflow-y-auto">
+        <div data-tour="expander-usage-hint" className="h-full overflow-y-auto">
             <div className="px-5 py-4 space-y-5">
-                <p className="text-xs text-tertiary leading-relaxed">
+                <p data-tour="expander-edit-hint" className="text-xs text-tertiary leading-relaxed">
                     Autotext shortcuts that expand abbreviations as you type in your notes.
                 </p>
 

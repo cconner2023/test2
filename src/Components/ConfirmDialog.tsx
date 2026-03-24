@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
 import { XCircle } from 'lucide-react'
 import { useIsMobile } from '../Hooks/useIsMobile'
+import { useOverlay } from '../Hooks/useOverlay'
 
 interface ConfirmDialogProps {
   visible: boolean
@@ -41,57 +41,9 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   const isMobile = useIsMobile()
-  const [mounted, setMounted] = useState(false)
-  const [open, setOpen] = useState(false)
-  const [dragY, setDragY] = useState(0)
-  const [isDragging, setIsDragging] = useState(false)
-  const dragStartY = useRef(0)
+  const { mounted, open, dragY, isDragging, close, touchHandlers } = useOverlay(visible, onCancel)
 
   const styles = variantStyles[variant]
-
-  useEffect(() => {
-    if (visible) {
-      setMounted(true)
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => setOpen(true))
-      })
-    } else {
-      setOpen(false)
-      const t = setTimeout(() => {
-        setMounted(false)
-        setDragY(0)
-      }, 300)
-      return () => clearTimeout(t)
-    }
-  }, [visible])
-
-  const handleClose = useCallback(() => {
-    setOpen(false)
-    setTimeout(onCancel, 300)
-  }, [onCancel])
-
-  /* Touch drag for mobile drawer */
-  const onTouchStart = useCallback((e: React.TouchEvent) => {
-    const target = e.target as HTMLElement
-    if (!target.closest('[data-drag-zone]')) return
-    dragStartY.current = e.touches[0].clientY
-    setIsDragging(true)
-  }, [])
-
-  const onTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging) return
-    const dy = Math.max(0, e.touches[0].clientY - dragStartY.current)
-    setDragY(dy)
-  }, [isDragging])
-
-  const onTouchEnd = useCallback(() => {
-    if (!isDragging) return
-    setIsDragging(false)
-    if (dragY > 80) {
-      handleClose()
-    }
-    setDragY(0)
-  }, [isDragging, dragY, handleClose])
 
   if (!mounted) return null
 
@@ -102,7 +54,7 @@ export function ConfirmDialog({
         <div
           className={`fixed inset-0 z-70 bg-black transition-opacity duration-300 ${open ? 'opacity-40' : 'opacity-0'}`}
           style={{ pointerEvents: open ? 'auto' : 'none' }}
-          onClick={handleClose}
+          onClick={close}
         />
         <div
           className={`fixed left-0 right-0 bottom-0 z-70 bg-themewhite3 rounded-t-[1.25rem] ${isDragging ? '' : 'transition-transform duration-300 ease-out'}`}
@@ -114,9 +66,7 @@ export function ConfirmDialog({
           aria-modal="true"
           aria-labelledby="confirm-dialog-title"
           aria-describedby={subtitle ? 'confirm-dialog-message' : undefined}
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
+          {...touchHandlers}
         >
           <div className="flex justify-center pt-2 pb-1" data-drag-zone style={{ touchAction: 'none' }}>
             <div className="w-9 h-1 rounded-full bg-tertiary/25" />
@@ -140,7 +90,7 @@ export function ConfirmDialog({
                 {processing ? 'Processing...' : confirmLabel}
               </button>
               <button
-                onClick={handleClose}
+                onClick={close}
                 disabled={processing}
                 className={`w-full py-3 rounded-full text-[15px] font-medium active:scale-95 transition-all ${styles.cancelText} border ${styles.cancelBorder}`}
               >
@@ -159,7 +109,7 @@ export function ConfirmDialog({
       <div
         className={`fixed inset-0 z-70 bg-black transition-opacity duration-300 ${open ? 'opacity-20' : 'opacity-0'}`}
         style={{ pointerEvents: open ? 'auto' : 'none' }}
-        onClick={handleClose}
+        onClick={close}
       />
       <div className="fixed inset-0 z-70 flex items-center justify-center pointer-events-none">
         <div
@@ -190,7 +140,7 @@ export function ConfirmDialog({
               {processing ? 'Processing...' : confirmLabel}
             </button>
             <button
-              onClick={handleClose}
+              onClick={close}
               disabled={processing}
               className={`w-full py-3 rounded-full text-[15px] font-medium active:scale-95 transition-all ${styles.cancelText} border ${styles.cancelBorder}`}
             >

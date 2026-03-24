@@ -71,45 +71,35 @@ export const UserAcknowledgment = ({ onAccept, persistent }: UserAcknowledgmentP
             <ShieldCheck size={26} className="text-themeblue2" />
           </div>
           <h1 className="text-lg font-bold text-primary">User Acknowledgment</h1>
-          <p className="text-xs text-tertiary/60 mt-1">Please review before continuing</p>
+          <p className="text-xs text-tertiary/60 mt-1">Review before continuing.</p>
         </div>
 
         {/* Content */}
         <div className="w-full space-y-4 mb-6 px-1">
           <Section icon={<EyeOff size={14} className="text-themeblue2" />}>
             <p>
-              <strong className="text-primary">No patient data is stored on our servers.</strong>{' '}
-              Clinical notes, including HPI and physical exam documentation, are generated entirely on your device for your education. No Protected Health Information (PHI) or
-              Personally Identifiable Information (PII) is transmitted to or stored on any server.
+              <strong className="text-primary">No patient data stored on servers.</strong>{' '}
+              Clinical notes are generated on-device for your education. No PHI or PII is transmitted to or stored on any server.
             </p>
           </Section>
 
           <Section icon={<FileText size={14} className="text-themeblue2" />}>
             <p>
               <strong className="text-primary">Notes are your responsibility.</strong>{' '}
-              When you share or copy a clinical note — whether as a barcode,
-              DD Form 689, or plain text — you assume responsibility for the handling
-              of that information in accordance with HIPAA, DoD 6025.18-R, and your
-              organization's privacy policies.
+              When you share or copy a clinical note — barcode, DD Form 689, or plain text — you assume responsibility for handling that information per HIPAA, DoD 6025.18-R, and your organization's privacy policies.
             </p>
           </Section>
 
           <Section icon={<UserCheck size={14} className="text-themeblue2" />}>
             <p>
-              <strong className="text-primary">Do not enter patient-identifying information.</strong>{' '}
-              This application is a clinical decision-support tool, not an electronic health record.
-              Do not include patient names, Social Security Numbers, DoD ID numbers, dates of birth,
-              or any other identifiers defined by the HIPAA Safe Harbor standard in your notes.
-              The app will warn you if potential identifiers are detected, but you are ultimately
-              responsible for ensuring compliance.
+              <strong className="text-primary">Do not enter patient identifiers.</strong>{' '}
+              This is a clinical decision-support tool, not an EHR. Do not include patient names, SSNs, DoD IDs, dates of birth, or other HIPAA Safe Harbor identifiers. The app warns on potential identifiers, but compliance is your responsibility.
             </p>
           </Section>
 
           <div className="px-3 py-2.5 rounded-lg border border-tertiary/10 bg-themewhite2">
             <p className="text-[11px] text-tertiary/50 leading-relaxed">
-              This application is provided as a clinical reference tool. It does not replace
-              clinical judgment, established protocols, or the guidance of a supervising
-              provider. Use of this tool does not establish a provider-patient relationship.
+              Clinical reference tool. Does not replace clinical judgment, protocols, or supervising provider guidance. No provider-patient relationship established.
             </p>
           </div>
         </div>
@@ -123,8 +113,7 @@ export const UserAcknowledgment = ({ onAccept, persistent }: UserAcknowledgmentP
             className="mt-0.5 w-4 h-4 rounded border-themegray1/40 text-themeblue2 focus:ring-themeblue2 shrink-0 cursor-pointer accent-themeblue2"
           />
           <span className="text-xs text-primary leading-relaxed">
-            I understand that no patient data is stored on external servers, and I accept
-            responsibility for any unauthorized release of PHI/PII that occurs due to my own actions using this application.
+            I understand no patient data is stored externally. I accept responsibility for any unauthorized PHI/PII release resulting from my use of this application.
           </span>
         </label>
 

@@ -200,7 +200,7 @@ export const PropertyDashboard = memo(forwardRef<DashboardNavHandle, PropertyDas
       <EmptyState
         icon={<Package size={28} className="text-tertiary/30" />}
         title="No property items"
-        subtitle="Add items to start tracking your property book"
+        subtitle="No items. Add one to begin tracking."
       />
     )
   }

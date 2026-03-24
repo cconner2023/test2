@@ -55,7 +55,7 @@ export function OverlayList({ overlays, onSelect, onDelete, onNewOverlay }: Over
         <EmptyState
           icon={<Map size={40} />}
           title="No Overlays"
-          subtitle="Create a new overlay to plot waypoints and routes"
+          subtitle="No overlays. Create one to begin."
           action={{ label: 'New Overlay', onClick: onNewOverlay }}
           className="flex-1"
         />
@@ -77,7 +77,7 @@ export function OverlayList({ overlays, onSelect, onDelete, onNewOverlay }: Over
         {filtered.length === 0 ? (
           <EmptyState
             title="No matches"
-            subtitle="Try a different search term"
+            subtitle="No matches."
             className="py-12"
           />
         ) : (

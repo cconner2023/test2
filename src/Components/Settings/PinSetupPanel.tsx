@@ -90,16 +90,16 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
       if (bioEnrolled) {
         removeBiometric()
         setBioEnrolled(false)
-        setSuccess('Face ID / Touch ID disabled')
+        setSuccess('Biometrics disabled.')
         setTimeout(() => setSuccess(''), UI_TIMING.COPY_FEEDBACK)
       } else {
         const enrolled = await enrollBiometric()
         if (enrolled) {
           setBioEnrolled(true)
-          setSuccess('Face ID / Touch ID enabled')
+          setSuccess('Biometrics enabled.')
           setTimeout(() => setSuccess(''), UI_TIMING.COPY_FEEDBACK)
         } else {
-          setError('Biometric setup was cancelled or failed')
+          setError('Biometric setup failed.')
           setTimeout(() => setError(''), UI_TIMING.SAVE_ERROR_DURATION)
         }
       }
@@ -127,7 +127,7 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
           setSuccess('PIN enabled')
           setTimeout(() => { resetState(); setView('status') }, 1200)
         } else {
-          setError('PINs don\'t match')
+          setError('PINs do not match.')
         }
         break
 
@@ -149,7 +149,7 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
         } else {
           const state = recordFailedAttempt()
           setLockout(state)
-          setError('Incorrect PIN')
+          setError('Incorrect PIN.')
         }
         break
       }
@@ -169,7 +169,7 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
           setSuccess('PIN changed')
           setTimeout(() => { resetState(); setView('status') }, 1200)
         } else {
-          setError('PINs don\'t match')
+          setError('PINs do not match.')
         }
         break
     }

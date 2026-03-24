@@ -2,6 +2,11 @@
 
 declare const __APP_VERSION__: string
 
+// Tour system: global flag for WriteNotePage section override
+interface Window {
+  __tourNoteOverride?: boolean
+}
+
 // Virtual module from vite-plugin-pwa
 declare module 'virtual:pwa-register' {
   export interface RegisterSWOptions {

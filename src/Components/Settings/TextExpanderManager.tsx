@@ -91,7 +91,7 @@ export const TextExpanderManager = ({
             }`}>
                 {editCard && editCard.type === 'simple' ? (
                     /* Simple — unified card: header, field editor, footer */
-                    <div className="rounded-xl bg-themewhite2 divide-y divide-tertiary/10">
+                    <div data-tour="expander-edit-card" className="rounded-xl bg-themewhite2 divide-y divide-tertiary/10">
                         <div className="flex items-center gap-2 px-4 py-3">
                             <p className="text-base font-semibold text-primary font-mono flex-1 min-w-0 truncate">
                                 {editCard.abbr}
@@ -120,6 +120,7 @@ export const TextExpanderManager = ({
                             </button>
                             <button
                                 type="button"
+                                data-tour="expander-edit-accept"
                                 onClick={onEditCardAccept}
                                 disabled={!editCardValid}
                                 className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-40 active:scale-95 transition-all"
@@ -167,16 +168,17 @@ export const TextExpanderManager = ({
             </div>
 
             {/* ── Unified card: input bar (when editing) + template list ── */}
-            <div className="rounded-xl bg-themewhite2 overflow-hidden">
+            <div data-tour="expander-list" className="rounded-xl bg-themewhite2 overflow-hidden">
                 {/* Input bar — inside the list card, edit-gated */}
                 <div className={`overflow-hidden transition-all duration-300 ease-out ${
                     editing && !editCard ? 'max-h-16 opacity-100' : 'max-h-0 opacity-0'
                 }`}>
-                    <div className="relative px-4 py-3">
+                    <div data-tour="expander-input-bar" className="relative px-4 py-3">
                         <div className="flex items-center gap-1.5">
                             {/* Type selector pill */}
                             <button
                                 type="button"
+                                data-tour="expander-type-hint"
                                 onClick={() => onTypeChange(selectedType === 'simple' ? 'template' : 'simple')}
                                 className={`shrink-0 px-3 py-2.5 rounded-full text-[11px] font-semibold tracking-wide uppercase transition-all active:scale-95 ${
                                     selectedType === 'template'

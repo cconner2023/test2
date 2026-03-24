@@ -85,7 +85,7 @@ export const TC3FrontColumn = memo(function TC3FrontColumn() {
           </button>
           <ConfirmDialog
             visible={showConfirmReset}
-            title="Clear all data and start a new card?"
+            title="Clear card? Current entries will be lost."
             confirmLabel="Clear"
             variant="danger"
             onConfirm={handleReset}

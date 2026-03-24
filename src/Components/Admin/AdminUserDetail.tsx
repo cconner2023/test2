@@ -8,14 +8,14 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { KeyRound, LogOut } from 'lucide-react'
+import { KeyRound, LogOut, X, Check } from 'lucide-react'
 import type { Certification } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import type { Component } from '../../Data/User'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { AdminCertsSection } from './AdminCertsSection'
 import { formatLastActive, lastActiveColor, RoleBadge } from './adminUtils'
-import { TextInput, PickerInput, UicPinInput } from '../FormInputs'
+import { TextInput, PickerInput, MultiPickerInput, UicPinInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
 import {
   listAllUsers,
@@ -26,6 +26,7 @@ import {
   addUserRole,
   removeUserRole,
   setUserClinic,
+  createUser,
 } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import { fetchAllCertifications } from '../../lib/certificationService'
@@ -35,9 +36,10 @@ import { UI_TIMING } from '../../Utilities/constants'
 // ─── Types ────────────────────────────────────────────────────────────
 
 interface AdminUserDetailProps {
-  user: AdminUser
+  user: AdminUser | null
   onBack: () => void
   onUserUpdated: (user: AdminUser) => void
+  onCreated?: (userId: string) => void
   // Edit toolbar props (Settings pattern)
   editing: boolean
   onEditingChange: (editing: boolean) => void
@@ -59,6 +61,7 @@ export function AdminUserDetail({
   user,
   onBack: _onBack,
   onUserUpdated,
+  onCreated,
   editing,
   onEditingChange,
   saveRequested,
@@ -93,19 +96,24 @@ export function AdminUserDetail({
   const [editRank, setEditRank] = useState('')
   const [editUic, setEditUic] = useState('')
   const [editClinicId, setEditClinicId] = useState('')
-  const [editRoles, setEditRoles] = useState<Record<string, boolean>>({})
+  const [editRoles, setEditRoles] = useState<string[]>([])
   const [editNoteIncludeHPI, setEditNoteIncludeHPI] = useState(true)
   const [editNoteIncludePE, setEditNoteIncludePE] = useState(false)
   const [editPeDepth, setEditPeDepth] = useState('standard')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const isCreateMode = user === null
+  const [createEmail, setCreateEmail] = useState('')
+  const [createPassword, setCreatePassword] = useState('')
+
   // ── Derived data ────────────────────────────────────────────────────
   const clinicMap = useMemo(() => new Map(clinics.map((c) => [c.id, c])), [clinics])
 
   const userCerts = useMemo(() => {
+    if (!user) return []
     return allCerts.filter((cert) => cert.user_id === user.id)
-  }, [allCerts, user.id])
+  }, [allCerts, user])
 
   const componentRanks = editComponent ? ranksByComponent[editComponent as Component] : []
 
@@ -122,6 +130,11 @@ export function AdminUserDetail({
   onUserUpdatedRef.current = onUserUpdated
 
   const loadData = useCallback(async () => {
+    if (isCreateMode) {
+      const clinicData = await listClinics()
+      setClinics(clinicData)
+      return
+    }
     const [userData, clinicData, certData] = await Promise.all([
       listAllUsers(),
       listClinics(),
@@ -131,9 +144,9 @@ export function AdminUserDetail({
     setAllCerts(certData)
 
     // Sync user prop with latest data so parent stays current
-    const refreshed = userData.find((u) => u.id === user.id)
+    const refreshed = userData.find((u) => u.id === user?.id)
     if (refreshed) onUserUpdatedRef.current(refreshed)
-  }, [user.id])
+  }, [isCreateMode, user?.id])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -141,23 +154,20 @@ export function AdminUserDetail({
   const prevEditingRef = useRef(false)
   useEffect(() => {
     if (editing && !prevEditingRef.current) {
-      setEditFirstName(user.first_name || '')
-      setEditLastName(user.last_name || '')
-      setEditMiddleInitial(user.middle_initial || '')
-      setEditCredential(user.credential || '')
-      setEditComponent(user.component || '')
-      setEditRank(user.rank || '')
-      setEditUic(user.uic || '')
-      setEditClinicId(user.clinic_id || '')
-      setEditRoles({
-        medic: user.roles?.includes('medic') ?? true,
-        supervisor: user.roles?.includes('supervisor') ?? false,
-        dev: user.roles?.includes('dev') ?? false,
-        provider: user.roles?.includes('provider') ?? false,
-      })
-      setEditNoteIncludeHPI(user.note_include_hpi ?? true)
-      setEditNoteIncludePE(user.note_include_pe ?? false)
-      setEditPeDepth(user.pe_depth ?? 'standard')
+      setEditFirstName(user?.first_name || '')
+      setEditLastName(user?.last_name || '')
+      setEditMiddleInitial(user?.middle_initial || '')
+      setEditCredential(user?.credential || '')
+      setEditComponent(user?.component || '')
+      setEditRank(user?.rank || '')
+      setEditUic(user?.uic || '')
+      setEditClinicId(user?.clinic_id || '')
+      setEditRoles(user?.roles?.filter(r => AVAILABLE_ROLES.includes(r as typeof AVAILABLE_ROLES[number])) ?? ['medic'])
+      setEditNoteIncludeHPI(user?.note_include_hpi ?? true)
+      setEditNoteIncludePE(user?.note_include_pe ?? false)
+      setEditPeDepth(user?.pe_depth ?? 'standard')
+      setCreateEmail('')
+      setCreatePassword('')
       setError(null)
     }
     prevEditingRef.current = editing
@@ -166,23 +176,18 @@ export function AdminUserDetail({
   // ── Pending changes detection ────────────────────────────────────────
   useEffect(() => {
     if (!editing) { onPendingChangesChange?.(false); return }
-    const changed = editFirstName !== (user.first_name || '')
-      || editLastName !== (user.last_name || '')
-      || editMiddleInitial !== (user.middle_initial || '')
-      || editCredential !== (user.credential || '')
-      || editComponent !== (user.component || '')
-      || editRank !== (user.rank || '')
-      || editUic !== (user.uic || '')
-      || editClinicId !== (user.clinic_id || '')
-      || JSON.stringify(editRoles) !== JSON.stringify({
-        medic: user.roles?.includes('medic') ?? true,
-        supervisor: user.roles?.includes('supervisor') ?? false,
-        dev: user.roles?.includes('dev') ?? false,
-        provider: user.roles?.includes('provider') ?? false,
-      })
-      || editNoteIncludeHPI !== (user.note_include_hpi ?? true)
-      || editNoteIncludePE !== (user.note_include_pe ?? false)
-      || editPeDepth !== (user.pe_depth ?? 'standard')
+    const changed = editFirstName !== (user?.first_name || '')
+      || editLastName !== (user?.last_name || '')
+      || editMiddleInitial !== (user?.middle_initial || '')
+      || editCredential !== (user?.credential || '')
+      || editComponent !== (user?.component || '')
+      || editRank !== (user?.rank || '')
+      || editUic !== (user?.uic || '')
+      || editClinicId !== (user?.clinic_id || '')
+      || JSON.stringify([...editRoles].sort()) !== JSON.stringify([...(user?.roles ?? ['medic'])].sort())
+      || editNoteIncludeHPI !== (user?.note_include_hpi ?? true)
+      || editNoteIncludePE !== (user?.note_include_pe ?? false)
+      || editPeDepth !== (user?.pe_depth ?? 'standard')
     onPendingChangesChange?.(changed)
   }, [editing, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editRoles, editNoteIncludeHPI, editNoteIncludePE, editPeDepth, user, onPendingChangesChange])
 
@@ -196,15 +201,54 @@ export function AdminUserDetail({
   }, [editRank])
 
   const handleSave = useCallback(async () => {
-    const chosenRoles = AVAILABLE_ROLES.filter(r => editRoles[r])
+    const chosenRoles = editRoles
     if (chosenRoles.length === 0) {
-      setError('At least one role must be selected')
+      setError('Select at least one role.')
       return
     }
+
+    // ── Create mode ──
+    if (isCreateMode) {
+      if (!createEmail || !editFirstName || !editLastName) {
+        setError('Email, first name, and last name required.')
+        return
+      }
+      if (createPassword.length < 12) {
+        setError('Minimum 12 characters.')
+        return
+      }
+      setSaving(true)
+      setError(null)
+      const result = await createUser({
+        email: createEmail,
+        tempPassword: createPassword,
+        firstName: editFirstName,
+        lastName: editLastName,
+        middleInitial: editMiddleInitial || undefined,
+        credential: editCredential || undefined,
+        component: editComponent || undefined,
+        rank: editRank || undefined,
+        uic: editUic || undefined,
+        roles: chosenRoles,
+      })
+      setSaving(false)
+      if (result.success && result.userId) {
+        // Assign clinic if selected
+        if (editClinicId) {
+          await setUserClinic(result.userId, editClinicId)
+        }
+        onCreated?.(result.userId)
+      } else {
+        setError(result.error || 'Failed to create user')
+      }
+      return
+    }
+
     setSaving(true)
     setError(null)
 
     // 1. Update profile fields
+    if (!user) return
     const profileResult = await updateUserProfile(user.id, {
       firstName: editFirstName || undefined,
       lastName: editLastName || undefined,
@@ -261,7 +305,7 @@ export function AdminUserDetail({
     setSaving(false)
     onEditingChange(false)
     loadData()
-  }, [user, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editRoles, editNoteIncludeHPI, editNoteIncludePE, editPeDepth, onEditingChange, loadData])
+  }, [user, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editRoles, editNoteIncludeHPI, editNoteIncludePE, editPeDepth, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated])
 
   // ── Save requested trigger ───────────────────────────────────────────
   useEffect(() => {
@@ -272,7 +316,7 @@ export function AdminUserDetail({
   }, [saveRequested, handleSave, onSaveComplete])
 
   const handleResetPassword = async () => {
-    if (resetPwValue.length < 12) return
+    if (!user || resetPwValue.length < 12) return
     setResetPwProcessing(true)
     const result = await resetUserPassword(user.id, resetPwValue)
     setResetPwProcessing(false)
@@ -288,6 +332,7 @@ export function AdminUserDetail({
   }
 
   const handleForceLogout = async () => {
+    if (!user) return
     setForceLogoutProcessing(true)
     const result = await forceLogoutUser(user.id)
     setForceLogoutProcessing(false)
@@ -309,9 +354,7 @@ export function AdminUserDetail({
   }
 
   // ── Full name helper ────────────────────────────────────────────────
-  const fullName = [user.first_name, user.middle_initial, user.last_name]
-    .filter(Boolean)
-    .join(' ')
+  const fullName = user ? [user.first_name, user.middle_initial, user.last_name].filter(Boolean).join(' ') : ''
 
   // ── Render ──────────────────────────────────────────────────────────
 
@@ -319,14 +362,17 @@ export function AdminUserDetail({
     <div className={saving ? 'opacity-50 pointer-events-none' : undefined}>
       {/* Feedback banner */}
       {feedback && (
-        <div className={`mb-4 p-3 rounded-lg text-sm ${
+        <div className={`mb-4 px-4 py-3 rounded-2xl border text-sm flex items-center justify-between gap-2 ${
           feedback.type === 'success'
-            ? 'bg-themegreen/10 border border-themegreen/20 text-themegreen'
-            : 'bg-themeredred/10 border border-themeredred/20 text-themeredred'
+            ? 'bg-themegreen/10 border-themegreen/20 text-themegreen'
+            : 'bg-themeredred/10 border-themeredred/20 text-themeredred'
         }`}>
-          {feedback.message}
-          <button onClick={() => setFeedback(null)} className="float-right text-xs opacity-60 hover:opacity-100">
-            dismiss
+          <span>{feedback.message}</span>
+          <button
+            onClick={() => setFeedback(null)}
+            className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center active:scale-95 transition-all hover:bg-white/20"
+          >
+            <X size={14} />
           </button>
         </div>
       )}
@@ -338,17 +384,24 @@ export function AdminUserDetail({
       <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
         {editing ? (
           <div className="px-4 py-3.5 space-y-3">
-            <div className="flex items-center gap-3">
-              <UserAvatar
-                avatarId={user.avatar_id}
-                firstName={user.first_name}
-                lastName={user.last_name}
-                className="w-11 h-11"
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] text-tertiary/70">{user.email}</p>
+            {isCreateMode ? (
+              <>
+                <TextInput label="Email" value={createEmail} onChange={setCreateEmail} placeholder="user@mail.mil" type="email" required />
+                <TextInput label="Temporary Password" value={createPassword} onChange={setCreatePassword} placeholder="Min 12 characters" required />
+              </>
+            ) : (
+              <div className="flex items-center gap-3">
+                <UserAvatar
+                  avatarId={user!.avatar_id}
+                  firstName={user!.first_name}
+                  lastName={user!.last_name}
+                  className="w-11 h-11"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] text-tertiary/70">{user!.email}</p>
+                </div>
               </div>
-            </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <TextInput label="First Name" value={editFirstName} onChange={setEditFirstName} />
               <TextInput label="Last Name" value={editLastName} onChange={setEditLastName} />
@@ -360,28 +413,20 @@ export function AdminUserDetail({
               maxLength={1}
             />
             <div className="grid grid-cols-2 gap-3">
-              <PickerInput label="Credential" value={editCredential} onChange={setEditCredential} options={credentials} inline />
-              <PickerInput label="Component" value={editComponent} onChange={handleComponentChange} options={components} inline />
+              <PickerInput label="Credential" value={editCredential} onChange={setEditCredential} options={credentials} />
+              <PickerInput label="Component" value={editComponent} onChange={handleComponentChange} options={components} />
             </div>
-            {editComponent && <PickerInput label="Rank" value={editRank} onChange={setEditRank} options={componentRanks} inline />}
+            {editComponent && <PickerInput label="Rank" value={editRank} onChange={setEditRank} options={componentRanks} />}
             <UicPinInput label="UIC" value={editUic} onChange={setEditUic} spread />
-            <PickerInput label="Clinic" value={editClinicId} onChange={setEditClinicId} options={clinicOptions} placeholder="No clinic assigned" inline />
-            <div>
-              <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Roles</span>
-              <div className="flex gap-3 mt-2 flex-wrap">
-                {AVAILABLE_ROLES.map(role => (
-                  <label key={role} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editRoles[role] || false}
-                      onChange={() => setEditRoles(prev => ({ ...prev, [role]: !prev[role] }))}
-                      className="w-4 h-4 rounded border-tertiary/30"
-                    />
-                    <span className="text-sm text-primary capitalize">{role}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
+            <PickerInput label="Clinic" value={editClinicId} onChange={setEditClinicId} options={clinicOptions} placeholder="No clinic assigned" />
+            <MultiPickerInput
+              label="Roles"
+              value={editRoles}
+              onChange={setEditRoles}
+              options={AVAILABLE_ROLES.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))}
+              placeholder="Roles"
+              required
+            />
             <label className="flex items-center justify-between cursor-pointer py-1">
               <span className="text-sm text-primary">Include HPI</span>
               <input type="checkbox" checked={editNoteIncludeHPI} onChange={() => setEditNoteIncludeHPI(!editNoteIncludeHPI)} className="w-4 h-4 rounded border-tertiary/30" />
@@ -390,9 +435,9 @@ export function AdminUserDetail({
               <span className="text-sm text-primary">Include PE</span>
               <input type="checkbox" checked={editNoteIncludePE} onChange={() => setEditNoteIncludePE(!editNoteIncludePE)} className="w-4 h-4 rounded border-tertiary/30" />
             </label>
-            <PickerInput label="PE Depth" value={editPeDepth} onChange={setEditPeDepth} options={['focused', 'standard', 'comprehensive']} inline />
+            <PickerInput label="PE Depth" value={editPeDepth} onChange={setEditPeDepth} options={['focused', 'standard', 'comprehensive']} />
           </div>
-        ) : (
+        ) : user ? (
           <div className="px-4 py-3">
             <div className="flex items-center gap-3">
               <div className="relative shrink-0">
@@ -420,19 +465,20 @@ export function AdminUserDetail({
               <p className="text-[11px] text-tertiary/50 mt-1.5 pl-14">{user.email}</p>
             )}
           </div>
-        )}
+        ) : null}
       </div>
 
-      {/* Certifications — always visible */}
-      <div className="mt-4">
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">Certifications</p>
-        <AdminCertsSection
-          userId={user.id}
-          certs={userCerts}
-          editing={editing}
-          onChanged={loadData}
-        />
-      </div>
+      {!isCreateMode && (
+        <div className="mt-4">
+          <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">Certifications</p>
+          <AdminCertsSection
+            userId={user!.id}
+            certs={userCerts}
+            editing={editing}
+            onChanged={loadData}
+          />
+        </div>
+      )}
 
       {/* Actions section — hidden during edit mode */}
       {!editing && (
@@ -454,12 +500,12 @@ export function AdminUserDetail({
                   <p className="text-[11px] text-tertiary/70 mt-0.5">Set a new password for this user</p>
                 </div>
                 {resetPwSuccess && (
-                  <span className="text-xs font-medium text-themegreen shrink-0">Reset successfully</span>
+                  <span className="text-xs font-medium text-themegreen shrink-0">Reset.</span>
                 )}
               </button>
               {resetPwActive && (
                 <div className="px-4 pb-3.5 bg-tertiary/5">
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
                     <input
                       type="text"
                       value={resetPwValue}
@@ -470,26 +516,26 @@ export function AdminUserDetail({
                     <button
                       onClick={handleResetPassword}
                       disabled={resetPwProcessing || resetPwValue.length < 12}
-                      className="px-3 py-2 rounded-lg bg-themeyellow text-white text-sm font-medium hover:bg-themeyellow/90 disabled:opacity-50 active:scale-95 transition-all"
+                      className="shrink-0 w-10 h-10 rounded-full bg-themeyellow text-white flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
                     >
-                      {resetPwProcessing ? 'Resetting...' : 'Reset'}
+                      <Check size={16} />
                     </button>
                     <button
                       onClick={() => { setResetPwActive(false); setResetPwValue('') }}
-                      className="px-3 py-2 rounded-lg bg-tertiary/10 text-primary text-sm active:scale-95 transition-all"
+                      className="shrink-0 w-10 h-10 rounded-full text-tertiary flex items-center justify-center active:scale-95 transition-all"
                     >
-                      Cancel
+                      <X size={16} />
                     </button>
                   </div>
                   {resetPwValue.length > 0 && resetPwValue.length < 12 && (
-                    <p className="text-xs text-themeredred mt-1.5">Password must be at least 12 characters</p>
+                    <p className="text-xs text-themeredred mt-1.5">Minimum 12 characters.</p>
                   )}
                 </div>
               )}
             </div>
 
             {/* Force Logout row */}
-            {currentUserId !== user.id && (
+            {currentUserId !== user?.id && (
               <button
                 onClick={handleForceLogout}
                 disabled={forceLogoutProcessing}

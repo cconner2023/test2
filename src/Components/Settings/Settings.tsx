@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Moon, Sun, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Pencil, Check, Radio } from 'lucide-react';
+import { Moon, Sun, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Pencil, Check, Radio, Compass } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import { useAvatar } from '../../Utilities/AvatarContext';
@@ -28,7 +28,7 @@ import { clearServiceWorkerCaches } from '../../lib/cacheService';
 import { deleteOwnAccount } from '../../lib/authService';
 import { PANEL, PANEL_TARGET, type PanelId, type SettingsItem } from './SettingsTypes';
 import { UI_TIMING } from '../../Utilities/constants';
-import { LORA_MESH_ENABLED } from '../../lib/featureFlags';
+import { LORA_MESH_ENABLED, GUIDED_TOURS_ENABLED } from '../../lib/featureFlags';
 import { MainSettingsPanel } from './MainSettingsPanel';
 import { AvatarPickerPanel } from './AvatarPickerPanel';
 import { ContentWrapper } from './ContentWrapper';
@@ -37,6 +37,8 @@ import { SessionsDevicesPanel } from './SessionsDevicesPanel';
 import { ClinicPanel } from './ClinicPanel';
 import { LoRaPanel } from './LoRaPanel';
 import { ConfirmDialog } from '../ConfirmDialog';
+import { GuidedToursPanel } from './GuidedToursPanel';
+import { GUIDED_TEXT_EXPANDER } from '../../Data/GuidedTourData';
 
 
 interface SettingsDrawerProps {
@@ -55,7 +57,7 @@ export const Settings = ({
     initialPanel,
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'sessions-devices' | 'clinic' | 'lora' | 'physical-exam' | 'plan-settings' | 'text-templates' | 'provider-templates'>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'sessions-devices' | 'clinic' | 'lora' | 'physical-exam' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'guided-tours'>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const prevVisibleRef = useRef(false);
@@ -131,6 +133,57 @@ export const Settings = ({
         setTimeout(() => setSlideDirection(''), UI_TIMING.SLIDE_ANIMATION);
     }, []);
 
+    // Tour system: listen for panel navigation events
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const panel = (e as CustomEvent).detail as string;
+            if (panel) {
+                handleSlideAnimation('left');
+                setActivePanel(panel as typeof activePanel);
+            }
+        };
+        window.addEventListener('tour:settings-navigate', handler);
+        return () => window.removeEventListener('tour:settings-navigate', handler);
+    }, [handleSlideAnimation]);
+
+    // Tour system: inject/cleanup demo text expander
+    useEffect(() => {
+        const inject = () => {
+            const current = profile.textExpanders ?? [];
+            if (current.some(e => e.abbr === 'hpi')) return;
+            updateProfile({ textExpanders: [...current, GUIDED_TEXT_EXPANDER] });
+        };
+        const cleanup = () => {
+            const current = profile.textExpanders ?? [];
+            const filtered = current.filter(e => e.abbr !== 'hpi');
+            if (filtered.length !== current.length) {
+                updateProfile({ textExpanders: filtered });
+            }
+        };
+        window.addEventListener('tour:inject-expander', inject);
+        window.addEventListener('tour:cleanup-expander', cleanup);
+        return () => {
+            window.removeEventListener('tour:inject-expander', inject);
+            window.removeEventListener('tour:cleanup-expander', cleanup);
+        };
+    }, [profile.textExpanders, updateProfile]);
+
+    // Tour system: enable/disable editing mode for text expander demo
+    useEffect(() => {
+        const enableEdit = () => setTemplatesEditing(true);
+        const disableEdit = () => {
+            setTemplatesEditing(false);
+            setTemplatesHasPending(false);
+            setTemplatesSaveRequested(false);
+        };
+        window.addEventListener('tour:expander-enable-edit', enableEdit);
+        window.addEventListener('tour:expander-cleanup', disableEdit);
+        return () => {
+            window.removeEventListener('tour:expander-enable-edit', enableEdit);
+            window.removeEventListener('tour:expander-cleanup', disableEdit);
+        };
+    }, []);
+
     const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         if (id === PANEL.CLOSE) { closeDrawer(); return; }
         if (id === PANEL.BACK_TO_MAIN) { handleSlideAnimation('right'); setActivePanel('main'); return; }
@@ -181,6 +234,7 @@ export const Settings = ({
         // ABOUT section
         items.push(
             { type: 'header', label: 'About' },
+            ...((GUIDED_TOURS_ENABLED || isDevRole) ? [opt(PANEL.GUIDED_TOURS, <Compass size={20} />, 'Guided Tours', 'Interactive feature walkthroughs')] : []),
             opt(PANEL.RELEASE_NOTES, <Shield size={20} />, 'Release Notes', 'What\'s new in this version'),
             opt(PANEL.FEEDBACK, <MessageSquare size={20} />, 'Feedback', 'Report issues or suggestions'),
             opt(PANEL.PRIVACY_POLICY, <Scale size={20} />, 'Privacy', 'Data handling and policy'),
@@ -288,6 +342,7 @@ export const Settings = ({
             case 'lora':                return { title: 'WhisperNet', ...backTo() };
             case 'pin-setup':           return { title: 'Security', ...backTo() };
             case 'notification-settings': return { title: 'Notifications', ...backTo() };
+            case 'guided-tours':        return { title: 'Guided Tours', ...backTo() };
             case 'feedback':            return { title: 'Feedback', ...backTo() };
             case 'privacy-policy':      return { title: 'Privacy Policy', ...backTo() };
             case 'note-content':            return { title: 'Note Content', ...backTo() };
@@ -553,6 +608,7 @@ export const Settings = ({
                                     }}
                                 />
                             ),
+                            'guided-tours':         <GuidedToursPanel onClose={handleClose} />,
                             'release-notes':        <ReleaseNotesPanel />,
                             'feedback':             <FeedbackPanel />,
                             'privacy-policy':       <PrivacyPolicyPanel />,
@@ -624,7 +680,7 @@ export const Settings = ({
         <ConfirmDialog
             visible={showUnsavedGuard}
             title="Unsaved changes"
-            subtitle="You have staged changes that haven't been saved. Discard them?"
+            subtitle="Staged changes not saved. Discard?"
             confirmLabel="Discard"
             cancelLabel="Keep editing"
             variant="warning"

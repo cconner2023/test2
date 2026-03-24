@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Eye, EyeOff, ChevronDown, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useIsMobile } from '../Hooks/useIsMobile'
+import { useOverlay } from '../Hooks/useOverlay'
 
 export const TextInput = ({
   label,
@@ -122,7 +123,6 @@ export const PickerInput = ({
   placeholder,
   required = false,
   label,
-  inline = false,
 }: {
   value: string
   onChange: (val: string) => void
@@ -130,65 +130,18 @@ export const PickerInput = ({
   placeholder?: string
   required?: boolean
   label?: string
-  /** When true, desktop picker renders as an inline dropdown instead of a fixed modal */
-  inline?: boolean
 }) => {
   const isMobile = useIsMobile()
   const [visible, setVisible] = useState(false)
-  const [mounted, setMounted] = useState(false)
-  const [open, setOpen] = useState(false)
-  const [dragY, setDragY] = useState(0)
-  const [isDragging, setIsDragging] = useState(false)
-  const dragStartY = useRef(0)
+  const { mounted, open, dragY, isDragging, close, touchHandlers } = useOverlay(visible, () => setVisible(false))
 
   const displayValue = options.find((o) => getOptionValue(o) === value)
   const displayLabel = displayValue ? getOptionLabel(displayValue) : ''
 
-  useEffect(() => {
-    if (visible) {
-      setMounted(true)
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => setOpen(true))
-      })
-    } else {
-      setOpen(false)
-      const t = setTimeout(() => {
-        setMounted(false)
-        setDragY(0)
-      }, 300)
-      return () => clearTimeout(t)
-    }
-  }, [visible])
-
-  const handleClose = useCallback(() => {
-    setOpen(false)
-    setTimeout(() => setVisible(false), 300)
-  }, [])
-
   const handleSelect = useCallback((opt: PickerOption) => {
     onChange(getOptionValue(opt))
-    handleClose()
-  }, [onChange, handleClose])
-
-  const onTouchStart = useCallback((e: React.TouchEvent) => {
-    const target = e.target as HTMLElement
-    if (!target.closest('[data-drag-zone]')) return
-    dragStartY.current = e.touches[0].clientY
-    setIsDragging(true)
-  }, [])
-
-  const onTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging) return
-    const dy = Math.max(0, e.touches[0].clientY - dragStartY.current)
-    setDragY(dy)
-  }, [isDragging])
-
-  const onTouchEnd = useCallback(() => {
-    if (!isDragging) return
-    setIsDragging(false)
-    if (dragY > 80) handleClose()
-    setDragY(0)
-  }, [isDragging, dragY, handleClose])
+    close()
+  }, [onChange, close])
 
   return (
     <div>
@@ -220,7 +173,7 @@ export const PickerInput = ({
           <div
             className={`fixed inset-0 z-50 bg-black transition-opacity duration-300 ${open ? 'opacity-40' : 'opacity-0'}`}
             style={{ pointerEvents: open ? 'auto' : 'none' }}
-            onClick={handleClose}
+            onClick={close}
           />
           <div
             className={`fixed left-0 right-0 bottom-0 z-50 bg-themewhite3 rounded-t-[1.25rem] ${isDragging ? '' : 'transition-transform duration-300 ease-out'}`}
@@ -230,9 +183,7 @@ export const PickerInput = ({
             }}
             role="listbox"
             aria-label={placeholder}
-            onTouchStart={onTouchStart}
-            onTouchMove={onTouchMove}
-            onTouchEnd={onTouchEnd}
+            {...touchHandlers}
           >
             <div className="flex justify-center pt-2 pb-1" data-drag-zone style={{ touchAction: 'none' }}>
               <div className="w-9 h-1 rounded-full bg-tertiary/25" />
@@ -253,65 +204,14 @@ export const PickerInput = ({
                     aria-selected={selected}
                     onClick={() => handleSelect(opt)}
                     className={`w-full text-left px-4 py-3 rounded-xl text-sm transition-colors active:scale-95 flex items-center justify-between ${
-                      selected ? 'text-themeblue3 font-medium bg-themeblue3/5' : 'text-primary'
+                      selected ? 'text-themeblue2 font-medium bg-themeblue2/5' : 'text-primary'
                     }`}
                   >
                     {optLbl}
-                    {selected && <Check size={16} className="shrink-0 text-themeblue3" />}
+                    {selected && <Check size={16} className="shrink-0 text-themeblue2" />}
                   </button>
                 )
               })}
-            </div>
-          </div>
-        </>
-      ) : inline ? (
-        <>
-          <div
-            className={`absolute inset-0 z-30 bg-black transition-opacity duration-200 rounded-xl ${open ? 'opacity-15' : 'opacity-0'}`}
-            style={{ pointerEvents: open ? 'auto' : 'none' }}
-            onClick={handleClose}
-          />
-          <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
-            <div
-              className={`bg-themewhite2 rounded-xl shadow-lg border border-primary/10 py-1.5 min-w-[200px] max-w-[260px] w-full pointer-events-auto transition-all duration-200 ease-out ${
-                open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2'
-              }`}
-              role="listbox"
-              aria-label={placeholder}
-            >
-              <p className="px-3.5 py-1.5 text-[10pt] font-medium text-tertiary/60 uppercase tracking-wider">
-                {placeholder}
-              </p>
-              <div className="max-h-60 overflow-y-auto">
-                {options.map((opt) => {
-                  const optVal = getOptionValue(opt)
-                  const optLbl = getOptionLabel(opt)
-                  const selected = optVal === value
-                  return (
-                    <button
-                      key={optVal}
-                      type="button"
-                      role="option"
-                      aria-selected={selected}
-                      onClick={() => handleSelect(opt)}
-                      className={`w-full text-left px-3.5 py-2 text-sm hover:bg-primary/5 active:bg-primary/10 transition-colors flex items-center justify-between ${
-                        selected ? 'text-themeblue3 font-medium' : 'text-primary'
-                      }`}
-                    >
-                      {optLbl}
-                      {selected && <Check size={16} className="shrink-0 text-themeblue3" />}
-                    </button>
-                  )
-                })}
-              </div>
-              <div className="h-px bg-tertiary/10 mx-2.5 my-1" />
-              <button
-                type="button"
-                onClick={handleClose}
-                className="flex items-center w-full px-3.5 py-2 text-sm text-tertiary hover:bg-primary/5 transition-colors"
-              >
-                Cancel
-              </button>
             </div>
           </div>
         </>
@@ -320,7 +220,7 @@ export const PickerInput = ({
           <div
             className={`fixed inset-0 z-50 bg-black transition-opacity duration-200 ${open ? 'opacity-15' : 'opacity-0'}`}
             style={{ pointerEvents: open ? 'auto' : 'none' }}
-            onClick={handleClose}
+            onClick={close}
           />
           <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
             <div
@@ -346,11 +246,11 @@ export const PickerInput = ({
                       aria-selected={selected}
                       onClick={() => handleSelect(opt)}
                       className={`w-full text-left px-3.5 py-2 text-sm hover:bg-primary/5 active:bg-primary/10 transition-colors flex items-center justify-between ${
-                        selected ? 'text-themeblue3 font-medium' : 'text-primary'
+                        selected ? 'text-themeblue2 font-medium' : 'text-primary'
                       }`}
                     >
                       {optLbl}
-                      {selected && <Check size={16} className="shrink-0 text-themeblue3" />}
+                      {selected && <Check size={16} className="shrink-0 text-themeblue2" />}
                     </button>
                   )
                 })}
@@ -358,7 +258,7 @@ export const PickerInput = ({
               <div className="h-px bg-tertiary/10 mx-2.5 my-1" />
               <button
                 type="button"
-                onClick={handleClose}
+                onClick={close}
                 className="flex items-center w-full px-3.5 py-2 text-sm text-tertiary hover:bg-primary/5 transition-colors"
               >
                 Cancel
@@ -574,52 +474,7 @@ export const DatePickerInput = ({
 }) => {
   const isMobile = useIsMobile()
   const [visible, setVisible] = useState(false)
-  const [mounted, setMounted] = useState(false)
-  const [open, setOpen] = useState(false)
-  const [dragY, setDragY] = useState(0)
-  const [isDragging, setIsDragging] = useState(false)
-  const dragStartY = useRef(0)
-
-  useEffect(() => {
-    if (visible) {
-      setMounted(true)
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => setOpen(true))
-      })
-    } else {
-      setOpen(false)
-      const t = setTimeout(() => {
-        setMounted(false)
-        setDragY(0)
-      }, 300)
-      return () => clearTimeout(t)
-    }
-  }, [visible])
-
-  const handleClose = useCallback(() => {
-    setOpen(false)
-    setTimeout(() => setVisible(false), 300)
-  }, [])
-
-  const onTouchStart = useCallback((e: React.TouchEvent) => {
-    const target = e.target as HTMLElement
-    if (!target.closest('[data-drag-zone]')) return
-    dragStartY.current = e.touches[0].clientY
-    setIsDragging(true)
-  }, [])
-
-  const onTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging) return
-    const dy = Math.max(0, e.touches[0].clientY - dragStartY.current)
-    setDragY(dy)
-  }, [isDragging])
-
-  const onTouchEnd = useCallback(() => {
-    if (!isDragging) return
-    setIsDragging(false)
-    if (dragY > 80) handleClose()
-    setDragY(0)
-  }, [isDragging, dragY, handleClose])
+  const { mounted, open, dragY, isDragging, close, touchHandlers } = useOverlay(visible, () => setVisible(false))
 
   const display = formatDisplay(value)
 
@@ -643,7 +498,7 @@ export const DatePickerInput = ({
           <div
             className={`fixed inset-0 z-50 bg-black transition-opacity duration-300 ${open ? 'opacity-40' : 'opacity-0'}`}
             style={{ pointerEvents: open ? 'auto' : 'none' }}
-            onClick={handleClose}
+            onClick={close}
           />
           <div
             className={`fixed left-0 right-0 bottom-0 z-50 bg-themewhite3 rounded-t-[1.25rem] ${isDragging ? '' : 'transition-transform duration-300 ease-out'}`}
@@ -651,9 +506,7 @@ export const DatePickerInput = ({
               transform: open ? `translateY(${dragY}px)` : 'translateY(100%)',
               maxHeight: '50dvh',
             }}
-            onTouchStart={onTouchStart}
-            onTouchMove={onTouchMove}
-            onTouchEnd={onTouchEnd}
+            {...touchHandlers}
           >
             <div className="flex justify-center pt-2 pb-1" data-drag-zone style={{ touchAction: 'none' }}>
               <div className="w-9 h-1 rounded-full bg-tertiary/25" />
@@ -665,7 +518,7 @@ export const DatePickerInput = ({
               <DatePickerCalendar
                 value={value}
                 onChange={onChange}
-                onClose={handleClose}
+                onClose={close}
                 minDate={minDate}
                 maxDate={maxDate}
               />
@@ -677,7 +530,7 @@ export const DatePickerInput = ({
           <div
             className={`fixed inset-0 z-50 bg-black transition-opacity duration-300 ${open ? 'opacity-20' : 'opacity-0'}`}
             style={{ pointerEvents: open ? 'auto' : 'none' }}
-            onClick={handleClose}
+            onClick={close}
           />
           <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
             <div
@@ -691,14 +544,14 @@ export const DatePickerInput = ({
               <DatePickerCalendar
                 value={value}
                 onChange={onChange}
-                onClose={handleClose}
+                onClose={close}
                 minDate={minDate}
                 maxDate={maxDate}
               />
               <div className="px-4">
                 <button
                   type="button"
-                  onClick={handleClose}
+                  onClick={close}
                   className="w-full py-2.5 rounded-full text-sm font-medium text-tertiary active:scale-95 transition-all"
                 >
                   Cancel
@@ -921,5 +774,166 @@ export const PasswordInput = ({
       </div>
       {hint}
     </label>
+  )
+}
+
+/* ── Multi-Select Picker (modal with checkmarks) ── */
+
+export const MultiPickerInput = ({
+  value,
+  onChange,
+  options,
+  placeholder,
+  required = false,
+  label,
+}: {
+  value: string[]
+  onChange: (val: string[]) => void
+  options: readonly PickerOption[]
+  placeholder?: string
+  required?: boolean
+  label?: string
+}) => {
+  const isMobile = useIsMobile()
+  const [visible, setVisible] = useState(false)
+  const { mounted, open, dragY, isDragging, close, touchHandlers } = useOverlay(visible, () => setVisible(false))
+
+  const displayLabel = value.length > 0
+    ? options
+        .filter(o => value.includes(getOptionValue(o)))
+        .map(o => getOptionLabel(o))
+        .join(', ')
+    : ''
+
+  const toggleOption = useCallback((opt: PickerOption) => {
+    const optVal = getOptionValue(opt)
+    if (value.includes(optVal)) {
+      onChange(value.filter(v => v !== optVal))
+    } else {
+      onChange([...value, optVal])
+    }
+  }, [value, onChange])
+
+  const optionList = (mobile: boolean) => options.map((opt) => {
+    const optVal = getOptionValue(opt)
+    const optLbl = getOptionLabel(opt)
+    const selected = value.includes(optVal)
+    return (
+      <button
+        key={optVal}
+        type="button"
+        role="option"
+        aria-selected={selected}
+        onClick={() => toggleOption(opt)}
+        className={`w-full text-left ${mobile ? 'px-4 py-3 rounded-xl' : 'px-3.5 py-2'} text-sm transition-colors active:scale-95 flex items-center justify-between ${
+          selected
+            ? mobile ? 'text-themeblue2 font-medium bg-themeblue2/5' : 'text-themeblue2 font-medium'
+            : 'text-primary'
+        } ${mobile ? '' : 'hover:bg-primary/5 active:bg-primary/10'}`}
+      >
+        {optLbl}
+        {selected && <Check size={16} className="shrink-0 text-themeblue2" />}
+      </button>
+    )
+  })
+
+  return (
+    <div>
+      {label && (
+        <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
+          {label} {required && <span className="text-themeredred">*</span>}
+        </span>
+      )}
+      <div className={`relative ${label ? 'mt-1' : ''}`}>
+        <button
+          type="button"
+          onClick={() => setVisible(true)}
+          className={`w-full px-4 py-2.5 rounded-full text-left text-sm
+                     border border-themeblue3/10 shadow-xs bg-themewhite dark:bg-themewhite3
+                     transition-all duration-200 flex items-center justify-between active:scale-[0.98] ${
+                       value.length > 0 ? 'text-primary' : 'text-tertiary/30'
+                     }`}
+        >
+          <span className="truncate">{displayLabel || placeholder || 'Select...'}</span>
+          <ChevronDown size={16} className="shrink-0 ml-2 text-tertiary/40" />
+        </button>
+        {required && value.length === 0 && (
+          <input tabIndex={-1} className="absolute inset-0 opacity-0 pointer-events-none" required value="" onChange={() => {}} />
+        )}
+      </div>
+
+      {mounted && (isMobile ? (
+        <>
+          <div
+            className={`fixed inset-0 z-50 bg-black transition-opacity duration-300 ${open ? 'opacity-40' : 'opacity-0'}`}
+            style={{ pointerEvents: open ? 'auto' : 'none' }}
+            onClick={close}
+          />
+          <div
+            className={`fixed left-0 right-0 bottom-0 z-50 bg-themewhite3 rounded-t-[1.25rem] ${isDragging ? '' : 'transition-transform duration-300 ease-out'}`}
+            style={{
+              transform: open ? `translateY(${dragY}px)` : 'translateY(100%)',
+              maxHeight: '50dvh',
+            }}
+            role="listbox"
+            aria-label={placeholder}
+            aria-multiselectable="true"
+            {...touchHandlers}
+          >
+            <div className="flex justify-center pt-2 pb-1" data-drag-zone style={{ touchAction: 'none' }}>
+              <div className="w-9 h-1 rounded-full bg-tertiary/25" />
+            </div>
+            <p className="px-5 pb-2 text-xs font-medium text-tertiary/50 uppercase tracking-wide">
+              {placeholder}
+            </p>
+            <div className="px-3 pb-3 overflow-y-auto" style={{ maxHeight: 'calc(50dvh - 5.5rem)' }}>
+              {optionList(true)}
+            </div>
+            <div className="px-4 pb-5">
+              <button
+                type="button"
+                onClick={close}
+                className="w-full py-2.5 rounded-full text-sm font-medium bg-themeblue3 text-white active:scale-95 transition-all"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div
+            className={`fixed inset-0 z-50 bg-black transition-opacity duration-200 ${open ? 'opacity-15' : 'opacity-0'}`}
+            style={{ pointerEvents: open ? 'auto' : 'none' }}
+            onClick={close}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+            <div
+              className={`bg-themewhite2 rounded-xl shadow-lg border border-primary/10 py-1.5 min-w-[200px] max-w-[260px] w-full pointer-events-auto transition-all duration-200 ease-out ${
+                open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2'
+              }`}
+              role="listbox"
+              aria-label={placeholder}
+              aria-multiselectable="true"
+            >
+              <p className="px-3.5 py-1.5 text-[10pt] font-medium text-tertiary/60 uppercase tracking-wider">
+                {placeholder}
+              </p>
+              <div className="max-h-60 overflow-y-auto">
+                {optionList(false)}
+              </div>
+              <div className="h-px bg-tertiary/10 mx-2.5 my-1" />
+              <button
+                type="button"
+                onClick={close}
+                className="flex items-center justify-center w-full px-3.5 py-2 text-sm font-medium text-themeblue2 hover:bg-primary/5 transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </>
+      ))}
+    </div>
   )
 }

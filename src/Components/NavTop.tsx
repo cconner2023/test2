@@ -201,6 +201,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                         onClick={onMenuClick}
                                         className="w-[2.6875rem] h-[2.6875rem] rounded-full flex items-center justify-center active:scale-95 transition-transform overflow-hidden"
                                         aria-label="Open menu"
+                                        data-tour="menu-button"
                                     >
                                         {isCustom && customImage ? (
                                             <img
@@ -234,6 +235,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                 className="w-8 h-8 rounded-full overflow-hidden shrink-0 active:scale-95 transition-transform"
                                 aria-label="Open menu"
                                 title="Menu"
+                                data-tour="menu-button"
                             >
                                 {isCustom && customImage ? (
                                     <img src={customImage} alt="Profile" className="w-full h-full object-cover rounded-full" />
@@ -350,6 +352,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                 `}>
                                     {shouldShowInfoButton && (
                                         <button
+                                            data-tour="info-button"
                                             onClick={onInfoClick}
                                             className="w-[2.6875rem] h-[2.6875rem] rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200"
                                             aria-label="Info"

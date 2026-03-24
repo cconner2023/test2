@@ -377,6 +377,7 @@ export const NoteWizardFooter = ({
         <div key={currentPage} className={`flex items-center gap-2 ${slideDirection === 'left' ? 'animate-footer-btn-left' : slideDirection === 'right' ? 'animate-footer-btn-right' : ''}`}>
             {currentPage < visiblePages.length - 1 && (
                 <button
+                    data-tour="writenote-next"
                     onClick={handleNext}
                     disabled={hasPII}
                     className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2 disabled:opacity-40 ${colors.buttonClass}`}

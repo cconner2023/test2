@@ -115,6 +115,7 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
     >
       {/* User profile card */}
       <button
+        data-tour="sidenav-profile"
         onClick={() => handleItemClick('settings-profile')}
         className={`flex items-center gap-3 mx-3 mt-3 mb-2 px-4 ${isMobile ? 'py-3.5' : 'py-2.5'} rounded-xl hover:bg-themewhite2/60 active:scale-95 transform-gpu transition-colors text-left`}
       >
@@ -160,6 +161,7 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
                   <div className="mx-4 my-1.5 border-t border-tertiary/10" />
                 )}
                 <button
+                  data-tour={`sidenav-${item.action}`}
                   onClick={() => handleClick(item.action)}
                   onTouchStart={isPinned ? undefined : (e) => startLongPress(item.action, item.text, e)}
                   onTouchEnd={cancelLongPress}

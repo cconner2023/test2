@@ -63,7 +63,7 @@ export function SymptomInfoDrawer({
             }}
             blurHeader
         >
-            <div className="px-4 pb-4">
+            <div className="px-4 pb-4" data-tour="symptom-info-content">
                 <SymptomGuidelines
                     symptom={selectedSymptom}
                     category={selectedCategory}

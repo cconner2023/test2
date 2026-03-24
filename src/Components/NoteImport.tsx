@@ -420,7 +420,7 @@ const NoteImportContent = ({
 
                     <div className="space-y-4">
                         {/* Note Preview */}
-                        <section>
+                        <section data-tour="import-note-preview">
                             <div className="pb-2 flex items-center justify-between">
                                 <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Note Preview</p>
                                 <div className="flex items-center gap-0.5">
@@ -440,7 +440,7 @@ const NoteImportContent = ({
                         </section>
 
                         {/* Encoded Note / Barcode */}
-                        <section>
+                        <section data-tour="import-encoded-section">
                             <div className="pb-2 flex items-center justify-between">
                                 <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Encoded Note</p>
                                 <div className="flex items-center gap-0.5">

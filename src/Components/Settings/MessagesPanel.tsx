@@ -72,6 +72,8 @@ interface ConversationPaneProps {
   loading?: boolean
   searchQuery: string
   onSearchClear: () => void
+  /** Tour variant — 'mobile' or 'desktop' — determines data-tour attribute prefix. Omit to disable. */
+  tourVariant?: 'mobile' | 'desktop'
 }
 
 function ConversationPane({
@@ -87,6 +89,7 @@ function ConversationPane({
   loading,
   searchQuery,
   onSearchClear,
+  tourVariant,
 }: ConversationPaneProps) {
   const { user } = useAuth()
   const userId = user?.id ?? null
@@ -96,6 +99,18 @@ function ConversationPane({
   const [contextMenu, setContextMenu] = useState<{ conversationKey: string; x: number; y: number } | null>(null)
   const [openSwipeId, setOpenSwipeId] = useState<string | null>(null)
   const showLoading = useMinLoadTime(loading ?? false)
+
+  // Self-notes entry
+  const selfMedic: ClinicMedic | null = userId
+    ? { id: userId, firstName: null, lastName: 'Notes', middleInitial: null, rank: null, credential: null, avatarId: currentAvatar.id }
+    : null
+
+  // Tour: open self-chat when tour dispatches the event
+  useEffect(() => {
+    const handler = () => { if (selfMedic) onSelectPeer(selfMedic) }
+    window.addEventListener('tour:messaging-open-self-chat', handler)
+    return () => window.removeEventListener('tour:messaging-open-self-chat', handler)
+  }, [selfMedic, onSelectPeer])
 
   const sortedGroups = Object.values(groups).filter(g => !g.systemType).sort((a, b) => a.name.localeCompare(b.name))
 
@@ -136,11 +151,6 @@ function ConversationPane({
     })
     return entries
   }, [conversations, medics, groups, userId, pinnedKeys])
-
-  // Self-notes entry
-  const selfMedic: ClinicMedic | null = userId
-    ? { id: userId, firstName: null, lastName: 'Notes', middleInitial: null, rank: null, credential: null, avatarId: currentAvatar.id }
-    : null
 
   // Search
   const searchResults = useMemo(() => {
@@ -267,12 +277,14 @@ function ConversationPane({
           <>
             {/* Conversations section */}
             {selfMedic && (
-              <ContactListItem
-                medic={selfMedic}
-                lastMessage={conversations[userId!]?.filter(m => !m.threadId).at(-1)?.plaintext}
-                unreadCount={0}
-                onClick={() => onSelectPeer(selfMedic)}
-              />
+              <div data-tour={tourVariant ? (tourVariant === 'desktop' ? 'messages-desktop-self-notes' : 'messages-self-notes') : undefined}>
+                <ContactListItem
+                  medic={selfMedic}
+                  lastMessage={conversations[userId!]?.filter(m => !m.threadId).at(-1)?.plaintext}
+                  unreadCount={0}
+                  onClick={() => onSelectPeer(selfMedic)}
+                />
+              </div>
             )}
             {recentEntries.length > 0 && (
               <>
@@ -353,54 +365,56 @@ function ConversationPane({
               </>
             )}
 
-            <div className="mx-3 my-2 border-b border-primary/10" />
+            <div data-tour={tourVariant ? (tourVariant === 'desktop' ? 'messages-desktop-roster' : 'messages-roster') : undefined}>
+              <div className="mx-3 my-2 border-b border-primary/10" />
 
-            {/* Contacts: My Clinic (exclude those already in Recent conversations) */}
-            {(() => {
-              const filtered = ownClinicMedics.filter(m => m.id !== userId && !activeConversationIds.has(m.id))
-              return filtered.length > 0 ? (
-                <>
-                  <div className="flex items-center gap-1.5 px-3 py-1.5">
-                    <p className="text-xs text-tertiary/50 uppercase tracking-wider font-semibold">My Clinic</p>
-                    <span className="text-[9px] text-tertiary/30 ml-auto">{filtered.length}</span>
-                  </div>
-                  {filtered.map(medic => (
-                    <ContactListItem
-                      key={medic.id}
-                      medic={medic}
-                      unreadCount={0}
-                      unavailable={unavailableIds.has(medic.id)}
-                      unavailableReason={unavailableIds.get(medic.id)}
-                      onClick={() => onSelectPeer(medic)}
-                    />
-                  ))}
-                </>
-              ) : null
-            })()}
+              {/* Contacts: My Clinic (exclude those already in Recent conversations) */}
+              {(() => {
+                const filtered = ownClinicMedics.filter(m => m.id !== userId && !activeConversationIds.has(m.id))
+                return filtered.length > 0 ? (
+                  <>
+                    <div className="flex items-center gap-1.5 px-3 py-1.5">
+                      <p className="text-xs text-tertiary/50 uppercase tracking-wider font-semibold">My Clinic</p>
+                      <span className="text-[9px] text-tertiary/30 ml-auto">{filtered.length}</span>
+                    </div>
+                    {filtered.map(medic => (
+                      <ContactListItem
+                        key={medic.id}
+                        medic={medic}
+                        unreadCount={0}
+                        unavailable={unavailableIds.has(medic.id)}
+                        unavailableReason={unavailableIds.get(medic.id)}
+                        onClick={() => onSelectPeer(medic)}
+                      />
+                    ))}
+                  </>
+                ) : null
+              })()}
 
-            {/* Contacts: Nearby clinics (exclude those already in Recent conversations) */}
-            {nearbyClinicNames.map(clinicName => {
-              const filtered = nearbyByClinic[clinicName].filter(m => !activeConversationIds.has(m.id))
-              if (filtered.length === 0) return null
-              return (
-                <div key={clinicName}>
-                  <div className="flex items-center gap-1.5 px-3 py-1.5">
-                    <p className="text-xs text-tertiary/50 uppercase tracking-wider font-semibold">{clinicName}</p>
-                    <span className="text-[9px] text-tertiary/30 ml-auto">{filtered.length}</span>
+              {/* Contacts: Nearby clinics (exclude those already in Recent conversations) */}
+              {nearbyClinicNames.map(clinicName => {
+                const filtered = nearbyByClinic[clinicName].filter(m => !activeConversationIds.has(m.id))
+                if (filtered.length === 0) return null
+                return (
+                  <div key={clinicName}>
+                    <div className="flex items-center gap-1.5 px-3 py-1.5">
+                      <p className="text-xs text-tertiary/50 uppercase tracking-wider font-semibold">{clinicName}</p>
+                      <span className="text-[9px] text-tertiary/30 ml-auto">{filtered.length}</span>
+                    </div>
+                    {filtered.map(medic => (
+                      <ContactListItem
+                        key={medic.id}
+                        medic={medic}
+                        unreadCount={0}
+                        unavailable={unavailableIds.has(medic.id)}
+                        unavailableReason={unavailableIds.get(medic.id)}
+                        onClick={() => onSelectPeer(medic)}
+                      />
+                    ))}
                   </div>
-                  {filtered.map(medic => (
-                    <ContactListItem
-                      key={medic.id}
-                      medic={medic}
-                      unreadCount={0}
-                      unavailable={unavailableIds.has(medic.id)}
-                      unavailableReason={unavailableIds.get(medic.id)}
-                      onClick={() => onSelectPeer(medic)}
-                    />
-                  ))}
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
 
             {/* Groups section (exclude those already in Recent conversations) */}
             {(() => {
@@ -914,13 +928,13 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
             onFocusChange={onSearchFocusChange}
             style={{ paddingTop: 'calc(var(--sat, 0px) + 4rem * (1 - var(--msg-header-collapse, 0)))' }}
           >
-            <ConversationPane {...conversationPaneProps} />
+            <ConversationPane {...conversationPaneProps} tourVariant="mobile" />
           </MobileSearchBar>
         </div>
       )}
       <div className="hidden md:flex md:flex-col w-80 shrink-0 border-r border-primary/10 overflow-hidden">
         <MobileSearchBar variant="messages" value={searchQuery} onChange={onSearchChange} placeholder="Search..." onFocusChange={onSearchFocusChange}>
-          <ConversationPane {...conversationPaneProps} />
+          <ConversationPane {...conversationPaneProps} tourVariant="desktop" />
         </MobileSearchBar>
       </div>
 

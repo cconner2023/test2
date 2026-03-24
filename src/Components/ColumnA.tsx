@@ -236,6 +236,7 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
                   <Search size={16} className="ml-3 shrink-0 text-tertiary/50" />
                   <input
                     ref={searchInputRef}
+                    data-tour="column-search"
                     type="search"
                     placeholder="Search..."
                     value={searchInput}
@@ -296,7 +297,7 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
         style={{ width: `${panelCount * 100}%` }}
       >
         {/* Panel 0: Main categories */}
-        <div ref={panel0ScrollRef} className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
+        <div ref={panel0ScrollRef} data-tour="category-list" className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
           <animated.div className="px-2 md:px-0 min-h-full" style={{ paddingTop: mobilePanelPadding }}>
             <CategoryList mobilePanel="main" onNavigate={onNavigate} />
           </animated.div>
@@ -311,7 +312,7 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
 
         {/* Panel 2: Symptom info (desktop only) */}
         {!isMobile && (
-          <div className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
+          <div data-tour="guidelines-panel" className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
             <div className="px-2 md:px-0 min-h-full">
               <CategoryList mobilePanel="guidelines" onNavigate={onNavigate} />
             </div>

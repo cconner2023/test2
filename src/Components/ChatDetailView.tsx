@@ -12,6 +12,7 @@ import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useVoiceRecorder } from '../Hooks/useVoiceRecorder'
 import type { VoiceRecordingResult } from '../Hooks/useVoiceRecorder'
 import { playSendSound } from '../lib/soundService'
+import { MESSAGING_TOUR_NOTE, MESSAGING_TOUR_REPLY } from '../Data/GuidedTourData'
 import type { DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { UnavailableReason } from '../Hooks/usePeerAvailability'
 import type { RequestStatus } from '../Hooks/useMessages'
@@ -237,6 +238,41 @@ export function ChatDetailView({
     setThreadClosing(false)
   }, [conversationId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Tour event listeners (only active in self-chat) ──
+  useEffect(() => {
+    if (!isSelfChat) return
+
+    const tourTexts = [MESSAGING_TOUR_NOTE, MESSAGING_TOUR_REPLY]
+
+    const handleSendNote = () => {
+      sendMessage(conversationId, MESSAGING_TOUR_NOTE)
+    }
+    const handleSendReply = () => {
+      const firstNote = messages.find(m => m.senderId === userId && m.plaintext === MESSAGING_TOUR_NOTE)
+      if (firstNote) {
+        sendMessage(conversationId, MESSAGING_TOUR_REPLY, firstNote.originId ?? firstNote.id)
+      }
+    }
+    const handleCleanup = () => {
+      // Close thread if open
+      setActiveThreadId(null)
+      setThreadClosing(false)
+      // Delete tour messages
+      const tourMsgs = messages.filter(m => m.senderId === userId && tourTexts.includes(m.plaintext))
+      const tourIds = tourMsgs.map(m => m.id)
+      if (tourIds.length > 0) deleteMessages(conversationId, tourIds)
+    }
+
+    window.addEventListener('tour:messaging-send-note', handleSendNote)
+    window.addEventListener('tour:messaging-send-reply', handleSendReply)
+    window.addEventListener('tour:messaging-cleanup', handleCleanup)
+    return () => {
+      window.removeEventListener('tour:messaging-send-note', handleSendNote)
+      window.removeEventListener('tour:messaging-send-reply', handleSendReply)
+      window.removeEventListener('tour:messaging-cleanup', handleCleanup)
+    }
+  }, [isSelfChat, conversationId, userId, messages, sendMessage, deleteMessages, setActiveThreadId])
+
   const handleCloseThread = useCallback(() => {
     setThreadClosing(true)
     setTimeout(() => {
@@ -363,7 +399,7 @@ export function ChatDetailView({
           </div>
         )}
 
-        <div className={`px-4 pt-3 ${isKeyboardOpen ? 'pb-3' : 'pb-8'} md:pb-3`}>
+        <div data-tour="messages-input" className={`px-4 pt-3 ${isKeyboardOpen ? 'pb-3' : 'pb-8'} md:pb-3`}>
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
 
           {isRecording ? (
@@ -464,7 +500,11 @@ export function ChatDetailView({
           <p className="text-sm text-tertiary/40">{emptyLabel}</p>
         </div>
       ) : (
-        msgs.map((msg, idx) => {
+        (() => {
+          // Find the last own-message index for tour targeting
+          let lastOwnIdx = -1
+          for (let i = msgs.length - 1; i >= 0; i--) { if (msgs[i].senderId === userId) { lastOwnIdx = i; break } }
+          return msgs.map((msg, idx) => {
           const own = msg.senderId === userId
           const isThreadRoot = activeThreadId && msg.id === activeThreadId && idx === 0
 
@@ -495,7 +535,7 @@ export function ChatDetailView({
           }
 
           return (
-            <div key={msg.id}>
+            <div key={msg.id} data-tour={own && idx === lastOwnIdx ? 'messages-latest-bubble' : undefined}>
               {dateSeparator}
               <MessageBubble
                 message={msg}
@@ -524,6 +564,7 @@ export function ChatDetailView({
             </div>
           )
         })
+        })()
       )}
       </div>
     </div>
@@ -556,6 +597,7 @@ export function ChatDetailView({
       {/* Thread overlay */}
       {showThread && (
         <div
+          data-tour="messages-thread-overlay"
           className={`absolute inset-0 z-20 flex flex-col bg-themewhite3 transition-opacity duration-200 ${threadClosing ? 'opacity-0' : 'animate-fadeIn'}`}
           {...threadSwipeBack}
         >
@@ -591,7 +633,7 @@ export function ChatDetailView({
 
       <ConfirmDialog
         visible={!!pendingDelete}
-        title="Permanently delete? This cannot be undone."
+        title="Delete message? Permanent."
         confirmLabel="Delete"
         variant="danger"
         onConfirm={handleConfirmDelete}

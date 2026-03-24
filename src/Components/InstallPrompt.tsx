@@ -32,8 +32,8 @@ const InstallPrompt: React.FC = () => {
                                     <p className="text-sm font-normal text-primary">Install App</p>
                                     <p className="text-xs text-tertiary mt-0.5">
                                         {isIOS
-                                            ? 'Add to your home screen for quick access'
-                                            : 'Install for offline access & quick launch'
+                                            ? 'Add to home screen for offline access.'
+                                            : 'Offline access. Works without signal.'
                                         }
                                     </p>
                                 </div>
@@ -51,7 +51,7 @@ const InstallPrompt: React.FC = () => {
                             /* iOS instructions */
                             <div className="mt-4 px-1">
                                 <p className="text-xs text-tertiary leading-relaxed">
-                                    Tap <Share className="inline h-3.5 w-3.5 text-themeblue2 -mt-0.5" /> in your browser toolbar, then select <span className="font-medium text-primary">"Add to Home Screen"</span>
+                                    Tap <Share className="inline h-3.5 w-3.5 text-themeblue2 -mt-0.5" /> in your browser toolbar, then <span className="font-medium text-primary">Add to Home Screen</span>.
                                 </p>
                                 <div className="flex justify-end mt-3">
                                     <button
@@ -69,7 +69,7 @@ const InstallPrompt: React.FC = () => {
                                     onClick={dismiss}
                                     className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-tertiary bg-themewhite2 hover:bg-themegray1/40 active:scale-95 transition-all"
                                 >
-                                    Not Now
+                                    Later
                                 </button>
                                 <button
                                     onClick={install}
@@ -79,7 +79,7 @@ const InstallPrompt: React.FC = () => {
                                     {isInstalling ? (
                                         <>
                                             <Download className="h-3.5 w-3.5 animate-bounce" />
-                                            Installing…
+                                            Installing...
                                         </>
                                     ) : (
                                         <>

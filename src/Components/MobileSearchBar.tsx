@@ -43,6 +43,8 @@ interface MobileSearchBarProps {
     variant?: 'default' | 'messages' | 'admin' | 'supervisor' | 'property'
     /** When true, skip creating own scroll container — parent handles scrolling */
     inheritScroll?: boolean
+    /** data-tour attribute for in-app tour targeting */
+    dataTour?: string
 }
 
 function setExternalRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
@@ -65,6 +67,7 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
             onFocusChange,
             variant = 'default',
             inheritScroll = false,
+            dataTour,
         },
         externalRef,
     ) {
@@ -284,7 +287,9 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
                 >
                     <div ref={innerRef} className="px-3 py-2">
                         <div className="flex items-center gap-2">
-                            <div className={`flex-1 min-w-0 flex items-center transition-colors duration-200 bg-themewhite text-tertiary rounded-full border shadow-xs ${
+                            <div
+                                {...(dataTour ? { 'data-tour': dataTour } : {})}
+                                className={`flex-1 min-w-0 flex items-center transition-colors duration-200 bg-themewhite text-tertiary rounded-full border shadow-xs ${
                                 focused
                                     ? 'border-themeblue1/30 bg-themewhite2'
                                     : 'border-themeblue3/10'

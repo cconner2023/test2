@@ -203,7 +203,7 @@ export const ProfilePage = ({
             <ConfirmDialog
                 visible={showSignOut}
                 title="Sign Out"
-                subtitle="This will sign out all linked devices. Your conversations will be backed up and restored on next login."
+                subtitle="Signs out all linked devices. Conversations backed up, restored on next login."
                 confirmLabel="Sign Out"
                 variant="danger"
                 onConfirm={() => { setShowSignOut(false); onSignOut(); }}
@@ -214,7 +214,7 @@ export const ProfilePage = ({
             <ConfirmDialog
                 visible={showDeleteDialog}
                 title="Delete Account"
-                subtitle="This will permanently delete your account and all associated data. This action cannot be undone."
+                subtitle="Permanent. All account data removed. Cannot be recovered."
                 confirmLabel="Delete Account"
                 variant="danger"
                 processing={deletePhase === 'processing'}

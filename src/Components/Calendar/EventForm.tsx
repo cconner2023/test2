@@ -59,12 +59,12 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
 
     const validate = useCallback((): boolean => {
       const errs: Record<string, string> = {}
-      if (!form.title.trim()) errs.title = 'Title is required'
+      if (!form.title.trim()) errs.title = 'Title required.'
       if (!form.all_day) {
-        if (!form.start_time) errs.start_time = 'Start time is required'
-        if (!form.end_time) errs.end_time = 'End time is required'
+        if (!form.start_time) errs.start_time = 'Start time required.'
+        if (!form.end_time) errs.end_time = 'End time required.'
         if (form.start_time && form.end_time && form.start_time >= form.end_time) {
-          errs.end_time = 'End must be after start'
+          errs.end_time = 'End time must follow start.'
         }
       }
       setErrors(errs)

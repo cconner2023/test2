@@ -225,10 +225,10 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
           />
 
           <div className="grid grid-cols-2 gap-3">
-            <PickerInput label="Credential" value={credential} onChange={setCredential} options={credentials} inline />
-            <PickerInput label="Component" value={component} onChange={handleComponentChange} options={components} inline />
+            <PickerInput label="Credential" value={credential} onChange={setCredential} options={credentials} />
+            <PickerInput label="Component" value={component} onChange={handleComponentChange} options={components} />
           </div>
-          {component && <PickerInput label="Rank" value={rank} onChange={setRank} options={componentRanks} inline />}
+          {component && <PickerInput label="Rank" value={rank} onChange={setRank} options={componentRanks} />}
           <UicPinInput label="UIC" value={uic} onChange={setUic} spread />
 
           <button

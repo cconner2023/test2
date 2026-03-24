@@ -28,6 +28,12 @@ export const QuestionCard = memo(function QuestionCard({
     onOpenScreener,
     onActionStatus
 }: QuestionCardProps) {
+    // Find the first visible card index that has answer buttons (for tour targeting)
+    const firstAnswerButtonIdx = visibleCards.findIndex((c) => {
+        const q = algorithmOptions[c.index];
+        return q && q.answerOptions && q.answerOptions.length > 0 && q.type !== 'rf' && q.type !== 'action';
+    });
+
     return (
         <div className="space-y-0">
             {visibleCards.map((card, idx) => {
@@ -196,7 +202,7 @@ export const QuestionCard = memo(function QuestionCard({
                 }
 
                 return (
-                    <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardAppearIn' : ''}`}>
+                    <div key={card.index} data-tour={idx === 0 ? 'algorithm-initial-card' : `algorithm-card-${card.index}`} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardAppearIn' : ''}`}>
                         <div
                             className={`
               flex flex-col rounded-2xl w-full overflow-hidden shadow-sm
@@ -261,7 +267,7 @@ export const QuestionCard = memo(function QuestionCard({
 
                             {/* Answer Options */}
                             {question.answerOptions && question.answerOptions.length > 0 && !isRF && (
-                                <div className="relative flex w-full h-10 bg-themewhite2">
+                                <div className="relative flex w-full h-10 bg-themewhite2" {...(idx === firstAnswerButtonIdx ? { 'data-tour': 'algorithm-answer-buttons' } : {})}>
                                     <div className={`
                   absolute top-0 left-0 h-full w-1/2 
                   transition-all duration-300
@@ -277,6 +283,7 @@ export const QuestionCard = memo(function QuestionCard({
                                     {question.answerOptions.map((option, optionIndex) => (
                                         <button
                                             key={option.text}
+                                            data-tour={`answer-${card.index}-${optionIndex}`}
                                             onClick={() => onAnswer(card.index, optionIndex)}
                                             className="relative h-full w-1/2 text-[10pt] flex items-center justify-center"
                                             disabled={isTransitioning}

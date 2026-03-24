@@ -6,7 +6,7 @@
  * Dismissible once per session (sessionStorage).
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useAuthStore } from '../../stores/useAuthStore'
 
 const DISMISS_KEY = '_provisional_modal_dismissed'
@@ -22,6 +22,12 @@ export function ProvisionalDeviceModal() {
     setDismissed(true)
     try { sessionStorage.setItem(DISMISS_KEY, '1') } catch { /* ignore */ }
   }, [])
+
+  // Tour: auto-dismiss when guided tour opens self-chat
+  useEffect(() => {
+    window.addEventListener('tour:messaging-dismiss-provisional', dismiss)
+    return () => window.removeEventListener('tour:messaging-dismiss-provisional', dismiss)
+  }, [dismiss])
 
   if (deviceRole !== 'provisional' || dismissed) return null
 

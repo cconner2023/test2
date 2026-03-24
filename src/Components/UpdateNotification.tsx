@@ -77,8 +77,8 @@ const UpdateNotification: React.FC<{ onVisibilityChange?: (visible: boolean) => 
                         <Wifi className="h-5 w-5 text-themegreen" />
                     </div>
                     <div>
-                        <p className="text-sm font-medium text-primary">Ready for Offline Use</p>
-                        <p className="text-xs text-tertiary/60">App cached successfully</p>
+                        <p className="text-sm font-medium text-primary">Offline Ready</p>
+                        <p className="text-xs text-tertiary/60">All data cached locally.</p>
                     </div>
                 </div>
             </div>
@@ -110,7 +110,7 @@ const UpdateNotification: React.FC<{ onVisibilityChange?: (visible: boolean) => 
                                 <div>
                                     <p className="text-sm font-semibold text-primary">Update Available</p>
                                     <p className="text-xs text-tertiary mt-0.5">
-                                        Version {appVersion} is ready to install
+                                        Version {appVersion} ready.
                                     </p>
                                 </div>
                             </div>
@@ -139,12 +139,12 @@ const UpdateNotification: React.FC<{ onVisibilityChange?: (visible: boolean) => 
                                 {isUpdating ? (
                                     <>
                                         <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                        Updating…
+                                        Installing...
                                     </>
                                 ) : (
                                     <>
                                         <Download className="h-3.5 w-3.5" />
-                                        Update Now
+                                        Update
                                     </>
                                 )}
                             </button>
