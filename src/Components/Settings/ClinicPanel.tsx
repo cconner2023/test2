@@ -7,6 +7,7 @@ import {
   CircleX,
   X,
   RefreshCw,
+  Pencil,
 } from 'lucide-react'
 import bwipjs from 'bwip-js'
 import { useAuth } from '../../Hooks/useAuth'
@@ -22,8 +23,12 @@ import {
   findUserByEmail,
   addClinicMember,
   createClinicUser,
+  getMemberProfile,
+  updateMemberProfile,
   type UserLookupResult,
+  type MemberProfileData,
 } from '../../lib/supervisorService'
+import { invalidate } from '../../stores/useInvalidationStore'
 import { TextInput, PickerInput, UicPinInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { UserAvatar } from './UserAvatar'
@@ -38,6 +43,12 @@ interface StagedMember {
   credential?: string | null
   email: string
   alreadyCreated?: boolean
+}
+
+interface StagedProfileEdit {
+  memberId: string
+  original: MemberProfileData
+  changes: Partial<MemberProfileData>
 }
 
 interface StagedClinic {
@@ -118,7 +129,7 @@ export function ClinicPanel({
   const [addRank, setAddRank] = useState('')
   const [addUic, setAddUic] = useState('')
   const [addTempPassword, setAddTempPassword] = useState('')
-  const [addIsSupervisor, setAddIsSupervisor] = useState(false)
+  const [addRoles, setAddRoles] = useState<('medic' | 'supervisor' | 'provider')[]>(['medic'])
   const [addFeedback, setAddFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null)
   const addFeedbackTimer = useRef<ReturnType<typeof setTimeout>>(null)
 
@@ -132,6 +143,19 @@ export function ClinicPanel({
   // Staged batch changes
   const [stagedMembers, setStagedMembers] = useState<StagedMember[]>([])
   const [stagedClinics, setStagedClinics] = useState<StagedClinic[]>([])
+  const [stagedEdits, setStagedEdits] = useState<Map<string, StagedProfileEdit>>(new Map())
+
+  // Inline member editing
+  const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null)
+  const [expandedProfile, setExpandedProfile] = useState<MemberProfileData | null>(null)
+  const [expandedLoading, setExpandedLoading] = useState(false)
+  const [editFirstName, setEditFirstName] = useState('')
+  const [editLastName, setEditLastName] = useState('')
+  const [editMiddleInitial, setEditMiddleInitial] = useState('')
+  const [editCredential, setEditCredential] = useState('')
+  const [editComponent, setEditComponent] = useState('')
+  const [editRank, setEditRank] = useState('')
+  const [editUic, setEditUic] = useState('')
 
   // Join section
   const [joinCode, setJoinCode] = useState('')
@@ -167,8 +191,8 @@ export function ClinicPanel({
 
   // ─── Notify parent of pending staged changes ─────────────────────
   useEffect(() => {
-    onPendingChangesChange?.(stagedMembers.length > 0 || stagedClinics.length > 0 || deleteSelection.size > 0)
-  }, [stagedMembers.length, stagedClinics.length, deleteSelection.size, onPendingChangesChange])
+    onPendingChangesChange?.(stagedMembers.length > 0 || stagedClinics.length > 0 || deleteSelection.size > 0 || stagedEdits.size > 0)
+  }, [stagedMembers.length, stagedClinics.length, deleteSelection.size, stagedEdits.size, onPendingChangesChange])
 
   // Focus the add-member email input when the section becomes visible
   const addEmailVisible = clinicEditing && addMode !== 'create'
@@ -359,6 +383,32 @@ export function ClinicPanel({
     return set
   }, [medics, clinicId, clinicAssociatedIds])
 
+  const populateEditForm = useCallback((profile: MemberProfileData) => {
+    setEditFirstName(profile.firstName ?? '')
+    setEditLastName(profile.lastName ?? '')
+    setEditMiddleInitial(profile.middleInitial ?? '')
+    setEditCredential(profile.credential ?? '')
+    setEditComponent(profile.component ?? '')
+    setEditRank(profile.rank ?? '')
+    setEditUic(profile.uic ?? '')
+  }, [])
+
+  const clearExpandedState = useCallback(() => {
+    setExpandedMemberId(null)
+    setExpandedProfile(null)
+    setExpandedLoading(false)
+  }, [])
+
+  // Clear inline edit state when leaving edit mode
+  const prevEditingRef = useRef(clinicEditing)
+  useEffect(() => {
+    if (prevEditingRef.current && !clinicEditing) {
+      setStagedEdits(new Map())
+      clearExpandedState()
+    }
+    prevEditingRef.current = clinicEditing
+  }, [clinicEditing, clearExpandedState])
+
   const handleSave = useCallback(async () => {
     if (!clinicId) return
     if (!editName.trim()) {
@@ -430,19 +480,43 @@ export function ClinicPanel({
     ])
     const failedDeletes = deleteResults.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success))
 
+    // 5. Batch update edited profiles (skip members also being deleted)
+    const editsToApply = [...stagedEdits.values()].filter(e => !deleteSelection.has(e.memberId))
+    const editResults = await Promise.allSettled(
+      editsToApply.map(async (edit) => {
+        return updateMemberProfile(edit.memberId, {
+          firstName: edit.changes.firstName ?? undefined,
+          lastName: edit.changes.lastName ?? undefined,
+          middleInitial: edit.changes.middleInitial ?? undefined,
+          credential: edit.changes.credential ?? undefined,
+          component: edit.changes.component ?? undefined,
+          rank: edit.changes.rank ?? undefined,
+          uic: edit.changes.uic ?? undefined,
+        })
+      })
+    )
+    const failedEditsList = editsToApply.filter((_, i) => {
+      const r = editResults[i]
+      return r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)
+    })
+
     setSaving(false)
+    clearExpandedState()
+    invalidate('users', 'clinics')
 
     // Keep failed items staged, clear successful ones
     setStagedMembers(failedMembers)
     setStagedClinics(failedClinics)
+    setStagedEdits(new Map(failedEditsList.map(e => [e.memberId, e])))
 
-    const anyFailed = failedMembers.length > 0 || failedClinics.length > 0 || failedDeletes.length > 0
+    const anyFailed = failedMembers.length > 0 || failedClinics.length > 0 || failedDeletes.length > 0 || failedEditsList.length > 0
 
     if (anyFailed) {
       const parts: string[] = []
       if (failedMembers.length > 0) parts.push(`${failedMembers.length} member add${failedMembers.length > 1 ? 's' : ''} failed`)
       if (failedClinics.length > 0) parts.push(`${failedClinics.length} clinic code${failedClinics.length > 1 ? 's' : ''} failed`)
       if (failedDeletes.length > 0) parts.push(`${failedDeletes.length} removal${failedDeletes.length > 1 ? 's' : ''} failed`)
+      if (failedEditsList.length > 0) parts.push(`${failedEditsList.length} profile update${failedEditsList.length > 1 ? 's' : ''} failed`)
       setError(parts.join(', '))
     } else {
       onEditingChange(false)
@@ -452,23 +526,118 @@ export function ClinicPanel({
       if (stagedClinics.length > 0) parts.push(`${stagedClinics.length} clinic${stagedClinics.length > 1 ? 's' : ''} associated`)
       const removedCount = allDeleteIds.length - failedDeletes.length
       if (removedCount > 0) parts.push(`${removedCount} removed`)
+      const editedCount = editsToApply.length - failedEditsList.length
+      if (editedCount > 0) parts.push(`${editedCount} profile${editedCount > 1 ? 's' : ''} updated`)
       setSuccess(parts.join(', '))
       setTimeout(() => setSuccess(null), 3_000)
     }
 
-    if (stagedMembers.length > failedMembers.length || memberDeleteIds.length > 0) refreshMedics()
+    if (stagedMembers.length > failedMembers.length || memberDeleteIds.length > 0 || editsToApply.length > failedEditsList.length) refreshMedics()
     // Refresh associated IDs after clinic disassociations
     if (clinicDeleteIds.length > failedDeletes.length) {
       getClinicDetails(clinicId).then((d) => setClinicAssociatedIds(d.associatedClinicIds))
     }
-  }, [clinicId, editName, editLocation, editUics, onEditingChange, stagedMembers, stagedClinics, deleteSelection, associatedClinicIds, onDeleteSelectionChange, refreshMedics, redeemInvite])
+  }, [clinicId, editName, editLocation, editUics, onEditingChange, stagedMembers, stagedClinics, stagedEdits, deleteSelection, associatedClinicIds, onDeleteSelectionChange, refreshMedics, redeemInvite, clearExpandedState])
 
-  const handleToggleDeleteSelect = useCallback((memberId: string) => {
-    const next = new Set(deleteSelection)
-    if (next.has(memberId)) next.delete(memberId)
-    else next.add(memberId)
-    onDeleteSelectionChange(next)
-  }, [deleteSelection, onDeleteSelectionChange])
+  // ─── Inline Member Editing ──────────────────────────────────────
+
+  const handleMemberTap = useCallback(async (memberId: string) => {
+    // Toggle collapse if same card
+    if (expandedMemberId === memberId) {
+      clearExpandedState()
+      return
+    }
+
+    setExpandedMemberId(memberId)
+    setExpandedLoading(true)
+
+    // Pre-fill from staged edits if available
+    const staged = stagedEdits.get(memberId)
+    if (staged) {
+      const merged = { ...staged.original, ...staged.changes }
+      setExpandedProfile(staged.original)
+      populateEditForm(merged)
+      setExpandedLoading(false)
+      return
+    }
+
+    // Fetch fresh profile
+    const result = await getMemberProfile(memberId)
+    if (result.success && result.data) {
+      setExpandedProfile(result.data)
+      populateEditForm(result.data)
+    } else {
+      setExpandedProfile(null)
+    }
+    setExpandedLoading(false)
+  }, [expandedMemberId, stagedEdits, populateEditForm, clearExpandedState])
+
+  const handleEditConfirm = useCallback(() => {
+    if (!expandedMemberId || !expandedProfile) return
+
+    const current = {
+      firstName: editFirstName || null,
+      lastName: editLastName || null,
+      middleInitial: editMiddleInitial || null,
+      credential: editCredential || null,
+      component: editComponent || null,
+      rank: editRank || null,
+      uic: editUic || null,
+    }
+
+    // Build diff — only include changed fields
+    const changes: Partial<MemberProfileData> = {}
+    for (const key of Object.keys(current) as (keyof MemberProfileData)[]) {
+      if (current[key] !== expandedProfile[key]) {
+        changes[key] = current[key]
+      }
+    }
+
+    if (Object.keys(changes).length > 0) {
+      setStagedEdits(prev => {
+        const next = new Map(prev)
+        next.set(expandedMemberId, { memberId: expandedMemberId, original: expandedProfile, changes })
+        return next
+      })
+    }
+
+    // Un-delete if was marked for deletion
+    if (deleteSelection.has(expandedMemberId)) {
+      const next = new Set(deleteSelection)
+      next.delete(expandedMemberId)
+      onDeleteSelectionChange(next)
+    }
+
+    clearExpandedState()
+  }, [expandedMemberId, expandedProfile, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, deleteSelection, onDeleteSelectionChange, clearExpandedState])
+
+  const handleEditDelete = useCallback(() => {
+    if (!expandedMemberId) return
+
+    // Add to delete selection, remove from staged edits
+    const nextDelete = new Set(deleteSelection)
+    nextDelete.add(expandedMemberId)
+    onDeleteSelectionChange(nextDelete)
+
+    setStagedEdits(prev => {
+      const next = new Map(prev)
+      next.delete(expandedMemberId)
+      return next
+    })
+
+    clearExpandedState()
+  }, [expandedMemberId, deleteSelection, onDeleteSelectionChange, clearExpandedState])
+
+  const handleEditComponentChange = useCallback((val: string) => {
+    setEditComponent(val)
+    if (val && editRank) {
+      import('../../Data/User').then(({ ranksByComponent }) => {
+        if (!ranksByComponent[val as import('../../Data/User').Component]?.includes(editRank)) {
+          setEditRank('')
+        }
+      })
+    }
+  }, [editRank])
 
   // ─── Add Member Handlers ─────────────────────────────────────────
 
@@ -553,7 +722,7 @@ export function ClinicPanel({
       component: addComponent || undefined,
       rank: addRank || undefined,
       uic: addUic || undefined,
-      isSupervisor: addIsSupervisor || undefined,
+      roles: addRoles,
     })
     setAddSubmitting(false)
     if (result.success) {
@@ -580,12 +749,12 @@ export function ClinicPanel({
       setAddRank('')
       setAddUic('')
       setAddTempPassword('')
-      setAddIsSupervisor(false)
+      setAddRoles(['medic'])
       setAddFeedback(null)
     } else {
       showAddFeedback('error', result.error)
     }
-  }, [clinicId, addEmail, addTempPassword, addFirstName, addLastName, addMiddleInitial, addCredential, addComponent, addRank, addUic, addIsSupervisor, showAddFeedback])
+  }, [clinicId, addEmail, addTempPassword, addFirstName, addLastName, addMiddleInitial, addCredential, addComponent, addRank, addUic, addRoles, showAddFeedback])
 
   const handleAddComponentChange = useCallback((val: string) => {
     setAddComponent(val)
@@ -980,7 +1149,7 @@ export function ClinicPanel({
                   rank={addRank} onRank={setAddRank}
                   uic={addUic} onUic={(v) => setAddUic(v.toUpperCase())}
                   tempPassword={addTempPassword} onTempPassword={setAddTempPassword}
-                  isSupervisor={addIsSupervisor} onIsSupervisor={setAddIsSupervisor}
+                  roles={addRoles} onRoles={setAddRoles}
                   submitting={addSubmitting}
                   onConfirm={handleAddCreate}
                   onCancel={() => { setAddMode('lookup'); setAddLookupResult(null) }}
@@ -1070,42 +1239,75 @@ export function ClinicPanel({
                         </div>
                       </div>
                     ))}
-                    {members.map((member) => (
-                      <div
-                        key={member.id}
-                        onClick={clinicEditing ? () => handleToggleDeleteSelect(member.id) : undefined}
-                        className={`flex items-center gap-3 py-2 px-2 rounded-lg transition-colors ${
-                          clinicEditing
-                            ? `cursor-pointer active:scale-95 ${deleteSelection.has(member.id) ? 'ring-1 ring-inset ring-themeredred/30 bg-themeredred/5' : 'hover:bg-secondary/5'}`
-                            : 'hover:bg-secondary/5'
-                        }`}
-                      >
-                        {clinicEditing && deleteSelection.has(member.id) ? (
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center bg-themeredred shrink-0">
-                            <CircleX size={14} className="text-white" />
-                          </div>
-                        ) : (
-                          <UserAvatar
-                            avatarId={member.avatarId}
-                            firstName={member.firstName}
-                            lastName={member.lastName}
-                            className="w-8 h-8"
-                          />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate text-primary">
-                            {member.rank && (
-                              <span>{member.rank} </span>
+                    {members.map((member) => {
+                      const isExpanded = expandedMemberId === member.id
+                      const isDeleted = deleteSelection.has(member.id)
+                      const isEdited = stagedEdits.has(member.id)
+
+                      return (
+                        <div key={member.id} className="transition-all duration-200">
+                          {/* Collapsed header row */}
+                          <div
+                            onClick={clinicEditing ? () => handleMemberTap(member.id) : undefined}
+                            className={`flex items-center gap-3 py-2 px-2 rounded-lg transition-colors ${
+                              clinicEditing
+                                ? `cursor-pointer active:scale-95 ${
+                                    isDeleted ? 'ring-1 ring-inset ring-themeredred/30 bg-themeredred/5'
+                                    : isEdited ? 'border-l-2 border-themeblue2 bg-themeblue2/5'
+                                    : 'hover:bg-secondary/5'
+                                  }`
+                                : 'hover:bg-secondary/5'
+                            }`}
+                          >
+                            {clinicEditing && isDeleted ? (
+                              <div className="w-8 h-8 rounded-full flex items-center justify-center bg-themeredred shrink-0">
+                                <CircleX size={14} className="text-white" />
+                              </div>
+                            ) : clinicEditing && isEdited ? (
+                              <div className="w-8 h-8 rounded-full flex items-center justify-center bg-themeblue2 shrink-0">
+                                <Pencil size={12} className="text-white" />
+                              </div>
+                            ) : (
+                              <UserAvatar
+                                avatarId={member.avatarId}
+                                firstName={member.firstName}
+                                lastName={member.lastName}
+                                className="w-8 h-8"
+                              />
                             )}
-                            {member.lastName}, {member.firstName}
-                            {member.middleInitial ? ` ${member.middleInitial}.` : ''}
-                          </p>
-                          <p className="text-[10px] text-tertiary/50 truncate">
-                            {member.credential || ''}
-                          </p>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate text-primary">
+                                {member.rank && (
+                                  <span>{member.rank} </span>
+                                )}
+                                {member.lastName}, {member.firstName}
+                                {member.middleInitial ? ` ${member.middleInitial}.` : ''}
+                              </p>
+                              <p className="text-[10px] text-tertiary/50 truncate">
+                                {member.credential || ''}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Expanded inline edit form */}
+                          {isExpanded && (
+                            <MemberEditForm
+                              loading={expandedLoading}
+                              firstName={editFirstName} onFirstName={setEditFirstName}
+                              lastName={editLastName} onLastName={setEditLastName}
+                              middleInitial={editMiddleInitial} onMiddleInitial={(v) => setEditMiddleInitial(v.toUpperCase().slice(0, 1))}
+                              credential={editCredential} onCredential={setEditCredential}
+                              component={editComponent} onComponent={handleEditComponentChange}
+                              rank={editRank} onRank={setEditRank}
+                              uic={editUic} onUic={(v) => setEditUic(v.toUpperCase())}
+                              onCancel={clearExpandedState}
+                              onDelete={handleEditDelete}
+                              onConfirm={handleEditConfirm}
+                            />
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 ) : (
                   <p className="text-sm text-tertiary/50 py-4 text-center">No members assigned</p>
@@ -1132,7 +1334,7 @@ interface CreateFormProps {
   rank: string; onRank: (v: string) => void
   uic: string; onUic: (v: string) => void
   tempPassword: string; onTempPassword: (v: string) => void
-  isSupervisor: boolean; onIsSupervisor: (v: boolean) => void
+  roles: ('medic' | 'supervisor' | 'provider')[]; onRoles: (v: ('medic' | 'supervisor' | 'provider')[]) => void
   submitting: boolean
   onConfirm: () => void
   onCancel: () => void
@@ -1223,16 +1425,35 @@ function AddMemberCreateForm(props: CreateFormProps) {
       </div>
 
       <div className="flex items-center gap-2 pt-1">
-        <label className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0">
+        <label className="flex items-center gap-2.5 cursor-pointer min-w-0">
           <span className="text-sm text-primary">Supervisor</span>
           <div
-            onClick={() => props.onIsSupervisor(!props.isSupervisor)}
+            onClick={() => {
+              const has = props.roles.includes('supervisor')
+              props.onRoles(has ? props.roles.filter(r => r !== 'supervisor') : [...props.roles, 'supervisor'])
+            }}
             className={`relative w-9 h-5 shrink-0 rounded-full transition-colors duration-200 ${
-              props.isSupervisor ? 'bg-themeblue3' : 'bg-tertiary/20'
+              props.roles.includes('supervisor') ? 'bg-themeblue3' : 'bg-tertiary/20'
             }`}
           >
             <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-              props.isSupervisor ? 'translate-x-4' : 'translate-x-0'
+              props.roles.includes('supervisor') ? 'translate-x-4' : 'translate-x-0'
+            }`} />
+          </div>
+        </label>
+        <label className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0">
+          <span className="text-sm text-primary">Provider</span>
+          <div
+            onClick={() => {
+              const has = props.roles.includes('provider')
+              props.onRoles(has ? props.roles.filter(r => r !== 'provider') : [...props.roles, 'provider'])
+            }}
+            className={`relative w-9 h-5 shrink-0 rounded-full transition-colors duration-200 ${
+              props.roles.includes('provider') ? 'bg-themeblue3' : 'bg-tertiary/20'
+            }`}
+          >
+            <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+              props.roles.includes('provider') ? 'translate-x-4' : 'translate-x-0'
             }`} />
           </div>
         </label>
@@ -1250,6 +1471,146 @@ function AddMemberCreateForm(props: CreateFormProps) {
           className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
         >
           {props.submitting ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Private: Inline Member Edit Form ───────────────────────────────
+
+interface MemberEditFormProps {
+  loading: boolean
+  firstName: string; onFirstName: (v: string) => void
+  lastName: string; onLastName: (v: string) => void
+  middleInitial: string; onMiddleInitial: (v: string) => void
+  credential: string; onCredential: (v: string) => void
+  component: string; onComponent: (v: string) => void
+  rank: string; onRank: (v: string) => void
+  uic: string; onUic: (v: string) => void
+  onCancel: () => void
+  onDelete: () => void
+  onConfirm: () => void
+}
+
+function MemberEditForm(props: MemberEditFormProps) {
+  const [userData, setUserData] = useState<{
+    credentials: string[]
+    components: string[]
+    ranksByComponent: Record<string, string[]>
+  } | null>(null)
+
+  const formRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    import('../../Data/User').then((mod) => {
+      setUserData({
+        credentials: mod.credentials,
+        components: mod.components,
+        ranksByComponent: mod.ranksByComponent,
+      })
+    })
+  }, [])
+
+  useEffect(() => {
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [])
+
+  const componentRanks = props.component && userData
+    ? userData.ranksByComponent[props.component] ?? []
+    : []
+
+  if (props.loading || !userData) {
+    return (
+      <div ref={formRef} className="flex items-center justify-center py-6 ml-11">
+        <div className="w-4 h-4 border-2 border-themeblue3 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  return (
+    <div ref={formRef} className="ml-11 pt-2 pb-3 space-y-3 border-l-2 border-themeblue2/20 pl-3">
+      <div className="grid grid-cols-2 gap-2">
+        <input
+          type="text"
+          value={props.firstName}
+          onChange={(e) => props.onFirstName(e.target.value)}
+          placeholder="First name *"
+          className="rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300"
+        />
+        <input
+          type="text"
+          value={props.lastName}
+          onChange={(e) => props.onLastName(e.target.value)}
+          placeholder="Last name *"
+          className="rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300"
+        />
+      </div>
+
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={props.middleInitial}
+          onChange={(e) => props.onMiddleInitial(e.target.value)}
+          placeholder="MI"
+          maxLength={1}
+          className="w-11 shrink-0 text-center rounded-full py-2.5 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300"
+        />
+        <div className="flex-1 min-w-0">
+          <PickerInput
+            value={props.credential}
+            onChange={props.onCredential}
+            options={userData.credentials}
+            placeholder="Credential"
+          />
+        </div>
+        <div className="flex-1 min-w-0">
+          <PickerInput
+            value={props.component}
+            onChange={props.onComponent}
+            options={userData.components}
+            placeholder="Component"
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <PickerInput
+            value={props.rank}
+            onChange={props.onRank}
+            options={componentRanks}
+            placeholder="Rank"
+          />
+        </div>
+      </div>
+
+      <div>
+        <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1.5 block">UIC</span>
+        <UicPinInput value={props.uic} onChange={props.onUic} spread />
+      </div>
+
+      <div className="flex items-center justify-end gap-2 pt-1">
+        <button
+          type="button"
+          onClick={props.onCancel}
+          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+        >
+          <X size={18} />
+        </button>
+        <button
+          type="button"
+          onClick={props.onDelete}
+          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeredred text-white active:scale-95 transition-all"
+        >
+          <CircleX size={18} />
+        </button>
+        <button
+          type="button"
+          onClick={props.onConfirm}
+          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white active:scale-95 transition-all"
+        >
+          <Check size={18} />
         </button>
       </div>
     </div>

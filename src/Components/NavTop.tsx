@@ -295,7 +295,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                 <div className={`flex-1 min-w-0 px-2 transition-opacity duration-200${isSearchFocused ? ' opacity-0 pointer-events-none' : ''}`}>
                     <div className="truncate whitespace-nowrap text-center">
                         <span className="text-[9pt] text-primary font-normal">
-                            {dynamicTitle || `ADTMC ${__APP_VERSION__}`}
+                            {dynamicTitle || `${__APP_VERSION__}`}
                         </span>
                     </div>
                 </div>

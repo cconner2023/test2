@@ -32,6 +32,7 @@ import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import { fetchAllCertifications } from '../../lib/certificationService'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { UI_TIMING } from '../../Utilities/constants'
+import { invalidate } from '../../stores/useInvalidationStore'
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -238,6 +239,7 @@ export function AdminUserDetail({
           await setUserClinic(result.userId, editClinicId)
         }
         onCreated?.(result.userId)
+        invalidate('users', 'clinics')
       } else {
         setError(result.error || 'Failed to create user')
       }
@@ -305,6 +307,7 @@ export function AdminUserDetail({
     setSaving(false)
     onEditingChange(false)
     loadData()
+    invalidate('users', 'clinics')
   }, [user, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editRoles, editNoteIncludeHPI, editNoteIncludePE, editPeDepth, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated])
 
   // ── Save requested trigger ───────────────────────────────────────────
@@ -386,8 +389,8 @@ export function AdminUserDetail({
           <div className="px-4 py-3.5 space-y-3">
             {isCreateMode ? (
               <>
-                <TextInput label="Email" value={createEmail} onChange={setCreateEmail} placeholder="user@mail.mil" type="email" required />
-                <TextInput label="Temporary Password" value={createPassword} onChange={setCreatePassword} placeholder="Min 12 characters" required />
+                <TextInput value={createEmail} onChange={setCreateEmail} placeholder="Email *" type="email" required />
+                <TextInput value={createPassword} onChange={setCreatePassword} placeholder="Temporary Password *" required />
               </>
             ) : (
               <div className="flex items-center gap-3">
@@ -398,27 +401,31 @@ export function AdminUserDetail({
                   className="w-11 h-11"
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] text-tertiary/70">{user!.email}</p>
+                  <p className="text-[11px] font-normal text-tertiary/70">{user!.email}</p>
                 </div>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-3">
-              <TextInput label="First Name" value={editFirstName} onChange={setEditFirstName} />
-              <TextInput label="Last Name" value={editLastName} onChange={setEditLastName} />
+            <div className="grid grid-cols-2 gap-2">
+              <TextInput value={editFirstName} onChange={setEditFirstName} placeholder="First Name *" required />
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <TextInput value={editLastName} onChange={setEditLastName} placeholder="Last Name *" required />
+                </div>
+                <div className="w-11 shrink-0">
+                  <TextInput value={editMiddleInitial} onChange={v => setEditMiddleInitial(v.toUpperCase().slice(0, 1))} placeholder="MI" maxLength={1} />
+                </div>
+              </div>
             </div>
-            <TextInput
-              label="Middle Initial"
-              value={editMiddleInitial}
-              onChange={v => setEditMiddleInitial(v.toUpperCase().slice(0, 1))}
-              maxLength={1}
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <PickerInput label="Credential" value={editCredential} onChange={setEditCredential} options={credentials} />
-              <PickerInput label="Component" value={editComponent} onChange={handleComponentChange} options={components} />
+            <div className="grid grid-cols-2 gap-2">
+              <PickerInput value={editCredential} onChange={setEditCredential} options={credentials} placeholder="Credential" />
+              <PickerInput value={editComponent} onChange={handleComponentChange} options={components} placeholder="Component" />
             </div>
-            {editComponent && <PickerInput label="Rank" value={editRank} onChange={setEditRank} options={componentRanks} />}
-            <UicPinInput label="UIC" value={editUic} onChange={setEditUic} spread />
-            <PickerInput label="Clinic" value={editClinicId} onChange={setEditClinicId} options={clinicOptions} placeholder="No clinic assigned" />
+            {editComponent && <PickerInput value={editRank} onChange={setEditRank} options={componentRanks} placeholder="Rank" />}
+            <div>
+              <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1.5 block">UIC</span>
+              <UicPinInput value={editUic} onChange={setEditUic} spread />
+            </div>
+            <PickerInput value={editClinicId} onChange={setEditClinicId} options={clinicOptions} placeholder="Clinic" />
             <MultiPickerInput
               label="Roles"
               value={editRoles}
@@ -435,7 +442,7 @@ export function AdminUserDetail({
               <span className="text-sm text-primary">Include PE</span>
               <input type="checkbox" checked={editNoteIncludePE} onChange={() => setEditNoteIncludePE(!editNoteIncludePE)} className="w-4 h-4 rounded border-tertiary/30" />
             </label>
-            <PickerInput label="PE Depth" value={editPeDepth} onChange={setEditPeDepth} options={['focused', 'standard', 'comprehensive']} />
+            <PickerInput value={editPeDepth} onChange={setEditPeDepth} options={['focused', 'standard', 'comprehensive']} placeholder="PE Depth" />
           </div>
         ) : user ? (
           <div className="px-4 py-3">
@@ -462,7 +469,7 @@ export function AdminUserDetail({
               </div>
             </div>
             {user.email && (
-              <p className="text-[11px] text-tertiary/50 mt-1.5 pl-14">{user.email}</p>
+              <p className="text-[11px] font-normal text-tertiary/50 mt-1.5 pl-14">{user.email}</p>
             )}
           </div>
         ) : null}
@@ -516,12 +523,14 @@ export function AdminUserDetail({
                     <button
                       onClick={handleResetPassword}
                       disabled={resetPwProcessing || resetPwValue.length < 12}
+                      aria-label="Reset password"
                       className="shrink-0 w-10 h-10 rounded-full bg-themeyellow text-white flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
                     >
                       <Check size={16} />
                     </button>
                     <button
                       onClick={() => { setResetPwActive(false); setResetPwValue('') }}
+                      aria-label="Cancel"
                       className="shrink-0 w-10 h-10 rounded-full text-tertiary flex items-center justify-center active:scale-95 transition-all"
                     >
                       <X size={16} />
@@ -546,7 +555,7 @@ export function AdminUserDetail({
                 </span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-primary">
-                    {forceLogoutProcessing ? 'Logging out...' : 'Force Logout'}
+                    {forceLogoutProcessing ? 'Logging out' : 'Force Logout'}
                   </p>
                 </div>
               </button>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { UserPlus, Pencil, KeyRound, Trash2, LogOut, Eye, ChevronRight } from 'lucide-react'
+import { UserPlus, Pencil, KeyRound, Trash2, LogOut, Eye, ChevronRight, Check, X } from 'lucide-react'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { EmptyState } from '../EmptyState'
 import { CardContextMenu } from '../CardContextMenu'
@@ -18,6 +18,7 @@ import {
 } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import { useAuthStore } from '../../stores/useAuthStore'
+import { useInvalidation } from '../../stores/useInvalidationStore'
 import { UI_TIMING } from '../../Utilities/constants'
 
 // ─── Public Interface ────────────────────────────────────────────────────
@@ -71,6 +72,7 @@ export function AdminUsersList({
   bare,
 }: AdminUsersListProps) {
   const searchQuery = searchQueryProp ?? ''
+  const gen = useInvalidation('users', 'clinics')
   const currentUser = useAuthStore(s => s.user)
 
   // Data
@@ -126,7 +128,7 @@ export function AdminUsersList({
 
   useEffect(() => {
     loadUsers()
-  }, [loadUsers])
+  }, [loadUsers, gen])
 
   // ─── Derived Data ──────────────────────────────────────────────────────
 
@@ -298,43 +300,33 @@ export function AdminUsersList({
         </div>
 
         {resetPwUserId === user.id && (
-          <div
-            className="mx-4 mb-3 p-3 bg-tertiary/5 rounded-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="text-[10pt] text-primary font-medium mb-2">
-              Set new password:
-            </p>
-            <div className="flex gap-2">
+          <div className="px-4 pb-3.5 bg-tertiary/5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2">
               <input
                 type="text"
                 value={resetPwValue}
                 onChange={(e) => setResetPwValue(e.target.value)}
                 placeholder="New password (min 12 chars)..."
-                className="flex-1 px-3 py-1.5 rounded-lg bg-themewhite2 border border-tertiary/20 text-[10pt]
-                           focus:border-themeblue2 focus:outline-none transition-colors placeholder:text-tertiary/30"
+                className="flex-1 px-3 py-2 rounded-lg bg-themewhite2 border border-themeyellow/30 text-sm focus:border-themeblue2 focus:outline-none transition-colors"
               />
               <button
                 onClick={() => handleResetPassword(user.id)}
                 disabled={resetPwProcessing || resetPwValue.length < 12}
-                className="px-4 py-1.5 rounded-lg bg-themeblue3 text-white text-[10pt] font-medium disabled:opacity-50 active:scale-95"
+                className="shrink-0 w-10 h-10 rounded-full bg-themeyellow text-white flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
+                aria-label="Reset password"
               >
-                {resetPwProcessing ? 'Resetting...' : 'Reset'}
+                <Check size={16} />
               </button>
               <button
-                onClick={() => {
-                  setResetPwUserId(null)
-                  setResetPwValue('')
-                }}
-                className="px-3 py-1.5 rounded-lg bg-tertiary/10 text-primary text-[10pt] active:scale-95"
+                onClick={() => { setResetPwUserId(null); setResetPwValue('') }}
+                className="shrink-0 w-10 h-10 rounded-full text-tertiary flex items-center justify-center active:scale-95 transition-all"
+                aria-label="Cancel"
               >
-                Cancel
+                <X size={16} />
               </button>
             </div>
             {resetPwValue.length > 0 && resetPwValue.length < 12 && (
-              <p className="text-[10pt] text-themeredred mt-1">
-                Minimum 12 characters.
-              </p>
+              <p className="text-xs font-normal text-themeredred mt-1.5">Minimum 12 characters.</p>
             )}
           </div>
         )}
@@ -385,7 +377,7 @@ export function AdminUsersList({
   }
 
   return (
-    <div>
+    <div className="pb-24">
       <div className="px-5 pt-4 pb-2 space-y-5">
         {feedback && <ErrorDisplay type={feedback.type} message={feedback.message} />}
       </div>

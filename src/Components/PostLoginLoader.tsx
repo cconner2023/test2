@@ -48,7 +48,6 @@ export function PostLoginLoader({ ready, onDone }: { ready: boolean; onDone: () 
         className="mt-4 font-semibold text-lg tracking-widest"
         style={{ fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif", color: textColor }}
       >
-        ADTMC
       </div>
 
       <div className="mt-3.5 w-[140px] h-[3px] rounded-sm overflow-hidden" style={{ background: trackBg }}>

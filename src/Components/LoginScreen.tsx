@@ -149,7 +149,7 @@ export function LoginScreen() {
               </svg>
             </div>
             <h1 className="text-xl font-semibold tracking-[2px] text-themeblue3 dark:text-themeblue1">
-              ADTMC {view !== 'request' && <div className='text-[10pt]'>Medical Knowledge Repository and Operational Network</div>}
+              {view !== 'request' && <div className='text-[10pt] text-tertiary/60'>Medical Knowledge Repository and Operational Network</div>}
             </h1>
           </div>
 

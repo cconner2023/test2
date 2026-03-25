@@ -195,7 +195,7 @@ export async function createClinicUser(userData: {
   component?: string
   rank?: string
   uic?: string
-  isSupervisor?: boolean
+  roles?: ('medic' | 'supervisor' | 'provider')[]
 }): Promise<ServiceResult<{ userId?: string }>> {
   try {
     const pwError = validatePasswordComplexity(userData.tempPassword)
@@ -212,7 +212,7 @@ export async function createClinicUser(userData: {
       p_component: userData.component || undefined,
       p_rank: userData.rank || undefined,
       p_uic: userData.uic || undefined,
-      p_is_supervisor: userData.isSupervisor || false,
+      p_roles: userData.roles ?? ['medic'],
     })
 
     if (error) return fail(error.message)
@@ -302,6 +302,46 @@ export async function getClinicDetails(
     }
   } catch {
     return { name: null, uics: [], location: null, associatedClinicIds: [] }
+  }
+}
+
+// ─── Get Member Profile (for inline editing) ─────────────────────────────
+
+export interface MemberProfileData {
+  firstName: string | null
+  lastName: string | null
+  middleInitial: string | null
+  credential: string | null
+  component: string | null
+  rank: string | null
+  uic: string | null
+}
+
+export async function getMemberProfile(
+  userId: string
+): Promise<ServiceResult<MemberProfileData>> {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('first_name, last_name, middle_initial, credential, component, rank, uic')
+      .eq('id', userId)
+      .single()
+
+    if (error) return fail(error.message)
+    if (!data) return fail('Profile not found')
+
+    return succeed({
+      firstName: data.first_name,
+      lastName: data.last_name,
+      middleInitial: data.middle_initial,
+      credential: data.credential,
+      component: data.component,
+      rank: data.rank,
+      uic: data.uic,
+    })
+  } catch (error) {
+    logger.error('Failed to get member profile:', error)
+    return fail(getErrorMessage(error))
   }
 }
 

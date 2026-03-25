@@ -120,7 +120,7 @@ export async function getAllAccountRequests(
  */
 export async function approveAccountRequest(
   requestId: string,
-): Promise<ServiceResult<{ userId?: string; email?: string; firstName?: string; lastName?: string }>> {
+): Promise<ServiceResult<{ userId: string; email: string; firstName: string; lastName: string }>> {
   try {
     const currentUser = useAuthStore.getState().user
     if (!currentUser) return fail('Not authenticated')
@@ -146,22 +146,22 @@ export async function approveAccountRequest(
       message: string
     }>(data, ['user_id'], 'approveAccountRequest')
 
-    if (validated.ok) {
-      // Trigger the Supabase Magic Link email template (customized to show
-      // "account approved" notification). Uses signInWithOtp which sends
-      // the email regardless of confirmation status without affecting the
-      // admin's session.
-      await supabase.auth.signInWithOtp({
-        email: validated.data.email,
-        options: { shouldCreateUser: false },
-      })
+    if (!validated.ok) {
+      return fail(validated.error ?? 'Approval succeeded but returned unexpected data')
     }
 
+    // Fire-and-forget: Supabase Magic Link template repurposed as
+    // "account approved" notification email. Must not block or fail the approval.
+    supabase.auth.signInWithOtp({
+      email: validated.data.email,
+      options: { shouldCreateUser: false },
+    }).catch((e) => logger.warn('Approval notification email failed:', e))
+
     return succeed({
-      userId: validated.ok ? validated.data.user_id : undefined,
-      email: validated.ok ? validated.data.email : undefined,
-      firstName: validated.ok ? validated.data.first_name : undefined,
-      lastName: validated.ok ? validated.data.last_name : undefined,
+      userId: validated.data.user_id,
+      email: validated.data.email,
+      firstName: validated.data.first_name,
+      lastName: validated.data.last_name,
     })
   } catch (error) {
     logger.error('Failed to approve request:', error)
@@ -256,6 +256,27 @@ export async function getUserRoles(userId: string): Promise<string[]> {
     return data?.roles || []
   } catch {
     return []
+  }
+}
+
+/**
+ * Set all roles for a user in a single RPC call.
+ * The RPC verifies the caller has dev role — prevents self-escalation.
+ */
+export async function setUserRoles(
+  userId: string,
+  roles: ('medic' | 'supervisor' | 'dev' | 'provider')[]
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('set_user_roles', {
+      target_user_id: userId,
+      new_roles: roles,
+    })
+
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    return fail(getErrorMessage(error))
   }
 }
 

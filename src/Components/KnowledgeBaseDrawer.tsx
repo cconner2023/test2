@@ -1,5 +1,5 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
-import { ChevronRight, RotateCcw, X } from 'lucide-react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { ChevronRight, RotateCcw, Pin } from 'lucide-react'
 import { MobileSearchBar } from './MobileSearchBar'
 import { BaseDrawer } from './BaseDrawer'
 import { TrainingPanel, type TrainingView } from './Settings/TrainingPanel'
@@ -8,7 +8,13 @@ import { ContentWrapper } from './Settings/ContentWrapper'
 import { QuestionRow, WordListContent } from './ScreenerDrawer'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { VitalSignsCalculator } from './VitalSignsCalculator'
+import { BurnCalculator } from './BurnCalculator'
+import { BloodProductsReference } from './BloodProductsReference'
+import { KBOverlay } from './KBOverlay'
+import { KBItemContextMenu } from './KBItemContextMenu'
 import { useAuthStore } from '../stores/useAuthStore'
+import { useNavPreferencesStore } from '../stores/useNavPreferencesStore'
+import { useShallow } from 'zustand/react/shallow'
 import { kbCategories, kbGroupLabels, kbGroupOrder, type KBCategory } from '../Data/KnowledgeBaseCategories'
 import { GAD7, PHQ2, MACE2, AUDITC } from '../Data/SpecTesting'
 import { getScreenerMaxScore, isQuestionScored } from '../Data/SpecTesting'
@@ -16,6 +22,7 @@ import { stp68wTraining } from '../Data/TrainingTaskList'
 import { getTaskData } from '../Data/TrainingData'
 import { Check } from 'lucide-react'
 import { UI_TIMING } from '../Utilities/constants'
+import { BURN_CALCULATOR_ENABLED, BLOOD_PRODUCTS_ENABLED } from '../lib/featureFlags'
 import type { subjectAreaArrayOptions } from '../Types/CatTypes'
 import { medList, type medListTypes } from '../Data/MedData'
 import { tc3MedList } from '../Data/TC3MedData'
@@ -28,6 +35,7 @@ type KBView =
     | 'medications'
     | 'medication-detail'
     | 'screener'
+    | 'burn'
 
 interface KnowledgeBaseDrawerProps {
     isVisible: boolean
@@ -60,6 +68,7 @@ export function KnowledgeBaseDrawer({
     const [activeScreener, setActiveScreener] = useState<ScreenerConfig | null>(null)
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
     const [calculatorOpen, setCalculatorOpen] = useState(false)
+    const [bloodOpen, setBloodOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const [searchFocused, setSearchFocused] = useState(false)
 
@@ -93,6 +102,9 @@ export function KnowledgeBaseDrawer({
             setActiveScreener(screenerMap[initialScreenerId])
             setView('screener')
             setSlideDirection('')
+        } else if (initialView === 'burn') {
+            setView('burn')
+            setSlideDirection('')
         } else if (initialView === 'calculator' && initialScreenerId === 'vital-signs') {
             setCalculatorOpen(true)
             setSlideDirection('')
@@ -113,6 +125,15 @@ export function KnowledgeBaseDrawer({
 
         if (category.id === 'vital-signs') {
             setCalculatorOpen(true)
+            return
+        }
+        if (category.id === 'burn') {
+            handleSlideAnimation('left')
+            setView('burn')
+            return
+        }
+        if (category.id === 'blood-products') {
+            setBloodOpen(true)
             return
         }
 
@@ -161,6 +182,7 @@ export function KnowledgeBaseDrawer({
             case 'training':
             case 'medications':
             case 'screener':
+            case 'burn':
                 setView('home')
                 setActiveScreener(null)
                 break
@@ -177,6 +199,7 @@ export function KnowledgeBaseDrawer({
     const handleClose = useCallback(() => {
         setSearchQuery('')
         setCalculatorOpen(false)
+        setBloodOpen(false)
         setView('home')
         setSelectedTask(null)
         setSelectedMedication(null)
@@ -205,6 +228,8 @@ export function KnowledgeBaseDrawer({
                 return { title: selectedMedication?.text || 'Medication', showBack: true, onBack: handleBack }
             case 'screener':
                 return { title: activeScreener?.title || 'Screener', showBack: true, onBack: handleBack }
+            case 'burn':
+                return { title: 'Burn Assessment', showBack: true, onBack: handleBack }
             default:
                 return { title: 'Knowledge Base' }
         }
@@ -257,13 +282,18 @@ export function KnowledgeBaseDrawer({
                         <StandaloneScreener screenerConfig={activeScreener} />
                     </MobileSearchBar>
                 )}
+                {view === 'burn' && (
+                    <BurnCalculator />
+                )}
             </ContentWrapper>
 
-            {/* Vital Signs overlay — slides up on top of KB content */}
-            <VitalSignsOverlay
-                isOpen={calculatorOpen}
-                onClose={() => setCalculatorOpen(false)}
-            />
+            {/* Overlay calculators/references — slide up on top of KB content */}
+            <KBOverlay title="Vital Signs" isOpen={calculatorOpen} onClose={() => setCalculatorOpen(false)}>
+                <VitalSignsCalculator />
+            </KBOverlay>
+<KBOverlay title="Blood Products" isOpen={bloodOpen} onClose={() => setBloodOpen(false)}>
+                <BloodProductsReference />
+            </KBOverlay>
         </BaseDrawer>
     )
 }
@@ -281,6 +311,12 @@ type KBSearchResult = {
 
 // ── KB Home View ────────────────────────────────────────────────────────────
 
+// Feature-gated IDs — hidden unless flag on or dev role
+const GATED_KB_IDS: Record<string, boolean> = {
+    burn: BURN_CALCULATOR_ENABLED,
+    'blood-products': BLOOD_PRODUCTS_ENABLED,
+}
+
 function KBHome({
     onCategoryClick,
     searchQuery,
@@ -294,20 +330,37 @@ function KBHome({
     onMedicationSelect: (medication: medListTypes) => void
     tc3Mode: boolean
 }) {
+    const isDevRole = useAuthStore((s) => s.isDevRole)
+    const { pinnedKB, togglePinKB } = useNavPreferencesStore(
+        useShallow(s => ({ pinnedKB: s.pinnedKB, togglePinKB: s.togglePinKB }))
+    )
+    const [contextMenu, setContextMenu] = useState<{ id: string; position: { x: number; y: number } } | null>(null)
+    const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const longPressTriggered = useRef(false)
+
+    // Filter categories by feature gates
+    const visibleCategories = useMemo(() =>
+        kbCategories.filter(cat => {
+            const flag = GATED_KB_IDS[cat.id]
+            if (flag === undefined) return true // not gated
+            return flag || isDevRole
+        }),
+    [isDevRole])
+
     const grouped = useMemo(() => {
         const map = new Map<string, KBCategory[]>()
         for (const group of kbGroupOrder) {
-            map.set(group, kbCategories.filter(c => c.group === group))
+            map.set(group, visibleCategories.filter(c => c.group === group))
         }
         return map
-    }, [])
+    }, [visibleCategories])
 
     // Build KB-scoped search index once
     const kbSearchIndex = useMemo(() => {
         const items: Omit<KBSearchResult, 'onSelect'>[] = []
 
         // KB categories
-        kbCategories.forEach(cat => {
+        visibleCategories.forEach(cat => {
             if (cat.comingSoon) return
             items.push({
                 type: 'category',
@@ -353,7 +406,7 @@ function KBHome({
         })
 
         return items
-    }, [tc3Mode])
+    }, [tc3Mode, visibleCategories])
 
     // Filter results when searching
     const searchResults = useMemo(() => {
@@ -369,7 +422,7 @@ function KBHome({
     // Resolve click handlers for search results
     const handleResultClick = useCallback((result: typeof kbSearchIndex[0]) => {
         if (result.type === 'category') {
-            const cat = kbCategories.find(c => c.label === result.label)
+            const cat = visibleCategories.find(c => c.label === result.label)
             if (cat) onCategoryClick(cat)
         } else if (result.type === 'task') {
             const taskId = result.subtitle.split(' · ')[0]
@@ -394,7 +447,38 @@ function KBHome({
             const med = list.find(m => m.icon === result.label)
             if (med) onMedicationSelect(med)
         }
-    }, [onCategoryClick, onSelectTask, onMedicationSelect, tc3Mode])
+    }, [onCategoryClick, onSelectTask, onMedicationSelect, tc3Mode, visibleCategories])
+
+    // ── Long-press handlers for context menu ──────────────────
+    const handleTouchStart = useCallback((catId: string, e: React.TouchEvent) => {
+        longPressTriggered.current = false
+        const touch = e.touches[0]
+        const pos = { x: touch.clientX, y: touch.clientY }
+        longPressTimer.current = setTimeout(() => {
+            longPressTriggered.current = true
+            setContextMenu({ id: catId, position: pos })
+        }, 500)
+    }, [])
+
+    const handleTouchEnd = useCallback(() => {
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current)
+            longPressTimer.current = null
+        }
+    }, [])
+
+    const handleContextMenu = useCallback((catId: string, e: React.MouseEvent) => {
+        e.preventDefault()
+        setContextMenu({ id: catId, position: { x: e.clientX, y: e.clientY } })
+    }, [])
+
+    const handleCatClick = useCallback((cat: KBCategory) => {
+        if (longPressTriggered.current) {
+            longPressTriggered.current = false
+            return
+        }
+        onCategoryClick(cat)
+    }, [onCategoryClick])
 
     // ── Search results view ───────────────────────────────────
     if (searchResults) {
@@ -433,6 +517,9 @@ function KBHome({
         )
     }
 
+    // ── Pinned items ──────────────────────────────────────────
+    const pinnedItems = visibleCategories.filter(c => pinnedKB.includes(c.id) && !c.comingSoon)
+
     // ── Default category grid ─────────────────────────────────
     // Map category IDs to data-tour values; first screener gets 'kb-screener'
     const tourMap: Record<string, string> = {
@@ -442,11 +529,63 @@ function KBHome({
     }
     let firstScreenerTagged = false
 
+    // Shared category button renderer
+    const renderCatButton = (cat: KBCategory, idx: number, tourAttr?: string) => (
+        <button
+            key={cat.id}
+            onClick={() => handleCatClick(cat)}
+            disabled={cat.comingSoon}
+            onContextMenu={!cat.comingSoon ? (e) => handleContextMenu(cat.id, e) : undefined}
+            onTouchStart={!cat.comingSoon ? (e) => handleTouchStart(cat.id, e) : undefined}
+            onTouchEnd={!cat.comingSoon ? handleTouchEnd : undefined}
+            onTouchCancel={!cat.comingSoon ? handleTouchEnd : undefined}
+            {...(tourAttr ? { 'data-tour': tourAttr } : {})}
+            className={`flex items-center w-full px-4 py-3.5 text-left transition-all
+                ${cat.comingSoon
+                    ? 'opacity-40 cursor-not-allowed'
+                    : 'hover:bg-themewhite2 active:scale-95 cursor-pointer'
+                }
+                ${idx > 0 ? 'border-t border-tertiary/8' : ''}
+            `}
+        >
+            <cat.icon size={18} className={cat.comingSoon ? 'text-tertiary/40' : 'text-primary/70'} />
+            <div className="flex-1 min-w-0 ml-3">
+                <p className={`text-sm font-medium ${cat.comingSoon ? 'text-tertiary' : 'text-primary'}`}>
+                    {cat.label}
+                </p>
+                <p className="text-[10px] text-tertiary/60">
+                    {cat.description}
+                </p>
+            </div>
+            {!cat.comingSoon && pinnedKB.includes(cat.id) && (
+                <Pin size={12} className="text-themeblue2/40 shrink-0 mr-1" />
+            )}
+            {!cat.comingSoon && (
+                <ChevronRight size={16} className="text-tertiary/30 shrink-0" />
+            )}
+        </button>
+    )
+
     return (
         <div className="px-4 py-3 md:p-5" data-tour="kb-category-grid">
+            {/* Pinned section */}
+            {pinnedItems.length > 0 && (
+                <div className="mb-4">
+                    <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider px-2 mb-2">
+                        PINNED
+                    </p>
+                    <div className="rounded-xl bg-themewhite2/50 overflow-hidden">
+                        {pinnedItems.map((cat, idx) => renderCatButton(cat, idx))}
+                    </div>
+                </div>
+            )}
+
             {kbGroupOrder.map(group => {
-                    const items = grouped.get(group)
-                    if (!items?.length) return null
+                    const allItems = grouped.get(group)
+                    if (!allItems?.length) return null
+                    // Filter pinned items out of their normal groups
+                    const items = allItems.filter(c => !pinnedKB.includes(c.id))
+                    if (!items.length) return null
                     return (
                         <div key={group} className="mb-4">
                             <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider px-2 mb-2">
@@ -459,39 +598,22 @@ function KBHome({
                                         tourAttr = 'kb-screener'
                                         firstScreenerTagged = true
                                     }
-                                    return (
-                                    <button
-                                        key={cat.id}
-                                        onClick={() => onCategoryClick(cat)}
-                                        disabled={cat.comingSoon}
-                                        {...(tourAttr ? { 'data-tour': tourAttr } : {})}
-                                        className={`flex items-center w-full px-4 py-3.5 text-left transition-all
-                                            ${cat.comingSoon
-                                                ? 'opacity-40 cursor-not-allowed'
-                                                : 'hover:bg-themewhite2 active:scale-95 cursor-pointer'
-                                            }
-                                            ${idx > 0 ? 'border-t border-tertiary/8' : ''}
-                                        `}
-                                    >
-                                        <cat.icon size={18} className={cat.comingSoon ? 'text-tertiary/40' : 'text-primary/70'} />
-                                        <div className="flex-1 min-w-0 ml-3">
-                                            <p className={`text-sm font-medium ${cat.comingSoon ? 'text-tertiary' : 'text-primary'}`}>
-                                                {cat.label}
-                                            </p>
-                                            <p className="text-[10px] text-tertiary/60">
-                                                {cat.description}
-                                            </p>
-                                        </div>
-                                        {!cat.comingSoon && (
-                                            <ChevronRight size={16} className="text-tertiary/30 shrink-0" />
-                                        )}
-                                    </button>
-                                    )
+                                    return renderCatButton(cat, idx, tourAttr)
                                 })}
                             </div>
                         </div>
                     )
                 })}
+
+            {/* Context menu */}
+            {contextMenu && (
+                <KBItemContextMenu
+                    isPinned={pinnedKB.includes(contextMenu.id)}
+                    position={contextMenu.position}
+                    onTogglePin={() => togglePinKB(contextMenu.id)}
+                    onClose={() => setContextMenu(null)}
+                />
+            )}
         </div>
     )
 }
@@ -769,62 +891,6 @@ function StandaloneScreener({ screenerConfig }: { screenerConfig: ScreenerConfig
                 </div>
             )}
         </div>
-    )
-}
-
-// ── Vital Signs Overlay ─────────────────────────────────────────────────────
-// ActionSheet-style panel that slides up on top of KB content, no separate drawer.
-
-function VitalSignsOverlay({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-    const [mounted, setMounted] = useState(false)
-    const [open, setOpen] = useState(false)
-
-    useEffect(() => {
-        if (isOpen) {
-            setMounted(true)
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => setOpen(true))
-            })
-        } else {
-            setOpen(false)
-            const t = setTimeout(() => setMounted(false), 300)
-            return () => clearTimeout(t)
-        }
-    }, [isOpen])
-
-    const handleClose = useCallback(() => {
-        setOpen(false)
-        setTimeout(onClose, 300)
-    }, [onClose])
-
-    if (!mounted) return null
-
-    return (
-        <>
-            <div
-                className={`absolute inset-0 z-10 bg-black/40 transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0'}`}
-                style={{ pointerEvents: open ? 'auto' : 'none' }}
-                onClick={handleClose}
-            />
-            <div
-                className={`absolute left-3 right-3 bottom-14 z-20 bg-themewhite3 rounded-2xl shadow-xl overflow-hidden
-                    transition-all duration-300 ease-out ${open ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full'}`}
-                style={{ maxHeight: '70%' }}
-            >
-                <div className="flex items-center justify-between px-5 py-3 border-b border-tertiary/10">
-                    <h3 className="text-[15px] font-semibold text-primary">Vital Signs</h3>
-                    <button
-                        onClick={handleClose}
-                        className="text-tertiary hover:text-secondary active:scale-95 transition-all"
-                    >
-                        <X size={18} />
-                    </button>
-                </div>
-                <div className="overflow-y-auto" style={{ maxHeight: 'calc(70dvh - 52px)' }}>
-                    <VitalSignsCalculator />
-                </div>
-            </div>
-        </>
     )
 }
 

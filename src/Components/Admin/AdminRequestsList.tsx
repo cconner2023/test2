@@ -19,11 +19,12 @@ import {
   rejectAccountRequest,
   reopenAccountRequest,
   updateUserProfile,
-  addUserRole,
+  setUserRoles,
   setUserClinic,
 } from '../../lib/adminService'
 import type { AdminClinic } from '../../lib/adminService'
 import type { AccountRequest } from '../../lib/accountRequestService'
+import { invalidate } from '../../stores/useInvalidationStore'
 import { UI_TIMING } from '../../Utilities/constants'
 
 // ─── Constants ──────────────────────────────────────────────
@@ -45,7 +46,7 @@ interface AdminRequestsListProps {
   searchQuery?: string
   /** When true, renders items without wrapper chrome (for unified search results) */
   bare?: boolean
-  onApproved?: (userId: string, request: AccountRequest) => void
+  onApproved?: (userId: string, request: AccountRequest, configured: { roles: string[]; clinicId: string | null; noteIncludeHPI: boolean; noteIncludePE: boolean; peDepth: string }) => void
 }
 
 // ─── Per-card component ─────────────────────────────────────
@@ -71,7 +72,7 @@ function RequestCard({
   setContextMenu: (v: { requestId: string; x: number; y: number } | null) => void
   clinics: AdminClinic[]
   uicToClinic: Map<string, AdminClinic>
-  onApproved?: (userId: string, request: AccountRequest) => void
+  onApproved?: (userId: string, request: AccountRequest, configured: { roles: string[]; clinicId: string | null; noteIncludeHPI: boolean; noteIncludePE: boolean; peDepth: string }) => void
   onRefresh: () => void
 }) {
   const isSupport = request.request_type === 'support'
@@ -135,15 +136,16 @@ function RequestCard({
     setError(null)
 
     const approveResult = await approveAccountRequest(request.id)
-    if (!approveResult.success || !approveResult.data?.userId) {
+    if (!approveResult.success) {
       setError(approveResult.error || 'Failed to approve request')
       setProcessing(false)
       return
     }
 
-    const userId = approveResult.data.userId
+    const userId = approveResult.userId
+    const warnings: string[] = []
 
-    await updateUserProfile(userId, {
+    const profileResult = await updateUserProfile(userId, {
       firstName: firstName || undefined,
       lastName: lastName || undefined,
       middleInitial,
@@ -155,19 +157,30 @@ function RequestCard({
       noteIncludePE,
       peDepth,
     })
+    if (!profileResult.success) warnings.push('Profile update failed')
 
-    for (const role of chosenRoles) {
-      if (role !== 'medic') {
-        await addUserRole(userId, role)
-      }
-    }
+    const rolesResult = await setUserRoles(userId, chosenRoles as ('medic' | 'supervisor' | 'dev' | 'provider')[])
+    if (!rolesResult.success) warnings.push('Role assignment failed')
 
     if (selectedClinicId) {
-      await setUserClinic(userId, selectedClinicId)
+      const clinicResult = await setUserClinic(userId, selectedClinicId)
+      if (!clinicResult.success) warnings.push('Clinic assignment failed')
     }
 
     setProcessing(false)
-    onApproved?.(userId, request)
+
+    if (warnings.length > 0) {
+      setError(`Account created but: ${warnings.join(', ')}. Edit user to fix.`)
+    }
+
+    onApproved?.(userId, request, {
+      roles: chosenRoles,
+      clinicId: selectedClinicId,
+      noteIncludeHPI,
+      noteIncludePE,
+      peDepth,
+    })
+    invalidate('requests', 'users')
     onRefresh()
   }, [
     request, firstName, lastName, middleInitial, credential, component, rank, uic,
@@ -176,7 +189,7 @@ function RequestCard({
 
   const handleReject = useCallback(async () => {
     if (!rejectReason.trim()) {
-      setError('Please provide a rejection reason')
+      setError('Rejection reason required.')
       return
     }
     setProcessing(true)
@@ -185,6 +198,7 @@ function RequestCard({
     setProcessing(false)
     if (result.success) {
       setExpandedId(null)
+      invalidate('requests')
       onRefresh()
     } else {
       setError(result.error || 'Failed to reject request')
@@ -198,6 +212,7 @@ function RequestCard({
     setProcessing(false)
     if (result.success) {
       setExpandedId(null)
+      invalidate('requests')
       onRefresh()
     } else {
       setError(result.error || 'Failed to reopen request')
@@ -277,40 +292,40 @@ function RequestCard({
       {/* Row 2: UIC + clinic (hidden when expanded — form has these fields) */}
       {!isSupport && !isExpanded && request.uic && (
         <div className="flex items-center gap-2 flex-wrap px-4 pb-2">
-          <span className="text-[10pt] text-tertiary">{request.uic}</span>
+          <span className="text-[10pt] font-normal text-tertiary">{request.uic}</span>
           {cardMatchedClinic ? (
-            <span className="inline-flex items-center gap-1 text-[10pt] text-tertiary">
+            <span className="inline-flex items-center gap-1 text-[10pt] font-normal text-tertiary">
               <Building2 size={12} />
               {cardMatchedClinic.name}
             </span>
           ) : (
-            <span className="text-[10pt] text-tertiary">No clinic match</span>
+            <span className="text-[10pt] font-normal text-tertiary">No clinic match</span>
           )}
         </div>
       )}
 
       {/* Notes/justification preview (collapsed only) */}
       {!isSupport && !isExpanded && request.notes && (
-        <p className="text-[10pt] text-tertiary/70 italic px-4 pb-2 line-clamp-2">{request.notes}</p>
+        <p className="text-[10pt] font-normal text-tertiary/70 italic px-4 pb-2 line-clamp-2">{request.notes}</p>
       )}
 
       {/* Support request: show message preview (collapsed only) */}
       {isSupport && !isExpanded && request.notes && (
-        <p className="text-[10pt] text-tertiary px-4 pb-2 line-clamp-2">{request.notes}</p>
+        <p className="text-[10pt] font-normal text-tertiary px-4 pb-2 line-clamp-2">{request.notes}</p>
       )}
 
       {/* Already a user note */}
       {!isExpanded && isExistingUser && (
-        <p className="text-[10pt] text-tertiary px-4 pb-2">Already a user — safe to clear this request</p>
+        <p className="text-[10pt] font-normal text-tertiary px-4 pb-2">Already a user — safe to clear this request</p>
       )}
 
       {/* ── Expanded: support request (simple) ─────────────── */}
       {isExpanded && isSupport && (
         <div className="px-4 pb-3.5 pt-3 border-t border-tertiary/10 space-y-2" onClick={(e) => e.stopPropagation()}>
           {request.notes && (
-            <p className="text-[10pt] text-primary whitespace-pre-wrap">{request.notes}</p>
+            <p className="text-[10pt] font-normal text-primary whitespace-pre-wrap">{request.notes}</p>
           )}
-          <p className="text-[10pt] text-tertiary">
+          <p className="text-[10pt] font-normal text-tertiary">
             Submitted: {new Date(request.requested_at).toLocaleString()}
           </p>
           <div className="flex items-center gap-3 pt-1">
@@ -336,16 +351,15 @@ function RequestCard({
 
             {/* User justification */}
             <div className="rounded-xl bg-themeblue2/5 border border-themeblue2/10 px-3.5 py-2.5">
-              <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1">Justification</p>
+              <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-1">Justification</p>
               <p className={`text-sm whitespace-pre-wrap ${request.notes ? 'text-primary' : 'text-tertiary/40 italic'}`}>
                 {request.notes || 'No justification provided'}
               </p>
             </div>
 
-            {/* Profile — matches AccountRequestForm layout */}
-            <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
-              <div className="space-y-3">
-                <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Edit Account</p>
+            {/* Profile — mirrors AccountRequestForm layout */}
+            <div className="space-y-3">
+                <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Edit Account</p>
 
                 <div className="grid grid-cols-2 gap-2">
                   <TextInput value={firstName} onChange={setFirstName} placeholder="First Name *" required />
@@ -369,7 +383,7 @@ function RequestCard({
                 )}
 
                 <div>
-                  <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1.5 block">UIC</span>
+                  <span className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-1.5 block">UIC</span>
                   <UicPinInput value={uic} onChange={setUic} spread />
                 </div>
 
@@ -380,45 +394,25 @@ function RequestCard({
                     Auto-matched from UIC
                   </p>
                 )}
-              </div>
-            </div>
 
-            {/* Roles */}
-            <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
-              <MultiPickerInput
-                label="Roles"
-                value={roles}
-                onChange={setRoles}
-                options={AVAILABLE_ROLES.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))}
-                placeholder="Roles"
-                required
-              />
-            </div>
+                <MultiPickerInput
+                  label="Roles"
+                  value={roles}
+                  onChange={setRoles}
+                  options={AVAILABLE_ROLES.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))}
+                  placeholder="Roles"
+                  required
+                />
 
-            {/* Note Defaults */}
-            <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
-              <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-2">Note Defaults</p>
-              <div className="space-y-1">
                 <label className="flex items-center justify-between cursor-pointer py-1">
                   <span className="text-sm text-primary">Include HPI</span>
-                  <input
-                    type="checkbox"
-                    checked={noteIncludeHPI}
-                    onChange={() => setNoteIncludeHPI(!noteIncludeHPI)}
-                    className="w-4 h-4 rounded border-tertiary/30"
-                  />
+                  <input type="checkbox" checked={noteIncludeHPI} onChange={() => setNoteIncludeHPI(!noteIncludeHPI)} className="w-4 h-4 rounded border-tertiary/30" />
                 </label>
                 <label className="flex items-center justify-between cursor-pointer py-1">
                   <span className="text-sm text-primary">Include PE</span>
-                  <input
-                    type="checkbox"
-                    checked={noteIncludePE}
-                    onChange={() => setNoteIncludePE(!noteIncludePE)}
-                    className="w-4 h-4 rounded border-tertiary/30"
-                  />
+                  <input type="checkbox" checked={noteIncludePE} onChange={() => setNoteIncludePE(!noteIncludePE)} className="w-4 h-4 rounded border-tertiary/30" />
                 </label>
                 <PickerInput value={peDepth} onChange={setPeDepth} options={['focused', 'standard', 'comprehensive']} placeholder="PE Depth" />
-              </div>
             </div>
 
             {/* Action buttons */}
@@ -428,8 +422,8 @@ function RequestCard({
                   type="text"
                   value={rejectReason}
                   onChange={(e) => setRejectReason(e.target.value)}
-                  placeholder="Rejection reason..."
-                  className="flex-1 min-w-0 px-4 py-2.5 rounded-full bg-themewhite2 border border-tertiary/10 text-sm text-primary placeholder:text-tertiary/40 focus:outline-none focus:border-themeblue2"
+                  placeholder="Reason..."
+                  className="flex-1 min-w-0 px-4 py-2.5 rounded-full bg-themewhite2 border border-tertiary/10 text-sm text-primary placeholder:text-tertiary/40 focus:outline-none focus:border-themeblue2 transition-colors"
                 />
                 <button
                   onClick={() => { setRejectMode(false); setRejectReason('') }}
@@ -478,7 +472,7 @@ function RequestCard({
 
             {/* User justification */}
             <div className="rounded-xl bg-themeblue2/5 border border-themeblue2/10 px-3.5 py-2.5">
-              <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1">Justification</p>
+              <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-1">Justification</p>
               <p className={`text-sm whitespace-pre-wrap ${request.notes ? 'text-primary' : 'text-tertiary/40 italic'}`}>
                 {request.notes || 'No justification provided'}
               </p>
@@ -598,6 +592,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
       setConfirmDeleteId(null)
       setStatus({ type: 'success', message: 'Request permanently deleted' })
       await loadRequests()
+      invalidate('requests')
     } else {
       setStatus({ type: 'error', message: `Failed to delete: ${result.error}` })
     }
@@ -684,7 +679,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
   }
 
   return (
-    <div>
+    <div className="pb-24">
       <div className="px-5 pt-4 pb-2 space-y-5">
         {status && <ErrorDisplay type={status.type} message={status.message} />}
       </div>

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Building2, Users, Inbox, ChevronRight, ChevronDown, AlertTriangle, User } from 'lucide-react'
 import { listClinics, listAllUsers, getAllAccountRequests } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
+import { useInvalidation } from '../../stores/useInvalidationStore'
 
 interface AdminSummaryProps {
   onSelectClinic: (clinic: AdminClinic) => void
@@ -29,6 +30,7 @@ export function AdminSummary({
   activeUserId,
   allSelected,
 }: AdminSummaryProps) {
+  const gen = useInvalidation('users', 'clinics', 'requests')
   const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
   const [pendingCount, setPendingCount] = useState(0)
@@ -45,7 +47,7 @@ export function AdminSummary({
     setPendingCount(requests.length)
   }, [])
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => { loadData() }, [loadData, gen])
 
   const toggleCollapse = useCallback((id: string) => {
     setCollapsed(prev => {

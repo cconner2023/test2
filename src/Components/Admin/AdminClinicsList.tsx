@@ -9,6 +9,7 @@ import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useLongPress } from '../../Hooks/useLongPress'
 import { listClinics, listAllUsers, deleteClinic } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
+import { useInvalidation } from '../../stores/useInvalidationStore'
 import { UI_TIMING } from '../../Utilities/constants'
 
 interface AdminClinicsListProps {
@@ -30,6 +31,7 @@ export function AdminClinicsList({
   bare,
 }: AdminClinicsListProps) {
   const searchQuery = searchQueryProp ?? ''
+  const gen = useInvalidation('clinics', 'users')
 
   // ── Data state ──────────────────────────────────────────────
   const [clinics, setClinics] = useState<AdminClinic[]>([])
@@ -63,7 +65,7 @@ export function AdminClinicsList({
     setLoading(false)
   }, [])
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => { loadData() }, [loadData, gen])
 
   // ── Derived data ────────────────────────────────────────────
 
@@ -196,7 +198,7 @@ export function AdminClinicsList({
   // ── Render ──────────────────────────────────────────────────
 
   return (
-    <div>
+    <div className="pb-24">
       <div className="px-5 pt-4 pb-2 space-y-5">
         {status && <ErrorDisplay type={status.type} message={status.message} />}
       </div>

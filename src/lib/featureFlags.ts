@@ -36,3 +36,15 @@ export const CALENDAR_ENABLED = false;
  * with spotlight overlays and tooltip navigation.
  */
 export const GUIDED_TOURS_ENABLED = true;
+
+/**
+ * BURN_CALCULATOR_ENABLED: When true, the TBSA/Parkland burn assessment
+ * calculator is available in the Knowledge Base calculators section.
+ */
+export const BURN_CALCULATOR_ENABLED = false;
+
+/**
+ * BLOOD_PRODUCTS_ENABLED: When true, the Blood Products quick reference
+ * (MTP, DCR, transfusion protocols) is available in the Knowledge Base.
+ */
+export const BLOOD_PRODUCTS_ENABLED = false;

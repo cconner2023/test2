@@ -8,10 +8,12 @@ interface NavPreferencesState {
   customOrder: string[] | null
   starred: string[]
   hidden: string[]
+  pinnedKB: string[]
 
   toggleStar: (action: string) => void
   toggleHide: (action: string) => void
   moveItem: (action: string, direction: 'up' | 'down', currentOrder: string[]) => void
+  togglePinKB: (id: string) => void
   resetToDefault: () => void
 }
 
@@ -21,6 +23,7 @@ export const useNavPreferencesStore = create<NavPreferencesState>()(
       customOrder: null,
       starred: [],
       hidden: [],
+      pinnedKB: [],
 
       toggleStar: (action) =>
         set((state) => ({
@@ -59,8 +62,15 @@ export const useNavPreferencesStore = create<NavPreferencesState>()(
         })
       },
 
+      togglePinKB: (id) =>
+        set((state) => ({
+          pinnedKB: state.pinnedKB.includes(id)
+            ? state.pinnedKB.filter((a) => a !== id)
+            : [...state.pinnedKB, id],
+        })),
+
       resetToDefault: () =>
-        set({ customOrder: null, starred: [], hidden: [] }),
+        set({ customOrder: null, starred: [], hidden: [], pinnedKB: [] }),
     }),
     { name: 'nav-preferences' },
   ),

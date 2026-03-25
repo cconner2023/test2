@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { Pill, BookOpen, Brain, ClipboardList, Calculator } from 'lucide-react'
+import { Pill, BookOpen, Brain, ClipboardList, Calculator, Droplets } from 'lucide-react'
 
 export type KBGroup = 'medications' | 'training' | 'screening' | 'calculators'
 
@@ -86,12 +86,18 @@ export const kbCategories: KBCategory[] = [
         group: 'calculators',
     },
     {
+        id: 'blood-products',
+        label: 'Blood Products',
+        description: 'MTP, DCR & transfusion protocols',
+        icon: Droplets,
+        group: 'calculators',
+    },
+    {
         id: 'burn',
         label: 'Burn Assessment',
-        description: 'Coming soon',
+        description: 'TBSA & Parkland formula',
         icon: Calculator,
         group: 'calculators',
-        comingSoon: true,
     },
 ]
 

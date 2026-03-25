@@ -11,6 +11,7 @@ import { useIsMobile } from '../Hooks/useIsMobile'
 import { UI_TIMING } from '../Utilities/constants'
 import { deleteClinic, deleteUser, listAllUsers, listClinics } from '../lib/adminService'
 import { useAuthStore } from '../stores/useAuthStore'
+import { invalidate } from '../stores/useInvalidationStore'
 
 // Admin sub-components
 import { AdminRequestsList } from './Admin/AdminRequestsList'
@@ -118,7 +119,11 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setView('admin-clinic-detail')
     }, [handleSlideAnimation])
 
-    const handleRequestApproved = useCallback((userId: string, request: AccountRequest) => {
+    const handleRequestApproved = useCallback((
+        userId: string,
+        request: AccountRequest,
+        configured: { roles: string[]; clinicId: string | null; noteIncludeHPI: boolean; noteIncludePE: boolean; peDepth: string },
+    ) => {
         const newUser: AdminUser = {
             id: userId,
             email: request.email,
@@ -129,16 +134,17 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             component: request.component ?? null,
             rank: request.rank ?? null,
             uic: request.uic ?? null,
-            roles: ['medic'],
-            clinic_id: null,
+            roles: configured.roles,
+            clinic_id: configured.clinicId,
             created_at: new Date().toISOString(),
             last_active_at: null,
-            note_include_hpi: true,
-            note_include_pe: false,
-            pe_depth: 'standard',
+            note_include_hpi: configured.noteIncludeHPI,
+            note_include_pe: configured.noteIncludePE,
+            pe_depth: configured.peDepth,
             avatar_id: null,
         }
         handleSelectUser(newUser)
+        invalidate('requests', 'users')
     }, [handleSelectUser])
 
     const handleEditClinic = useCallback((clinic: AdminClinic) => {
@@ -192,6 +198,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setDeleteClinicProcessing(false)
         setConfirmDeleteClinic(false)
         if (result.success) {
+            invalidate('clinics', 'users')
             handleBack()
         }
     }, [selectedClinic, handleBack])
@@ -203,6 +210,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setDeleteUserProcessing(false)
         setConfirmDeleteUser(false)
         if (result.success) {
+            invalidate('users', 'clinics', 'requests')
             handleBack()
         }
     }, [selectedUser, handleBack])
@@ -408,6 +416,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         } else {
             handleBack()
         }
+        invalidate('users')
     }, [handleBack])
 
     // After creating a clinic, load full clinic and switch to view mode
@@ -420,6 +429,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         } else {
             handleBack()
         }
+        invalidate('clinics')
     }, [handleBack])
 
     // Render active content
@@ -542,7 +552,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     // Shared: unified search results across all tabs
     const renderSearchResults = () => (
-        <div className="px-5 pb-4">
+        <div className="px-5 pt-4 pb-4">
             <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-themeblue3/10">
                 <AdminRequestsList
                     searchQuery={searchQuery}
