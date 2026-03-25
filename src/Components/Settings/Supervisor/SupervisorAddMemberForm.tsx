@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { UserPlus, Search, UserCheck } from 'lucide-react'
-import { TextInput, PickerInput, PasswordInput, UicPinInput } from '../../FormInputs'
+import { TextInput, PickerInput, PasswordInput } from '../../FormInputs'
 import { ErrorDisplay } from '../../ErrorDisplay'
 import { credentials, components, ranksByComponent } from '../../../Data/User'
 import type { Component } from '../../../Data/User'
@@ -31,8 +31,9 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
   const [credential, setCredential] = useState('')
   const [component, setComponent] = useState('')
   const [rank, setRank] = useState('')
-  const [uic, setUic] = useState('')
   const [tempPassword, setTempPassword] = useState('')
+  const [isSupervisor, setIsSupervisor] = useState(false)
+  const [isProvider, setIsProvider] = useState(false)
 
   // ── UI state ──────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false)
@@ -98,6 +99,10 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
     setSubmitting(true)
     setError(null)
 
+    const roles: ('medic' | 'supervisor' | 'provider')[] = ['medic']
+    if (isSupervisor) roles.push('supervisor')
+    if (isProvider) roles.push('provider')
+
     const result = await createClinicUser({
       clinicId,
       email: email.trim(),
@@ -108,7 +113,7 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
       credential: credential || undefined,
       component: component || undefined,
       rank: rank || undefined,
-      uic: uic || undefined,
+      roles,
     })
 
     setSubmitting(false)
@@ -118,7 +123,7 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
     } else {
       setError(result.error)
     }
-  }, [clinicId, email, tempPassword, firstName, lastName, middleInitial, credential, component, rank, uic, onSaved])
+  }, [clinicId, email, tempPassword, firstName, lastName, middleInitial, credential, component, rank, isSupervisor, isProvider, onSaved])
 
   const handleComponentChange = useCallback((val: string) => {
     setComponent(val)
@@ -229,7 +234,36 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
             <PickerInput label="Component" value={component} onChange={handleComponentChange} options={components} />
           </div>
           {component && <PickerInput label="Rank" value={rank} onChange={setRank} options={componentRanks} />}
-          <UicPinInput label="UIC" value={uic} onChange={setUic} spread />
+
+          {/* ── Role Toggles ──────────────────────────────────────── */}
+          <div className="space-y-2">
+            <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Roles</p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setIsSupervisor(v => !v)}
+                className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-all active:scale-95 ${
+                  isSupervisor
+                    ? 'bg-themeblue3 text-white'
+                    : 'bg-tertiary/10 text-tertiary'
+                }`}
+              >
+                Supervisor
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsProvider(v => !v)}
+                className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-all active:scale-95 ${
+                  isProvider
+                    ? 'bg-themeblue3 text-white'
+                    : 'bg-tertiary/10 text-tertiary'
+                }`}
+              >
+                Provider
+              </button>
+            </div>
+            <p className="text-[10px] text-tertiary/40">All users receive the Medic role by default.</p>
+          </div>
 
           <button
             onClick={handleCreate}

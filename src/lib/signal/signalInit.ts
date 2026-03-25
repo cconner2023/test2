@@ -38,76 +38,97 @@ function isSignedPreKeyExpired(createdAt: string): boolean {
   return ageMs >= maxAgeMs
 }
 
+async function retryUpload(bundle: NonNullable<Awaited<ReturnType<typeof assemblePublicKeyBundle>>>): Promise<boolean> {
+  const backoffs = [500, 1500, 4500]
+  for (let attempt = 0; attempt < backoffs.length; attempt++) {
+    const result = await uploadKeyBundle(bundle)
+    if (result.ok) return true
+    logger.warn(`Bundle upload attempt ${attempt + 1} failed:`, result.error)
+    if (attempt < backoffs.length - 1) {
+      await new Promise(r => setTimeout(r, backoffs[attempt]))
+    }
+  }
+  return false
+}
+
 /**
  * Initialize Signal Protocol key material and upload bundle.
  *
  * Steps:
  * 1. Ensure local identity exists (no-op if already generated)
- * 2. Register device with role classification (primary/linked/provisional)
+ * 2. In parallel:
+ *    a. Register device with role classification (primary/linked/provisional)
+ *    b. Prepare key material (signed pre-key + one-time pre-keys)
  * 3. Fire-and-forget stale device cleanup (30 min threshold)
- * 4. Generate signed pre-key if needed
- * 5. Top up one-time pre-keys if below half batch size
- * 6. Assemble and upload public key bundle to Supabase (with deviceId)
- * 7. Return { deviceId, role, hasPrimary }
+ * 4. Assemble public key bundle (needs identity + keys from 2b)
+ * 5. Upload bundle with retry (up to 3 attempts, exponential backoff)
+ * 6. Return { deviceId, role, hasPrimary }
  */
 export async function initSignalBundle(userId: string): Promise<SignalInitResult | null> {
   logger.info('Initializing Signal key bundle')
 
-  // 1. Identity
+  // 1. Identity — everything depends on this
   const identity = await ensureLocalIdentity()
 
-  // 2. Register device with role
-  let regResult = await registerDeviceWithRole(identity.deviceId, getDeviceLabel(), isPWA)
+  // 2. Parallel: device registration + key material preparation
+  const [regOutcome] = await Promise.all([
+    // 2a. Register device with role
+    (async () => {
+      let regResult = await registerDeviceWithRole(identity.deviceId, getDeviceLabel(), isPWA)
 
-  // If registration was rejected (e.g., another device is already primary),
-  // retry as a non-primary device so we still get registered in user_devices.
-  if (regResult.ok && !regResult.data.registered && isPWA) {
-    logger.info('Primary registration rejected — retrying as linked device')
-    regResult = await registerDeviceWithRole(identity.deviceId, getDeviceLabel(), false)
-  }
+      // If registration was rejected (e.g., another device is already primary),
+      // retry as a non-primary device so we still get registered in user_devices.
+      if (regResult.ok && !regResult.data.registered && isPWA) {
+        logger.info('Primary registration rejected — retrying as linked device')
+        regResult = await registerDeviceWithRole(identity.deviceId, getDeviceLabel(), false)
+      }
 
-  if (!regResult.ok || !regResult.data.registered) {
-    const reason = regResult.ok ? regResult.data.error : regResult.error
-    logger.warn('Device registration failed:', reason)
-    // Non-fatal — continue with bundle upload but we can't classify
-  }
+      if (!regResult.ok || !regResult.data.registered) {
+        const reason = regResult.ok ? regResult.data.error : regResult.error
+        logger.warn('Device registration failed:', reason)
+      }
 
-  const role: DeviceRole = regResult.ok && regResult.data.role ? regResult.data.role : 'provisional'
-  const hasPrimary = regResult.ok ? (regResult.data.hasPrimary ?? false) : false
+      return regResult
+    })(),
+
+    // 2b. Key material preparation
+    (async () => {
+      const existingSpk = await loadLatestSignedPreKey()
+      if (!existingSpk || isSignedPreKeyExpired(existingSpk.createdAt)) {
+        logger.info(existingSpk ? 'Signed pre-key expired, rotating' : 'No signed pre-key, generating')
+        await generateSignedPreKey()
+      }
+
+      pruneOldSignedPreKeys(SIGNAL.SIGNED_PREKEY_MAX_AGE_DAYS).catch(() => {})
+
+      const currentCount = await getPreKeyCount()
+      const threshold = Math.floor(SIGNAL.PREKEY_BATCH_SIZE / 2)
+
+      if (currentCount < threshold) {
+        const needed = SIGNAL.PREKEY_BATCH_SIZE - currentCount
+        logger.info(`Pre-key count ${currentCount} below threshold ${threshold}, generating ${needed}`)
+        await generatePreKeys(needed)
+      }
+    })(),
+  ])
+
+  const role: DeviceRole = regOutcome.ok && regOutcome.data.role ? regOutcome.data.role : 'provisional'
+  const hasPrimary = regOutcome.ok ? (regOutcome.data.hasPrimary ?? false) : false
 
   // 3. Fire-and-forget stale device cleanup on every login
   cleanupStaleDevices(30).catch(() => {})
 
-  // 4. Signed pre-key — only generate if missing or expired
-  const existingSpk = await loadLatestSignedPreKey()
-  if (!existingSpk || isSignedPreKeyExpired(existingSpk.createdAt)) {
-    logger.info(existingSpk ? 'Signed pre-key expired, rotating' : 'No signed pre-key, generating')
-    await generateSignedPreKey()
-  }
-
-  // 4b. Prune signed pre-keys older than 30 days (keep latest always)
-  pruneOldSignedPreKeys(SIGNAL.SIGNED_PREKEY_MAX_AGE_DAYS).catch(() => {})
-
-  // 5. Top up OTP keys if running low
-  const currentCount = await getPreKeyCount()
-  const threshold = Math.floor(SIGNAL.PREKEY_BATCH_SIZE / 2)
-
-  if (currentCount < threshold) {
-    const needed = SIGNAL.PREKEY_BATCH_SIZE - currentCount
-    logger.info(`Pre-key count ${currentCount} below threshold ${threshold}, generating ${needed}`)
-    await generatePreKeys(needed)
-  }
-
-  // 6. Assemble and upload (with deviceId)
+  // 4. Assemble bundle (needs identity + keys from step 2b)
   const bundle = await assemblePublicKeyBundle(userId, identity.deviceId)
   if (!bundle) {
     logger.warn('Could not assemble bundle — skipping upload')
     return { deviceId: identity.deviceId, role, hasPrimary }
   }
 
-  const result = await uploadKeyBundle(bundle)
-  if (!result.ok) {
-    logger.warn('Bundle upload failed:', result.error)
+  // 5. Upload with retry (3 attempts, exponential backoff)
+  const uploaded = await retryUpload(bundle)
+  if (!uploaded) {
+    logger.warn('Bundle upload failed after all retry attempts')
     return { deviceId: identity.deviceId, role, hasPrimary }
   }
 

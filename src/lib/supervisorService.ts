@@ -315,6 +315,7 @@ export interface MemberProfileData {
   component: string | null
   rank: string | null
   uic: string | null
+  roles: string[]
 }
 
 export async function getMemberProfile(
@@ -323,7 +324,7 @@ export async function getMemberProfile(
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('first_name, last_name, middle_initial, credential, component, rank, uic')
+      .select('first_name, last_name, middle_initial, credential, component, rank, uic, roles')
       .eq('id', userId)
       .single()
 
@@ -338,6 +339,7 @@ export async function getMemberProfile(
       component: data.component,
       rank: data.rank,
       uic: data.uic,
+      roles: (data.roles as string[]) ?? ['medic'],
     })
   } catch (error) {
     logger.error('Failed to get member profile:', error)
@@ -376,6 +378,24 @@ export async function updateMemberProfile(
     return succeed()
   } catch (error) {
     logger.error('Failed to update member profile:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+export async function setMemberRoles(
+  userId: string,
+  roles: ('medic' | 'supervisor' | 'provider')[]
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('set_user_roles', {
+      target_user_id: userId,
+      new_roles: roles,
+    })
+
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to set member roles:', error)
     return fail(getErrorMessage(error))
   }
 }

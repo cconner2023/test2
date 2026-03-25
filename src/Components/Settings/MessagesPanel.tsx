@@ -6,6 +6,7 @@ import { HeaderPill, PillButton } from '../HeaderPill'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import { useMessagingStore } from '../../stores/useMessagingStore'
+import { useAuthStore } from '../../stores/useAuthStore'
 import type { RequestStatus } from '../../Hooks/useMessages'
 import { ContactListItem } from './ContactListItem'
 import { GroupListItem } from './GroupListItem'
@@ -93,6 +94,7 @@ function ConversationPane({
 }: ConversationPaneProps) {
   const { user } = useAuth()
   const userId = user?.id ?? null
+  const signalReady = useAuthStore(s => s.signalReady)
   const { currentAvatar } = useAvatar()
   const { ownClinicMedics, nearbyByClinic, nearbyClinicNames } = useClinicGroupedMedics(medics)
   const [pinnedKeys, setPinnedKeys] = useState<Set<string>>(new Set())
@@ -203,6 +205,12 @@ function ConversationPane({
 
   return (
     <div className="flex flex-col">
+      {!signalReady && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-themeblue3/10 border-b border-themeblue3/20">
+          <div className="w-3 h-3 border-2 border-themeblue3 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs text-themeblue3 font-medium">Setting up encryption…</span>
+        </div>
+      )}
       <div className="py-1">
         {/* Search results */}
         {searchResults ? (

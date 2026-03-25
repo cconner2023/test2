@@ -25,6 +25,7 @@ import {
   createClinicUser,
   getMemberProfile,
   updateMemberProfile,
+  setMemberRoles,
   type UserLookupResult,
   type MemberProfileData,
 } from '../../lib/supervisorService'
@@ -156,6 +157,7 @@ export function ClinicPanel({
   const [editComponent, setEditComponent] = useState('')
   const [editRank, setEditRank] = useState('')
   const [editUic, setEditUic] = useState('')
+  const [editRoles, setEditRoles] = useState<('medic' | 'supervisor' | 'provider')[]>(['medic'])
 
   // Join section
   const [joinCode, setJoinCode] = useState('')
@@ -391,6 +393,7 @@ export function ClinicPanel({
     setEditComponent(profile.component ?? '')
     setEditRank(profile.rank ?? '')
     setEditUic(profile.uic ?? '')
+    setEditRoles((profile.roles ?? ['medic']) as ('medic' | 'supervisor' | 'provider')[])
   }, [])
 
   const clearExpandedState = useCallback(() => {
@@ -484,15 +487,30 @@ export function ClinicPanel({
     const editsToApply = [...stagedEdits.values()].filter(e => !deleteSelection.has(e.memberId))
     const editResults = await Promise.allSettled(
       editsToApply.map(async (edit) => {
-        return updateMemberProfile(edit.memberId, {
-          firstName: edit.changes.firstName ?? undefined,
-          lastName: edit.changes.lastName ?? undefined,
-          middleInitial: edit.changes.middleInitial ?? undefined,
-          credential: edit.changes.credential ?? undefined,
-          component: edit.changes.component ?? undefined,
-          rank: edit.changes.rank ?? undefined,
-          uic: edit.changes.uic ?? undefined,
-        })
+        const { roles: _roles, ...profileChanges } = edit.changes
+        const results: ServiceResult[] = []
+
+        // Update profile fields if any changed
+        if (Object.keys(profileChanges).length > 0) {
+          results.push(await updateMemberProfile(edit.memberId, {
+            firstName: profileChanges.firstName ?? undefined,
+            lastName: profileChanges.lastName ?? undefined,
+            middleInitial: profileChanges.middleInitial ?? undefined,
+            credential: profileChanges.credential ?? undefined,
+            component: profileChanges.component ?? undefined,
+            rank: profileChanges.rank ?? undefined,
+            uic: profileChanges.uic ?? undefined,
+          }))
+        }
+
+        // Update roles if changed
+        if (edit.changes.roles) {
+          results.push(await setMemberRoles(edit.memberId, edit.changes.roles as ('medic' | 'supervisor' | 'provider')[]))
+        }
+
+        // Fail if any sub-operation failed
+        const failed = results.find(r => !r.success)
+        return failed ?? { success: true as const }
       })
     )
     const failedEditsList = editsToApply.filter((_, i) => {
@@ -567,10 +585,23 @@ export function ClinicPanel({
       setExpandedProfile(result.data)
       populateEditForm(result.data)
     } else {
-      setExpandedProfile(null)
+      // Fetch failed — build fallback from list data so the form still opens
+      const member = medics.find(m => m.id === memberId)
+      const fallback: MemberProfileData = {
+        firstName: member?.firstName ?? null,
+        lastName: member?.lastName ?? null,
+        middleInitial: member?.middleInitial ?? null,
+        credential: member?.credential ?? null,
+        component: null,
+        rank: member?.rank ?? null,
+        uic: null,
+        roles: ['medic'],
+      }
+      setExpandedProfile(fallback)
+      populateEditForm(fallback)
     }
     setExpandedLoading(false)
-  }, [expandedMemberId, stagedEdits, populateEditForm, clearExpandedState])
+  }, [expandedMemberId, stagedEdits, medics, populateEditForm, clearExpandedState])
 
   const handleEditConfirm = useCallback(() => {
     if (!expandedMemberId || !expandedProfile) return
@@ -583,13 +614,22 @@ export function ClinicPanel({
       component: editComponent || null,
       rank: editRank || null,
       uic: editUic || null,
+      roles: editRoles,
     }
 
     // Build diff — only include changed fields
     const changes: Partial<MemberProfileData> = {}
     for (const key of Object.keys(current) as (keyof MemberProfileData)[]) {
-      if (current[key] !== expandedProfile[key]) {
-        changes[key] = current[key]
+      if (key === 'roles') {
+        const origRoles = (expandedProfile.roles ?? ['medic']).slice().sort().join(',')
+        const currRoles = editRoles.slice().sort().join(',')
+        if (origRoles !== currRoles) {
+          changes.roles = editRoles
+        }
+      } else {
+        if (current[key] !== expandedProfile[key]) {
+          (changes as Record<string, unknown>)[key] = current[key]
+        }
       }
     }
 
@@ -609,7 +649,7 @@ export function ClinicPanel({
     }
 
     clearExpandedState()
-  }, [expandedMemberId, expandedProfile, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, deleteSelection, onDeleteSelectionChange, clearExpandedState])
+  }, [expandedMemberId, expandedProfile, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editRoles, deleteSelection, onDeleteSelectionChange, clearExpandedState])
 
   const handleEditDelete = useCallback(() => {
     if (!expandedMemberId) return
@@ -1157,6 +1197,32 @@ export function ClinicPanel({
               </div>
             </div>
 
+            {/* Edit member — separate card when expanded */}
+            <div className={`overflow-hidden transition-all duration-300 ease-out ${
+              expandedMemberId ? 'max-h-[700px] opacity-100 mb-3' : 'max-h-0 opacity-0'
+            }`}>
+              {expandedMemberId && (
+                <MemberEditForm
+                  loading={expandedLoading}
+                  memberName={(() => {
+                    const m = members.find(m => m.id === expandedMemberId)
+                    return m ? `${m.rank ? m.rank + ' ' : ''}${m.lastName}, ${m.firstName}` : 'Member'
+                  })()}
+                  firstName={editFirstName} onFirstName={setEditFirstName}
+                  lastName={editLastName} onLastName={setEditLastName}
+                  middleInitial={editMiddleInitial} onMiddleInitial={(v) => setEditMiddleInitial(v.toUpperCase().slice(0, 1))}
+                  credential={editCredential} onCredential={setEditCredential}
+                  component={editComponent} onComponent={handleEditComponentChange}
+                  rank={editRank} onRank={setEditRank}
+                  uic={editUic} onUic={(v) => setEditUic(v.toUpperCase())}
+                  roles={editRoles} onRoles={setEditRoles}
+                  onCancel={clearExpandedState}
+                  onDelete={handleEditDelete}
+                  onConfirm={handleEditConfirm}
+                />
+              )}
+            </div>
+
             <div className="rounded-xl bg-themewhite2 overflow-hidden">
               <div className="px-4 py-3">
                 {/* Add Member — inline, edit-gated (lookup mode only) */}
@@ -1289,22 +1355,7 @@ export function ClinicPanel({
                             </div>
                           </div>
 
-                          {/* Expanded inline edit form */}
-                          {isExpanded && (
-                            <MemberEditForm
-                              loading={expandedLoading}
-                              firstName={editFirstName} onFirstName={setEditFirstName}
-                              lastName={editLastName} onLastName={setEditLastName}
-                              middleInitial={editMiddleInitial} onMiddleInitial={(v) => setEditMiddleInitial(v.toUpperCase().slice(0, 1))}
-                              credential={editCredential} onCredential={setEditCredential}
-                              component={editComponent} onComponent={handleEditComponentChange}
-                              rank={editRank} onRank={setEditRank}
-                              uic={editUic} onUic={(v) => setEditUic(v.toUpperCase())}
-                              onCancel={clearExpandedState}
-                              onDelete={handleEditDelete}
-                              onConfirm={handleEditConfirm}
-                            />
-                          )}
+                          {/* Edit indicator — highlight in list when expanded */}
                         </div>
                       )
                     })}
@@ -1477,10 +1528,11 @@ function AddMemberCreateForm(props: CreateFormProps) {
   )
 }
 
-// ─── Private: Inline Member Edit Form ───────────────────────────────
+// ─── Private: Member Edit Form (separate card) ──────────────────────
 
 interface MemberEditFormProps {
   loading: boolean
+  memberName: string
   firstName: string; onFirstName: (v: string) => void
   lastName: string; onLastName: (v: string) => void
   middleInitial: string; onMiddleInitial: (v: string) => void
@@ -1488,6 +1540,7 @@ interface MemberEditFormProps {
   component: string; onComponent: (v: string) => void
   rank: string; onRank: (v: string) => void
   uic: string; onUic: (v: string) => void
+  roles: ('medic' | 'supervisor' | 'provider')[]; onRoles: (v: ('medic' | 'supervisor' | 'provider')[]) => void
   onCancel: () => void
   onDelete: () => void
   onConfirm: () => void
@@ -1513,8 +1566,14 @@ function MemberEditForm(props: MemberEditFormProps) {
   }, [])
 
   useEffect(() => {
-    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-  }, [])
+    if (!props.loading && userData) {
+      // Delay slightly to let the max-h transition start revealing the card
+      const t = setTimeout(() => {
+        formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }, 50)
+      return () => clearTimeout(t)
+    }
+  }, [props.loading, userData])
 
   const componentRanks = props.component && userData
     ? userData.ranksByComponent[props.component] ?? []
@@ -1522,14 +1581,18 @@ function MemberEditForm(props: MemberEditFormProps) {
 
   if (props.loading || !userData) {
     return (
-      <div ref={formRef} className="flex items-center justify-center py-6 ml-11">
+      <div ref={formRef} className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3 flex items-center justify-center py-6">
         <div className="w-4 h-4 border-2 border-themeblue3 border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
 
   return (
-    <div ref={formRef} className="ml-11 pt-2 pb-3 space-y-3 border-l-2 border-themeblue2/20 pl-3">
+    <div ref={formRef} className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3 space-y-3">
+      <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">
+        Editing — {props.memberName}
+      </p>
+
       <div className="grid grid-cols-2 gap-2">
         <input
           type="text"
@@ -1574,23 +1637,53 @@ function MemberEditForm(props: MemberEditFormProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <div className="flex-1 min-w-0">
-          <PickerInput
-            value={props.rank}
-            onChange={props.onRank}
-            options={componentRanks}
-            placeholder="Rank"
-          />
-        </div>
-      </div>
+      {props.component && (
+        <PickerInput
+          value={props.rank}
+          onChange={props.onRank}
+          options={componentRanks}
+          placeholder="Rank"
+        />
+      )}
 
       <div>
         <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1.5 block">UIC</span>
         <UicPinInput value={props.uic} onChange={props.onUic} spread />
       </div>
 
-      <div className="flex items-center justify-end gap-2 pt-1">
+      <div className="flex items-center gap-2 pt-1">
+        <label className="flex items-center gap-2.5 cursor-pointer min-w-0">
+          <span className="text-sm text-primary">Supervisor</span>
+          <div
+            onClick={() => {
+              const has = props.roles.includes('supervisor')
+              props.onRoles(has ? props.roles.filter(r => r !== 'supervisor') : [...props.roles, 'supervisor'])
+            }}
+            className={`relative w-9 h-5 shrink-0 rounded-full transition-colors duration-200 ${
+              props.roles.includes('supervisor') ? 'bg-themeblue3' : 'bg-tertiary/20'
+            }`}
+          >
+            <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+              props.roles.includes('supervisor') ? 'translate-x-4' : 'translate-x-0'
+            }`} />
+          </div>
+        </label>
+        <label className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0">
+          <span className="text-sm text-primary">Provider</span>
+          <div
+            onClick={() => {
+              const has = props.roles.includes('provider')
+              props.onRoles(has ? props.roles.filter(r => r !== 'provider') : [...props.roles, 'provider'])
+            }}
+            className={`relative w-9 h-5 shrink-0 rounded-full transition-colors duration-200 ${
+              props.roles.includes('provider') ? 'bg-themeblue3' : 'bg-tertiary/20'
+            }`}
+          >
+            <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+              props.roles.includes('provider') ? 'translate-x-4' : 'translate-x-0'
+            }`} />
+          </div>
+        </label>
         <button
           type="button"
           onClick={props.onCancel}

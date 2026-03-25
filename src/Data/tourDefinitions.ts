@@ -859,7 +859,7 @@ const clinicManagementTour: TourDefinition = {
     // ── Highlight edit button ──
     {
       target: 'clinic-edit-button',
-      text: 'Tap edit to modify clinic details, manage associations, and add or remove personnel. All changes are staged until you confirm.',
+      text: 'Tap edit to modify clinic details, manage associations, and add, edit, or remove personnel. All changes are staged until you confirm.',
       placement: 'bottom',
       pausePoint: true,
     },
@@ -884,9 +884,9 @@ const clinicManagementTour: TourDefinition = {
     // ── Personnel section ──
     {
       target: 'clinic-personnel',
-      text: 'Your assigned personnel. In edit mode, tap a member to mark them for removal — they highlight in red.',
+      text: 'Your assigned personnel. In edit mode, tap a member to open their profile card — edit name, credentials, rank, roles, and UIC. Changes stage with a blue indicator.',
       placement: 'top',
-      duration: 5000,
+      duration: 6000,
     },
     // ── Add member ──
     {
@@ -898,7 +898,7 @@ const clinicManagementTour: TourDefinition = {
     // ── Save / confirm ──
     {
       target: 'clinic-save-button',
-      text: 'All changes are batched — member adds, clinic associations, and removals commit together when you tap save. Nothing is permanent until you confirm.',
+      text: 'All changes are batched — profile edits, role changes, member adds, clinic associations, and removals commit together when you save. Nothing is permanent until you confirm.',
       placement: 'bottom',
       pausePoint: true,
       afterStep: 'clinic:cleanup',

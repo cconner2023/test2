@@ -5,6 +5,7 @@ import { MessageBubble } from './Settings/MessageBubble'
 import { MessageContextMenu } from './Settings/MessageContextMenu'
 import { ContactListItem } from './Settings/ContactListItem'
 import { useAuth } from '../Hooks/useAuth'
+import { useAuthStore } from '../stores/useAuthStore'
 import { useImagePaste } from '../Hooks/useImagePaste'
 import { useIOSKeyboard } from '../Hooks/useIOSKeyboard'
 import { useChatInteractions } from '../Hooks/useChatInteractions'
@@ -166,6 +167,7 @@ export function ChatDetailView({
 }: ChatDetailViewProps) {
   const { user } = useAuth()
   const userId = user?.id ?? ''
+  const signalReady = useAuthStore(s => s.signalReady)
   const [text, setText] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -334,6 +336,7 @@ export function ChatDetailView({
   const someUnavailable = unavailableParticipants.length > 0 && !allUnavailable
 
   const inputDisabled = sending
+    || !signalReady
     || (requestFlow?.status === 'sent')
     || (allUnavailable && !isSelfChat)
 

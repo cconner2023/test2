@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 
 /**
  * Full-screen loading overlay shown during first-time login while
- * Signal Protocol keys and profile data are fetched. Matches the
- * HTML splash screen aesthetic (reuses its CSS keyframes from index.html).
+ * profile data is fetched. Signal init continues in the background
+ * after this dismisses. Matches the HTML splash screen aesthetic.
  *
  * Returning users never see this — sessionReady starts true for them.
  */
@@ -61,7 +61,7 @@ export function PostLoginLoader({ ready, onDone }: { ready: boolean; onDone: () 
         className="mt-6 text-sm"
         style={{ fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif", color: subtextColor }}
       >
-        Establishing secure session…
+        Loading profile…
       </div>
     </div>
   )

@@ -73,6 +73,8 @@ interface AuthState {
   localSession: LocalSession | null
   /** True once critical-path init (Signal + profile) completes. Starts true for returning users. */
   sessionReady: boolean
+  /** True once Signal Protocol bundle is initialized. False only during first-login init. */
+  signalReady: boolean
 }
 
 interface AuthActions {
@@ -291,6 +293,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       deviceRole: null,
       localSession: null,
       sessionReady: false,
+      signalReady: false,
     })
     clearLocalSessionStorage()
     clearProfileStorage()
@@ -393,12 +396,11 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       const profileP = get().refreshProfile()
 
       // Initialize Signal Protocol keys independently of profile fetch.
-      // This must not be gated behind refreshProfile so that keys are
-      // generated even when the profile fetch fails (e.g., brief network
-      // hiccup on PWA resume). initSignalBundle is idempotent.
-      const signalP = initSignalBundle(userId).then(initResult => {
+      // Signal init runs in the background — the app unlocks after profile only.
+      // Messaging surfaces read `signalReady` to show a subtle init state.
+      initSignalBundle(userId).then(initResult => {
         if (initResult) {
-          set({ deviceRole: initResult.role })
+          set({ deviceRole: initResult.role, signalReady: true })
           startHeartbeat(userId, initResult.deviceId)
           updateCleanupDeviceId(initResult.deviceId)
           updateCleanupIsPrimary(initResult.role === 'primary')
@@ -427,18 +429,18 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
             .then(() => scheduleBackup(userId))
             .catch(() => scheduleBackup(userId))
         }
-      }).catch(() => {})
+      }).catch(() => { set({ signalReady: true }) }) // Mark ready even on failure — don't block UI permanently
 
-      // First login on this device: gate the UI until critical-path init completes.
+      // Progressive unlock: first login gates UI on profile only (not Signal).
       // Returning users (localSession exists) skip this — sessionReady is already true.
       if (isFirstSession) {
-        Promise.all([profileP, signalP]).finally(() => {
+        profileP.finally(() => {
           if (!get().sessionReady) set({ sessionReady: true })
         })
-        // Safety net: never block the UI longer than 10 seconds
+        // Safety net: never block the UI longer than 5 seconds
         setTimeout(() => {
           if (!get().sessionReady) set({ sessionReady: true })
-        }, 10_000)
+        }, 5_000)
       }
     }
   }
@@ -462,6 +464,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
   deviceRole: null,
   localSession: loadLocalSessionSync(),
   sessionReady: hasLocalSession,
+  signalReady: hasLocalSession,
 
   init: () => {
     // Hydrate local session from encrypted storage (upgrade over sync localStorage read)
@@ -525,7 +528,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
   },
 
   continueAsGuest: () => {
-    set({ isGuest: true, user: null, sessionReady: true })
+    set({ isGuest: true, user: null, sessionReady: true, signalReady: true })
   },
 
   signOut: async () => {

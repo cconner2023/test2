@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/useAuthStore'
 import { loadCachedClinicUsers, saveCachedClinicUsers } from '../lib/clinicUsersCache'
@@ -10,11 +10,16 @@ const logger = createLogger('ClinicMedics')
 /** Fetches medics from the same clinic + associated clinics (via RPC), with fallback. */
 export function useClinicMedics() {
   const [medics, setMedics] = useState<ClinicMedic[]>([])
-  const [loading, setLoading] = useState(true)
+  // Start not-loading — cache hydration is near-instant and will populate medics
+  // before the first paint. Only flip to loading if cache is empty (cold start).
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Subscribe reactively so fetchMedics re-runs when auth resolves
   const userId = useAuthStore(s => s.user?.id ?? null)
+
+  // Track whether we've hydrated from cache so background refreshes stay silent
+  const hasCacheRef = useRef(false)
 
   const fetchMedics = useCallback(async () => {
     if (!userId) {
@@ -23,7 +28,11 @@ export function useClinicMedics() {
       return
     }
 
-    setLoading(true)
+    // Only show loading spinner on cold start (no cache). Background refreshes
+    // after cache hydration are silent — no flash.
+    if (!hasCacheRef.current) {
+      setLoading(true)
+    }
     setError(null)
 
     try {
@@ -120,19 +129,25 @@ export function useClinicMedics() {
 
     let cancelled = false
 
-    // Load from IDB cache first for instant render
+    // Load from IDB cache first for instant render, then refresh silently
     loadCachedClinicUsers().then(cached => {
       if (cancelled) return
       if (cached.length > 0) {
         logger.info(`Loaded ${cached.length} medics from cache`)
+        hasCacheRef.current = true
         setMedics(cached)
-        setLoading(false)
+      } else {
+        // No cache — show spinner for cold start only
+        setLoading(true)
       }
-      // Then refresh from Supabase in background
+      // Refresh from Supabase in background (silent when cache exists)
       fetchMedics()
     }).catch(() => {
-      // Cache load failed — fall through to network fetch
-      if (!cancelled) fetchMedics()
+      // Cache load failed — show spinner and fall through to network fetch
+      if (!cancelled) {
+        setLoading(true)
+        fetchMedics()
+      }
     })
 
     return () => { cancelled = true }

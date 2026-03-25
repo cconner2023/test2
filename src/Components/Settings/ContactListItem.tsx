@@ -14,8 +14,8 @@ interface ContactListItemProps {
 }
 
 const UNAVAILABLE_LABELS: Record<UnavailableReason, string> = {
-  no_device: 'No active device',
-  no_keys: 'Messaging keys not set up',
+  no_device: 'Not yet registered',
+  no_keys: 'Setting up encryption',
 }
 
 export function ContactListItem({ medic, lastMessage, unreadCount, onClick, unavailable, unavailableReason }: ContactListItemProps) {
@@ -30,7 +30,7 @@ export function ContactListItem({ medic, lastMessage, unreadCount, onClick, unav
         <>
           <p className="text-sm font-medium text-primary truncate">{getDisplayName(medic)}</p>
           {unavailable ? (
-            <p className="text-[10px] text-amber-500/80">{UNAVAILABLE_LABELS[unavailableReason ?? 'no_device']}</p>
+            <p className="text-[10px] text-thememuted">{UNAVAILABLE_LABELS[unavailableReason ?? 'no_device']}</p>
           ) : (
             <>
               {medic.credential && (
