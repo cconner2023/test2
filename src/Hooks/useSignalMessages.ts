@@ -20,6 +20,7 @@ import { deleteMessagesByOriginId as deleteMessagesByOriginIdFromDb, updateReadA
 import { scheduleBackup } from '../lib/signal/backupService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { processIncomingMessage, encryptMessage } from '../lib/signal/session'
+import { processClinicIncomingMessage } from '../lib/signal/clinicSession'
 import { processSenderKeyDistribution, senderKeyDecrypt } from '../lib/signal/senderKey'
 import { useMessagingStore } from '../stores/useMessagingStore'
 import type { SealedEnvelope } from '../lib/signal/sealedSender'
@@ -64,6 +65,8 @@ async function sendDeliveryReceipt(
 interface UseSignalMessagesOptions {
   userId: string | null
   localDeviceId: string | null
+  clinicId: string | null
+  clinicDeviceId: string | null
   isAuthenticated: boolean
   isPageVisible: boolean
   onMessage: (message: DecryptedSignalMessage) => void
@@ -337,6 +340,8 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
 export function useSignalMessages({
   userId,
   localDeviceId,
+  clinicId,
+  clinicDeviceId,
   isAuthenticated,
   isPageVisible,
   onMessage,
@@ -362,6 +367,16 @@ export function useSignalMessages({
   useEffect(() => {
     userIdRef.current = userId
   }, [userId])
+
+  const clinicIdRef = useRef(clinicId)
+  useEffect(() => {
+    clinicIdRef.current = clinicId
+  }, [clinicId])
+
+  const clinicDeviceIdRef = useRef(clinicDeviceId)
+  useEffect(() => {
+    clinicDeviceIdRef.current = clinicDeviceId
+  }, [clinicDeviceId])
 
   // Track whether catch-up has already run to avoid re-fetching on re-subscribe
   const catchUpDone = useRef(false)
@@ -491,6 +506,46 @@ export function useSignalMessages({
       // Pruning handled by trackProcessed()
     })()
   }, [isAuthenticated, userId, localDeviceId, catchUpTrigger])
+
+  // Clinic device offline catch-up: fetch unread messages for this clinic device
+  useEffect(() => {
+    if (!isAuthenticated || !userId || !clinicId || !clinicDeviceId || catchUpDone.current) return
+
+    ;(async () => {
+      const result = await fetchUnreadMessages(clinicId, clinicDeviceId)
+      if (!result.ok) {
+        logger.warn('Clinic catch-up failed:', result.error)
+        return
+      }
+
+      logger.info(`Clinic catch-up: ${result.data.length} unread messages`)
+
+      const processedRowIds: string[] = []
+
+      for (const row of result.data) {
+        if (processedIds.current.has(row.id)) continue
+        trackProcessed(row.id)
+        try {
+          const envelope = row.payload as unknown as import('../lib/signal/sealedSender').SealedEnvelope
+          const senderDeviceId = row.sender_device_id ?? 'unknown'
+          const { plaintext: rawPlaintext } = await processClinicIncomingMessage(
+            senderDeviceId, envelope, clinicId
+          )
+          processedRowIds.push(row.id)
+          const { plaintext, content } = parseMessageContent(rawPlaintext)
+          if (isCalendarEvent(content)) {
+            routeCalendarEvent(content)
+          }
+        } catch (e) {
+          logger.warn(`Failed to decrypt clinic message ${row.id}:`, e instanceof Error ? e.message : e)
+        }
+      }
+
+      if (processedRowIds.length > 0) {
+        markMessagesRead(processedRowIds).catch(() => {})
+      }
+    })()
+  }, [isAuthenticated, userId, clinicId, clinicDeviceId, catchUpTrigger])
 
   // LoRa push subscription — process messages arriving via LoRa mesh
   useEffect(() => {
@@ -643,6 +698,58 @@ export function useSignalMessages({
     }),
     [userId],
   )
+
+  // Handle clinic realtime INSERT events
+  const handleClinicPayload = useCallback(
+    (payload: RealtimePostgresChangesPayload<SignalMessageRow>) => {
+      if (payload.eventType !== 'INSERT') return
+
+      const row = payload.new as SignalMessageRow
+      const myClinicDeviceId = clinicDeviceIdRef.current
+      const myClinicId = clinicIdRef.current
+      if (!myClinicId || !myClinicDeviceId) return
+
+      // Only process messages for this clinic device
+      if (row.recipient_device_id && row.recipient_device_id !== myClinicDeviceId) return
+
+      if (processedIds.current.has(row.id)) return
+      trackProcessed(row.id)
+
+      ;(async () => {
+        try {
+          const envelope = row.payload as unknown as SealedEnvelope
+          const senderDeviceId = row.sender_device_id ?? 'unknown'
+          const { plaintext: rawPlaintext } = await processClinicIncomingMessage(
+            senderDeviceId, envelope, myClinicId
+          )
+          const { content } = parseMessageContent(rawPlaintext)
+          if (isCalendarEvent(content)) {
+            routeCalendarEvent(content)
+          }
+          markMessagesRead([row.id]).catch(() => {})
+        } catch (e) {
+          logger.warn(`Failed to decrypt clinic realtime message ${row.id}:`, e instanceof Error ? e.message : e)
+        }
+      })()
+    },
+    [],
+  )
+
+  const clinicPostgresFilter = useMemo(
+    () => ({
+      table: 'signal_messages',
+      filter: `recipient_id=eq.${clinicId}`,
+    }),
+    [clinicId],
+  )
+
+  useSupabaseSubscription<SignalMessageRow>({
+    shouldSubscribe: isAuthenticated && !!clinicId && !!clinicDeviceId && isPageVisible,
+    channelName: `clinic-signal:${clinicId}`,
+    postgresFilter: clinicPostgresFilter,
+    onPayload: handleClinicPayload,
+    logger,
+  })
 
   useSupabaseSubscription<SignalMessageRow>({
     shouldSubscribe: isAuthenticated && !!userId && isPageVisible,

@@ -44,6 +44,8 @@ interface MessagingState {
   deletedConversations: Record<string, string>
   /** Local device ID — loaded async from keyManager. */
   localDeviceId: string | null
+  /** Clinic device ID — set after clinic device init. */
+  clinicDeviceId: string | null
   /** Local user ID — set during hydration for correct incoming/outgoing checks. */
   localUserId: string | null
   /** Group IDs that are system-managed (e.g. clinic vault) — excluded from unread totals. */
@@ -115,6 +117,9 @@ interface MessagingActions {
   /** Set the local device ID. */
   setLocalDeviceId: (id: string) => void
 
+  /** Set the clinic device ID. */
+  setClinicDeviceId: (id: string | null) => void
+
   /** Set system group IDs (e.g. clinic vault group) — excluded from unread totals. */
   setSystemGroupIds: (ids: Set<string>) => void
 
@@ -141,6 +146,7 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
   sendingMap: {},
   deletedConversations: {},
   localDeviceId: null,
+  clinicDeviceId: null,
   localUserId: null,
   systemGroupIds: new Set(),
   hydrated: false,
@@ -377,6 +383,8 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
 
   setLocalDeviceId: (id) => set({ localDeviceId: id }),
 
+  setClinicDeviceId: (id) => set({ clinicDeviceId: id }),
+
   setSystemGroupIds: (ids) => set({ systemGroupIds: ids }),
 
   hydrateFromIdb: async (userId) => {
@@ -461,6 +469,7 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
     sendingMap: {},
     deletedConversations: {},
     localDeviceId: null,
+    clinicDeviceId: null,
     localUserId: null,
     systemGroupIds: new Set(),
     hydrated: false,

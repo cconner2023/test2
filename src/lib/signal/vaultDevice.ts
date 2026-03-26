@@ -835,7 +835,7 @@ async function rotateVaultSignedPreKey(
       })
       .eq('user_id', userId)
       .eq('version', vaultRow.version)
-      .select('id')
+      .select('user_id')
 
     if (rotateError || !rotateData?.length) {
       logger.warn('Vault update conflict — another device won the race, skipping')
@@ -934,7 +934,7 @@ async function replenishVaultPreKeys(
       })
       .eq('user_id', userId)
       .eq('version', latestRow.version)
-      .select('id')
+      .select('user_id')
 
     if (replenishError || !replenishData?.length) {
       logger.warn('Vault update conflict — another device won the race, skipping')

@@ -602,6 +602,8 @@ export function useMessages(): UseMessagesReturn {
   useSignalMessages({
     userId,
     localDeviceId: useMessagingStore.getState().localDeviceId,
+    clinicId: clinicId ?? null,
+    clinicDeviceId: useMessagingStore.getState().clinicDeviceId,
     isAuthenticated: isAuthenticated && !!useMessagingStore.getState().localDeviceId,
     isPageVisible,
     onMessage: handleIncomingMessage,

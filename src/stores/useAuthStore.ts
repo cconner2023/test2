@@ -25,7 +25,7 @@ import { useCallStore } from './useCallStore'
 import { unregisterDevice, deleteKeyBundle, primaryLogoutAll, initLoRaMesh } from '../lib/signal/signalService'
 import { secureSet, secureGet, secureRemove, persistSupabaseAuth, destroySecureStore } from '../lib/secureStorage'
 import { clearOutboundQueue, destroyOutboundQueue } from '../lib/signal/outboundQueue'
-import { destroyCalendarEventStore } from '../lib/calendarEventStore'
+import { clearCalendarEvents } from '../lib/calendarEventStore'
 import { useCalendarStore } from './useCalendarStore'
 import { clearBackupKey, createBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
 import { processVaultMessages, clearVaultKey } from '../lib/signal/vaultDevice'
@@ -307,6 +307,8 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     // Clear vault wrapping key
     clearVaultKey()
     clearClinicVaultKey()
+    // Clear clinic device in-memory cache (IDB destruction handled below per device role)
+    import('../lib/signal/clinicKeyManager').then(m => m.clearClinicIdentityCache()).catch(() => {})
     // Aggressively clear backup state first (detaches onMessageSaved callback)
     clearBackupKey()
     // Clear in-memory session cache
@@ -314,19 +316,25 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     // Clear clinic encryption key cache
     clearKeyStore().catch(() => {})
 
+    // Calendar events IDB: clear events but PRESERVE tombstones across both
+    // logout types. Tombstones prevent vault replay from resurrecting deleted
+    // events — destroying the DB wipes them, creating a resurrection vector.
+    clearCalendarEvents().catch(() => {})
+
     if (wasPrimary) {
       // Primary logout: destroy entire IDB databases (nuke containers + encryption key).
       // This ensures no residual data survives — a full clean slate.
       // Use allSettled so one failure doesn't block others, with nuclear fallback.
       ;(async () => {
+        const destroyClinic = import('../lib/signal/clinicKeyManager').then(m => m.destroyClinicSignalKeys())
         const results = await Promise.allSettled([
           destroySignalKeys(),
           destroyMessageStore(),
           destroyOutboundQueue(),
           destroySecureStore(),
-          destroyCalendarEventStore(),
+          destroyClinic,
         ])
-        const dbNames = ['adtmc-signal-store', 'adtmc-message-store', 'adtmc-outbound-queue', 'adtmc-secure-store', 'adtmc-calendar-events']
+        const dbNames = ['adtmc-signal-store', 'adtmc-message-store', 'adtmc-outbound-queue', 'adtmc-secure-store', 'adtmc-clinic-signal-store']
         results.forEach((r, i) => {
           if (r.status === 'rejected') {
             try { indexedDB.deleteDatabase(dbNames[i]) } catch { /* last resort */ }
@@ -337,15 +345,17 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       // Linked/provisional logout: purge data from stores but keep
       // database containers and the device encryption key intact so
       // the device can re-authenticate cleanly on next login.
+      // Clinic IDB is always destroyed (no cross-session reuse needed).
       // Nuclear fallback: if clear fails, force-delete the databases.
       ;(async () => {
+        const destroyClinic = import('../lib/signal/clinicKeyManager').then(m => m.destroyClinicSignalKeys())
         const results = await Promise.allSettled([
           clearSignalKeys(),
           clearMessageStore(),
           clearOutboundQueue(),
-          destroyCalendarEventStore(),
+          destroyClinic,
         ])
-        const dbNames = ['adtmc-signal-store', 'adtmc-message-store', 'adtmc-outbound-queue', 'adtmc-calendar-events']
+        const dbNames = ['adtmc-signal-store', 'adtmc-message-store', 'adtmc-outbound-queue', 'adtmc-clinic-signal-store']
         results.forEach((r, i) => {
           if (r.status === 'rejected') {
             try { indexedDB.deleteDatabase(dbNames[i]) } catch { /* last resort */ }
@@ -436,10 +446,27 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
                   .single()
                 if (!clinicRow?.encryption_key) return
 
+                // Clear stale calendar cache before vault replay so deleted/ghost
+                // events don't survive across sessions. The vault is the source of
+                // truth — IDB is rebuilt from scratch on each login.
+                await clearCalendarEvents()
+                useCalendarStore.setState({ events: [], hydrated: false })
+
                 // Derive wrapping key + ensure vault device exists + process unread
                 await deriveAndCacheClinicVaultKey(cId, clinicRow.encryption_key)
                 await ensureClinicVaultExists(cId, clinicRow.encryption_key)
                 await processClinicVaultMessages(cId)
+
+                // Register this browser as a clinic linked device
+                const { initClinicDeviceBundle } = await import('../lib/signal/clinicDeviceInit')
+                const { clinicDeviceId } = await initClinicDeviceBundle(userId, cId, initResult.deviceId)
+                const { useMessagingStore } = await import('./useMessagingStore')
+                useMessagingStore.getState().setClinicDeviceId(clinicDeviceId)
+
+                // Prune stale clinic devices (from previous sessions that didn't clean up).
+                // Runs after our own device is registered so we don't prune ourselves.
+                const { pruneStaleClinicDevices } = await import('../lib/signal/clinicDeviceInit')
+                pruneStaleClinicDevices(cId, clinicDeviceId).catch(() => {})
               } catch (e) {
                 // Non-fatal — clinic vault init should never block login
               }
@@ -578,10 +605,21 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
         // Then clean up own device (both primary and linked)
         const deviceId = await getLocalDeviceId()
         if (deviceId) {
-          await Promise.all([
+          const cleanups: Promise<unknown>[] = [
             unregisterDevice(userId, deviceId),
             deleteKeyBundle(userId, deviceId),
-          ])
+          ]
+          // Also clean up clinic device registration + key bundle (registered under clinicId)
+          const cId = get().clinicId
+          if (cId) {
+            const { makeClinicDeviceId } = await import('../lib/signal/clinicKeyManager')
+            const clinicDeviceId = makeClinicDeviceId(userId, deviceId)
+            cleanups.push(
+              unregisterDevice(cId, clinicDeviceId),
+              deleteKeyBundle(cId, clinicDeviceId),
+            )
+          }
+          await Promise.all(cleanups)
         }
       } catch {
         // Best-effort — continue with sign-out even if cleanup fails

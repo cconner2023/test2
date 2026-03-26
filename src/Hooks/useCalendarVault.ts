@@ -1,11 +1,9 @@
 /**
  * useCalendarVault — Calendar-specific send/delete via Signal Protocol fan-out.
  *
- * Events are encrypted per-device via X3DH/Double Ratchet and fanned out to:
- * - The clinic vault device (canonical store, recipient_id = clinicId)
- * - Each clinic member's personal devices (recipient_id = member_user_id)
- *
- * This replaces the V1 symmetric AES approach with standard Signal infrastructure.
+ * Events are encrypted per-device via X3DH/Double Ratchet and fanned out as a
+ * clinic self-message (recipient_id = clinicId) to all clinic devices: the vault
+ * device plus each member's clinic-scoped device.
  */
 
 import { useCallback } from 'react'
@@ -17,18 +15,16 @@ import {
   fetchPeerDevices,
   sendMessageFanOut,
   fetchPeerBundleForDevice,
-  hardDeleteByOriginId,
 } from '../lib/signal/signalService'
 import {
-  createOutboundSession,
-  encryptMessage,
-  hasSession,
-} from '../lib/signal/session'
+  hasClinicSession,
+  createClinicOutboundSession,
+  encryptClinicMessage,
+} from '../lib/signal/clinicSession'
 import { serializeContent } from '../lib/signal/messageContent'
 import type { CalendarEventContent, CalendarEventPayload } from '../lib/signal/messageContent'
 import type { PeerDevice, FanOutMessageInput, PeerBundleRpcResult } from '../lib/signal/transportTypes'
 import type { PublicKeyBundle } from '../lib/signal/types'
-import { CLINIC_VAULT_DEVICE_ID } from '../lib/signal/clinicVaultDevice'
 import type { CalendarEvent } from '../Types/CalendarTypes'
 
 const logger = createLogger('CalendarVault')
@@ -50,8 +46,8 @@ function rpcResultToBundle(rpc: PeerBundleRpcResult): PublicKeyBundle {
   }
 }
 
-async function encryptForAllDevices(
-  peerId: string,
+async function encryptForAllClinicDevices(
+  clinicId: string,
   peerDevices: PeerDevice[],
   serialized: string,
   senderUuid: string,
@@ -59,22 +55,22 @@ async function encryptForAllDevices(
   const results: FanOutMessageInput[] = []
   for (const device of peerDevices) {
     try {
-      const sessionExists = await hasSession(peerId, device.deviceId)
+      const sessionExists = await hasClinicSession(clinicId, device.deviceId)
       if (!sessionExists) {
-        const bundleResult = await fetchPeerBundleForDevice(peerId, device.deviceId)
+        const bundleResult = await fetchPeerBundleForDevice(clinicId, device.deviceId)
         if (!bundleResult.ok) {
-          logger.warn(`No bundle for ${peerId}:${device.deviceId}, skipping`)
+          logger.warn(`No bundle for clinic device ${clinicId}:${device.deviceId}, skipping`)
           continue
         }
         const bundle = rpcResultToBundle(bundleResult.data)
-        const sealedEnvelope = await createOutboundSession(peerId, device.deviceId, bundle, serialized, senderUuid)
+        const sealedEnvelope = await createClinicOutboundSession(clinicId, device.deviceId, bundle, serialized, senderUuid)
         results.push({
           recipientDeviceId: device.deviceId,
           payload: sealedEnvelope as unknown as Record<string, unknown>,
           messageType: 'initial',
         })
       } else {
-        const sealedEnvelope = await encryptMessage(peerId, device.deviceId, serialized, senderUuid)
+        const sealedEnvelope = await encryptClinicMessage(clinicId, device.deviceId, serialized, senderUuid)
         results.push({
           recipientDeviceId: device.deviceId,
           payload: sealedEnvelope as unknown as Record<string, unknown>,
@@ -82,7 +78,7 @@ async function encryptForAllDevices(
         })
       }
     } catch (e) {
-      logger.warn(`Failed to encrypt for ${peerId}:${device.deviceId}:`, e instanceof Error ? e.message : e)
+      logger.warn(`Failed to encrypt for clinic device ${clinicId}:${device.deviceId}:`, e instanceof Error ? e.message : e)
     }
   }
   return results
@@ -109,7 +105,8 @@ export function useCalendarVault(): UseCalendarVaultResult {
   ): Promise<string | null> => {
     if (!clinicId || !userId) return null
     const localDeviceId = useMessagingStore.getState().localDeviceId
-    if (!localDeviceId) return null
+    const clinicDeviceId = useMessagingStore.getState().clinicDeviceId
+    if (!localDeviceId || !clinicDeviceId) return null
 
     const actionMap = { c: 'create', u: 'update', d: 'delete' } as const
     const content: CalendarEventContent = {
@@ -121,46 +118,24 @@ export function useCalendarVault(): UseCalendarVaultResult {
     const originId = crypto.randomUUID()
 
     try {
-      // 1. Encrypt for clinic vault device (canonical store)
-      const vaultInputs = await encryptForAllDevices(
-        clinicId,
-        [{ deviceId: CLINIC_VAULT_DEVICE_ID } as PeerDevice],
-        serialized,
-        userId,
-      )
-      if (vaultInputs.length > 0) {
-        await sendMessageFanOut(userId, localDeviceId, clinicId, vaultInputs, clinicId, originId, true)
+      // Fetch all clinic devices (vault + member clinic devices)
+      const devicesResult = await fetchPeerDevices(clinicId)
+      if (!devicesResult.ok || devicesResult.data.length === 0) {
+        logger.warn('No clinic devices found for fan-out')
+        return null
       }
 
-      // 2. Encrypt for each clinic member's personal devices.
-      // For self, skip only the sending device — other devices of the same user
-      // still need the message (multi-device sync, especially for deletes).
-      const { data: members } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('clinic_id', clinicId)
+      // Filter out our own clinic device — we don't send to ourselves
+      const targetDevices = devicesResult.data.filter(d => d.deviceId !== clinicDeviceId)
+      if (targetDevices.length === 0) {
+        logger.warn('No target clinic devices for fan-out (only self)')
+        return null
+      }
 
-      if (members && members.length > 0) {
-        for (const member of members) {
-          const devicesResult = await fetchPeerDevices(member.id)
-          if (!devicesResult.ok || devicesResult.data.length === 0) continue
-
-          // Exclude this device, not this user — other own devices need the event
-          const devices = member.id === userId
-            ? devicesResult.data.filter(d => d.deviceId !== localDeviceId)
-            : devicesResult.data
-          if (devices.length === 0) continue
-
-          const memberInputs = await encryptForAllDevices(
-            member.id,
-            devices,
-            serialized,
-            userId,
-          )
-          if (memberInputs.length > 0) {
-            await sendMessageFanOut(userId, localDeviceId, member.id, memberInputs, clinicId, originId, true)
-          }
-        }
+      // Encrypt for all clinic devices using clinic session context
+      const inputs = await encryptForAllClinicDevices(clinicId, targetDevices, serialized, userId)
+      if (inputs.length > 0) {
+        await sendMessageFanOut(userId, clinicDeviceId, clinicId, inputs, clinicId, originId, true)
       }
 
       return originId
@@ -171,19 +146,13 @@ export function useCalendarVault(): UseCalendarVaultResult {
   }, [clinicId, userId])
 
   const deleteEvents = useCallback(async (originIds: string[]): Promise<void> => {
-    if (originIds.length === 0) return
+    if (originIds.length === 0 || !clinicId) return
     try {
-      // Delete sender copies + recipient copies where auth.uid() is the recipient
-      await hardDeleteByOriginId(originIds)
-      // Also purge the clinic vault copy (recipient_id = clinicId, not auth.uid())
-      if (clinicId) {
-        supabase.rpc('hard_delete_clinic_vault_messages', {
-          p_clinic_id: clinicId,
-          p_origin_ids: originIds,
-        }).then(({ error }) => {
-          if (error) logger.warn('Failed to purge clinic vault copies:', error.message)
-        })
-      }
+      // All copies are under recipient_id = clinicId
+      await supabase.rpc('hard_delete_clinic_vault_messages', {
+        p_clinic_id: clinicId,
+        p_origin_ids: originIds,
+      })
     } catch (e) {
       logger.warn('Failed to delete vault messages:', e instanceof Error ? e.message : e)
     }

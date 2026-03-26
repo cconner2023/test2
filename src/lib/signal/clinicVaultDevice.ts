@@ -609,11 +609,17 @@ async function rotateClinicVaultSPK(
     const ptBytes = new TextEncoder().encode(JSON.stringify(updatedBlob))
     const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cachedClinicVaultKey, ptBytes)
 
-    await supabase.from('vault_device_keys').update({
+    const { data: rotateData, error: rotateError } = await supabase.from('vault_device_keys').update({
       encrypted_blob: uint8ToBase64(new Uint8Array(ciphertext)),
       iv: uint8ToBase64(iv),
+      version: vaultRow.version + 1,
       updated_at: new Date().toISOString(),
-    }).eq('user_id', clinicId)
+    }).eq('user_id', clinicId).eq('version', vaultRow.version).select('user_id')
+
+    if (rotateError || !rotateData?.length) {
+      logger.warn('Clinic vault SPK update conflict — another device won the race, skipping')
+      return
+    }
 
     // Update public bundle
     const publicBundle: PublicKeyBundle = {
@@ -693,11 +699,17 @@ async function replenishClinicVaultPreKeys(
     const ptBytes = new TextEncoder().encode(JSON.stringify(updatedBlob))
     const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cachedClinicVaultKey, ptBytes)
 
-    await supabase.from('vault_device_keys').update({
+    const { data: replenishData, error: replenishError } = await supabase.from('vault_device_keys').update({
       encrypted_blob: uint8ToBase64(new Uint8Array(ciphertext)),
       iv: uint8ToBase64(iv),
+      version: vaultRow.version + 1,
       updated_at: new Date().toISOString(),
-    }).eq('user_id', clinicId)
+    }).eq('user_id', clinicId).eq('version', vaultRow.version).select('user_id')
+
+    if (replenishError || !replenishData?.length) {
+      logger.warn('Clinic vault pre-key update conflict — another device won the race, skipping')
+      return
+    }
 
     // Update public bundle with surviving + new OTPs
     const publicBundle: PublicKeyBundle = {
