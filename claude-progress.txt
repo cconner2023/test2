@@ -18,3 +18,36 @@ Feature #3 - Data persists across server restart:
 
 Status: 3/118 features passing
 Next: Features #4, #5 (remaining infrastructure)
+
+== Session: 2026-03-26 (batch 2) ==
+Features completed: #6, #8, #26
+
+Feature #6 - App loads without errors:
+- App loads cleanly at localhost:5176/test2/
+- Zero console errors, zero warnings
+- Supabase connection verified (1100ms)
+- User Acknowledgment screen renders, login form renders
+- Guest mode loads main app shell with algorithm categories
+- No 404s, no failed network requests
+
+Feature #8 - Supabase JWT token lifecycle:
+- autoRefreshToken: true, persistSession: true configured in supabase.ts
+- onAuthStateChange handles SIGNED_IN, SIGNED_OUT, INITIAL_SESSION, PASSWORD_RECOVERY, TOKEN_REFRESHED
+- Token refresh syncs to cleanup handler (updateCleanupToken) and IDB (persistSupabaseAuth)
+- Involuntary sign-out (token expiry) preserves local session/data, sets user null
+- Deliberate sign-out does nuclear cleanup: IDB destroy, device deregister, storage wipe
+- Session cleanup on tab close via pagehide/sessionStorage marker discrimination
+- Browser mode uses sessionStorage (auto-cleared on tab close), PWA uses localStorage
+
+Feature #26 - Login registers device with role:
+- initSignalBundle() called on SIGNED_IN/INITIAL_SESSION from handleSignedIn()
+- register_device_with_role RPC called with (deviceId, deviceLabel, isPrimary=isPWA)
+- Device ID generated via crypto.randomUUID(), dual-stored in IDB + localStorage
+- Role logic: PWA→primary attempt, fallback to linked if rejected, final fallback to provisional
+- Device label parsed from User-Agent (iOS/Android/Mac/Windows/Linux/Unknown)
+- last_active_at updated via activityHeartbeat on profiles + user_devices
+- LocalSession persisted to secureStorage + localStorage with deviceId
+- Zero mock data patterns in src/
+
+Status: 8/118 features passing (6.8%)
+Next: Continue with assigned features
