@@ -21,7 +21,6 @@ import { type DBSchema } from 'idb'
 import { createLogger } from '../../Utilities/Logger'
 import { createIdbSingleton } from '../idbFactory'
 import { encryptString, decryptString } from '../secureStorage'
-import { isCalendarEvent } from '../calendarRouting'
 import type { DecryptedSignalMessage } from './transportTypes'
 
 const logger = createLogger('MessageStore')
@@ -286,7 +285,11 @@ export async function loadUnreadCounts(
     const counts: Record<string, number> = {}
 
     for (const msg of all) {
-      if (msg.senderId !== localUserId && !msg.readAt && !isCalendarEvent(msg.content)) {
+      if (
+        msg.senderId !== localUserId &&
+        !msg.readAt &&
+        msg.messageType !== 'request-accepted'
+      ) {
         counts[msg.peerId] = (counts[msg.peerId] ?? 0) + 1
       }
     }

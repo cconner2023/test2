@@ -294,10 +294,16 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
     // Parse structured content (text or image) from the decrypted payload
     const { plaintext, content, replyTo } = parseMessageContent(rawPlaintext)
 
-    // Route calendar events to the calendar store (V2 clinic fan-out messages)
-    if (isCalendarEvent(content)) {
-      routeCalendarEvent(content)
-      // Mark as read so the row is cleaned up from signal_messages and not re-processed
+    // ── Clinic fan-out gate ──
+    // Clinic-as-entity messages have sender_id = null on the transport row.
+    // These are self-messages (clinic → clinic vault) fanned out to member devices.
+    // Route by content type and suppress from the messaging pipeline entirely.
+    if (!row.sender_id) {
+      if (isCalendarEvent(content)) {
+        routeCalendarEvent(content)
+      }
+      // Future clinic content types (announcements, alerts) would route here.
+      // Always mark as read — fan-out copies are notification/routing only.
       markMessagesRead([row.id]).catch(() => {})
       return null
     }

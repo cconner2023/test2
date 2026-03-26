@@ -13,7 +13,7 @@ import { hashWithSalt, verifyHash } from './cryptoUtils'
 import { secureSet, secureGet, secureRemove } from './secureStorage'
 import { fireNotification } from './notifyDispatcher'
 import { deriveAndStoreBackupKey } from './signal/backupService'
-import { generateVaultIdentity, uploadVaultDevice, deriveAndCacheVaultKey, ensureVaultExists } from './signal/vaultDevice'
+import { generateVaultIdentity, uploadVaultDevice, deriveAndCacheVaultKey, ensureVaultExists, setVaultKeyReady } from './signal/vaultDevice'
 import { succeed, fail, getErrorMessage as getErrMsg, type ServiceResult } from './result'
 
 const logger = createLogger('AuthService')
@@ -166,13 +166,15 @@ export async function signIn(
     // Ensure vault exists (migration for pre-vault users), then cache wrapping key.
     // Sequential: deriveAndCacheVaultKey needs the vault row to exist before fetching salt.
     // Retry once on failure — vault is critical for messageability.
-    ensureVaultExists(data.user.id, password)
-      .then(() => deriveAndCacheVaultKey(password))
+    // The promise is registered so processVaultMessages can await it instead of racing.
+    const vaultKeyP = ensureVaultExists(data.user.id, password)
+      .then(() => deriveAndCacheVaultKey(password, data.user.id))
       .catch(() =>
         ensureVaultExists(data.user.id, password)
-          .then(() => deriveAndCacheVaultKey(password))
+          .then(() => deriveAndCacheVaultKey(password, data.user.id))
           .catch(() => logger.warn('Vault ensure failed after retry'))
       )
+    setVaultKeyReady(vaultKeyP)
 
     fireNotification({
       type: 'user_login',

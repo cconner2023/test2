@@ -116,6 +116,17 @@ interface VaultKeyBundle {
 
 let cachedVaultKey: CryptoKey | null = null
 
+/** Promise that resolves when the vault wrapping key derivation completes.
+ *  processVaultMessages awaits this so it doesn't race with the PBKDF2
+ *  derivation that runs fire-and-forget from signIn().
+ *  Mirrors _backupKeyReady in backupService.ts. */
+let _vaultKeyReady: Promise<void> | null = null
+
+/** Register the vault key derivation promise (called from authService). */
+export function setVaultKeyReady(promise: Promise<void>): void {
+  _vaultKeyReady = promise
+}
+
 // ---- PBKDF2 Key Derivation ----
 
 /**
@@ -359,6 +370,7 @@ export async function uploadVaultDevice(
  */
 export async function deriveAndCacheVaultKey(
   password: string,
+  userId: string,
   salt?: string,
   iterations?: number
 ): Promise<void> {
@@ -367,9 +379,10 @@ export async function deriveAndCacheVaultKey(
   let iters = iterations ?? VAULT_KDF_ITERATIONS
 
   if (!saltHex) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('vault_device_keys')
       .select('salt, kdf_iterations')
+      .eq('user_id', userId)
       .maybeSingle()
 
     if (!data) {
@@ -388,6 +401,7 @@ export async function deriveAndCacheVaultKey(
 /** Clear cached vault key (called on sign-out). */
 export function clearVaultKey(): void {
   cachedVaultKey = null
+  _vaultKeyReady = null
 }
 
 /**
@@ -498,6 +512,9 @@ export async function processVaultMessages(userId: string): Promise<number> {
     logger.info('No vault found — skipping vault message processing')
     return 0
   }
+
+  // Wait for the vault key derivation that runs fire-and-forget from signIn()
+  try { if (_vaultKeyReady) await _vaultKeyReady } catch { /* fall through */ }
 
   if (!cachedVaultKey) {
     logger.warn('Vault wrapping key not cached — cannot process vault messages')

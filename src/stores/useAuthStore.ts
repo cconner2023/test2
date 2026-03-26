@@ -400,7 +400,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       // Initialize Signal Protocol keys independently of profile fetch.
       // Signal init runs in the background — the app unlocks after profile only.
       // Messaging surfaces read `signalReady` to show a subtle init state.
-      initSignalBundle(userId).then(initResult => {
+      initSignalBundle(userId).then(async initResult => {
         if (initResult) {
           set({ deviceRole: initResult.role, signalReady: true })
           startHeartbeat(userId, initResult.deviceId)
@@ -422,6 +422,8 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
           processVaultMessages(userId).catch(() => {})
 
           // Initialize clinic vault device (clinic persona — parallel to personal vault)
+          // Await profile so clinicId is available on new devices (no localStorage cache)
+          try { await profileP } catch { /* profile may have failed — clinicId may still be cached */ }
           const cId = get().clinicId
           if (cId) {
             (async () => {

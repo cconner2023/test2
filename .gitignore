@@ -6,7 +6,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-
+.playwright
+*.playwright/
+*.playwright
 # PWA generated files (v1.x specific)
 public/sw.js
 public/workbox-*.js
@@ -50,3 +52,6 @@ supabase/
 *.sln
 *.sw?
 inline-build/
+
+.playwright-cli/
+.playwright/

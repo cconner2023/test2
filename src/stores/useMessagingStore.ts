@@ -44,6 +44,10 @@ interface MessagingState {
   deletedConversations: Record<string, string>
   /** Local device ID — loaded async from keyManager. */
   localDeviceId: string | null
+  /** Local user ID — set during hydration for correct incoming/outgoing checks. */
+  localUserId: string | null
+  /** Group IDs that are system-managed (e.g. clinic vault) — excluded from unread totals. */
+  systemGroupIds: Set<string>
   /** True once the initial IDB hydration is complete. */
   hydrated: boolean
 }
@@ -111,6 +115,9 @@ interface MessagingActions {
   /** Set the local device ID. */
   setLocalDeviceId: (id: string) => void
 
+  /** Set system group IDs (e.g. clinic vault group) — excluded from unread totals. */
+  setSystemGroupIds: (ids: Set<string>) => void
+
   /**
    * Load conversations and tombstones from IndexedDB.
    * Respects tombstones: filters out messages created before deletedAt.
@@ -134,13 +141,15 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
   sendingMap: {},
   deletedConversations: {},
   localDeviceId: null,
+  localUserId: null,
+  systemGroupIds: new Set(),
   hydrated: false,
 
   // ── Actions ──
 
   addMessage: (msg) => {
-    const { deletedConversations, conversations } = get()
-    const userId = get().localDeviceId // used for unread logic only; peerId computed below
+    const { deletedConversations, conversations, localUserId, systemGroupIds } = get()
+    const userId = localUserId
 
     const conversationKey = msg.groupId ?? msg.senderId
 
@@ -181,8 +190,9 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
     set(s => {
       const unreadKey = msg.groupId ?? msg.senderId
       const isIncoming = !userId || msg.senderId !== userId
+      const isSystemGroup = msg.groupId ? systemGroupIds.has(msg.groupId) : false
       const newUnread =
-        isIncoming && !msg.readAt && msg.messageType !== 'request-accepted'
+        isIncoming && !msg.readAt && !isSystemGroup && msg.messageType !== 'request-accepted'
           ? { ...s.unreadCounts, [unreadKey]: (s.unreadCounts[unreadKey] ?? 0) + 1 }
           : s.unreadCounts
 
@@ -367,6 +377,8 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
 
   setLocalDeviceId: (id) => set({ localDeviceId: id }),
 
+  setSystemGroupIds: (ids) => set({ systemGroupIds: ids }),
+
   hydrateFromIdb: async (userId) => {
     try {
       const [convos, counts, tombstones] = await Promise.all([
@@ -393,6 +405,14 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
       let deviceId = current.localDeviceId
       if (!deviceId) {
         deviceId = await getLocalDeviceId()
+      }
+
+      // Strip system group unread counts (e.g. clinic vault group)
+      const sysIds = get().systemGroupIds
+      if (sysIds.size > 0) {
+        for (const key of Object.keys(counts)) {
+          if (sysIds.has(key)) delete counts[key]
+        }
       }
 
       set(s => {
@@ -422,6 +442,7 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
           unreadCounts: Object.keys(counts).length > 0 ? counts : s.unreadCounts,
           deletedConversations: tombstones,
           localDeviceId: deviceId ?? s.localDeviceId,
+          localUserId: userId,
           hydrated: true,
         }
       })
@@ -440,6 +461,8 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
     sendingMap: {},
     deletedConversations: {},
     localDeviceId: null,
+    localUserId: null,
+    systemGroupIds: new Set(),
     hydrated: false,
   }),
 }))
@@ -457,12 +480,13 @@ export function useUnreadCount(key: string): number {
 }
 
 /** Sum of all unread counts across non-system conversations.
- *  Used for nav badge — only re-renders when total changes. */
-export function useTotalUnread(systemGroupIds?: Set<string>): number {
+ *  Used for nav badge — only re-renders when total changes.
+ *  Automatically excludes systemGroupIds stored in the store. */
+export function useTotalUnread(): number {
   return useMessagingStore(s => {
     let total = 0
     for (const [key, count] of Object.entries(s.unreadCounts)) {
-      if (!systemGroupIds?.has(key)) total += count
+      if (!s.systemGroupIds.has(key)) total += count
     }
     return total
   })

@@ -449,9 +449,16 @@ export interface UseMessagesReturn {
 const store = useMessagingStore.getState
 
 export function useMessages(): UseMessagesReturn {
-  const { user, isAuthenticated } = useAuth()
+  const { user, isAuthenticated, clinicId } = useAuth()
   const userId = user?.id ?? null
   const isPageVisible = usePageVisibility()
+
+  // Register clinic as a system group so its messages are excluded from unread totals
+  useEffect(() => {
+    if (clinicId) {
+      useMessagingStore.getState().setSystemGroupIds(new Set([clinicId]))
+    }
+  }, [clinicId])
 
   // Track which peer's chat is currently open (for auto-mark-read)
   const activePeerRef = useRef<string | null>(null)
