@@ -33,7 +33,7 @@ interface ClinicUsersDB extends DBSchema {
 const DB_NAME = 'adtmc-clinic-users'
 const DB_VERSION = 1
 
-const { getDb } = createIdbSingleton<ClinicUsersDB>(DB_NAME, DB_VERSION, {
+const { getDb, destroy: destroyClinicUsersDb } = createIdbSingleton<ClinicUsersDB>(DB_NAME, DB_VERSION, {
   upgrade(db) {
     db.createObjectStore('users', { keyPath: 'id' })
   },

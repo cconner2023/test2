@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '../Types/database.types.generated'
 import { createLogger } from '../Utilities/Logger'
+import { encryptedStorageAdapter } from './encryptedStorageAdapter'
 
 const logger = createLogger('Supabase')
 
@@ -31,9 +32,9 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    // Browser mode: use sessionStorage so auth is cleared when the tab closes.
-    // PWA mode: use default localStorage for persistent sessions.
-    ...(isBrowser && !isPWA ? { storage: window.sessionStorage } : {}),
+    // All modes: use AES-256-GCM encrypted IDB store for session tokens.
+    // Browser tab cleanup is handled by sessionCleanup.ts (pagehide listener).
+    storage: encryptedStorageAdapter,
   },
 })
 

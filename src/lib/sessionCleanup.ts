@@ -12,12 +12,14 @@
  * sessionStorage survives same-tab navigations/refreshes but is destroyed on
  * tab close, making it a reliable discriminator.
  *
- * The Supabase client already uses sessionStorage in browser mode (see supabase.ts),
- * so auth tokens are cleared automatically on tab close. This module handles
- * server-side cleanup (device unregistration + token invalidation).
+ * The Supabase client uses an encrypted IDB storage adapter (see supabase.ts),
+ * so auth tokens are encrypted at rest. On tab close detection, this module
+ * also removes the encrypted session from IDB and handles server-side
+ * cleanup (device unregistration + token invalidation).
  */
 
 import { isPWA } from './supabase'
+import { secureRemove } from './secureStorage'
 import { createLogger } from '../Utilities/Logger'
 
 const logger = createLogger('SessionCleanup')
@@ -101,6 +103,22 @@ function handlePageHide(event: PageTransitionEvent): void {
 }
 
 /**
+ * Remove the Supabase session key from encrypted IDB after a browser tab close.
+ * The key format is `sb-{project-ref}-auth-token` (set by @supabase/supabase-js).
+ */
+function removeSupabaseSessionFromIdb(): void {
+  try {
+    const url = import.meta.env.VITE_SUPABASE_URL as string
+    const hostname = new URL(url).hostname
+    const projectRef = hostname.split('.')[0]
+    const storageKey = `sb-${projectRef}-auth-token`
+    secureRemove(storageKey).catch(() => {})
+    // Also remove the -user suffix key that Supabase may use
+    secureRemove(`${storageKey}-user`).catch(() => {})
+  } catch { /* best effort */ }
+}
+
+/**
  * Register the pagehide cleanup handler. No-ops if already registered or in PWA mode.
  * Call once during app initialization.
  *
@@ -136,6 +154,8 @@ export function registerSessionCleanup(): void {
         if (age < 5 * 60 * 1000 && token) {
           logger.info(`Executing deferred session cleanup (stale by ${Math.round(age / 1000)}s)`)
           performCleanup(token, deviceId)
+          // Remove encrypted Supabase session from IDB (browser tab was closed)
+          removeSupabaseSessionFromIdb()
         } else {
           logger.info('Stale cleanup data discarded (too old)')
         }
