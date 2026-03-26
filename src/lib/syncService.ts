@@ -30,6 +30,7 @@ import {
   deleteLocalPropertyItem,
   stripLocalFields,
   getLocalLocationTags,
+  getNextRetryTime,
   getDb,
   type LocalTrainingCompletion,
 } from './offlineDb'
@@ -105,18 +106,14 @@ function validateTableName(tableName: string): SyncableTable {
 /**
  * Calculate exponential backoff delay with jitter.
  * Formula: min(MAX_BACKOFF, BASE * 2^attempt + random_jitter)
+ *
+ * attempt 0 → ~1s, attempt 1 → ~2s, attempt 2 → ~4s,
+ * attempt 3 → ~8s, attempt 4 → ~16s, attempt 5+ → 30s (capped)
  */
-function getBackoffDelay(attempt: number): number {
+export function getBackoffDelay(attempt: number): number {
   const exponentialDelay = BASE_BACKOFF_MS * Math.pow(2, attempt)
   const jitter = Math.random() * BASE_BACKOFF_MS
   return Math.min(MAX_BACKOFF_MS, exponentialDelay + jitter)
-}
-
-/**
- * Sleep for a given number of milliseconds.
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 // ============================================================
@@ -200,8 +197,12 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
           }
         }
 
-        // Mark queue item as synced
+        // Mark queue item as synced (resets backoff)
         await markSyncItemSynced(item.id)
+
+        if (item.retry_count > 0) {
+          logger.info(`✓ Sync succeeded for ${item.table_name}/${item.record_id} after ${item.retry_count} retries — backoff reset`)
+        }
 
         // Mark the corresponding record as synced in IndexedDB.
         // For deletes, the record is already hard-deleted from IndexedDB,
@@ -219,9 +220,19 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
         processed++
       } catch (error) {
         const errorMessage = getErrorMessage(error, String(error))
-        logger.error(`Sync failed for item ${item.id}:`, errorMessage)
 
-        await markSyncItemFailed(item.id, errorMessage)
+        // Calculate exponential backoff for next retry scheduling
+        const backoffDelay = getBackoffDelay(item.retry_count)
+        const nextRetryAt = new Date(Date.now() + backoffDelay).toISOString()
+        const retryNum = item.retry_count + 1
+
+        logger.info(
+          `⏱ Sync failed for ${item.table_name}/${item.record_id} (retry #${retryNum}/${MAX_RETRIES}). ` +
+          `Next retry in ${Math.round(backoffDelay)}ms (backoff: ${Math.round(backoffDelay / 1000)}s). ` +
+          `Error: ${errorMessage}`
+        )
+
+        await markSyncItemFailed(item.id, errorMessage, nextRetryAt)
 
         // Mark the corresponding record as error in IndexedDB.
         // For deletes, the record is already hard-deleted from IndexedDB,
@@ -236,13 +247,6 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
         }
 
         failed++
-
-        // Apply exponential backoff before the next item if this one failed
-        if (item.retry_count > 0) {
-          const delay = getBackoffDelay(item.retry_count)
-          logger.debug(`Backing off ${delay}ms before next item`)
-          await sleep(delay)
-        }
       }
     }
   }
@@ -716,10 +720,37 @@ export function setupConnectivityListeners(
 ): () => void {
   let syncInProgress = false
   let wasOnline = navigator.onLine
+  /** Timer for the next scheduled backoff retry. */
+  let retryTimer: ReturnType<typeof setTimeout> | null = null
+
+  /** Schedule the next retry based on the soonest failed item's backoff time. */
+  const scheduleNextRetry = async () => {
+    // Clear any existing timer
+    if (retryTimer) {
+      clearTimeout(retryTimer)
+      retryTimer = null
+    }
+
+    const nextRetryTime = await getNextRetryTime(userId, MAX_RETRIES)
+    if (nextRetryTime !== null) {
+      const delayMs = Math.max(100, nextRetryTime - Date.now()) // floor at 100ms
+      logger.info(`⏱ Next sync retry scheduled in ${Math.round(delayMs)}ms (${Math.round(delayMs / 1000)}s)`)
+      retryTimer = setTimeout(() => {
+        retryTimer = null
+        performSync()
+      }, delayMs)
+    }
+  }
 
   const performSync = async () => {
     if (syncInProgress) return
     syncInProgress = true
+
+    // Clear retry timer — we're syncing now
+    if (retryTimer) {
+      clearTimeout(retryTimer)
+      retryTimer = null
+    }
 
     try {
       callbacks?.onSyncStart?.()
@@ -756,9 +787,16 @@ export function setupConnectivityListeners(
       callbacks?.onSyncComplete?.(result)
 
       logger.info(`Full sync completed: ${result.processed} pushed, ${result.failed} failed`)
+
+      // 3. If there are failed items with backoff, schedule the next retry
+      if (result.failed > 0) {
+        await scheduleNextRetry()
+      }
     } catch (error) {
       logger.error('Sync on reconnect failed:', error)
       callbacks?.onSyncComplete?.({ processed: 0, failed: 0, skipped: 0, aborted: true })
+      // Still try to schedule retries for any previously failed items
+      await scheduleNextRetry()
     } finally {
       syncInProgress = false
     }
@@ -826,6 +864,7 @@ export function setupConnectivityListeners(
     window.removeEventListener('online', handleOnline)
     window.removeEventListener('offline', handleOffline)
     clearInterval(periodicTimer)
+    if (retryTimer) clearTimeout(retryTimer)
   }
 }
 

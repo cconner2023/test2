@@ -49,6 +49,8 @@ export interface SyncQueueItem {
   retry_count: number
   /** Human-readable error from the last attempt. */
   last_error: string | null
+  /** ISO timestamp when this item becomes eligible for retry (exponential backoff). */
+  next_retry_at: string | null
 }
 
 /** Shape of a training completion stored in IndexedDB. Mirrors the
@@ -374,6 +376,7 @@ export async function addToSyncQueue(
     status: 'pending',
     retry_count: 0,
     last_error: null,
+    next_retry_at: null,
   }
   await db.put('syncQueue', queueItem)
   return { ...queueItem, payload: item.payload }
@@ -415,21 +418,24 @@ export async function markSyncItemSynced(itemId: string): Promise<void> {
 
 /**
  * Mark a sync queue item as failed, recording the error message.
+ * Optionally sets next_retry_at for exponential backoff scheduling.
  */
-export async function markSyncItemFailed(itemId: string, error?: string): Promise<void> {
+export async function markSyncItemFailed(itemId: string, error?: string, nextRetryAt?: string): Promise<void> {
   const db = await getDb()
   const item = await db.get('syncQueue', itemId)
   if (item) {
     item.status = 'failed'
     item.retry_count = (item.retry_count || 0) + 1
     item.last_error = error || 'Unknown error'
+    item.next_retry_at = nextRetryAt || null
     await db.put('syncQueue', item)
   }
 }
 
 /**
  * Reset failed sync items back to pending for retry.
- * Only resets items that haven't exceeded maxRetries.
+ * Only resets items that haven't exceeded maxRetries AND whose
+ * exponential backoff period has elapsed (next_retry_at <= now).
  */
 export async function resetFailedItemsForRetry(
   userId: string,
@@ -438,12 +444,20 @@ export async function resetFailedItemsForRetry(
   const db = await getDb()
   const failedItems = await getFailedSyncItems(userId)
   let resetCount = 0
+  const now = Date.now()
 
   const tx = db.transaction('syncQueue', 'readwrite')
   const store = tx.objectStore('syncQueue')
 
   for (const item of failedItems) {
     if (item.retry_count < maxRetries) {
+      // Respect exponential backoff: only reset if the backoff period has elapsed
+      if (item.next_retry_at) {
+        const retryTime = new Date(item.next_retry_at).getTime()
+        if (retryTime > now) {
+          continue // Backoff period hasn't elapsed yet
+        }
+      }
       item.status = 'pending'
       await store.put(item)
       resetCount++
@@ -452,6 +466,27 @@ export async function resetFailedItemsForRetry(
 
   await tx.done
   return resetCount
+}
+
+/**
+ * Get the soonest next_retry_at time for failed items that are still eligible for retry.
+ * Returns the timestamp in ms, or null if no items are awaiting retry.
+ */
+export async function getNextRetryTime(userId: string, maxRetries: number = 5): Promise<number | null> {
+  const db = await getDb()
+  const failedItems = await db.getAllFromIndex('syncQueue', 'by-user-status', [userId, 'failed'])
+  let soonest: number | null = null
+
+  for (const item of failedItems) {
+    if (item.retry_count < maxRetries && item.next_retry_at) {
+      const retryTime = new Date(item.next_retry_at).getTime()
+      if (soonest === null || retryTime < soonest) {
+        soonest = retryTime
+      }
+    }
+  }
+
+  return soonest
 }
 
 /**
