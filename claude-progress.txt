@@ -79,3 +79,31 @@ Feature #114 - Partial sync failure does not corrupt local state:
 Files changed: src/lib/syncService.ts, src/lib/offlineDb.ts
 Status: 11/118 features passing
 Next: Continue with assigned features
+
+== Session: 2026-03-26 (batch 4) ==
+Features completed: #58, #91, #59 (Clinic vault + Property scoping)
+
+Feature #58 - Clinic vault device provisioning on clinic creation:
+- ensureClinicVaultExists() already wired into createClinic() in adminService.ts
+- Vault provisioned immediately at creation: X3DH identity generated, vault_device_keys populated
+- encryption_key set on clinics table, public key bundle uploaded to signal_key_bundles
+- Vault device registered in user_devices with device_id='vault'
+- Full chain: createClinic → insert clinic → ensureClinicVaultExists → uploadKeyBundle → registerDevice
+
+Feature #91 - Create property item scoped to clinic:
+- PropertyItemForm passes clinic_id from store state (user's assigned clinic)
+- createItem() generates UUID + timestamps, saves to local IDB, queues sync with clinic_id in payload
+- fetchClinicItems() filters .eq('clinic_id', clinicId) — cross-clinic reads blocked
+- RLS verified: anon key returns empty array, no unauthenticated access
+- No mock data patterns in propertyService.ts or usePropertyStore.ts
+
+Feature #59 - Vault fan-out to new member devices on login:
+- Login flow: handleSignedIn → fetch clinicId from profile → fetch encryption_key from clinics table
+- deriveAndCacheClinicVaultKey: PBKDF2(encryption_key, salt, 600K) → AES-256-GCM wrapping key cached
+- ensureClinicVaultExists: idempotent, creates vault if missing
+- processClinicVaultMessages: unseals Signal Protocol messages, routes calendar events to IDB
+- Fan-out model: shared symmetric key (encryption_key) — each device login derives independently
+- All devices covered: each login triggers independent vault init
+
+Status: 14/118 features passing
+Next: Continue with assigned features
