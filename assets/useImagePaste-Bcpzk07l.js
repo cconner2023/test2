@@ -1,1 +1,0 @@
-import{r as o}from"./index-BdNBej1m.js";function u(t,e){o.useEffect(()=>{if(!t)return;const r=s=>{const i=s.clipboardData?.items;if(i){for(const n of Array.from(i))if(n.type.startsWith("image/")){s.preventDefault();const a=n.getAsFile();a&&e(a);return}}};return document.addEventListener("paste",r),()=>document.removeEventListener("paste",r)},[t,e])}export{u};
