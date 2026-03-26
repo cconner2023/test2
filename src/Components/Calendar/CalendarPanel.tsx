@@ -116,6 +116,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     personnelFilter,
     setMonthLabel,
     selectedDateStr, storeSetSelectedDate,
+    hydrationError, clearHydrationError,
   } = useCalendarStore(useShallow(s => ({
     viewMode: s.currentView,
     setViewMode: s.setView,
@@ -131,6 +132,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     setMonthLabel: s.setMonthLabel,
     selectedDateStr: s.selectedDate,
     storeSetSelectedDate: s.setSelectedDate,
+    hydrationError: s.hydrationError,
+    clearHydrationError: s.clearHydrationError,
   })))
 
   const selectedDate = useMemo(() => new Date(selectedDateStr + 'T00:00:00'), [selectedDateStr])
@@ -426,6 +429,15 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   return (
     <>
       <div className="relative h-full flex">
+        {/* Vault hydration error banner */}
+        {hydrationError && (
+          <div className="absolute top-0 inset-x-0 z-30 flex items-center justify-between gap-2 px-3 py-2 bg-amber-100 border-b border-amber-300 text-amber-900 text-xs">
+            <span>Some calendar events could not be decrypted. They may appear after the next sync.</span>
+            <button onClick={clearHydrationError} className="shrink-0 text-amber-700 hover:text-amber-900 font-medium">
+              Dismiss
+            </button>
+          </div>
+        )}
         {/* Calendar — always visible */}
         <div className="flex-1 min-w-0 relative">
           <div className="absolute inset-0 flex flex-col">

@@ -30,6 +30,7 @@ const CLEANUP_STASH  = '_session_cleanup_data'
 let cachedAccessToken: string | null = null
 let cachedDeviceId: string | null = null
 let isPrimaryDevice = false
+let cachedClinicDeviceId: string | null = null
 let registered = false
 
 /** Update the cached access token (call on every auth state change / token refresh). */
@@ -47,8 +48,13 @@ export function updateCleanupIsPrimary(primary: boolean): void {
   isPrimaryDevice = primary
 }
 
+/** Update the cached clinic device ID (call after clinic device init). */
+export function updateCleanupClinicDeviceId(clinicDeviceId: string | null): void {
+  cachedClinicDeviceId = clinicDeviceId
+}
+
 /** Fire best-effort keepalive requests to clean up server-side state. */
-function performCleanup(token: string, deviceId: string | null): void {
+function performCleanup(token: string, deviceId: string | null, clinicDeviceId?: string | null): void {
   const url = import.meta.env.VITE_SUPABASE_URL as string
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
   const headers = {
@@ -63,6 +69,16 @@ function performCleanup(token: string, deviceId: string | null): void {
       method: 'POST',
       headers,
       body: JSON.stringify({ p_device_id: deviceId }),
+      keepalive: true,
+    }).catch(() => {})
+  }
+
+  // 1b. Clean up clinic device registration + key bundle (best-effort)
+  if (clinicDeviceId) {
+    fetch(`${url}/rest/v1/rpc/self_cleanup_clinic_device`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ p_clinic_device_id: clinicDeviceId }),
       keepalive: true,
     }).catch(() => {})
   }
@@ -97,6 +113,7 @@ function handlePageHide(event: PageTransitionEvent): void {
     localStorage.setItem(CLEANUP_STASH, JSON.stringify({
       token: cachedAccessToken,
       deviceId: cachedDeviceId,
+      clinicDeviceId: cachedClinicDeviceId,
       ts: Date.now(),
     }))
   } catch { /* ignore */ }
@@ -145,15 +162,15 @@ export function registerSessionCleanup(): void {
     if (raw) {
       localStorage.removeItem(CLEANUP_STASH)
       try {
-        const { token, deviceId, ts } = JSON.parse(raw) as {
-          token: string; deviceId: string | null; ts: number
+        const { token, deviceId, clinicDeviceId, ts } = JSON.parse(raw) as {
+          token: string; deviceId: string | null; clinicDeviceId: string | null; ts: number
         }
         const age = Date.now() - ts
         // Only clean up if the stash is recent (< 5 minutes).
         // Older entries likely expired naturally or were handled by heartbeat.
         if (age < 5 * 60 * 1000 && token) {
           logger.info(`Executing deferred session cleanup (stale by ${Math.round(age / 1000)}s)`)
-          performCleanup(token, deviceId)
+          performCleanup(token, deviceId, clinicDeviceId)
           // Remove encrypted Supabase session from IDB (browser tab was closed)
           removeSupabaseSessionFromIdb()
         } else {

@@ -24,6 +24,8 @@ let intervalId: ReturnType<typeof setInterval> | null = null
 let lastSentAt = 0
 let currentUserId: string | null = null
 let currentDeviceId: string | null = null
+let currentClinicId: string | null = null
+let currentClinicDeviceId: string | null = null
 
 /** Check if the user has opted out of activity tracking */
 export function isActivityTrackingEnabled(): boolean {
@@ -37,6 +39,12 @@ export function setActivityTrackingEnabled(enabled: boolean) {
   localStorage.setItem(ACTIVITY_TRACKING_KEY, String(enabled))
   // If disabling while heartbeat is running, stop it
   if (!enabled) stopHeartbeat()
+}
+
+/** Update clinic device info so heartbeat also pings the clinic device row. */
+export function updateHeartbeatClinicDevice(clinicId: string, clinicDeviceId: string): void {
+  currentClinicId = clinicId
+  currentClinicDeviceId = clinicDeviceId
 }
 
 async function sendHeartbeat() {
@@ -65,6 +73,18 @@ async function sendHeartbeat() {
         .eq('device_id', currentDeviceId)
         .then(({ error: devErr }) => {
           if (devErr) logger.warn('Device heartbeat update failed:', devErr.message)
+        })
+    }
+
+    // Also update clinic device last_active_at if registered
+    if (currentClinicId && currentClinicDeviceId) {
+      supabase
+        .from('user_devices')
+        .update({ last_active_at: ts })
+        .eq('user_id', currentClinicId)
+        .eq('device_id', currentClinicDeviceId)
+        .then(({ error: clinicErr }) => {
+          if (clinicErr) logger.warn('Clinic device heartbeat update failed:', clinicErr.message)
         })
     }
   } catch {
@@ -103,4 +123,6 @@ export function stopHeartbeat() {
   document.removeEventListener('visibilitychange', handleVisibilityChange)
   currentUserId = null
   currentDeviceId = null
+  currentClinicId = null
+  currentClinicDeviceId = null
 }

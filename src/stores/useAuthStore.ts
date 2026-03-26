@@ -463,12 +463,22 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
                 const { useMessagingStore } = await import('./useMessagingStore')
                 useMessagingStore.getState().setClinicDeviceId(clinicDeviceId)
 
-                // Prune stale clinic devices (from previous sessions that didn't clean up).
-                // Runs after our own device is registered so we don't prune ourselves.
-                const { pruneStaleClinicDevices } = await import('../lib/signal/clinicDeviceInit')
-                pruneStaleClinicDevices(cId, clinicDeviceId).catch(() => {})
+                // Wire clinic device into heartbeat so last_active_at stays fresh
+                const { updateHeartbeatClinicDevice } = await import('../lib/activityHeartbeat')
+                updateHeartbeatClinicDevice(cId, clinicDeviceId)
+
+                // Wire clinic device into browser-close cleanup
+                const { updateCleanupClinicDeviceId } = await import('../lib/sessionCleanup')
+                updateCleanupClinicDeviceId(clinicDeviceId)
+
+                // Server-side TTL cleanup of stale clinic devices (replaces client-side prune)
+                const { cleanupStaleClinicDevices } = await import('../lib/signal/signalService')
+                cleanupStaleClinicDevices(cId).catch(() => {})
               } catch (e) {
-                // Non-fatal — clinic vault init should never block login
+                // Surface vault replay failures so the user knows events may be missing
+                console.error('Clinic vault init failed:', e)
+                const { useCalendarStore } = await import('./useCalendarStore')
+                useCalendarStore.setState({ hydrationError: true })
               }
             })()
           }

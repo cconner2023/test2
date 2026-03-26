@@ -20,6 +20,7 @@ import {
   hasClinicSession,
   createClinicOutboundSession,
   encryptClinicMessage,
+  deleteClinicSession,
 } from '../lib/signal/clinicSession'
 import { serializeContent } from '../lib/signal/messageContent'
 import type { CalendarEventContent, CalendarEventPayload } from '../lib/signal/messageContent'
@@ -55,6 +56,11 @@ async function encryptForAllClinicDevices(
   const results: FanOutMessageInput[] = []
   for (const device of peerDevices) {
     try {
+      // Force fresh X3DH for vault device — each vault message must be
+      // independently decryptable so hard-deletes don't break session chains.
+      if (device.deviceId === 'vault') {
+        await deleteClinicSession(clinicId, 'vault')
+      }
       const sessionExists = await hasClinicSession(clinicId, device.deviceId)
       if (!sessionExists) {
         const bundleResult = await fetchPeerBundleForDevice(clinicId, device.deviceId)

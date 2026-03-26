@@ -55,8 +55,8 @@ export function useNoteEditor(config: NoteEditorConfig) {
     const { profile } = useUserProfile();
     const authUserId = useAuthStore(s => s.user?.id);
     const defaultHPI = profile.noteIncludeHPI ?? true;
-    const defaultPE = profile.noteIncludePE ?? false;
-    const defaultPlan = profile.noteIncludePlan ?? false;
+    const defaultPE = profile.noteIncludePE ?? true;
+    const defaultPlan = profile.noteIncludePlan ?? true;
 
     // --- Note content state ---
     const [note, setNote] = useState('');

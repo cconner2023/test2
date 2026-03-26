@@ -21,6 +21,8 @@ interface CalendarState {
   monthLabel: string
   /** True once the initial IDB hydration is complete. */
   hydrated: boolean
+  /** True if vault replay encountered decryption errors on last login. */
+  hydrationError: boolean
 }
 
 interface CalendarActions {
@@ -43,6 +45,7 @@ interface CalendarActions {
   clearPersonnelFilter: () => void
   setMonthLabel: (label: string) => void
   setHydrated: (h: boolean) => void
+  clearHydrationError: () => void
 }
 
 export type CalendarStore = CalendarState & CalendarActions
@@ -115,6 +118,7 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   personnelFilter: [],
   monthLabel: new Date().toLocaleDateString('en-US', { month: 'long' }),
   hydrated: false,
+  hydrationError: false,
 
   setView: (view) => set({ currentView: view }),
   setSelectedDate: (date) => set({ selectedDate: date }),
@@ -178,4 +182,5 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   clearPersonnelFilter: () => set({ personnelFilter: [] }),
   setMonthLabel: (label) => set({ monthLabel: label }),
   setHydrated: (h) => set({ hydrated: h }),
+  clearHydrationError: () => set({ hydrationError: false }),
 })))

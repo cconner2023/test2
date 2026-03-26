@@ -16,8 +16,7 @@ import {
   makeClinicDeviceId,
 } from './clinicKeyManager'
 import { loadLatestSignedPreKey } from './clinicKeyStore'
-import { uploadKeyBundle, registerDevice, fetchPeerDevices, unregisterDevice, deleteKeyBundle } from './signalService'
-import { supabase } from '../supabase'
+import { uploadKeyBundle, registerDevice } from './signalService'
 
 const logger = createLogger('ClinicDeviceInit')
 
@@ -80,50 +79,4 @@ export async function initClinicDeviceBundle(
 
   logger.info(`Clinic device bundle initialized: ${clinicDeviceId}`)
   return { clinicDeviceId }
-}
-
-/**
- * Prune stale clinic device registrations, key bundles, and orphaned messages.
- *
- * Each login cycle generates a new personal device ID → new clinic device ID.
- * Without cleanup, dead devices accumulate and the send path wastes time
- * trying to encrypt for devices whose keys no longer exist.
- *
- * Keeps the vault device and the caller's own clinic device.
- * Deletes everything else: device registration, key bundle, and any
- * undeliverable messages targeting the dead device.
- */
-export async function pruneStaleClinicDevices(
-  clinicId: string,
-  ownClinicDeviceId: string,
-): Promise<void> {
-  try {
-    const devicesResult = await fetchPeerDevices(clinicId)
-    if (!devicesResult.ok) return
-
-    const staleDevices = devicesResult.data.filter(d =>
-      d.deviceId !== 'vault' && d.deviceId !== ownClinicDeviceId
-    )
-
-    if (staleDevices.length === 0) return
-
-    logger.info(`Pruning ${staleDevices.length} stale clinic device(s)`)
-
-    for (const device of staleDevices) {
-      await Promise.allSettled([
-        unregisterDevice(clinicId, device.deviceId),
-        deleteKeyBundle(clinicId, device.deviceId),
-        // Purge undeliverable messages for this dead device
-        supabase
-          .from('signal_messages')
-          .delete()
-          .eq('recipient_id', clinicId)
-          .eq('recipient_device_id', device.deviceId),
-      ])
-    }
-
-    logger.info(`Pruned ${staleDevices.length} stale clinic device(s)`)
-  } catch (e) {
-    logger.warn('Failed to prune stale clinic devices:', e instanceof Error ? e.message : e)
-  }
 }

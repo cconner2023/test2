@@ -92,7 +92,7 @@ function RequestCard({
   const [roles, setRoles] = useState<string[]>(['medic'])
   const [selectedClinicId, setSelectedClinicId] = useState('')
   const [noteIncludeHPI, setNoteIncludeHPI] = useState(true)
-  const [noteIncludePE, setNoteIncludePE] = useState(false)
+  const [noteIncludePE, setNoteIncludePE] = useState(true)
   const [peDepth, setPeDepth] = useState('standard')
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)

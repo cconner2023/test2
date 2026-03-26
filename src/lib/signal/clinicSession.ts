@@ -321,3 +321,9 @@ export async function hasClinicSession(clinicId: string, deviceId: string): Prom
 export async function clearAllClinicSessions(): Promise<void> {
   sessionCache.clear()
 }
+
+export async function deleteClinicSession(clinicId: string, deviceId: string): Promise<void> {
+  const key = makeSessionKey(clinicId, deviceId)
+  sessionCache.delete(key)
+  await store.deleteSession(key)
+}

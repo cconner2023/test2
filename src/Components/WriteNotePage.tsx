@@ -72,8 +72,8 @@ export const WriteNotePage = ({
     }, []);
 
     const defaultHPI = tourOverrideAll || (profile.noteIncludeHPI ?? true);
-    const defaultPE = tourOverrideAll || (profile.noteIncludePE ?? false);
-    const defaultPlan = tourOverrideAll || (profile.noteIncludePlan ?? false);
+    const defaultPE = tourOverrideAll || (profile.noteIncludePE ?? true);
+    const defaultPlan = tourOverrideAll || (profile.noteIncludePlan ?? true);
 
     // Build visible wizard pages — hide HPI/PE/Plan when disabled in settings
     const visiblePages = useMemo(() => {

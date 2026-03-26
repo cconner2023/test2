@@ -135,6 +135,20 @@ export async function cleanupStaleDevices(
   )
 }
 
+/** Clean up stale clinic devices via server-side TTL. */
+export async function cleanupStaleClinicDevices(
+  clinicId: string,
+  staleMinutes: number = 30
+): Promise<Result<{ devicesDeleted: number; bundlesDeleted: number }>> {
+  return callRpc<{ devicesDeleted: number; bundlesDeleted: number }>(
+    () => supabase.rpc('cleanup_stale_clinic_devices', {
+      p_clinic_id: clinicId,
+      p_stale_minutes: staleMinutes,
+    }),
+    'cleanupStaleClinicDevices', logger,
+  )
+}
+
 /** Fetch all registered devices for a peer. */
 export async function fetchPeerDevices(
   peerId: string

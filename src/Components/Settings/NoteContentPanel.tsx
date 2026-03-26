@@ -14,8 +14,8 @@ export const NoteContentPanel = ({ onNavigate }: NoteContentPanelProps) => {
     const isProviderRole = useAuthStore((s) => s.isProviderRole);
 
     const includeHPI = profile.noteIncludeHPI ?? true;
-    const includePE = profile.noteIncludePE ?? false;
-    const includePlan = profile.noteIncludePlan ?? false;
+    const includePE = profile.noteIncludePE ?? true;
+    const includePlan = profile.noteIncludePlan ?? true;
     const textExpanderEnabled = profile.textExpanderEnabled ?? true;
 
     const handleToggle = useCallback((fields: Partial<UserTypes>) => {
