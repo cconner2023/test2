@@ -552,6 +552,8 @@ export async function createClinic(data: {
         associated_clinic_ids: data.associated_clinic_ids || [],
         additional_user_ids: data.additional_user_ids || [],
         encryption_key: rawKey,
+        vault_chain_key: rawKey,
+        vault_iteration: 0,
       })
       .select('id')
       .single()

@@ -3,7 +3,7 @@ import { Check, CalendarDays } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { getTaskData } from '../Data/TrainingData'
 import { useTrainingCompletions } from '../Hooks/useTrainingCompletions'
-import { useMessagesContext } from '../Hooks/MessagesContext'
+import { useCalendarVault } from '../Hooks/useCalendarVault'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { AudioAidPlayer } from './AudioAidPlayer'
 import { StepCallout, PerformanceStepItem } from './TrainingStepComponents'
@@ -24,8 +24,7 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
     const isAssigned = assignment && !assignment.completedAt
     const isOverdue = isAssigned && assignment.dueDate && new Date(assignment.dueDate) < new Date()
 
-    const messagesCtx = useMessagesContext()
-    const calendarGroupId = useCalendarStore(s => s.calendarGroupId)
+    const { sendEvent: vaultSendEvent, deleteEvents: vaultDeleteEvents } = useCalendarVault()
     const calendarEvents = useCalendarStore(s => s.events)
     const updateCalendarEvent = useCalendarStore(s => s.updateEvent)
 
@@ -35,7 +34,7 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
     }
 
     const updateCalendarOnCompletion = useCallback(() => {
-        if (!isAssigned || !assignment.calendarOriginId || !calendarGroupId || !messagesCtx?.sendCalendarEvent) return
+        if (!isAssigned || !assignment.calendarOriginId) return
         // Find the calendar event by matching originId
         const calEvent = calendarEvents.find(e => e.originId === assignment.calendarOriginId)
         if (!calEvent) return
@@ -45,17 +44,13 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
 
         // Delete old broadcast, send replacement
         const oldOriginIds = calEvent.originId ? [calEvent.originId] : []
-        if (oldOriginIds.length > 0 && messagesCtx.deleteCalendarEventMessages) {
-            messagesCtx.deleteCalendarEventMessages(calendarGroupId, oldOriginIds).catch(() => {})
+        if (oldOriginIds.length > 0) {
+            vaultDeleteEvents(oldOriginIds).catch(() => {})
         }
-        messagesCtx.sendCalendarEvent(calendarGroupId, {
-            type: 'calendar_event',
-            action: 'create',
-            data: updatedEvent,
-        }).then(newOriginId => {
+        vaultSendEvent('c', updatedEvent).then(newOriginId => {
             if (newOriginId) updateCalendarEvent(calEvent.id, { originId: newOriginId })
         }).catch(() => {})
-    }, [isAssigned, assignment, calendarGroupId, messagesCtx, calendarEvents, updateCalendarEvent])
+    }, [isAssigned, assignment, vaultSendEvent, vaultDeleteEvents, calendarEvents, updateCalendarEvent])
 
     // Mark as viewed on mount
     useEffect(() => {

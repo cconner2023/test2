@@ -8,11 +8,17 @@ interface WaypointIconProps {
   selected?: boolean;
 }
 
-function darkenColor(hex: string): string {
-  const r = Math.max(0, parseInt(hex.slice(1, 3), 16) - 40);
-  const g = Math.max(0, parseInt(hex.slice(3, 5), 16) - 40);
-  const b = Math.max(0, parseInt(hex.slice(5, 7), 16) - 40);
-  return `rgb(${r},${g},${b})`;
+function darkenColor(color: string): string {
+  // Handle rgba/rgb strings by darkening via a semi-transparent black overlay approach
+  // For hex, parse directly
+  if (color.startsWith('#')) {
+    const r = Math.max(0, parseInt(color.slice(1, 3), 16) - 40);
+    const g = Math.max(0, parseInt(color.slice(3, 5), 16) - 40);
+    const b = Math.max(0, parseInt(color.slice(5, 7), 16) - 40);
+    return `rgb(${r},${g},${b})`;
+  }
+  // For rgb/rgba, just return a darker version via filter in SVG
+  return color;
 }
 
 function abbreviation(label: string): string {
@@ -85,4 +91,31 @@ export function WaypointIcon({ type, color, size = 32, selected = false }: Waypo
       </text>
     </svg>
   );
+}
+
+/**
+ * Generate an SVG string for use with Leaflet's L.divIcon.
+ * Returns raw SVG markup — no React rendering needed.
+ */
+export function waypointIconSvg(
+  type: WaypointType,
+  color: string,
+  size = 28,
+  selected = false,
+): string {
+  const label = WAYPOINT_LABELS[type];
+  const abbr = abbreviation(label);
+  const textSize = fontSize(abbr, size);
+  const center = size / 2;
+  const radius = size * 0.42;
+
+  const selectionRing = selected
+    ? `<circle cx="${center}" cy="${center}" r="${radius + 3}" fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.7"/>`
+    : '';
+
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+    ${selectionRing}
+    <circle cx="${center}" cy="${center}" r="${radius}" fill="${color}" stroke="${darkenColor(color)}" stroke-width="1.5"/>
+    <text x="${center}" y="${center}" text-anchor="middle" dominant-baseline="central" fill="#FFFFFF" font-weight="bold" font-size="${textSize}" font-family="system-ui, sans-serif">${abbr}</text>
+  </svg>`;
 }

@@ -29,6 +29,7 @@ import { destroyCalendarEventStore } from '../lib/calendarEventStore'
 import { useCalendarStore } from './useCalendarStore'
 import { clearBackupKey, createBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
 import { processVaultMessages, clearVaultKey } from '../lib/signal/vaultDevice'
+import { deriveAndCacheClinicVaultKey, ensureClinicVaultExists, processClinicVaultMessages, clearClinicVaultKey } from '../lib/signal/clinicVaultDevice'
 import { unsubscribeFromPush, resyncPushSubscription } from '../lib/pushNotificationService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { registerSessionCleanup, updateCleanupToken, updateCleanupDeviceId, updateCleanupIsPrimary } from '../lib/sessionCleanup'
@@ -305,6 +306,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
 
     // Clear vault wrapping key
     clearVaultKey()
+    clearClinicVaultKey()
     // Aggressively clear backup state first (detaches onMessageSaved callback)
     clearBackupKey()
     // Clear in-memory session cache
@@ -357,7 +359,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     }
     clearClinicUsersCache().catch(() => {})
     useCallStore.getState().reset()
-    useCalendarStore.setState({ events: [], hydrated: false, calendarGroupId: null })
+    useCalendarStore.setState({ events: [], hydrated: false })
 
     // Aggressively wipe browser storage
     try { localStorage.clear() } catch { /* ignore */ }
@@ -418,6 +420,29 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
 
           // Process vault messages (deferred messages from offline period)
           processVaultMessages(userId).catch(() => {})
+
+          // Initialize clinic vault device (clinic persona — parallel to personal vault)
+          const cId = get().clinicId
+          if (cId) {
+            (async () => {
+              try {
+                // Fetch the clinic's raw encryption key from Supabase
+                const { data: clinicRow } = await supabase
+                  .from('clinics')
+                  .select('encryption_key')
+                  .eq('id', cId)
+                  .single()
+                if (!clinicRow?.encryption_key) return
+
+                // Derive wrapping key + ensure vault device exists + process unread
+                await deriveAndCacheClinicVaultKey(cId, clinicRow.encryption_key)
+                await ensureClinicVaultExists(cId, clinicRow.encryption_key)
+                await processClinicVaultMessages(cId)
+              } catch (e) {
+                // Non-fatal — clinic vault init should never block login
+              }
+            })()
+          }
 
           // Initialize LoRa mesh subsystem (lazy — no-ops if flag is off)
           initLoRaMesh(userId).catch(() => {})

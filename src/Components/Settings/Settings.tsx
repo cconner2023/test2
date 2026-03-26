@@ -28,7 +28,7 @@ import { clearServiceWorkerCaches } from '../../lib/cacheService';
 import { deleteOwnAccount } from '../../lib/authService';
 import { PANEL, PANEL_TARGET, type PanelId, type SettingsItem } from './SettingsTypes';
 import { UI_TIMING } from '../../Utilities/constants';
-import { LORA_MESH_ENABLED, GUIDED_TOURS_ENABLED } from '../../lib/featureFlags';
+import { GUIDED_TOURS_ENABLED } from '../../lib/featureFlags';
 import { MainSettingsPanel } from './MainSettingsPanel';
 import { AvatarPickerPanel } from './AvatarPickerPanel';
 import { ContentWrapper } from './ContentWrapper';
@@ -257,7 +257,7 @@ export const Settings = ({
         );
 
         // UTILITIES section
-        if (isAuthenticated && (LORA_MESH_ENABLED || isDevRole)) {
+        if (isAuthenticated && isDevRole) {
             items.push(
                 { type: 'header', label: 'Utilities' },
                 opt(PANEL.LORA, <Radio size={20} />, 'WhisperNet', 'LoRa mesh offline messaging'),

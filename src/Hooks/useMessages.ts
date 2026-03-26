@@ -67,8 +67,7 @@ import {
 import {
   serializeContent,
 } from '../lib/signal/messageContent'
-import type { MessageContent, ImageContent, VoiceContent, ReplyTo, CalendarEventContent } from '../lib/signal/messageContent'
-import { isCalendarEvent, routeCalendarEvent } from '../lib/calendarRouting'
+import type { MessageContent, ImageContent, VoiceContent, ReplyTo } from '../lib/signal/messageContent'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { uploadEncryptedAttachment } from '../lib/signal/attachmentService'
 import { createBackup, markHydrationComplete, scheduleBackup } from '../lib/signal/backupService'
@@ -439,10 +438,6 @@ export interface UseMessagesReturn {
   fetchGroupHistory: (groupId: string) => Promise<void>
   /** Refresh group list from server. */
   refreshGroups: () => Promise<void>
-  /** Send a calendar event to the clinic calendar group. Returns the originId on success. */
-  sendCalendarEvent: (calendarGroupId: string, content: CalendarEventContent) => Promise<string | null>
-  /** Hard-delete calendar event messages from Supabase and broadcast protocol-level delete to group. */
-  deleteCalendarEventMessages: (calendarGroupId: string, originIds: string[]) => Promise<void>
   /** Ref for external listeners to receive qualifying incoming messages. */
   onIncomingRef: React.MutableRefObject<((msg: DecryptedSignalMessage) => void) | null>
   /** Ref tracking the currently-open conversation key (peerId or groupId). */
@@ -544,14 +539,6 @@ export function useMessages(): UseMessagesReturn {
       markMessagesRead([msg.id]).catch(e =>
         errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.handleIncomingMessage', message: 'Failed to mark self-note as read', timestamp: Date.now(), metadata: { error: e } })
       )
-    }
-
-    // Calendar event routing
-    if (isCalendarEvent(msg.content)) {
-      routeCalendarEvent(msg.content)
-      saveMessage(msg, userId!).catch(() => {})
-      markMessagesRead([msg.id]).catch(() => {})
-      return
     }
 
     // If the conversation is currently open, mark the message as read before storing
@@ -1707,126 +1694,6 @@ export function useMessages(): UseMessagesReturn {
     return () => { activePeerRef.current = null }
   }, [])
 
-  /**
-   * Send a calendar event to the clinic calendar group.
-   */
-  const sendCalendarEvent = useCallback(async (
-    calendarGroupId: string,
-    content: CalendarEventContent,
-  ): Promise<string | null> => {
-    const localDeviceId = useMessagingStore.getState().localDeviceId
-    if (!userId || !localDeviceId) return null
-
-    const originId = crypto.randomUUID()
-    const serialized = serializeContent(content)
-
-    try {
-      const membersResult = await fetchGroupMembersRpc(calendarGroupId)
-      if (!membersResult.ok) {
-        logger.warn('sendCalendarEvent: failed to fetch group members:', membersResult.error)
-        return null
-      }
-
-      const result = await encryptAndSendToGroupMembers(
-        userId, localDeviceId, calendarGroupId, serialized, originId, membersResult.data, true,
-      )
-      if (!result.ok) {
-        logger.warn('sendCalendarEvent: encrypt/send failed:', result.error)
-        return null
-      }
-
-      const now = new Date().toISOString()
-      saveMessage({
-        id: result.data,
-        senderId: userId,
-        recipientId: calendarGroupId,
-        plaintext: '[calendar event]',
-        content,
-        messageType: 'message',
-        createdAt: now,
-        readAt: now,
-        groupId: calendarGroupId,
-        originId,
-      }, userId).catch(() => {})
-
-      sendSyncToOwnDevices(userId, localDeviceId, {
-        forPeerId: calendarGroupId,
-        serialized,
-        originalMessageType: 'message',
-        originalTimestamp: now,
-        originalMessageId: result.data,
-      }, calendarGroupId, originId).catch(() => {})
-
-      return originId
-    } catch (e) {
-      logger.warn('sendCalendarEvent error:', e instanceof Error ? e.message : e)
-      return null
-    }
-  }, [userId])
-
-  /**
-   * Hard-delete calendar event messages from Supabase and broadcast protocol-level delete.
-   */
-  const deleteCalendarEventMessages = useCallback(async (
-    calendarGroupId: string,
-    originIds: string[],
-  ): Promise<void> => {
-    const localDeviceId = useMessagingStore.getState().localDeviceId
-    if (!userId || !localDeviceId || originIds.length === 0) return
-
-    const deletePayload = JSON.stringify({ originIds })
-    const deleteOriginId = crypto.randomUUID()
-
-    try {
-      const membersResult = await fetchGroupMembersRpc(calendarGroupId)
-      if (membersResult.ok) {
-        const otherMembers = membersResult.data.filter(m => m.userId !== userId)
-        for (const member of otherMembers) {
-          const devicesResult = await fetchPeerDevices(member.userId)
-          if (devicesResult.ok && devicesResult.data.length > 0) {
-            const fanOutInputs = await encryptForAllDevices(member.userId, devicesResult.data, deletePayload, userId)
-            for (const input of fanOutInputs) input.messageType = 'delete'
-            if (fanOutInputs.length > 0) {
-              await sendMessageFanOut(userId, localDeviceId, member.userId, fanOutInputs, calendarGroupId, deleteOriginId).catch(e =>
-                logger.warn('Failed to send calendar delete to group member:', e instanceof Error ? e.message : e)
-              )
-            }
-          }
-        }
-      }
-    } catch (e) {
-      logger.warn('Failed to broadcast calendar delete to group:', e instanceof Error ? e.message : e)
-    }
-
-    try {
-      const ownDevicesResult = await fetchOwnDevices(userId)
-      if (ownDevicesResult.ok) {
-        const otherDevices = ownDevicesResult.data.filter(d => d.deviceId !== localDeviceId)
-        if (otherDevices.length > 0) {
-          const syncInputs = await encryptForAllDevices(userId, otherDevices, deletePayload, userId)
-          for (const input of syncInputs) input.messageType = 'delete'
-          if (syncInputs.length > 0) {
-            await sendMessageFanOut(userId, localDeviceId, userId, syncInputs, undefined, deleteOriginId).catch(e =>
-              logger.warn('Failed to sync calendar delete to own devices:', e instanceof Error ? e.message : e)
-            )
-          }
-        }
-      }
-    } catch (e) {
-      logger.warn('Failed to sync calendar delete to own devices:', e instanceof Error ? e.message : e)
-    }
-
-    hardDeleteByOriginId(originIds).catch(e =>
-      logger.warn('Failed to hard-delete calendar event from Supabase:', e instanceof Error ? e.message : e)
-    )
-
-    deleteMessagesByOriginIdFromDb(originIds).catch(e =>
-      logger.warn('Failed to purge calendar create from local IDB:', e instanceof Error ? e.message : e)
-    )
-
-    if (userId) scheduleBackup(userId)
-  }, [userId])
-
   return {
     sendMessage,
     sendImage,
@@ -1849,8 +1716,6 @@ export function useMessages(): UseMessagesReturn {
     fetchGroupMembers: fetchGroupMembersFn,
     fetchGroupHistory,
     refreshGroups,
-    sendCalendarEvent,
-    deleteCalendarEventMessages,
     onIncomingRef,
     activePeerRef,
   }

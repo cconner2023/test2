@@ -8,64 +8,66 @@ export const menuData: sideMenuDataType[] = [
         icon: 'provider',
         action: 'provider',
         group: 'roles',
-        gateKey: 'provider'
+        access: 'provider',
     },
     {
         text: 'Supervisor',
         icon: 'supervisor',
         action: 'supervisor',
         group: 'roles',
-        gateKey: 'supervisor'
+        access: 'supervisor',
     },
     {
         text: 'Admin',
         icon: 'admin',
         action: 'admin',
         group: 'roles',
-        gateKey: 'admin'
+        access: 'admin',
     },
     // Utility — mobile-only tools
     {
         text: "Import Note",
         icon: 'import',
         action: 'import',
-        group: 'utility'
+        group: 'utility',
     },
-    // Modules — ungated
+    // Modules — released
     {
         text: "Knowledge Base",
         icon: 'knowledgebase',
         action: 'knowledgebase',
-        group: 'modules'
+        group: 'modules',
     },
     {
         text: "Calendar",
         icon: 'calendar',
         action: 'calendar',
         group: 'modules',
-        gateKey: 'calendar'
+        access: 'authenticated',
     },
-    // Modules — gated
+    // Modules — beta
     {
         text: "Property Book",
         icon: 'property',
         action: 'property',
         group: 'modules',
-        gateKey: 'property'
+        access: 'authenticated',
+        stage: 'beta',
     },
     {
         text: "Map Overlay",
         icon: 'mapOverlay',
         action: 'mapOverlay',
         group: 'modules',
-        gateKey: 'mapOverlay'
+        access: 'authenticated',
+        stage: 'beta',
     },
     // System
     {
         text: 'Settings',
         icon: 'settings',
         action: 'settings',
-        group: 'system'
+        group: 'system',
     },
 ]
 

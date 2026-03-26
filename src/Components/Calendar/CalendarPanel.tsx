@@ -15,9 +15,9 @@ import { HeaderPill, PillButton } from '../HeaderPill'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
-import { useProperty } from '../../Hooks/useProperty'
+import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useCalendarSync } from '../../Hooks/useCalendarSync'
-import { useMessagesContext } from '../../Hooks/MessagesContext'
+import { useCalendarVault } from '../../Hooks/useCalendarVault'
 import { useAuth } from '../../Hooks/useAuth'
 import { getInitials } from '../../Utilities/nameUtils'
 import type { CalendarEvent, EventFormData } from '../../Types/CalendarTypes'
@@ -46,10 +46,9 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const eventFormRef = useRef<EventFormHandle>(null)
 
   const { clinicId, user } = useAuth()
-  const messagesCtx = useMessagesContext()
-  const { calendarGroupId } = useCalendarStore(useShallow(s => ({ calendarGroupId: s.calendarGroupId })))
+  const { sendEvent: vaultSendEvent, deleteEvents: vaultDeleteEvents } = useCalendarVault()
 
-  // Kick off group resolution + IDB hydration
+  // Kick off IDB hydration + vault subscription
   useCalendarSync()
 
   const [confirmDeleteEvent, setConfirmDeleteEvent] = useState<string | null>(null)
@@ -84,15 +83,15 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
   const medicList = useMemo(() => Array.from(medicLookup.values()), [medicLookup])
 
-  const property = useProperty()
+  const propertyStoreItems = usePropertyStore(s => s.items)
   const propertyItems = useMemo(() =>
-    property.items.filter(i => !i.parent_item_id).map(i => ({
+    propertyStoreItems.filter(i => !i.parent_item_id).map(i => ({
       id: i.id,
       name: i.name,
       nsn: i.nsn,
       serial_number: i.serial_number,
     })),
-    [property.items]
+    [propertyStoreItems]
   )
 
   const resolveAssigned = useCallback((ids: string[]) =>
@@ -102,10 +101,10 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
   const resolvePropertyItems = useCallback((ids: string[]) =>
     ids.map(id => {
-      const item = property.items.find(i => i.id === id)
+      const item = propertyStoreItems.find(i => i.id === id)
       return item ? { id: item.id, name: item.name, nsn: item.nsn } : { id, name: 'Unknown Item', nsn: null }
     }),
-    [property.items]
+    [propertyStoreItems]
   )
 
   const {
@@ -224,20 +223,12 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
         property_item_ids: data.property_item_ids,
         updated_at: now,
       }
-      // Hard-delete old broadcast from Supabase, then send replacement
-      if (calendarGroupId && messagesCtx?.sendCalendarEvent) {
-        const oldOriginIds = editingEvent.originId ? [editingEvent.originId] : []
-        if (oldOriginIds.length > 0 && messagesCtx.deleteCalendarEventMessages) {
-          messagesCtx.deleteCalendarEventMessages(calendarGroupId, oldOriginIds).catch(() => {})
-        }
-        messagesCtx.sendCalendarEvent(calendarGroupId, {
-          type: 'calendar_event',
-          action: 'create',
-          data: updatedEvent,
-        }).then(newOriginId => {
-          if (newOriginId) updateEvent(editingEvent.id, { ...updatedEvent, originId: newOriginId })
-        }).catch(() => {})
-      }
+      // Hard-delete old vault message, then send replacement
+      const oldOriginIds = editingEvent.originId ? [editingEvent.originId] : []
+      if (oldOriginIds.length > 0) vaultDeleteEvents(oldOriginIds).catch(() => {})
+      vaultSendEvent('c', updatedEvent).then(newOriginId => {
+        if (newOriginId) updateEvent(editingEvent.id, { ...updatedEvent, originId: newOriginId })
+      }).catch(() => {})
       // Update local state immediately (originId will be patched async above)
       updateEvent(editingEvent.id, updatedEvent)
     } else {
@@ -262,19 +253,13 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
         updated_at: now,
       }
       addEvent(newEvent)
-      if (calendarGroupId && messagesCtx?.sendCalendarEvent) {
-        messagesCtx.sendCalendarEvent(calendarGroupId, {
-          type: 'calendar_event',
-          action: 'create',
-          data: newEvent,
-        }).then(originId => {
-          if (originId) updateEvent(newEvent.id, { originId })
-        }).catch(() => {})
-      }
+      vaultSendEvent('c', newEvent).then(originId => {
+        if (originId) updateEvent(newEvent.id, { originId })
+      }).catch(() => {})
     }
     setEditingEvent(null)
     setPanelView('calendar')
-  }, [editingEvent, addEvent, updateEvent, calendarGroupId, messagesCtx, clinicId, user])
+  }, [editingEvent, addEvent, updateEvent, vaultSendEvent, vaultDeleteEvents, clinicId, user])
 
   const handleMoveEvent = useCallback((eventId: string, newStartTime: string) => {
     const event = events.find(e => e.id === eventId)
@@ -291,21 +276,13 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       updated_at: new Date().toISOString(),
     }
     updateEvent(eventId, movedEvent)
-    // Delete old broadcast, send replacement with full state
-    if (calendarGroupId && messagesCtx?.sendCalendarEvent) {
-      const oldOriginIds = event.originId ? [event.originId] : []
-      if (oldOriginIds.length > 0 && messagesCtx.deleteCalendarEventMessages) {
-        messagesCtx.deleteCalendarEventMessages(calendarGroupId, oldOriginIds).catch(() => {})
-      }
-      messagesCtx.sendCalendarEvent(calendarGroupId, {
-        type: 'calendar_event',
-        action: 'create',
-        data: movedEvent,
-      }).then(newOriginId => {
-        if (newOriginId) updateEvent(eventId, { originId: newOriginId })
-      }).catch(() => {})
-    }
-  }, [events, updateEvent, calendarGroupId, messagesCtx])
+    // Delete old vault message, send replacement with full state
+    const oldOriginIds = event.originId ? [event.originId] : []
+    if (oldOriginIds.length > 0) vaultDeleteEvents(oldOriginIds).catch(() => {})
+    vaultSendEvent('c', movedEvent).then(newOriginId => {
+      if (newOriginId) updateEvent(eventId, { originId: newOriginId })
+    }).catch(() => {})
+  }, [events, updateEvent, vaultSendEvent, vaultDeleteEvents])
 
   const handleMoveEventToDate = useCallback((eventId: string, targetDateKey: string) => {
     const event = events.find(e => e.id === eventId)
@@ -326,43 +303,23 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       updated_at: new Date().toISOString(),
     }
     updateEvent(eventId, movedEvent)
-    // Delete old broadcast, send replacement with full state
-    if (calendarGroupId && messagesCtx?.sendCalendarEvent) {
-      const oldOriginIds = event.originId ? [event.originId] : []
-      if (oldOriginIds.length > 0 && messagesCtx.deleteCalendarEventMessages) {
-        messagesCtx.deleteCalendarEventMessages(calendarGroupId, oldOriginIds).catch(() => {})
-      }
-      messagesCtx.sendCalendarEvent(calendarGroupId, {
-        type: 'calendar_event',
-        action: 'create',
-        data: movedEvent,
-      }).then(newOriginId => {
-        if (newOriginId) updateEvent(eventId, { originId: newOriginId })
-      }).catch(() => {})
-    }
-  }, [events, updateEvent, calendarGroupId, messagesCtx])
+    const moveOldOriginIds = event.originId ? [event.originId] : []
+    if (moveOldOriginIds.length > 0) vaultDeleteEvents(moveOldOriginIds).catch(() => {})
+    vaultSendEvent('c', movedEvent).then(newOriginId => {
+      if (newOriginId) updateEvent(eventId, { originId: newOriginId })
+    }).catch(() => {})
+  }, [events, updateEvent, vaultSendEvent, vaultDeleteEvents])
 
   const handleDeleteEvent = useCallback((id: string) => {
     const event = events.find(e => e.id === id)
     removeEvent(id)
     selectEvent(null)
     setPanelView('calendar')
-    if (calendarGroupId && messagesCtx) {
-      // Hard-delete from Supabase + protocol-level delete to all devices
-      const originIds = event?.originId ? [event.originId] : []
-      if (originIds.length > 0 && messagesCtx.deleteCalendarEventMessages) {
-        messagesCtx.deleteCalendarEventMessages(calendarGroupId, originIds).catch(() => {})
-      }
-      // Also broadcast the calendar delete action for devices that are online
-      if (messagesCtx.sendCalendarEvent) {
-        messagesCtx.sendCalendarEvent(calendarGroupId, {
-          type: 'calendar_event',
-          action: 'delete',
-          data: { id },
-        }).catch(() => {})
-      }
-    }
-  }, [events, removeEvent, selectEvent, calendarGroupId, messagesCtx])
+    // Hard-delete old vault message + broadcast the delete action
+    const originIds = event?.originId ? [event.originId] : []
+    if (originIds.length > 0) vaultDeleteEvents(originIds).catch(() => {})
+    vaultSendEvent('d', { id }).catch(() => {})
+  }, [events, removeEvent, selectEvent, vaultSendEvent, vaultDeleteEvents])
 
   const handleFormCancel = useCallback(() => {
     setEditingEvent(null)
@@ -413,17 +370,11 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
         updated_at: now,
       }
       updateEvent(editingEvent.id, changes)
-      if (calendarGroupId && messagesCtx?.sendCalendarEvent) {
-        messagesCtx.sendCalendarEvent(calendarGroupId, {
-          type: 'calendar_event',
-          action: 'update',
-          data: { id: editingEvent.id, ...changes },
-        }).catch(() => {})
-      }
+      vaultSendEvent('u', { id: editingEvent.id, ...changes }).catch(() => {})
     }
     setEditingEvent(null)
     setDayDrawerView('detail')
-  }, [editingEvent, updateEvent, calendarGroupId, messagesCtx])
+  }, [editingEvent, updateEvent, vaultSendEvent])
 
   const handleDayDrawerEditCancel = useCallback(() => {
     setEditingEvent(null)

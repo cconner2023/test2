@@ -2,9 +2,8 @@ import { useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { menuData } from '../Data/CatData'
 import { useAuth } from './useAuth'
-import { PROPERTY_MANAGEMENT_ENABLED, LORA_MESH_ENABLED, MAP_OVERLAY_ENABLED, CALENDAR_ENABLED } from '../lib/featureFlags'
 import { useNavPreferencesStore } from '../stores/useNavPreferencesStore'
-import type { sideMenuDataType } from '../Types/CatTypes'
+import type { AccessLevel, sideMenuDataType } from '../Types/CatTypes'
 
 interface UseNavItemsReturn {
   visibleItems: sideMenuDataType[]
@@ -33,18 +32,19 @@ export function useNavItems(): UseNavItemsReturn {
       resetToDefault: s.resetToDefault,
     })))
 
+  const accessChecks: Record<AccessLevel, boolean> = useMemo(() => ({
+    public: true,
+    authenticated: isAuthenticated,
+    provider: isProviderRole,
+    supervisor: isSupervisorRole,
+    admin: isDevRole,
+  }), [isAuthenticated, isProviderRole, isSupervisorRole, isDevRole])
+
   const gatedItems = useMemo(() => menuData.filter(item => {
-    if (!item.gateKey) return true
-    if (item.gateKey === 'authenticated') return isAuthenticated
-    if (item.gateKey === 'property') return isAuthenticated && PROPERTY_MANAGEMENT_ENABLED && isDevRole
-    if (item.gateKey === 'provider') return isProviderRole
-    if (item.gateKey === 'supervisor') return isSupervisorRole
-    if (item.gateKey === 'admin') return isDevRole
-    if (item.gateKey === 'lora') return isAuthenticated && (LORA_MESH_ENABLED || isDevRole)
-    if (item.gateKey === 'mapOverlay') return isAuthenticated && (MAP_OVERLAY_ENABLED || isDevRole)
-    if (item.gateKey === 'calendar') return isAuthenticated && (CALENDAR_ENABLED || isDevRole)
-    return true
-  }), [isAuthenticated, isSupervisorRole, isDevRole, isProviderRole])
+    const meetsAccess = accessChecks[item.access ?? 'public']
+    const meetsStage = item.stage === 'beta' ? isDevRole : true
+    return meetsAccess && meetsStage
+  }), [accessChecks, isDevRole])
 
   const visibleItems = useMemo(() => {
     const gatedActions = new Set(gatedItems.map(i => i.action))

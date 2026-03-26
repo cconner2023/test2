@@ -7,6 +7,7 @@ import { useTheme } from '../../Utilities/ThemeContext';
 import { createThemedTileLayer, TILE_THEME_LIGHT, TILE_THEME_DARK } from './ThemedTileLayer';
 import { createMGRSGridLayer, GRID_THEME_LIGHT, GRID_THEME_DARK } from './MGRSGridLayer';
 import type { OverlayFeature, DrawMode } from '../../Types/MapOverlayTypes';
+import { waypointIconSvg } from './WaypointIcon';
 
 export interface MapViewHandle {
   flyTo: (lat: number, lng: number, zoom?: number) => void;
@@ -25,6 +26,8 @@ interface MapViewProps {
   onMoveEnd?: (center: [number, number], zoom: number) => void;
   /** Extra top offset (px) for floating controls when header overlays the map */
   controlsTopOffset?: number;
+  measurePoints?: [number, number][];
+  measureResult?: { distanceM: number; bearing: number } | null;
 }
 
 const DEFAULT_CENTER: [number, number] = [38.8977, -77.0365];
@@ -59,6 +62,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   zoom = DEFAULT_ZOOM,
   onMoveEnd,
   controlsTopOffset = 0,
+  measurePoints,
+  measureResult,
 }, ref) {
   const { theme } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -67,6 +72,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   const gridLayerRef = useRef<L.GridLayer | null>(null);
   const featureLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const gpsLayerRef = useRef<L.LayerGroup>(L.layerGroup());
+  const measureLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const [mgrsReadout, setMgrsReadout] = useState('');
   const [mgrsCopied, setMgrsCopied] = useState(false);
   const [showAttribution, setShowAttribution] = useState(false);
@@ -127,6 +133,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 
     featureLayerRef.current.addTo(map);
     gpsLayerRef.current.addTo(map);
+    measureLayerRef.current.addTo(map);
 
     updateMgrs(map);
 
@@ -190,7 +197,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    el.style.cursor = drawMode === 'pin' || drawMode === 'route' ? 'crosshair'
+    el.style.cursor = drawMode === 'pin' || drawMode === 'route' || drawMode === 'area' || drawMode === 'measure' ? 'crosshair'
       : drawMode === 'delete' ? 'not-allowed'
       : drawMode === 'edit' ? 'pointer'
       : '';
@@ -211,19 +218,24 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 
       if (feature.type === 'waypoint' && feature.geometry.length > 0) {
         const [lat, lng] = feature.geometry[0];
-        const marker = L.circleMarker([lat, lng], {
-          radius: isSelected ? 10 : 7,
-          color: isSelected ? '#FFFFFF' : color,
-          fillColor: color,
-          fillOpacity: opacity,
-          weight: isSelected ? 3 : 2,
+        const wptType = feature.waypoint_type ?? 'generic';
+        const iconSize = isSelected ? 34 : 28;
+        const svg = waypointIconSvg(wptType, color, iconSize, isSelected);
+
+        const icon = L.divIcon({
+          html: svg,
+          className: '', // clear default leaflet-div-icon styling
+          iconSize: [iconSize, iconSize],
+          iconAnchor: [iconSize / 2, iconSize / 2],
         });
+
+        const marker = L.marker([lat, lng], { icon });
 
         if (feature.label) {
           marker.bindTooltip(feature.label, {
             permanent: true,
             direction: 'top',
-            offset: [0, -10],
+            offset: [0, -iconSize / 2 - 4],
             className: 'leaflet-tooltip-tactical',
           });
         }
@@ -298,6 +310,48 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 
     L.circleMarker([lat, lng], GPS_MARKER_STYLE).addTo(group);
   }, [gpsPosition]);
+
+  // Sync measure tool visualization
+  useEffect(() => {
+    const group = measureLayerRef.current;
+    group.clearLayers();
+
+    if (!measurePoints || measurePoints.length === 0) return;
+
+    // Draw measure points as small circles
+    for (const [lat, lng] of measurePoints) {
+      L.circleMarker([lat, lng], {
+        radius: 5,
+        color: '#FFFFFF',
+        fillColor: '#F59E0B',
+        fillOpacity: 1,
+        weight: 2,
+      }).addTo(group);
+    }
+
+    // Draw dashed line between two points
+    if (measurePoints.length === 2 && measureResult) {
+      const line = L.polyline(measurePoints, {
+        color: '#F59E0B',
+        weight: 2,
+        dashArray: '8 6',
+        opacity: 0.9,
+      });
+
+      const distLabel = measureResult.distanceM >= 1000
+        ? `${(measureResult.distanceM / 1000).toFixed(2)} km`
+        : `${Math.round(measureResult.distanceM)} m`;
+      const bearLabel = `${Math.round(measureResult.bearing)}°`;
+
+      line.bindTooltip(`${distLabel} · ${bearLabel}`, {
+        permanent: true,
+        direction: 'center',
+        className: 'leaflet-tooltip-measure',
+      });
+
+      group.addLayer(line);
+    }
+  }, [measurePoints, measureResult]);
 
   useImperativeHandle(ref, () => ({
     flyTo: (lat: number, lng: number, z?: number) => {

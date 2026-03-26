@@ -101,6 +101,7 @@ interface QueueEntry {
   recipientId: string
   senderDeviceId: string | null
   recipientDeviceId: string | null
+  groupId: string | null
   messageType: string
   payload: string // encrypted
   createdAt: string
@@ -175,8 +176,8 @@ export async function flushOutboundQueue(): Promise<number> {
             p_recipient_device_id: entry.recipientDeviceId ?? null,
             p_message_type: entry.messageType,
             p_payload: payload,
-            p_group_id: null,
-            p_origin_id: null,
+            p_group_id: entry.groupId ?? null,
+            p_origin_id: null, // originId not stored in queue entry yet
           }),
         })
 

@@ -8,7 +8,7 @@ import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { UI_TIMING } from '../Utilities/constants'
 import { useTrainingCompletions } from '../Hooks/useTrainingCompletions'
-import { useMessagesContext } from '../Hooks/MessagesContext'
+import { useCalendarVault } from '../Hooks/useCalendarVault'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { updateAssignmentCalendarOriginId } from '../lib/trainingService'
 import { useAuthStore } from '../stores/useAuthStore'
@@ -68,8 +68,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   // ── Data ───────────────────────────────────────────────────────────────────
 
   const { submitTestEvaluation, assignTask } = useTrainingCompletions()
-  const messagesCtx = useMessagesContext()
-  const calendarGroupId = useCalendarStore(s => s.calendarGroupId)
+  const { sendEvent: vaultSendEvent } = useCalendarVault()
   const addCalendarEvent = useCalendarStore(s => s.addEvent)
   const updateCalendarEvent = useCalendarStore(s => s.updateEvent)
   const user = useAuthStore(s => s.user)
@@ -157,7 +156,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     })
 
     // Create calendar event for the assignment
-    if (calendarGroupId && messagesCtx?.sendCalendarEvent && user) {
+    if (user) {
       const now = new Date().toISOString()
       const calendarEvent = {
         id: crypto.randomUUID(),
@@ -181,11 +180,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       }
 
       addCalendarEvent(calendarEvent)
-      messagesCtx.sendCalendarEvent(calendarGroupId, {
-        type: 'calendar_event',
-        action: 'create',
-        data: calendarEvent,
-      }).then(originId => {
+      vaultSendEvent('c', calendarEvent).then(originId => {
         if (originId) {
           updateCalendarEvent(calendarEvent.id, { originId })
           // Link the calendar event back to the assignment
@@ -202,7 +197,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     refreshData()
     setView({ screen: 'main' })
     setTreeSelection({ type: 'soldier', soldierId: view.soldier.id })
-  }, [view, assignTask, addAssignment, refreshData, calendarGroupId, messagesCtx, user, addCalendarEvent, updateCalendarEvent])
+  }, [view, assignTask, addAssignment, refreshData, vaultSendEvent, user, addCalendarEvent, updateCalendarEvent])
 
   const handleModifyCerts = useCallback((soldier: ClinicMedic) => {
 

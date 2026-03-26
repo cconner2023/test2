@@ -18,6 +18,7 @@ export type SignalMessageType =
   | 'receipt'                   // Delivery receipt (not user-visible, no push notification)
   | 'sender-key-distribution'   // Sender key distribution via 1:1 pairwise session
   | 'sender-key-message'        // Group message encrypted with sender key (pre-encrypted, no Double Ratchet)
+  | 'clinic-vault'              // Clinic entity shared-key message (symmetric AES, no Signal session required)
 
 // ---- Device Hierarchy ----
 

@@ -27,7 +27,7 @@ import type { SignalMessageRow, DecryptedSignalMessage } from '../lib/signal/tra
 import type { SyncMessagePayload } from '../lib/signal/transportTypes'
 import type { SenderKeyMessage, SenderKeyDistribution } from '../lib/signal/types'
 import { parseMessageContent } from '../lib/signal/messageContent'
-import { isCalendarEvent } from '../lib/calendarRouting'
+import { isCalendarEvent, routeCalendarEvent } from '../lib/calendarRouting'
 import { errorBus } from '../lib/errorBus'
 import { ErrorCode } from '../lib/errorCodes'
 
@@ -228,6 +228,11 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
       return null
     }
 
+    // Legacy clinic-vault messages (V1 symmetric encryption) — skip, handled elsewhere.
+    if (row.message_type === 'clinic-vault') {
+      return null
+    }
+
     // Sender key message: payload IS the SenderKeyMessage JSON — NOT pairwise encrypted.
     // Parse and decrypt with senderKeyDecrypt.
     if (row.message_type === 'sender-key-message') {
@@ -288,6 +293,13 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
 
     // Parse structured content (text or image) from the decrypted payload
     const { plaintext, content, replyTo } = parseMessageContent(rawPlaintext)
+
+    // Route calendar events to the calendar store (V2 clinic fan-out messages)
+    if (isCalendarEvent(content)) {
+      routeCalendarEvent(content)
+      // Mark as read immediately — calendar events aren't conversation messages
+      return null
+    }
 
     return {
       id: row.id,

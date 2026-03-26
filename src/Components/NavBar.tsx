@@ -3,7 +3,6 @@ import { useAvatar } from "../Utilities/AvatarContext";
 import { useAuth } from "../Hooks/useAuth";
 import { useTotalUnread } from "../stores/useMessagingStore";
 import { getInitials } from "../Utilities/nameUtils";
-import { PROPERTY_MANAGEMENT_ENABLED, LORA_MESH_ENABLED, MAP_OVERLAY_ENABLED } from "../lib/featureFlags";
 
 interface NavBarProps {
     onKnowledgeBaseClick: () => void
@@ -63,24 +62,24 @@ export function NavBar({ onKnowledgeBaseClick, onMessagesClick, onPropertyClick,
                 </button>
             )}
 
-            {/* Property — gated on auth + feature flag */}
-            {isAuthenticated && PROPERTY_MANAGEMENT_ENABLED && (
+            {/* Property — beta, auth required */}
+            {isAuthenticated && isDevRole && (
                 <button onClick={onPropertyClick} className={BTN} aria-label="Property Book" title="Property Book">
                     <Package className="w-4 h-4 stroke-themeblue1" />
                     <span className="hidden lg:inline text-[10pt] text-tertiary">Property</span>
                 </button>
             )}
 
-            {/* LoRa — gated on auth + feature flag or dev role */}
-            {isAuthenticated && (LORA_MESH_ENABLED || isDevRole) && (
+            {/* LoRa — beta, auth required */}
+            {isAuthenticated && isDevRole && (
                 <button onClick={onLoRaClick} className={BTN} aria-label="WhisperNet" title="WhisperNet">
                     <Radio className="w-4 h-4 stroke-themeblue1" />
                     <span className="hidden lg:inline text-[10pt] text-tertiary">WhisperNet</span>
                 </button>
             )}
 
-            {/* Map Overlay — gated on auth + feature flag or dev role */}
-            {isAuthenticated && (MAP_OVERLAY_ENABLED || isDevRole) && (
+            {/* Map Overlay — beta, auth required */}
+            {isAuthenticated && isDevRole && (
                 <button onClick={onMapOverlayClick} className={BTN} aria-label="Map Overlay" title="Map Overlay">
                     <Map className="w-4 h-4 stroke-themeblue1" />
                     <span className="hidden lg:inline text-[10pt] text-tertiary">Map</span>

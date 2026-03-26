@@ -1,14 +1,14 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { ArrowRightLeft, Check, Pencil, Trash2, X } from 'lucide-react'
+import { Pencil, X } from 'lucide-react'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { BaseDrawer } from './BaseDrawer'
 import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
 import { ContentWrapper } from './Settings/ContentWrapper'
 import { MobileSearchBar } from './MobileSearchBar'
+import { ConfirmDialog } from './ConfirmDialog'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import type { LocalPropertyItem } from '../Types/PropertyTypes'
-import type { LocationEditActions } from './Property/PropertyPanel'
 import type { PropertyLocationListHandle, DrilldownSegment } from './Property/PropertyLocationList'
 import { UI_TIMING } from '../Utilities/constants'
 import { usePropertyStore } from '../stores/usePropertyStore'
@@ -19,36 +19,40 @@ interface PropertyDrawerProps {
 }
 
 export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
-    const { canvasStack, navigateBack, navigateToPath } = usePropertyStore()
+    const { navigateToPath, init, setEditingItem, removeItem, items } = usePropertyStore()
     const [view, setView] = useState<PropertyView>('property')
-    const [selectedPropertyItemName, setSelectedPropertyItemName] = useState<string | null>(null)
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
 
-    const [mobileLocationView, setMobileLocationView] = useState(false)
     const [drilldownPath, setDrilldownPath] = useState<DrilldownSegment[]>([])
     const locationListRef = useRef<PropertyLocationListHandle>(null)
 
     const [searchQuery, setSearchQuery] = useState('')
     const [searchFocused, setSearchFocused] = useState(false)
     const [editing, setEditing] = useState(false)
-    const [detailEditing, setDetailEditing] = useState(false)
-    const [saveRequested, setSaveRequested] = useState(false)
+    const [selectedItem, setSelectedItem] = useState<LocalPropertyItem | null>(null)
+    const [pendingDeleteItem, setPendingDeleteItem] = useState<LocalPropertyItem | null>(null)
+    const initRef = useRef(false)
 
-    // Clear search and exit edit mode when navigating between views
-    useEffect(() => { setSearchQuery(''); setSearchFocused(false); setEditing(false); setDetailEditing(false); setSaveRequested(false) }, [view])
+    useEffect(() => { setSearchQuery(''); setSearchFocused(false); setEditing(false) }, [view])
 
-    // Callbacks for detail-view header actions (set by PropertyPanel)
-    const [detailActions, setDetailActions] = useState<{
-        onEdit: () => void
-        onTransfer: () => void
-        onDelete: () => void
-    } | null>(null)
+    // Keep selectedItem fresh when store items update (e.g. after edit)
+    useEffect(() => {
+        if (selectedItem) {
+            const fresh = items.find(i => i.id === selectedItem.id)
+            if (fresh && fresh !== selectedItem) setSelectedItem(fresh)
+            else if (!fresh) { setSelectedItem(null); setView('property') }
+        }
+    }, [items, selectedItem])
 
-    // Callbacks for canvas location edit/delete (set by PropertyLocationMap via PropertyPanel)
-    const [locationActions, setLocationActions] = useState<LocationEditActions | null>(null)
+    // Init store on first open
+    useEffect(() => {
+        if (isVisible && !initRef.current) {
+            initRef.current = true
+            init()
+        }
+    }, [isVisible, init])
 
     const isMobile = useIsMobile()
-
 
     const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
         setSlideDirection(direction)
@@ -56,48 +60,68 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     }, [])
 
     const handleSelectItem = useCallback((item: LocalPropertyItem) => {
-        setSelectedPropertyItemName(item.name)
+        setSelectedItem(item)
         handleSlideAnimation('left')
         setView('property-detail')
     }, [handleSlideAnimation])
 
+    const handleEditItem = useCallback(() => {
+        if (selectedItem) {
+            setEditingItem(selectedItem)
+            handleSlideAnimation('left')
+            setView('property-form')
+        }
+    }, [selectedItem, setEditingItem, handleSlideAnimation])
+
+    const handleDeleteItem = useCallback((item: LocalPropertyItem) => {
+        setPendingDeleteItem(item)
+    }, [])
+
+    const handleConfirmDelete = useCallback(async () => {
+        if (!pendingDeleteItem) return
+        await removeItem(pendingDeleteItem.id)
+        setPendingDeleteItem(null)
+        setSelectedItem(null)
+        if (view === 'property-detail') {
+            handleSlideAnimation('right')
+            setView('property')
+        }
+    }, [pendingDeleteItem, removeItem, view, handleSlideAnimation])
+
     const handleAddItem = useCallback(() => {
-        setSelectedPropertyItemName(null)
         handleSlideAnimation('left')
         setView('property-form')
     }, [handleSlideAnimation])
 
-    const handleTransfer = useCallback(() => {
-        handleSlideAnimation('left')
-        setView('property-transfer')
-    }, [handleSlideAnimation])
-
     const handleBack = useCallback(() => {
-        if (view === 'property-transfer') {
+        if (view === 'property-form') {
             handleSlideAnimation('right')
-            setView('property-detail')
-        } else if (view === 'property-detail' || view === 'property-form') {
-            setDetailEditing(false)
-            setSaveRequested(false)
+            // If we came from detail, go back to detail; otherwise go to list
+            if (selectedItem) {
+                setEditingItem(null)
+                setView('property-detail')
+            } else {
+                setEditingItem(null)
+                setView('property')
+            }
+        } else if (view === 'property-detail') {
             handleSlideAnimation('right')
+            setSelectedItem(null)
             setView('property')
-            setSelectedPropertyItemName(null)
         }
-    }, [view, handleSlideAnimation])
+    }, [view, selectedItem, handleSlideAnimation, setEditingItem])
 
     const handleClose = useCallback(() => {
         setView('property')
-        setSelectedPropertyItemName(null)
         setSlideDirection('')
-        setMobileLocationView(false)
         setDrilldownPath([])
         setSearchQuery('')
         setEditing(false)
-        setDetailEditing(false)
-        setSaveRequested(false)
+        setSelectedItem(null)
+        setEditingItem(null)
         navigateToPath([])
         onClose()
-    }, [onClose, navigateToPath])
+    }, [onClose, navigateToPath, setEditingItem])
 
     const swipeHandlers = useSwipeBack(
         useMemo(() => {
@@ -106,33 +130,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         }, [view, handleBack]),
         view !== 'property',
     )
-
-    const handleSaveComplete = useCallback(() => {
-        setSaveRequested(false)
-        setDetailEditing(false)
-    }, [])
-
-    const detailHeaderActions = useMemo(() => {
-        if (!detailActions) return undefined
-        const { onTransfer, onDelete } = detailActions
-        if (detailEditing) {
-            return (
-                <HeaderPill>
-                    <PillButton icon={Check} onClick={() => setSaveRequested(true)} label="Save" circleBg="bg-themegreen/15 text-themegreen" />
-                    <PillButton icon={X} onClick={() => setDetailEditing(false)} label="Cancel" />
-                </HeaderPill>
-            )
-        }
-        return (
-            <HeaderPill>
-                <PillButton icon={ArrowRightLeft} onClick={onTransfer} label="Transfer" />
-                <PillButton icon={Pencil} onClick={() => setDetailEditing(true)} label="Edit" />
-                <PillButton icon={Trash2} onClick={onDelete} label="Delete" variant="danger" />
-                <PillButton icon={X} onClick={handleClose} label="Close" />
-            </HeaderPill>
-        )
-    }, [detailActions, detailEditing, handleClose])
-
 
     const mainHeaderActions = useMemo(() => (
         <HeaderPill>
@@ -146,35 +143,9 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         </HeaderPill>
     ), [handleClose, editing])
 
-    const locationHeaderActions = useMemo(() => {
-        if (!locationActions) return undefined
-        return (
-            <HeaderPill>
-                <PillButton icon={Pencil} onClick={locationActions.onEdit} label="Edit location" />
-                <PillButton icon={Trash2} onClick={locationActions.onDelete} label="Delete location" variant="danger" />
-                <PillButton icon={X} onClick={handleClose} label="Close" />
-            </HeaderPill>
-        )
-    }, [locationActions, handleClose])
-
     const headerConfig = useMemo(() => {
         switch (view) {
             case 'property':
-                if (isMobile && mobileLocationView) {
-                    return {
-                        title: 'Property Book',
-                        showBack: true,
-                        onBack: () => {
-                            if (canvasStack.length > 0) {
-                                navigateBack()
-                            } else {
-                                setMobileLocationView(false)
-                            }
-                        },
-                        rightContent: locationHeaderActions,
-                        hideDefaultClose: !!locationHeaderActions,
-                    }
-                }
                 if (isMobile && drilldownPath.length > 0) {
                     const currentName = drilldownPath[drilldownPath.length - 1].name
                     return {
@@ -187,14 +158,13 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 }
                 return { title: 'Property Book', badge: 'BETA', rightContent: mainHeaderActions, hideDefaultClose: true }
             case 'property-detail':
-                return { title: selectedPropertyItemName ?? 'Item', showBack: true, onBack: handleBack, rightContent: detailHeaderActions, hideDefaultClose: !!detailHeaderActions }
-            case 'property-transfer':
-                return { title: 'Transfer Custody', showBack: true, onBack: handleBack }
+                if (!isMobile) return { title: 'Property Book', badge: 'BETA', rightContent: mainHeaderActions, hideDefaultClose: true }
+                return { title: selectedItem?.name ?? 'Item Detail', showBack: true, onBack: handleBack }
             case 'property-form':
                 if (!isMobile) return { title: 'Property Book', badge: 'BETA', rightContent: mainHeaderActions, hideDefaultClose: true }
-                return { title: 'Add Item', showBack: true, onBack: handleBack }
+                return { title: selectedItem ? 'Edit Item' : 'Add Item', showBack: true, onBack: handleBack }
         }
-    }, [view, selectedPropertyItemName, handleBack, isMobile, mobileLocationView, drilldownPath, detailHeaderActions, mainHeaderActions, locationHeaderActions, canvasStack, navigateBack])
+    }, [view, handleBack, isMobile, drilldownPath, mainHeaderActions, selectedItem])
 
     return (
         <BaseDrawer
@@ -220,18 +190,12 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                                 view={view}
                                 searchQuery={searchQuery}
                                 editing={editing}
-                                detailEditing={detailEditing}
-                                saveRequested={saveRequested}
-                                onSaveComplete={handleSaveComplete}
+                                selectedItem={selectedItem}
                                 onSelectItem={handleSelectItem}
+                                onEditItem={handleEditItem}
+                                onDeleteItem={handleDeleteItem}
                                 onAddItem={handleAddItem}
-                                onEditItem={() => {}}
-                                onTransferItem={handleTransfer}
                                 onBack={handleBack}
-                                mobileLocationView={mobileLocationView}
-                                onMobileLocationViewChange={setMobileLocationView}
-                                onRegisterDetailActions={setDetailActions}
-                                onRegisterLocationActions={setLocationActions}
                                 onDrilldownChange={setDrilldownPath}
                                 locationListRef={locationListRef}
                             />
@@ -244,21 +208,26 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                             view={view}
                             searchQuery={searchQuery}
                             editing={editing}
-                            detailEditing={detailEditing}
-                            saveRequested={saveRequested}
-                            onSaveComplete={handleSaveComplete}
+                            selectedItem={selectedItem}
                             onSearchChange={setSearchQuery}
                             onSelectItem={handleSelectItem}
+                            onEditItem={handleEditItem}
+                            onDeleteItem={handleDeleteItem}
                             onAddItem={handleAddItem}
-                            onEditItem={() => {}}
-                            onTransferItem={handleTransfer}
                             onBack={handleBack}
-                            onRegisterDetailActions={setDetailActions}
-                            onRegisterLocationActions={setLocationActions}
                         />
                     </div>
                 )}
             </ContentWrapper>
+
+            <ConfirmDialog
+                visible={!!pendingDeleteItem}
+                title="Delete this item? This cannot be undone."
+                confirmLabel="Delete"
+                variant="danger"
+                onConfirm={handleConfirmDelete}
+                onCancel={() => setPendingDeleteItem(null)}
+            />
         </BaseDrawer>
     )
 }

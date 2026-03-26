@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useSpring, animated } from '@react-spring/web';
-import { ChevronLeft, Compass, Move, MapPin, Route, Pencil, Trash2, Check, X, Search, RefreshCw } from 'lucide-react';
+import { ChevronLeft, Compass, Move, MapPin, Route, Pentagon, Pencil, Trash2, Check, X, Search, RefreshCw, Ruler } from 'lucide-react';
 import { LoadingSpinner } from '../LoadingSpinner';
 import { forward } from 'mgrs';
 import { BaseDrawer } from '../BaseDrawer';
@@ -11,9 +11,10 @@ import { useGeolocation } from '../../Hooks/useGeolocation';
 import { useIsMobile } from '../../Hooks/useIsMobile';
 import { useAuth } from '../../Hooks/useAuth';
 import { getOverlays, saveOverlay, deleteOverlay } from '../../lib/mapOverlayService';
-import type { OverlayFeature, DrawMode } from '../../Types/MapOverlayTypes';
+import { getClinicDetails } from '../../lib/supervisorService';
+import type { OverlayFeature, DrawMode, WaypointType } from '../../Types/MapOverlayTypes';
 import type { LocalMapOverlay, MapOverlay } from '../../Types/MapOverlayTypes';
-import { DEFAULT_FEATURE_STYLE, TACTICAL_COLORS } from '../../Types/MapOverlayTypes';
+import { DEFAULT_FEATURE_STYLE, TACTICAL_COLORS, WAYPOINT_LABELS } from '../../Types/MapOverlayTypes';
 import MapView from './MapView';
 import type { MapViewHandle } from './MapView';
 import { MGRSConverter } from './MGRSConverter';
@@ -29,6 +30,25 @@ interface MapOverlayPanelProps {
 }
 
 const UI_TIMING = { FEEDBACK_DURATION: 4000 } as const;
+
+function haversine(lat1: number, lng1: number, lat2: number, lng2: number): { distanceM: number; bearing: number } {
+  const R = 6371000; // Earth radius in meters
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const φ1 = toRad(lat1);
+  const φ2 = toRad(lat2);
+  const Δφ = toRad(lat2 - lat1);
+  const Δλ = toRad(lng2 - lng1);
+
+  const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distanceM = R * c;
+
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  const bearing = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+
+  return { distanceM, bearing };
+}
 
 function featureMgrs(feature: OverlayFeature): string {
   if (!feature.geometry.length) return '---';
@@ -53,6 +73,13 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
   const [showGrid] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Measure tool
+  const [measurePoints, setMeasurePoints] = useState<[number, number][]>([]);
+  const [measureResult, setMeasureResult] = useState<{ distanceM: number; bearing: number } | null>(null);
+
+  // Clinic location auto-focus
+  const [initialCenter, setInitialCenter] = useState<[number, number] | null>(null);
+
   // Overlay list + loading
   const [overlays, setOverlays] = useState<LocalMapOverlay[]>([]);
   const [loading, setLoading] = useState(false);
@@ -71,7 +98,10 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
   // Edit feature
   const [editingFeatureId, setEditingFeatureId] = useState<string | null>(null);
 
-  // Route drawing accumulation
+  // Waypoint type picker (shown after pin placement)
+  const [pendingWaypointType, setPendingWaypointType] = useState<WaypointType>('generic');
+
+  // Route/area drawing accumulation
   const inProgressGeometry = useRef<[number, number][]>([]);
   const inProgressFeatureId = useRef<string | null>(null);
 
@@ -110,6 +140,19 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
     return () => clearTimeout(t);
   }, [saveError]);
 
+  // ── Resolve clinic location to coordinates for map default center ──
+  useEffect(() => {
+    if (!clinicId || initialCenter) return;
+    let cancelled = false;
+    getClinicDetails(clinicId).then(async (details) => {
+      if (cancelled || !details.location) return;
+      const result = await resolveSearch(details.location);
+      if (cancelled || !result) return;
+      setInitialCenter([result.lat, result.lng]);
+    });
+    return () => { cancelled = true; };
+  }, [clinicId, initialCenter]);
+
   // ── Toolbar expand/collapse spring ──
   const toolbarSpring = useSpring({
     progress: isEditing ? 1 : 0,
@@ -139,7 +182,11 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
     inProgressFeatureId.current = null;
     setView('viewer');
     startWatching();
-  }, [startWatching]);
+    // Center on clinic location if resolved
+    if (initialCenter) {
+      setTimeout(() => mapRef.current?.flyTo(initialCenter[0], initialCenter[1], 12), 400);
+    }
+  }, [startWatching, initialCenter]);
 
   const handleOpenOverlay = useCallback((overlay: MapOverlay) => {
     setOverlayId(overlay.id);
@@ -177,6 +224,8 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
     setEditingFeatureId(null);
     setIsEditing(false);
     setSavingOverlayName(false);
+    setMeasurePoints([]);
+    setMeasureResult(null);
     inProgressGeometry.current = [];
     inProgressFeatureId.current = null;
   }, [view, stopWatching]);
@@ -185,6 +234,21 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
   const handleMapClick = useCallback((lat: number, lng: number) => {
     if (!overlayId) return;
     const now = new Date().toISOString();
+
+    if (drawMode === 'measure') {
+      if (measurePoints.length < 2) {
+        const next = [...measurePoints, [lat, lng] as [number, number]];
+        setMeasurePoints(next);
+        if (next.length === 2) {
+          setMeasureResult(haversine(next[0][0], next[0][1], next[1][0], next[1][1]));
+        }
+      } else {
+        // Third tap resets
+        setMeasurePoints([[lat, lng]]);
+        setMeasureResult(null);
+      }
+      return;
+    }
 
     if (drawMode === 'pin') {
       const id = crypto.randomUUID();
@@ -235,16 +299,46 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
       return;
     }
 
+    if (drawMode === 'area') {
+      inProgressGeometry.current = [...inProgressGeometry.current, [lat, lng]];
+
+      if (inProgressGeometry.current.length === 1) {
+        const id = crypto.randomUUID();
+        inProgressFeatureId.current = id;
+        const feature: OverlayFeature = {
+          id,
+          overlay_id: overlayId,
+          type: 'area',
+          geometry: [...inProgressGeometry.current],
+          label: '',
+          style: { ...DEFAULT_FEATURE_STYLE },
+          created_at: now,
+          updated_at: now,
+        };
+        setFeatures(prev => [...prev, feature]);
+        setSelectedFeatureId(id);
+      } else {
+        const ipId = inProgressFeatureId.current;
+        if (ipId) {
+          setFeatures(prev => prev.map(f =>
+            f.id === ipId ? { ...f, geometry: [...inProgressGeometry.current], updated_at: now } : f
+          ));
+        }
+      }
+      return;
+    }
+
     if (drawMode === 'pan') {
       setSelectedFeatureId(null);
       setEditingFeatureId(null);
     }
-  }, [drawMode, overlayId]);
+  }, [drawMode, overlayId, measurePoints]);
 
-  // ── Finish route ──
+  // ── Finish route/area ──
   const finishRoute = useCallback(() => {
     const ipId = inProgressFeatureId.current;
-    if (ipId && inProgressGeometry.current.length >= 2) {
+    const minPoints = drawMode === 'area' ? 3 : 2;
+    if (ipId && inProgressGeometry.current.length >= minPoints) {
       setSelectedFeatureId(ipId);
       setNamingFeatureId(ipId);
       setNameInput('');
@@ -252,7 +346,7 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
     inProgressGeometry.current = [];
     inProgressFeatureId.current = null;
     setDrawMode('pan');
-  }, []);
+  }, [drawMode]);
 
   const handleSaveConfirm = useCallback(async () => {
     if (!overlayId || !user || !clinicId) return;
@@ -295,7 +389,7 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
 
   const handleToggleEditing = useCallback(() => {
     if (isEditing) {
-      if (drawMode === 'route' && inProgressFeatureId.current) {
+      if ((drawMode === 'route' || drawMode === 'area') && inProgressFeatureId.current) {
         finishRoute();
       }
       // Save on close — batch changes
@@ -324,29 +418,42 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
 
   // ── Mode change ──
   const handleModeChange = useCallback((mode: DrawMode) => {
-    if (drawMode === 'route' && inProgressFeatureId.current) {
+    if ((drawMode === 'route' || drawMode === 'area') && inProgressFeatureId.current) {
       finishRoute();
     }
     setDrawMode(mode);
     setSelectedFeatureId(null);
     setNamingFeatureId(null);
     setEditingFeatureId(null);
+    setMeasurePoints([]);
+    setMeasureResult(null);
   }, [drawMode, finishRoute]);
 
   // ── Naming confirm ──
   const handleNameConfirm = useCallback(() => {
     if (!namingFeatureId) return;
-    const label = nameInput.trim() || `WPT ${features.indexOf(features.find(f => f.id === namingFeatureId)!) + 1}`;
-    setFeatures(prev => prev.map(f =>
-      f.id === namingFeatureId ? { ...f, label, updated_at: new Date().toISOString() } : f
-    ));
+    const namingFeature = features.find(f => f.id === namingFeatureId);
+    const defaultLabel = namingFeature?.type === 'waypoint'
+      ? `${WAYPOINT_LABELS[pendingWaypointType]} ${features.filter(f => f.type === 'waypoint').indexOf(namingFeature!) + 1}`
+      : namingFeature?.type === 'route'
+        ? `Route ${features.filter(f => f.type === 'route').indexOf(namingFeature!) + 1}`
+        : `Area ${features.filter(f => f.type === 'area').indexOf(namingFeature!) + 1}`;
+    const label = nameInput.trim() || defaultLabel;
+    setFeatures(prev => prev.map(f => {
+      if (f.id !== namingFeatureId) return f;
+      const updated = { ...f, label, updated_at: new Date().toISOString() };
+      if (f.type === 'waypoint') updated.waypoint_type = pendingWaypointType;
+      return updated;
+    }));
     setNamingFeatureId(null);
     setNameInput('');
-  }, [namingFeatureId, nameInput, features]);
+    setPendingWaypointType('generic');
+  }, [namingFeatureId, nameInput, features, pendingWaypointType]);
 
   const handleNameCancel = useCallback(() => {
     setNamingFeatureId(null);
     setNameInput('');
+    setPendingWaypointType('generic');
   }, []);
 
   // ── Delete selected ──
@@ -378,7 +485,7 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
     setMapZoom(zoom);
   }, []);
 
-  const isRouteInProgress = drawMode === 'route' && inProgressFeatureId.current !== null;
+  const isDrawInProgress = (drawMode === 'route' || drawMode === 'area') && inProgressFeatureId.current !== null;
 
   return (
     <BaseDrawer
@@ -534,6 +641,14 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                     >
                       <Move size={18} />
                     </button>
+                    {/* Measure */}
+                    <button
+                      onClick={() => handleModeChange('measure')}
+                      className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'measure' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+                      title="Measure"
+                    >
+                      <Ruler size={18} />
+                    </button>
                     {/* Drop Pin */}
                     <button
                       onClick={() => handleModeChange('pin')}
@@ -549,6 +664,14 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                       title="Route"
                     >
                       <Route size={18} />
+                    </button>
+                    {/* Area */}
+                    <button
+                      onClick={() => handleModeChange('area')}
+                      className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'area' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+                      title="Area"
+                    >
+                      <Pentagon size={18} />
                     </button>
                     {/* Edit */}
                     <button
@@ -580,39 +703,63 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                 </div>
 
                 {/* ── Naming modal — drops below toolbar ── */}
-                {namingFeatureId && (
-                  <div className="absolute top-full right-0 mt-1.5 z-[1001] bg-themewhite rounded-xl shadow-lg w-56 p-3 border border-primary/10">
-                    <p className="text-[10pt] font-medium text-primary mb-2">Name this point</p>
-                    <input
-                      ref={nameInputRef}
-                      type="text"
-                      value={nameInput}
-                      onChange={(e) => setNameInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleNameConfirm();
-                        if (e.key === 'Escape') handleNameCancel();
-                      }}
-                      placeholder="e.g. HLZ Eagle, CCP North"
-                      className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-[10pt] text-primary
-                        placeholder:text-tertiary/40 outline-none focus:border-themeblue2 focus:outline-none
-                        border border-tertiary/20 transition-all"
-                    />
-                    <div className="flex items-center gap-2 mt-2">
-                      <button
-                        onClick={handleNameCancel}
-                        className="flex-1 py-1.5 rounded-lg text-[10pt] text-tertiary hover:bg-primary/5 active:scale-95 transition-all"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleNameConfirm}
-                        className="flex-1 py-1.5 rounded-lg bg-themeblue3 text-[10pt] text-white active:scale-95 transition-all"
-                      >
-                        Done
-                      </button>
+                {namingFeatureId && (() => {
+                  const namingFeature = features.find(f => f.id === namingFeatureId);
+                  const isWaypoint = namingFeature?.type === 'waypoint';
+                  const PICKER_TYPES: WaypointType[] = ['generic', 'hlz', 'ccp'];
+                  return (
+                    <div className="absolute top-full right-0 mt-1.5 z-[1001] bg-themewhite rounded-xl shadow-lg w-56 p-3 border border-primary/10">
+                      <p className="text-[10pt] font-medium text-primary mb-2">
+                        {isWaypoint ? 'Name this point' : namingFeature?.type === 'route' ? 'Name this route' : 'Name this area'}
+                      </p>
+                      {isWaypoint && (
+                        <div className="flex items-center gap-1.5 mb-2">
+                          {PICKER_TYPES.map((wt) => (
+                            <button
+                              key={wt}
+                              type="button"
+                              onClick={() => setPendingWaypointType(wt)}
+                              className={`flex-1 py-1.5 rounded-lg text-[9pt] font-medium active:scale-95 transition-all
+                                ${pendingWaypointType === wt
+                                  ? 'bg-themeblue3 text-white'
+                                  : 'bg-themewhite2 text-tertiary'}`}
+                            >
+                              {WAYPOINT_LABELS[wt]}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <input
+                        ref={nameInputRef}
+                        type="text"
+                        value={nameInput}
+                        onChange={(e) => setNameInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleNameConfirm();
+                          if (e.key === 'Escape') handleNameCancel();
+                        }}
+                        placeholder={isWaypoint ? 'e.g. HLZ Eagle, CCP North' : 'e.g. MSR Tampa, Sector 3'}
+                        className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-[10pt] text-primary
+                          placeholder:text-tertiary/40 outline-none focus:border-themeblue2 focus:outline-none
+                          border border-tertiary/20 transition-all"
+                      />
+                      <div className="flex items-center gap-2 mt-2">
+                        <button
+                          onClick={handleNameCancel}
+                          className="flex-1 py-1.5 rounded-lg text-[10pt] text-tertiary hover:bg-primary/5 active:scale-95 transition-all"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleNameConfirm}
+                          className="flex-1 py-1.5 rounded-lg bg-themeblue3 text-[10pt] text-white active:scale-95 transition-all"
+                        >
+                          Done
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* ── Save naming modal — drops below toolbar ── */}
                 {savingOverlayName && (
@@ -656,7 +803,7 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
               <MapView
                 ref={mapRef}
                 features={features}
-                drawMode={isEditing ? drawMode : 'pan'}
+                drawMode={isEditing || drawMode === 'measure' ? drawMode : 'pan'}
                 selectedFeatureId={selectedFeatureId}
                 onMapClick={handleMapClick}
                 onFeatureClick={handleFeatureClick}
@@ -664,6 +811,9 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                 gpsPosition={gpsPosition}
                 showGrid={showGrid}
                 controlsTopOffset={isMobile ? 56 : 0}
+                measurePoints={measurePoints}
+                measureResult={measureResult}
+                center={initialCenter ?? undefined}
               />
 
               {/* Search spinner overlay */}
@@ -675,7 +825,7 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
               </animated.div>
 
               {/* Route finish button */}
-              {isRouteInProgress && (
+              {isDrawInProgress && (
                 <div className={`absolute left-3 z-[1000] ${isMobile ? 'top-[68px]' : 'top-3'}`}>
                   <button
                     type="button"
@@ -715,6 +865,22 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                   </span>
                   <span className="text-xs font-mono text-themeblue2">
                     {featureMgrs(selectedFeature)}
+                  </span>
+                </div>
+              )}
+
+              {/* Measure readout */}
+              {drawMode === 'measure' && measureResult && (
+                <div className="absolute bottom-3 left-3 z-[1000] flex items-center gap-3
+                  bg-themewhite2/90 dark:bg-themewhite3/90 backdrop-blur-sm
+                  px-3 py-2 rounded-lg shadow-sm">
+                  <span className="text-xs font-medium text-primary">
+                    {measureResult.distanceM >= 1000
+                      ? `${(measureResult.distanceM / 1000).toFixed(2)} km`
+                      : `${Math.round(measureResult.distanceM)} m`}
+                  </span>
+                  <span className="text-xs font-mono text-themeblue2">
+                    {Math.round(measureResult.bearing)}° bearing
                   </span>
                 </div>
               )}

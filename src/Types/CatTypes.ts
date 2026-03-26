@@ -88,11 +88,18 @@ export type SearchResultType = {
 
 export type MenuGroup = 'roles' | 'utility' | 'modules' | 'system'
 
+/** Who can access the feature once released */
+export type AccessLevel = 'public' | 'authenticated' | 'provider' | 'supervisor' | 'admin'
+
+/** Release readiness — beta features are only visible to dev-role users */
+export type ReleaseStage = 'released' | 'beta'
+
 export interface sideMenuDataType {
     text: string,
     icon: string,
     action: string,
     group: MenuGroup,
-    gateKey?: 'authenticated' | 'property' | 'supervisor' | 'admin' | 'lora' | 'mapOverlay' | 'calendar' | 'provider',
+    access?: AccessLevel,
+    stage?: ReleaseStage,
     badge?: boolean
 }
