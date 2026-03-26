@@ -18,6 +18,7 @@ import {
   decryptWithRawKey,
   encryptClinicField,
 } from './cryptoService'
+import { ensureClinicVaultExists } from './signal/clinicVaultDevice'
 import { validatePasswordComplexity } from './constants'
 import { getErrorMessage } from '../Utilities/errorUtils'
 import { succeed, fail, type ServiceResult } from './result'
@@ -560,8 +561,18 @@ export async function createClinic(data: {
 
     if (error) return fail(error.message)
 
-    // Reciprocal: add new clinic to each associated clinic's array
     const newId = result.id
+
+    // Provision clinic vault device immediately so the encryption identity
+    // exists from creation — not deferred until first member login.
+    if (newId) {
+      const vaultResult = await ensureClinicVaultExists(newId, rawKey)
+      if (!vaultResult.ok) {
+        logger.error('Clinic created but vault provisioning failed:', vaultResult.error)
+      }
+    }
+
+    // Reciprocal: add new clinic to each associated clinic's array
     const associated = data.associated_clinic_ids || []
     if (newId && associated.length > 0) {
       await syncAssociatedClinics(newId, [], associated)
