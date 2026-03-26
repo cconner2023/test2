@@ -51,3 +51,31 @@ Feature #26 - Login registers device with role:
 
 Status: 8/118 features passing (6.8%)
 Next: Continue with assigned features
+
+== Session: 2026-03-26 (batch 3) ==
+Features completed: #111, #112, #114 (Sync queue reliability)
+
+Feature #111 - Sync queue retries with exponential backoff (1s to 30s):
+- Added next_retry_at field to SyncQueueItem for scheduled retries
+- getBackoffDelay: min(30s, 1s * 2^attempt + jitter) → 1s, 2s, 4s, 8s, 16s, 30s cap
+- resetFailedItemsForRetry respects backoff (only resets when next_retry_at elapsed)
+- scheduleNextRetry in setupConnectivityListeners fires at precise backoff intervals
+- syncInProgress flag prevents sync storms
+- Instrumentation logging: retry timing, backoff scheduling
+
+Feature #112 - Max 5 retries before marking as failed:
+- MAX_RETRIES=5, items with retry_count >= 5 skipped in processSyncQueue
+- resetFailedItemsForRetry won't reset items at/above max
+- Failed items don't block others (continue in loop)
+- Added resetAllFailedItems() for app restart recovery (one-time per session)
+
+Feature #114 - Partial sync failure does not corrupt local state:
+- Per-item try/catch in processSyncQueue, loop continues on failure
+- Successful items marked synced immediately (atomic)
+- Failed items marked failed individually with error + backoff
+- Upsert prevents duplicates on retried creates
+- Conflict resolution (last-write-wins) on updates
+
+Files changed: src/lib/syncService.ts, src/lib/offlineDb.ts
+Status: 11/118 features passing
+Next: Continue with assigned features
