@@ -69,6 +69,7 @@ import {
 } from '../lib/signal/messageContent'
 import type { MessageContent, ImageContent, VoiceContent, ReplyTo } from '../lib/signal/messageContent'
 import { useCalendarStore } from '../stores/useCalendarStore'
+import { isCalendarEvent, routeCalendarEvent } from '../lib/calendarRouting'
 import { uploadEncryptedAttachment } from '../lib/signal/attachmentService'
 import { createBackup, markHydrationComplete, scheduleBackup } from '../lib/signal/backupService'
 import { ok as okResult, err as errResult, type Result } from '../lib/result'
@@ -532,6 +533,13 @@ export function useMessages(): UseMessagesReturn {
           return
         }
       } catch { /* not JSON or not conversation-deleted sync — fall through */ }
+    }
+
+    // Calendar events are routed to the calendar store, not the messaging UI.
+    // Mark as read (server-side already handled by useSignalMessages) and bail.
+    if (isCalendarEvent(msg.content)) {
+      routeCalendarEvent(msg.content)
+      return
     }
 
     if (msg.senderId === userId && msg.recipientId === userId && !msg.readAt) {

@@ -545,13 +545,10 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
     }
   }
 
-  // 6. Mark processed messages as read
-  if (processedIds.length > 0) {
-    await supabase
-      .from('signal_messages')
-      .update({ read_at: new Date().toISOString() })
-      .in('id', processedIds)
-  }
+  // 6. Clinic vault is a shared canonical store — do NOT mark messages as read.
+  // Every clinic member replays the full vault on login. Idempotent routing
+  // (upsert + delete-aware batch + tombstones) ensures correctness.
+  // Old messages are pruned by hardDeleteByOriginId on edit/delete.
 
   // 7. Rotate SPK and replenish OTPs
   await rotateClinicVaultSPK(clinicId, vaultKeys, vaultRow as VaultDeviceKeysRow)

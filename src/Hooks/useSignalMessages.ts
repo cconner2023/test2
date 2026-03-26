@@ -297,7 +297,8 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
     // Route calendar events to the calendar store (V2 clinic fan-out messages)
     if (isCalendarEvent(content)) {
       routeCalendarEvent(content)
-      // Mark as read immediately — calendar events aren't conversation messages
+      // Mark as read so the row is cleaned up from signal_messages and not re-processed
+      markMessagesRead([row.id]).catch(() => {})
       return null
     }
 
