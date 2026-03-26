@@ -490,6 +490,32 @@ export async function getNextRetryTime(userId: string, maxRetries: number = 5): 
 }
 
 /**
+ * Reset ALL failed sync items back to pending, regardless of retry count.
+ * Called on app restart / new session to give permanently-failed items
+ * a fresh set of retry attempts. Resets retry_count and next_retry_at.
+ */
+export async function resetAllFailedItems(userId: string): Promise<number> {
+  const db = await getDb()
+  const failedItems = await getFailedSyncItems(userId)
+  if (failedItems.length === 0) return 0
+
+  let resetCount = 0
+  const tx = db.transaction('syncQueue', 'readwrite')
+  const store = tx.objectStore('syncQueue')
+
+  for (const item of failedItems) {
+    item.status = 'pending'
+    item.retry_count = 0
+    item.next_retry_at = null
+    await store.put(item)
+    resetCount++
+  }
+
+  await tx.done
+  return resetCount
+}
+
+/**
  * Clean up old synced queue items to prevent IndexedDB bloat.
  * Removes items synced more than `maxAgeMs` ago.
  */

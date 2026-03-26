@@ -31,6 +31,7 @@ import {
   stripLocalFields,
   getLocalLocationTags,
   getNextRetryTime,
+  resetAllFailedItems,
   getDb,
   type LocalTrainingCompletion,
 } from './offlineDb'
@@ -722,6 +723,8 @@ export function setupConnectivityListeners(
   let wasOnline = navigator.onLine
   /** Timer for the next scheduled backoff retry. */
   let retryTimer: ReturnType<typeof setTimeout> | null = null
+  /** Whether we've done the one-time session reset of permanently failed items. */
+  let sessionResetDone = false
 
   /** Schedule the next retry based on the soonest failed item's backoff time. */
   const scheduleNextRetry = async () => {
@@ -754,6 +757,16 @@ export function setupConnectivityListeners(
 
     try {
       callbacks?.onSyncStart?.()
+
+      // On first sync of a new session, reset permanently-failed items
+      // so they get a fresh set of retry attempts (app restart recovery).
+      if (!sessionResetDone) {
+        sessionResetDone = true
+        const resetCount = await resetAllFailedItems(userId)
+        if (resetCount > 0) {
+          logger.info(`Session start: reset ${resetCount} permanently-failed sync items for retry`)
+        }
+      }
 
       // Heal records stuck as 'pending' from before the _sync_status fix
       await healStuckPendingRecords(userId)
