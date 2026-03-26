@@ -689,6 +689,7 @@ export async function processVaultMessages(userId: string): Promise<number> {
           await deleteMessagesByOriginId(originIds)
         } catch { /* ignore parse errors */ }
       } else {
+        const isCalEvent = isCalendarEvent(content)
         const msg: DecryptedSignalMessage = {
           id: row.id,
           senderId: senderUuid,
@@ -697,7 +698,7 @@ export async function processVaultMessages(userId: string): Promise<number> {
           content,
           messageType: row.message_type,
           createdAt: row.created_at,
-          readAt: null,
+          readAt: isCalEvent ? new Date().toISOString() : null,
           ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
           ...(row.group_id && { groupId: row.group_id }),
           originId: row.origin_id ?? undefined,
@@ -706,7 +707,7 @@ export async function processVaultMessages(userId: string): Promise<number> {
         const msgTombstoneAt = await getTombstone(msgConversationKey)
         if (!msgTombstoneAt || row.created_at >= msgTombstoneAt) {
           await saveMessage(msg, userId)
-          if (isCalendarEvent(content)) calendarRoutes.push(content)
+          if (isCalEvent) calendarRoutes.push(content)
         }
       }
 

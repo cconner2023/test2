@@ -32,6 +32,8 @@ dev-dist/
 scripts/
 .claude
 .claude/
+*.claude 
+*.claude/
 # SQL migrations (applied directly in Supabase)
 sql/
 .sql
