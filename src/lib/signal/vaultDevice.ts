@@ -29,7 +29,7 @@ import { initReceiver, ratchetDecrypt } from './ratchet'
 import { importDhPublicKey } from './keyManager'
 import { uploadKeyBundle, registerDevice } from './signalService'
 import { saveMessage, deleteMessagesByOriginId, getTombstone } from './messageStore'
-import { isCalendarEvent, routeCalendarEvent } from '../calendarRouting'
+import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones } from '../calendarRouting'
 import type { CalendarEventContent } from './messageContent'
 import { parseMessageContent } from './messageContent'
 import type { PublicKeyBundle, InitialMessage, EncryptedMessage, RatchetState, RatchetKeyPair } from './types'
@@ -484,6 +484,9 @@ async function recoverVaultKeys(row: VaultDeviceKeysRow): Promise<VaultPrivateKe
  * Returns the count of processed messages.
  */
 export async function processVaultMessages(userId: string): Promise<number> {
+  // 0. Ensure tombstones are loaded before replaying any messages
+  await initCalendarTombstones()
+
   // 1. Fetch vault_device_keys row
   const { data: vaultRow } = await supabase
     .from('vault_device_keys')

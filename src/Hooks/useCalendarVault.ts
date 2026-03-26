@@ -132,7 +132,9 @@ export function useCalendarVault(): UseCalendarVaultResult {
         await sendMessageFanOut(userId, localDeviceId, clinicId, vaultInputs, clinicId, originId, true)
       }
 
-      // 2. Encrypt for each clinic member's personal devices
+      // 2. Encrypt for each clinic member's personal devices.
+      // For self, skip only the sending device — other devices of the same user
+      // still need the message (multi-device sync, especially for deletes).
       const { data: members } = await supabase
         .from('profiles')
         .select('id')
@@ -140,13 +142,18 @@ export function useCalendarVault(): UseCalendarVaultResult {
 
       if (members && members.length > 0) {
         for (const member of members) {
-          if (member.id === userId) continue // Skip self — we route locally
           const devicesResult = await fetchPeerDevices(member.id)
           if (!devicesResult.ok || devicesResult.data.length === 0) continue
 
+          // Exclude this device, not this user — other own devices need the event
+          const devices = member.id === userId
+            ? devicesResult.data.filter(d => d.deviceId !== localDeviceId)
+            : devicesResult.data
+          if (devices.length === 0) continue
+
           const memberInputs = await encryptForAllDevices(
             member.id,
-            devicesResult.data,
+            devices,
             serialized,
             userId,
           )
@@ -166,11 +173,21 @@ export function useCalendarVault(): UseCalendarVaultResult {
   const deleteEvents = useCallback(async (originIds: string[]): Promise<void> => {
     if (originIds.length === 0) return
     try {
+      // Delete sender copies + recipient copies where auth.uid() is the recipient
       await hardDeleteByOriginId(originIds)
+      // Also purge the clinic vault copy (recipient_id = clinicId, not auth.uid())
+      if (clinicId) {
+        supabase.rpc('hard_delete_clinic_vault_messages', {
+          p_clinic_id: clinicId,
+          p_origin_ids: originIds,
+        }).then(({ error }) => {
+          if (error) logger.warn('Failed to purge clinic vault copies:', error.message)
+        })
+      }
     } catch (e) {
       logger.warn('Failed to delete vault messages:', e instanceof Error ? e.message : e)
     }
-  }, [])
+  }, [clinicId])
 
   return {
     ready: !!clinicId && !!userId,

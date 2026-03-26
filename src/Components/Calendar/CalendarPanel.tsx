@@ -24,6 +24,7 @@ import type { CalendarEvent, EventFormData } from '../../Types/CalendarTypes'
 import {
   eventToFormData, toDateKey, eventFallsOnDate, generateId,
 } from '../../Types/CalendarTypes'
+import { getTombstones } from '../../lib/calendarRouting'
 
 type PanelView = 'calendar' | 'detail' | 'form'
 type DayDrawerView = 'detail' | 'edit'
@@ -312,6 +313,9 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
   const handleDeleteEvent = useCallback((id: string) => {
     const event = events.find(e => e.id === id)
+    // Tombstone the event in-memory immediately so no realtime or vault replay can resurrect it.
+    // IDB tombstone is written by removeEvent → persistDelete.
+    getTombstones().add(id)
     removeEvent(id)
     selectEvent(null)
     setPanelView('calendar')

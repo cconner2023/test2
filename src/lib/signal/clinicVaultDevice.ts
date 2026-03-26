@@ -28,7 +28,7 @@ import { unseal } from './sealedSender'
 import { x3dhRespond } from './x3dh'
 import { initReceiver, ratchetDecrypt } from './ratchet'
 import { uploadKeyBundle, registerDevice } from './signalService'
-import { isCalendarEvent, routeCalendarEvent } from '../calendarRouting'
+import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones } from '../calendarRouting'
 import type { CalendarEventContent } from './messageContent'
 import { parseMessageContent } from './messageContent'
 import type { PublicKeyBundle, InitialMessage, EncryptedMessage, RatchetState } from './types'
@@ -382,6 +382,10 @@ export async function ensureClinicVaultExists(
  * encryption_key as the wrapping key.
  */
 export async function processClinicVaultMessages(clinicId: string): Promise<number> {
+  // 0. Ensure tombstones are loaded so routeCalendarEvent can guard against resurrecting deleted events.
+  // This runs before React hooks (useCalendarSync) so the in-memory set must be warm.
+  await initCalendarTombstones()
+
   // 1. Fetch vault row
   const { data: vaultRow } = await supabase
     .from('vault_device_keys')
