@@ -17,7 +17,8 @@ import type { ImportPreview } from '../Hooks/useNoteImport';
 import { useImagePaste } from '../Hooks/useImagePaste';
 import { useNoteShare } from '../Hooks/useNoteShare';
 import { useBarcodeScanner } from '../Hooks/useBarcodeScanner';
-import { isEncryptedBarcode, decryptBarcode } from '../Utilities/NoteCodec';
+import { isEncryptedBarcode, decryptBarcode, decryptBarcodeBytes } from '../Utilities/NoteCodec';
+import { uint8ToBase64 } from '../Utilities/textCodec';
 import { copyWithHtml } from '../Utilities/clipboardUtils';
 import { getColorClasses } from '../Utilities/ColorUtilities';
 import { UI_TIMING } from '../Utilities/constants';
@@ -92,12 +93,27 @@ const NoteImportContent = ({
         try {
             let payload = text;
             if (isEncryptedBarcode(text)) {
+                // Text-mode barcode ("enc:{base64}") — standard decrypt path
                 const decrypted = await decryptBarcode(text);
                 if (!decrypted) {
                     setState(prev => ({ ...prev, scanError: 'Sign in and connect to sync encryption key' }));
                     return;
                 }
                 payload = decrypted;
+            } else if (!text.includes('|')) {
+                // No "enc:" prefix and no pipe delimiters — likely a binary-mode barcode
+                // where ZXing decoded Base256 bytes as ISO-8859-1 chars.
+                // Reconstruct the raw encrypted bytes from charCodes.
+                const bytes = new Uint8Array(text.length);
+                for (let i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i);
+                const decrypted = await decryptBarcodeBytes(bytes);
+                if (!decrypted) {
+                    setState(prev => ({ ...prev, scanError: 'Sign in and connect to sync encryption key' }));
+                    return;
+                }
+                payload = decrypted;
+                // Reconstruct canonical text form for display
+                text = 'enc:' + uint8ToBase64(bytes);
             }
             const preview = importFromBarcode(payload);
             preview.encodedText = text;
@@ -182,7 +198,6 @@ const NoteImportContent = ({
             const bitmap = new BinaryBitmap(new HybridBinarizer(luminanceSource));
 
             const hints = new Map<DecodeHintType, any>();
-            hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.DATA_MATRIX]);
             hints.set(DecodeHintType.TRY_HARDER, true);
 
             const reader = new MultiFormatReader();
@@ -193,7 +208,8 @@ const NoteImportContent = ({
 
             setState(prev => ({ ...prev, inputText: text }));
             decodeBarcode(text);
-        } catch {
+        } catch (err) {
+            console.warn('[NoteImport] image decode failed:', err);
             setState(prev => ({
                 ...prev,
                 scanError: 'No barcode found in image. Try a clearer photo or paste the string directly.',
@@ -204,8 +220,13 @@ const NoteImportContent = ({
         }
     }, [decodeBarcode, setState]);
 
-    // Intercept clipboard paste for images
-    useImagePaste(importExpanded, handleImageDecode);
+    // Intercept clipboard paste for images — always listen when mounted,
+    // auto-expand the import bar so the user sees decoding feedback.
+    const handleImagePaste = useCallback((file: File) => {
+        setImportExpanded(true);
+        handleImageDecode(file);
+    }, [handleImageDecode]);
+    useImagePaste(true, handleImagePaste);
 
     // Auto-open file picker when requested
     const autoPickedRef = useRef(false);
@@ -371,6 +392,16 @@ const NoteImportContent = ({
                         >
                             Cancel scan
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Decoding image indicator ────────────────────────────────── */}
+            {isDecodingImage && !preview && (
+                <div className="px-4 pt-3">
+                    <div className="flex items-center gap-2 text-sm text-tertiary animate-pulse">
+                        <ScanLine size={16} className="text-themeblue2" />
+                        Reading image...
                     </div>
                 </div>
             )}

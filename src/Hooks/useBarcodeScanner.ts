@@ -6,6 +6,7 @@ interface ScannerState {
     isScanning: boolean;
     error: string | null;
     result: string | null;
+    resultBytes: Uint8Array | null;
 }
 
 /** Manages camera access and continuous barcode scanning using ZXing, with auto-cleanup on unmount. */
@@ -14,6 +15,7 @@ export const useBarcodeScanner = () => {
         isScanning: false,
         error: null,
         result: null,
+        resultBytes: null,
     });
 
     const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -72,7 +74,13 @@ export const useBarcodeScanner = () => {
                     if (!scanningRef.current) return;
 
                     if (result) {
-                        setState(prev => ({ ...prev, result: result.getText(), isScanning: false }));
+                        const rawBytes = result.getRawBytes();
+                        setState(prev => ({
+                            ...prev,
+                            result: result.getText(),
+                            resultBytes: rawBytes ? new Uint8Array(rawBytes) : null,
+                            isScanning: false,
+                        }));
                         stopCamera();
                     }
                     // Ignore decode errors during continuous scanning (expected when no barcode in view)
@@ -113,7 +121,7 @@ export const useBarcodeScanner = () => {
 
     // Clear result
     const clearResult = useCallback(() => {
-        setState(prev => ({ ...prev, result: null, error: null }));
+        setState(prev => ({ ...prev, result: null, resultBytes: null, error: null }));
     }, []);
 
     // Cleanup on unmount
@@ -127,6 +135,7 @@ export const useBarcodeScanner = () => {
         isScanning: state.isScanning,
         error: state.error,
         result: state.result,
+        resultBytes: state.resultBytes,
         startScanning,
         stopScanning,
         clearResult,

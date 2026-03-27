@@ -13,8 +13,9 @@ import type { Certification } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import type { Component } from '../../Data/User'
 import { UserAvatar } from '../Settings/UserAvatar'
+import { UserRow } from '../UserRow'
 import { AdminCertsSection } from './AdminCertsSection'
-import { formatLastActive, lastActiveColor, RoleBadge } from './adminUtils'
+import { RoleBadge } from './adminUtils'
 import { TextInput, PickerInput, MultiPickerInput, UicPinInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
 import {
@@ -98,8 +99,6 @@ export function AdminUserDetail({
   const [editUic, setEditUic] = useState('')
   const [editClinicId, setEditClinicId] = useState('')
   const [editRoles, setEditRoles] = useState<string[]>([])
-  const [editNoteIncludeHPI, setEditNoteIncludeHPI] = useState(true)
-  const [editNoteIncludePE, setEditNoteIncludePE] = useState(false)
   const [editPeDepth, setEditPeDepth] = useState('standard')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -164,8 +163,6 @@ export function AdminUserDetail({
       setEditUic(user?.uic || '')
       setEditClinicId(user?.clinic_id || '')
       setEditRoles(user?.roles?.filter(r => AVAILABLE_ROLES.includes(r as typeof AVAILABLE_ROLES[number])) ?? ['medic'])
-      setEditNoteIncludeHPI(user?.note_include_hpi ?? true)
-      setEditNoteIncludePE(user?.note_include_pe ?? true)
       setEditPeDepth(user?.pe_depth ?? 'standard')
       setCreateEmail('')
       setCreatePassword('')
@@ -186,11 +183,9 @@ export function AdminUserDetail({
       || editUic !== (user?.uic || '')
       || editClinicId !== (user?.clinic_id || '')
       || JSON.stringify([...editRoles].sort()) !== JSON.stringify([...(user?.roles ?? ['medic'])].sort())
-      || editNoteIncludeHPI !== (user?.note_include_hpi ?? true)
-      || editNoteIncludePE !== (user?.note_include_pe ?? true)
       || editPeDepth !== (user?.pe_depth ?? 'standard')
     onPendingChangesChange?.(changed)
-  }, [editing, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editRoles, editNoteIncludeHPI, editNoteIncludePE, editPeDepth, user, onPendingChangesChange])
+  }, [editing, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editRoles, editPeDepth, user, onPendingChangesChange])
 
   // ── Handlers ────────────────────────────────────────────────────────
 
@@ -259,8 +254,6 @@ export function AdminUserDetail({
       component: editComponent,
       rank: editRank,
       uic: editUic || undefined,
-      noteIncludeHPI: editNoteIncludeHPI,
-      noteIncludePE: editNoteIncludePE,
       peDepth: editPeDepth,
     })
     if (!profileResult.success) {
@@ -308,7 +301,7 @@ export function AdminUserDetail({
     onEditingChange(false)
     loadData()
     invalidate('users', 'clinics')
-  }, [user, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editRoles, editNoteIncludeHPI, editNoteIncludePE, editPeDepth, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated])
+  }, [user, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editRoles, editPeDepth, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated])
 
   // ── Save requested trigger ───────────────────────────────────────────
   useEffect(() => {
@@ -357,8 +350,6 @@ export function AdminUserDetail({
   }
 
   // ── Full name helper ────────────────────────────────────────────────
-  const fullName = user ? [user.first_name, user.middle_initial, user.last_name].filter(Boolean).join(' ') : ''
-
   // ── Render ──────────────────────────────────────────────────────────
 
   return (
@@ -434,42 +425,28 @@ export function AdminUserDetail({
               placeholder="Roles"
               required
             />
-            <label className="flex items-center justify-between cursor-pointer py-1">
-              <span className="text-sm text-primary">Include HPI</span>
-              <input type="checkbox" checked={editNoteIncludeHPI} onChange={() => setEditNoteIncludeHPI(!editNoteIncludeHPI)} className="w-4 h-4 rounded border-tertiary/30" />
-            </label>
-            <label className="flex items-center justify-between cursor-pointer py-1">
-              <span className="text-sm text-primary">Include PE</span>
-              <input type="checkbox" checked={editNoteIncludePE} onChange={() => setEditNoteIncludePE(!editNoteIncludePE)} className="w-4 h-4 rounded border-tertiary/30" />
-            </label>
             <PickerInput value={editPeDepth} onChange={setEditPeDepth} options={['focused', 'standard', 'comprehensive']} placeholder="PE Depth" />
           </div>
         ) : user ? (
-          <div className="px-4 py-3">
-            <div className="flex items-center gap-3">
-              <div className="relative shrink-0">
-                <UserAvatar
-                  avatarId={user.avatar_id}
-                  firstName={user.first_name}
-                  lastName={user.last_name}
-                  className="w-11 h-11"
-                />
-                <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-themewhite2 ${lastActiveColor(user.last_active_at)}`} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-primary truncate">
-                  {user.rank ? `${user.rank} ` : ''}{fullName}
-                </p>
-                <p className="text-[11px] text-tertiary/70 mt-0.5 truncate">
-                  {[user.credential, user.roles?.join(' · '), user.clinic_id && clinicMap.has(user.clinic_id) ? clinicMap.get(user.clinic_id)!.name : null].filter(Boolean).join(' · ') || user.email}
-                </p>
-              </div>
-              <div className="flex gap-1 flex-wrap justify-end shrink-0">
-                {user.roles?.map((role) => <RoleBadge key={role} role={role} />)}
-              </div>
-            </div>
+          <div>
+            <UserRow
+              avatarId={user.avatar_id}
+              firstName={user.first_name}
+              lastName={user.last_name}
+              middleInitial={user.middle_initial}
+              rank={user.rank}
+              lastActiveAt={user.last_active_at}
+              subtitle={[user.credential, user.roles?.join(' · '), user.clinic_id && clinicMap.has(user.clinic_id) ? clinicMap.get(user.clinic_id)!.name : null].filter(Boolean).join(' · ') || user.email}
+              size="md"
+              showChevron={false}
+              right={
+                <div className="flex gap-1 flex-wrap justify-end shrink-0">
+                  {user.roles?.map((role) => <RoleBadge key={role} role={role} />)}
+                </div>
+              }
+            />
             {user.email && (
-              <p className="text-[11px] font-normal text-tertiary/50 mt-1.5 pl-14">{user.email}</p>
+              <p className="text-[11px] font-normal text-tertiary/50 -mt-1.5 mb-3 pl-[3.75rem] px-4">{user.email}</p>
             )}
           </div>
         ) : null}

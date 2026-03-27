@@ -215,6 +215,37 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       return
     }
 
+    // ── pe: actions — physical exam preview interactions ──
+    if (action.startsWith('pe:open-preview:')) {
+      const blockKey = action.slice('pe:open-preview:'.length)
+      window.dispatchEvent(new CustomEvent('tour:pe-open-preview', { detail: blockKey }))
+      return
+    }
+    if (action === 'pe:mark-normal') {
+      window.dispatchEvent(new CustomEvent('tour:pe-mark-normal'))
+      return
+    }
+    if (action.startsWith('pe:toggle-abnormal:')) {
+      const abnormalKey = action.slice('pe:toggle-abnormal:'.length)
+      window.dispatchEvent(new CustomEvent('tour:pe-toggle-abnormal', { detail: abnormalKey }))
+      return
+    }
+    if (action === 'pe:reset') {
+      window.dispatchEvent(new CustomEvent('tour:pe-reset'))
+      return
+    }
+    if (action === 'pe:close-preview') {
+      window.dispatchEvent(new CustomEvent('tour:pe-close-preview'))
+      return
+    }
+    if (action.startsWith('pe:switch-preview:')) {
+      const blockKey = action.slice('pe:switch-preview:'.length)
+      window.dispatchEvent(new CustomEvent('tour:pe-close-preview'))
+      await new Promise(r => setTimeout(r, 350))
+      window.dispatchEvent(new CustomEvent('tour:pe-open-preview', { detail: blockKey }))
+      return
+    }
+
     // ── inject:expander — inject a temporary text expander ──
     if (action === 'inject:expander') {
       window.dispatchEvent(new CustomEvent('tour:inject-expander'))

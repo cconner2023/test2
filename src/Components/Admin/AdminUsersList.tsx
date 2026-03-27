@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { UserPlus, Pencil, KeyRound, Trash2, LogOut, Eye, ChevronRight, Check, X } from 'lucide-react'
-import { UserAvatar } from '../Settings/UserAvatar'
+import { UserPlus, Pencil, KeyRound, Trash2, LogOut, Eye, Check, X } from 'lucide-react'
+import { UserRow } from '../UserRow'
 import { EmptyState } from '../EmptyState'
 import { CardContextMenu } from '../CardContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -8,7 +8,7 @@ import { LoadingSpinner } from '../LoadingSpinner'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useLongPress } from '../../Hooks/useLongPress'
-import { lastActiveColor } from './adminUtils'
+import { formatLastActive } from './adminUtils'
 import {
   listAllUsers,
   listClinics,
@@ -283,21 +283,15 @@ export function AdminUsersList({
         onTap={() => onSelectUser(user)}
         onContextMenu={(x, y) => setContextMenu({ userId: user.id, x, y })}
       >
-        <div className="flex items-center gap-3 px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5">
-          <div className="relative shrink-0">
-            <UserAvatar avatarId={user.avatar_id} firstName={user.first_name} lastName={user.last_name} className="w-9 h-9" />
-            <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-themewhite2 ${lastActiveColor(user.last_active_at)}`} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-primary truncate">
-              {user.rank ? `${user.rank} ` : ''}{user.first_name || ''} {user.last_name || ''}
-            </p>
-            <p className="text-[11px] text-tertiary/70 mt-0.5 truncate">
-              {[user.credential, user.roles?.join(' · '), clinicName].filter(Boolean).join(' · ') || user.email || ''}
-            </p>
-          </div>
-          <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
-        </div>
+        <UserRow
+          avatarId={user.avatar_id}
+          firstName={user.first_name}
+          lastName={user.last_name}
+          middleInitial={user.middle_initial}
+          rank={user.rank}
+          lastActiveAt={user.last_active_at}
+          subtitle={[user.credential, user.roles?.join(' · '), clinicName, formatLastActive(user.last_active_at)].filter(Boolean).join(' · ') || user.email || ''}
+        />
 
         {resetPwUserId === user.id && (
           <div className="px-4 pb-3.5 bg-tertiary/5" onClick={(e) => e.stopPropagation()}>

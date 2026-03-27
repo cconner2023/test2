@@ -71,19 +71,20 @@ export const WriteNotePage = ({
         };
     }, []);
 
-    const defaultHPI = tourOverrideAll || (profile.noteIncludeHPI ?? true);
-    const defaultPE = tourOverrideAll || (profile.noteIncludePE ?? true);
-    const defaultPlan = tourOverrideAll || (profile.noteIncludePlan ?? true);
+    const defaultHPI = true;
+    const defaultPE = tourOverrideAll || !!(profile.peDepth);
+    const defaultPlan = tourOverrideAll || !!(profile.planOrderTags && Object.values(profile.planOrderTags).some(arr => arr.length > 0));
 
-    // Build visible wizard pages — hide HPI/PE/Plan when disabled in settings
     const visiblePages = useMemo(() => {
-        const pages: { id: PageId; label: string }[] = [{ id: 'decision', label: 'Decision Making' }];
-        if (defaultHPI) pages.push({ id: 'hpi', label: 'HPI' });
-        if (defaultPE) pages.push({ id: 'pe', label: 'Physical Exam' });
-        if (defaultPlan) pages.push({ id: 'plan', label: 'Plan' });
-        pages.push({ id: 'fullnote', label: 'Full Note' });
+        const pages: { id: PageId; label: string }[] = [
+            { id: 'decision', label: 'Decision Making' },
+            { id: 'hpi', label: 'HPI' },
+            { id: 'pe', label: 'Physical Exam' },
+            { id: 'plan', label: 'Plan' },
+            { id: 'fullnote', label: 'Full Note' },
+        ];
         return pages;
-    }, [defaultHPI, defaultPE, defaultPlan]);
+    }, []);
 
     // WriteNotePage-unique state: includeDecisionMaking
     const [includeDecisionMaking, setIncludeDecisionMaking] = useState<boolean>(false);
@@ -111,6 +112,7 @@ export const WriteNotePage = ({
         includePhysicalExam, setIncludePhysicalExam,
         includePlan, setIncludePlan,
         encodedValue, setEncodedValue,
+        barcodeBytes, setBarcodeBytes,
         copiedTarget,
         currentPage, currentPageId, slideDirection,
         handleNext, handlePageBack,
@@ -194,7 +196,6 @@ export const WriteNotePage = ({
                             </div>
 
                         {/* HPI */}
-                        {defaultHPI && (
                             <div data-tour="writenote-hpi" className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'hpi' ? 'hidden' : ''}`}>
                                 <div className="space-y-3">
                                     <div className="mx-2 mt-2">
@@ -221,10 +222,8 @@ export const WriteNotePage = ({
                                     )}
                                 </div>
                             </div>
-                        )}
 
                         {/* Physical Exam */}
-                        {defaultPE && (
                             <div data-tour="writenote-pe" className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'pe' ? 'hidden' : ''}`}>
                                 <div className="space-y-3">
                                     <div className="mx-2 mt-2">
@@ -258,10 +257,8 @@ export const WriteNotePage = ({
                                     )}
                                 </div>
                             </div>
-                        )}
 
                         {/* Plan */}
-                        {defaultPlan && (
                             <div data-tour="writenote-plan" className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'plan' ? 'hidden' : ''}`}>
                                 <div className="space-y-3">
                                     <div className="mx-2 mt-2">
@@ -292,7 +289,6 @@ export const WriteNotePage = ({
                                     )}
                                 </div>
                             </div>
-                        )}
 
                         {/* Full Note */}
                             <div className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'fullnote' ? 'hidden' : ''}`}>
@@ -370,6 +366,7 @@ export const WriteNotePage = ({
                                                     }}
                                                     symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
                                                     onEncodedValueChange={setEncodedValue}
+                                                    onBarcodeBytesChange={setBarcodeBytes}
                                                     layout={encodedValue.length > 300 ? 'col' : 'row'}
                                                 />
                                             </div>

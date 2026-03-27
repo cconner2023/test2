@@ -157,7 +157,7 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
     const { deletedConversations, conversations, localUserId, systemGroupIds } = get()
     const userId = localUserId
 
-    const conversationKey = msg.groupId ?? msg.senderId
+    const conversationKey = msg.groupId ?? (userId && msg.senderId === userId ? msg.recipientId : msg.senderId)
 
     const tombstoneAt = deletedConversations[conversationKey]
     if (tombstoneAt) {
@@ -194,7 +194,7 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
     )
 
     set(s => {
-      const unreadKey = msg.groupId ?? msg.senderId
+      const unreadKey = conversationKey
       const isIncoming = !userId || msg.senderId !== userId
       const isSystemGroup = msg.groupId ? systemGroupIds.has(msg.groupId) : false
       const newUnread =

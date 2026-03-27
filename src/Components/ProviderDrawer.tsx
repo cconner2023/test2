@@ -19,7 +19,7 @@ import { useUserProfile } from '../Hooks/useUserProfile'
 import { getBlockByKey } from '../Data/PhysicalExamData'
 import { parseNoteEncoding, findAlgorithmByCode, findSymptomByCode, reconstructCardStates } from '../Utilities/noteParser'
 import { decodePEState } from '../Utilities/peCodec'
-import { isEncryptedBarcode, decryptBarcode } from '../Utilities/NoteCodec'
+import { isEncryptedBarcode, decryptBarcode, decryptBarcodeBytes } from '../Utilities/NoteCodec'
 import { assembleNote, formatSignature } from '../Utilities/NoteFormatter'
 import {
   MultiFormatReader, BinaryBitmap, HybridBinarizer,
@@ -172,9 +172,20 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     try {
       let payload = raw
       if (isEncryptedBarcode(payload)) {
+        // Text-mode barcode ("enc:{base64}") — standard decrypt path
         const decrypted = await decryptBarcode(payload)
         if (!decrypted) { setDecodeError('Unable to decrypt. Sign in and sync encryption key.'); return }
         payload = decrypted
+      } else if (!raw.includes('|')) {
+        // No "enc:" prefix and no pipe delimiters — likely a binary-mode barcode
+        // where ZXing decoded Base256 bytes as ISO-8859-1 chars.
+        const bytes = new Uint8Array(raw.length)
+        for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i)
+        const decrypted = await decryptBarcodeBytes(bytes)
+        if (decrypted) {
+          payload = decrypted
+        }
+        // If binary decrypt fails, fall through with raw payload (could be plain ASCII guest note)
       }
       const parsed = parseNoteEncoding(payload)
       if (!parsed) { setDecodeError('Could not decode note.'); return }
@@ -255,7 +266,6 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       const luminanceSource = new HTMLCanvasElementLuminanceSource(canvas)
       const bitmap = new BinaryBitmap(new HybridBinarizer(luminanceSource))
       const hints = new Map<DecodeHintType, any>()
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.DATA_MATRIX])
       hints.set(DecodeHintType.TRY_HARDER, true)
       const reader = new MultiFormatReader()
       reader.setHints(hints)
@@ -263,8 +273,10 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       const decoded = result.getText()
       setImportText(decoded)
       handleDecode(decoded)
-    } catch { setDecodeError('No barcode found in image. Try a clearer photo or paste the string directly.') }
-    finally { URL.revokeObjectURL(objectUrl); setIsDecodingImage(false) }
+    } catch (err) {
+      console.warn('[ProviderDrawer] image decode failed:', err)
+      setDecodeError('No barcode found in image. Try a clearer photo or paste the string directly.')
+    } finally { URL.revokeObjectURL(objectUrl); setIsDecodingImage(false) }
   }, [handleDecode])
 
   // Camera scan result — wire to decode
@@ -293,8 +305,13 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     }
   }, [scanRequested, isScanning, startScanning])
 
-  // Image paste detection when expanded
-  useImagePaste(importExpanded, handleImageDecode)
+  // Image paste detection — always listen when mounted,
+  // auto-expand the import bar so the user sees decoding feedback.
+  const handleImagePaste = useCallback((file: File) => {
+    setImportExpanded(true)
+    handleImageDecode(file)
+  }, [handleImageDecode])
+  useImagePaste(true, handleImagePaste)
 
   const handleExpandImport = useCallback(() => {
     setImportExpanded(true)
@@ -454,43 +471,31 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
           <div className="md:hidden absolute top-0 inset-x-0 z-10 backdrop-blur-sm bg-transparent">
             <div className="px-3 py-3 pt-[max(0.75rem,var(--sat,0px))] flex items-center justify-between">
               {view === 'note' ? (
-                <>
-                  <HeaderPill>
-                    {templates.length > 0 && (
+                importExpanded ? (
+                  <ImportInputBar
+                    value={importText}
+                    onChange={setImportText}
+                    onSubmit={() => handleDecode()}
+                    onClose={handleCollapseImport}
+                    onScan={handleStartScan}
+                    onImage={handleImageDecode}
+                    inputRef={importInputRef}
+                    fileRef={fileInputRef}
+                    isDecodingImage={isDecodingImage}
+                    className="w-full animate-expandSearch"
+                  />
+                ) : (
+                  <>
+                    <HeaderPill>
                       <PillButton icon={LayoutTemplate} iconSize={20} onClick={() => setTemplateDrawerOpen(true)} label="Templates" />
-                    )}
-                  </HeaderPill>
-                  <span className="text-sm font-semibold text-primary">Provider</span>
-                  <div className="relative">
-                    <div className={`transition-all duration-300 ${
-                      importExpanded
-                        ? 'opacity-0 scale-90 pointer-events-none absolute right-0'
-                        : 'opacity-100 scale-100'
-                    }`}>
-                      <HeaderPill>
-                        <PillButton icon={ScanLine} iconSize={20} onClick={handleExpandImport} label="Import Medic Note" />
-                        <PillButton icon={X} onClick={handleClose} label="Close" />
-                      </HeaderPill>
-                    </div>
-                    <div className={`min-w-0 transition-all duration-300 origin-right ${
-                      importExpanded
-                        ? 'opacity-100 scale-100'
-                        : 'opacity-0 scale-95 pointer-events-none absolute right-0 left-0'
-                    }`}>
-                      <ImportInputBar
-                        value={importText}
-                        onChange={setImportText}
-                        onSubmit={() => handleDecode()}
-                        onClose={handleCollapseImport}
-                        onScan={handleStartScan}
-                        onImage={handleImageDecode}
-                        inputRef={importInputRef}
-                        fileRef={fileInputRef}
-                        isDecodingImage={isDecodingImage}
-                      />
-                    </div>
-                  </div>
-                </>
+                    </HeaderPill>
+                    <span className="text-sm font-semibold text-primary">Provider</span>
+                    <HeaderPill>
+                      <PillButton icon={ScanLine} iconSize={20} onClick={handleExpandImport} label="Import Medic Note" />
+                      <PillButton icon={X} onClick={handleClose} label="Close" />
+                    </HeaderPill>
+                  </>
+                )
               ) : (
                 <>
                   <HeaderPill>
@@ -533,6 +538,14 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                     </div>
                     <div className="flex justify-center pt-2">
                       <button onClick={() => { stopScanning(); setScanRequested(false) }} className="text-xs text-tertiary/60 hover:text-tertiary active:scale-95 transition-colors">Cancel scan</button>
+                    </div>
+                  </div>
+                )}
+                {isDecodingImage && (
+                  <div className="px-4 pt-3">
+                    <div className="flex items-center gap-2 text-sm text-tertiary animate-pulse">
+                      <ScanLine size={16} className="text-themeblue2" />
+                      Reading image...
                     </div>
                   </div>
                 )}
@@ -594,6 +607,14 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                   </div>
                   <div className="flex justify-center pt-2">
                     <button onClick={() => { stopScanning(); setScanRequested(false) }} className="text-xs text-tertiary/60 hover:text-tertiary active:scale-95 transition-colors">Cancel scan</button>
+                  </div>
+                </div>
+              )}
+              {isDecodingImage && (
+                <div className="px-4 pt-3">
+                  <div className="flex items-center gap-2 text-sm text-tertiary animate-pulse">
+                    <ScanLine size={16} className="text-themeblue2" />
+                    Reading image...
                   </div>
                 </div>
               )}

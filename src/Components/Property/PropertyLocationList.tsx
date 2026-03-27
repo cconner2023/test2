@@ -1,8 +1,19 @@
 import { useState, useMemo, useCallback, useRef, forwardRef, useImperativeHandle } from 'react'
 import { ChevronRight, Pencil, Trash2, Map, X, Check } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
+import { Section, SectionCard } from '../Section'
 import { CardContextMenu } from '../CardContextMenu'
-import type { LocalPropertyLocation, LocalPropertyItem } from '../../Types/PropertyTypes'
+import { PropertyItemForm } from './PropertyItemForm'
+import type { LocalPropertyLocation, LocalPropertyItem, HolderInfo } from '../../Types/PropertyTypes'
+
+export type PropertySearchFilter = 'all' | 'item' | 'assigned' | 'location' | 'description'
+const SEARCH_FILTERS: { key: PropertySearchFilter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'item', label: 'Item' },
+  { key: 'assigned', label: 'Assigned' },
+  { key: 'location', label: 'Location' },
+  { key: 'description', label: 'Description' },
+]
 
 export interface DrilldownSegment {
   id: string
@@ -17,6 +28,7 @@ export interface PropertyLocationListHandle {
 interface PropertyLocationListProps {
   locations: LocalPropertyLocation[]
   items: LocalPropertyItem[]
+  holders?: Map<string, HolderInfo>
   clinicName?: string
   searchQuery?: string
   onSelectItem: (item: LocalPropertyItem) => void
@@ -25,11 +37,17 @@ interface PropertyLocationListProps {
   onDeleteItem?: (item: LocalPropertyItem) => void
   onViewOnMap?: (locationId: string) => void
   onDrilldownChange?: (path: DrilldownSegment[]) => void
+  /** When true, show the inline item creation form */
+  showInlineForm?: boolean
+  /** Editing an existing item inline */
+  inlineEditItem?: LocalPropertyItem | null
+  onInlineFormClose?: () => void
 }
 
 export const PropertyLocationList = forwardRef<PropertyLocationListHandle, PropertyLocationListProps>(function PropertyLocationList({
   locations,
   items,
+  holders,
   clinicName,
   searchQuery = '',
   onSelectItem,
@@ -38,56 +56,101 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
   onDeleteItem,
   onViewOnMap,
   onDrilldownChange,
+  showInlineForm = false,
+  inlineEditItem = null,
+  onInlineFormClose,
 }, ref) {
   const [path, setPath] = useState<DrilldownSegment[]>([])
   const [contextMenu, setContextMenu] = useState<{ locId: string; x: number; y: number } | null>(null)
   const longPressRef = useRef<number | null>(null)
   const longPressPreventTap = useRef(false)
-  const [unassignedOpen, setUnassignedOpen] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const renameInputRef = useRef<HTMLInputElement>(null)
 
+  const [searchFilter, setSearchFilter] = useState<PropertySearchFilter>('all')
+
   const currentParentId = path.length > 0 ? path[path.length - 1].id : null
+  const isSearching = searchQuery.trim().length > 0
+
+  // Lookup maps for search result subtitles
+  const locationNameMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const loc of locations) map.set(loc.id, loc.name)
+    return map
+  }, [locations])
+
+  // Filter-aware match function
+  const matchesSearch = useCallback((item: LocalPropertyItem, q: string): boolean => {
+    switch (searchFilter) {
+      case 'item':
+        return (
+          item.name.toLowerCase().includes(q) ||
+          !!item.nsn?.toLowerCase().includes(q) ||
+          !!item.lin?.toLowerCase().includes(q) ||
+          !!item.serial_number?.toLowerCase().includes(q)
+        )
+      case 'assigned': {
+        const holder = item.current_holder_id ? holders?.get(item.current_holder_id) : null
+        return !!holder?.displayName.toLowerCase().includes(q)
+      }
+      case 'location': {
+        const locName = item.location_id ? locationNameMap.get(item.location_id) : null
+        return !!locName?.toLowerCase().includes(q)
+      }
+      case 'description':
+        return (
+          !!item.nomenclature?.toLowerCase().includes(q) ||
+          !!item.notes?.toLowerCase().includes(q)
+        )
+      case 'all':
+      default: {
+        const holder = item.current_holder_id ? holders?.get(item.current_holder_id) : null
+        const locName = item.location_id ? locationNameMap.get(item.location_id) : null
+        return (
+          item.name.toLowerCase().includes(q) ||
+          !!item.nomenclature?.toLowerCase().includes(q) ||
+          !!item.nsn?.toLowerCase().includes(q) ||
+          !!item.lin?.toLowerCase().includes(q) ||
+          !!item.serial_number?.toLowerCase().includes(q) ||
+          !!item.notes?.toLowerCase().includes(q) ||
+          !!holder?.displayName.toLowerCase().includes(q) ||
+          !!locName?.toLowerCase().includes(q)
+        )
+      }
+    }
+  }, [searchFilter, holders, locationNameMap])
+
+  // Global search results — flat across all locations
+  const globalSearchResults = useMemo(() => {
+    if (!isSearching) return []
+    const q = searchQuery.toLowerCase()
+    return items
+      .filter((i) => !i.parent_item_id && matchesSearch(i, q))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [items, isSearching, searchQuery, matchesSearch])
 
   const childLocations = useMemo(() => {
+    if (isSearching) return []
     return locations
       .filter((l) => (l.parent_id ?? null) === currentParentId)
       .sort((a, b) => a.name.localeCompare(b.name))
-  }, [locations, currentParentId])
+  }, [locations, currentParentId, isSearching])
 
   const locationItems = useMemo(() => {
-    let list = items.filter(
-      (i) => !i.parent_item_id && (i.location_id ?? null) === currentParentId,
-    )
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      list = list.filter(
-        (i) =>
-          i.name.toLowerCase().includes(q) ||
-          i.nomenclature?.toLowerCase().includes(q) ||
-          i.nsn?.toLowerCase().includes(q) ||
-          i.serial_number?.toLowerCase().includes(q),
-      )
-    }
-    return list.sort((a, b) => a.name.localeCompare(b.name))
-  }, [items, currentParentId, searchQuery])
+    if (isSearching) return []
+    return items
+      .filter((i) => !i.parent_item_id && (i.location_id ?? null) === currentParentId)
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [items, currentParentId, isSearching])
 
   const unassignedItems = useMemo(() => {
+    if (isSearching) return []
     if (currentParentId !== null) return []
-    let list = items.filter((i) => !i.parent_item_id && (i.location_id ?? null) === null)
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      list = list.filter(
-        (i) =>
-          i.name.toLowerCase().includes(q) ||
-          i.nomenclature?.toLowerCase().includes(q) ||
-          i.nsn?.toLowerCase().includes(q) ||
-          i.serial_number?.toLowerCase().includes(q),
-      )
-    }
-    return list.sort((a, b) => a.name.localeCompare(b.name))
-  }, [items, currentParentId, searchQuery])
+    return items
+      .filter((i) => !i.parent_item_id && (i.location_id ?? null) === null)
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [items, currentParentId, isSearching])
 
   const drillInto = useCallback(
     (loc: LocalPropertyLocation) => {
@@ -99,22 +162,6 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
     },
     [path, onDrilldownChange],
   )
-
-  const navigateTo = useCallback(
-    (index: number) => {
-      setContextMenu(null)
-      const newPath = path.slice(0, index + 1)
-      setPath(newPath)
-      onDrilldownChange?.(newPath)
-    },
-    [path, onDrilldownChange],
-  )
-
-  const navigateToRoot = useCallback(() => {
-    setContextMenu(null)
-    setPath([])
-    onDrilldownChange?.([])
-  }, [onDrilldownChange])
 
   // Expose popPath for parent (PropertyDrawer) back-button handling
   const popPath = useCallback(() => {
@@ -189,54 +236,17 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
 
   const isEmpty = childLocations.length === 0 && locationItems.length === 0
 
-  // Breadcrumb — collapse to "… > Parent > Current" when > 3 levels
-  const renderBreadcrumb = () => {
-    if (path.length === 0) return null
-    const segments: Array<{ label: string; index: number } | { ellipsis: true }> = []
+  const hasLocations = childLocations.length > 0
+  const hasItems = locationItems.length > 0
+  const hasUnassigned = currentParentId === null && unassignedItems.length > 0
 
-    if (path.length <= 3) {
-      path.forEach((seg, i) => segments.push({ label: seg.name, index: i }))
-    } else {
-      segments.push({ label: clinicName || 'Clinic', index: -1 })
-      segments.push({ ellipsis: true })
-      segments.push({ label: path[path.length - 2].name, index: path.length - 2 })
-      segments.push({ label: path[path.length - 1].name, index: path.length - 1 })
-    }
-
-    return (
-      <div className="flex items-center gap-1 px-4 py-2 overflow-x-auto border-b border-tertiary/10 shrink-0 bg-themewhite3/60">
-        <button
-          onClick={navigateToRoot}
-          className="text-[10pt] text-themeblue3 shrink-0 active:scale-95 transition-all"
-        >
-          {clinicName || 'Clinic'}
-        </button>
-        {path.map((seg, i) => (
-          <span key={seg.id} className="flex items-center gap-1 shrink-0">
-            <ChevronRight size={12} className="text-tertiary/40 shrink-0" />
-            {i < path.length - 1 ? (
-              <button
-                onClick={() => navigateTo(i)}
-                className="text-[10pt] text-themeblue3 active:scale-95 transition-all"
-              >
-                {seg.name}
-              </button>
-            ) : (
-              <span className="text-[10pt] font-medium text-primary">{seg.name}</span>
-            )}
-          </span>
-        ))}
-      </div>
-    )
-  }
-
-  const renderLocationRow = (loc: LocalPropertyLocation) => {
+  const renderLocationRow = (loc: LocalPropertyLocation, isLast: boolean) => {
     const isRenaming = renamingId === loc.id
     const count = totalDescendantItems(loc.id)
 
     if (isRenaming) {
       return (
-        <div key={loc.id} className="flex items-center gap-2 px-4 py-3 border-b border-tertiary/10 bg-themewhite3/50">
+        <div key={loc.id} className="flex items-center gap-2 px-4 py-3 bg-themewhite2">
           <input
             ref={renameInputRef}
             type="text"
@@ -282,94 +292,178 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
         onTouchStart={(e) => handleTouchStart(loc.id, e)}
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchMove}
-        className="flex items-center gap-3 px-4 py-3.5 border-b border-tertiary/10 bg-themewhite3 active:bg-secondary/5 transition-colors cursor-pointer"
+        className={`flex items-center gap-3 px-4 py-3.5 active:bg-secondary/5 transition-colors cursor-pointer ${
+          !isLast ? 'border-b border-tertiary/8' : ''
+        }`}
       >
-        <span className="flex-1 text-[10pt] font-medium text-primary truncate">{loc.name}</span>
+        <span className="flex-1 text-sm font-medium text-primary truncate">{loc.name}</span>
         {count > 0 && (
-          <span className="text-[10pt] px-2 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium shrink-0">
+          <span className="text-xs px-2 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium shrink-0">
             {count}
           </span>
         )}
-        <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+        <ChevronRight size={16} className="text-tertiary/30 shrink-0" />
       </div>
     )
   }
 
-  const renderItemRow = (item: LocalPropertyItem) => (
+  const renderItemRow = (item: LocalPropertyItem, isLast: boolean) => (
     <button
       key={item.id}
       onClick={() => onSelectItem(item)}
-      className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-tertiary/10 text-left active:bg-secondary/5 transition-colors active:scale-[0.98]"
+      className={`w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-secondary/5 transition-colors active:scale-[0.98] ${
+        !isLast ? 'border-b border-tertiary/8' : ''
+      }`}
     >
-      <span className="flex-1 text-[10pt] text-primary truncate">{item.name}</span>
-      {item.quantity > 0 && (
-        <span className="text-[10pt] px-2 py-0.5 rounded-full font-medium shrink-0 bg-themeblue3/10 text-themeblue3">
+      <span className="flex-1 text-sm text-primary truncate">{item.name}</span>
+      {item.quantity > 1 && (
+        <span className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0 bg-themeblue3/10 text-themeblue3">
           {item.quantity}
         </span>
       )}
     </button>
   )
 
-  return (
-    <div className="flex flex-col min-h-0">
-      {renderBreadcrumb()}
+  const renderSearchResultRow = (item: LocalPropertyItem, isLast: boolean) => {
+    const locName = item.location_id ? locationNameMap.get(item.location_id) : null
+    const holder = item.current_holder_id ? holders?.get(item.current_holder_id) : null
+    const subtitle = [locName, holder?.displayName].filter(Boolean).join(' · ')
 
-      {/* "View on Map" row — only when drilled in */}
-      {currentParentId !== null && onViewOnMap && (
+    return (
+      <button
+        key={item.id}
+        onClick={() => onSelectItem(item)}
+        className={`w-full flex items-center gap-3 px-4 py-3 text-left active:bg-secondary/5 transition-colors active:scale-[0.98] ${
+          !isLast ? 'border-b border-tertiary/8' : ''
+        }`}
+      >
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-primary truncate">{item.name}</p>
+          {subtitle && (
+            <p className="text-xs text-tertiary/60 truncate mt-0.5">{subtitle}</p>
+          )}
+        </div>
+        {item.quantity > 1 && (
+          <span className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0 bg-themeblue3/10 text-themeblue3">
+            {item.quantity}
+          </span>
+        )}
+      </button>
+    )
+  }
+
+  const renderFilterSegments = () => (
+    <div className="flex gap-1 p-0.5 rounded-full bg-themewhite dark:bg-themewhite3 border border-themeblue3/10">
+      {SEARCH_FILTERS.map((f) => (
         <button
-          onClick={() => onViewOnMap(currentParentId)}
-          className="flex items-center gap-2 px-4 py-2.5 border-b border-tertiary/10 text-left active:bg-secondary/5 transition-colors active:scale-[0.98]"
+          key={f.key}
+          type="button"
+          onClick={() => setSearchFilter(f.key)}
+          className={`flex-1 py-1.5 text-[10px] font-medium rounded-full transition-all duration-200 active:scale-95 ${
+            searchFilter === f.key
+              ? 'bg-themeblue3 text-white shadow-sm'
+              : 'text-tertiary/50 hover:text-tertiary/70'
+          }`}
         >
-          <Map size={14} className="text-themeblue3 shrink-0" />
-          <span className="text-[10pt] text-themeblue3">View on Map</span>
+          {f.label}
         </button>
-      )}
+      ))}
+    </div>
+  )
 
-      {isEmpty && unassignedItems.length === 0 ? (
-        <EmptyState title="No items at this location" />
-      ) : (
+  const inlineFormVisible = showInlineForm || !!inlineEditItem
+
+  return (
+    <div className="flex flex-col min-h-0 px-4 pt-3 pb-20 space-y-5">
+      {/* Inline item form — animated expand like TextExpanderManager */}
+      <div className={`overflow-hidden transition-all duration-300 ease-out ${
+        inlineFormVisible ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+      }`}>
+        {inlineFormVisible && (
+          <PropertyItemForm
+            editingItem={inlineEditItem}
+            onClose={() => onInlineFormClose?.()}
+          />
+        )}
+      </div>
+
+      {isSearching ? (
         <>
-          {childLocations.map(renderLocationRow)}
-          {locationItems.map(renderItemRow)}
-
-          {/* Unassigned section — root level only */}
-          {currentParentId === null && unassignedItems.length > 0 && (
-            <div>
-              <button
-                onClick={() => setUnassignedOpen((v) => !v)}
-                className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-tertiary/10 text-left active:bg-secondary/5 transition-colors active:scale-[0.98]"
-              >
-                <span className="flex-1 text-[10pt] font-medium text-tertiary italic">Unassigned</span>
-                <span className="text-[10pt] px-2 py-0.5 rounded-full bg-themeyellow/10 text-themeyellow font-medium shrink-0">
-                  {unassignedItems.length}
-                </span>
-                <ChevronRight
-                  size={16}
-                  className={`text-tertiary/40 shrink-0 transition-transform ${unassignedOpen ? 'rotate-90' : ''}`}
-                />
-              </button>
-              {unassignedOpen && unassignedItems.map(renderItemRow)}
-            </div>
+          {renderFilterSegments()}
+          {globalSearchResults.length === 0 ? (
+            <EmptyState title="No results" />
+          ) : (
+            <Section title="Results" count={globalSearchResults.length}>
+              <SectionCard>
+                {globalSearchResults.map((item, i) => renderSearchResultRow(item, i === globalSearchResults.length - 1))}
+              </SectionCard>
+            </Section>
           )}
         </>
-      )}
+      ) : (
+        <>
+          {/* "View on Map" row — only when drilled in */}
+          {currentParentId !== null && onViewOnMap && (
+            <button
+              onClick={() => onViewOnMap(currentParentId)}
+              className="flex items-center gap-2 py-1 text-left active:scale-[0.98] transition-all"
+            >
+              <Map size={14} className="text-themeblue3 shrink-0" />
+              <span className="text-sm text-themeblue3">View on Map</span>
+            </button>
+          )}
 
-      {/* Context menu — long-press / right-click on location rows */}
-      {contextMenu && (() => {
-        const loc = locations.find((l) => l.id === contextMenu.locId)
-        if (!loc) return null
-        return (
-          <CardContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            onClose={() => setContextMenu(null)}
-            items={[
-              ...(onEditLocation ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => startRename(loc) }] : []),
-              ...(onDeleteLocation ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteLocation(loc.id) }] : []),
-            ]}
-          />
-        )
-      })()}
+          {isEmpty && !hasUnassigned ? (
+            <EmptyState title="No items at this location" />
+          ) : (
+            <>
+              {/* Locations section */}
+              {hasLocations && (
+                <Section title="Locations" count={childLocations.length}>
+                  <SectionCard>
+                    {childLocations.map((loc, i) => renderLocationRow(loc, i === childLocations.length - 1))}
+                  </SectionCard>
+                </Section>
+              )}
+
+              {/* Items section */}
+              {hasItems && (
+                <Section title="Items" count={locationItems.length}>
+                  <SectionCard>
+                    {locationItems.map((item, i) => renderItemRow(item, i === locationItems.length - 1))}
+                  </SectionCard>
+                </Section>
+              )}
+
+              {/* Unassigned section — root level only */}
+              {hasUnassigned && (
+                <Section title="Unassigned" count={unassignedItems.length}>
+                  <SectionCard>
+                    {unassignedItems.map((item, i) => renderItemRow(item, i === unassignedItems.length - 1))}
+                  </SectionCard>
+                </Section>
+              )}
+            </>
+          )}
+
+          {/* Context menu — long-press / right-click on location rows */}
+          {contextMenu && (() => {
+            const loc = locations.find((l) => l.id === contextMenu.locId)
+            if (!loc) return null
+            return (
+              <CardContextMenu
+                x={contextMenu.x}
+                y={contextMenu.y}
+                onClose={() => setContextMenu(null)}
+                items={[
+                  ...(onEditLocation ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => startRename(loc) }] : []),
+                  ...(onDeleteLocation ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteLocation(loc.id) }] : []),
+                ]}
+              />
+            )
+          })()}
+        </>
+      )}
     </div>
   )
 })

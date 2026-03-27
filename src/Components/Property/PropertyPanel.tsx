@@ -80,6 +80,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   const [newLocationName, setNewLocationName] = useState('')
   const [renamingLocation, setRenamingLocation] = useState<{ id: string; name: string } | null>(null)
   const [showAddSheet, setShowAddSheet] = useState(false)
+  const [showInlineForm, setShowInlineForm] = useState(false)
   const [pendingDeleteItem, setPendingDeleteItem] = useState<LocalPropertyItem | null>(null)
   const [pendingDeleteLocId, setPendingDeleteLocId] = useState<string | null>(null)
 
@@ -210,17 +211,15 @@ export const PropertyPanel = memo(function PropertyPanel({
     )
   }
 
-  const renderBottomIsland = () => (
-    <>
-      <div className="absolute bottom-4 right-4 z-20 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg">
-        <button
-          onClick={() => setShowAddSheet(true)}
-          className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
-        >
-          <Plus className="w-5 h-5" />
-        </button>
-      </div>
-    </>
+  const renderBottomIsland = (fixed?: boolean) => (
+    <div className={`${fixed ? 'fixed' : 'absolute'} bottom-4 right-4 z-20 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg`}>
+      <button
+        onClick={() => setShowAddSheet(true)}
+        className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
+      >
+        <Plus className="w-5 h-5" />
+      </button>
+    </div>
   )
 
   // Mobile: detail view
@@ -233,16 +232,6 @@ export const PropertyPanel = memo(function PropertyPanel({
         items={store.items}
         onEdit={onEditItem}
         onDelete={() => onDeleteItem(selectedItem)}
-      />
-    )
-  }
-
-  // Mobile: form view
-  if (view === 'property-form' && isMobile) {
-    return (
-      <PropertyItemForm
-        editingItem={store.editingItem}
-        onClose={() => { store.setEditingItem(null); onBack() }}
       />
     )
   }
@@ -403,7 +392,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   // Mobile layout
   return (
     <>
-      <div className="flex flex-col h-full overflow-hidden relative">
+      <div className="flex flex-col h-full overflow-hidden">
         {renderNewLocationForm()}
 
         <div className="flex-1 overflow-y-auto">
@@ -411,22 +400,26 @@ export const PropertyPanel = memo(function PropertyPanel({
             ref={locationListRef as React.Ref<import('./PropertyLocationList').PropertyLocationListHandle>}
             locations={visibleLocations}
             items={store.items}
+            holders={store.holders}
             clinicName={clinicName}
             searchQuery={searchQuery}
             onSelectItem={handleSelectItem}
             onEditLocation={(loc) => setRenamingLocation({ id: loc.id, name: loc.name })}
             onDeleteLocation={(locId) => setPendingDeleteLocId(locId)}
             onDrilldownChange={onDrilldownChange}
+            showInlineForm={showInlineForm}
+            inlineEditItem={store.editingItem}
+            onInlineFormClose={() => { setShowInlineForm(false); store.setEditingItem(null) }}
           />
         </div>
 
-        {renderBottomIsland()}
+        {!showInlineForm && !store.editingItem && renderBottomIsland(true)}
 
         <ActionSheet
           visible={showAddSheet}
           title="Add to Property Book"
           options={[
-            { key: 'item', label: 'New Item', onAction: () => { store.setDefaultLocationId(null); store.setEditingItem(null); onAddItem() } },
+            { key: 'item', label: 'New Item', onAction: () => { store.setDefaultLocationId(null); store.setEditingItem(null); setShowInlineForm(true) } },
             { key: 'location', label: 'New Location', onAction: () => { setNewLocationName(''); setShowNewLocation(true) } },
           ]}
           onClose={() => setShowAddSheet(false)}

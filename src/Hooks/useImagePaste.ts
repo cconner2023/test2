@@ -12,11 +12,17 @@ export function useImagePaste(enabled: boolean, onImage: (file: File) => void) {
       const items = e.clipboardData?.items
       if (!items) return
 
+      const types = Array.from(items).map(i => i.type)
+      console.debug('[useImagePaste] paste event, item types:', types)
+
       for (const item of Array.from(items)) {
         if (item.type.startsWith('image/')) {
           e.preventDefault()
           const file = item.getAsFile()
-          if (file) onImage(file)
+          if (file) {
+            console.debug('[useImagePaste] dispatching image file:', file.type, file.size, 'bytes')
+            onImage(file)
+          }
           return
         }
       }

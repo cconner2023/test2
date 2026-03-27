@@ -46,7 +46,7 @@ interface AdminRequestsListProps {
   searchQuery?: string
   /** When true, renders items without wrapper chrome (for unified search results) */
   bare?: boolean
-  onApproved?: (userId: string, request: AccountRequest, configured: { roles: string[]; clinicId: string | null; noteIncludeHPI: boolean; noteIncludePE: boolean; peDepth: string }) => void
+  onApproved?: (userId: string, request: AccountRequest, configured: { roles: string[]; clinicId: string | null; peDepth: string }) => void
 }
 
 // ─── Per-card component ─────────────────────────────────────
@@ -72,7 +72,7 @@ function RequestCard({
   setContextMenu: (v: { requestId: string; x: number; y: number } | null) => void
   clinics: AdminClinic[]
   uicToClinic: Map<string, AdminClinic>
-  onApproved?: (userId: string, request: AccountRequest, configured: { roles: string[]; clinicId: string | null; noteIncludeHPI: boolean; noteIncludePE: boolean; peDepth: string }) => void
+  onApproved?: (userId: string, request: AccountRequest, configured: { roles: string[]; clinicId: string | null; peDepth: string }) => void
   onRefresh: () => void
 }) {
   const isSupport = request.request_type === 'support'
@@ -91,8 +91,6 @@ function RequestCard({
   const [uic, setUic] = useState(request.uic || '')
   const [roles, setRoles] = useState<string[]>(['medic'])
   const [selectedClinicId, setSelectedClinicId] = useState('')
-  const [noteIncludeHPI, setNoteIncludeHPI] = useState(true)
-  const [noteIncludePE, setNoteIncludePE] = useState(true)
   const [peDepth, setPeDepth] = useState('standard')
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -157,8 +155,6 @@ function RequestCard({
       component,
       rank,
       uic: uic || undefined,
-      noteIncludeHPI,
-      noteIncludePE,
       peDepth,
     })
     if (!profileResult.success) warnings.push('Profile update failed')
@@ -180,15 +176,13 @@ function RequestCard({
     onApproved?.(userId, request, {
       roles: chosenRoles,
       clinicId: selectedClinicId,
-      noteIncludeHPI,
-      noteIncludePE,
       peDepth,
     })
     invalidate('requests', 'users')
     onRefresh()
   }, [
     request, firstName, lastName, middleInitial, credential, component, rank, uic,
-    roles, selectedClinicId, noteIncludeHPI, noteIncludePE, peDepth, onApproved, onRefresh,
+    roles, selectedClinicId, peDepth, onApproved, onRefresh,
   ])
 
   const handleReject = useCallback(async () => {
@@ -408,14 +402,6 @@ function RequestCard({
                   required
                 />
 
-                <label className="flex items-center justify-between cursor-pointer py-1">
-                  <span className="text-sm text-primary">Include HPI</span>
-                  <input type="checkbox" checked={noteIncludeHPI} onChange={() => setNoteIncludeHPI(!noteIncludeHPI)} className="w-4 h-4 rounded border-tertiary/30" />
-                </label>
-                <label className="flex items-center justify-between cursor-pointer py-1">
-                  <span className="text-sm text-primary">Include PE</span>
-                  <input type="checkbox" checked={noteIncludePE} onChange={() => setNoteIncludePE(!noteIncludePE)} className="w-4 h-4 rounded border-tertiary/30" />
-                </label>
                 <PickerInput value={peDepth} onChange={setPeDepth} options={['focused', 'standard', 'comprehensive']} placeholder="PE Depth" />
             </div>
 

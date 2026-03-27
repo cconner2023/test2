@@ -8,7 +8,7 @@ import { useNoteShare } from '../../Hooks/useNoteShare';
 import { formatSignature } from '../../Utilities/NoteFormatter';
 import { copyWithHtml } from '../../Utilities/clipboardUtils';
 import { encodeProviderNote, encodeProviderBundle } from '../../Utilities/noteParser';
-import { encryptBarcode } from '../../Utilities/barcodeCodec';
+import { encryptBarcodeWithBytes } from '../../Utilities/barcodeCodec';
 import { selectIsAuthenticated, useAuthStore } from '../../stores/useAuthStore';
 
 import type { ImportedMedicNote } from '../ProviderDrawer'
@@ -66,19 +66,23 @@ export function ProviderNoteOutput({
     }, [hpiNote, peNote, peState, assessmentNote, planNote, profile, userId, importedMedicNote, medicBarcode]);
 
     const [encodedValue, setEncodedValue] = useState(compactString);
+    const [barcodeBytes, setBarcodeBytes] = useState<Uint8Array | null>(null);
 
     useEffect(() => {
         let cancelled = false;
         (async () => {
             if (!isAuthenticated) {
-                if (!cancelled) setEncodedValue(compactString);
+                if (!cancelled) { setEncodedValue(compactString); setBarcodeBytes(null); }
                 return;
             }
             try {
-                const encrypted = await encryptBarcode(compactString);
-                if (!cancelled) setEncodedValue(encrypted ?? compactString);
+                const result = await encryptBarcodeWithBytes(compactString);
+                if (!cancelled) {
+                    setEncodedValue(result?.text ?? compactString);
+                    setBarcodeBytes(result?.bytes ?? null);
+                }
             } catch {
-                if (!cancelled) setEncodedValue(compactString);
+                if (!cancelled) { setEncodedValue(compactString); setBarcodeBytes(null); }
             }
         })();
         return () => { cancelled = true; };
@@ -224,6 +228,7 @@ export function ProviderNoteOutput({
                 <div>
                     <BarcodeDisplay
                         encodedText={encodedValue}
+                        barcodeBytes={barcodeBytes}
                         layout={encodedValue.length > 300 ? 'col' : 'row'}
                     />
                 </div>

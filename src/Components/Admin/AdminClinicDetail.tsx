@@ -7,16 +7,13 @@
  */
 
 import { useEffect, useCallback, useMemo, useState, useRef } from 'react'
-import { ChevronRight, X, Plus } from 'lucide-react'
-import { UserAvatar } from '../Settings/UserAvatar'
+import { X, Plus } from 'lucide-react'
+import { UserRow } from '../UserRow'
 import { listClinics, listAllUsers, updateClinic, createClinic } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import { fetchAllCertifications } from '../../lib/certificationService'
 import type { Certification } from '../../Data/User'
-import {
-  formatLastActive,
-  lastActiveColor,
-} from './adminUtils'
+import { formatLastActive } from './adminUtils'
 import { TextInput, UicPinInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { ChipInput, UserPicker, ClinicPicker } from './AdminPickers'
@@ -228,33 +225,17 @@ const AdminClinicDetail = ({
   }
 
   const renderUserRow = (user: AdminUser) => (
-    <button
+    <UserRow
       key={user.id}
+      avatarId={user.avatar_id}
+      firstName={user.first_name}
+      lastName={user.last_name}
+      middleInitial={user.middle_initial}
+      rank={user.rank}
+      lastActiveAt={user.last_active_at}
+      subtitle={buildUserSubtitle(user)}
       onClick={() => onSelectUser?.(user)}
-      onKeyDown={(e) => { if (e.key === 'Enter') onSelectUser?.(user) }}
-      tabIndex={0}
-      className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5"
-    >
-      <UserAvatar
-        avatarId={user.avatar_id}
-        firstName={user.first_name}
-        lastName={user.last_name}
-        className="w-9 h-9"
-      />
-      <div className="flex-1 min-w-0 text-left">
-        <p className="text-sm font-medium text-primary truncate">
-          {user.first_name || ''} {user.middle_initial || ''}{' '}
-          {user.last_name || ''}
-        </p>
-        <p className="text-[11px] text-tertiary/70 mt-0.5 truncate flex items-center gap-1">
-          <span
-            className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${lastActiveColor(user.last_active_at)}`}
-          />
-          {buildUserSubtitle(user)}
-        </p>
-      </div>
-      <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
-    </button>
+    />
   )
 
   return (

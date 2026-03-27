@@ -10,7 +10,7 @@ import { formatTC3Note } from '../../Utilities/TC3Formatter'
 import { formatSignature } from '../../Utilities/NoteFormatter'
 import { getRegionLabel } from '../../Utilities/bodyRegionMap'
 import { encodeTC3Card } from '../../Utilities/tc3Codec'
-import { encryptBarcode } from '../../Utilities/barcodeCodec'
+import { encryptBarcodeWithBytes } from '../../Utilities/barcodeCodec'
 import { BodySilhouette } from './BodySilhouette'
 import type { TC3Injury, BodySide } from '../../Types/TC3Types'
 
@@ -75,6 +75,7 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
   const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null)
   const [shareStatus, setShareStatus] = useState<'idle' | 'sharing' | 'shared'>('idle')
   const [encodedText, setEncodedText] = useState('')
+  const [barcodeBytes, setBarcodeBytes] = useState<Uint8Array | null>(null)
 
   // Format the readable note text
   const noteText = useMemo(() => formatTC3Note(card, profile), [card, profile])
@@ -89,9 +90,10 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const encrypted = isAuthenticated ? await encryptBarcode(compactString) : null
+      const result = isAuthenticated ? await encryptBarcodeWithBytes(compactString) : null
       if (cancelled) return
-      setEncodedText(encrypted ?? compactString)
+      setEncodedText(result?.text ?? compactString)
+      setBarcodeBytes(result?.bytes ?? null)
     })()
     return () => { cancelled = true }
   }, [compactString, isAuthenticated])
@@ -230,7 +232,7 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
             </div>
           </div>
           <div className="mt-1">
-            {encodedText && <BarcodeDisplay encodedText={encodedText} layout={encodedText.length > 300 ? 'col' : 'row'} />}
+            {encodedText && <BarcodeDisplay encodedText={encodedText} barcodeBytes={barcodeBytes} layout={encodedText.length > 300 ? 'col' : 'row'} />}
           </div>
         </div>
       </div>

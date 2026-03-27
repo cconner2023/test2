@@ -297,20 +297,6 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
     // Parse structured content (text or image) from the decrypted payload
     const { plaintext, content, replyTo } = parseMessageContent(rawPlaintext)
 
-    // ── Clinic fan-out gate ──
-    // Clinic-as-entity messages have sender_id = null on the transport row.
-    // These are self-messages (clinic → clinic vault) fanned out to member devices.
-    // Route by content type and suppress from the messaging pipeline entirely.
-    if (!row.sender_id) {
-      if (isCalendarEvent(content)) {
-        routeCalendarEvent(content)
-      }
-      // Future clinic content types (announcements, alerts) would route here.
-      // Always mark as read — fan-out copies are notification/routing only.
-      markMessagesRead([row.id]).catch(() => {})
-      return null
-    }
-
     return {
       id: row.id,
       senderId: senderUuid,
@@ -455,9 +441,10 @@ export function useSignalMessages({
         if (processedIds.current.has(row.id)) continue
         trackProcessed(row.id)
         const decrypted = await decryptRow(row, userId)
-        // Sender key distributions return null (not user-visible) but still need marking as read
+        // Null return means non-visible (sender-key-distribution) or decrypt failure.
+        // Either way, mark as read to prevent infinite re-fetch on every catch-up.
         if (!decrypted) {
-          if (row.message_type === 'sender-key-distribution') processedRowIds.push(row.id)
+          processedRowIds.push(row.id)
           continue
         }
         processedRowIds.push(row.id)
@@ -638,11 +625,9 @@ export function useSignalMessages({
 
       decryptRow(row, myUuid).then((decrypted) => {
         if (!decrypted) {
-          // Sender key distributions are processed internally but return null —
-          // mark as read so the cron can purge them
-          if (row.message_type === 'sender-key-distribution') {
-            markMessagesRead([row.id]).catch(() => {})
-          }
+          // Null means non-visible (sender-key-distribution) or decrypt failure —
+          // mark as read so the server can purge and we don't retry forever
+          markMessagesRead([row.id]).catch(() => {})
           return
         }
         if (decrypted.messageType === 'delete') {

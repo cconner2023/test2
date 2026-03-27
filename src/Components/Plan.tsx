@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { PlanOrderTags, PlanOrderCategory, PlanOrderSet, PlanBlockKey, TextExpander } from '../Data/User';
 import { PLAN_ORDER_CATEGORIES, PLAN_ORDER_LABELS } from '../Data/User';
-import { detectPII } from '../lib/piiDetector';
-import { PIIWarningBanner } from './PIIWarningBanner';
-import { ExpandableInput } from './ExpandableInput';
+import { ContextMenuPreview } from './ContextMenuPreview';
+import type { ContextMenuAction } from './ContextMenuPreview';
+import { PlanBlockPreview } from './PlanBlockPreview';
+import { ListItemRow } from './ListItemRow';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -106,75 +108,47 @@ function generateText(states: Record<PlanBlockKey, BlockState>): string {
     return lines.join('\n');
 }
 
-// ── Block row component (mirrors ExamItemRow) ────────────────
+// ── Summary row (tap opens popover) ──────────────────────────
 
-function PlanBlockRow({ label, tags, state, onCycleStatus, onToggleTag, onSetFreeText, expanders = [], expanderEnabled = false }: {
+function PlanBlockRow({ label, state, onTap, index }: {
     label: string;
-    tags: string[];
     state: BlockState;
-    onCycleStatus: () => void;
-    onToggleTag: (tag: string) => void;
-    onSetFreeText: (text: string) => void;
-    expanders?: TextExpander[];
-    expanderEnabled?: boolean;
+    onTap: (index: number, rect: DOMRect) => void;
+    index: number;
 }) {
-    const freeTextWarnings = useMemo(() => detectPII(state.freeText), [state.freeText]);
-    const isExpanded = state.status === 'active';
+    const rowRef = useRef<HTMLDivElement>(null);
+
+    const handleTap = () => {
+        if (rowRef.current) {
+            onTap(index, rowRef.current.getBoundingClientRect());
+        }
+    };
+
+    const hasSummary = state.status === 'active' && (state.selectedTags.length > 0 || state.freeText.trim());
 
     return (
-        <div>
-            <button
-                type="button"
-                className="flex items-center gap-3 w-full text-left py-3 active:scale-[0.98] transition-all"
-                onClick={onCycleStatus}
-            >
-                <span className={`w-3.5 h-3.5 rounded-full shrink-0 transition-colors duration-200 ${
-                    state.status === 'active'
-                        ? 'bg-themegreen'
-                        : 'ring-[1.5px] ring-inset ring-tertiary/25 bg-transparent'
-                }`} />
-                <span className="text-[10pt] font-medium text-primary flex-1">{label}</span>
-            </button>
-
-            <div
-                className="grid transition-[grid-template-rows,opacity] duration-300 ease-out"
-                style={{
-                    gridTemplateRows: isExpanded ? '1fr' : '0fr',
-                    opacity: isExpanded ? 1 : 0,
-                }}
-            >
-                <div className="overflow-hidden min-h-0">
-                    <div className="pb-3 pl-[26px]">
-                        {tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mb-1.5">
-                                {tags.map(tag => (
-                                    <button
-                                        key={tag}
-                                        onClick={(e) => { e.stopPropagation(); onToggleTag(tag); }}
-                                        className={`px-2 py-0.5 text-[9pt] rounded-full transition-colors active:scale-95 ${
-                                            state.selectedTags.includes(tag)
-                                                ? 'bg-themegreen/15 text-themegreen'
-                                                : 'bg-tertiary/5 text-tertiary/40'
-                                        }`}
-                                    >
-                                        {tag}
-                                    </button>
-                                ))}
-                            </div>
+        <div ref={rowRef}>
+            <ListItemRow
+                onClick={handleTap}
+                className="py-2.5 active:scale-[0.98] transition-all"
+                left={
+                    <span className={`w-3.5 h-3.5 rounded-full shrink-0 transition-colors duration-200 ${
+                        state.status === 'active'
+                            ? 'bg-themegreen'
+                            : 'ring-[1.5px] ring-inset ring-tertiary/25 bg-transparent'
+                    }`} />
+                }
+                center={
+                    <>
+                        <p className="text-sm font-medium text-primary truncate">{label}</p>
+                        {hasSummary && (
+                            <p className="text-[11px] text-tertiary/70 mt-0.5 truncate">
+                                {[...state.selectedTags, ...(state.freeText.trim() ? [state.freeText.trim()] : [])].join('; ')}
+                            </p>
                         )}
-                        <ExpandableInput
-                            value={state.freeText}
-                            onChange={onSetFreeText}
-                            expanders={expanders}
-                            expanderEnabled={expanderEnabled}
-                            placeholder="Additional details..."
-                            className="w-full text-[9pt] px-4 py-2.5 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300 mt-1"
-                            onClick={(e) => e.stopPropagation()}
-                        />
-                        <PIIWarningBanner warnings={freeTextWarnings} />
-                    </div>
-                </div>
-            </div>
+                    </>
+                }
+            />
         </div>
     );
 }
@@ -182,10 +156,23 @@ function PlanBlockRow({ label, tags, state, onCycleStatus, onToggleTag, onSetFre
 // ── Main component ───────────────────────────────────────────
 
 export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, onChange, expanders = [], expanderEnabled = false }: PlanProps) => {
-    const allTags: Record<PlanBlockKey, string[]> = useMemo(() => ({
-        ...orderTags,
-        instructions: instructionTags,
-    }), [orderTags, instructionTags]);
+    // Custom tags added inline via popover — merged with profile tags
+    const [customTags, setCustomTags] = useState<Record<PlanBlockKey, string[]>>({
+        referral: [], meds: [], radiology: [], lab: [], followUp: [], instructions: [],
+    });
+
+    const allTags: Record<PlanBlockKey, string[]> = useMemo(() => {
+        const base: Record<PlanBlockKey, string[]> = {
+            ...orderTags,
+            instructions: instructionTags,
+        };
+        for (const key of ALL_BLOCK_KEYS) {
+            if (customTags[key].length > 0) {
+                base[key] = [...base[key], ...customTags[key]];
+            }
+        }
+        return base;
+    }, [orderTags, instructionTags, customTags]);
 
     const [states, setStates] = useState<Record<PlanBlockKey, BlockState>>(() =>
         parseInitialText(initialText ?? '', orderTags, instructionTags),
@@ -198,23 +185,14 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
         onChange(generateText(states));
     }, [states]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const cycleStatus = useCallback((key: PlanBlockKey) => {
-        setStates(prev => ({
-            ...prev,
-            [key]: {
-                ...prev[key],
-                status: prev[key].status === 'inactive' ? 'active' : 'inactive',
-            },
-        }));
-    }, []);
-
     const toggleTag = useCallback((key: PlanBlockKey, tag: string) => {
         setStates(prev => {
             const current = prev[key].selectedTags;
             const next = current.includes(tag)
                 ? current.filter(t => t !== tag)
                 : [...current, tag];
-            return { ...prev, [key]: { ...prev[key], selectedTags: next } };
+            // Auto-activate when a tag is selected
+            return { ...prev, [key]: { ...prev[key], selectedTags: next, status: 'active' } };
         });
     }, []);
 
@@ -224,6 +202,24 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
             [key]: { ...prev[key], freeText: text },
         }));
     }, []);
+
+    const addCustomTag = useCallback((key: PlanBlockKey, value: string) => {
+        // Skip duplicates
+        if (allTags[key].includes(value)) return;
+        setCustomTags(prev => ({
+            ...prev,
+            [key]: [...prev[key], value],
+        }));
+        // Auto-select and activate
+        setStates(prev => ({
+            ...prev,
+            [key]: {
+                ...prev[key],
+                status: 'active',
+                selectedTags: [...prev[key].selectedTags, value],
+            },
+        }));
+    }, [allTags]);
 
     /** Apply an order set — activates blocks and unions the preset tags */
     const applyOrderSet = useCallback((os: PlanOrderSet) => {
@@ -270,7 +266,56 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
     }, []);
 
     // Only show blocks that have tags configured
-    const visibleBlocks = ALL_BLOCK_KEYS.filter(key => allTags[key].length > 0);
+    const visibleBlocks = useMemo(() => ALL_BLOCK_KEYS.filter(key => allTags[key].length > 0), [allTags]);
+
+    // ── Popover state ────────────────────────────────────────
+    const [editingIndex, setEditingIndex] = useState<number | null>(null);
+    const [popoverAnchorRect, setPopoverAnchorRect] = useState<DOMRect | null>(null);
+
+    const handleRowTap = useCallback((index: number, rect: DOMRect) => {
+        setPopoverAnchorRect(rect);
+        setEditingIndex(index);
+    }, []);
+
+    const editingKey = editingIndex !== null ? visibleBlocks[editingIndex] : null;
+    const editingState = editingKey ? states[editingKey] : null;
+
+    const popoverActions = useMemo((): ContextMenuAction[] => {
+        if (editingIndex === null || editingKey === null) return [];
+        const len = visibleBlocks.length;
+        const isFirst = editingIndex === 0;
+        const isLast = editingIndex === len - 1;
+        return [
+            {
+                key: 'prev',
+                label: '<',
+                icon: ChevronLeft,
+                onAction: () => { if (!isFirst) setEditingIndex(editingIndex - 1); },
+                closesOnAction: false,
+                variant: isFirst ? 'disabled' as any : 'default',
+            },
+            {
+                key: 'reset',
+                label: 'Reset',
+                icon: RotateCcw,
+                onAction: () => {
+                    setStates(prev => ({
+                        ...prev,
+                        [editingKey]: defaultBlockState(),
+                    }));
+                },
+                closesOnAction: false,
+            },
+            {
+                key: 'next',
+                label: '>',
+                icon: ChevronRight,
+                onAction: () => { if (!isLast) setEditingIndex(editingIndex + 1); },
+                closesOnAction: false,
+                variant: isLast ? 'disabled' as any : 'default',
+            },
+        ];
+    }, [editingIndex, editingKey, editingState?.status, visibleBlocks.length]);
 
     if (visibleBlocks.length === 0 && orderSets.length === 0) {
         return (
@@ -318,21 +363,40 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
             {/* Block rows */}
             <div className="rounded-xl bg-themewhite2 overflow-hidden">
                 <div className="px-4 py-3">
-                    {visibleBlocks.map(key => (
+                    {visibleBlocks.map((key, i) => (
                         <PlanBlockRow
                             key={key}
                             label={BLOCK_LABELS[key]}
-                            tags={allTags[key]}
                             state={states[key]}
-                            onCycleStatus={() => cycleStatus(key)}
-                            onToggleTag={(tag) => toggleTag(key, tag)}
-                            onSetFreeText={(text) => setFreeText(key, text)}
-                            expanders={expanders}
-                            expanderEnabled={expanderEnabled}
+                            onTap={handleRowTap}
+                            index={i}
                         />
                     ))}
                 </div>
             </div>
+
+            {/* ── Popover ── */}
+            {editingKey && editingState && (
+                <ContextMenuPreview
+                    isVisible={editingIndex !== null}
+                    onClose={() => setEditingIndex(null)}
+                    anchorRect={popoverAnchorRect}
+                    maxWidth="max-w-[340px] md:max-w-[520px]"
+                    searchPlaceholder="Filter tags..."
+                    preview={(filter, clearFilter) => (
+                        <PlanBlockPreview
+                            label={BLOCK_LABELS[editingKey]}
+                            tags={allTags[editingKey]}
+                            state={editingState}
+                            filter={filter}
+                            onToggleTag={(tag) => { toggleTag(editingKey, tag); clearFilter(); }}
+                        />
+                    )}
+                    actions={popoverActions}
+                    onAdd={(value) => addCustomTag(editingKey, value)}
+                    addPlaceholder="Add custom tag..."
+                />
+            )}
         </div>
     );
 };

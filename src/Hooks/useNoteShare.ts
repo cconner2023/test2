@@ -7,6 +7,7 @@ import { UI_TIMING } from '../Utilities/constants';
 /** Minimal note shape needed for sharing. */
 export interface ShareableNote {
     encodedText: string;
+    barcodeBytes?: Uint8Array | null;
     symptomText?: string;
     dispositionType?: string;
     dispositionText?: string;
@@ -25,7 +26,7 @@ type ShareStatus = 'idle' | 'generating' | 'sharing' | 'shared' | 'copied' | 'er
 function generateShareCanvas(note: ShareableNote): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
     try {
-        renderBarcodeToCanvas(canvas, note.encodedText, {
+        renderBarcodeToCanvas(canvas, note.barcodeBytes ?? note.encodedText, {
             scale: 6,
             padding: 6,
             backgroundcolor: 'ffffff',

@@ -68,10 +68,16 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const handleEditItem = useCallback(() => {
         if (selectedItem) {
             setEditingItem(selectedItem)
-            handleSlideAnimation('left')
-            setView('property-form')
+            if (isMobile) {
+                handleSlideAnimation('right')
+                setSelectedItem(null)
+                setView('property')
+            } else {
+                handleSlideAnimation('left')
+                setView('property-form')
+            }
         }
-    }, [selectedItem, setEditingItem, handleSlideAnimation])
+    }, [selectedItem, setEditingItem, handleSlideAnimation, isMobile])
 
     const handleDeleteItem = useCallback((item: LocalPropertyItem) => {
         setPendingDeleteItem(item)
@@ -89,9 +95,11 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     }, [pendingDeleteItem, removeItem, view, handleSlideAnimation])
 
     const handleAddItem = useCallback(() => {
-        handleSlideAnimation('left')
-        setView('property-form')
-    }, [handleSlideAnimation])
+        if (!isMobile) {
+            handleSlideAnimation('left')
+            setView('property-form')
+        }
+    }, [handleSlideAnimation, isMobile])
 
     const handleBack = useCallback(() => {
         if (view === 'property-form') {

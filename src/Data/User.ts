@@ -110,10 +110,6 @@ export interface UserTypes {
     clinicName?: string;
     /** Dev-only: login alerts, account requests, feedback */
     notifyDevAlerts?: boolean;
-    /** Default: include HPI section when writing notes */
-    noteIncludeHPI?: boolean;
-    /** Default: include Physical Exam section when writing notes */
-    noteIncludePE?: boolean;
     /** PE depth: 'focused', 'comprehensive', or 'custom' */
     peDepth?: 'focused' | 'comprehensive' | 'custom';
     /** User-defined custom PE blocks (kept for backward-compat migration) */
@@ -126,8 +122,6 @@ export interface UserTypes {
     textExpanders?: TextExpander[];
     /** Whether text expander is active in the HPI field */
     textExpanderEnabled?: boolean;
-    /** Default: include Plan section when writing notes */
-    noteIncludePlan?: boolean;
     /** User-defined order tags per category */
     planOrderTags?: PlanOrderTags;
     /** User-defined instruction tags */

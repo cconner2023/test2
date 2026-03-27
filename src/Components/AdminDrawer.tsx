@@ -122,7 +122,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const handleRequestApproved = useCallback((
         userId: string,
         request: AccountRequest,
-        configured: { roles: string[]; clinicId: string | null; noteIncludeHPI: boolean; noteIncludePE: boolean; peDepth: string },
+        configured: { roles: string[]; clinicId: string | null; peDepth: string },
     ) => {
         const newUser: AdminUser = {
             id: userId,
@@ -138,8 +138,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             clinic_id: configured.clinicId,
             created_at: new Date().toISOString(),
             last_active_at: null,
-            note_include_hpi: configured.noteIncludeHPI,
-            note_include_pe: configured.noteIncludePE,
             pe_depth: configured.peDepth,
             avatar_id: null,
         }

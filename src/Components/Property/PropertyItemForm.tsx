@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
-import { TextInput, SelectInput, PickerInput } from '../FormInputs'
+import { X, Check } from 'lucide-react'
+import { TextInput, PickerInput } from '../FormInputs'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useShallow } from 'zustand/react/shallow'
 import type { LocalPropertyItem } from '../../Types/PropertyTypes'
@@ -9,13 +10,6 @@ interface PropertyItemFormProps {
   editingItem?: LocalPropertyItem | null
   onClose: () => void
 }
-
-const CONDITION_OPTIONS = [
-  { value: 'serviceable', label: 'Serviceable' },
-  { value: 'unserviceable', label: 'Unserviceable' },
-  { value: 'damaged', label: 'Damaged' },
-  { value: 'missing', label: 'Missing' },
-]
 
 export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps) {
   const {
@@ -46,7 +40,6 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
   const [lin, setLin] = useState(editingItem?.lin ?? '')
   const [serialNumber, setSerialNumber] = useState(editingItem?.serial_number ?? '')
   const [quantity, setQuantity] = useState(String(editingItem?.quantity ?? 1))
-  const [condition, setCondition] = useState(editingItem?.condition_code ?? 'serviceable')
   const [locationId, setLocationId] = useState(editingItem?.location_id ?? (isEdit ? '' : defaultLocationId ?? ''))
   const [holderId, setHolderId] = useState(editingItem?.current_holder_id ?? '')
   const [parentItemId, setParentItemId] = useState(editingItem?.parent_item_id ?? '')
@@ -93,7 +86,7 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
           lin: lin.trim() || null,
           serial_number: serialNumber.trim() || null,
           quantity: Math.max(1, parseInt(quantity) || 1),
-          condition_code: condition,
+          condition_code: 'serviceable',
           location_id: locationId || null,
           current_holder_id: holderId || null,
           parent_item_id: parentItemId || null,
@@ -108,7 +101,7 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
           lin: lin.trim() || null,
           serial_number: serialNumber.trim() || null,
           quantity: Math.max(1, parseInt(quantity) || 1),
-          condition_code: condition,
+          condition_code: 'serviceable',
           parent_item_id: parentItemId || null,
           location_id: locationId || null,
           current_holder_id: holderId || null,
@@ -124,76 +117,100 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
       setIsSaving(false)
     }
   }, [
-    name, nomenclature, nsn, lin, serialNumber, quantity, condition,
+    name, nomenclature, nsn, lin, serialNumber, quantity,
     locationId, holderId, parentItemId, notes,
     isEdit, editingItem, clinicId, addItem, editItem, onClose,
   ])
 
+  const hasLocations = locationOptions.length > 0
+  const hasParentItems = parentItemOptions.length > 0
+
   return (
-    <div className="flex flex-col gap-4 p-4">
-      <TextInput label="Name" required value={name} onChange={setName} placeholder="e.g. ACOG Sight" />
-      <TextInput label="Nomenclature" value={nomenclature} onChange={setNomenclature} placeholder="Official nomenclature" />
-      <TextInput label="NSN" value={nsn} onChange={setNsn} placeholder="XXXX-XX-XXX-XXXX" />
-      <TextInput label="LIN" value={lin} onChange={setLin} placeholder="e.g. A12345" />
-      <TextInput label="Serial Number" value={serialNumber} onChange={setSerialNumber} placeholder="Serial number" />
-      <TextInput label="Quantity" type="number" value={quantity} onChange={setQuantity} />
+    <div className="rounded-xl bg-themewhite2 divide-y divide-tertiary/10">
+      {/* Core fields */}
+      <div className="px-4 py-3 space-y-3">
+        <TextInput value={name} onChange={setName} placeholder="Item name *" required />
+        <TextInput value={nomenclature} onChange={setNomenclature} placeholder="Nomenclature" />
+        <div className="flex gap-2">
+          <div className="flex-1 min-w-0">
+            <TextInput value={nsn} onChange={setNsn} placeholder="NSN" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <TextInput value={lin} onChange={setLin} placeholder="LIN" />
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <div className="flex-1 min-w-0">
+            <TextInput value={serialNumber} onChange={setSerialNumber} placeholder="Serial number" />
+          </div>
+          <div className="w-24 shrink-0">
+            <TextInput type="number" value={quantity} onChange={setQuantity} placeholder="Qty" />
+          </div>
+        </div>
+      </div>
 
-      <SelectInput
-        label="Condition"
-        value={condition}
-        onChange={setCondition}
-        options={CONDITION_OPTIONS}
-      />
+      {/* Assignment fields */}
+      {(hasLocations || holderOptions.length > 0 || hasParentItems) && (
+        <div className="px-4 py-3 space-y-3">
+          {hasLocations && (
+            <PickerInput
+              label="Location"
+              value={locationId}
+              onChange={setLocationId}
+              options={locationOptions}
+              placeholder="Select location"
+            />
+          )}
+          {holderOptions.length > 0 && (
+            <PickerInput
+              label="Holder"
+              value={holderId}
+              onChange={setHolderId}
+              options={holderOptions}
+              placeholder="Unassigned"
+            />
+          )}
+          {hasParentItems && (
+            <PickerInput
+              label="Parent Item"
+              value={parentItemId}
+              onChange={setParentItemId}
+              options={parentItemOptions}
+              placeholder="None (top-level)"
+            />
+          )}
+        </div>
+      )}
 
-      <PickerInput
-        label="Location"
-        value={locationId}
-        onChange={setLocationId}
-        options={locationOptions}
-        placeholder="Select location"
-      />
-
-      <PickerInput
-        label="Holder"
-        value={holderId}
-        onChange={setHolderId}
-        options={holderOptions}
-        placeholder="Unassigned"
-      />
-
-      <PickerInput
-        label="Parent Item"
-        value={parentItemId}
-        onChange={setParentItemId}
-        options={parentItemOptions}
-        placeholder="None (top-level)"
-      />
-
-      <div>
-        <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Notes</span>
+      {/* Notes */}
+      <div className="px-4 py-3">
         <textarea
-          className="mt-1 w-full px-4 py-2.5 rounded-2xl text-primary text-sm border border-themeblue3/10 shadow-xs bg-themewhite dark:bg-themewhite3 focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all duration-300 placeholder:text-tertiary/30 resize-none"
-          rows={3}
+          className="w-full px-4 py-2.5 rounded-2xl text-primary text-sm border border-themeblue3/10 shadow-xs bg-themewhite dark:bg-themewhite3 focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all duration-300 placeholder:text-tertiary/30 resize-none"
+          rows={2}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Additional notes..."
+          placeholder="Notes"
         />
       </div>
 
-      <button
-        className="w-full py-3 rounded-full bg-themeblue3 text-white text-sm font-medium active:scale-95 transition-all disabled:opacity-50"
-        disabled={!name.trim() || isSaving}
-        onClick={handleSave}
-      >
-        {isSaving ? 'Saving...' : isEdit ? 'Update Item' : 'Add Item'}
-      </button>
-
-      <button
-        className="w-full py-2 text-sm text-tertiary active:scale-95 transition-all"
-        onClick={onClose}
-      >
-        Cancel
-      </button>
+      {/* Cancel / Save */}
+      <div className="flex items-center justify-end gap-1.5 px-4 py-2.5">
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary hover:bg-tertiary/10 active:scale-95 transition-all"
+        >
+          <X size={18} />
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={!name.trim() || isSaving}
+          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-40 active:scale-95 transition-all"
+        >
+          <Check size={18} />
+        </button>
+      </div>
     </div>
   )
 }

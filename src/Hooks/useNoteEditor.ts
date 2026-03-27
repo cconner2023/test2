@@ -54,9 +54,9 @@ export function useNoteEditor(config: NoteEditorConfig) {
 
     const { profile } = useUserProfile();
     const authUserId = useAuthStore(s => s.user?.id);
-    const defaultHPI = profile.noteIncludeHPI ?? true;
-    const defaultPE = profile.noteIncludePE ?? true;
-    const defaultPlan = profile.noteIncludePlan ?? true;
+    const defaultHPI = true;
+    const defaultPE = !!(profile.peDepth);
+    const defaultPlan = !!(profile.planOrderTags && Object.values(profile.planOrderTags).some(arr => arr.length > 0));
 
     // --- Note content state ---
     const [note, setNote] = useState('');
@@ -68,6 +68,7 @@ export function useNoteEditor(config: NoteEditorConfig) {
     const [planNote, setPlanNote] = useState('');
     const [includePlan, setIncludePlan] = useState(defaultPlan);
     const [encodedValue, setEncodedValue] = useState('');
+    const [barcodeBytes, setBarcodeBytes] = useState<Uint8Array | null>(null);
     const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null);
 
     // --- Page navigation state ---
@@ -158,11 +159,12 @@ export function useNoteEditor(config: NoteEditorConfig) {
         if (!encodedValue) return;
         shareNote({
             encodedText: encodedValue,
+            barcodeBytes,
             symptomText: shareSymptomText ?? selectedSymptom?.text ?? 'Note',
             dispositionType,
             dispositionText,
         }, isMobile);
-    }, [encodedValue, selectedSymptom, dispositionType, dispositionText, isMobile, shareNote, shareSymptomText]);
+    }, [encodedValue, barcodeBytes, selectedSymptom, dispositionType, dispositionText, isMobile, shareNote, shareSymptomText]);
 
     // --- DD689 PDF export handler ---
     const handleExportDD689 = useCallback(() => {
@@ -176,13 +178,14 @@ export function useNoteEditor(config: NoteEditorConfig) {
         ].filter(Boolean);
         exportDD689({
             encodedValue,
+            barcodeBytes,
             dispositionType,
             dispositionText,
             symptomText: shareSymptomText ?? selectedSymptom?.text ?? 'Note',
             clinicName: profile.clinicName || '',
             authorLine: authorParts.length ? authorParts.join(', ') : undefined,
         });
-    }, [encodedValue, dispositionType, dispositionText, selectedSymptom, exportDD689, profile, shareSymptomText]);
+    }, [encodedValue, barcodeBytes, dispositionType, dispositionText, selectedSymptom, exportDD689, profile, shareSymptomText]);
 
     // --- SF600 PDF export handler ---
     const handleExportSF600 = useCallback(() => {
@@ -282,6 +285,7 @@ export function useNoteEditor(config: NoteEditorConfig) {
         includePhysicalExam, setIncludePhysicalExam,
         includePlan, setIncludePlan,
         encodedValue, setEncodedValue,
+        barcodeBytes, setBarcodeBytes,
         copiedTarget, setCopiedTarget,
 
         // Page navigation
