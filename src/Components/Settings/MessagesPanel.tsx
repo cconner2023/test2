@@ -24,6 +24,10 @@ import { SwipeableCard, type SwipeAction as SwipeCardAction } from '../Swipeable
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { usePeerAvailability, type UnavailableReason } from '../../Hooks/usePeerAvailability'
 import { ChatDetailView, type ParticipantStatus } from '../ChatDetailView'
+import { ContextMenuPreview, type ContextMenuAction } from '../ContextMenuPreview'
+import { ConversationPreview } from '../ConversationPreview'
+import { useLongPress } from '../../Hooks/useLongPress'
+import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
@@ -48,6 +52,62 @@ interface MessagesPanelProps {
   onSearchChange: (value: string) => void
   onSearchFocusChange?: (focused: boolean) => void
   headerCollapse?: SpringValue<number>
+}
+
+// ── Long-press preview types + wrapper ────────────────────────────────────
+
+type PreviewTarget = {
+  key: string
+  type: 'contact' | 'group'
+  medic?: ClinicMedic
+  group?: GroupInfo
+  hasConversation: boolean
+  isPinned: boolean
+}
+
+/** Wraps a list item with long-press detection for non-swipeable rows (mobile). */
+function LongPressRow({ children, onLongPress: onLongPressCb, onClick }: {
+  children: React.ReactNode
+  onLongPress: (rect: DOMRect) => void
+  onClick: () => void
+}) {
+  const rowRef = useRef<HTMLDivElement>(null)
+  const firedRef = useRef(false)
+
+  const handleLongPress = useCallback(() => {
+    firedRef.current = true
+    if (rowRef.current) onLongPressCb(rowRef.current.getBoundingClientRect())
+  }, [onLongPressCb])
+
+  const longPressHandlers = useLongPress(handleLongPress, { delay: 400 })
+
+  const handleClick = useCallback(() => {
+    if (firedRef.current) { firedRef.current = false; return }
+    onClick()
+  }, [onClick])
+
+  return (
+    <div ref={rowRef} {...longPressHandlers} onClick={handleClick} onContextMenu={e => e.preventDefault()}>
+      {children}
+    </div>
+  )
+}
+
+/** Build action tiles for the conversation preview — varies by whether a conversation exists. */
+function buildPreviewActions(
+  target: PreviewTarget,
+  handlers: { onOpen: () => void; onTogglePin: () => void; onDelete: () => void },
+): ContextMenuAction[] {
+  const actions: ContextMenuAction[] = [
+    { key: 'open', label: target.hasConversation ? 'Open' : 'Message', icon: MessageSquare, onAction: handlers.onOpen },
+  ]
+  if (target.hasConversation) {
+    actions.push(
+      { key: 'pin', label: target.isPinned ? 'Unpin' : 'Pin', icon: Pin, onAction: handlers.onTogglePin },
+      { key: 'delete', label: 'Delete', icon: Trash2, onAction: handlers.onDelete, variant: 'danger' },
+    )
+  }
+  return actions
 }
 
 // ── Conversation Pane (shared across mobile + desktop) ───────────────────
@@ -97,10 +157,23 @@ function ConversationPane({
   const signalReady = useAuthStore(s => s.signalReady)
   const { currentAvatar } = useAvatar()
   const { ownClinicMedics, nearbyByClinic, nearbyClinicNames } = useClinicGroupedMedics(medics)
+  const isMobile = useIsMobile()
   const [pinnedKeys, setPinnedKeys] = useState<Set<string>>(new Set())
   const [contextMenu, setContextMenu] = useState<{ conversationKey: string; x: number; y: number } | null>(null)
   const [openSwipeId, setOpenSwipeId] = useState<string | null>(null)
+  const [previewTarget, setPreviewTarget] = useState<PreviewTarget | null>(null)
+  const [previewAnchorRect, setPreviewAnchorRect] = useState<DOMRect | null>(null)
   const showLoading = useMinLoadTime(loading ?? false)
+
+  const handlePreview = useCallback((target: PreviewTarget, rect: DOMRect) => {
+    setPreviewTarget(target)
+    setPreviewAnchorRect(rect)
+  }, [])
+
+  const handleClosePreview = useCallback(() => {
+    setPreviewTarget(null)
+    setPreviewAnchorRect(null)
+  }, [])
 
   // Self-notes entry
   const selfMedic: ClinicMedic | null = userId
@@ -286,12 +359,24 @@ function ConversationPane({
             {/* Conversations section */}
             {selfMedic && (
               <div data-tour={tourVariant ? 'messages-self-notes' : undefined}>
-                <ContactListItem
-                  medic={selfMedic}
-                  lastMessage={conversations[userId!]?.filter(m => !m.threadId).at(-1)?.plaintext}
-                  unreadCount={0}
-                  onClick={() => onSelectPeer(selfMedic)}
-                />
+                {isMobile ? (
+                  <LongPressRow
+                    onClick={() => onSelectPeer(selfMedic)}
+                    onLongPress={(rect) => handlePreview(
+                      { key: userId!, type: 'contact', medic: selfMedic, hasConversation: !!conversations[userId!]?.length, isPinned: false },
+                      rect,
+                    )}
+                  >
+                    <ContactListItem medic={selfMedic} lastMessage={conversations[userId!]?.filter(m => !m.threadId).at(-1)?.plaintext} unreadCount={0} onClick={() => {}} />
+                  </LongPressRow>
+                ) : (
+                  <ContactListItem
+                    medic={selfMedic}
+                    lastMessage={conversations[userId!]?.filter(m => !m.threadId).at(-1)?.plaintext}
+                    unreadCount={0}
+                    onClick={() => onSelectPeer(selfMedic)}
+                  />
+                )}
               </div>
             )}
             {recentEntries.length > 0 && (
@@ -363,6 +448,12 @@ function ConversationPane({
                       onClose={() => setOpenSwipeId(prev => prev === entry.key ? null : prev)}
                       onTap={handleTap}
                       onContextMenu={(e) => { e.preventDefault(); setContextMenu({ conversationKey: entry.key, x: e.clientX, y: e.clientY }) }}
+                      onLongPress={isMobile ? (x, y) => {
+                        handlePreview(
+                          { key: entry.key, type: entry.type, medic: entry.medic, group: entry.group, hasConversation: true, isPinned },
+                          new DOMRect(x - 20, y - 20, 40, 40),
+                        )
+                      } : undefined}
                     >
                       <div className="bg-themewhite3">
                         {listItem}
@@ -385,7 +476,18 @@ function ConversationPane({
                       <p className="text-xs text-tertiary/50 uppercase tracking-wider font-semibold">My Clinic</p>
                       <span className="text-[9px] text-tertiary/30 ml-auto">{filtered.length}</span>
                     </div>
-                    {filtered.map(medic => (
+                    {filtered.map(medic => isMobile ? (
+                      <LongPressRow
+                        key={medic.id}
+                        onClick={() => onSelectPeer(medic)}
+                        onLongPress={(rect) => handlePreview(
+                          { key: medic.id, type: 'contact', medic, hasConversation: false, isPinned: false },
+                          rect,
+                        )}
+                      >
+                        <ContactListItem medic={medic} unreadCount={0} unavailable={unavailableIds.has(medic.id)} unavailableReason={unavailableIds.get(medic.id)} onClick={() => {}} />
+                      </LongPressRow>
+                    ) : (
                       <ContactListItem
                         key={medic.id}
                         medic={medic}
@@ -409,7 +511,18 @@ function ConversationPane({
                       <p className="text-xs text-tertiary/50 uppercase tracking-wider font-semibold">{clinicName}</p>
                       <span className="text-[9px] text-tertiary/30 ml-auto">{filtered.length}</span>
                     </div>
-                    {filtered.map(medic => (
+                    {filtered.map(medic => isMobile ? (
+                      <LongPressRow
+                        key={medic.id}
+                        onClick={() => onSelectPeer(medic)}
+                        onLongPress={(rect) => handlePreview(
+                          { key: medic.id, type: 'contact', medic, hasConversation: false, isPinned: false },
+                          rect,
+                        )}
+                      >
+                        <ContactListItem medic={medic} unreadCount={0} unavailable={unavailableIds.has(medic.id)} unavailableReason={unavailableIds.get(medic.id)} onClick={() => {}} />
+                      </LongPressRow>
+                    ) : (
                       <ContactListItem
                         key={medic.id}
                         medic={medic}
@@ -435,7 +548,18 @@ function ConversationPane({
                 <>
                   <div className="mx-3 my-2 border-b border-primary/10" />
                   <p className="text-xs text-tertiary/50 px-3 mb-1 uppercase tracking-wider font-semibold">Groups</p>
-                  {filtered.map(group => (
+                  {filtered.map(group => isMobile ? (
+                    <LongPressRow
+                      key={group.groupId}
+                      onClick={() => onSelectGroup(group)}
+                      onLongPress={(rect) => handlePreview(
+                        { key: group.groupId, type: 'group', group, hasConversation: false, isPinned: false },
+                        rect,
+                      )}
+                    >
+                      <GroupListItem group={group} unreadCount={0} onClick={() => {}} />
+                    </LongPressRow>
+                  ) : (
                     <GroupListItem
                       key={group.groupId}
                       group={group}
@@ -479,6 +603,43 @@ function ConversationPane({
               onAction: () => deleteConversation(contextMenu.conversationKey),
             },
           ]}
+        />
+      )}
+
+      {/* Long-press preview (mobile) */}
+      {isMobile && (
+        <ContextMenuPreview
+          isVisible={!!previewTarget}
+          onClose={handleClosePreview}
+          anchorRect={previewAnchorRect}
+          preview={
+            previewTarget && (
+              <ConversationPreview
+                conversationKey={previewTarget.key}
+                type={previewTarget.type}
+                medic={previewTarget.medic}
+                group={previewTarget.group}
+                conversations={conversations}
+                userId={userId}
+                unavailableReason={unavailableIds.get(previewTarget.key)}
+              />
+            )
+          }
+          actions={previewTarget ? buildPreviewActions(previewTarget, {
+            onOpen: () => {
+              if (previewTarget.type === 'group' && previewTarget.group) onSelectGroup(previewTarget.group)
+              else if (previewTarget.type === 'contact' && previewTarget.medic) onSelectPeer(previewTarget.medic)
+            },
+            onTogglePin: () => {
+              setPinnedKeys(prev => {
+                const next = new Set(prev)
+                if (next.has(previewTarget.key)) next.delete(previewTarget.key)
+                else next.add(previewTarget.key)
+                return next
+              })
+            },
+            onDelete: () => deleteConversation(previewTarget.key),
+          }) : []}
         />
       )}
     </div>

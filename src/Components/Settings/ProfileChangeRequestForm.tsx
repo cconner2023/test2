@@ -5,6 +5,7 @@ import { credentials, components, ranksByComponent } from '../../Data/User'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { submitProfileChangeRequest } from '../../lib/accountRequestService'
+import { UicPinInput } from '../FormInputs'
 import { createLogger } from '../../Utilities/Logger'
 import { ErrorDisplay } from '../ErrorDisplay'
 
@@ -232,14 +233,7 @@ export const ProfileChangeRequestForm = () => {
               )}
 
               {/* UIC */}
-              <input
-                type="text"
-                value={uic}
-                onChange={(e) => setUic(e.target.value.toUpperCase())}
-                placeholder="UIC"
-                maxLength={6}
-                className={pillClass}
-              />
+              <UicPinInput value={uic} onChange={setUic} label="UIC" />
 
               {/* Notes */}
               <textarea
@@ -254,7 +248,7 @@ export const ProfileChangeRequestForm = () => {
               <div className="flex items-center justify-end gap-1.5 pt-1">
                 <button
                   type="submit"
-                  disabled={!hasChanges || submitting}
+                  disabled={!hasChanges || uic.trim().length !== 6 || submitting}
                   className="w-10 h-10 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {submitting

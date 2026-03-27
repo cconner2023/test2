@@ -126,6 +126,10 @@ function RequestCard({
 
   // ── Handlers ────────────────────────────────────────────
   const handleApprove = useCallback(async () => {
+    if (uic.trim().length !== 6) {
+      setError('UIC must be exactly 6 characters.')
+      return
+    }
     const chosenRoles = roles
     if (chosenRoles.length === 0) {
       setError('Select at least one role.')

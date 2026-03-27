@@ -99,8 +99,12 @@ export async function submitAccountRequest(
   request: AccountRequestSubmission
 ): Promise<SubmitResult> {
   try {
-    if (!request.uic.trim()) {
+    const trimmedUic = request.uic.trim()
+    if (!trimmedUic) {
       return fail('UIC is required.')
+    }
+    if (trimmedUic.length !== 6) {
+      return fail('UIC must be exactly 6 characters.')
     }
 
     const { data, error } = await supabase.rpc('submit_account_request', {
@@ -111,7 +115,7 @@ export async function submitAccountRequest(
       p_credential: request.credential || null,
       p_rank: request.rank || null,
       p_component: request.component || null,
-      p_uic: request.uic.toUpperCase().trim(),
+      p_uic: trimmedUic.toUpperCase(),
       p_notes: request.notes?.trim() || null,
       p_request_type: 'new_account',
       p_password: request.password || null,
@@ -160,8 +164,12 @@ export async function submitProfileChangeRequest(
   request: AccountRequestSubmission
 ): Promise<SubmitResult> {
   try {
-    if (!request.uic.trim()) {
+    const trimmedUic = request.uic.trim()
+    if (!trimmedUic) {
       return fail('UIC is required.')
+    }
+    if (trimmedUic.length !== 6) {
+      return fail('UIC must be exactly 6 characters.')
     }
 
     const user = useAuthStore.getState().user
@@ -177,7 +185,7 @@ export async function submitProfileChangeRequest(
       p_credential: request.credential || null,
       p_rank: request.rank || null,
       p_component: request.component || null,
-      p_uic: request.uic.toUpperCase().trim(),
+      p_uic: trimmedUic.toUpperCase(),
       p_notes: request.notes?.trim() || null,
       p_request_type: 'profile_change',
     })
