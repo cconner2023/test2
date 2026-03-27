@@ -99,6 +99,10 @@ export async function submitAccountRequest(
   request: AccountRequestSubmission
 ): Promise<SubmitResult> {
   try {
+    if (!request.uic.trim()) {
+      return fail('UIC is required.')
+    }
+
     const { data, error } = await supabase.rpc('submit_account_request', {
       p_email: request.email.toLowerCase().trim(),
       p_first_name: request.firstName.trim(),
@@ -156,6 +160,10 @@ export async function submitProfileChangeRequest(
   request: AccountRequestSubmission
 ): Promise<SubmitResult> {
   try {
+    if (!request.uic.trim()) {
+      return fail('UIC is required.')
+    }
+
     const user = useAuthStore.getState().user
     if (!user) {
       return fail('You must be logged in to request profile changes.')

@@ -16,6 +16,8 @@ export interface DrawerHeaderConfig {
     showBack?: boolean;
     onBack?: () => void;
     badge?: string;
+    /** Optional content rendered before the back button / title on the left */
+    leftContent?: ReactNode;
     /** Optional content rendered on the right side of the header (before the close button) */
     rightContent?: ReactNode;
     /** When true, the built-in close button is hidden (rightContent handles closing) */
@@ -32,6 +34,7 @@ function DrawerHeader({
     showBack = false,
     onBack,
     badge,
+    leftContent,
     rightContent,
     hideDefaultClose = false,
     rightContentFill = false,
@@ -65,6 +68,7 @@ function DrawerHeader({
                 <div className={`px-5 ${isMobile ? 'pb-2' : 'py-2.5'} ${headerFaded || blurMode ? '' : 'border-b border-tertiary/10'}`}>
                     <div className="flex items-center justify-between">
                         <div className={`flex items-center gap-2 min-w-0 transition-all duration-200${rightContentFill ? ' w-0 overflow-hidden' : ''}`}>
+                            {leftContent && <div className="shrink-0">{leftContent}</div>}
                             <div
                                 className="shrink-0 overflow-hidden transition-all duration-200"
                                 style={{

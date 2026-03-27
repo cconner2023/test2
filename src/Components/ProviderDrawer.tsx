@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { ScanLine, X } from 'lucide-react'
+import { ScanLine, X, LayoutTemplate, ChevronLeft } from 'lucide-react'
 import { ImportInputBar } from './ImportInputBar'
 import { BaseDrawer } from './BaseDrawer'
 import { ContentWrapper } from './Settings/ContentWrapper'
@@ -76,6 +76,9 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   const isMobile = useIsMobile()
   const { profile } = useUserProfile()
   const templates = profile.providerNoteTemplates ?? []
+
+  // ── Mobile template drawer ─────────────────────────────────────────────────
+  const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false)
 
   // ── Template apply (merge — only fills empty provider fields) ──────────────
 
@@ -379,11 +382,10 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
 
   // No auto-focus on expand — iOS keyboard open shifts the viewport
 
-  // ── Header right content (import bar) ──────────────────────────────────────
+  // ── Desktop header (import bar in right content) ─────────────────────────
 
-  const noteHeaderRight = (
+  const desktopHeaderRight = (
     <div className="flex items-center flex-1 min-w-0 justify-end relative">
-      {/* Collapsed pill */}
       <div className={`transition-all duration-300 ${
         importExpanded
           ? 'opacity-0 scale-90 pointer-events-none absolute right-0'
@@ -394,7 +396,6 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
           <PillButton icon={X} onClick={handleClose} label="Close" />
         </HeaderPill>
       </div>
-      {/* Expanded input bar */}
       <div className={`flex-1 min-w-0 transition-all duration-300 origin-right ${
         importExpanded
           ? 'opacity-100 scale-100'
@@ -415,9 +416,10 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     </div>
   )
 
-  // ── Header config ─────────────────────────────────────────────────────────
+  // ── Header config (desktop only — mobile uses custom floating header) ────
 
   const headerConfig = useMemo(() => {
+    if (isMobile) return undefined
     if (view === 'output') {
       return {
         title: 'Note Output',
@@ -427,11 +429,11 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     }
     return {
       title: 'Provider',
-      rightContent: noteHeaderRight,
+      rightContent: desktopHeaderRight,
       hideDefaultClose: true,
       rightContentFill: importExpanded,
     }
-  }, [view, handleBack, noteHeaderRight, importExpanded])
+  }, [view, handleBack, desktopHeaderRight, importExpanded, isMobile])
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -439,26 +441,146 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     <BaseDrawer
       isVisible={isVisible}
       onClose={handleClose}
+      mobileFullScreen
       fullHeight="90dvh"
       desktopPosition="left"
       desktopWidth="w-[90%]"
       header={headerConfig}
       blurHeader
     >
-      {!isMobile ? (
-        <div className="flex h-full">
-          {/* Left pane — templates */}
-          <div className="w-[260px] shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50 pt-14">
-            <ProviderTemplateList
-              templates={templates}
-              onSelect={handleApplyTemplate}
-            />
+      <div className="relative h-full">
+        {/* Mobile floating header — matches CalendarDrawer pattern */}
+        {isMobile && (
+          <div className="md:hidden absolute top-0 inset-x-0 z-10 backdrop-blur-sm bg-transparent">
+            <div className="px-3 py-3 pt-[max(0.75rem,var(--sat,0px))] flex items-center justify-between">
+              {view === 'note' ? (
+                <>
+                  <HeaderPill>
+                    {templates.length > 0 && (
+                      <PillButton icon={LayoutTemplate} iconSize={20} onClick={() => setTemplateDrawerOpen(true)} label="Templates" />
+                    )}
+                  </HeaderPill>
+                  <span className="text-sm font-semibold text-primary">Provider</span>
+                  <div className="relative">
+                    <div className={`transition-all duration-300 ${
+                      importExpanded
+                        ? 'opacity-0 scale-90 pointer-events-none absolute right-0'
+                        : 'opacity-100 scale-100'
+                    }`}>
+                      <HeaderPill>
+                        <PillButton icon={ScanLine} iconSize={20} onClick={handleExpandImport} label="Import Medic Note" />
+                        <PillButton icon={X} onClick={handleClose} label="Close" />
+                      </HeaderPill>
+                    </div>
+                    <div className={`min-w-0 transition-all duration-300 origin-right ${
+                      importExpanded
+                        ? 'opacity-100 scale-100'
+                        : 'opacity-0 scale-95 pointer-events-none absolute right-0 left-0'
+                    }`}>
+                      <ImportInputBar
+                        value={importText}
+                        onChange={setImportText}
+                        onSubmit={() => handleDecode()}
+                        onClose={handleCollapseImport}
+                        onScan={handleStartScan}
+                        onImage={handleImageDecode}
+                        inputRef={importInputRef}
+                        fileRef={fileInputRef}
+                        isDecodingImage={isDecodingImage}
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <HeaderPill>
+                    <PillButton icon={ChevronLeft} onClick={handleBack} label="Back" />
+                  </HeaderPill>
+                  <span className="text-sm font-semibold text-primary">Note Output</span>
+                  <HeaderPill>
+                    <PillButton icon={X} onClick={handleClose} label="Close" />
+                  </HeaderPill>
+                </>
+              )}
+            </div>
           </div>
-          {/* Right pane — note content */}
-          <div className="flex-1 min-w-0 overflow-y-auto">
-            <ContentWrapper slideDirection="" swipeHandlers={undefined}>
+        )}
+
+        {!isMobile ? (
+          <div className="flex h-full">
+            {/* Left pane — templates */}
+            <div className="w-[260px] shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50 pt-14">
+              <ProviderTemplateList
+                templates={templates}
+                onSelect={handleApplyTemplate}
+              />
+            </div>
+            {/* Right pane — note content */}
+            <div className="flex-1 min-w-0 overflow-y-auto">
+              <ContentWrapper slideDirection="" swipeHandlers={undefined}>
+                {(scanRequested || isScanning) && (
+                  <div className="px-4 pt-3 pb-2">
+                    <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
+                      <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+                      <div className="absolute inset-0 pointer-events-none">
+                        <div className="absolute inset-4 border-2 border-white/30 rounded-lg" />
+                        <div className="absolute inset-x-4 top-1/2 h-0.5 bg-themeblue2 animate-pulse" />
+                        <ScanLine className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 text-white/50" />
+                      </div>
+                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
+                        Looking for barcode...
+                      </div>
+                    </div>
+                    <div className="flex justify-center pt-2">
+                      <button onClick={() => { stopScanning(); setScanRequested(false) }} className="text-xs text-tertiary/60 hover:text-tertiary active:scale-95 transition-colors">Cancel scan</button>
+                    </div>
+                  </div>
+                )}
+                {decodeError && (
+                  <div className="px-4 pt-2">
+                    <div className="text-xs text-themeredred">{decodeError}</div>
+                  </div>
+                )}
+                <div className="p-5 pt-14 pb-8">
+                  {view === 'note' ? (
+                    <ProviderNote
+                      hpiNote={hpiNote}
+                      setHpiNote={setHpiNote}
+                      peNote={peNote}
+                      setPeNote={setPeNote}
+                      peState={peState}
+                      onPeStateChange={setPeState}
+                      peResetKey={peResetKey}
+                      assessmentNote={assessmentNote}
+                      setAssessmentNote={setAssessmentNote}
+                      planNote={planNote}
+                      setPlanNote={setPlanNote}
+                      onNext={handleGoToOutput}
+                      importedMedicNote={importedMedicNote}
+                    />
+                  ) : (
+                    <ProviderNoteOutput
+                      hpiNote={hpiNote}
+                      peNote={peNote}
+                      peState={peState}
+                      assessmentNote={assessmentNote}
+                      planNote={planNote}
+                      importedMedicNote={importedMedicNote}
+                      medicBarcode={medicBarcode}
+                    />
+                  )}
+                </div>
+              </ContentWrapper>
+            </div>
+          </div>
+        ) : (
+          <div className="absolute inset-0 overflow-y-auto">
+            <ContentWrapper
+              slideDirection={slideDirection}
+              swipeHandlers={canSwipeBack ? swipeHandlers : undefined}
+            >
               {(scanRequested || isScanning) && (
-                <div className="px-4 pt-3 pb-2">
+                <div className="px-4 pt-20 pb-2">
                   <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
                     <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
                     <div className="absolute inset-0 pointer-events-none">
@@ -480,97 +602,57 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                   <div className="text-xs text-themeredred">{decodeError}</div>
                 </div>
               )}
-              <div className="p-5 pt-14 pb-8">
+              <div className="px-5 pt-20 py-3 pb-[max(2rem,var(--sab,0px))]">
                 {view === 'note' ? (
-                  <ProviderNote
-                    hpiNote={hpiNote}
-                    setHpiNote={setHpiNote}
-                    peNote={peNote}
-                    setPeNote={setPeNote}
-                    peState={peState}
-                    onPeStateChange={setPeState}
-                    peResetKey={peResetKey}
-                    assessmentNote={assessmentNote}
-                    setAssessmentNote={setAssessmentNote}
-                    planNote={planNote}
-                    setPlanNote={setPlanNote}
-                    onNext={handleGoToOutput}
-                    importedMedicNote={importedMedicNote}
-                  />
-                ) : (
-                  <ProviderNoteOutput
-                    hpiNote={hpiNote}
-                    peNote={peNote}
-                    peState={peState}
-                    assessmentNote={assessmentNote}
-                    planNote={planNote}
-                    importedMedicNote={importedMedicNote}
-                    medicBarcode={medicBarcode}
-                  />
-                )}
-              </div>
+                <ProviderNote
+                  hpiNote={hpiNote}
+                  setHpiNote={setHpiNote}
+                  peNote={peNote}
+                  setPeNote={setPeNote}
+                  peState={peState}
+                  onPeStateChange={setPeState}
+                  peResetKey={peResetKey}
+                  assessmentNote={assessmentNote}
+                  setAssessmentNote={setAssessmentNote}
+                  planNote={planNote}
+                  setPlanNote={setPlanNote}
+                  onNext={handleGoToOutput}
+                  importedMedicNote={importedMedicNote}
+                />
+              ) : (
+                <ProviderNoteOutput
+                  hpiNote={hpiNote}
+                  peNote={peNote}
+                  peState={peState}
+                  assessmentNote={assessmentNote}
+                  planNote={planNote}
+                  importedMedicNote={importedMedicNote}
+                  medicBarcode={medicBarcode}
+                />
+              )}
+            </div>
             </ContentWrapper>
           </div>
-        </div>
-      ) : (
-        <ContentWrapper
-          slideDirection={slideDirection}
-          swipeHandlers={canSwipeBack ? swipeHandlers : undefined}
-        >
-          {(scanRequested || isScanning) && (
-            <div className="px-4 pt-3 pb-2">
-              <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
-                <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
-                <div className="absolute inset-0 pointer-events-none">
-                  <div className="absolute inset-4 border-2 border-white/30 rounded-lg" />
-                  <div className="absolute inset-x-4 top-1/2 h-0.5 bg-themeblue2 animate-pulse" />
-                  <ScanLine className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 text-white/50" />
-                </div>
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
-                  Looking for barcode...
-                </div>
-              </div>
-              <div className="flex justify-center pt-2">
-                <button onClick={() => { stopScanning(); setScanRequested(false) }} className="text-xs text-tertiary/60 hover:text-tertiary active:scale-95 transition-colors">Cancel scan</button>
-              </div>
-            </div>
-          )}
-          {decodeError && (
-            <div className="px-4 pt-2">
-              <div className="text-xs text-themeredred">{decodeError}</div>
-            </div>
-          )}
-          <div className="px-5 pt-14 py-3 pb-8">
-            {view === 'note' ? (
-              <ProviderNote
-                hpiNote={hpiNote}
-                setHpiNote={setHpiNote}
-                peNote={peNote}
-                setPeNote={setPeNote}
-                peState={peState}
-                onPeStateChange={setPeState}
-                peResetKey={peResetKey}
-                assessmentNote={assessmentNote}
-                setAssessmentNote={setAssessmentNote}
-                planNote={planNote}
-                setPlanNote={setPlanNote}
-                onNext={handleGoToOutput}
-                importedMedicNote={importedMedicNote}
-              />
-            ) : (
-              <ProviderNoteOutput
-                hpiNote={hpiNote}
-                peNote={peNote}
-                peState={peState}
-                assessmentNote={assessmentNote}
-                planNote={planNote}
-                importedMedicNote={importedMedicNote}
-                medicBarcode={medicBarcode}
-              />
-            )}
-          </div>
-        </ContentWrapper>
-      )}
+        )}
+
+        {/* Mobile template picker drawer */}
+        {isMobile && (
+          <BaseDrawer
+            isVisible={templateDrawerOpen}
+            onClose={() => setTemplateDrawerOpen(false)}
+            mobileOnly
+            fullHeight="90dvh"
+            zIndex="z-50"
+            header={{ title: 'Templates' }}
+          >
+            <ProviderTemplateList
+              templates={templates}
+              hideHeader
+              onSelect={(t) => { handleApplyTemplate(t); setTemplateDrawerOpen(false) }}
+            />
+          </BaseDrawer>
+        )}
+      </div>
     </BaseDrawer>
   )
 }

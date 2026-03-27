@@ -385,7 +385,7 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
             )}
             <button
               type="submit"
-              disabled={submitting || !firstName.trim() || !lastName.trim() || !email.trim() || !contactConsent || !notes.trim()}
+              disabled={submitting || !firstName.trim() || !lastName.trim() || !email.trim() || !uic.trim() || !contactConsent || !notes.trim()}
               className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
             >
               {submitting ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
