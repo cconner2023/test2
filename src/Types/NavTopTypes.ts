@@ -22,7 +22,7 @@ interface ImportProps {
   onImportExpandToggle?: () => void
   onImportSubmit?: (barcodeText: string) => void
   onImportScan?: () => void
-  onImportImage?: () => void
+  onImportImage?: (file: File) => void
   importError?: string
 }
 

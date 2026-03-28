@@ -164,11 +164,11 @@ export const features = {
   noteImport: {
     label: 'Barcode Note Import',
     store: null,
-    services: ['supabase', 'Utilities/NoteCodec'],
+    services: ['Utilities/NoteCodec'],
     tables: [],
     idb: [],
-    components: 'Components/NoteImport.tsx',
-    drawer: { id: 'showNoteImport', wrapper: 'NoteImport.tsx' },
+    components: 'Components/ImportResultPopover.tsx',
+    drawer: null,
   },
 
   writeNote: {

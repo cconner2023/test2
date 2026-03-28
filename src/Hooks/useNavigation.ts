@@ -34,7 +34,6 @@ export function useNavigation() {
 
         // UI State
         isMenuOpen: s.isMenuOpen,
-        showNoteImport: s.showNoteImport,
         showSettings: s.showSettings,
         isSearchExpanded: s.isSearchExpanded,
         showSymptomInfo: s.showSymptomInfo,
@@ -66,7 +65,6 @@ export function useNavigation() {
         handleBackClick: s.handleBackClick,
         toggleMenu: s.toggleMenu,
         closeMenu: s.closeMenu,
-        setShowNoteImport: s.setShowNoteImport,
         setShowSettings: s.setShowSettings,
         setShowKnowledgeBase: s.setShowKnowledgeBase,
         toggleSearchExpanded: s.toggleSearchExpanded,

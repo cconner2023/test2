@@ -34,7 +34,6 @@ const PRESERVED_FIELDS = (s: NavigationState) => ({
 
 /** Shared partial for closing all drawers. */
 const CLOSE_ALL_DRAWERS = {
-    showNoteImport: false,
     showSettings: false,
     showKnowledgeBase: false,
     kbInitialView: null as string | null,
@@ -63,7 +62,6 @@ interface NavigationState {
      *  not derived reactively. 0 = categories, 1 = subcategories, 2 = symptom info (desktop). */
     columnAPanel: number
     isMenuOpen: boolean
-    showNoteImport: boolean
     showSettings: boolean
     isSearchExpanded: boolean
     isImportExpanded: boolean
@@ -98,7 +96,6 @@ interface NavigationActions {
     // UI toggles / setters
     toggleMenu: () => void
     closeMenu: () => void
-    setShowNoteImport: (show: boolean) => void
     setShowSettings: (show: boolean) => void
     toggleSearchExpanded: () => void
     setSearchExpanded: (expanded: boolean) => void
@@ -132,7 +129,6 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     selectedGuideline: null,
     columnAPanel: 0,
     isMenuOpen: false,
-    showNoteImport: false,
     showSettings: false,
     isSearchExpanded: false,
     isImportExpanded: false,
@@ -270,12 +266,6 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     // ── UI Toggles / Setters ─────────────────────────────────
     toggleMenu: () => set((s) => ({ isMenuOpen: !s.isMenuOpen })),
     closeMenu: () => set({ isMenuOpen: false }),
-
-    setShowNoteImport: (show) => set((s) => ({
-        ...(show ? CLOSE_ALL_DRAWERS : {}),
-        ...PRESERVED_FIELDS(s),
-        showNoteImport: show,
-    })),
 
     setShowSettings: (show) => set((s) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),

@@ -22,7 +22,9 @@ import { TC3DesktopLayout } from './Components/TC3/TC3DesktopLayout'
 import { TC3MobileWizard } from './Components/TC3/TC3MobileWizard'
 
 import { useNoteImport } from './Hooks/useNoteImport'
-import { isEncryptedBarcode, decryptBarcode } from './Utilities/NoteCodec'
+import type { ImportPreview } from './Hooks/useNoteImport'
+import { useBarcodeImport } from './Hooks/useBarcodeImport'
+import { ImportResultPopover } from './Components/ImportResultPopover'
 import { useProfileAvatar } from './Hooks/useProfileAvatar'
 import { useAuth } from './Hooks/useAuth'
 import { useAuthStore } from './stores/useAuthStore'
@@ -50,7 +52,6 @@ const MapOverlayDrawer = lazy(() => import('./Components/MapOverlay/MapOverlayPa
 const CalendarDrawer = lazy(() => import('./Components/CalendarDrawer').then(m => ({ default: m.CalendarDrawer })))
 const WriteNotePage = lazy(() => import('./Components/WriteNotePage').then(m => ({ default: m.WriteNotePage })))
 const SymptomInfoDrawer = lazy(() => import('./Components/SymptomInfoDrawer').then(m => ({ default: m.SymptomInfoDrawer })))
-const NoteImport = lazy(() => import('./Components/NoteImport').then(m => ({ default: m.NoteImport })))
 
 // PWA App Shortcut: capture ?view= URL parameter once at module load time
 const _initialViewParam = (() => {
@@ -129,15 +130,21 @@ function AppContent() {
   const [updateVisible, setUpdateVisible] = useState(false)
   const [installVisible, setInstallVisible] = useState(false)
   const [postUpdatePending, setPostUpdatePending] = useState(!!_postUpdateNav)
-  const [importInitialView, setImportInitialView] = useState<'input' | 'scanning' | undefined>(
-    _initialViewParam === 'import' ? 'scanning' : undefined
-  )
-  const [importInitialBarcode, setImportInitialBarcode] = useState<string | undefined>()
-  const [importAutoPickImage, setImportAutoPickImage] = useState(false)
-  const [importError, setImportError] = useState('')
-  const importErrorTimer = useRef<number>(0)
-  const importWasOpenedRef = useRef(false)
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
   const { importFromBarcode } = useNoteImport()
+
+  const handleImportDecoded = useCallback(({ payload, encodedText }: { payload: string; encodedText: string }) => {
+    try {
+      const preview = importFromBarcode(payload)
+      preview.encodedText = encodedText
+      setImportPreview(preview)
+      navigation.setImportExpanded(false)
+    } catch {
+      // Error is surfaced by the hook's error state
+    }
+  }, [importFromBarcode, navigation.setImportExpanded])
+
+  const barcodeImport = useBarcodeImport({ onDecoded: handleImportDecoded })
 
   // PWA App Shortcut / Post-update: open the appropriate view on mount
   useEffect(() => {
@@ -145,7 +152,7 @@ function AppContent() {
       setSettingsInitialPanel('release-notes')
       navigation.setShowSettings(true)
     } else if (_initialViewParam === 'import') {
-      navigation.setShowNoteImport(true)
+      navigation.toggleImportExpanded()
     } else if (_initialViewParam === 'training') {
       navigation.setShowKnowledgeBase(true, 'training')
     } else if (_initialViewParam === 'kb') {
@@ -154,65 +161,27 @@ function AppContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Clear the import initial view / barcode state when the import drawer is closed
+  // When image is staged, collapse the import bar so the popover is the focus
   useEffect(() => {
-    if (navigation.showNoteImport) {
-      importWasOpenedRef.current = true
-    } else if (importWasOpenedRef.current) {
-      if (importInitialView) setImportInitialView(undefined)
-      if (importInitialBarcode) setImportInitialBarcode(undefined)
-      if (importAutoPickImage) setImportAutoPickImage(false)
+    if (barcodeImport.stagedImage || barcodeImport.scanRequested) {
+      navigation.setImportExpanded(false)
     }
-  }, [navigation.showNoteImport, importInitialView, importInitialBarcode, importAutoPickImage])
+  }, [barcodeImport.stagedImage, barcodeImport.scanRequested, navigation.setImportExpanded])
 
   // Tour system: listen for demo import requests
   useEffect(() => {
     const handler = (e: Event) => {
       const barcode = (e as CustomEvent).detail as string
-      setImportInitialBarcode(barcode)
-      setImportInitialView(undefined)
-      navigation.setShowNoteImport(true)
+      barcodeImport.decodeText(barcode)
     }
     window.addEventListener('tour:open-import', handler)
     return () => window.removeEventListener('tour:open-import', handler)
-  }, [navigation])
+  }, [barcodeImport.decodeText])
 
-  const showImportError = useCallback((msg: string) => {
-    clearTimeout(importErrorTimer.current)
-    setImportError(msg)
-    importErrorTimer.current = window.setTimeout(() => setImportError(''), 3000)
-  }, [])
-
-  // Inline import submit: on mobile, decode first and only open drawer on success.
-  // On desktop, pass through to drawer for decode.
-  const handleInlineImportSubmit = useCallback(async (barcodeText: string) => {
-    setImportError('')
-    if (navigation.isMobile) {
-      try {
-        let payload = barcodeText
-        if (isEncryptedBarcode(barcodeText)) {
-          const decrypted = await decryptBarcode(barcodeText)
-          if (!decrypted) {
-            showImportError('Sign in and connect to sync encryption key')
-            return
-          }
-          payload = decrypted
-        }
-        importFromBarcode(payload) // throws on bad input
-        navigation.setImportExpanded(false)
-        setImportInitialBarcode(barcodeText)
-        setImportInitialView(undefined)
-        navigation.setShowNoteImport(true)
-      } catch {
-        showImportError('Unrecognized code — check the text and try again')
-      }
-    } else {
-      navigation.setImportExpanded(false)
-      setImportInitialBarcode(barcodeText)
-      setImportInitialView(undefined)
-      navigation.setShowNoteImport(true)
-    }
-  }, [navigation.isMobile, navigation.setImportExpanded, navigation.setShowNoteImport, importFromBarcode])
+  // Inline import submit: decode via hook → popover shows result
+  const handleInlineImportSubmit = useCallback((barcodeText: string) => {
+    barcodeImport.decodeText(barcodeText)
+  }, [barcodeImport.decodeText])
 
   const openTrainingTask = useCallback((taskId: string) => {
     setInitialTrainingTaskId(taskId)
@@ -259,11 +228,7 @@ function AppContent() {
   const handleMenuItemClick = useCallback((action: string) => {
     switch (action) {
       case 'import':
-        if (navigation.isMobile) {
-          navigation.toggleImportExpanded()
-        } else {
-          navigation.setShowNoteImport(true)
-        }
+        navigation.toggleImportExpanded()
         break
       case 'knowledgebase':
         handleKnowledgeBaseClick()
@@ -297,7 +262,7 @@ case 'mapOverlay':
         navigation.setShowSettings(true)
         break
     }
-  }, [navigation.isMobile, navigation.toggleImportExpanded, navigation.setShowNoteImport, navigation.setShowSettings, handleKnowledgeBaseClick, handleMessagesClick, handlePropertyClick, handleMapOverlayClick, handleCalendarClick, handleSupervisorClick, handleAdminClick])
+  }, [navigation.isMobile, navigation.toggleImportExpanded, navigation.setShowSettings, handleKnowledgeBaseClick, handleMessagesClick, handlePropertyClick, handleMapOverlayClick, handleCalendarClick, handleSupervisorClick, handleAdminClick])
 
   // Callback for notification toast tap — opens MessagesDrawer to the target conversation
   const handleNotificationTap = useCallback((n: MessageNotification) => {
@@ -435,7 +400,7 @@ case 'mapOverlay':
 
   const handleSearchChange = (value: string) => {
     if (value.trim() !== "") {
-      navigation.setShowNoteImport(false)
+      navigation.setImportExpanded(false)
     }
     search.handleSearchChange(value)
   }
@@ -518,9 +483,9 @@ case 'mapOverlay':
                 isImportExpanded: navigation.isImportExpanded,
                 onImportExpandToggle: navigation.toggleImportExpanded,
                 onImportSubmit: handleInlineImportSubmit,
-                onImportScan: () => { setImportError(''); navigation.setImportExpanded(false); setImportInitialView('scanning'); navigation.setShowNoteImport(true); },
-                onImportImage: () => { setImportError(''); navigation.setImportExpanded(false); setImportAutoPickImage(true); navigation.setShowNoteImport(true); },
-                importError,
+                onImportScan: barcodeImport.handleScan,
+                onImportImage: barcodeImport.stageImage,
+                importError: barcodeImport.error,
               }}
               actions={{
                 onBackClick: handleBackClick,
@@ -667,19 +632,23 @@ case 'mapOverlay':
           </div>
         )}
 
-        {/* ── Drawers — outside the transform wrapper so position:fixed works correctly ── */}
-        <ErrorBoundary>
-        <Suspense fallback={null}>
-        <NoteImport
-          isVisible={navigation.showNoteImport}
-          onClose={() => navigation.setShowNoteImport(false)}
-          initialViewState={importInitialView}
-          initialBarcodeText={importInitialBarcode}
-          autoPickImage={importAutoPickImage}
+        {/* ── Import result popover (scan / staged image / decoded preview) ── */}
+        <ImportResultPopover
+          preview={importPreview}
+          stagedImage={barcodeImport.stagedImage}
+          isScanning={barcodeImport.isScanning}
+          scanRequested={barcodeImport.scanRequested}
+          videoRef={barcodeImport.videoRef}
+          isDecodingImage={barcodeImport.isDecodingImage}
+          anchorRect={null}
+          onConfirmImage={barcodeImport.confirmStagedImage}
+          onDismissImage={() => { barcodeImport.clearStagedImage(); }}
+          onStopScan={barcodeImport.handleStopScan}
+          onClose={() => { setImportPreview(null); barcodeImport.reset(); }}
           isMobile={navigation.isMobile}
         />
-        </Suspense>
-        </ErrorBoundary>
+
+        {/* ── Drawers — outside the transform wrapper so position:fixed works correctly ── */}
         <ErrorBoundary>
         <Suspense fallback={null}>
         <Settings

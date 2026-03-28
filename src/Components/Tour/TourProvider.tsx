@@ -82,7 +82,6 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
     store.setShowCalendarDrawer(false)
     store.setShowSupervisorDrawer(false)
     store.setShowProviderDrawer(false)
-    store.setShowNoteImport(false)
     store.setShowPropertyDrawer(false)
     store.setShowAdminDrawer(false)
   }, [nav])
@@ -112,7 +111,6 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       store.setShowCalendarDrawer(false)
       store.setShowSupervisorDrawer(false)
       store.setShowProviderDrawer(false)
-      store.setShowNoteImport(false)
       if (!store.isMenuOpen) store.toggleMenu()
       return
     }
@@ -771,7 +769,7 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
         case 'settings': store.setShowSettings(true); break
         case 'supervisor': store.setShowSupervisorDrawer(true); break
         case 'provider': store.setShowProviderDrawer(true); break
-        case 'import': store.setShowNoteImport(true); break
+        case 'import': store.toggleImportExpanded(); break
         case 'admin': store.setShowAdminDrawer(true); break
         case 'property': store.setShowPropertyDrawer(true); break
       }

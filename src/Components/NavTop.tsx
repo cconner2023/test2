@@ -312,7 +312,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                             onSubmit={handleImportSubmit}
                             onClose={handleImportCollapse}
                             onScan={() => { handleImportCollapse(); onImportScan?.(); }}
-                            onImage={() => { handleImportCollapse(); onImportImage?.(); }}
+                            onImage={(file) => { handleImportCollapse(); onImportImage?.(file); }}
                             error={importError}
                             inputRef={importInputRef}
                             className="w-full animate-expandSearch"
@@ -442,7 +442,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                             onSubmit={handleImportSubmit}
                             onClose={handleImportCollapse}
                             onScan={() => { handleImportCollapse(); onImportScan?.(); }}
-                            onImage={() => { handleImportCollapse(); onImportImage?.(); }}
+                            onImage={(file) => { handleImportCollapse(); onImportImage?.(file); }}
                             error={importError}
                             inputRef={importInputRef}
                             className="h-full"

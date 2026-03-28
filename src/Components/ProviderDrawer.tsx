@@ -1,13 +1,13 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { ScanLine, X, LayoutTemplate, ChevronLeft } from 'lucide-react'
 import { ImportInputBar } from './ImportInputBar'
+import { ImportResultPopover } from './ImportResultPopover'
 import { BaseDrawer } from './BaseDrawer'
 import { ContentWrapper } from './Settings/ContentWrapper'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
-import { useBarcodeScanner } from '../Hooks/useBarcodeScanner'
-import { useImagePaste } from '../Hooks/useImagePaste'
+import { useBarcodeImport } from '../Hooks/useBarcodeImport'
 import { UI_TIMING } from '../Utilities/constants'
 import { ProviderNote } from './Provider/ProviderNote'
 import { ProviderNoteOutput } from './Provider/ProviderNoteOutput'
@@ -19,12 +19,7 @@ import { useUserProfile } from '../Hooks/useUserProfile'
 import { getBlockByKey } from '../Data/PhysicalExamData'
 import { parseNoteEncoding, findAlgorithmByCode, findSymptomByCode, reconstructCardStates } from '../Utilities/noteParser'
 import { decodePEState } from '../Utilities/peCodec'
-import { isEncryptedBarcode, decryptBarcode, decryptBarcodeBytes } from '../Utilities/NoteCodec'
 import { assembleNote, formatSignature } from '../Utilities/NoteFormatter'
-import {
-  MultiFormatReader, BinaryBitmap, HybridBinarizer,
-  HTMLCanvasElementLuminanceSource, DecodeHintType, BarcodeFormat,
-} from '@zxing/library'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -61,17 +56,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
 
   // ── Import bar state ──────────────────────────────────────────────────────
   const [importExpanded, setImportExpanded] = useState(false)
-  const [importText, setImportText] = useState('')
-  const [decodeError, setDecodeError] = useState('')
-  const [isDecodingImage, setIsDecodingImage] = useState(false)
-  const [scanRequested, setScanRequested] = useState(false)
   const importInputRef = useRef<HTMLInputElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const {
-    isScanning, result: scanResult, startScanning, stopScanning, clearResult,
-  } = useBarcodeScanner()
-  const videoRef = useRef<HTMLVideoElement>(null)
 
   const isMobile = useIsMobile()
   const { profile } = useUserProfile()
@@ -165,33 +150,12 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
 
   // ── Import decode logic ────────────────────────────────────────────────────
 
-  const handleDecode = useCallback(async (text?: string) => {
-    const raw = (text ?? importText).trim()
-    if (!raw) return
-    setDecodeError('')
+  const handleProviderDecoded = useCallback(({ payload }: { payload: string; encodedText: string }) => {
     try {
-      let payload = raw
-      if (isEncryptedBarcode(payload)) {
-        // Text-mode barcode ("enc:{base64}") — standard decrypt path
-        const decrypted = await decryptBarcode(payload)
-        if (!decrypted) { setDecodeError('Unable to decrypt. Sign in and sync encryption key.'); return }
-        payload = decrypted
-      } else if (!raw.includes('|')) {
-        // No "enc:" prefix and no pipe delimiters — likely a binary-mode barcode
-        // where ZXing decoded Base256 bytes as ISO-8859-1 chars.
-        const bytes = new Uint8Array(raw.length)
-        for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i)
-        const decrypted = await decryptBarcodeBytes(bytes)
-        if (decrypted) {
-          payload = decrypted
-        }
-        // If binary decrypt fails, fall through with raw payload (could be plain ASCII guest note)
-      }
       const parsed = parseNoteEncoding(payload)
-      if (!parsed) { setDecodeError('Could not decode note.'); return }
+      if (!parsed) return
 
       if (parsed.symptomCode === 'PRV') {
-        // Provider solo note — pre-fill provider fields for re-editing
         if (parsed.providerHpi) setHpiNote(parsed.providerHpi)
         if (parsed.providerPe) setPeNote(parsed.providerPe)
         if (parsed.providerPeRaw) {
@@ -203,12 +167,10 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
         if (parsed.providerPlan) setPlanNote(parsed.providerPlan)
         setImportedMedicNote(null)
         setMedicBarcode('')
-        setImportText('')
         setImportExpanded(false)
         return
       }
 
-      // Check if this is a combined bundle (has provider fields)
       if (parsed.providerHpi || parsed.providerPe || parsed.providerAssessment || parsed.providerPlan) {
         if (parsed.providerHpi) setHpiNote(parsed.providerHpi)
         if (parsed.providerPe) setPeNote(parsed.providerPe)
@@ -245,85 +207,27 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
         medicName: authorLabel, medicSignature: authorLabel,
       })
       setMedicBarcode(payload)
-      setImportText('')
       setImportExpanded(false)
-    } catch { setDecodeError('Failed to decode note.') }
-  }, [importText])
-
-  // Image barcode decode
-  const handleImageDecode = useCallback(async (file: File) => {
-    setIsDecodingImage(true)
-    setDecodeError('')
-    const objectUrl = URL.createObjectURL(file)
-    try {
-      const img = document.createElement('img')
-      img.src = objectUrl
-      await new Promise<void>((resolve, reject) => { img.onload = () => resolve(); img.onerror = () => reject(new Error('Failed to load image')) })
-      const canvas = document.createElement('canvas')
-      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight
-      const ctx = canvas.getContext('2d')!
-      ctx.drawImage(img, 0, 0)
-      const luminanceSource = new HTMLCanvasElementLuminanceSource(canvas)
-      const bitmap = new BinaryBitmap(new HybridBinarizer(luminanceSource))
-      const hints = new Map<DecodeHintType, any>()
-      hints.set(DecodeHintType.TRY_HARDER, true)
-      const reader = new MultiFormatReader()
-      reader.setHints(hints)
-      const result = reader.decode(bitmap)
-      const decoded = result.getText()
-      setImportText(decoded)
-      handleDecode(decoded)
-    } catch (err) {
-      console.warn('[ProviderDrawer] image decode failed:', err)
-      setDecodeError('No barcode found in image. Try a clearer photo or paste the string directly.')
-    } finally { URL.revokeObjectURL(objectUrl); setIsDecodingImage(false) }
-  }, [handleDecode])
-
-  // Camera scan result — wire to decode
-  useEffect(() => {
-    if (scanResult) {
-      setScanRequested(false)
-      setImportText(scanResult)
-      clearResult()
-      handleDecode(scanResult)
-    }
-  }, [scanResult, clearResult, handleDecode])
-
-  // Start camera scanning — render video first, then start scanner after mount
-  const handleStartScan = useCallback(() => {
-    setDecodeError('')
-    setScanRequested(true)
+    } catch { /* error surfaced by hook */ }
   }, [])
 
-  // Once video element mounts (scanRequested renders it), start the scanner
-  useEffect(() => {
-    if (scanRequested && !isScanning) {
-      const timer = setTimeout(() => {
-        if (videoRef.current) startScanning(videoRef.current)
-      }, 100)
-      return () => clearTimeout(timer)
-    }
-  }, [scanRequested, isScanning, startScanning])
+  const barcodeImport = useBarcodeImport({ onDecoded: handleProviderDecoded })
 
-  // Image paste detection — always listen when mounted,
-  // auto-expand the import bar so the user sees decoding feedback.
-  const handleImagePaste = useCallback((file: File) => {
-    setImportExpanded(true)
-    handleImageDecode(file)
-  }, [handleImageDecode])
-  useImagePaste(true, handleImagePaste)
+  // Collapse import bar when popover takes over (scan/staged image)
+  useEffect(() => {
+    if (barcodeImport.stagedImage || barcodeImport.scanRequested) {
+      setImportExpanded(false)
+    }
+  }, [barcodeImport.stagedImage, barcodeImport.scanRequested])
 
   const handleExpandImport = useCallback(() => {
     setImportExpanded(true)
-    setDecodeError('')
   }, [])
 
   const handleCollapseImport = useCallback(() => {
     setImportExpanded(false)
-    setImportText('')
-    setDecodeError('')
-    if (isScanning || scanRequested) { stopScanning(); setScanRequested(false) }
-  }, [isScanning, scanRequested, stopScanning])
+    barcodeImport.reset()
+  }, [barcodeImport.reset])
 
   // ── Slide Animation ─────────────────────────────────────────────────────────
 
@@ -357,11 +261,9 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     setImportedMedicNote(null)
     setMedicBarcode('')
     setImportExpanded(false)
-    setImportText('')
-    setDecodeError('')
-    if (isScanning || scanRequested) { stopScanning(); setScanRequested(false) }
+    barcodeImport.reset()
     onClose()
-  }, [onClose, isScanning, scanRequested, stopScanning])
+  }, [onClose, barcodeImport.reset])
 
   // ── Swipe Back ──────────────────────────────────────────────────────────────
 
@@ -378,7 +280,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   useEffect(() => {
     const handleTourImport = (e: Event) => {
       const barcode = (e as CustomEvent).detail as string
-      if (barcode) handleDecode(barcode)
+      if (barcode) barcodeImport.decodeText(barcode)
     }
     const handleTourApplyTemplate = () => {
       const demoTemplate = templates.find(t => t.id.startsWith('tour_provider_'))
@@ -395,7 +297,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       window.removeEventListener('tour:provider-apply-template', handleTourApplyTemplate)
       window.removeEventListener('tour:provider-go-to-output', handleTourGoToOutput)
     }
-  }, [handleDecode, templates, handleApplyTemplate, handleGoToOutput])
+  }, [barcodeImport.decodeText, templates, handleApplyTemplate, handleGoToOutput])
 
   // No auto-focus on expand — iOS keyboard open shifts the viewport
 
@@ -419,15 +321,15 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
           : 'opacity-0 scale-95 pointer-events-none absolute right-0 left-0'
       }`}>
         <ImportInputBar
-          value={importText}
-          onChange={setImportText}
-          onSubmit={() => handleDecode()}
+          value={barcodeImport.importText}
+          onChange={barcodeImport.setImportText}
+          onSubmit={barcodeImport.handleSubmit}
           onClose={handleCollapseImport}
-          onScan={handleStartScan}
-          onImage={handleImageDecode}
+          onScan={barcodeImport.handleScan}
+          onImage={barcodeImport.stageImage}
           inputRef={importInputRef}
-          fileRef={fileInputRef}
-          isDecodingImage={isDecodingImage}
+          isDecodingImage={barcodeImport.isDecodingImage}
+          hasStaged={!!barcodeImport.stagedImage}
         />
       </div>
     </div>
@@ -473,15 +375,15 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
               {view === 'note' ? (
                 importExpanded ? (
                   <ImportInputBar
-                    value={importText}
-                    onChange={setImportText}
-                    onSubmit={() => handleDecode()}
+                    value={barcodeImport.importText}
+                    onChange={barcodeImport.setImportText}
+                    onSubmit={barcodeImport.handleSubmit}
                     onClose={handleCollapseImport}
-                    onScan={handleStartScan}
-                    onImage={handleImageDecode}
+                    onScan={barcodeImport.handleScan}
+                    onImage={barcodeImport.stageImage}
                     inputRef={importInputRef}
-                    fileRef={fileInputRef}
-                    isDecodingImage={isDecodingImage}
+                    isDecodingImage={barcodeImport.isDecodingImage}
+                    hasStaged={!!barcodeImport.stagedImage}
                     className="w-full animate-expandSearch"
                   />
                 ) : (
@@ -523,35 +425,9 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
             {/* Right pane — note content */}
             <div className="flex-1 min-w-0 overflow-y-auto">
               <ContentWrapper slideDirection="" swipeHandlers={undefined}>
-                {(scanRequested || isScanning) && (
-                  <div className="px-4 pt-3 pb-2">
-                    <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
-                      <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
-                      <div className="absolute inset-0 pointer-events-none">
-                        <div className="absolute inset-4 border-2 border-white/30 rounded-lg" />
-                        <div className="absolute inset-x-4 top-1/2 h-0.5 bg-themeblue2 animate-pulse" />
-                        <ScanLine className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 text-white/50" />
-                      </div>
-                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
-                        Looking for barcode...
-                      </div>
-                    </div>
-                    <div className="flex justify-center pt-2">
-                      <button onClick={() => { stopScanning(); setScanRequested(false) }} className="text-xs text-tertiary/60 hover:text-tertiary active:scale-95 transition-colors">Cancel scan</button>
-                    </div>
-                  </div>
-                )}
-                {isDecodingImage && (
-                  <div className="px-4 pt-3">
-                    <div className="flex items-center gap-2 text-sm text-tertiary animate-pulse">
-                      <ScanLine size={16} className="text-themeblue2" />
-                      Reading image...
-                    </div>
-                  </div>
-                )}
-                {decodeError && (
+                {barcodeImport.error && (
                   <div className="px-4 pt-2">
-                    <div className="text-xs text-themeredred">{decodeError}</div>
+                    <div className="text-xs text-themeredred">{barcodeImport.error}</div>
                   </div>
                 )}
                 <div className="p-5 pt-14 pb-8">
@@ -592,35 +468,9 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
               slideDirection={slideDirection}
               swipeHandlers={canSwipeBack ? swipeHandlers : undefined}
             >
-              {(scanRequested || isScanning) && (
-                <div className="px-4 pt-20 pb-2">
-                  <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
-                    <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
-                    <div className="absolute inset-0 pointer-events-none">
-                      <div className="absolute inset-4 border-2 border-white/30 rounded-lg" />
-                      <div className="absolute inset-x-4 top-1/2 h-0.5 bg-themeblue2 animate-pulse" />
-                      <ScanLine className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 text-white/50" />
-                    </div>
-                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
-                      Looking for barcode...
-                    </div>
-                  </div>
-                  <div className="flex justify-center pt-2">
-                    <button onClick={() => { stopScanning(); setScanRequested(false) }} className="text-xs text-tertiary/60 hover:text-tertiary active:scale-95 transition-colors">Cancel scan</button>
-                  </div>
-                </div>
-              )}
-              {isDecodingImage && (
-                <div className="px-4 pt-3">
-                  <div className="flex items-center gap-2 text-sm text-tertiary animate-pulse">
-                    <ScanLine size={16} className="text-themeblue2" />
-                    Reading image...
-                  </div>
-                </div>
-              )}
-              {decodeError && (
+              {barcodeImport.error && (
                 <div className="px-4 pt-2">
-                  <div className="text-xs text-themeredred">{decodeError}</div>
+                  <div className="text-xs text-themeredred">{barcodeImport.error}</div>
                 </div>
               )}
               <div className="px-5 pt-20 py-3 pb-[max(2rem,var(--sab,0px))]">
@@ -655,6 +505,22 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
             </ContentWrapper>
           </div>
         )}
+
+        {/* Import popover for scan + staged image preview */}
+        <ImportResultPopover
+          preview={null}
+          stagedImage={barcodeImport.stagedImage}
+          isScanning={barcodeImport.isScanning}
+          scanRequested={barcodeImport.scanRequested}
+          videoRef={barcodeImport.videoRef}
+          isDecodingImage={barcodeImport.isDecodingImage}
+          anchorRect={null}
+          onConfirmImage={barcodeImport.confirmStagedImage}
+          onDismissImage={barcodeImport.clearStagedImage}
+          onStopScan={barcodeImport.handleStopScan}
+          onClose={barcodeImport.reset}
+          isMobile={isMobile}
+        />
 
         {/* Mobile template picker drawer */}
         {isMobile && (

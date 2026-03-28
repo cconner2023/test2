@@ -353,6 +353,43 @@ function bytesToBinaryString(bytes: Uint8Array): string {
   return chunks.join('');
 }
 
+// ---- 3-path decrypt waterfall ----
+
+/**
+ * 3-path barcode decrypt waterfall.
+ * 1. Raw binary bytes (from BYTE_SEGMENTS or camera scanner)
+ * 2. Text-mode encrypted barcode ("enc:{base64}")
+ * 3. Binary-mode barcode decoded as ISO-8859-1 (no "enc:" prefix, no pipes)
+ * Falls through to plaintext if no decrypt path matches.
+ * Returns null if decryption was needed but failed (missing key).
+ */
+export async function decryptBarcodePayload(
+  text: string,
+  rawBytes?: Uint8Array | null,
+): Promise<string | null> {
+  // Path 1: raw binary bytes available
+  if (rawBytes && rawBytes.length > 0 && !isEncryptedBarcode(text)) {
+    const decrypted = await decryptBarcodeBytes(rawBytes)
+    if (decrypted) return decrypted
+  }
+
+  // Path 2: text-mode encrypted barcode ("enc:{base64}")
+  if (isEncryptedBarcode(text)) {
+    return decryptBarcode(text)
+  }
+
+  // Path 3: binary-mode barcode decoded as ISO-8859-1 (no "enc:" prefix, no pipes)
+  if (!text.includes('|')) {
+    const bytes = new Uint8Array(text.length)
+    for (let i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i)
+    const decrypted = await decryptBarcodeBytes(bytes)
+    if (decrypted) return decrypted
+  }
+
+  // Path 4: plain unencrypted pipe-delimited content
+  return text
+}
+
 // ---- Shared Barcode Rendering ----
 
 /**

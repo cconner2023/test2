@@ -59,7 +59,6 @@ export const stores = {
       selectedGuideline: '{ type, id, symptomId } | null',
       columnAPanel: 'number',
       isMenuOpen: 'boolean',
-      showNoteImport: 'boolean',
       showSettings: 'boolean',
       isSearchExpanded: 'boolean',
       isImportExpanded: 'boolean',
@@ -84,7 +83,7 @@ export const stores = {
     },
     actions: [
       'init', 'handleNavigation', 'handleBackClick', 'toggleMenu', 'closeMenu',
-      'setShowNoteImport', 'setShowSettings', 'toggleSearchExpanded',
+      'setShowSettings', 'toggleSearchExpanded',
       'setSearchExpanded', 'toggleImportExpanded', 'setImportExpanded',
       'expandSearchOnMobile', 'toggleSymptomInfo', 'setShowSymptomInfo',
       'setShowKnowledgeBase', 'setShowTrainingDrawer', 'setShowMessagesDrawer',

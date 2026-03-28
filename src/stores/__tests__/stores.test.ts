@@ -282,7 +282,6 @@ describe('useNavigationStore', () => {
       selectedSymptom: null,
       selectedGuideline: null,
       isMenuOpen: false,
-      showNoteImport: false,
       showSettings: false,
       isSearchExpanded: false,
       showSymptomInfo: false,
@@ -732,14 +731,6 @@ describe('useNavigationStore', () => {
       expect(s.showKnowledgeBase).toBe(false)
       expect(s.kbInitialView).toBeNull()
       expect(s.kbInitialMedication).toBeNull()
-    })
-
-    it('setShowNoteImport opens and closes', () => {
-      getState().setShowNoteImport(true)
-      expect(getState().showNoteImport).toBe(true)
-
-      getState().setShowNoteImport(false)
-      expect(getState().showNoteImport).toBe(false)
     })
 
     it('toggleSymptomInfo flips showSymptomInfo', () => {

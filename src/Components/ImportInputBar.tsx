@@ -14,6 +14,7 @@ export interface ImportInputBarProps {
     placeholder?: string;
     className?: string;
     isDecodingImage?: boolean;
+    hasStaged?: boolean;
 }
 
 const ACTION_BUTTON = 'w-11 h-11 rounded-full flex items-center justify-center bg-themewhite2 border border-themeblue1/30 text-tertiary hover:text-primary focus:outline-none active:scale-95 transition-all duration-300';
@@ -31,10 +32,12 @@ export function ImportInputBar({
     placeholder = 'Paste code or scan',
     className,
     isDecodingImage,
+    hasStaged,
 }: ImportInputBarProps) {
     const internalFileRef = useRef<HTMLInputElement>(null);
     const fileInputRef = fileRef || internalFileRef;
     const hasText = value.trim().length > 0;
+    const showSubmit = hasText || hasStaged;
 
     const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -44,7 +47,7 @@ export function ImportInputBar({
 
     return (
         <div className={`relative flex items-center gap-2 ${className ?? ''}`}>
-            {!hasText && (onScan || onImage) && (
+            {!hasText && !hasStaged && (onScan || onImage) && (
                 <div className="flex items-center gap-2 shrink-0">
                     {onScan && (
                         <button
@@ -93,7 +96,7 @@ export function ImportInputBar({
             >
                 <X style={{ width: 24, height: 24 }} />
             </button>
-            {hasText && (
+            {showSubmit && (
                 <button
                     type="button"
                     onClick={onSubmit}
