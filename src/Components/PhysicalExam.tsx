@@ -1145,7 +1145,7 @@ export function PhysicalExam({
     };
 
     // ── Flat block list for popover navigation ────────────────
-    type FlatEntry = { block: PEBlock; key: string; getter: () => ItemState; setter: React.Dispatch<React.SetStateAction<Record<string, ItemState>>> };
+    type FlatEntry = { block: PEBlock; key: string; getter: () => ItemState; setter: React.Dispatch<React.SetStateAction<Record<string, ItemState>>>; isAdded?: boolean };
 
     const flatBlockList = useMemo((): FlatEntry[] => {
         const list: FlatEntry[] = [];
@@ -1167,7 +1167,7 @@ export function PhysicalExam({
         // Added blocks from section builder
         for (const b of addedBlocks) {
             if (!list.some(e => e.key === b.key)) {
-                list.push({ block: b, key: b.key, getter: () => blockStates[b.key] ?? defaultItemState(), setter: setBlockStates });
+                list.push({ block: b, key: b.key, getter: () => blockStates[b.key] ?? defaultItemState(), setter: setBlockStates, isAdded: true });
             }
         }
         for (const b of renderAfterBlocks) {
@@ -1242,6 +1242,8 @@ export function PhysicalExam({
         const isFirst = editingIndex === 0;
         const isLast = editingIndex === len - 1;
         const entry = flatBlockList[editingIndex];
+        const state = entry.getter();
+        const hasSelections = state.status !== 'not-examined';
         const actions: ContextMenuAction[] = [];
         if (!isFirst) {
             actions.push({
@@ -1252,22 +1254,22 @@ export function PhysicalExam({
                 closesOnAction: false,
             });
         }
-        actions.push(
-            {
-                key: 'normal',
-                label: '',
-                icon: Check,
-                onAction: () => entry.setter(prev => ({ ...prev, [entry.key]: allNormalsSelected(entry.block) })),
-                closesOnAction: false,
-            },
-            {
+        actions.push({
+            key: 'normal',
+            label: '',
+            icon: Check,
+            onAction: () => entry.setter(prev => ({ ...prev, [entry.key]: allNormalsSelected(entry.block) })),
+            closesOnAction: false,
+        });
+        if (hasSelections) {
+            actions.push({
                 key: 'reset',
                 label: '',
                 icon: RotateCcw,
                 onAction: () => entry.setter(prev => ({ ...prev, [entry.key]: defaultItemState() })),
                 closesOnAction: false,
-            },
-        );
+            });
+        }
         if (!isLast) {
             actions.push({
                 key: 'next',
@@ -1277,13 +1279,15 @@ export function PhysicalExam({
                 closesOnAction: false,
             });
         }
-        actions.push({
-            key: 'delete',
-            label: '',
-            icon: Trash2,
-            onAction: () => deleteBlock(entry),
-            variant: 'danger',
-        });
+        if (entry.isAdded) {
+            actions.push({
+                key: 'delete',
+                label: '',
+                icon: Trash2,
+                onAction: () => deleteBlock(entry),
+                variant: 'danger',
+            });
+        }
         return actions;
     }, [editingIndex, flatBlockList, deleteBlock]);
 

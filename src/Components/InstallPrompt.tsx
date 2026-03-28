@@ -1,4 +1,4 @@
-// Components/InstallPrompt.tsx
+/* Modal tokens: bg-themewhite rounded-2xl shadow-2xl border-tertiary/10 z-70. Ref: ProvisionalDeviceModal */
 import React, { useEffect } from 'react';
 import { X, Download, Share } from 'lucide-react';
 import { useInstallPrompt } from '../Hooks/useInstallPrompt';
@@ -13,7 +13,7 @@ const InstallPrompt: React.FC<{ onVisibilityChange?: (visible: boolean) => void 
     if (!showPrompt) return null;
 
     return (
-        <div className="fixed inset-0 z-51 flex items-end sm:items-center justify-center pointer-events-none">
+        <div className="fixed inset-0 z-70 flex items-end sm:items-center justify-center pointer-events-none">
             {/* Subtle backdrop */}
             <div
                 className="absolute inset-0 bg-black/10 pointer-events-auto sm:bg-black/15 transition-opacity"
@@ -33,7 +33,7 @@ const InstallPrompt: React.FC<{ onVisibilityChange?: (visible: boolean) => void 
                                     <Download className="h-5 w-5 text-themegreen" />
                                 </div>
                                 <div>
-                                    <p className="text-sm font-normal text-primary">Install App</p>
+                                    <p className="text-sm font-semibold text-primary">Install App</p>
                                     <p className="text-xs text-tertiary mt-0.5">
                                         {isIOS
                                             ? 'Add to home screen for offline access.'

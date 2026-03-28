@@ -273,7 +273,7 @@ export const stp68wTraining: stp68wTrainingTypes[] =
             { id: "081-68W-3008", title: "Manage a Team During Prolonged Care" },
             { id: "081-68W-3009", title: "Interpret Running Estimates Tracking" },
             { id: "081-68W-3012", title: "Manage a Unit's Medical Supply" },
-            { id: "081-68W-3001", title: "Develop Annex F to Appendix 3 Medical Plan" }
+            { id: "081-68W-3011", title: "Develop Annex F to Appendix 3 Medical Plan" }
           ]
         },
         {

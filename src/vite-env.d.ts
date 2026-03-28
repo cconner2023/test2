@@ -2,6 +2,11 @@
 
 declare const __APP_VERSION__: string
 
+declare module '*.svg' {
+  const src: string
+  export default src
+}
+
 // Tour system: global flag for WriteNotePage section override
 interface Window {
   __tourNoteOverride?: boolean

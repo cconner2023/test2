@@ -42,7 +42,7 @@ export const InjuryPopover = memo(function InjuryPopover({ injury, onClose, onRe
 
   const handleAddTreatment = (category: TreatmentCategory) => {
     const treatmentId = crypto.randomUUID()
-    const location = regionLabel || `${injury.side} (${Math.round(injury.x)}%, ${Math.round(injury.y)}%)`
+    const location = regionLabel || `(${Math.round(injury.x)}%, ${Math.round(injury.y)}%)`
 
     switch (category) {
       case 'tourniquet': {
@@ -96,7 +96,7 @@ export const InjuryPopover = memo(function InjuryPopover({ injury, onClose, onRe
 
   return (
     <div
-      className="absolute left-6 top-0 bg-themewhite rounded-lg shadow-lg border border-tertiary/20 p-2.5 min-w-[200px] z-30"
+      className="bg-themewhite rounded-lg shadow-lg border border-tertiary/20 p-2.5 min-w-[200px] z-30"
       onClick={(e) => e.stopPropagation()}
     >
       {/* Body region label */}

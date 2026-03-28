@@ -71,7 +71,7 @@ function formatInjuries(card: TC3Card): string {
     '├' + line(38) + '┤',
   ]
   card.injuries.forEach((inj, i) => {
-    const region = inj.bodyRegion ? getRegionLabel(inj.bodyRegion) : inj.side
+    const region = inj.bodyRegion ? getRegionLabel(inj.bodyRegion) : `(${Math.round(inj.x)}%, ${Math.round(inj.y)}%)`
     const typeStr = `${inj.type} (${region})`
     lines.push(`│  ${(i + 1)}. ${typeStr.padEnd(33)}│`)
     if (inj.description) {

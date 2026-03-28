@@ -49,11 +49,6 @@ export const TC3FrontColumn = memo(function TC3FrontColumn() {
             </p>
             {card.injuries.map((inj) => (
               <div key={inj.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-tertiary/15 bg-themewhite2">
-                <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                  inj.side === 'front' ? 'bg-themeblue2/10 text-themeblue2' : 'bg-tertiary/10 text-tertiary'
-                }`}>
-                  {inj.side}
-                </span>
                 <span className="text-xs font-medium text-primary">{inj.type}</span>
                 {inj.bodyRegion && (
                   <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-themeredred/10 text-themeredred">

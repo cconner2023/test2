@@ -30,6 +30,7 @@ export const PANEL = {
     TEXT_TEMPLATES: 32,
     PROVIDER_TEMPLATES: 33,
     GUIDED_TOURS: 34,
+    TC3_MODE: 35,
 } as const;
 
 export type PanelId = (typeof PANEL)[keyof typeof PANEL];

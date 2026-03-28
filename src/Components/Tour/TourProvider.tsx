@@ -7,6 +7,7 @@ import { useAuth } from '../../Hooks/useAuth'
 import { useTheme } from '../../Utilities/ThemeContext'
 import { GUIDED_TOURS_ENABLED } from '../../lib/featureFlags'
 import { useOnboardingReady } from '../../Hooks/useOnboardingReady'
+import { useNavPreferencesStore } from '../../stores/useNavPreferencesStore'
 
 const TourOverlay = lazy(() => import('./TourOverlay').then(m => ({ default: m.TourOverlay })))
 const GettingStartedScene = lazy(() => import('./scenes/GettingStartedScene'))
@@ -751,6 +752,18 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       // 5. Fade out (tooltipHidden resets when next tour starts)
       setCurtainVisible(false)
       await new Promise(r => setTimeout(r, 350))
+      return
+    }
+
+    // ── pin:X / unpin:X — toggle KB pin for tour demos ──
+    const pinMatch = action.match(/^(pin|unpin):(.+)$/)
+    if (pinMatch) {
+      const [, verb, id] = pinMatch
+      const prefs = useNavPreferencesStore.getState()
+      const isPinned = prefs.pinnedKB.includes(id)
+      if ((verb === 'pin' && !isPinned) || (verb === 'unpin' && isPinned)) {
+        prefs.togglePinKB(id)
+      }
       return
     }
 

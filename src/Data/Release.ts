@@ -7,6 +7,8 @@ export interface ReleaseNoteTypes {
 }
 
 export const ReleaseNotes: ReleaseNoteTypes[] = [
+    { version: '2.6.4', type: 'added', text: 'burn assessment calculator — Rule of Nines TBSA with Parkland formula fluid resuscitation' },
+    { version: '2.6.4', type: 'added', text: 'pin Knowledge Base categories for quick access' },
     { version: '2.6.4', type: 'added', text: 'encrypted calendar events with troops to task view' },
     { version: '2.6.4', type: 'added', text: 'training assignment from supervisor panel' },
     { version: '2.6.4', type: 'changed', text: 'provider view. append medic notes' },

@@ -10,20 +10,26 @@ export type MedRoute = 'IV' | 'IM' | 'IO' | 'PO' | 'IN' | 'PR' | 'topical'
 export type MedCategory = 'Analgesic' | 'Antibiotic' | 'Other'
 export type IVType = 'IV' | 'IO'
 export type AVPU = 'A' | 'V' | 'P' | 'U'
-export type BodySide = 'front' | 'back'
 export type NeedleDecompSide = 'left' | 'right' | 'bilateral' | 'none'
 export type EvacPriority = '' | 'Urgent' | 'Priority' | 'Routine'
 
 export type BodyRegion =
-  | 'head' | 'neck'
-  | 'chest-left' | 'chest-right' | 'abdomen'
-  | 'upper-arm-left' | 'upper-arm-right'
-  | 'forearm-left' | 'forearm-right'
-  | 'hand-left' | 'hand-right'
-  | 'upper-leg-left' | 'upper-leg-right'
-  | 'lower-leg-left' | 'lower-leg-right'
-  | 'foot-left' | 'foot-right'
+  | 'head-front' | 'head-back'
+  | 'neck-front' | 'neck-back'
+  | 'chest-left' | 'chest-right' | 'abdomen' | 'genitalia'
   | 'back-upper' | 'back-lower'
+  | 'upper-arm-left-front' | 'upper-arm-right-front'
+  | 'upper-arm-left-back' | 'upper-arm-right-back'
+  | 'forearm-left-front' | 'forearm-right-front'
+  | 'forearm-left-back' | 'forearm-right-back'
+  | 'hand-left-front' | 'hand-right-front'
+  | 'hand-left-back' | 'hand-right-back'
+  | 'upper-leg-left-front' | 'upper-leg-right-front'
+  | 'upper-leg-left-back' | 'upper-leg-right-back'
+  | 'lower-leg-left-front' | 'lower-leg-right-front'
+  | 'lower-leg-left-back' | 'lower-leg-right-back'
+  | 'foot-left-front' | 'foot-right-front'
+  | 'foot-left-back' | 'foot-right-back'
 
 export type TreatmentCategory = 'tourniquet' | 'hemostatic' | 'chestSeal' | 'needleDecomp' | 'other'
 
@@ -35,9 +41,8 @@ export interface TC3InjuryTreatmentLink {
 
 export interface TC3Injury {
   id: string
-  x: number        // % position on body diagram
+  x: number        // % position on combined body diagram (1040×909 viewBox)
   y: number
-  side: BodySide
   type: InjuryType
   description: string
   bodyRegion: BodyRegion | ''

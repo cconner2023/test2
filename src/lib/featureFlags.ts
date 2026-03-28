@@ -22,7 +22,7 @@ export const GUIDED_TOURS_ENABLED = true;
  * BURN_CALCULATOR_ENABLED: When true, the TBSA/Parkland burn assessment
  * calculator is available in the Knowledge Base calculators section.
  */
-export const BURN_CALCULATOR_ENABLED = false;
+export const BURN_CALCULATOR_ENABLED = true;
 
 /**
  * BLOOD_PRODUCTS_ENABLED: When true, the Blood Products quick reference

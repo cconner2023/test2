@@ -1,4 +1,4 @@
-// Components/UpdateNotification.tsx
+/* Modal tokens: bg-themewhite rounded-2xl shadow-2xl border-tertiary/10 z-70. Ref: ProvisionalDeviceModal */
 import React, { useEffect, useState } from 'react';
 import { X, Download, Wifi, RefreshCw } from 'lucide-react';
 import { useServiceWorker } from '../Hooks/useServiceWorker';
@@ -88,7 +88,7 @@ const UpdateNotification: React.FC<{ onVisibilityChange?: (visible: boolean) => 
     if (!isVisible) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center pointer-events-none">
+        <div className="fixed inset-0 z-70 flex items-end sm:items-center justify-center pointer-events-none">
             {/* Subtle backdrop on mobile */}
             <div
                 className="absolute inset-0 bg-black/10 pointer-events-auto sm:bg-black/15 transition-opacity"

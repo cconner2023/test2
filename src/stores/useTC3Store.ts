@@ -221,7 +221,7 @@ export const useTC3Store = create<TC3Store>()((set) => ({
   addInjury: (injury) => set((s) => {
     const fullInjury: TC3Injury = {
       ...injury,
-      bodyRegion: injury.bodyRegion ?? getBodyRegion(injury.x, injury.y, injury.side),
+      bodyRegion: injury.bodyRegion ?? getBodyRegion(injury.x, injury.y),
       treatmentLinks: injury.treatmentLinks ?? [],
     }
     return { card: { ...s.card, injuries: [...s.card.injuries, fullInjury] } }

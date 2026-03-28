@@ -14,18 +14,21 @@ interface ConfirmDialogProps {
   onCancel: () => void
 }
 
+/* Modal tokens: bg-themewhite rounded-2xl shadow-2xl border-tertiary/10 z-70. Ref: ProvisionalDeviceModal */
 const variantStyles = {
   danger: {
     confirmBtn: 'bg-themeredred',
     cancelText: 'text-themeredred',
     cancelBorder: 'border-themeredred/40',
     icon: 'text-themeredred',
+    iconBg: 'bg-themeredred/15',
   },
   warning: {
     confirmBtn: 'bg-themeyellow',
     cancelText: 'text-themeyellow',
     cancelBorder: 'border-themeyellow/40',
     icon: 'text-themeyellow',
+    iconBg: 'bg-themeyellow/15',
   },
 } as const
 
@@ -85,14 +88,14 @@ export function ConfirmDialog({
               <button
                 onClick={onConfirm}
                 disabled={processing}
-                className={`w-full py-3 rounded-full text-[15px] font-medium text-white active:scale-95 transition-all ${styles.confirmBtn} ${processing ? 'opacity-60' : ''}`}
+                className={`w-full py-3 rounded-lg text-[15px] font-medium text-white active:scale-95 transition-all ${styles.confirmBtn} ${processing ? 'opacity-60' : ''}`}
               >
                 {processing ? 'Processing...' : confirmLabel}
               </button>
               <button
                 onClick={close}
                 disabled={processing}
-                className={`w-full py-3 rounded-full text-[15px] font-medium active:scale-95 transition-all ${styles.cancelText} border ${styles.cancelBorder}`}
+                className={`w-full py-3 rounded-lg text-[15px] font-medium active:scale-95 transition-all ${styles.cancelText} border ${styles.cancelBorder}`}
               >
                 {cancelLabel}
               </button>
@@ -107,42 +110,44 @@ export function ConfirmDialog({
   return (
     <>
       <div
-        className={`fixed inset-0 z-70 bg-black transition-opacity duration-300 ${open ? 'opacity-20' : 'opacity-0'}`}
+        className={`fixed inset-0 z-70 bg-black transition-opacity duration-300 ${open ? 'opacity-40' : 'opacity-0'}`}
         style={{ pointerEvents: open ? 'auto' : 'none' }}
         onClick={close}
       />
       <div className="fixed inset-0 z-70 flex items-center justify-center pointer-events-none">
         <div
-          className={`bg-themewhite rounded-3xl shadow-xl px-8 py-8 max-w-[340px] w-full pointer-events-auto transition-all duration-300 ${open ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
+          className={`bg-themewhite rounded-2xl shadow-2xl border border-tertiary/10 px-6 py-5 max-w-sm w-full pointer-events-auto transition-all duration-300 ${open ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
           role="alertdialog"
           aria-modal="true"
           aria-labelledby="confirm-dialog-title"
           aria-describedby={subtitle ? 'confirm-dialog-message' : undefined}
         >
-          <div className="flex justify-center mb-5">
-            <XCircle size={52} strokeWidth={1} className={styles.icon} />
+          <div className="flex justify-center mb-4">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${styles.iconBg}`}>
+              <XCircle className={`w-5 h-5 ${styles.icon}`} />
+            </div>
           </div>
 
-          <p id="confirm-dialog-title" className="text-lg font-medium text-primary text-center mb-1">
+          <p id="confirm-dialog-title" className="text-sm font-semibold text-primary text-center mb-1">
             {title}
           </p>
           {subtitle && (
-            <p id="confirm-dialog-message" className="text-sm text-tertiary text-center mb-6">{subtitle}</p>
+            <p id="confirm-dialog-message" className="text-xs text-tertiary text-center leading-relaxed mb-5">{subtitle}</p>
           )}
-          {!subtitle && <div className="mb-6" />}
+          {!subtitle && <div className="mb-5" />}
 
-          <div className="flex flex-col gap-3 max-w-[260px] mx-auto">
+          <div className="flex flex-col gap-3">
             <button
               onClick={onConfirm}
               disabled={processing}
-              className={`w-full py-3 rounded-full text-[15px] font-medium text-white active:scale-95 transition-all ${styles.confirmBtn} ${processing ? 'opacity-60' : ''}`}
+              className={`w-full py-2 rounded-lg text-[15px] font-medium text-white active:scale-95 transition-all ${styles.confirmBtn} ${processing ? 'opacity-60' : ''}`}
             >
               {processing ? 'Processing...' : confirmLabel}
             </button>
             <button
               onClick={close}
               disabled={processing}
-              className={`w-full py-3 rounded-full text-[15px] font-medium active:scale-95 transition-all ${styles.cancelText} border ${styles.cancelBorder}`}
+              className={`w-full py-2 rounded-lg text-[15px] font-medium active:scale-95 transition-all ${styles.cancelText} border ${styles.cancelBorder}`}
             >
               {cancelLabel}
             </button>

@@ -526,6 +526,7 @@ function KBHome({
         medications: 'kb-medications',
         stp: 'kb-stp',
         'vital-signs': 'kb-vitals',
+        burn: 'kb-burn',
     }
     let firstScreenerTagged = false
 
@@ -570,7 +571,7 @@ function KBHome({
         <div className="px-4 py-3 md:p-5" data-tour="kb-category-grid">
             {/* Pinned section */}
             {pinnedItems.length > 0 && (
-                <div className="mb-4">
+                <div className="mb-4" data-tour="kb-pinned">
                     <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider px-2 mb-2">
                         PINNED
                     </p>

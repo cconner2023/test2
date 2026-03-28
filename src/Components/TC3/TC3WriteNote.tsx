@@ -11,8 +11,7 @@ import { formatSignature } from '../../Utilities/NoteFormatter'
 import { getRegionLabel } from '../../Utilities/bodyRegionMap'
 import { encodeTC3Card } from '../../Utilities/tc3Codec'
 import { encryptBarcodeWithBytes } from '../../Utilities/barcodeCodec'
-import { BodySilhouette } from './BodySilhouette'
-import type { TC3Injury, BodySide } from '../../Types/TC3Types'
+import { TC3BodyDiagramSvg } from './TC3BodyDiagramSvg'
 
 /** Injury type → color mapping (matches InjuryMarker) */
 const INJURY_COLORS: Record<string, string> = {
@@ -23,41 +22,6 @@ const INJURY_COLORS: Record<string, string> = {
   fracture: '#8b5cf6',
   amputation: '#dc2626',
   other: '#6b7280',
-}
-
-/** Read-only body outline with injury markers for the export view */
-function ExportBodyPanel({ side, injuries }: { side: BodySide; injuries: TC3Injury[] }) {
-  const sideInjuries = injuries.filter(inj => inj.side === side)
-
-  return (
-    <div className="flex-1 min-w-0">
-      <p className="text-[8px] font-semibold text-tertiary/40 tracking-widest uppercase text-center mb-0.5">
-        {side === 'front' ? 'Front' : 'Back'}
-      </p>
-      <div
-        className="relative text-tertiary/25 mx-auto"
-        style={{ maxWidth: '100px', aspectRatio: '200/400' }}
-      >
-        <BodySilhouette side={side} />
-        {/* Injury dots */}
-        {sideInjuries.map(inj => (
-          <div
-            key={inj.id}
-            className="absolute w-3.5 h-3.5 rounded-full border border-white shadow-sm flex items-center justify-center text-[5px] font-bold text-white"
-            style={{
-              left: `${inj.x}%`,
-              top: `${inj.y}%`,
-              transform: 'translate(-50%, -50%)',
-              backgroundColor: INJURY_COLORS[inj.type] ?? '#6b7280',
-            }}
-            title={`${inj.type} — ${inj.bodyRegion ? getRegionLabel(inj.bodyRegion) : inj.side}`}
-          >
-            {inj.type.charAt(0).toUpperCase()}
-          </div>
-        ))}
-      </div>
-    </div>
-  )
 }
 
 interface TC3WriteNoteProps {
@@ -170,14 +134,18 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
         {hasInjuries && (
           <div className="rounded-xl border border-tertiary/15 bg-themewhite p-3">
             <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-2">Injury Diagram</p>
-            <div className="flex gap-2 justify-center">
-              <ExportBodyPanel side="front" injuries={card.injuries} />
-              <ExportBodyPanel side="back" injuries={card.injuries} />
-            </div>
+            <TC3BodyDiagramSvg
+              injuries={card.injuries}
+              editingInjury={null}
+              onAddInjury={() => {}}
+              onEditInjury={() => {}}
+              readOnly
+              compact
+            />
             {/* Injury legend */}
             <div className="mt-2 pt-2 border-t border-tertiary/10 flex flex-wrap gap-x-3 gap-y-1">
               {card.injuries.map((inj, i) => {
-                const region = inj.bodyRegion ? getRegionLabel(inj.bodyRegion) : inj.side
+                const region = inj.bodyRegion ? getRegionLabel(inj.bodyRegion) : `(${Math.round(inj.x)}%, ${Math.round(inj.y)}%)`
                 return (
                   <div key={inj.id} className="flex items-center gap-1">
                     <span

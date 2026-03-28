@@ -10,6 +10,7 @@ interface CreateGroupModalProps {
   onCreate: (name: string, memberIds: string[]) => Promise<string | null>
 }
 
+/* Modal tokens: bg-themewhite rounded-2xl shadow-2xl border-tertiary/10 z-70. Ref: ProvisionalDeviceModal */
 export function CreateGroupModal({ medics, onClose, onCreate }: CreateGroupModalProps) {
   const [name, setName] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -35,9 +36,9 @@ export function CreateGroupModal({ medics, onClose, onCreate }: CreateGroupModal
   }, [name, selectedIds, creating, onCreate, onClose])
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-70 flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
-        className="bg-themewhite3 rounded-2xl w-[90%] max-w-md max-h-[80vh] flex flex-col shadow-xl"
+        className="bg-themewhite rounded-2xl w-[90%] max-w-md max-h-[80vh] flex flex-col shadow-2xl border border-tertiary/10"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -86,7 +87,7 @@ export function CreateGroupModal({ medics, onClose, onCreate }: CreateGroupModal
           <button
             onClick={handleCreate}
             disabled={!name.trim() || selectedIds.size === 0 || creating}
-            className="w-full py-2.5 rounded-full bg-themeblue3 text-sm font-medium text-white
+            className="w-full py-2.5 rounded-lg bg-themeblue3 text-sm font-medium text-white
                        disabled:opacity-30 active:scale-95 transition-all"
           >
             {creating ? 'Creating...' : `Create Group (${selectedIds.size})`}

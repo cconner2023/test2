@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Moon, Sun, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Pencil, Check, Radio, Compass } from 'lucide-react';
+import { Moon, Sun, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Pencil, Check, Radio, Compass, Crosshair } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import { useAvatar } from '../../Utilities/AvatarContext';
@@ -204,8 +204,8 @@ export const Settings = ({
         if (id === PANEL.CLOSE) { closeDrawer(); return; }
         if (id === PANEL.BACK_TO_MAIN) { handleSlideAnimation('right'); setActivePanel('main'); return; }
 
-        // Toggle theme has no panel navigation
-        if (id === PANEL.TOGGLE_THEME) return;
+        // Toggle theme / TC3 mode have no panel navigation
+        if (id === PANEL.TOGGLE_THEME || id === PANEL.TC3_MODE) return;
 
         // Look up the target panel name from the constant map
         const target = PANEL_TARGET[id];
@@ -260,12 +260,13 @@ export const Settings = ({
         if (isAuthenticated && isDevRole) {
             items.push(
                 { type: 'header', label: 'Utilities' },
+                opt(PANEL.TC3_MODE, <Crosshair size={20} />, profile.tc3Mode ? 'TC3 Mode — ON' : 'TC3 Mode — OFF', 'DD 1380 Casualty Card', { action: () => updateProfile({ tc3Mode: !profile.tc3Mode }) }),
                 opt(PANEL.LORA, <Radio size={20} />, 'WhisperNet', 'LoRa mesh offline messaging'),
             );
         }
 
         return items;
-    }, [isDarkMode, onToggleTheme, handleItemClick, isDevRole, isAuthenticated, isSupervisorRole, profile.clinicName]);
+    }, [isDarkMode, onToggleTheme, handleItemClick, isDevRole, isAuthenticated, isSupervisorRole, profile.clinicName, profile.tc3Mode, updateProfile]);
 
     // Swipe-back for sub-panels (mobile touch only)
     const swipeHandlers = useSwipeBack(

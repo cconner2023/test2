@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+/* Modal tokens: bg-themewhite rounded-2xl shadow-2xl border-tertiary/10 z-70. Ref: ProvisionalDeviceModal */
 import { useIsMobile } from '../Hooks/useIsMobile'
+import { useOverlay } from '../Hooks/useOverlay'
 import type { LucideIcon } from 'lucide-react'
 
 export interface ActionSheetOption {
@@ -19,59 +20,12 @@ interface ActionSheetProps {
 
 export function ActionSheet({ visible, title, options, onClose }: ActionSheetProps) {
   const isMobile = useIsMobile()
-  const [mounted, setMounted] = useState(false)
-  const [open, setOpen] = useState(false)
-  const [dragY, setDragY] = useState(0)
-  const [isDragging, setIsDragging] = useState(false)
-  const dragStartY = useRef(0)
-
-  useEffect(() => {
-    if (visible) {
-      setMounted(true)
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => setOpen(true))
-      })
-    } else {
-      setOpen(false)
-      const t = setTimeout(() => {
-        setMounted(false)
-        setDragY(0)
-      }, 300)
-      return () => clearTimeout(t)
-    }
-  }, [visible])
-
-  const handleClose = useCallback(() => {
-    setOpen(false)
-    setTimeout(onClose, 300)
-  }, [onClose])
-
-  const onTouchStart = useCallback((e: React.TouchEvent) => {
-    const target = e.target as HTMLElement
-    if (!target.closest('[data-drag-zone]')) return
-    dragStartY.current = e.touches[0].clientY
-    setIsDragging(true)
-  }, [])
-
-  const onTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging) return
-    const dy = Math.max(0, e.touches[0].clientY - dragStartY.current)
-    setDragY(dy)
-  }, [isDragging])
-
-  const onTouchEnd = useCallback(() => {
-    if (!isDragging) return
-    setIsDragging(false)
-    if (dragY > 80) {
-      handleClose()
-    }
-    setDragY(0)
-  }, [isDragging, dragY, handleClose])
+  const { mounted, open, dragY, isDragging, close, touchHandlers } = useOverlay(visible, onClose)
 
   if (!mounted) return null
 
   const handleOption = (option: ActionSheetOption) => {
-    handleClose()
+    close()
     setTimeout(option.onAction, 320)
   }
 
@@ -81,7 +35,7 @@ export function ActionSheet({ visible, title, options, onClose }: ActionSheetPro
         <div
           className={`fixed inset-0 z-50 bg-black transition-opacity duration-300 ${open ? 'opacity-40' : 'opacity-0'}`}
           style={{ pointerEvents: open ? 'auto' : 'none' }}
-          onClick={handleClose}
+          onClick={close}
         />
         <div
           className={`fixed left-0 right-0 bottom-0 z-50 bg-themewhite3 rounded-t-[1.25rem] ${isDragging ? '' : 'transition-transform duration-300 ease-out'}`}
@@ -92,9 +46,7 @@ export function ActionSheet({ visible, title, options, onClose }: ActionSheetPro
           role="dialog"
           aria-modal="true"
           aria-labelledby="action-sheet-title"
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
+          {...touchHandlers}
         >
           <div className="flex justify-center pt-2 pb-1" data-drag-zone style={{ touchAction: 'none' }}>
             <div className="w-9 h-1 rounded-full bg-tertiary/25" />
@@ -112,7 +64,7 @@ export function ActionSheet({ visible, title, options, onClose }: ActionSheetPro
                   <button
                     key={opt.key}
                     onClick={() => handleOption(opt)}
-                    className={`w-full py-3 rounded-full text-[15px] font-medium active:scale-95 transition-all ${
+                    className={`w-full py-3 rounded-lg text-[15px] font-medium active:scale-95 transition-all ${
                       isDanger
                         ? 'bg-themeredred/10 text-themeredred'
                         : 'bg-themeblue3 text-white'
@@ -123,8 +75,8 @@ export function ActionSheet({ visible, title, options, onClose }: ActionSheetPro
                 )
               })}
               <button
-                onClick={handleClose}
-                className="w-full py-3 rounded-full text-[15px] font-medium text-tertiary active:scale-95 transition-all"
+                onClick={close}
+                className="w-full py-3 rounded-lg text-[15px] font-medium text-tertiary active:scale-95 transition-all"
               >
                 Cancel
               </button>
@@ -141,7 +93,7 @@ export function ActionSheet({ visible, title, options, onClose }: ActionSheetPro
       <div
         className={`fixed inset-0 z-50 bg-black transition-opacity duration-300 ${open ? 'opacity-15' : 'opacity-0'}`}
         style={{ pointerEvents: open ? 'auto' : 'none' }}
-        onClick={handleClose}
+        onClick={close}
       />
       <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
         <div
@@ -174,7 +126,7 @@ export function ActionSheet({ visible, title, options, onClose }: ActionSheetPro
           })}
           <div className="h-px bg-tertiary/10 mx-2.5 my-1" />
           <button
-            onClick={handleClose}
+            onClick={close}
             className="flex items-center w-full px-3.5 py-2 text-sm text-tertiary hover:bg-primary/5 transition-colors"
           >
             Cancel

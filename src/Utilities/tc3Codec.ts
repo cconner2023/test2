@@ -4,7 +4,7 @@
 
 import { compressText, decompressText } from './textCodec'
 import type {
-  TC3Card, MechanismType, InjuryType, BodySide, BodyRegion, TourniquetType,
+  TC3Card, MechanismType, InjuryType, BodyRegion, TourniquetType,
   TreatmentCategory, TC3InjuryTreatmentLink,
   AVPU, EvacPriority, MedRoute, MedCategory, IVType, NeedleDecompSide,
   TQCategory, DressingType,
@@ -31,7 +31,7 @@ export function encodeTC3Card(card: TC3Card, userId?: string): string {
   // J: Injuries (id not needed for encoding — positional)
   if (card.injuries.length > 0) {
     const injStrs = card.injuries.map(inj => {
-      let s = `${Math.round(inj.x)},${Math.round(inj.y)},${inj.side === 'front' ? 'F' : 'B'},${inj.type}`
+      let s = `${Math.round(inj.x)},${Math.round(inj.y)},${inj.type}`
       const hasDesc = !!inj.description
       const hasRegion = !!inj.bodyRegion
       const hasLinks = inj.treatmentLinks && inj.treatmentLinks.length > 0
@@ -256,8 +256,8 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
         card.injuries = injStrs.map(s => {
           const segs = s.split(',')
           let treatmentLinks: TC3InjuryTreatmentLink[] = []
-          if (segs[6]) {
-            treatmentLinks = segs.slice(6).join(',').split('&').map(linkStr => {
+          if (segs[5]) {
+            treatmentLinks = segs.slice(5).join(',').split('&').map(linkStr => {
               const [cat, tid, descComp] = linkStr.split(':')
               return {
                 treatmentCategory: (cat || 'other') as TreatmentCategory,
@@ -270,10 +270,9 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
             id: crypto.randomUUID(),
             x: parseInt(segs[0], 10),
             y: parseInt(segs[1], 10),
-            side: (segs[2] === 'F' ? 'front' : 'back') as BodySide,
-            type: segs[3] as InjuryType,
-            description: segs[4] ? decompressText(segs[4]) : '',
-            bodyRegion: (segs[5] || '') as BodyRegion | '',
+            type: segs[2] as InjuryType,
+            description: segs[3] ? decompressText(segs[3]) : '',
+            bodyRegion: (segs[4] || '') as BodyRegion | '',
             treatmentLinks,
           }
         })

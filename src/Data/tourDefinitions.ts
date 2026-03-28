@@ -580,7 +580,7 @@ const knowledgeBaseTour: TourDefinition = {
   id: 'knowledge-base',
   name: 'Knowledge Base',
   tier: 'medic',
-  description: 'Medications, STP tasks, screeners, and calculators.',
+  description: 'Medications, STP tasks, screeners, calculators, and burn assessment.',
   steps: [
     {
       target: 'kb-category-grid',
@@ -613,6 +613,25 @@ const knowledgeBaseTour: TourDefinition = {
       target: 'kb-vitals',
       text: 'Vital signs calculator for quick field reference including unit conversion and BMI.',
       placement: 'bottom',
+    },
+    {
+      target: 'kb-burn',
+      text: 'Burn assessment calculator — tap body regions to calculate TBSA using the Rule of Nines, then enter weight to get Parkland formula fluid resuscitation rates.',
+      placement: 'bottom',
+    },
+    {
+      target: 'kb-pinned',
+      text: 'Long-press any category to pin it here for quick access. Pinned items stay at the top of your Knowledge Base.',
+      placement: 'bottom',
+      beforeStep: 'pin:burn',
+      delay: 300,
+    },
+    {
+      target: 'kb-category-grid',
+      text: 'That\'s your Knowledge Base — medications, training, screeners, calculators, and burn assessment all in one place.',
+      placement: 'bottom',
+      beforeStep: 'unpin:burn',
+      delay: 300,
       afterStep: 'return:guided-tours',
     },
   ],
