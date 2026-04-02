@@ -605,7 +605,6 @@ export const Settings = ({
                                     }}
                                 />
                             ),
-                            'physical-exam':        <PhysicalExamPanel />,
                             'plan-settings': (
                                 <PlanPanel
                                     editing={planEditing}
