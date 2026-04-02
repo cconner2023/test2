@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { Stethoscope, ClipboardList, TextCursorInput, ChevronRight, LayoutTemplate } from 'lucide-react';
+import { ClipboardList, TextCursorInput, ChevronRight, LayoutTemplate } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { useAuthStore } from '../../stores/useAuthStore';
 import type { UserTypes } from '../../Data/User';
@@ -23,19 +23,13 @@ export const NoteContentPanel = ({ onNavigate }: NoteContentPanelProps) => {
     }, [updateProfile, syncProfileField]);
 
     const sections: Array<{
-        icon: typeof Stethoscope;
+        icon: typeof ClipboardList;
         label: string;
         subtitle: string;
         checked?: boolean;
         onToggle?: () => void;
         navigateTo?: string;
     }> = [
-        {
-            icon: Stethoscope,
-            label: 'Physical Exam',
-            subtitle: 'Exam depth, blocks, and templates',
-            navigateTo: 'physical-exam',
-        },
         {
             icon: ClipboardList,
             label: 'Plan',
