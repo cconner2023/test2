@@ -3,8 +3,6 @@ import { ChevronRight, RotateCcw } from 'lucide-react'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { MARCHForm } from './MARCHForm'
-import { MedicationsForm } from './MedicationsForm'
-import { FluidsPanel } from './FluidsPanel'
 import { NotesPanel } from './NotesPanel'
 import { TC3WriteNote } from './TC3WriteNote'
 
@@ -191,14 +189,8 @@ export const TC3BackColumn = memo(function TC3BackColumn() {
           </p>
         </div>
 
-        {/* Treatments (C/A/B) */}
+        {/* Interventions (unified MARCH + Meds/Fluids) */}
         <MARCHForm />
-
-        {/* Medications */}
-        <MedicationsForm />
-
-        {/* Fluids & Blood Products */}
-        <FluidsPanel />
 
         {/* OTHER Section */}
         <OtherSection />

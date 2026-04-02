@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { ChevronRight } from 'lucide-react';
 import { detectPII } from '../../lib/piiDetector';
 import { PIIWarningBanner } from '../PIIWarningBanner';
@@ -10,6 +11,7 @@ import { getColorClasses } from '../../Utilities/ColorUtilities';
 import type { ImportedMedicNote } from '../ProviderDrawer';
 import type { PEState } from '../../Types/PETypes';
 
+
 interface ProviderNoteProps {
   hpiNote: string;
   setHpiNote: (note: string) => void;
@@ -18,6 +20,8 @@ interface ProviderNoteProps {
   peState: PEState | null;
   onPeStateChange: (state: PEState) => void;
   peResetKey?: number;
+  selectedBlockKeys: string[];
+  onBlockKeysChange: (keys: string[]) => void;
   assessmentNote: string;
   setAssessmentNote: (note: string) => void;
   planNote: string;
@@ -37,6 +41,8 @@ export function ProviderNote({
   setPeNote,
   onPeStateChange,
   peResetKey = 0,
+  selectedBlockKeys,
+  onBlockKeysChange,
   assessmentNote,
   setAssessmentNote,
   planNote,
@@ -48,7 +54,13 @@ export function ProviderNote({
   const [planMode, setPlanMode] = useState<'blocks' | 'text'>('text');
 
   const { profile } = useUserProfile();
-  const expanders = profile.textExpanders ?? [];
+  const clinicTextExpanders = useAuthStore(s => s.clinicTextExpanders);
+  const expanders = useMemo(() => {
+    const personal = profile.textExpanders ?? [];
+    if (clinicTextExpanders.length === 0) return personal;
+    const clinicAbbrs = new Set(clinicTextExpanders.map(e => e.abbr.toLowerCase()));
+    return [...clinicTextExpanders, ...personal.filter(e => !clinicAbbrs.has(e.abbr.toLowerCase()))];
+  }, [profile.textExpanders, clinicTextExpanders]);
   const expanderEnabled = profile.textExpanderEnabled ?? true;
 
   const piiWarnings = useMemo(
@@ -106,6 +118,7 @@ export function ProviderNote({
             </div>
           </label>
         </div>
+        {/* Block selection is handled inside PhysicalExam via popover */}
         {importedMedicNote?.medicPe && (
           <div className="rounded-xl bg-themewhite2 px-4 py-3">
             <p className="text-[10pt] text-tertiary/50 mb-1">{importedMedicNote.medicName}</p>
@@ -120,9 +133,9 @@ export function ProviderNote({
             onStateChange={onPeStateChange}
             colors={getColorClasses('routine')}
             symptomCode="A-1"
-            depth={profile.peDepth ?? 'focused'}
-            customBlocks={profile.peDepth === 'custom' ? profile.customPEBlocks : undefined}
-            comprehensiveTemplate={profile.peDepth === 'comprehensive' ? profile.comprehensivePETemplate : undefined}
+            mode="template"
+            templateBlockKeys={selectedBlockKeys}
+            onBlockKeysChange={onBlockKeysChange}
             expanders={expanders}
             expanderEnabled={expanderEnabled}
           />

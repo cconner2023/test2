@@ -34,6 +34,9 @@ interface ContextMenuPreviewProps {
   onAdd?: (value: string) => void
   /** Placeholder for the add input */
   addPlaceholder?: string
+  /** When provided, scopes the popover to this container (absolute instead of fixed).
+   *  The container element must have `position: relative` and a defined height. */
+  containerRef?: React.RefObject<HTMLElement | null>
 }
 
 const ACTION_STYLES = {
@@ -65,6 +68,7 @@ export function ContextMenuPreview({
   supplemental,
   onAdd,
   addPlaceholder = 'New item...',
+  containerRef,
 }: ContextMenuPreviewProps) {
   const [mounted, setMounted] = useState(false)
   const [open, setOpen] = useState(false)
@@ -112,8 +116,17 @@ export function ContextMenuPreview({
 
   if (!mounted) return null
 
-  const originX = anchorRect ? anchorRect.left + anchorRect.width / 2 : window.innerWidth / 2
-  const originY = anchorRect ? anchorRect.top + anchorRect.height / 2 : window.innerHeight / 2
+  const scoped = !!containerRef?.current
+  const containerRect = scoped ? containerRef!.current!.getBoundingClientRect() : null
+  const posClass = scoped ? 'absolute' : 'fixed'
+
+  // Transform origin — viewport coords for fixed, container-relative for scoped
+  const originX = anchorRect
+    ? (anchorRect.left + anchorRect.width / 2) - (containerRect?.left ?? 0)
+    : (containerRect?.width ?? window.innerWidth) / 2
+  const originY = anchorRect
+    ? (anchorRect.top + anchorRect.height / 2) - (containerRect?.top ?? 0)
+    : (containerRect?.height ?? window.innerHeight) / 2
 
   const resolvedPreview = typeof preview === 'function' ? preview(filter, clearFilter) : preview
 
@@ -121,7 +134,7 @@ export function ContextMenuPreview({
     <>
       {/* Backdrop — blurred + dimmed */}
       <div
-        className="fixed inset-0 z-80 transition-all duration-300"
+        className={`${posClass} inset-0 z-80 transition-all duration-300`}
         style={{
           backgroundColor: open ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0)',
           backdropFilter: open ? 'blur(12px)' : 'blur(0px)',
@@ -132,7 +145,7 @@ export function ContextMenuPreview({
       />
 
       {/* Card — vertically constrained, scrollable preview, pinned action tiles */}
-      <div className="fixed inset-0 z-80 flex flex-col items-center justify-center pointer-events-none px-6 py-10">
+      <div className={`${posClass} inset-0 z-80 flex flex-col items-center justify-center pointer-events-none px-6 py-10`}>
         <div
           className={`pointer-events-auto w-full flex flex-col items-center gap-2.5 max-h-full ${maxWidth ?? 'max-w-[340px]'}`}
           style={{
@@ -270,6 +283,6 @@ export function ContextMenuPreview({
         </div>
       </div>
     </>,
-    document.body,
+    (scoped ? containerRef!.current! : document.body),
   )
 }

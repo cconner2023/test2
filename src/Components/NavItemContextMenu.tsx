@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Star, ChevronUp, ChevronDown, EyeOff } from 'lucide-react'
+import { Pin, ChevronUp, ChevronDown, EyeOff } from 'lucide-react'
 
 interface NavItemContextMenuProps {
   action: string
@@ -77,13 +77,13 @@ export function NavItemContextMenu({
   const options = [
     {
       key: 'star',
-      label: isStarred ? 'Unstar' : 'Star',
-      icon: Star,
+      label: isStarred ? 'Unpin' : 'Pin',
+      icon: Pin,
       onAction: onStar,
       disabled: false,
       destructive: false,
       closesMenu: true,
-      iconClass: isStarred ? 'fill-themeyellow text-themeyellow' : 'text-tertiary/60',
+      iconClass: isStarred ? 'fill-themeblue2 text-themeblue2' : 'text-tertiary/60',
     },
     {
       key: 'move-up',

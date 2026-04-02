@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Star, CheckCircle } from 'lucide-react'
+import { Star, Check, CheckCircle, MessageSquareText, RefreshCw } from 'lucide-react'
 import { submitFeedback } from '../../lib/feedbackService'
 import { ErrorDisplay } from '../ErrorDisplay'
+import { TextInput } from '../FormInputs'
 
 export const FeedbackPanel = () => {
   const [rating, setRating] = useState(0)
@@ -9,6 +10,7 @@ export const FeedbackPanel = () => {
   const [mostUseful, setMostUseful] = useState('')
   const [desiredFeature, setDesiredFeature] = useState('')
   const [needsImprovement, setNeedsImprovement] = useState('')
+  const [contactConsent, setContactConsent] = useState(false)
 
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -41,13 +43,13 @@ export const FeedbackPanel = () => {
   if (submitted) {
     return (
       <div className="h-full overflow-y-auto">
-        <div className="px-4 py-3 md:p-5">
+        <div className="px-5 py-4">
           <div className="text-center py-12 animate-fadeInScale">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-themegreen/10 mb-4">
               <CheckCircle size={32} className="text-themegreen" />
             </div>
             <h2 className="text-xl font-semibold text-primary mb-2">Thank You!</h2>
-            <p className="text-tertiary/70">
+            <p className="text-primary/70">
               Your feedback has been submitted. We appreciate your input!
             </p>
           </div>
@@ -58,110 +60,114 @@ export const FeedbackPanel = () => {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="px-4 py-3 md:p-5">
-        <p className="text-sm text-tertiary/60 mb-5 md:text-base">
+      <div className="px-5 py-4 space-y-4">
+
+        <p className="text-xs text-primary leading-relaxed px-1">
           Help us improve by sharing your experience and suggestions.
         </p>
 
         {error && <ErrorDisplay message={error} />}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Star Rating */}
-          <div>
-            <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide block mb-2">
+        <form onSubmit={handleSubmit} className="space-y-4">
+
+          {/* Rating card */}
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden px-4 py-3">
+            <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">
               How would you rate your experience?
             </span>
-            <div className="flex gap-2">
+            <div className="flex gap-1.5 mt-1.5">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
                   key={star}
                   type="button"
                   onClick={() => setRating(star)}
-                  className="p-1 active:scale-95 transition-transform"
+                  className="p-0.5 active:scale-95 transition-transform"
                   aria-label={`${star} star${star !== 1 ? 's' : ''}`}
                 >
                   <Star
-                    size={32}
-                    className={star <= rating ? 'text-themeblue3 fill-themeblue3' : 'text-themeblue3/20'}
+                    size={28}
+                    className={star <= rating ? 'text-themeblue2 fill-themeblue2' : 'text-themeblue2/20'}
                   />
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Comments */}
-          <label className="block">
-            <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
-              Comments
-            </span>
-            <textarea
-              value={comments}
-              onChange={(e) => setComments(e.target.value)}
-              placeholder="Share your thoughts..."
-              rows={3}
-              className="mt-1 w-full px-4 py-2 rounded-2xl bg-themewhite text-tertiary text-[16px]
-                       border border-themeblue3/10 shadow-xs focus:border-themeblue2 focus:bg-themewhite2
-                       focus:outline-none transition-all placeholder:text-tertiary/30 resize-none"
-            />
-          </label>
+          {/* Details card */}
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden px-4 py-3">
+            <div className="space-y-3">
 
-          {/* Feature Questions */}
-          <label className="block">
-            <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
-              What feature do you find most useful?
-            </span>
-            <input
-              type="text"
-              value={mostUseful}
-              onChange={(e) => setMostUseful(e.target.value)}
-              placeholder="e.g. Algorithm navigation, clinic notes..."
-              className="mt-1 w-full px-4 py-2 rounded-full bg-themewhite text-tertiary text-[16px]
-                       border border-themeblue3/10 shadow-xs focus:border-themeblue2 focus:bg-themewhite2
-                       focus:outline-none transition-all placeholder:text-tertiary/30"
-            />
-          </label>
+              <TextInput
+                value={mostUseful}
+                onChange={setMostUseful}
+                placeholder="Most useful feature?"
+              />
 
-          <label className="block">
-            <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
-              What feature would you most like to see added?
-            </span>
-            <input
-              type="text"
-              value={desiredFeature}
-              onChange={(e) => setDesiredFeature(e.target.value)}
-              placeholder="e.g. Offline mode, medication calculator..."
-              className="mt-1 w-full px-4 py-2 rounded-full bg-themewhite text-tertiary text-[16px]
-                       border border-themeblue3/10 shadow-xs focus:border-themeblue2 focus:bg-themewhite2
-                       focus:outline-none transition-all placeholder:text-tertiary/30"
-            />
-          </label>
+              <TextInput
+                value={desiredFeature}
+                onChange={setDesiredFeature}
+                placeholder="Feature you'd like to see added?"
+              />
 
-          <label className="block">
-            <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
-              What area needs the most improvement?
-            </span>
-            <input
-              type="text"
-              value={needsImprovement}
-              onChange={(e) => setNeedsImprovement(e.target.value)}
-              placeholder="e.g. Search, navigation, performance..."
-              className="mt-1 w-full px-4 py-2 rounded-full bg-themewhite text-tertiary text-[16px]
-                       border border-themeblue3/10 shadow-xs focus:border-themeblue2 focus:bg-themewhite2
-                       focus:outline-none transition-all placeholder:text-tertiary/30"
-            />
-          </label>
+              <TextInput
+                value={needsImprovement}
+                onChange={setNeedsImprovement}
+                placeholder="What needs improvement?"
+              />
 
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={rating === 0 || submitting}
-            className="w-full px-4 py-3 rounded-lg bg-themeblue3 text-white font-medium
-                     hover:bg-themeblue3/90 transition-colors disabled:opacity-50
-                     disabled:cursor-not-allowed"
-          >
-            {submitting ? 'Submitting...' : 'Submit Feedback'}
-          </button>
+              {/* Comments */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <MessageSquareText size={14} className="text-tertiary/40" />
+                  <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">
+                    Additional comments
+                  </span>
+                </div>
+                <textarea
+                  value={comments}
+                  onChange={(e) => setComments(e.target.value)}
+                  placeholder="Share your thoughts..."
+                  rows={3}
+                  className="w-full px-4 py-2.5 rounded-2xl text-sm bg-themewhite dark:bg-themewhite3 text-primary
+                           border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2
+                           focus:outline-none transition-all duration-300 placeholder:text-tertiary/30 resize-none"
+                />
+              </div>
+
+              {/* Contact consent */}
+              <label className="flex items-start gap-2.5 cursor-pointer pt-1 active:scale-[0.98] transition-transform select-none">
+                <input
+                  type="checkbox"
+                  checked={contactConsent}
+                  onChange={(e) => setContactConsent(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className={`relative w-5 h-5 shrink-0 mt-0.5 rounded border transition-colors duration-200 ${
+                  contactConsent ? 'bg-themeblue3 border-themeblue3' : 'border-themeblue3/20 bg-themewhite'
+                }`}>
+                  {contactConsent && <Check size={14} className="absolute inset-0 m-auto text-white" />}
+                </div>
+                <span className="text-[11px] text-primary leading-tight">
+                  The developer can contact me regarding this feedback.
+                </span>
+              </label>
+
+              {/* Submit */}
+              <div className="flex items-center justify-end pt-1">
+                <button
+                  type="submit"
+                  disabled={rating === 0 || submitting}
+                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+                >
+                  {submitting ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
+                </button>
+              </div>
+
+            </div>
+          </div>
+
         </form>
+
       </div>
     </div>
   )

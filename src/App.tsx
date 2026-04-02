@@ -103,7 +103,7 @@ function AppContent() {
     collapse: searchFocused ? 1 : 0,
     config: { tension: 280, friction: 28 },
   })
-  const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes' | 'user-profile'>('main')
+  const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes' | 'user-profile' | 'feedback'>('main')
   const [initialTrainingTaskId, setInitialTrainingTaskId] = useState<string | null>(null)
   const [initialPeerId, setInitialPeerId] = useState<string | null>(null)
   const [initialGroupId, setInitialGroupId] = useState<string | null>(null)
@@ -259,6 +259,10 @@ case 'mapOverlay':
         break
       case 'settings-profile':
         setSettingsInitialPanel('user-profile')
+        navigation.setShowSettings(true)
+        break
+      case 'settings-feedback':
+        setSettingsInitialPanel('feedback')
         navigation.setShowSettings(true)
         break
     }

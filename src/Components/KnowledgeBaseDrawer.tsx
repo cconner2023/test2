@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
-import { ChevronRight, RotateCcw, Pin } from 'lucide-react'
+import { ChevronRight, RotateCcw, Pin, Pill, BookOpen } from 'lucide-react'
 import { MobileSearchBar } from './MobileSearchBar'
 import { BaseDrawer } from './BaseDrawer'
 import { TrainingPanel, type TrainingView } from './Settings/TrainingPanel'
@@ -517,8 +517,26 @@ function KBHome({
         )
     }
 
-    // ── Pinned items ──────────────────────────────────────────
-    const pinnedItems = visibleCategories.filter(c => pinnedKB.includes(c.id) && !c.comingSoon)
+    // ── Pinned items (categories, individual meds, individual tasks) ──
+    const pinnedCategories = visibleCategories.filter(c => pinnedKB.includes(c.id) && !c.comingSoon)
+
+    const { pinnedMeds, pinnedTasks } = useMemo(() => {
+        const list = tc3Mode ? tc3MedList : medList
+        const meds: medListTypes[] = []
+        const tasks: subjectAreaArrayOptions[] = []
+        for (const id of pinnedKB) {
+            if (id.startsWith('med:')) {
+                const med = list.find(m => m.icon === id.slice(4))
+                if (med) meds.push(med)
+            } else if (id.startsWith('task:')) {
+                const task = resolveTaskById(id.slice(5))
+                if (task) tasks.push(task)
+            }
+        }
+        return { pinnedMeds: meds, pinnedTasks: tasks }
+    }, [pinnedKB, tc3Mode])
+
+    const hasPinnedItems = pinnedCategories.length > 0 || pinnedMeds.length > 0 || pinnedTasks.length > 0
 
     // ── Default category grid ─────────────────────────────────
     // Map category IDs to data-tour values; first screener gets 'kb-screener'
@@ -570,13 +588,58 @@ function KBHome({
     return (
         <div className="px-4 py-3 md:p-5" data-tour="kb-category-grid">
             {/* Pinned section */}
-            {pinnedItems.length > 0 && (
+            {hasPinnedItems && (
                 <div className="mb-4" data-tour="kb-pinned">
                     <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider px-2 mb-2">
                         PINNED
                     </p>
                     <div className="rounded-xl bg-themewhite2/50 overflow-hidden">
-                        {pinnedItems.map((cat, idx) => renderCatButton(cat, idx))}
+                        {pinnedCategories.map((cat, idx) => renderCatButton(cat, idx))}
+                        {pinnedMeds.map((med, idx) => (
+                            <button
+                                key={`pin-med-${med.icon}`}
+                                onClick={() => { if (longPressTriggered.current) { longPressTriggered.current = false; return } onMedicationSelect(med) }}
+                                onContextMenu={(e) => { e.preventDefault(); setContextMenu({ id: 'med:' + med.icon, position: { x: e.clientX, y: e.clientY } }) }}
+                                onTouchStart={(e) => handleTouchStart('med:' + med.icon, e)}
+                                onTouchEnd={handleTouchEnd}
+                                onTouchCancel={handleTouchEnd}
+                                className={`flex items-center w-full px-4 py-3.5 text-left transition-all
+                                    hover:bg-themewhite2 active:scale-95 cursor-pointer
+                                    ${(pinnedCategories.length + idx) > 0 ? 'border-t border-tertiary/8' : ''}`}
+                            >
+                                <Pill size={18} className="text-primary/70" />
+                                <div className="flex-1 min-w-0 ml-3">
+                                    <p className="text-sm font-medium text-primary">{med.icon}</p>
+                                    <p className="text-[10px] text-tertiary/60">{med.text}</p>
+                                </div>
+                                <Pin size={12} className="text-themeblue2/40 shrink-0 mr-1" />
+                                <ChevronRight size={16} className="text-tertiary/30 shrink-0" />
+                            </button>
+                        ))}
+                        {pinnedTasks.map((task, idx) => (
+                            <button
+                                key={`pin-task-${task.icon}`}
+                                onClick={() => {
+                                    if (longPressTriggered.current) { longPressTriggered.current = false; return }
+                                    onSelectTask(task)
+                                }}
+                                onContextMenu={(e) => { e.preventDefault(); setContextMenu({ id: 'task:' + task.icon, position: { x: e.clientX, y: e.clientY } }) }}
+                                onTouchStart={(e) => handleTouchStart('task:' + task.icon, e)}
+                                onTouchEnd={handleTouchEnd}
+                                onTouchCancel={handleTouchEnd}
+                                className={`flex items-center w-full px-4 py-3.5 text-left transition-all
+                                    hover:bg-themewhite2 active:scale-95 cursor-pointer
+                                    ${(pinnedCategories.length + pinnedMeds.length + idx) > 0 ? 'border-t border-tertiary/8' : ''}`}
+                            >
+                                <BookOpen size={18} className="text-primary/70" />
+                                <div className="flex-1 min-w-0 ml-3">
+                                    <p className="text-sm font-medium text-primary">{task.text}</p>
+                                    <p className="text-[10px] text-tertiary/60 font-mono">{task.icon}</p>
+                                </div>
+                                <Pin size={12} className="text-themeblue2/40 shrink-0 mr-1" />
+                                <ChevronRight size={16} className="text-tertiary/30 shrink-0" />
+                            </button>
+                        ))}
                     </div>
                 </div>
             )}

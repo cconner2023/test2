@@ -1,19 +1,20 @@
-import { memo, useState } from 'react'
-import { RotateCcw, X } from 'lucide-react'
+import { memo, useState, useRef } from 'react'
+import { RotateCcw, ChevronRight } from 'lucide-react'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { CasualtyInfoForm } from './CasualtyInfoForm'
 import { MechanismForm } from './MechanismForm'
-import { BodyDiagram } from './BodyDiagram'
+import { BodyDiagram, INJURY_TYPE_COLOR } from './BodyDiagram'
 import { VitalsForm } from './VitalsForm'
 import { getRegionLabel } from '../../Utilities/bodyRegionMap'
 
 /** Left column of the desktop DD1380 layout — front of the card. */
 export const TC3FrontColumn = memo(function TC3FrontColumn() {
   const card = useTC3Store((s) => s.card)
-  const removeInjury = useTC3Store((s) => s.removeInjury)
   const resetCard = useTC3Store((s) => s.resetCard)
+  const panelRef = useRef<HTMLDivElement>(null)
   const [showConfirmReset, setShowConfirmReset] = useState(false)
+  const [editingInjury, setEditingInjury] = useState<string | null>(null)
 
   const handleReset = () => {
     resetCard()
@@ -23,7 +24,7 @@ export const TC3FrontColumn = memo(function TC3FrontColumn() {
   const injuryCount = card.injuries.length
 
   return (
-    <div className="h-full overflow-y-auto bg-themewhite">
+    <div ref={panelRef} className="relative h-full overflow-y-auto bg-themewhite">
       <div className="px-3 py-4 space-y-6">
         {/* Header */}
         <div className="px-1">
@@ -33,13 +34,17 @@ export const TC3FrontColumn = memo(function TC3FrontColumn() {
         </div>
 
         {/* Casualty Info */}
-        <CasualtyInfoForm />
+        <CasualtyInfoForm panelRef={panelRef} />
 
         {/* Mechanism */}
-        <MechanismForm />
+        <MechanismForm panelRef={panelRef} />
 
         {/* Body Diagram — front + back side by side (desktop) */}
-        <BodyDiagram />
+        <BodyDiagram
+          panelRef={panelRef}
+          editingInjuryId={editingInjury}
+          onEditInjury={setEditingInjury}
+        />
 
         {/* Injury list summary */}
         {injuryCount > 0 && (
@@ -47,26 +52,54 @@ export const TC3FrontColumn = memo(function TC3FrontColumn() {
             <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">
               Marked Injuries ({injuryCount})
             </p>
-            {card.injuries.map((inj) => (
-              <div key={inj.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-tertiary/15 bg-themewhite2">
-                <span className="text-xs font-medium text-primary">{inj.type}</span>
-                {inj.bodyRegion && (
-                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-themeredred/10 text-themeredred">
-                    {getRegionLabel(inj.bodyRegion)}
-                  </span>
-                )}
-                {inj.description && <span className="text-[10px] text-tertiary/60 truncate">{inj.description}</span>}
-                {inj.treatmentLinks.length > 0 && (
-                  <span className="text-[8px] text-themegreen font-medium">{inj.treatmentLinks.length} tx</span>
-                )}
-                <button
-                  onClick={() => removeInjury(inj.id)}
-                  className="ml-auto p-1 hover:bg-themeredred/10 rounded transition-colors shrink-0"
-                >
-                  <X size={12} className="text-themeredred/60" />
-                </button>
-              </div>
-            ))}
+            <div className="rounded-2xl border border-tertiary/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
+              {card.injuries.map((inj) => {
+                const dotColor = INJURY_TYPE_COLOR[inj.type] ?? '#6b7280'
+                const regionLabel = inj.bodyRegion ? getRegionLabel(inj.bodyRegion) : null
+                const txCount = inj.treatmentLinks.length
+
+                return (
+                  <button
+                    key={inj.id}
+                    type="button"
+                    onClick={() => setEditingInjury(inj.id)}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-tertiary/3 transition-colors"
+                  >
+                    {/* Colored dot */}
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: dotColor }}
+                    />
+
+                    {/* Type label */}
+                    <span className="text-xs font-medium text-primary">{inj.type}</span>
+
+                    {/* Region badge */}
+                    {regionLabel && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-themeredred/10 text-themeredred shrink-0">
+                        {regionLabel}
+                      </span>
+                    )}
+
+                    {/* Description (truncated) */}
+                    {inj.description && (
+                      <span className="text-[10px] text-tertiary/60 truncate min-w-0">{inj.description}</span>
+                    )}
+
+                    {/* Spacer */}
+                    <span className="flex-1" />
+
+                    {/* Treatment count */}
+                    {txCount > 0 && (
+                      <span className="text-[9px] text-themegreen font-medium shrink-0">{txCount} tx</span>
+                    )}
+
+                    {/* Chevron */}
+                    <ChevronRight size={14} className="text-tertiary/30 shrink-0" />
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )}
 

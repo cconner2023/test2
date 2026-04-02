@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { updateClinicNoteContent } from '../../lib/supervisorService';
 import type { UserTypes, TextExpander } from '../../Data/User';
 import type { TemplateNode } from '../../Data/TemplateTypes';
 import { parseFieldText } from '../../Utilities/templateParser';
@@ -19,8 +21,13 @@ export const TextTemplatesPanel = ({
     editing = false, saveRequested, onSaveComplete, onPendingChangesChange,
 }: TextTemplatesPanelProps) => {
     const { profile, updateProfile, syncProfileField } = useUserProfile();
+    const [scope, setScope] = useState<'personal' | 'clinic'>('personal');
+    const clinicTextExpanders = useAuthStore(s => s.clinicTextExpanders);
+    const isSupervisorRole = useAuthStore(s => s.isSupervisorRole);
+    const clinicId = useAuthStore(s => s.clinicId);
 
     const textExpanders = profile.textExpanders ?? [];
+    const activeExpanders = scope === 'clinic' ? clinicTextExpanders : textExpanders;
 
     // Staging state
     const [stagedDeletes, setStagedDeletes] = useState<Set<string>>(new Set());
@@ -54,14 +61,22 @@ export const TextTemplatesPanel = ({
     useEffect(() => {
         if (!saveRequested) return;
 
-        const current = [...textExpanders];
-        let next = current.filter(e => !stagedDeletes.has(e.abbr));
-        if (stagedAdds.length > 0) {
-            next = [...next, ...stagedAdds];
-        }
-
-        if (stagedDeletes.size > 0 || stagedAdds.length > 0) {
-            handleUpdate({ textExpanders: next });
+        if (scope === 'clinic' && clinicId) {
+            let next = [...clinicTextExpanders].filter(e => !stagedDeletes.has(e.abbr));
+            if (stagedAdds.length > 0) next = [...next, ...stagedAdds];
+            if (stagedDeletes.size > 0 || stagedAdds.length > 0) {
+                updateClinicNoteContent(clinicId, { textExpanders: next });
+                useAuthStore.setState({ clinicTextExpanders: next });
+            }
+        } else {
+            const current = [...textExpanders];
+            let next = current.filter(e => !stagedDeletes.has(e.abbr));
+            if (stagedAdds.length > 0) {
+                next = [...next, ...stagedAdds];
+            }
+            if (stagedDeletes.size > 0 || stagedAdds.length > 0) {
+                handleUpdate({ textExpanders: next });
+            }
         }
 
         setStagedDeletes(new Set());
@@ -82,6 +97,15 @@ export const TextTemplatesPanel = ({
             setEditCard(null);
         }
     }, [editing]);
+
+    // Reset staging when scope changes
+    useEffect(() => {
+        setStagedDeletes(new Set());
+        setStagedAdds([]);
+        setInputAbbr('');
+        setInputError('');
+        setEditCard(null);
+    }, [scope]);
 
     // Tour system: listen for demo build events
     useEffect(() => {
@@ -159,6 +183,7 @@ export const TextTemplatesPanel = ({
 
         const allAbbrs = [
             ...textExpanders.map(e => e.abbr.toLowerCase()),
+            ...clinicTextExpanders.map(e => e.abbr.toLowerCase()),
             ...stagedAdds.map(e => e.abbr.toLowerCase()),
         ];
         if (allAbbrs.includes(trimmed.toLowerCase())) {
@@ -176,7 +201,7 @@ export const TextTemplatesPanel = ({
             fields: {},
             isNew: true,
         });
-    }, [inputAbbr, textExpanders, stagedAdds, selectedType]);
+    }, [inputAbbr, textExpanders, clinicTextExpanders, stagedAdds, selectedType]);
 
     const handleClearInput = useCallback(() => {
         setInputAbbr('');
@@ -217,28 +242,43 @@ export const TextTemplatesPanel = ({
 
     // Open detail for editing an existing expander (non-edit mode tap)
     const handleCardTap = useCallback((expander: TextExpander) => {
+        // Don't open detail for clinic expanders when viewing personal
+        if (scope === 'personal' && clinicTextExpanders.some(e => e.abbr === expander.abbr)) return;
         setDetailExpander(expander);
-    }, []);
+    }, [scope, clinicTextExpanders]);
 
     // Detail panel save handler (editing existing)
     const handleDetailSave = useCallback((entry: TextExpander, originalAbbr?: string) => {
-        const current = profile.textExpanders ?? [];
-        const next = originalAbbr
-            ? current.map(e => e.abbr === originalAbbr ? entry : e)
-            : [...current, entry];
-
-        handleUpdate({ textExpanders: next });
+        if (scope === 'clinic' && clinicId) {
+            const current = [...clinicTextExpanders];
+            const next = originalAbbr
+                ? current.map(e => e.abbr === originalAbbr ? entry : e)
+                : [...current, entry];
+            updateClinicNoteContent(clinicId, { textExpanders: next });
+            useAuthStore.setState({ clinicTextExpanders: next });
+        } else {
+            const current = profile.textExpanders ?? [];
+            const next = originalAbbr
+                ? current.map(e => e.abbr === originalAbbr ? entry : e)
+                : [...current, entry];
+            handleUpdate({ textExpanders: next });
+        }
         setDetailExpander(null);
-    }, [profile.textExpanders, handleUpdate]);
+    }, [scope, clinicId, clinicTextExpanders, profile.textExpanders, handleUpdate]);
 
     // Detail panel delete handler
     const handleDetailDelete = useCallback((abbr: string) => {
-        const current = profile.textExpanders ?? [];
-        const next = current.filter(e => e.abbr !== abbr);
-
-        handleUpdate({ textExpanders: next });
+        if (scope === 'clinic' && clinicId) {
+            const next = clinicTextExpanders.filter(e => e.abbr !== abbr);
+            updateClinicNoteContent(clinicId, { textExpanders: next });
+            useAuthStore.setState({ clinicTextExpanders: next });
+        } else {
+            const current = profile.textExpanders ?? [];
+            const next = current.filter(e => e.abbr !== abbr);
+            handleUpdate({ textExpanders: next });
+        }
         setDetailExpander(null);
-    }, [profile.textExpanders, handleUpdate]);
+    }, [scope, clinicId, clinicTextExpanders, profile.textExpanders, handleUpdate]);
 
     // ── Detail view for editing existing ──
     if (detailExpander) {
@@ -246,7 +286,7 @@ export const TextTemplatesPanel = ({
             <TextTemplateDetailPanel
                 expander={detailExpander}
                 isNew={false}
-                existingAbbrs={textExpanders.map(e => e.abbr)}
+                existingAbbrs={activeExpanders.map(e => e.abbr)}
                 onSave={handleDetailSave}
                 onDelete={handleDetailDelete}
                 onCancel={() => setDetailExpander(null)}
@@ -258,12 +298,46 @@ export const TextTemplatesPanel = ({
     return (
         <div data-tour="expander-usage-hint" className="h-full overflow-y-auto">
             <div className="px-5 py-4 space-y-5">
-                <p data-tour="expander-edit-hint" className="text-xs text-tertiary leading-relaxed">
-                    Autotext shortcuts that expand abbreviations as you type in your notes.
-                </p>
+                {isSupervisorRole ? (
+                    <div data-tour="expander-edit-hint" className="flex items-center gap-2">
+                        <p className="text-xs text-tertiary leading-relaxed flex-1">
+                            {scope === 'clinic'
+                                ? 'Clinic shortcuts shared with all members.'
+                                : 'Your personal autotext shortcuts.'}
+                        </p>
+                        <div className="flex rounded-full border border-themeblue3/10 overflow-hidden shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => setScope('personal')}
+                                className={`px-3 py-1.5 text-[11px] font-semibold transition-all ${
+                                    scope === 'personal'
+                                        ? 'bg-themeblue2 text-white'
+                                        : 'text-tertiary hover:bg-tertiary/5'
+                                }`}
+                            >
+                                Personal
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setScope('clinic')}
+                                className={`px-3 py-1.5 text-[11px] font-semibold transition-all ${
+                                    scope === 'clinic'
+                                        ? 'bg-themeblue2 text-white'
+                                        : 'text-tertiary hover:bg-tertiary/5'
+                                }`}
+                            >
+                                Clinic
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <p data-tour="expander-edit-hint" className="text-xs text-tertiary leading-relaxed">
+                        Autotext shortcuts that expand abbreviations as you type in your notes.
+                    </p>
+                )}
 
                 <TextExpanderManager
-                    expanders={textExpanders}
+                    expanders={activeExpanders}
                     editing={editing}
                     stagedDeletes={stagedDeletes}
                     stagedAdds={stagedAdds}
@@ -281,6 +355,9 @@ export const TextTemplatesPanel = ({
                     onEditCardChange={setEditCard}
                     onEditCardAccept={handleEditCardAccept}
                     onEditCardCancel={handleEditCardCancel}
+                    scope={scope}
+                    clinicExpanders={scope === 'personal' ? clinicTextExpanders : []}
+                    isSupervisorRole={isSupervisorRole}
                 />
             </div>
         </div>

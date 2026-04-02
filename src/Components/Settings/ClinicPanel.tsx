@@ -8,6 +8,7 @@ import {
   X,
   RefreshCw,
   Pencil,
+  Stethoscope,
 } from 'lucide-react'
 import bwipjs from 'bwip-js'
 import { useAuth } from '../../Hooks/useAuth'
@@ -668,6 +669,13 @@ export function ClinicPanel({
     clearExpandedState()
   }, [expandedMemberId, deleteSelection, onDeleteSelectionChange, clearExpandedState])
 
+  const handleToggleDeleteSelect = useCallback((id: string) => {
+    const next = new Set(deleteSelection)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    onDeleteSelectionChange(next)
+  }, [deleteSelection, onDeleteSelectionChange])
+
   const handleEditComponentChange = useCallback((val: string) => {
     setEditComponent(val)
     if (val && editRank) {
@@ -1141,6 +1149,19 @@ export function ClinicPanel({
             </div>
           </div>
         </section>
+
+        {/* Clinic Note Content callout */}
+        {isSupervisorRole && (
+          <div className="rounded-xl border border-themeblue2/15 bg-themeblue2/5 px-4 py-3 flex items-center gap-3">
+            <Stethoscope size={18} className="text-themeblue2 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-primary">Clinic Note Templates</p>
+              <p className="text-[11px] text-tertiary/60 mt-0.5">
+                Manage shared text shortcuts and order sets in Note Content
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── Personnel (supervisor-gated) ──────────────────────────── */}
         {isSupervisorRole && clinicId && (

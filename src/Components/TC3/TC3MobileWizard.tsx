@@ -8,8 +8,6 @@ import { MechanismForm } from './MechanismForm'
 import { BodyDiagram } from './BodyDiagram'
 import { VitalsForm } from './VitalsForm'
 import { MARCHForm } from './MARCHForm'
-import { MedicationsForm } from './MedicationsForm'
-import { FluidsPanel } from './FluidsPanel'
 import { NotesPanel } from './NotesPanel'
 import { TC3WriteNote } from './TC3WriteNote'
 import { OtherSectionMobile, FirstResponderMobile } from './TC3OtherMobile'
@@ -84,14 +82,8 @@ export const TC3MobileWizard = memo(function TC3MobileWizard() {
               </div>
             )}
             {wizardStep === 3 && <VitalsForm />}
-            {wizardStep === 4 && (
-              <div className="space-y-6">
-                <MARCHForm />
-                <FluidsPanel />
-              </div>
-            )}
-            {wizardStep === 5 && <MedicationsForm />}
-            {wizardStep === 6 && (
+            {wizardStep === 4 && <MARCHForm />}
+            {wizardStep === 5 && (
               <div className="space-y-6">
                 <OtherSectionMobile />
                 <NotesPanel />

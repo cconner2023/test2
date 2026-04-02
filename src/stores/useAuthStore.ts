@@ -69,6 +69,11 @@ interface AuthState {
   isPasswordRecovery: boolean
   /** True for newly approved accounts that haven't set a permanent password yet. */
   needsPasswordSetup: boolean
+  /** Clinic-level note content (merged with user-level in consumers). */
+  clinicTextExpanders: TextExpander[]
+  clinicPlanOrderTags: UserTypes['planOrderTags'] | null
+  clinicPlanInstructionTags: string[] | null
+  clinicPlanOrderSets: UserTypes['planOrderSets'] | null
   deviceRole: DeviceRole | null
   /** Persistent local session — survives Supabase token expiry. Cleared only on deliberate logout. */
   localSession: LocalSession | null
@@ -124,13 +129,6 @@ function clearLocalSessionStorage() {
 
 // ---- Profile helpers ----
 
-function migratePeDepth(profile: UserTypes): UserTypes {
-  const d = profile.peDepth as string | undefined
-  if (d === 'minimal' || d === 'expanded') profile.peDepth = 'focused'
-  // 'focused', 'comprehensive', 'custom' are already correct — no-op
-  return profile
-}
-
 /** Sync initial load: reads legacy plaintext from localStorage for instant render.
  *  New sessions start empty until the async encrypted read completes. */
 function loadProfileFromStorage(): UserTypes {
@@ -138,7 +136,7 @@ function loadProfileFromStorage(): UserTypes {
     const saved = localStorage.getItem(STORAGE_KEY)
     // Only read plaintext legacy entries (encrypted entries start with 'enc:')
     if (saved && !saved.startsWith('enc:')) {
-      return migratePeDepth(JSON.parse(saved) as UserTypes)
+      return JSON.parse(saved) as UserTypes
     }
   } catch { /* ignore */ }
   return {}
@@ -148,7 +146,7 @@ function loadProfileFromStorage(): UserTypes {
 async function loadProfileFromSecureStorage(): Promise<UserTypes | null> {
   try {
     const saved = await secureGet(STORAGE_KEY)
-    if (saved) return migratePeDepth(JSON.parse(saved) as UserTypes)
+    if (saved) return JSON.parse(saved) as UserTypes
   } catch { /* ignore */ }
   return null
 }
@@ -203,14 +201,18 @@ function clearRolesStorage() {
  * Fetch a full profile from Supabase for the given user ID.
  * Returns the UserTypes profile and the roles array.
  */
-async function fetchProfileFromSupabase(userId: string): Promise<{ profile: UserTypes; roles: string[]; clinicId: string | null; needsPasswordSetup: boolean }> {
+async function fetchProfileFromSupabase(userId: string): Promise<{ profile: UserTypes; roles: string[]; clinicId: string | null; needsPasswordSetup: boolean; clinicTextExpanders: TextExpander[] | null; clinicPlanOrderTags: UserTypes['planOrderTags'] | null; clinicPlanInstructionTags: string[] | null; clinicPlanOrderSets: UserTypes['planOrderSets'] | null }> {
   const profile: UserTypes = {}
   let roles: string[] = []
   let clinicId: string | null = null
   let needsPasswordSetup = false
+  let clinicTextExpanders: TextExpander[] | null = null
+  let clinicPlanOrderTags: UserTypes['planOrderTags'] | null = null
+  let clinicPlanInstructionTags: string[] | null = null
+  let clinicPlanOrderSets: UserTypes['planOrderSets'] | null = null
 
   // Fetch core profile + clinic name.
-  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notify_dev_alerts, pe_depth, text_expanders, text_expander_enabled, plan_order_tags, plan_instruction_tags, plan_order_sets, needs_password_setup, favorite_medications, provider_note_templates'
+  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notify_dev_alerts, text_expanders, text_expander_enabled, plan_order_tags, plan_instruction_tags, plan_order_sets, needs_password_setup, favorite_medications, provider_note_templates'
   const { data, error: fetchError } = await supabase
     .from('profiles')
     .select(PROFILE_SELECT)
@@ -240,13 +242,6 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     }
 
     if (sec.notify_dev_alerts != null) profile.notifyDevAlerts = sec.notify_dev_alerts as boolean
-    if (sec.pe_depth != null) {
-      const raw = sec.pe_depth as string
-      // Migrate old depth values to new focused/comprehensive scheme
-      if (raw === 'minimal' || raw === 'expanded' || raw === 'focused') profile.peDepth = 'focused'
-      else if (raw === 'standard' || raw === 'comprehensive') profile.peDepth = 'comprehensive'
-      else profile.peDepth = raw as UserTypes['peDepth']
-    }
     if (sec.text_expanders != null) profile.textExpanders = sec.text_expanders as TextExpander[]
     if (sec.text_expander_enabled != null) profile.textExpanderEnabled = sec.text_expander_enabled as boolean
     if (sec.plan_order_tags != null) profile.planOrderTags = sec.plan_order_tags as UserTypes['planOrderTags']
@@ -257,7 +252,23 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     if (sec.needs_password_setup === true) needsPasswordSetup = true
   }
 
-  return { profile, roles, clinicId, needsPasswordSetup }
+  // Fetch clinic-level note content
+  if (clinicId) {
+    const { data: clinicData } = await supabase
+      .from('clinics')
+      .select('text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets')
+      .eq('id', clinicId)
+      .single()
+
+    if (clinicData) {
+      if (clinicData.text_expanders != null) clinicTextExpanders = clinicData.text_expanders as TextExpander[]
+      if (clinicData.plan_order_tags != null) clinicPlanOrderTags = clinicData.plan_order_tags as UserTypes['planOrderTags']
+      if (clinicData.plan_instruction_tags != null) clinicPlanInstructionTags = clinicData.plan_instruction_tags as string[]
+      if (clinicData.plan_order_sets != null) clinicPlanOrderSets = clinicData.plan_order_sets as UserTypes['planOrderSets']
+    }
+  }
+
+  return { profile, roles, clinicId, needsPasswordSetup, clinicTextExpanders, clinicPlanOrderTags, clinicPlanInstructionTags, clinicPlanOrderSets }
 }
 
 export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
@@ -288,6 +299,10 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       isDevRole: false,
       isSupervisorRole: false,
       isProviderRole: false,
+      clinicTextExpanders: [],
+      clinicPlanOrderTags: null,
+      clinicPlanInstructionTags: null,
+      clinicPlanOrderSets: null,
       deviceRole: null,
       localSession: null,
       sessionReady: false,
@@ -522,6 +537,10 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
   isProviderRole: cachedRoles?.roles.includes('provider') ?? false,
   isPasswordRecovery: false,
   needsPasswordSetup: false,
+  clinicTextExpanders: [],
+  clinicPlanOrderTags: null,
+  clinicPlanInstructionTags: null,
+  clinicPlanOrderSets: null,
   deviceRole: null,
   localSession: loadLocalSessionSync(),
   sessionReady: hasLocalSession,
@@ -656,7 +675,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     if (!user) return
 
     try {
-      const { profile, roles, clinicId, needsPasswordSetup } = await fetchProfileFromSupabase(user.id)
+      const { profile, roles, clinicId, needsPasswordSetup, clinicTextExpanders, clinicPlanOrderTags, clinicPlanInstructionTags, clinicPlanOrderSets } = await fetchProfileFromSupabase(user.id)
       set({
         profile,
         roles,
@@ -665,6 +684,10 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
         isSupervisorRole: roles.includes('supervisor'),
         isProviderRole: roles.includes('provider'),
         needsPasswordSetup,
+        clinicTextExpanders: clinicTextExpanders ?? [],
+        clinicPlanOrderTags: clinicPlanOrderTags ?? null,
+        clinicPlanInstructionTags: clinicPlanInstructionTags ?? null,
+        clinicPlanOrderSets: clinicPlanOrderSets ?? null,
       })
       saveProfileToStorage(profile)
       saveRolesToStorage({ roles, clinicId, isDevRole: roles.includes('dev') })

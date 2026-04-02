@@ -56,6 +56,12 @@ interface TextExpanderManagerProps {
     onEditCardChange: (state: EditCardState) => void;
     onEditCardAccept: () => void;
     onEditCardCancel: () => void;
+    /** Current scope being managed */
+    scope?: 'personal' | 'clinic';
+    /** Clinic expanders shown read-only when viewing personal scope */
+    clinicExpanders?: TextExpander[];
+    /** Whether user has supervisor role */
+    isSupervisorRole?: boolean;
 }
 
 export const TextExpanderManager = ({
@@ -65,9 +71,10 @@ export const TextExpanderManager = ({
     inputAbbr, onInputAbbrChange, onInputAbbrSubmit, inputError, onClearInput,
     selectedType, onTypeChange,
     editCard, onEditCardChange, onEditCardAccept, onEditCardCancel,
+    scope = 'personal', clinicExpanders = [], isSupervisorRole = false,
 }: TextExpanderManagerProps) => {
-    const totalCount = expanders.length + stagedAdds.length - stagedDeletes.size;
-    const hasItems = expanders.length > 0 || stagedAdds.length > 0;
+    const totalCount = expanders.length + stagedAdds.length - stagedDeletes.size + (scope === 'personal' ? clinicExpanders.length : 0);
+    const hasItems = expanders.length > 0 || stagedAdds.length > 0 || (scope === 'personal' && clinicExpanders.length > 0);
 
     const editCardValid = editCard
         ? editCard.type === 'simple'
@@ -251,6 +258,34 @@ export const TextExpanderManager = ({
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium text-primary truncate">{e.abbr}</p>
+                                        <p className="text-[11px] text-tertiary/50 mt-0.5 leading-relaxed">
+                                            {expansionPreview(e)}
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {/* Clinic expanders — read-only */}
+                        {scope === 'personal' && clinicExpanders.length > 0 && clinicExpanders.map(e => {
+                            const isTemplate = hasBranches(e);
+                            const Icon = isTemplate ? Layers : TextCursorInput;
+
+                            return (
+                                <div
+                                    key={`clinic-${e.abbr}`}
+                                    className="flex items-start gap-3 py-2 px-2 rounded-lg opacity-75"
+                                >
+                                    <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                                        <Icon size={14} className="text-tertiary" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                            <p className="text-sm font-medium text-primary truncate">{e.abbr}</p>
+                                            <span className="text-[9px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/60 shrink-0">
+                                                Clinic
+                                            </span>
+                                        </div>
                                         <p className="text-[11px] text-tertiary/50 mt-0.5 leading-relaxed">
                                             {expansionPreview(e)}
                                         </p>

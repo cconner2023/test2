@@ -72,7 +72,7 @@ export const WriteNotePage = ({
     }, []);
 
     const defaultHPI = true;
-    const defaultPE = tourOverrideAll || !!(profile.peDepth);
+    const defaultPE = true;
     const defaultPlan = tourOverrideAll || !!(profile.planOrderTags && Object.values(profile.planOrderTags).some(arr => arr.length > 0));
 
     const visiblePages = useMemo(() => {
@@ -246,9 +246,6 @@ export const WriteNotePage = ({
                                                     onStateChange={setPeState}
                                                     colors={colors}
                                                     symptomCode={selectedSymptom?.icon || 'A-1'}
-                                                    depth={profile.peDepth ?? 'focused'}
-                                                    customBlocks={profile.peDepth === 'custom' ? profile.customPEBlocks : undefined}
-                                                    comprehensiveTemplate={profile.peDepth === 'comprehensive' ? profile.comprehensivePETemplate : undefined}
                                                     expanders={profile.textExpanders ?? []}
                                                     expanderEnabled={profile.textExpanderEnabled ?? false}
                                                 />

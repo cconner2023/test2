@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Check, X, Trash2 } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { updateClinicNoteContent } from '../../lib/supervisorService';
 import type { UserTypes, PlanBlockKey, PlanOrderSet, PlanOrderTags } from '../../Data/User';
 import { PlanTagManager } from './PlanTagManager';
 import type { StagedTagDeletes, StagedTagAdds } from './PlanTagManager';
@@ -21,10 +23,47 @@ interface PlanPanelProps {
 
 export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPendingChangesChange }: PlanPanelProps) => {
     const { profile, updateProfile, syncProfileField } = useUserProfile();
+    const [scope, setScope] = useState<'personal' | 'clinic'>('personal');
+    const clinicPlanOrderTags = useAuthStore(s => s.clinicPlanOrderTags);
+    const clinicPlanInstructionTags = useAuthStore(s => s.clinicPlanInstructionTags);
+    const clinicPlanOrderSets = useAuthStore(s => s.clinicPlanOrderSets);
+    const isSupervisorRole = useAuthStore(s => s.isSupervisorRole);
+    const clinicId = useAuthStore(s => s.clinicId);
 
     const planOrderTags = profile.planOrderTags ?? { referral: [], meds: [], radiology: [], lab: [], followUp: [] };
     const planInstructionTags = profile.planInstructionTags ?? [];
     const planOrderSets = profile.planOrderSets ?? [];
+
+    // For non-supervisors, merge clinic data into personal view (clinic items first, deduplicated)
+    const emptyTags = { referral: [], meds: [], radiology: [], lab: [], followUp: [] } as PlanOrderTags;
+
+    const mergedOrderTags = !isSupervisorRole && clinicPlanOrderTags
+        ? {
+            referral: [...new Set([...(clinicPlanOrderTags.referral ?? []), ...planOrderTags.referral])],
+            meds: [...new Set([...(clinicPlanOrderTags.meds ?? []), ...planOrderTags.meds])],
+            radiology: [...new Set([...(clinicPlanOrderTags.radiology ?? []), ...planOrderTags.radiology])],
+            lab: [...new Set([...(clinicPlanOrderTags.lab ?? []), ...planOrderTags.lab])],
+            followUp: [...new Set([...(clinicPlanOrderTags.followUp ?? []), ...planOrderTags.followUp])],
+        }
+        : null;
+
+    const mergedInstructionTags = !isSupervisorRole && clinicPlanInstructionTags
+        ? [...new Set([...clinicPlanInstructionTags, ...planInstructionTags])]
+        : null;
+
+    const mergedOrderSets = !isSupervisorRole && clinicPlanOrderSets
+        ? [...clinicPlanOrderSets, ...planOrderSets]
+        : null;
+
+    const activePlanOrderTags = isSupervisorRole
+        ? (scope === 'clinic' ? (clinicPlanOrderTags ?? emptyTags) : planOrderTags)
+        : (mergedOrderTags ?? planOrderTags);
+    const activePlanInstructionTags = isSupervisorRole
+        ? (scope === 'clinic' ? (clinicPlanInstructionTags ?? []) : planInstructionTags)
+        : (mergedInstructionTags ?? planInstructionTags);
+    const activePlanOrderSets = isSupervisorRole
+        ? (scope === 'clinic' ? (clinicPlanOrderSets ?? []) : planOrderSets)
+        : (mergedOrderSets ?? planOrderSets);
 
     const [composing, setComposing] = useState<ComposingSet | null>(null);
 
@@ -59,56 +98,85 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
     useEffect(() => {
         if (!saveRequested) return;
 
-        const updates: Partial<UserTypes> = {};
+        if (scope === 'clinic' && clinicId) {
+            // --- Clinic save ---
+            const baseTags = clinicPlanOrderTags ?? emptyTags;
+            const baseInstr = clinicPlanInstructionTags ?? [];
+            const baseSets = clinicPlanOrderSets ?? [];
 
-        // --- Order sets ---
-        if (hasOrderSetPending) {
-            let next = [...planOrderSets];
-            for (const edited of stagedEdits) {
-                next = next.map(s => s.id === edited.id ? edited : s);
-            }
-            if (stagedDeletes.size > 0) {
-                next = next.filter(s => !stagedDeletes.has(s.id));
-            }
-            if (stagedAdds.length > 0) {
-                next = [...next, ...stagedAdds];
-            }
-            updates.planOrderSets = next;
-        }
-
-        // --- Tags ---
-        if (hasTagPending) {
-            // Order tags
-            const newOrderTags = { ...planOrderTags };
-            for (const cat of ['referral', 'meds', 'radiology', 'lab', 'followUp'] as const) {
-                let tags = [...(newOrderTags[cat] ?? [])];
-                const deletes = stagedTagDeletes[cat];
-                if (deletes && deletes.size > 0) {
-                    tags = tags.filter(t => !deletes.has(t));
+            let nextSets = [...baseSets];
+            if (hasOrderSetPending) {
+                for (const edited of stagedEdits) {
+                    nextSets = nextSets.map(s => s.id === edited.id ? edited : s);
                 }
-                const adds = stagedTagAdds[cat];
-                if (adds && adds.length > 0) {
-                    tags = [...tags, ...adds];
+                if (stagedDeletes.size > 0) nextSets = nextSets.filter(s => !stagedDeletes.has(s.id));
+                if (stagedAdds.length > 0) nextSets = [...nextSets, ...stagedAdds];
+            }
+
+            let nextOrderTags = { ...baseTags };
+            let nextInstrTags = [...baseInstr];
+            if (hasTagPending) {
+                for (const cat of ['referral', 'meds', 'radiology', 'lab', 'followUp'] as const) {
+                    let tags = [...(nextOrderTags[cat] ?? [])];
+                    const deletes = stagedTagDeletes[cat];
+                    if (deletes && deletes.size > 0) tags = tags.filter(t => !deletes.has(t));
+                    const adds = stagedTagAdds[cat];
+                    if (adds && adds.length > 0) tags = [...tags, ...adds];
+                    nextOrderTags[cat] = tags;
                 }
-                newOrderTags[cat] = tags;
+                const instrDeletes = stagedTagDeletes.instructions;
+                if (instrDeletes && instrDeletes.size > 0) nextInstrTags = nextInstrTags.filter(t => !instrDeletes.has(t));
+                const instrAdds = stagedTagAdds.instructions;
+                if (instrAdds && instrAdds.length > 0) nextInstrTags = [...nextInstrTags, ...instrAdds];
             }
-            updates.planOrderTags = newOrderTags;
 
-            // Instruction tags
-            let instrTags = [...planInstructionTags];
-            const instrDeletes = stagedTagDeletes.instructions;
-            if (instrDeletes && instrDeletes.size > 0) {
-                instrTags = instrTags.filter(t => !instrDeletes.has(t));
+            if (hasPending) {
+                updateClinicNoteContent(clinicId, {
+                    planOrderTags: nextOrderTags,
+                    planInstructionTags: nextInstrTags,
+                    planOrderSets: nextSets,
+                });
+                useAuthStore.setState({
+                    clinicPlanOrderTags: nextOrderTags,
+                    clinicPlanInstructionTags: nextInstrTags,
+                    clinicPlanOrderSets: nextSets,
+                });
             }
-            const instrAdds = stagedTagAdds.instructions;
-            if (instrAdds && instrAdds.length > 0) {
-                instrTags = [...instrTags, ...instrAdds];
-            }
-            updates.planInstructionTags = instrTags;
-        }
+        } else {
+            // --- Personal save ---
+            const updates: Partial<UserTypes> = {};
 
-        if (hasPending) {
-            handleUpdate(updates);
+            if (hasOrderSetPending) {
+                let next = [...planOrderSets];
+                for (const edited of stagedEdits) {
+                    next = next.map(s => s.id === edited.id ? edited : s);
+                }
+                if (stagedDeletes.size > 0) next = next.filter(s => !stagedDeletes.has(s.id));
+                if (stagedAdds.length > 0) next = [...next, ...stagedAdds];
+                updates.planOrderSets = next;
+            }
+
+            if (hasTagPending) {
+                const newOrderTags = { ...planOrderTags };
+                for (const cat of ['referral', 'meds', 'radiology', 'lab', 'followUp'] as const) {
+                    let tags = [...(newOrderTags[cat] ?? [])];
+                    const deletes = stagedTagDeletes[cat];
+                    if (deletes && deletes.size > 0) tags = tags.filter(t => !deletes.has(t));
+                    const adds = stagedTagAdds[cat];
+                    if (adds && adds.length > 0) tags = [...tags, ...adds];
+                    newOrderTags[cat] = tags;
+                }
+                updates.planOrderTags = newOrderTags;
+
+                let instrTags = [...planInstructionTags];
+                const instrDeletes = stagedTagDeletes.instructions;
+                if (instrDeletes && instrDeletes.size > 0) instrTags = instrTags.filter(t => !instrDeletes.has(t));
+                const instrAdds = stagedTagAdds.instructions;
+                if (instrAdds && instrAdds.length > 0) instrTags = [...instrTags, ...instrAdds];
+                updates.planInstructionTags = instrTags;
+            }
+
+            if (hasPending) handleUpdate(updates);
         }
 
         // Clear all staging
@@ -132,6 +200,16 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
             setComposing(null);
         }
     }, [editing]);
+
+    // Reset staging when scope changes
+    useEffect(() => {
+        setStagedDeletes(new Set());
+        setStagedAdds([]);
+        setStagedEdits([]);
+        setStagedTagDeletes({});
+        setStagedTagAdds({});
+        setComposing(null);
+    }, [scope]);
 
     // Tour system: listen for plan tour events
     useEffect(() => {
@@ -291,12 +369,46 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
         <div className="flex flex-col h-full" data-tour="plan-settings-panel">
             <div className="flex-1 overflow-y-auto">
                 <div className="px-5 py-4 space-y-5">
-                    <p className="text-xs text-tertiary leading-relaxed">
-                        Manage order tags and order sets for the plan section of your notes.
-                    </p>
+                    {isSupervisorRole ? (
+                        <div className="flex items-center gap-2">
+                            <p className="text-xs text-tertiary leading-relaxed flex-1">
+                                {scope === 'clinic'
+                                    ? 'Clinic order sets and tags shared with all members.'
+                                    : 'Your personal order tags and order sets.'}
+                            </p>
+                            <div className="flex rounded-full border border-themeblue3/10 overflow-hidden shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setScope('personal')}
+                                    className={`px-3 py-1.5 text-[11px] font-semibold transition-all ${
+                                        scope === 'personal'
+                                            ? 'bg-themeblue2 text-white'
+                                            : 'text-tertiary hover:bg-tertiary/5'
+                                    }`}
+                                >
+                                    Personal
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setScope('clinic')}
+                                    className={`px-3 py-1.5 text-[11px] font-semibold transition-all ${
+                                        scope === 'clinic'
+                                            ? 'bg-themeblue2 text-white'
+                                            : 'text-tertiary hover:bg-tertiary/5'
+                                    }`}
+                                >
+                                    Clinic
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-xs text-tertiary leading-relaxed">
+                            Manage order tags and order sets for the plan section of your notes.
+                        </p>
+                    )}
 
                     <OrderSetManager
-                        orderSets={planOrderSets}
+                        orderSets={activePlanOrderSets}
                         editing={editing}
                         composing={composing}
                         onComposingNameChange={handleComposingNameChange}
@@ -310,8 +422,8 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
                     />
 
                     <PlanTagManager
-                        orderTags={planOrderTags}
-                        instructionTags={planInstructionTags}
+                        orderTags={activePlanOrderTags}
+                        instructionTags={activePlanInstructionTags}
                         editing={editing}
                         selectMode={!!composing}
                         selectedPresets={composing?.presets}

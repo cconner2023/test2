@@ -122,7 +122,6 @@ export default function GettingStartedScene({ currentStep, isMobile }: GettingSt
                 className="border-t border-tertiary/10 px-4 py-4 text-center"
                 style={{ paddingBottom: 'calc(var(--sab, 0px) + 1rem)' }}
               >
-                <p className="text-sm text-tertiary/60 font-medium">ADTMC MEDCOM PAM 40-7-21</p>
                 <div className="flex items-center justify-center gap-1.5 mt-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-themegreen" />
                   <span className="text-[11px] font-medium text-themegreen">Connected</span>

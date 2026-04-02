@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Check, X, Trash2 } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
-import { COMPREHENSIVE_DEFAULT_BLOCK_IDS, getBlockByKey } from '../../Data/PhysicalExamData';
+import { MASTER_BLOCKS_TOP_LEVEL, MSK_CHILD_KEYS, MASTER_BLOCK_LIBRARY } from '../../Data/PhysicalExamData';
 import type { UserTypes, ProviderNoteTemplate, TextExpander } from '../../Data/User';
 import { PROVIDER_TOUR_TEMPLATE_PREFIX } from '../../Data/GuidedTourData';
 
@@ -387,18 +387,16 @@ export const ProviderTemplatesPanel = ({
                                     <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">Physical Exam</p>
                                     <p className="text-[9pt] text-tertiary/50 uppercase tracking-wider mb-1.5">Exam Blocks</p>
                                     <div className="flex flex-wrap gap-1.5 mb-2">
-                                        {COMPREHENSIVE_DEFAULT_BLOCK_IDS.map(key => {
-                                            const block = getBlockByKey(key);
-                                            if (!block) return null;
-                                            const selected = editCard.peBlockKeys.includes(key);
+                                        {MASTER_BLOCKS_TOP_LEVEL.map(block => {
+                                            const selected = editCard.peBlockKeys.includes(block.key);
                                             return (
                                                 <button
-                                                    key={key}
+                                                    key={block.key}
                                                     type="button"
                                                     onClick={() => {
                                                         const next = selected
-                                                            ? editCard.peBlockKeys.filter(k => k !== key)
-                                                            : [...editCard.peBlockKeys, key];
+                                                            ? editCard.peBlockKeys.filter(k => k !== block.key)
+                                                            : [...editCard.peBlockKeys, block.key];
                                                         setEditCard({ ...editCard, peBlockKeys: next, peText: '' });
                                                     }}
                                                     className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all active:scale-95 ${
@@ -408,6 +406,31 @@ export const ProviderTemplatesPanel = ({
                                                     }`}
                                                 >
                                                     {block.label}
+                                                </button>
+                                            );
+                                        })}
+                                        {/* MSK child blocks — show when msk is selected */}
+                                        {editCard.peBlockKeys.includes('msk') && MSK_CHILD_KEYS.map(childKey => {
+                                            const child = MASTER_BLOCK_LIBRARY[childKey];
+                                            if (!child) return null;
+                                            const selected = editCard.peBlockKeys.includes(childKey);
+                                            return (
+                                                <button
+                                                    key={childKey}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const next = selected
+                                                            ? editCard.peBlockKeys.filter(k => k !== childKey)
+                                                            : [...editCard.peBlockKeys, childKey];
+                                                        setEditCard({ ...editCard, peBlockKeys: next, peText: '' });
+                                                    }}
+                                                    className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all active:scale-95 ${
+                                                        selected
+                                                            ? 'bg-themeblue3/15 text-themeblue3 ring-1 ring-inset ring-themeblue3/20'
+                                                            : 'bg-tertiary/5 text-tertiary/60 hover:bg-tertiary/10'
+                                                    }`}
+                                                >
+                                                    {child.label}
                                                 </button>
                                             );
                                         })}

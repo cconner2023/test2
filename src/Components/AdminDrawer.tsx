@@ -122,7 +122,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const handleRequestApproved = useCallback((
         userId: string,
         request: AccountRequest,
-        configured: { roles: string[]; clinicId: string | null; peDepth: string },
+        configured: { roles: string[]; clinicId: string | null },
     ) => {
         const newUser: AdminUser = {
             id: userId,
@@ -138,7 +138,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             clinic_id: configured.clinicId,
             created_at: new Date().toISOString(),
             last_active_at: null,
-            pe_depth: configured.peDepth,
             avatar_id: null,
         }
         handleSelectUser(newUser)

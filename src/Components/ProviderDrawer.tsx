@@ -16,7 +16,7 @@ import type { PEState } from '../Types/PETypes'
 import type { ProviderNoteTemplate, TextExpander, PlanOrderSet, PlanBlockKey } from '../Data/User'
 import { PLAN_ORDER_LABELS } from '../Data/User'
 import { useUserProfile } from '../Hooks/useUserProfile'
-import { getBlockByKey } from '../Data/PhysicalExamData'
+import { getMasterBlockByKey } from '../Data/PhysicalExamData'
 import { parseNoteEncoding, findAlgorithmByCode, findSymptomByCode, reconstructCardStates } from '../Utilities/noteParser'
 import { decodePEState } from '../Utilities/peCodec'
 import { assembleNote, formatSignature } from '../Utilities/NoteFormatter'
@@ -49,6 +49,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   const [peNote, setPeNote] = useState('')
   const [peState, setPeState] = useState<PEState | null>(null)
   const [peResetKey, setPeResetKey] = useState(0)
+  const [selectedBlockKeys, setSelectedBlockKeys] = useState<string[]>([])
   const [assessmentNote, setAssessmentNote] = useState('')
   const [planNote, setPlanNote] = useState('')
   const [importedMedicNote, setImportedMedicNote] = useState<ImportedMedicNote | null>(null)
@@ -108,7 +109,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       const items: Record<string, { status: 'normal'; selectedNormals: string[]; selectedAbnormals: string[]; findings: string }> = {}
       const textLines: string[] = []
       for (const key of template.peBlockKeys) {
-        const block = getBlockByKey(key)
+        const block = getMasterBlockByKey(key)
         if (block) {
           const normals = block.findings.filter(f => f.normal).map(f => f.key)
           items[key] = {
@@ -122,6 +123,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
         }
       }
       setPeNote(textLines.join('\n'))
+      setSelectedBlockKeys(template.peBlockKeys!)
       setPeState({
         categoryLetter: 'A',
         laterality: 'right',
@@ -129,8 +131,8 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
         items,
         vitals: {},
         additional: '',
-        depth: 'comprehensive',
-        blockOrder: template.peBlockKeys,
+        mode: 'template',
+        blockKeys: template.peBlockKeys,
       })
       setPeResetKey(k => k + 1)
     }
@@ -440,6 +442,8 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                       peState={peState}
                       onPeStateChange={setPeState}
                       peResetKey={peResetKey}
+                      selectedBlockKeys={selectedBlockKeys}
+                      onBlockKeysChange={setSelectedBlockKeys}
                       assessmentNote={assessmentNote}
                       setAssessmentNote={setAssessmentNote}
                       planNote={planNote}
@@ -483,6 +487,8 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                   peState={peState}
                   onPeStateChange={setPeState}
                   peResetKey={peResetKey}
+                  selectedBlockKeys={selectedBlockKeys}
+                  onBlockKeysChange={setSelectedBlockKeys}
                   assessmentNote={assessmentNote}
                   setAssessmentNote={setAssessmentNote}
                   planNote={planNote}

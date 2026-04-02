@@ -99,7 +99,7 @@ export function AdminUserDetail({
   const [editUic, setEditUic] = useState('')
   const [editClinicId, setEditClinicId] = useState('')
   const [editRoles, setEditRoles] = useState<string[]>([])
-  const [editPeDepth, setEditPeDepth] = useState('standard')
+
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -163,7 +163,7 @@ export function AdminUserDetail({
       setEditUic(user?.uic || '')
       setEditClinicId(user?.clinic_id || '')
       setEditRoles(user?.roles?.filter(r => AVAILABLE_ROLES.includes(r as typeof AVAILABLE_ROLES[number])) ?? ['medic'])
-      setEditPeDepth(user?.pe_depth ?? 'standard')
+
       setCreateEmail('')
       setCreatePassword('')
       setError(null)
@@ -183,9 +183,9 @@ export function AdminUserDetail({
       || editUic !== (user?.uic || '')
       || editClinicId !== (user?.clinic_id || '')
       || JSON.stringify([...editRoles].sort()) !== JSON.stringify([...(user?.roles ?? ['medic'])].sort())
-      || editPeDepth !== (user?.pe_depth ?? 'standard')
+
     onPendingChangesChange?.(changed)
-  }, [editing, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editRoles, editPeDepth, user, onPendingChangesChange])
+  }, [editing, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editRoles, user, onPendingChangesChange])
 
   // ── Handlers ────────────────────────────────────────────────────────
 
@@ -254,7 +254,7 @@ export function AdminUserDetail({
       component: editComponent,
       rank: editRank,
       uic: editUic || undefined,
-      peDepth: editPeDepth,
+
     })
     if (!profileResult.success) {
       setError(profileResult.error || 'Failed to update profile')
@@ -301,7 +301,7 @@ export function AdminUserDetail({
     onEditingChange(false)
     loadData()
     invalidate('users', 'clinics')
-  }, [user, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editRoles, editPeDepth, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated])
+  }, [user, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editRoles, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated])
 
   // ── Save requested trigger ───────────────────────────────────────────
   useEffect(() => {
@@ -425,7 +425,6 @@ export function AdminUserDetail({
               placeholder="Roles"
               required
             />
-            <PickerInput value={editPeDepth} onChange={setEditPeDepth} options={['focused', 'standard', 'comprehensive']} placeholder="PE Depth" />
           </div>
         ) : user ? (
           <div>

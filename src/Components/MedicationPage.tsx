@@ -1,4 +1,4 @@
-import { Star } from 'lucide-react'
+import { Pin } from 'lucide-react'
 import type { medListTypes } from "../Data/MedData"
 import { Section, SectionCard } from './Section'
 
@@ -48,16 +48,16 @@ export function MedicationPage({ medication, isFavorite, onToggleFavorite }: Med
                     <button
                         onClick={onToggleFavorite}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-medium active:scale-95 transition-all border border-tertiary/10"
-                        aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                        aria-label={isFavorite ? 'Unpin' : 'Pin'}
                     >
-                        <Star
+                        <Pin
                             size={14}
                             className={isFavorite
                                 ? 'fill-themeblue2 text-themeblue2'
                                 : 'text-tertiary/40'
                             }
                         />
-                        {isFavorite ? 'Favorited' : 'Favorite'}
+                        {isFavorite ? 'Pinned' : 'Pin'}
                     </button>
                 </div>
             )}

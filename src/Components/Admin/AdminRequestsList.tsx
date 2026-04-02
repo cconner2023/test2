@@ -46,7 +46,7 @@ interface AdminRequestsListProps {
   searchQuery?: string
   /** When true, renders items without wrapper chrome (for unified search results) */
   bare?: boolean
-  onApproved?: (userId: string, request: AccountRequest, configured: { roles: string[]; clinicId: string | null; peDepth: string }) => void
+  onApproved?: (userId: string, request: AccountRequest, configured: { roles: string[]; clinicId: string | null }) => void
 }
 
 // ─── Per-card component ─────────────────────────────────────
@@ -72,7 +72,7 @@ function RequestCard({
   setContextMenu: (v: { requestId: string; x: number; y: number } | null) => void
   clinics: AdminClinic[]
   uicToClinic: Map<string, AdminClinic>
-  onApproved?: (userId: string, request: AccountRequest, configured: { roles: string[]; clinicId: string | null; peDepth: string }) => void
+  onApproved?: (userId: string, request: AccountRequest, configured: { roles: string[]; clinicId: string | null }) => void
   onRefresh: () => void
 }) {
   const isSupport = request.request_type === 'support'
@@ -91,7 +91,6 @@ function RequestCard({
   const [uic, setUic] = useState(request.uic || '')
   const [roles, setRoles] = useState<string[]>(['medic'])
   const [selectedClinicId, setSelectedClinicId] = useState('')
-  const [peDepth, setPeDepth] = useState('standard')
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [rejectMode, setRejectMode] = useState(false)
@@ -155,7 +154,6 @@ function RequestCard({
       component,
       rank,
       uic: uic || undefined,
-      peDepth,
     })
     if (!profileResult.success) warnings.push('Profile update failed')
 
@@ -176,13 +174,12 @@ function RequestCard({
     onApproved?.(userId, request, {
       roles: chosenRoles,
       clinicId: selectedClinicId,
-      peDepth,
     })
     invalidate('requests', 'users')
     onRefresh()
   }, [
     request, firstName, lastName, middleInitial, credential, component, rank, uic,
-    roles, selectedClinicId, peDepth, onApproved, onRefresh,
+    roles, selectedClinicId, onApproved, onRefresh,
   ])
 
   const handleReject = useCallback(async () => {
@@ -402,7 +399,6 @@ function RequestCard({
                   required
                 />
 
-                <PickerInput value={peDepth} onChange={setPeDepth} options={['focused', 'standard', 'comprehensive']} placeholder="PE Depth" />
             </div>
 
             {/* Action buttons */}

@@ -41,7 +41,6 @@ export interface AdminUser {
   clinic_id: string | null
   created_at: string
   last_active_at: string | null
-  pe_depth: string | null
   avatar_id: string | null
 }
 
@@ -720,7 +719,6 @@ export async function updateUserProfile(
     component?: string
     rank?: string
     uic?: string
-    peDepth?: string
   }
 ): Promise<ServiceResult> {
   try {
@@ -737,7 +735,6 @@ export async function updateUserProfile(
       p_component: profileData.component ?? undefined,
       p_rank: profileData.rank ?? undefined,
       p_uic: profileData.uic || undefined,
-      p_pe_depth: profileData.peDepth ?? undefined,
     })
 
     if (error) return fail(error.message)

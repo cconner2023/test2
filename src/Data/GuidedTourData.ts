@@ -168,11 +168,11 @@ export const GUIDED_VITALS_TEXT =
 
 /** PE blocks for the guided tour demo (baseline + category A) */
 export const GUIDED_PE_BLOCKS = [
-  'bl_gen',        // GEN
-  'bl_hent',       // HENT (baseline)
-  'cat_a_nose',    // Nose (category A)
-  'cat_a_throat',  // Throat (category A)
-  'cat_a_neck',    // Neck (category A)
+  'gen',           // General
+  'head',          // Head
+  'nose',          // Nose
+  'oral_throat',   // Oral/Throat
+  'neck',          // Neck
 ] as const
 
 /**
@@ -181,17 +181,17 @@ export const GUIDED_PE_BLOCKS = [
  */
 export const GUIDED_PE_ABNORMALS: Record<string, string[]> = {
   // Nose block: clear rhinorrhea
-  'cat_a_nose:noDischarge': ['clearRhinorrhea'],
-  // Throat block: pharyngeal erythema
-  'cat_a_throat:pharynxNonErythematous': ['pharyngealErythema'],
+  'nose:noNasalDischarge': ['clearRhinorrhea'],
+  // Oral/Throat block: pharyngeal erythema
+  'oral_throat:noErythemaPharynx': ['pharyngealErythema'],
 }
 
 export const GUIDED_PE_TEXT =
-  'GEN: Appears stated age, WNWD, no acute distress. ' +
-  'HENT: NCAT. ' +
-  'Nose: Nares patent bilaterally, septum midline, mucosa pink and moist, clear rhinorrhea, turbinates normal, no sinus tenderness. ' +
-  'Throat: Pharyngeal erythema, tonsils non-enlarged, uvula midline, no exudate, no peritonsillar swelling, no cobblestoning. ' +
-  'Neck: Supple, no lymphadenopathy, no thyromegaly.'
+  'GENERAL: Appears stated age, WNWD, No acute distress\n' +
+  'HEAD: NCAT\n' +
+  'NOSE: No nasal discharge. Clear rhinorrhea\n' +
+  'ORAL/THROAT: No erythema. Pharyngeal erythema\n' +
+  'NECK: Supple, Non-tender, No lymphadenopathy'
 
 // ─── Plan ────────────────────────────────────────────────────────────────────
 // Custom order set for URI

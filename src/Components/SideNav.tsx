@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, useSyncExternalStore } from 'react'
-import { Upload, BookOpen, Mail, Package, ClipboardCheck, Settings, HelpCircle, UserCog, Radio, Map as MapIcon, Eye, CalendarDays, Stethoscope } from 'lucide-react'
+import { Upload, BookOpen, Mail, Package, ClipboardCheck, Settings, HelpCircle, UserCog, Radio, Map as MapIcon, Eye, CalendarDays, Stethoscope, MessageSquare, X } from 'lucide-react'
 import { useAuth } from '../Hooks/useAuth'
 import { useAvatar } from '../Utilities/AvatarContext'
 import { useTotalUnread } from '../stores/useMessagingStore'
@@ -62,6 +62,14 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
 
   const iconMap = isMobile ? iconMapMobile : iconMapDesktop
   const DESKTOP_HIDDEN_ACTIONS = new Set(['knowledgebase', 'import'])
+
+  const [feedbackDismissed, setFeedbackDismissed] = useState(() => {
+    try { return localStorage.getItem('feedback-banner-dismissed') === '1' } catch { return false }
+  })
+  const dismissFeedback = useCallback(() => {
+    setFeedbackDismissed(true)
+    try { localStorage.setItem('feedback-banner-dismissed', '1') } catch { }
+  }, [])
 
   const {
     visibleItems, hidden, hiddenCount, currentActionOrder, isDefaultOrder,
@@ -207,9 +215,31 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
         )}
       </div>
 
+      {/* Feedback banner */}
+      {!feedbackDismissed && (
+        <div className="mx-3 mb-2">
+          <div className="relative flex items-center gap-3 py-2 cursor-pointer active:scale-[0.98] transform-gpu transition-all duration-200 hover:bg-themeblue2/5"
+            onClick={() => { onMenuItemClick('settings-feedback'); onClose() }}
+          >
+            <div className="w-9 h-9 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
+              <MessageSquare size={16} className="text-themeblue3" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-primary">Share feedback</div>
+              <div className="text-xs text-tertiary leading-relaxed">Help improve the application</div>
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); dismissFeedback() }}
+              className="p-1 rounded-full hover:bg-tertiary/10 text-tertiary/40 hover:text-tertiary transition-colors"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <div className="border-t border-tertiary/10 px-4 py-4 text-center" style={{ paddingBottom: 'calc(var(--sab, 0px) + 1rem)' }}>
-        <p className="text-sm text-tertiary/60 font-medium">ADTMC MEDCOM PAM 40-7-21</p>
         <p className="text-xs text-tertiary/40 mt-1">Version {__APP_VERSION__}</p>
         <div className="flex items-center justify-center gap-1.5 mt-2">
           <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-themegreen' : 'bg-tertiary/40'}`} />

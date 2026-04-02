@@ -5,6 +5,7 @@ import { getErrorMessage } from '../Utilities/errorUtils'
 import { validateRpcResult } from './validators'
 import { validatePasswordComplexity } from './constants'
 import { encryptWithRawKey, decryptWithRawKey } from './cryptoService'
+import type { TextExpander, PlanOrderTags, PlanOrderSet } from '../Data/User'
 
 const logger = createLogger('SupervisorService')
 
@@ -396,6 +397,62 @@ export async function setMemberRoles(
     return succeed()
   } catch (error) {
     logger.error('Failed to set member roles:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+// ─── Get Clinic Note Content ──────────────────────────────────────────────
+
+export interface ClinicNoteContent {
+  textExpanders: TextExpander[]
+  planOrderTags: PlanOrderTags | null
+  planInstructionTags: string[]
+  planOrderSets: PlanOrderSet[]
+}
+
+export async function getClinicNoteContent(
+  clinicId: string
+): Promise<ServiceResult<ClinicNoteContent>> {
+  try {
+    const { data, error } = await supabase
+      .from('clinics')
+      .select('text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets')
+      .eq('id', clinicId)
+      .single()
+
+    if (error) return fail(error.message)
+
+    return succeed({
+      textExpanders: (data?.text_expanders as TextExpander[] | null) ?? [],
+      planOrderTags: (data?.plan_order_tags as PlanOrderTags | null) ?? null,
+      planInstructionTags: (data?.plan_instruction_tags as string[] | null) ?? [],
+      planOrderSets: (data?.plan_order_sets as PlanOrderSet[] | null) ?? [],
+    })
+  } catch (error) {
+    logger.error('Failed to get clinic note content:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+// ─── Update Clinic Note Content ───────────────────────────────────────────
+
+export async function updateClinicNoteContent(
+  clinicId: string,
+  content: Partial<ClinicNoteContent>
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('supervisor_update_clinic_note_content', {
+      p_clinic_id: clinicId,
+      p_text_expanders: content.textExpanders !== undefined ? content.textExpanders : null,
+      p_plan_order_tags: content.planOrderTags !== undefined ? content.planOrderTags : null,
+      p_plan_instruction_tags: content.planInstructionTags !== undefined ? content.planInstructionTags : null,
+      p_plan_order_sets: content.planOrderSets !== undefined ? content.planOrderSets : null,
+    })
+
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to update clinic note content:', error)
     return fail(getErrorMessage(error))
   }
 }

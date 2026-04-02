@@ -25,6 +25,7 @@ export interface Certification {
     updated_at: string;
 }
 
+/** @deprecated Use MASTER_BLOCKS from PhysicalExamData instead. Kept for backward compat. */
 export interface CustomPEBlock {
     id: string;
     name: string;
@@ -35,10 +36,13 @@ export interface CustomPEBlock {
 export interface CustomExamTemplate {
     id: string;
     name: string;
+    /** Stores master block keys from MASTER_BLOCKS */
     blockIds: string[];
+    /** @deprecated Was used for user-defined custom blocks */
     customBlocks?: CustomPEBlock[];
 }
 
+/** @deprecated Use CustomExamTemplate with MASTER_BLOCKS instead. Kept for backward compat. */
 export interface ComprehensivePETemplate {
     blockIds: string[];
     hiddenOptions?: Record<string, string[]>; // blockKey -> hidden abnormal option keys
@@ -80,11 +84,11 @@ export interface ProviderNoteTemplate {
     hpiExpanderAbbr?: string;
     hpiExpanderAbbrs?: string[];
     hpiText?: string;
-    peDepth?: 'focused' | 'comprehensive' | 'custom';
     /** @deprecated Use peExpanderAbbrs */
     peExpanderAbbr?: string;
     peExpanderAbbrs?: string[];
     peText?: string;
+    /** Stores master block keys from MASTER_BLOCKS */
     peBlockKeys?: string[];
     /** @deprecated Use assessmentExpanderAbbrs */
     assessmentExpanderAbbr?: string;
@@ -110,13 +114,11 @@ export interface UserTypes {
     clinicName?: string;
     /** Dev-only: login alerts, account requests, feedback */
     notifyDevAlerts?: boolean;
-    /** PE depth: 'focused', 'comprehensive', or 'custom' */
-    peDepth?: 'focused' | 'comprehensive' | 'custom';
-    /** User-defined custom PE blocks (kept for backward-compat migration) */
+    /** @deprecated Use MASTER_BLOCKS from PhysicalExamData. Kept for backward compat. */
     customPEBlocks?: CustomPEBlock[];
     /** User-defined named exam templates (custom mode) */
     customExamTemplates?: CustomExamTemplate[];
-    /** Provider comprehensive exam template (customized block list + hidden options) */
+    /** @deprecated Use CustomExamTemplate with MASTER_BLOCKS instead. Kept for backward compat. */
     comprehensivePETemplate?: ComprehensivePETemplate;
     /** User-defined text expander abbreviations */
     textExpanders?: TextExpander[];

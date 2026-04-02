@@ -46,7 +46,7 @@ interface SettingsDrawerProps {
     onClose: () => void;
     isDarkMode: boolean;
     onToggleTheme: () => void;
-    initialPanel?: 'main' | 'release-notes' | 'user-profile';
+    initialPanel?: 'main' | 'release-notes' | 'user-profile' | 'feedback';
 }
 
 export const Settings = ({
@@ -63,7 +63,6 @@ export const Settings = ({
     const prevVisibleRef = useRef(false);
     const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
     const { user, signOut, isAuthenticated, isDevRole, isSupervisorRole, clinicId } = useAuth();
-    const [peEditing, setPeEditing] = useState(false);
     const [planEditing, setPlanEditing] = useState(false);
     const [planSaveRequested, setPlanSaveRequested] = useState(false);
     const [planHasPending, setPlanHasPending] = useState(false);
@@ -293,7 +292,7 @@ export const Settings = ({
                 return () => { handleSlideAnimation('right'); setActivePanel('main'); };
             }
             if (activePanel === 'physical-exam') {
-                return () => { handleSlideAnimation('right'); setPeEditing(false); setActivePanel('note-content'); };
+                return () => { handleSlideAnimation('right'); setActivePanel('note-content'); };
             }
             if (activePanel === 'plan-settings') {
                 return () => { handleSlideAnimation('right'); setPlanEditing(false); setActivePanel('note-content'); };
@@ -312,7 +311,7 @@ export const Settings = ({
     const handleClose = useCallback(() => {
         setActivePanel('main');
         setSlideDirection('');
-        setPeEditing(false);
+
         setPlanEditing(false);
         setPlanSaveRequested(false);
         setPlanHasPending(false);
@@ -363,35 +362,8 @@ export const Settings = ({
             case 'feedback':            return { title: 'Feedback', ...backTo() };
             case 'privacy-policy':      return { title: 'Privacy Policy', ...backTo() };
             case 'note-content':            return { title: 'Note Content', ...backTo() };
-            case 'physical-exam': {
-                const doBack = () => { handleSlideAnimation('right'); setPeEditing(false); setActivePanel('note-content'); };
-                const pePills = (
-                    <HeaderPill>
-                        <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
-                            peEditing ? 'max-w-16 opacity-100' : 'max-w-0 opacity-0'
-                        }`}>
-                            <PillButton icon={X} iconSize={18} onClick={() => setPeEditing(false)} label="Cancel" />
-                        </div>
-                        <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
-                            !peEditing ? 'max-w-22 opacity-100' : 'max-w-0 opacity-0'
-                        }`}>
-                            <PillButton icon={Pencil} iconSize={18} onClick={() => setPeEditing(true)} label="Edit" />
-                        </div>
-                        {peEditing ? (
-                            <PillButton icon={Check} iconSize={18} circleBg="bg-themegreen text-white" onClick={() => setPeEditing(false)} label="Done" />
-                        ) : (
-                            <PillButton icon={X} onClick={handleClose} label="Close" />
-                        )}
-                    </HeaderPill>
-                );
-                return {
-                    title: 'Physical Exam',
-                    showBack: true as const,
-                    onBack: doBack,
-                    rightContent: pePills,
-                    hideDefaultClose: true,
-                };
-            }
+            case 'physical-exam':
+                return { title: 'Physical Exam', showBack: true as const, onBack: () => { handleSlideAnimation('right'); setActivePanel('note-content'); } };
             case 'text-templates': {
                 const doTemplatesBack = () => { handleSlideAnimation('right'); setTemplatesEditing(false); setTemplatesHasPending(false); setActivePanel('note-content'); };
                 const templatesPills = (
@@ -529,7 +501,7 @@ export const Settings = ({
             }
 
         }
-    }, [activePanel, backTo, handleClose, isSupervisorRole, clinicEditing, peEditing, planEditing, planSaveRequested, planHasPending, templatesEditing, templatesSaveRequested, templatesHasPending, provTemplatesEditing, provTemplatesSaveRequested, provTemplatesHasPending, handleSlideAnimation, guardedClinicAction]);
+    }, [activePanel, backTo, handleClose, isSupervisorRole, clinicEditing, planEditing, planSaveRequested, planHasPending, templatesEditing, templatesSaveRequested, templatesHasPending, provTemplatesEditing, provTemplatesSaveRequested, provTemplatesHasPending, handleSlideAnimation, guardedClinicAction]);
 
     return (<>
         <BaseDrawer
@@ -639,7 +611,7 @@ export const Settings = ({
                                     }}
                                 />
                             ),
-                            'physical-exam':        <PhysicalExamPanel editing={peEditing} />,
+                            'physical-exam':        <PhysicalExamPanel />,
                             'plan-settings': (
                                 <PlanPanel
                                     editing={planEditing}

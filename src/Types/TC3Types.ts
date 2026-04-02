@@ -211,7 +211,6 @@ export const TC3_WIZARD_PAGES: { id: string; label: string }[] = [
   { id: 'mechanism', label: 'Mechanism of Injury' },
   { id: 'injuries', label: 'Injuries' },
   { id: 'vitals', label: 'Signs & Symptoms' },
-  { id: 'treatments', label: 'Treatments' },
-  { id: 'medications', label: 'Medications' },
+  { id: 'treatments', label: 'Interventions' },
   { id: 'other', label: 'Other / Notes' },
 ]

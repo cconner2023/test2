@@ -1,15 +1,13 @@
 // Data/PhysicalExamData.ts
 // Physical exam block definitions using paired findings model.
-
-// Data/PhysicalExamData_part1.ts — Part 1: Types, Vital Signs, Baseline Wrappers
-// This will be assembled into the final file.
+// Consolidated master blocks with tiered findings for baseline/expanded PE.
 
 // ── Existing type exports (preserve) ──────────────────────────
 export type CategoryLetter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M';
 export type Laterality = 'left' | 'right' | 'bilateral';
 export type SpineRegion = 'cervical' | 'thoracic' | 'lumbar' | 'sacral';
 
-// ── New paired findings model ─────────────────────────────────
+// ── Paired findings model ─────────────────────────────────────
 export interface AbnormalOption {
     key: string;
     label: string;
@@ -35,6 +33,22 @@ export interface VitalSignDef {
     placeholder: string;
 }
 
+// ── Master block types ────────────────────────────────────────
+export interface MasterPEFinding {
+    key: string;
+    normal: string;
+    abnormals: AbnormalOption[];
+    tier: 'baseline' | 'expanded';
+}
+
+export interface MasterPEBlock {
+    key: string;
+    label: string;
+    findings: MasterPEFinding[];
+    /** If set, this block is a child of another block (e.g. msk_back is child of msk) */
+    parent?: string;
+}
+
 export const VITAL_SIGNS: VitalSignDef[] = [
     { key: 'hr',    label: 'Heart Rate',      shortLabel: 'HR',   unit: 'bpm',  placeholder: '60-100' },
     { key: 'rr',    label: 'Respirations',    shortLabel: 'RR',   unit: '/min', placeholder: '12-20'  },
@@ -49,145 +63,813 @@ export function isBackPainCode(code: string): boolean {
     return code === 'B-1';
 }
 
-// ── Baseline wrapper blocks ───────────────────────────────────
-// Order in every exam: VS → GEN → EYES → HENT → [exam body] → NEURO → PSYCH
+// ══════════════════════════════════════════════════════════════
+// MASTER BLOCKS — consolidated PE with tiered findings
+// ══════════════════════════════════════════════════════════════
 
-export const BASELINE_BEFORE_COUNT = 3; // GEN + EYES + HENT appear before category blocks
+export const MASTER_BLOCKS: MasterPEBlock[] = [
+    {
+        key: 'gen',
+        label: 'General',
+        findings: [
+        { key: 'appearsStatedAge', normal: 'Appears stated age', abnormals: [], tier: 'baseline' },
+        { key: 'wnwd', normal: 'WNWD', abnormals: [
+                { key: 'thinAppearing', label: 'Thin appearing' },
+                { key: 'excessiveAbdominalAdiposity', label: 'Excessive abdominal adiposity' },
+                { key: 'cachexia', label: 'Cachexia' },
+            ], tier: 'baseline' },
+        { key: 'noAcuteDistress', normal: 'No acute distress', abnormals: [
+                { key: 'acuteDistress', label: 'Acute distress' },
+                { key: 'mildDistress', label: 'Mild distress' },
+                { key: 'moderateDistress', label: 'Moderate distress' },
+            ], tier: 'baseline' },
+        { key: 'alert', normal: 'Alert', abnormals: [{ key: 'lethargic', label: 'Lethargic' }, { key: 'ams', label: 'AMS' }], tier: 'expanded' },
+        { key: 'wellNourished', normal: 'Well-nourished', abnormals: [{ key: 'appearsIll', label: 'Appears ill' }], tier: 'expanded' },
+        { key: 'noDiaphoresis', normal: 'No diaphoresis', abnormals: [{ key: 'diaphoretic', label: 'Diaphoretic' }], tier: 'expanded' },
+        { key: 'goodColor', normal: 'Good color', abnormals: [{ key: 'pallor', label: 'Pallor' }], tier: 'expanded' },
+        { key: 'improvedFromPrior', normal: 'Improved from prior', abnormals: [{ key: 'worsenedFromPrior', label: 'Worsened from prior' }, { key: 'noChangeFromPrior', label: 'No change from prior' }], tier: 'expanded' },
+        ],
+    },
 
+    {
+        key: 'head',
+        label: 'Head',
+        findings: [
+        { key: 'normocephalicAtraumatic', normal: 'NCAT', abnormals: [{ key: 'scalpTenderness', label: 'Scalp tenderness' }, { key: 'scalpLaceration', label: 'Scalp laceration' }], tier: 'baseline' },
+        ],
+    },
+
+    {
+        key: 'eyes',
+        label: 'Eyes',
+        findings: [
+        { key: 'perrl', normal: 'PERRL', abnormals: [
+                { key: 'anisocoria', label: 'Anisocoria' },
+                { key: 'fixedPupil', label: 'Fixed pupil' },
+                { key: 'dilatedPupil', label: 'Dilated pupil' },
+                { key: 'constrictedPupil', label: 'Constricted pupil' },
+                { key: 'apdPresent', label: 'APD present' },
+            ], tier: 'baseline' },
+        { key: 'eomi', normal: 'EOMI', abnormals: [
+                { key: 'restrictedEom', label: 'Restricted EOM' },
+                { key: 'nystagmus', label: 'Nystagmus' },
+                { key: 'diplopia', label: 'Diplopia' },
+                { key: 'strabismus', label: 'Strabismus' },
+            ], tier: 'baseline' },
+        { key: 'vffc', normal: 'VFFC', abnormals: [{ key: 'visualFieldDeficit', label: 'Visual field deficit' }], tier: 'baseline' },
+        { key: 'visualAcuityIntactBilaterally', normal: 'Visual acuity intact bilaterally', abnormals: [
+                { key: 'decreasedAcuityL', label: 'Decreased acuity (L)' },
+                { key: 'decreasedAcuityR', label: 'Decreased acuity (R)' },
+                { key: 'decreasedAcuityBl', label: 'Decreased acuity (BL)' },
+            ], tier: 'expanded' },
+        { key: 'conjunctivaeClear', normal: 'Conjunctivae clear', abnormals: [
+                { key: 'conjunctivalInjection', label: 'Conjunctival injection' },
+                { key: 'chemosis', label: 'Chemosis' },
+                { key: 'subconjunctivalHemorrhage', label: 'Subconjunctival hemorrhage' },
+            ], tier: 'expanded' },
+        { key: 'scleraeWhite', normal: 'Sclerae white', abnormals: [{ key: 'icterus', label: 'Icterus' }], tier: 'expanded' },
+        { key: 'discsSharp', normal: 'Discs sharp', abnormals: [{ key: 'discEdema', label: 'Disc edema' }, { key: 'hemorrhageFundus', label: 'Hemorrhage' }], tier: 'expanded' },
+        { key: 'lidsNormal', normal: 'Lids normal', abnormals: [
+                { key: 'chalazion', label: 'Chalazion' },
+                { key: 'hordeolum', label: 'Hordeolum' },
+                { key: 'ptosis', label: 'Ptosis' },
+                { key: 'lidEdema', label: 'Lid edema' },
+            ], tier: 'expanded' },
+        { key: 'noDischargeEye', normal: 'No discharge', abnormals: [{ key: 'dischargeEye', label: 'Discharge' }], tier: 'expanded' },
+        { key: 'noPterygium', normal: 'No pterygium', abnormals: [{ key: 'pterygium', label: 'Pterygium' }], tier: 'expanded' },
+        ],
+    },
+
+    {
+        key: 'ears',
+        label: 'Ears',
+        findings: [
+        { key: 'pinnaNormalNontender', normal: 'Pinna normal, nontender', abnormals: [{ key: 'pinnaTenderness', label: 'Pinna tenderness' }, { key: 'tragalTenderness', label: 'Tragal tenderness' }], tier: 'baseline' },
+        { key: 'mastoidNontender', normal: 'Mastoid nontender', abnormals: [{ key: 'mastoidTtp', label: 'Mastoid TTP' }], tier: 'baseline' },
+        { key: 'eacClear', normal: 'EAC clear', abnormals: [
+                { key: 'eacErythema', label: 'EAC erythema' },
+                { key: 'canalEdema', label: 'Canal edema' },
+                { key: 'cerumenImpaction', label: 'Cerumen impaction' },
+            ], tier: 'baseline' },
+        { key: 'tmIntact', normal: 'TM intact', abnormals: [
+                { key: 'tmErythema', label: 'TM erythema' },
+                { key: 'tmBulging', label: 'TM bulging' },
+                { key: 'tmPerforation', label: 'TM perforation' },
+                { key: 'tmEffusion', label: 'TM effusion' },
+            ], tier: 'expanded' },
+        { key: 'normalLightReflex', normal: 'Normal light reflex', abnormals: [{ key: 'landmarksDistorted', label: 'Landmarks distorted' }], tier: 'expanded' },
+        { key: 'tmMobile', normal: 'TM mobile', abnormals: [{ key: 'tmImmobile', label: 'TM immobile' }], tier: 'expanded' },
+        { key: 'noEffusion', normal: 'No effusion', abnormals: [{ key: 'effusion', label: 'Effusion' }], tier: 'expanded' },
+        { key: 'canalClear', normal: 'Canal clear', abnormals: [{ key: 'cerumenImpactionExp', label: 'Cerumen impaction' }], tier: 'expanded' },
+        ],
+    },
+
+    {
+        key: 'nose',
+        label: 'Nose',
+        findings: [
+        { key: 'noExternalDeformities', normal: 'No external deformities', abnormals: [], tier: 'baseline' },
+        { key: 'noNasalDischarge', normal: 'No nasal discharge', abnormals: [
+                { key: 'purulentDischarge', label: 'Purulent discharge' },
+                { key: 'clearRhinorrhea', label: 'Clear rhinorrhea' },
+                { key: 'epistaxis', label: 'Epistaxis' },
+            ], tier: 'baseline' },
+        { key: 'septumMidline', normal: 'Septum midline', abnormals: [{ key: 'septalDeviation', label: 'Septal deviation' }], tier: 'baseline' },
+        { key: 'mucosaPink', normal: 'Mucosa pink', abnormals: [{ key: 'mucosalErythema', label: 'Mucosal erythema' }], tier: 'expanded' },
+        { key: 'turbinatesNotSwollen', normal: 'Turbinates not swollen', abnormals: [{ key: 'turbinateHypertrophy', label: 'Turbinate hypertrophy' }], tier: 'expanded' },
+        { key: 'noSinusTenderness', normal: 'No sinus tenderness', abnormals: [{ key: 'frontalSinusTenderness', label: 'Frontal sinus tenderness' }, { key: 'maxillarySinusTenderness', label: 'Maxillary sinus tenderness' }], tier: 'expanded' },
+        { key: 'naresPatent', normal: 'Nares patent bilaterally', abnormals: [], tier: 'expanded' },
+        ],
+    },
+
+    {
+        key: 'oral_throat',
+        label: 'Oral/Throat',
+        findings: [
+        { key: 'mucosaMoistAndClear', normal: 'Mucosa moist and clear', abnormals: [{ key: 'dryMucousMembranes', label: 'Dry mucous membranes' }, { key: 'thrush', label: 'Thrush' }], tier: 'baseline' },
+        { key: 'noMassesOrLesions', normal: 'No masses or lesions', abnormals: [{ key: 'oralLesionUlcer', label: 'Oral lesion/ulcer' }, { key: 'abscess', label: 'Abscess' }], tier: 'baseline' },
+        { key: 'noErythemaPharynx', normal: 'No erythema', abnormals: [{ key: 'pharyngealErythema', label: 'Pharyngeal erythema' }], tier: 'baseline' },
+        { key: 'noPndOrDrainage', normal: 'No PND or drainage', abnormals: [{ key: 'pndPresent', label: 'PND present' }, { key: 'cobblestoning', label: 'Cobblestoning' }], tier: 'baseline' },
+        { key: 'dentitionIntact', normal: 'Dentition intact', abnormals: [{ key: 'poorDentition', label: 'Poor dentition' }, { key: 'dentalCaries', label: 'Dental caries' }], tier: 'expanded' },
+        { key: 'gingivaHealthy', normal: 'Gingiva healthy', abnormals: [{ key: 'gingivalErythema', label: 'Gingival erythema' }, { key: 'gingivalBleeding', label: 'Gingival bleeding' }], tier: 'expanded' },
+        { key: 'tonsilsGrade1', normal: 'Tonsils Grade 1', abnormals: [{ key: 'tonsillarHypertrophyGrade2', label: 'Tonsillar hypertrophy (Grade 2)' }, { key: 'tonsillarHypertrophyGrade3', label: 'Tonsillar hypertrophy (Grade 3)' }], tier: 'expanded' },
+        { key: 'symmetricMidlineUvula', normal: 'Symmetric, midline uvula', abnormals: [{ key: 'uvularDeviation', label: 'Uvular deviation' }, { key: 'peritonsillarSwelling', label: 'Peritonsillar swelling' }], tier: 'expanded' },
+        { key: 'noTonsillarExudate', normal: 'No tonsillar exudate', abnormals: [{ key: 'tonsillarExudate', label: 'Tonsillar exudate' }], tier: 'expanded' },
+        { key: 'lipsNormal', normal: 'Lips normal', abnormals: [{ key: 'lipLesion', label: 'Lip lesion' }], tier: 'expanded' },
+        { key: 'noTrismus', normal: 'No trismus', abnormals: [{ key: 'trismus', label: 'Trismus' }], tier: 'expanded' },
+        ],
+    },
+
+    {
+        key: 'neck',
+        label: 'Neck',
+        findings: [
+        { key: 'supple', normal: 'Supple', abnormals: [{ key: 'meningismus', label: 'Meningismus' }], tier: 'baseline' },
+        { key: 'nonTenderNeck', normal: 'Non-tender', abnormals: [{ key: 'ttpNeck', label: 'TTP' }], tier: 'baseline' },
+        { key: 'noLymphadenopathy', normal: 'No lymphadenopathy', abnormals: [
+                { key: 'cervicalLad', label: 'Cervical LAD' },
+                { key: 'preauricularLad', label: 'Preauricular LAD' },
+                { key: 'supraclavicularLad', label: 'Supraclavicular LAD' },
+            ], tier: 'baseline' },
+        { key: 'noCarotidBruits', normal: 'No carotid bruits', abnormals: [{ key: 'carotidBruitR', label: 'Carotid bruit R' }, { key: 'carotidBruitL', label: 'Carotid bruit L' }], tier: 'expanded' },
+        { key: 'noJvd', normal: 'No JVD', abnormals: [{ key: 'jvdNoted', label: 'JVD noted' }], tier: 'expanded' },
+        { key: 'tracheaMidline', normal: 'Trachea midline', abnormals: [{ key: 'trachealDeviation', label: 'Tracheal deviation' }], tier: 'expanded' },
+        { key: 'thyroidNonEnlarged', normal: 'Thyroid non-enlarged', abnormals: [{ key: 'thyromegaly', label: 'Thyromegaly' }], tier: 'expanded' },
+        { key: 'fullRomNeck', normal: 'Full ROM', abnormals: [{ key: 'limitedRomNeck', label: 'Limited ROM' }], tier: 'expanded' },
+        ],
+    },
+
+    {
+        key: 'cv',
+        label: 'Cardiovascular',
+        findings: [
+        { key: 'normalRate', normal: 'Normal rate', abnormals: [{ key: 'tachycardia', label: 'Tachycardia' }, { key: 'bradycardia', label: 'Bradycardia' }], tier: 'baseline' },
+        { key: 'regularRhythm', normal: 'Regular rhythm', abnormals: [{ key: 'irregularRhythm', label: 'Irregular rhythm' }], tier: 'baseline' },
+        { key: 'noMurmur', normal: 'No murmur', abnormals: [{ key: 'murmurSpecify', label: 'Murmur (specify)' }], tier: 'baseline' },
+        { key: 'noRub', normal: 'No rub', abnormals: [{ key: 'rub', label: 'Rub' }], tier: 'baseline' },
+        { key: 'noGallop', normal: 'No gallop', abnormals: [{ key: 'gallopS3', label: 'Gallop (S3)' }, { key: 'gallopS4', label: 'Gallop (S4)' }], tier: 'baseline' },
+        { key: 'pulses2PlusEqualBilaterally', normal: 'Pulses 2+ equal bilaterally', abnormals: [{ key: 'diminishedPulses', label: 'Diminished pulses' }, { key: 'absentPulses', label: 'Absent pulses' }], tier: 'expanded' },
+        { key: 'capRefillLt3Sec', normal: 'Cap refill < 3 sec', abnormals: [{ key: 'delayedCapRefill', label: 'Delayed cap refill' }], tier: 'expanded' },
+        { key: 'noEdemaCV', normal: 'No edema', abnormals: [{ key: 'peripheralEdema', label: 'Peripheral edema' }], tier: 'expanded' },
+        { key: 'warmExtremitiesCV', normal: 'Warm extremities', abnormals: [{ key: 'coolExtremities', label: 'Cool extremities' }, { key: 'cyanosis', label: 'Cyanosis' }], tier: 'expanded' },
+        { key: 's1S2Normal', normal: 'S1/S2 normal', abnormals: [], tier: 'expanded' },
+        ],
+    },
+
+    {
+        key: 'pulm',
+        label: 'Pulmonary',
+        findings: [
+        { key: 'ctaBilaterally', normal: 'CTA bilaterally', abnormals: [{ key: 'diminishedBreathSounds', label: 'Diminished breath sounds' }], tier: 'baseline' },
+        { key: 'nonLaboredRespirations', normal: 'Non-labored respirations', abnormals: [{ key: 'tachypnea', label: 'Tachypnea' }], tier: 'baseline' },
+        { key: 'noWheezes', normal: 'No wheezes', abnormals: [{ key: 'wheezing', label: 'Wheezing' }], tier: 'baseline' },
+        { key: 'noRales', normal: 'No rales', abnormals: [{ key: 'ralesCrackles', label: 'Rales/crackles' }], tier: 'baseline' },
+        { key: 'noRhonchi', normal: 'No rhonchi', abnormals: [{ key: 'rhonchi', label: 'Rhonchi' }], tier: 'expanded' },
+        { key: 'noStridor', normal: 'No stridor', abnormals: [{ key: 'stridor', label: 'Stridor' }], tier: 'expanded' },
+        { key: 'noPleuralRub', normal: 'No pleural rub', abnormals: [{ key: 'pleuralRub', label: 'Pleural rub' }], tier: 'expanded' },
+        { key: 'noAccessoryMuscleUse', normal: 'No accessory muscle use', abnormals: [
+                { key: 'accessoryMuscleUse', label: 'Accessory muscle use' },
+                { key: 'retractions', label: 'Retractions' },
+                { key: 'nasalFlaring', label: 'Nasal flaring' },
+                { key: 'tripoding', label: 'Tripoding' },
+            ], tier: 'expanded' },
+        { key: 'speakingFullSentences', normal: 'Speaking full sentences', abnormals: [{ key: 'speaksInFragments', label: 'Speaks in fragments' }], tier: 'expanded' },
+        { key: 'symmetricRiseFall', normal: 'Symmetric rise and fall', abnormals: [{ key: 'asymmetricExpansion', label: 'Asymmetric expansion' }, { key: 'chestWallDeformity', label: 'Chest wall deformity' }], tier: 'expanded' },
+        { key: 'nonTenderChest', normal: 'Non-tender', abnormals: [{ key: 'tendernessChest', label: 'Tenderness' }, { key: 'crepitusChest', label: 'Crepitus' }], tier: 'expanded' },
+        ],
+    },
+
+    {
+        key: 'abd',
+        label: 'Abdomen',
+        findings: [
+        { key: 'soft', normal: 'Soft', abnormals: [{ key: 'rigidity', label: 'Rigidity' }], tier: 'baseline' },
+        { key: 'nonTenderAbd', normal: 'Non-tender', abnormals: [{ key: 'ttpSpecifyLocation', label: 'TTP (specify location)' }], tier: 'baseline' },
+        { key: 'nonDistended', normal: 'Non-distended', abnormals: [{ key: 'distended', label: 'Distended' }], tier: 'baseline' },
+        { key: 'noMassesAbd', normal: 'No masses', abnormals: [{ key: 'massSpecify', label: 'Mass (specify)' }], tier: 'baseline' },
+        { key: 'noGuarding', normal: 'No guarding', abnormals: [{ key: 'muscleGuarding', label: 'Muscle guarding' }, { key: 'reboundTenderness', label: 'Rebound tenderness' }], tier: 'baseline' },
+        { key: 'bsPresentX4Quadrants', normal: 'BS present x 4 quadrants', abnormals: [
+                { key: 'hyperactiveBs', label: 'Hyperactive BS' },
+                { key: 'hypoactiveBs', label: 'Hypoactive BS' },
+                { key: 'absentBs', label: 'Absent BS' },
+            ], tier: 'baseline' },
+        { key: 'noHepatomegaly', normal: 'No hepatomegaly', abnormals: [{ key: 'hepatomegaly', label: 'Hepatomegaly' }], tier: 'expanded' },
+        { key: 'noSplenomegaly', normal: 'No splenomegaly', abnormals: [{ key: 'splenomegaly', label: 'Splenomegaly' }], tier: 'expanded' },
+        { key: 'negMcBurneys', normal: '(-) McBurney\'s', abnormals: [{ key: 'posMcBurneysPoint', label: '(+) McBurney\'s point' }], tier: 'expanded' },
+        { key: 'negPsoasSign', normal: '(-) Psoas sign', abnormals: [{ key: 'posPsoasSign', label: '(+) Psoas sign' }], tier: 'expanded' },
+        { key: 'negMurphys', normal: '(-) Murphy\'s', abnormals: [{ key: 'posMurphysSign', label: '(+) Murphy\'s sign' }], tier: 'expanded' },
+        { key: 'negObturator', normal: '(-) Obturator', abnormals: [{ key: 'posObturatorSign', label: '(+) Obturator sign' }], tier: 'expanded' },
+        { key: 'negRovsings', normal: '(-) Rovsing\'s', abnormals: [{ key: 'posRovsingSign', label: '(+) Rovsing\'s sign' }], tier: 'expanded' },
+        { key: 'noCvaTenderness', normal: 'No CVA tenderness', abnormals: [{ key: 'cvaTendernessR', label: 'CVA tenderness R' }, { key: 'cvaTendernessL', label: 'CVA tenderness L' }], tier: 'expanded' },
+        { key: 'tympanicThroughout', normal: 'Tympanic throughout', abnormals: [{ key: 'dullness', label: 'Dullness' }, { key: 'shiftingDullness', label: 'Shifting dullness' }], tier: 'expanded' },
+        { key: 'noBruits', normal: 'No bruits', abnormals: [{ key: 'bruit', label: 'Bruit' }], tier: 'expanded' },
+        { key: 'noScars', normal: 'No scars', abnormals: [{ key: 'surgicalScars', label: 'Surgical scars' }], tier: 'expanded' },
+        { key: 'noHernias', normal: 'No hernias', abnormals: [{ key: 'hernia', label: 'Hernia' }], tier: 'expanded' },
+        ],
+    },
+
+    {
+        key: 'msk',
+        label: 'Musculoskeletal',
+        findings: [
+        { key: 'normalRom', normal: 'Normal ROM', abnormals: [{ key: 'limitedRom', label: 'Limited ROM' }], tier: 'baseline' },
+        { key: 'normalStrength', normal: 'Normal strength', abnormals: [{ key: 'decreasedStrength', label: 'Decreased strength' }], tier: 'baseline' },
+        { key: 'nonTenderMsk', normal: 'Non-tender', abnormals: [{ key: 'ttpSpecify', label: 'TTP (specify)' }], tier: 'baseline' },
+        { key: 'noSwelling', normal: 'No swelling', abnormals: [{ key: 'swelling', label: 'Swelling' }, { key: 'edema', label: 'Edema' }], tier: 'baseline' },
+        { key: 'noDeformity', normal: 'No deformity', abnormals: [{ key: 'deformity', label: 'Deformity' }, { key: 'stepOffDeformity', label: 'Step-off deformity' }], tier: 'baseline' },
+        { key: 'noCrepitus', normal: 'No crepitus', abnormals: [{ key: 'crepitus', label: 'Crepitus' }], tier: 'baseline' },
+        { key: 'stable', normal: 'Stable', abnormals: [{ key: 'instability', label: 'Instability' }], tier: 'expanded' },
+        { key: 'noAtrophy', normal: 'No atrophy', abnormals: [{ key: 'atrophy', label: 'Atrophy' }], tier: 'expanded' },
+        { key: 'noSpasm', normal: 'No spasm', abnormals: [{ key: 'muscleSpasm', label: 'Muscle spasm' }], tier: 'expanded' },
+        { key: 'normalGaitMsk', normal: 'Normal gait', abnormals: [{ key: 'antalgicGait', label: 'Antalgic gait' }, { key: 'limbAtaxia', label: 'Limb ataxia' }], tier: 'expanded' },
+        { key: 'fullActiveRom', normal: 'Full active ROM', abnormals: [{ key: 'decreasedActiveRom', label: 'Decreased active ROM' }], tier: 'expanded' },
+        { key: 'fullPassiveRom', normal: 'Full passive ROM', abnormals: [{ key: 'decreasedPassiveRom', label: 'Decreased passive ROM' }], tier: 'expanded' },
+        { key: 'noPainWithMovement', normal: 'No pain with movement', abnormals: [{ key: 'painWithRom', label: 'Pain with ROM' }], tier: 'expanded' },
+        { key: 'strength55', normal: '5/5 strength', abnormals: [{ key: 'decreasedStrengthGrade', label: 'Decreased strength (specify grade)' }], tier: 'expanded' },
+        { key: 'equalBilaterally', normal: 'Equal bilaterally', abnormals: [{ key: 'unequal', label: 'Unequal' }], tier: 'expanded' },
+        { key: 'noWarmth', normal: 'No warmth', abnormals: [{ key: 'warmth', label: 'Warmth' }], tier: 'expanded' },
+        { key: 'noEffusionPalp', normal: 'No effusion', abnormals: [{ key: 'effusionPalp', label: 'Effusion' }], tier: 'expanded' },
+        { key: 'normalPosture', normal: 'Normal posture', abnormals: [{ key: 'poorSlumpedPosture', label: 'Poor/slumped posture' }], tier: 'expanded' },
+        { key: 'dtrNormal', normal: 'DTR normal bilaterally', abnormals: [
+                { key: 'hyperreflexia', label: 'Hyperreflexia' },
+                { key: 'hyporeflexia', label: 'Hyporeflexia' },
+                { key: 'areflexia', label: 'Areflexia' },
+            ], tier: 'expanded' },
+        { key: 'sensoryIntactMsk', normal: 'Sensory intact to light touch', abnormals: [
+                { key: 'decreasedSensation', label: 'Decreased sensation' },
+                { key: 'numbness', label: 'Numbness' },
+                { key: 'paresthesias', label: 'Paresthesias' },
+            ], tier: 'expanded' },
+        ],
+    },
+    // ── MSK Child Blocks (body-part-specific special tests) ──────
+    // Ordered anatomically top-to-bottom for coherent output
+    {
+        key: 'msk_neck',
+        label: 'Neck',
+        parent: 'msk',
+        findings: [
+        { key: 'spurlings', normal: "(-) Spurling's", abnormals: [{ key: 'spurlingsPos', label: "(+) Spurling's" }], tier: 'expanded' },
+        { key: 'hoffmans', normal: "(-) Hoffman's", abnormals: [{ key: 'hoffmansPos', label: "(+) Hoffman's" }], tier: 'expanded' },
+        ],
+    },
+    {
+        key: 'msk_shoulder',
+        label: 'Shoulder',
+        parent: 'msk',
+        findings: [
+        { key: 'neer', normal: '(-) Neer', abnormals: [{ key: 'neerPos', label: '(+) Neer' }], tier: 'expanded' },
+        { key: 'hawkins', normal: '(-) Hawkins', abnormals: [{ key: 'hawkinsPos', label: '(+) Hawkins' }], tier: 'expanded' },
+        { key: 'emptyCan', normal: '(-) Empty can', abnormals: [{ key: 'emptyCanPos', label: '(+) Empty can' }], tier: 'expanded' },
+        { key: 'speed', normal: '(-) Speed', abnormals: [{ key: 'speedPos', label: '(+) Speed' }], tier: 'expanded' },
+        { key: 'apprehension', normal: '(-) Apprehension', abnormals: [{ key: 'apprehensionPos', label: '(+) Apprehension' }], tier: 'expanded' },
+        { key: 'relocation', normal: '(-) Relocation', abnormals: [{ key: 'relocationPos', label: '(+) Relocation' }], tier: 'expanded' },
+        { key: 'obriens', normal: "(-) O'Brien's", abnormals: [{ key: 'obriensPos', label: "(+) O'Brien's" }], tier: 'expanded' },
+        { key: 'crossBodyAdduction', normal: '(-) Cross-body adduction', abnormals: [{ key: 'crossBodyAdductionPos', label: '(+) Cross-body adduction' }], tier: 'expanded' },
+        { key: 'dropArm', normal: '(-) Drop arm', abnormals: [{ key: 'dropArmPos', label: '(+) Drop arm' }], tier: 'expanded' },
+        { key: 'liftOff', normal: '(-) Lift-off', abnormals: [{ key: 'liftOffPos', label: '(+) Lift-off' }], tier: 'expanded' },
+        ],
+    },
+    {
+        key: 'msk_elbow',
+        label: 'Elbow',
+        parent: 'msk',
+        findings: [
+        { key: 'tinelCubital', normal: '(-) Tinel (cubital tunnel)', abnormals: [{ key: 'tinelCubitalPos', label: '(+) Tinel (cubital tunnel)' }], tier: 'expanded' },
+        { key: 'valgusStress', normal: '(-) Valgus stress', abnormals: [{ key: 'valgusStressPos', label: '(+) Valgus stress' }], tier: 'expanded' },
+        { key: 'varusStress', normal: '(-) Varus stress', abnormals: [{ key: 'varusStressPos', label: '(+) Varus stress' }], tier: 'expanded' },
+        ],
+    },
+    {
+        key: 'msk_wrist',
+        label: 'Wrist',
+        parent: 'msk',
+        findings: [
+        { key: 'tinelCarpal', normal: '(-) Tinel (carpal tunnel)', abnormals: [{ key: 'tinelCarpalPos', label: '(+) Tinel (carpal tunnel)' }], tier: 'expanded' },
+        { key: 'phalen', normal: '(-) Phalen', abnormals: [{ key: 'phalenPos', label: '(+) Phalen' }], tier: 'expanded' },
+        { key: 'finkelstein', normal: '(-) Finkelstein', abnormals: [{ key: 'finkelsteinPos', label: '(+) Finkelstein' }], tier: 'expanded' },
+        { key: 'watsonsScaphoid', normal: "(-) Watson's (scaphoid shift)", abnormals: [{ key: 'watsonsScaphoidPos', label: "(+) Watson's (scaphoid shift)" }], tier: 'expanded' },
+        ],
+    },
+    {
+        key: 'msk_hand',
+        label: 'Hand',
+        parent: 'msk',
+        findings: [
+        { key: 'tinelCarpalH', normal: '(-) Tinel (carpal tunnel)', abnormals: [{ key: 'tinelCarpalHPos', label: '(+) Tinel (carpal tunnel)' }], tier: 'expanded' },
+        { key: 'phalenH', normal: '(-) Phalen', abnormals: [{ key: 'phalenHPos', label: '(+) Phalen' }], tier: 'expanded' },
+        { key: 'finkelsteinH', normal: '(-) Finkelstein', abnormals: [{ key: 'finkelsteinHPos', label: '(+) Finkelstein' }], tier: 'expanded' },
+        { key: 'grindTest1stCmc', normal: '(-) Grind test (1st CMC)', abnormals: [{ key: 'grindTest1stCmcPos', label: '(+) Grind test (1st CMC)' }], tier: 'expanded' },
+        ],
+    },
+    {
+        key: 'msk_back',
+        label: 'Back',
+        parent: 'msk',
+        findings: [
+        { key: 'straightLegRaise', normal: '(-) Straight leg raise', abnormals: [{ key: 'straightLegRaisePos', label: '(+) Straight leg raise' }], tier: 'expanded' },
+        { key: 'faber', normal: '(-) FABER', abnormals: [{ key: 'faberPos', label: '(+) FABER' }], tier: 'expanded' },
+        { key: 'fadir', normal: '(-) FADIR', abnormals: [{ key: 'fadirPos', label: '(+) FADIR' }], tier: 'expanded' },
+        { key: 'ober', normal: '(-) Ober', abnormals: [{ key: 'oberPos', label: '(+) Ober' }], tier: 'expanded' },
+        { key: 'piriformisTest', normal: '(-) Piriformis test', abnormals: [{ key: 'piriformisTestPos', label: '(+) Piriformis test' }], tier: 'expanded' },
+        { key: 'slumpTest', normal: '(-) Slump test', abnormals: [{ key: 'slumpTestPos', label: '(+) Slump test' }], tier: 'expanded' },
+        ],
+    },
+    {
+        key: 'msk_hip',
+        label: 'Hip',
+        parent: 'msk',
+        findings: [
+        { key: 'faberHip', normal: '(-) FABER', abnormals: [{ key: 'faberHipPos', label: '(+) FABER' }], tier: 'expanded' },
+        { key: 'fadirHip', normal: '(-) FADIR', abnormals: [{ key: 'fadirHipPos', label: '(+) FADIR' }], tier: 'expanded' },
+        { key: 'oberHip', normal: '(-) Ober', abnormals: [{ key: 'oberHipPos', label: '(+) Ober' }], tier: 'expanded' },
+        { key: 'trendelenburg', normal: '(-) Trendelenburg', abnormals: [{ key: 'trendelenburgPos', label: '(+) Trendelenburg' }], tier: 'expanded' },
+        { key: 'thomasTest', normal: '(-) Thomas test', abnormals: [{ key: 'thomasTestPos', label: '(+) Thomas test' }], tier: 'expanded' },
+        { key: 'logRoll', normal: '(-) Log roll', abnormals: [{ key: 'logRollPos', label: '(+) Log roll' }], tier: 'expanded' },
+        { key: 'piriformisTestHip', normal: '(-) Piriformis test', abnormals: [{ key: 'piriformisTestHipPos', label: '(+) Piriformis test' }], tier: 'expanded' },
+        ],
+    },
+    {
+        key: 'msk_knee',
+        label: 'Knee',
+        parent: 'msk',
+        findings: [
+        { key: 'lachman', normal: '(-) Lachman', abnormals: [{ key: 'lachmanPos', label: '(+) Lachman' }], tier: 'expanded' },
+        { key: 'anteriorDrawer', normal: '(-) Anterior drawer', abnormals: [{ key: 'anteriorDrawerPos', label: '(+) Anterior drawer' }], tier: 'expanded' },
+        { key: 'posteriorDrawer', normal: '(-) Posterior drawer', abnormals: [{ key: 'posteriorDrawerPos', label: '(+) Posterior drawer' }], tier: 'expanded' },
+        { key: 'mcmurray', normal: '(-) McMurray', abnormals: [{ key: 'mcmurrayPos', label: '(+) McMurray' }], tier: 'expanded' },
+        { key: 'valgusStressKnee', normal: '(-) Valgus stress', abnormals: [{ key: 'valgusStressKneePos', label: '(+) Valgus stress' }], tier: 'expanded' },
+        { key: 'varusStressKnee', normal: '(-) Varus stress', abnormals: [{ key: 'varusStressKneePos', label: '(+) Varus stress' }], tier: 'expanded' },
+        { key: 'patellarApprehension', normal: '(-) Patellar apprehension', abnormals: [{ key: 'patellarApprehensionPos', label: '(+) Patellar apprehension' }], tier: 'expanded' },
+        { key: 'patellarGrind', normal: '(-) Patellar grind', abnormals: [{ key: 'patellarGrindPos', label: '(+) Patellar grind' }], tier: 'expanded' },
+        ],
+    },
+    {
+        key: 'msk_ankle',
+        label: 'Ankle',
+        parent: 'msk',
+        findings: [
+        { key: 'anteriorDrawerAnkle', normal: '(-) Anterior drawer', abnormals: [{ key: 'anteriorDrawerAnklePos', label: '(+) Anterior drawer' }], tier: 'expanded' },
+        { key: 'talarTilt', normal: '(-) Talar tilt', abnormals: [{ key: 'talarTiltPos', label: '(+) Talar tilt' }], tier: 'expanded' },
+        { key: 'thompson', normal: '(-) Thompson', abnormals: [{ key: 'thompsonPos', label: '(+) Thompson' }], tier: 'expanded' },
+        { key: 'squeezeTest', normal: '(-) Squeeze test', abnormals: [{ key: 'squeezeTestPos', label: '(+) Squeeze test' }], tier: 'expanded' },
+        { key: 'externalRotationStress', normal: '(-) External rotation stress', abnormals: [{ key: 'externalRotationStressPos', label: '(+) External rotation stress' }], tier: 'expanded' },
+        ],
+    },
+    {
+        key: 'msk_foot',
+        label: 'Foot',
+        parent: 'msk',
+        findings: [
+        { key: 'tinelTarsal', normal: '(-) Tinel (tarsal tunnel)', abnormals: [{ key: 'tinelTarsalPos', label: '(+) Tinel (tarsal tunnel)' }], tier: 'expanded' },
+        { key: 'squeezeTestMtp', normal: '(-) Squeeze test (MTP)', abnormals: [{ key: 'squeezeTestMtpPos', label: '(+) Squeeze test (MTP)' }], tier: 'expanded' },
+        ],
+    },
+    {
+        key: 'msk_extremity',
+        label: 'Extremity',
+        parent: 'msk',
+        findings: [],
+    },
+
+    {
+        key: 'derm',
+        label: 'Dermatological',
+        findings: [
+        { key: 'skinWarm', normal: 'Skin warm', abnormals: [{ key: 'coolClammy', label: 'Cool/clammy' }], tier: 'baseline' },
+        { key: 'skinDry', normal: 'Skin dry', abnormals: [{ key: 'diaphoretic', label: 'Diaphoretic' }], tier: 'baseline' },
+        { key: 'appropriateColor', normal: 'Appropriate color', abnormals: [
+                { key: 'pallor', label: 'Pallor' },
+                { key: 'cyanosisDerm', label: 'Cyanosis' },
+                { key: 'jaundice', label: 'Jaundice' },
+                { key: 'flushed', label: 'Flushed' },
+                { key: 'mottled', label: 'Mottled' },
+            ], tier: 'baseline' },
+        { key: 'noRashes', normal: 'No rashes', abnormals: [
+                { key: 'rashSpecify', label: 'Rash (specify)' },
+                { key: 'erythema', label: 'Erythema' },
+                { key: 'petechiae', label: 'Petechiae' },
+            ], tier: 'baseline' },
+        { key: 'noLesions', normal: 'No lesions', abnormals: [
+                { key: 'lesionSpecify', label: 'Lesion (specify)' },
+                { key: 'ecchymosis', label: 'Ecchymosis' },
+                { key: 'woundSpecify', label: 'Wound (specify)' },
+                { key: 'abscessDerm', label: 'Abscess' },
+                { key: 'cellulitis', label: 'Cellulitis' },
+            ], tier: 'baseline' },
+        { key: 'localized', normal: 'Localized', abnormals: [
+                { key: 'diffuseWidespread', label: 'Diffuse/widespread' },
+                { key: 'bilateral', label: 'Bilateral' },
+                { key: 'dermatomal', label: 'Dermatomal' },
+            ], tier: 'expanded' },
+        { key: 'wellDemarcated', normal: 'Well-demarcated', abnormals: [], tier: 'expanded' },
+        { key: 'smoothSurface', normal: 'Smooth surface', abnormals: [
+                { key: 'scaling', label: 'Scaling' },
+                { key: 'crusting', label: 'Crusting' },
+                { key: 'weeping', label: 'Weeping' },
+                { key: 'lichenified', label: 'Lichenified' },
+                { key: 'indurated', label: 'Indurated' },
+            ], tier: 'expanded' },
+        { key: 'noSurroundingErythema', normal: 'No surrounding erythema', abnormals: [{ key: 'surroundingErythema', label: 'Surrounding erythema' }, { key: 'induration', label: 'Induration' }], tier: 'expanded' },
+        { key: 'noWarmthDerm', normal: 'No warmth', abnormals: [{ key: 'warmthDerm', label: 'Warmth' }], tier: 'expanded' },
+        { key: 'noSatelliteLesions', normal: 'No satellite lesions', abnormals: [{ key: 'satelliteLesions', label: 'Satellite lesions' }], tier: 'expanded' },
+        { key: 'noLymphangiaticStreaking', normal: 'No lymphangitic streaking', abnormals: [{ key: 'lymphangiticStreaking', label: 'Lymphangitic streaking' }], tier: 'expanded' },
+        { key: 'skinIntact', normal: 'Skin intact', abnormals: [
+                { key: 'maceration', label: 'Maceration' },
+                { key: 'frostbite', label: 'Frostbite (specify degree)' },
+                { key: 'burn', label: 'Burn (specify degree)' },
+            ], tier: 'expanded' },
+        ],
+    },
+
+    {
+        key: 'neuro',
+        label: 'Neurological',
+        findings: [
+        { key: 'aoX4', normal: 'A&Ox4', abnormals: [{ key: 'disorientedSpecify', label: 'Disoriented (specify)' }, { key: 'confused', label: 'Confused' }], tier: 'baseline' },
+        { key: 'cnIiXiiGrosslyIntact', normal: 'CN II-XII grossly intact', abnormals: [{ key: 'cnDeficitSpecify', label: 'CN deficit (specify)' }, { key: 'facialAsymmetry', label: 'Facial asymmetry' }], tier: 'baseline' },
+        { key: 'normalGait', normal: 'Normal gait', abnormals: [{ key: 'ataxicGait', label: 'Ataxic gait' }, { key: 'rombergPositive', label: 'Romberg positive' }], tier: 'baseline' },
+        { key: 'noFacialAsymmetry', normal: 'No facial asymmetry', abnormals: [{ key: 'facialAsymmetryExp', label: 'Facial asymmetry' }], tier: 'expanded' },
+        { key: 'visualFieldsIntact', normal: 'Visual fields intact', abnormals: [{ key: 'visualFieldDeficitNeuro', label: 'Visual field deficit' }], tier: 'expanded' },
+        { key: 'hearingIntact', normal: 'Hearing intact', abnormals: [{ key: 'hearingDeficit', label: 'Hearing deficit' }], tier: 'expanded' },
+        { key: 'tongueMidline', normal: 'Tongue midline', abnormals: [{ key: 'tongueDeviation', label: 'Tongue deviation' }], tier: 'expanded' },
+        { key: 'strength55AllExt', normal: '5/5 strength all extremities', abnormals: [{ key: 'focalWeaknessSpecify', label: 'Focal weakness (specify)' }], tier: 'expanded' },
+        { key: 'normalTone', normal: 'Normal tone', abnormals: [{ key: 'increasedTone', label: 'Increased tone' }, { key: 'decreasedTone', label: 'Decreased tone' }], tier: 'expanded' },
+        { key: 'noFasciculations', normal: 'No fasciculations', abnormals: [{ key: 'fasciculations', label: 'Fasciculations' }], tier: 'expanded' },
+        { key: 'noTremor', normal: 'No tremor', abnormals: [{ key: 'tremor', label: 'Tremor' }], tier: 'expanded' },
+        { key: 'intactToLightTouch', normal: 'Intact to light touch', abnormals: [
+                { key: 'decreasedSensationSpecify', label: 'Decreased sensation (specify)' },
+                { key: 'numbnessSensory', label: 'Numbness' },
+                { key: 'paresthesiasSensory', label: 'Paresthesias' },
+                { key: 'dermatomalLossSensory', label: 'Dermatomal loss' },
+            ], tier: 'expanded' },
+        { key: 'twoPlusSymmetric', normal: '2+ symmetric throughout', abnormals: [
+                { key: 'hyperreflexiaF', label: 'Hyperreflexia' },
+                { key: 'hyporeflexiaF', label: 'Hyporeflexia' },
+                { key: 'areflexiaF', label: 'Areflexia' },
+                { key: 'asymmetricReflexesF', label: 'Asymmetric reflexes' },
+            ], tier: 'expanded' },
+        { key: 'babinskiDowngoing', normal: 'Babinski downgoing b/l', abnormals: [{ key: 'babinskiUpgoing', label: 'Babinski upgoing' }, { key: 'clonus', label: 'Clonus' }], tier: 'expanded' },
+        { key: 'fingerToNoseIntact', normal: 'Finger-to-nose intact', abnormals: [{ key: 'dysmetria', label: 'Dysmetria' }, { key: 'dysdiadochokinesia', label: 'Dysdiadochokinesia' }], tier: 'expanded' },
+        { key: 'rombergNegative', normal: 'Romberg negative', abnormals: [{ key: 'rombergPositiveExp', label: 'Romberg positive' }], tier: 'expanded' },
+        ],
+    },
+
+    {
+        key: 'psych',
+        label: 'Psychiatric',
+        findings: [
+        { key: 'appropriateMood', normal: 'Appropriate mood', abnormals: [{ key: 'depressedMood', label: 'Depressed mood' }, { key: 'anxious', label: 'Anxious' }], tier: 'baseline' },
+        { key: 'appropriateAffect', normal: 'Appropriate affect', abnormals: [{ key: 'flatAffect', label: 'Flat affect' }, { key: 'labileAffect', label: 'Labile affect' }], tier: 'baseline' },
+        { key: 'intactJudgment', normal: 'Intact judgment', abnormals: [{ key: 'poorJudgment', label: 'Poor judgment' }], tier: 'expanded' },
+        { key: 'intactInsight', normal: 'Intact insight', abnormals: [{ key: 'poorInsight', label: 'Poor insight' }], tier: 'expanded' },
+        { key: 'noSiHi', normal: 'No SI/HI', abnormals: [{ key: 'siHiSpecify', label: 'SI/HI (specify)' }], tier: 'expanded' },
+        { key: 'alertAndOrientedX4Psych', normal: 'Alert and oriented x4', abnormals: [{ key: 'confusedPsych', label: 'Confused' }, { key: 'amsPsych', label: 'AMS' }], tier: 'expanded' },
+        { key: 'gcs15', normal: 'GCS 15', abnormals: [{ key: 'gcsLt15', label: 'GCS < 15 (specify)' }], tier: 'expanded' },
+        { key: 'cooperative', normal: 'Cooperative', abnormals: [{ key: 'lethargicPsych', label: 'Lethargic' }, { key: 'combative', label: 'Combative' }], tier: 'expanded' },
+        ],
+    },
+
+    {
+        key: 'extremities',
+        label: 'Extremities',
+        findings: [
+        { key: 'pulses2PlusEqual', normal: 'Pulses 2+ equal', abnormals: [{ key: 'diminishedPulsesExt', label: 'Diminished pulses' }, { key: 'absentPulsesExt', label: 'Absent pulses' }], tier: 'baseline' },
+        { key: 'noEdemaExt', normal: 'No edema', abnormals: [{ key: 'edemaSpecify', label: 'Edema (specify)' }], tier: 'baseline' },
+        { key: 'noDiscoloration', normal: 'No discoloration', abnormals: [{ key: 'discoloration', label: 'Discoloration' }, { key: 'cyanosisExt', label: 'Cyanosis' }], tier: 'baseline' },
+        { key: 'capRefillLt3SecExt', normal: 'Cap refill < 3 sec', abnormals: [{ key: 'delayedCapRefillExt', label: 'Delayed cap refill' }], tier: 'expanded' },
+        { key: 'warm', normal: 'Warm', abnormals: [{ key: 'coolExtremitiesExt', label: 'Cool extremities' }], tier: 'expanded' },
+        { key: 'noClubbing', normal: 'No clubbing', abnormals: [{ key: 'clubbing', label: 'Clubbing' }], tier: 'expanded' },
+        { key: 'intactToLightTouchExt', normal: 'Intact to light touch', abnormals: [
+                { key: 'decreasedSensationExt', label: 'Decreased sensation' },
+                { key: 'numbnessExt', label: 'Numbness' },
+                { key: 'tinglingExt', label: 'Tingling' },
+            ], tier: 'expanded' },
+        { key: 'afebrile', normal: 'Afebrile', abnormals: [{ key: 'hypothermic', label: 'Hypothermic' }, { key: 'hyperthermic', label: 'Hyperthermic' }], tier: 'expanded' },
+        ],
+    },
+
+    {
+        key: 'gu',
+        label: 'Genitourinary',
+        findings: [
+        { key: 'normalAppearance', normal: 'Normal appearance', abnormals: [{ key: 'lesionUlcer', label: 'Lesion/ulcer' }], tier: 'baseline' },
+        { key: 'noDischargeGu', normal: 'No discharge', abnormals: [{ key: 'discharge', label: 'Discharge' }], tier: 'baseline' },
+        { key: 'noSwellingGu', normal: 'No swelling', abnormals: [{ key: 'swellingGu', label: 'Swelling' }], tier: 'baseline' },
+        { key: 'noErythemaGu', normal: 'No erythema', abnormals: [{ key: 'erythemaGu', label: 'Erythema' }], tier: 'baseline' },
+        { key: 'noInguinalHernia', normal: 'No inguinal hernia', abnormals: [{ key: 'inguinalHernia', label: 'Inguinal hernia' }], tier: 'expanded' },
+        { key: 'noInguinalLad', normal: 'No inguinal LAD', abnormals: [{ key: 'inguinalLad', label: 'Inguinal LAD' }], tier: 'expanded' },
+        { key: 'noSuprapubicTenderness', normal: 'No suprapubic tenderness', abnormals: [{ key: 'suprapubicTenderness', label: 'Suprapubic tenderness' }], tier: 'expanded' },
+        { key: 'noCvaTendernessGu', normal: 'No CVA tenderness', abnormals: [
+                { key: 'cvaTendernessRGu', label: 'CVA tenderness R' },
+                { key: 'cvaTendernessLGu', label: 'CVA tenderness L' },
+                { key: 'cvaTendernessBlGu', label: 'CVA tenderness b/l' },
+            ], tier: 'expanded' },
+        { key: 'noLesionsGen', normal: 'No lesions', abnormals: [{ key: 'lesionUlcerGen', label: 'Lesion/ulcer' }], tier: 'expanded' },
+        { key: 'noDischargeGen', normal: 'No discharge', abnormals: [{ key: 'dischargeGen', label: 'Discharge' }], tier: 'expanded' },
+        { key: 'twoTestesPalpated', normal: 'Two testes palpated in scrotum', abnormals: [], tier: 'expanded' },
+        { key: 'noHerniaInguinal', normal: 'No hernia', abnormals: [{ key: 'inguinalHerniaExp', label: 'Inguinal hernia' }], tier: 'expanded' },
+        ],
+    },
+
+    {
+        key: 'breast',
+        label: 'Breast',
+        findings: [
+        { key: 'symmetric', normal: 'Symmetric', abnormals: [{ key: 'asymmetry', label: 'Asymmetry' }], tier: 'baseline' },
+        { key: 'noMassesBreast', normal: 'No masses', abnormals: [{ key: 'mass', label: 'Mass' }], tier: 'baseline' },
+        { key: 'nonTenderBreast', normal: 'Non-tender', abnormals: [{ key: 'tenderness', label: 'Tenderness' }], tier: 'baseline' },
+        { key: 'noDischargeBreast', normal: 'No discharge', abnormals: [{ key: 'dischargeBreast', label: 'Discharge' }], tier: 'expanded' },
+        { key: 'normalSkin', normal: 'Normal skin', abnormals: [{ key: 'skinChanges', label: 'Skin changes' }], tier: 'expanded' },
+        { key: 'noAxillaryLad', normal: 'No axillary LAD', abnormals: [{ key: 'axillaryLad', label: 'Axillary LAD' }], tier: 'expanded' },
+        ],
+    },
+
+    {
+        key: 'gyn',
+        label: 'Gynecological',
+        findings: [
+        { key: 'normalAppearanceGyn', normal: 'Normal appearance', abnormals: [{ key: 'massGyn', label: 'Mass' }, { key: 'lesionUlcerGyn', label: 'Lesion/ulcer' }], tier: 'expanded' },
+        { key: 'noErythemaGyn', normal: 'No erythema', abnormals: [{ key: 'erythemaGyn', label: 'Erythema' }], tier: 'expanded' },
+        { key: 'noEdemaGyn', normal: 'No edema', abnormals: [{ key: 'edemaGyn', label: 'Edema' }], tier: 'expanded' },
+        { key: 'noDischargeGyn', normal: 'No discharge', abnormals: [{ key: 'dischargeGyn', label: 'Discharge' }], tier: 'expanded' },
+        { key: 'cervixAppearsNormal', normal: 'Cervix appears normal', abnormals: [{ key: 'cervicalLesion', label: 'Cervical lesion' }, { key: 'friableCervix', label: 'Friable cervix' }], tier: 'expanded' },
+        { key: 'noCervicalMotionTenderness', normal: 'No cervical motion tenderness', abnormals: [{ key: 'cervicalMotionTenderness', label: 'Cervical motion tenderness' }], tier: 'expanded' },
+        { key: 'noAbnormalDischarge', normal: 'No abnormal discharge', abnormals: [{ key: 'abnormalDischarge', label: 'Abnormal discharge' }, { key: 'bleeding', label: 'Bleeding' }], tier: 'expanded' },
+        { key: 'nonTenderUterus', normal: 'Non-tender', abnormals: [{ key: 'uterineTenderness', label: 'Uterine tenderness' }, { key: 'adnexalTenderness', label: 'Adnexal tenderness' }], tier: 'expanded' },
+        { key: 'normalSize', normal: 'Normal size', abnormals: [{ key: 'enlargedUterus', label: 'Enlarged uterus' }], tier: 'expanded' },
+        { key: 'noAdnexalMasses', normal: 'No adnexal masses', abnormals: [{ key: 'adnexalMass', label: 'Adnexal mass' }], tier: 'expanded' },
+        ],
+    },
+
+    {
+        key: 'lymph',
+        label: 'Lymph Nodes',
+        findings: [
+        { key: 'noCervicalLad', normal: 'No cervical LAD', abnormals: [{ key: 'cervicalLadLymph', label: 'Cervical LAD' }], tier: 'baseline' },
+        { key: 'noAxillaryLadLymph', normal: 'No axillary LAD', abnormals: [{ key: 'axillaryLadLymph', label: 'Axillary LAD' }], tier: 'baseline' },
+        { key: 'noInguinalLadLymph', normal: 'No inguinal LAD', abnormals: [{ key: 'inguinalLadLymph', label: 'Inguinal LAD' }], tier: 'expanded' },
+        { key: 'noGeneralizedLad', normal: 'No generalized LAD', abnormals: [
+                { key: 'generalizedLad', label: 'Generalized LAD' },
+                { key: 'tenderLad', label: 'Tender LAD' },
+                { key: 'mattedNodes', label: 'Matted nodes' },
+                { key: 'supraclavicularLadLymph', label: 'Supraclavicular LAD' },
+            ], tier: 'expanded' },
+        ],
+    },
+
+    {
+        key: 'rectal',
+        label: 'Rectal',
+        findings: [
+        { key: 'deferredNotIndicated', normal: 'Deferred -- not indicated', abnormals: [
+                { key: 'hemorrhoids', label: 'Hemorrhoids' },
+                { key: 'fissure', label: 'Fissure' },
+                { key: 'massRectal', label: 'Mass' },
+                { key: 'occultBloodPositive', label: 'Occult blood positive' },
+                { key: 'tendernessRectal', label: 'Tenderness' },
+                { key: 'rectalToneAbnormal', label: 'Rectal tone abnormal' },
+            ], tier: 'baseline' },
+        ],
+    },
+
+];
+
+export const MASTER_BLOCK_LIBRARY: Record<string, MasterPEBlock> = Object.fromEntries(
+    MASTER_BLOCKS.map(b => [b.key, b])
+);
+
+export function getMasterBlocks(): MasterPEBlock[] { return MASTER_BLOCKS; }
+export function getMasterBlockByKey(key: string): MasterPEBlock | undefined { return MASTER_BLOCK_LIBRARY[key]; }
+
+/** MSK child block keys, ordered anatomically top-to-bottom */
+export const MSK_CHILD_KEYS: string[] = MASTER_BLOCKS
+    .filter(b => b.parent === 'msk')
+    .map(b => b.key);
+
+/** Set of all MSK child block keys for quick lookup */
+export const MSK_CHILD_KEY_SET: Set<string> = new Set(MSK_CHILD_KEYS);
+
+/** Top-level blocks only (excludes MSK children) — used by block pickers that show children separately */
+export const MASTER_BLOCKS_TOP_LEVEL: MasterPEBlock[] = MASTER_BLOCKS.filter(b => !b.parent);
+
+/** Map symptom code (e.g. 'B-3') to the corresponding MSK child block key */
+const SYMPTOM_TO_MSK_CHILD: Record<string, string> = {
+    'B-1': 'msk_back',
+    'B-2': 'msk_neck',
+    'B-3': 'msk_shoulder',
+    'B-4': 'msk_elbow',
+    'B-5': 'msk_wrist',
+    'B-6': 'msk_hand',
+    'B-7': 'msk_hip',
+    'B-8': 'msk_knee',
+    'B-9': 'msk_ankle',
+    'B-10': 'msk_foot',
+    'B-11': 'msk_extremity',
+};
+
+export function getMSKChildKey(symptomCode: string): string | null {
+    const dashCode = symptomCode.includes('-') ? symptomCode : symptomCode.replace(/([A-M])(\d+)/, '$1-$2');
+    return SYMPTOM_TO_MSK_CHILD[dashCode] ?? null;
+}
+
+// ── Focused exam layout ──────────────────────────────────────
+
+/** Baseline wrapper blocks shown before the focused blocks (baseline findings only). */
+export const BASELINE_BEFORE: string[] = ['gen', 'head', 'eyes'];
+
+/** Baseline wrapper blocks shown after the focused blocks (baseline findings only). */
+export const BASELINE_AFTER: string[] = ['neuro', 'psych'];
+
+/** Category-specific blocks to show in focused mode (all findings expanded). */
+export const FOCUSED_EXPANSION: Record<CategoryLetter, string[]> = {
+    A: ['ears', 'nose', 'oral_throat', 'neck', 'cv', 'pulm'],
+    B: ['msk'],  // Base; getBlocksForFocusedExam resolves the child block from symptomCode
+    C: ['abd', 'rectal'],
+    D: ['cv', 'pulm'],
+    E: ['abd', 'gu'],
+    F: ['neuro', 'psych'],
+    G: ['gen', 'derm', 'cv', 'pulm'],
+    H: ['eyes'],
+    I: ['breast', 'gyn'],
+    J: ['derm'],
+    K: ['extremities', 'derm', 'psych'],
+    L: ['gen', 'oral_throat', 'lymph'],
+    M: ['gen'],
+};
+
+/**
+ * Get blocks for a focused exam — bookend layout:
+ * [baseline-before] → [category-specific expanded] → [baseline-after]
+ *
+ * - Baseline-before/after blocks show only `tier: 'baseline'` findings
+ * - Category-specific blocks show ALL findings (baseline + expanded)
+ * - If a baseline block also appears in the expansion list, it's promoted to fully expanded
+ *   and removed from its baseline position to avoid duplication
+ */
+export function getBlocksForFocusedExam(category: CategoryLetter, symptomCode?: string): {
+    blocks: MasterPEBlock[];
+    expandedKeys: Set<string>;
+} {
+    let expansionKeys = FOCUSED_EXPANSION[category] || [];
+
+    // For category B, resolve the MSK child block from symptom code
+    if (category === 'B' && symptomCode) {
+        const childKey = getMSKChildKey(symptomCode);
+        if (childKey) {
+            expansionKeys = [...expansionKeys, childKey];
+        }
+    }
+    const expandedSet = new Set(expansionKeys);
+
+    // Collect unique block keys in order: before → focused → after
+    // If a baseline block also appears in expansion, skip it from baseline position
+    const orderedKeys: string[] = [];
+    const seen = new Set<string>();
+
+    for (const key of BASELINE_BEFORE) {
+        if (!expandedSet.has(key) && !seen.has(key)) {
+            orderedKeys.push(key);
+            seen.add(key);
+        }
+    }
+    for (const key of expansionKeys) {
+        if (!seen.has(key)) {
+            orderedKeys.push(key);
+            seen.add(key);
+        }
+    }
+    for (const key of BASELINE_AFTER) {
+        if (!expandedSet.has(key) && !seen.has(key)) {
+            orderedKeys.push(key);
+            seen.add(key);
+        }
+    }
+
+    const blocks = orderedKeys
+        .map(k => MASTER_BLOCK_LIBRARY[k])
+        .filter((b): b is MasterPEBlock => b !== undefined);
+
+    return { blocks, expandedKeys: expandedSet };
+}
+
+/** Get blocks for a provider template — returns only the selected master blocks (all findings shown) */
+export function getBlocksForTemplate(keys: string[]): MasterPEBlock[] {
+    return keys.map(k => MASTER_BLOCK_LIBRARY[k]).filter((b): b is MasterPEBlock => b !== undefined);
+}
+
+// ══════════════════════════════════════════════════════════════
+// @deprecated — Legacy data below. Use MASTER_BLOCKS instead.
+// Kept for backward compatibility during migration.
+// ══════════════════════════════════════════════════════════════
+
+/** @deprecated Use MASTER_BLOCKS */
+export const BASELINE_BEFORE_COUNT = 3;
+
+/** @deprecated Use MASTER_BLOCKS */
 export const BASELINE_WRAPPERS: PEBlock[] = [
     {
         key: 'bl_gen',
         label: 'GEN',
         findings: [
-            {
-                key: 'appearsStatedAge',
-                normal: 'Appears stated age',
-                abnormals: [],
-            },
-            {
-                key: 'wnwd',
-                normal: 'WNWD',
-                abnormals: [
-                    { key: 'thinAppearing',             label: 'Thin appearing'                  },
-                    { key: 'excessiveAbdominalAdiposity', label: 'Excessive abdominal adiposity' },
-                ],
-            },
-            {
-                key: 'noAcuteDistress',
-                normal: 'No acute distress',
-                abnormals: [
-                    { key: 'acuteDistress',    label: 'Acute distress'    },
-                    { key: 'mildDistress',     label: 'Mild distress'     },
-                    { key: 'moderateDistress', label: 'Moderate distress' },
-                ],
-            },
+            { key: 'appearsStatedAge', normal: 'Appears stated age', abnormals: [] },
+            { key: 'wnwd', normal: 'WNWD', abnormals: [
+                { key: 'thinAppearing', label: 'Thin appearing' },
+                { key: 'excessiveAbdominalAdiposity', label: 'Excessive abdominal adiposity' },
+            ] },
+            { key: 'noAcuteDistress', normal: 'No acute distress', abnormals: [
+                { key: 'acuteDistress', label: 'Acute distress' },
+                { key: 'mildDistress', label: 'Mild distress' },
+                { key: 'moderateDistress', label: 'Moderate distress' },
+            ] },
         ],
     },
-
     {
         key: 'bl_eyes',
         label: 'EYES',
         findings: [
-            {
-                key: 'perrl',
-                normal: 'PERRL',
-                abnormals: [
-                    { key: 'anisocoria',       label: 'Anisocoria'       },
-                    { key: 'fixedPupil',       label: 'Fixed pupil'      },
-                    { key: 'dilatedPupil',     label: 'Dilated pupil'    },
-                    { key: 'constrictedPupil', label: 'Constricted pupil' },
-                    { key: 'apdPresent',       label: 'APD present'      },
-                ],
-            },
-            {
-                key: 'eomi',
-                normal: 'EOMI',
-                abnormals: [
-                    { key: 'restrictedEom', label: 'Restricted EOM' },
-                    { key: 'nystagmus',     label: 'Nystagmus'      },
-                    { key: 'diplopia',      label: 'Diplopia'       },
-                ],
-            },
-            {
-                key: 'vffc',
-                normal: 'VFFC',
-                abnormals: [
-                    { key: 'visualFieldDeficit', label: 'Visual field deficit' },
-                ],
-            },
+            { key: 'perrl', normal: 'PERRL', abnormals: [
+                { key: 'anisocoria', label: 'Anisocoria' },
+                { key: 'fixedPupil', label: 'Fixed pupil' },
+                { key: 'dilatedPupil', label: 'Dilated pupil' },
+                { key: 'constrictedPupil', label: 'Constricted pupil' },
+                { key: 'apdPresent', label: 'APD present' },
+            ] },
+            { key: 'eomi', normal: 'EOMI', abnormals: [
+                { key: 'restrictedEom', label: 'Restricted EOM' },
+                { key: 'nystagmus', label: 'Nystagmus' },
+                { key: 'diplopia', label: 'Diplopia' },
+            ] },
+            { key: 'vffc', normal: 'VFFC', abnormals: [
+                { key: 'visualFieldDeficit', label: 'Visual field deficit' },
+            ] },
         ],
     },
-
     {
         key: 'bl_hent',
         label: 'HENT',
         findings: [
-            {
-                key: 'normocephalicAtraumatic',
-                normal: 'NCAT',
-                abnormals: [
-                    { key: 'scalpTenderness', label: 'Scalp tenderness' },
-                    { key: 'scalpLaceration', label: 'Scalp laceration' },
-                ],
-            },
+            { key: 'normocephalicAtraumatic', normal: 'NCAT', abnormals: [
+                { key: 'scalpTenderness', label: 'Scalp tenderness' },
+                { key: 'scalpLaceration', label: 'Scalp laceration' },
+            ] },
         ],
     },
-
     {
         key: 'bl_neuro',
         label: 'NEURO',
         findings: [
-            {
-                key: 'aoX4',
-                normal: 'A&Ox4',
-                abnormals: [
-                    { key: 'disorientedSpecify', label: 'Disoriented (specify)' },
-                    { key: 'confused',           label: 'Confused'              },
-                ],
-            },
-            {
-                key: 'cnIiXiiGrosslyIntact',
-                normal: 'CN II-XII grossly intact',
-                abnormals: [
-                    { key: 'cnDeficitSpecify', label: 'CN deficit (specify)' },
-                    { key: 'facialAsymmetry',  label: 'Facial asymmetry'     },
-                ],
-            },
-            {
-                key: 'normalGait',
-                normal: 'Normal gait',
-                abnormals: [
-                    { key: 'ataxicGait',     label: 'Ataxic gait'     },
-                    { key: 'rombergPositive', label: 'Romberg positive' },
-                ],
-            },
+            { key: 'aoX4', normal: 'A&Ox4', abnormals: [
+                { key: 'disorientedSpecify', label: 'Disoriented (specify)' },
+                { key: 'confused', label: 'Confused' },
+            ] },
+            { key: 'cnIiXiiGrosslyIntact', normal: 'CN II-XII grossly intact', abnormals: [
+                { key: 'cnDeficitSpecify', label: 'CN deficit (specify)' },
+                { key: 'facialAsymmetry', label: 'Facial asymmetry' },
+            ] },
+            { key: 'normalGait', normal: 'Normal gait', abnormals: [
+                { key: 'ataxicGait', label: 'Ataxic gait' },
+                { key: 'rombergPositive', label: 'Romberg positive' },
+            ] },
         ],
     },
-
     {
         key: 'bl_psych',
         label: 'PSYCH',
         findings: [
-            {
-                key: 'appropriateMood',
-                normal: 'Appropriate mood',
-                abnormals: [
-                    { key: 'depressedMood', label: 'Depressed mood' },
-                    { key: 'anxious',       label: 'Anxious'        },
-                ],
-            },
-            {
-                key: 'appropriateAffect',
-                normal: 'Appropriate affect',
-                abnormals: [
-                    { key: 'flatAffect',   label: 'Flat affect'   },
-                    { key: 'labileAffect', label: 'Labile affect' },
-                ],
-            },
+            { key: 'appropriateMood', normal: 'Appropriate mood', abnormals: [
+                { key: 'depressedMood', label: 'Depressed mood' },
+                { key: 'anxious', label: 'Anxious' },
+            ] },
+            { key: 'appropriateAffect', normal: 'Appropriate affect', abnormals: [
+                { key: 'flatAffect', label: 'Flat affect' },
+                { key: 'labileAffect', label: 'Labile affect' },
+            ] },
         ],
     },
 ];
 
+/** @deprecated Use MASTER_BLOCKS */
 export const SYSTEM_BLOCKS: PEBlock[] = [
     {
         key: 'sys_ears',
@@ -1673,7 +2355,7 @@ const FOCUSED_B: PEBlock[] = [
     },
 ];
 
-// Body-part-specific key lists for UI filtering of cat_b_specialTests
+/** @deprecated Use MSK child blocks instead — kept for backward compatibility with old codec */
 export const SPECIAL_TESTS_BY_BODY_PART: Record<string, string[]> = {
     'B-1': ['straightLegRaise', 'faber', 'fadir', 'ober', 'piriformisTest', 'slumpTest'],
     'B-2': ['spurlings', 'hoffmans'],
@@ -2810,6 +3492,7 @@ const FOCUSED_M: PEBlock[] = [
     },
 ];
 
+/** @deprecated Use MASTER_BLOCKS + FOCUSED_EXPANSION */
 export const FOCUSED_CATEGORIES: Record<CategoryLetter, PEBlock[]> = {
     A: FOCUSED_A,
     B: FOCUSED_B,
@@ -2840,16 +3523,19 @@ const MSK_BODY_PARTS: Record<string, string> = {
     'B-11': 'Extremity',
 };
 
+/** @deprecated */
 export function getCategoryFromSymptomCode(code: string): CategoryLetter | null {
     const match = code.match(/^([A-M])-/);
     return match ? (match[1] as CategoryLetter) : null;
 }
 
+/** @deprecated */
 export function getMSKBodyPart(code: string): { code: string; label: string } | null {
     const label = MSK_BODY_PARTS[code];
     return label ? { code, label } : null;
 }
 
+/** @deprecated */
 export function getPECategory(letter: CategoryLetter): { category: CategoryLetter; label: string; items: PEBlock[] } {
     const labels: Record<CategoryLetter, string> = {
         A: 'HEENT', B: 'Musculoskeletal', C: 'Gastrointestinal',
@@ -2860,6 +3546,7 @@ export function getPECategory(letter: CategoryLetter): { category: CategoryLette
     return { category: letter, label: labels[letter], items: FOCUSED_CATEGORIES[letter] };
 }
 
+/** @deprecated Use MASTER_BLOCKS */
 export const COMPREHENSIVE_DEFAULT_BLOCK_IDS: string[] = [
     'bl_gen', 'bl_eyes', 'sys_ears', 'sys_nose', 'sys_oral', 'sys_pharynx',
     'bl_hent', 'sys_neck', 'sys_cv', 'sys_pulm', 'sys_abd', 'sys_msk',
@@ -2876,9 +3563,14 @@ function buildBlockLibrary(): Record<string, PEBlock> {
     return lib;
 }
 
+/** @deprecated Use MASTER_BLOCK_LIBRARY */
 export const BLOCK_LIBRARY: Record<string, PEBlock> = buildBlockLibrary();
 
+/** @deprecated Use getMasterBlocks() */
 export function getBaselineWrappers(): PEBlock[] { return BASELINE_WRAPPERS; }
+/** @deprecated Use getBlocksForFocusedExam() */
 export function getFocusedBlocks(letter: CategoryLetter): PEBlock[] { return FOCUSED_CATEGORIES[letter] || []; }
+/** @deprecated Use getMasterBlocks() */
 export function getSystemBlocks(): PEBlock[] { return SYSTEM_BLOCKS; }
+/** @deprecated Use getMasterBlockByKey() */
 export function getBlockByKey(key: string): PEBlock | undefined { return BLOCK_LIBRARY[key]; }

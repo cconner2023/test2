@@ -31,8 +31,12 @@ export interface PEState {
     vitals: Record<string, string>;
     /** Additional free-text findings. */
     additional: string;
-    /** PE depth mode used. */
-    depth: 'focused' | 'comprehensive' | 'custom';
-    /** For comprehensive mode: ordered block keys defining the template. */
+    /** PE mode: 'focused' (medic) or 'template' (provider selected blocks). */
+    mode: 'focused' | 'template';
+    /** Master block keys used in this exam. */
+    blockKeys?: string[];
+    /** @deprecated Use mode instead. Kept for v6 codec backward compat. */
+    depth?: 'focused' | 'comprehensive' | 'custom';
+    /** @deprecated Use blockKeys instead. */
     blockOrder?: string[];
 }

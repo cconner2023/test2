@@ -35,7 +35,11 @@ function formatDT(iso: string) {
   } catch { return iso }
 }
 
-export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
+export const CasualtyInfoForm = memo(function CasualtyInfoForm({
+  panelRef,
+}: {
+  panelRef?: React.RefObject<HTMLElement | null>
+}) {
   const casualty = useTC3Store((s) => s.card.casualty)
   const updateCasualty = useTC3Store((s) => s.updateCasualty)
   const evacuation = useTC3Store((s) => s.card.evacuation)
@@ -182,6 +186,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
         onClose={() => setPopoverVisible(false)}
         anchorRect={anchorRect}
         maxWidth="max-w-[380px]"
+        containerRef={panelRef}
         preview={
           <div className="px-4 py-3 space-y-3">
             {/* EVAC Priority */}

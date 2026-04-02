@@ -330,7 +330,7 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-medium ${activityTracking ? 'text-primary' : 'text-tertiary'}`}>Activity Tracking</p>
-                  <p className="text-[11px] text-tertiary/70 mt-0.5">Periodically record activity date/time when interacting with the server</p>
+                  <p className="text-[11px] text-tertiary/70 mt-0.5">Background heartbeat keeps your account active and powers session tracking. Disabling may lead to account hibernation after 90 days.</p>
                 </div>
                 <ToggleSwitch checked={activityTracking} />
               </div>

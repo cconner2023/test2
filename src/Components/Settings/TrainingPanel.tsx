@@ -1,5 +1,5 @@
-import { useRef, useEffect, useCallback, useMemo } from 'react'
-import { Check, ChevronRight, Lock, CalendarDays, ClipboardList } from 'lucide-react'
+import { useRef, useEffect, useCallback, useMemo, useState } from 'react'
+import { Check, ChevronRight, Lock, CalendarDays, ClipboardList, Pin } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { useCalendarVault } from '../../Hooks/useCalendarVault'
 import { useCalendarStore } from '../../stores/useCalendarStore'
@@ -13,6 +13,9 @@ import { AudioAidPlayer } from '../AudioAidPlayer'
 import { skillLevelLabels, categoryOrder } from '../../Data/TrainingConstants'
 import { StepCallout, PerformanceStepItem } from '../TrainingStepComponents'
 import { SectionHeader } from '../Section'
+import { KBItemContextMenu } from '../KBItemContextMenu'
+import { useNavPreferencesStore } from '../../stores/useNavPreferencesStore'
+import { useShallow } from 'zustand/react/shallow'
 
 interface FlatTask {
     taskId: string
@@ -163,16 +166,24 @@ function AssignmentsSection({
 
 function TaskRow({
     task,
-    onSelectTask,
+    onClick,
     isTaskCompleted,
     isTaskViewed,
     assignment,
+    isPinned,
+    onContextMenu,
+    onTouchStart,
+    onTouchEnd,
 }: {
     task: FlatTask
-    onSelectTask: (t: subjectAreaArrayOptions) => void
+    onClick: () => void
     isTaskCompleted: (id: string) => boolean
     isTaskViewed: (id: string) => boolean
     assignment?: ReturnType<ReturnType<typeof useTrainingCompletions>['getAssignment']>
+    isPinned: boolean
+    onContextMenu: (e: React.MouseEvent) => void
+    onTouchStart: (e: React.TouchEvent) => void
+    onTouchEnd: () => void
 }) {
     const hasData = !!getTaskData(task.taskId)
     const completed = isTaskCompleted(task.taskId)
@@ -189,8 +200,12 @@ function TaskRow({
 
     return (
         <button
-            onClick={() => hasData && onSelectTask(task.option)}
+            onClick={() => hasData && onClick()}
             disabled={!hasData}
+            onContextMenu={hasData ? onContextMenu : undefined}
+            onTouchStart={hasData ? onTouchStart : undefined}
+            onTouchEnd={hasData ? onTouchEnd : undefined}
+            onTouchCancel={hasData ? onTouchEnd : undefined}
             className={`flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all
                 ${hasData
                     ? 'active:scale-95 hover:bg-themeblue2/5 cursor-pointer'
@@ -218,6 +233,9 @@ function TaskRow({
                 )}
             </div>
             <div className="shrink-0 ml-2 flex items-center gap-2">
+                {isPinned && (
+                    <Pin size={12} className="text-themeblue2/40" />
+                )}
                 <span className="px-1.5 py-0.5 rounded text-[8pt] font-semibold bg-tertiary/10 text-tertiary/60">
                     {badge}
                 </span>
@@ -244,6 +262,44 @@ function TrainingList({
 }) {
     const { isTaskCompleted, isTaskViewed, getAssignment, getPendingAssignments } = useTrainingCompletions()
     const { medics } = useClinicMedics()
+    const { pinnedKB, togglePinKB } = useNavPreferencesStore(
+        useShallow(s => ({ pinnedKB: s.pinnedKB, togglePinKB: s.togglePinKB }))
+    )
+
+    // ── Context menu state ───────────────────────────────────
+    const [contextMenu, setContextMenu] = useState<{ id: string; position: { x: number; y: number } } | null>(null)
+    const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const longPressTriggered = useRef(false)
+
+    const handleTouchStart = useCallback((taskId: string, e: React.TouchEvent) => {
+        longPressTriggered.current = false
+        const touch = e.touches[0]
+        const pos = { x: touch.clientX, y: touch.clientY }
+        longPressTimer.current = setTimeout(() => {
+            longPressTriggered.current = true
+            setContextMenu({ id: taskId, position: pos })
+        }, 500)
+    }, [])
+
+    const handleTouchEnd = useCallback(() => {
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current)
+            longPressTimer.current = null
+        }
+    }, [])
+
+    const handleContextMenu = useCallback((taskId: string, e: React.MouseEvent) => {
+        e.preventDefault()
+        setContextMenu({ id: taskId, position: { x: e.clientX, y: e.clientY } })
+    }, [])
+
+    const handleTaskClick = useCallback((task: FlatTask) => {
+        if (longPressTriggered.current) {
+            longPressTriggered.current = false
+            return
+        }
+        onSelectTask(task.option)
+    }, [onSelectTask])
 
     const pendingAssignments = useMemo(() => getPendingAssignments(), [getPendingAssignments])
 
@@ -315,10 +371,14 @@ function TrainingList({
                                 <div key={task.taskId} className={idx > 0 ? 'border-t border-tertiary/8' : ''}>
                                     <TaskRow
                                         task={task}
-                                        onSelectTask={onSelectTask}
+                                        onClick={() => handleTaskClick(task)}
                                         isTaskCompleted={isTaskCompleted}
                                         isTaskViewed={isTaskViewed}
                                         assignment={getAssignment(task.taskId)}
+                                        isPinned={pinnedKB.includes('task:' + task.taskId)}
+                                        onContextMenu={(e) => handleContextMenu('task:' + task.taskId, e)}
+                                        onTouchStart={(e) => handleTouchStart('task:' + task.taskId, e)}
+                                        onTouchEnd={handleTouchEnd}
                                     />
                                 </div>
                             ))}
@@ -327,6 +387,15 @@ function TrainingList({
                 ))
             )}
         </div>
+
+        {contextMenu && (
+            <KBItemContextMenu
+                isPinned={pinnedKB.includes(contextMenu.id)}
+                position={contextMenu.position}
+                onTogglePin={() => togglePinKB(contextMenu.id)}
+                onClose={() => setContextMenu(null)}
+            />
+        )}
         </>
     )
 }
