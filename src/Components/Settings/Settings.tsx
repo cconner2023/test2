@@ -13,7 +13,6 @@ import { NotificationSettingsPanel } from './NotificationSettingsPanel';
 import { FeedbackPanel } from './FeedbackPanel';
 import { PrivacyPolicyPanel } from './PrivacyPolicyPanel';
 import { NoteContentPanel } from './NoteContentPanel';
-import { PhysicalExamPanel } from './PhysicalExamPanel';
 import { PlanPanel } from './PlanPanel';
 import { TextTemplatesPanel } from './TextTemplatesPanel';
 import { ProviderTemplatesPanel } from './ProviderTemplatesPanel';
@@ -57,7 +56,7 @@ export const Settings = ({
     initialPanel,
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'sessions-devices' | 'clinic' | 'lora' | 'physical-exam' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'guided-tours'>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'guided-tours'>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const prevVisibleRef = useRef(false);
@@ -291,9 +290,6 @@ export const Settings = ({
             if (activePanel === 'note-content') {
                 return () => { handleSlideAnimation('right'); setActivePanel('main'); };
             }
-            if (activePanel === 'physical-exam') {
-                return () => { handleSlideAnimation('right'); setActivePanel('note-content'); };
-            }
             if (activePanel === 'plan-settings') {
                 return () => { handleSlideAnimation('right'); setPlanEditing(false); setActivePanel('note-content'); };
             }
@@ -362,8 +358,6 @@ export const Settings = ({
             case 'feedback':            return { title: 'Feedback', ...backTo() };
             case 'privacy-policy':      return { title: 'Privacy Policy', ...backTo() };
             case 'note-content':            return { title: 'Note Content', ...backTo() };
-            case 'physical-exam':
-                return { title: 'Physical Exam', showBack: true as const, onBack: () => { handleSlideAnimation('right'); setActivePanel('note-content'); } };
             case 'text-templates': {
                 const doTemplatesBack = () => { handleSlideAnimation('right'); setTemplatesEditing(false); setTemplatesHasPending(false); setActivePanel('note-content'); };
                 const templatesPills = (
