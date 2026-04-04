@@ -9,6 +9,7 @@ interface DayViewProps {
   onSelectEvent: (id: string) => void
   onMoveEvent: (eventId: string, newStartTime: string) => void
   onEventContextMenu?: (eventId: string, x: number, y: number) => void
+  onDayContextMenu?: (dateKey: string, x: number, y: number) => void
   /** Mobile day navigation — when provided, renders interactive header */
   onPrevDay?: () => void
   onNextDay?: () => void
@@ -104,12 +105,13 @@ function resolveOverlaps(events: CalendarEvent[], dateKey: string) {
   return columns
 }
 
-export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventContextMenu, onPrevDay, onNextDay, onDateTap }: DayViewProps) {
+export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventContextMenu, onDayContextMenu, onPrevDay, onNextDay, onDateTap }: DayViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<ActiveDrag | null>(null)
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const suppressClickRef = useRef(false)
   const touchStartYRef = useRef(0)
+  const dayLongPressRef = useRef<{ timer: ReturnType<typeof setTimeout>; fired: boolean } | null>(null)
 
   const [isDragging, setIsDragging] = useState(false)
   const [dragTop, setDragTop] = useState(0)
@@ -299,7 +301,39 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
         ref={scrollRef}
         className={`flex-1 ${isDragging ? 'overflow-hidden' : 'overflow-y-auto'}`}
       >
-        <div className="relative" style={{ height: totalHeight }}>
+        <div
+          className="relative"
+          style={{ height: totalHeight }}
+          onContextMenu={(e) => {
+            if (onDayContextMenu) {
+              e.preventDefault()
+              onDayContextMenu(dateKey, e.clientX, e.clientY)
+            }
+          }}
+          onTouchStart={(e) => {
+            if (!onDayContextMenu) return
+            // Only start day long-press if not touching an event (events handle their own)
+            if ((e.target as HTMLElement).closest('[role="button"]')) return
+            const touch = e.touches[0]
+            const lp = { timer: setTimeout(() => {
+              lp.fired = true
+              onDayContextMenu(dateKey, touch.clientX, touch.clientY)
+            }, 500), fired: false }
+            dayLongPressRef.current = lp
+          }}
+          onTouchMove={() => {
+            if (dayLongPressRef.current) {
+              clearTimeout(dayLongPressRef.current.timer)
+              dayLongPressRef.current = null
+            }
+          }}
+          onTouchEnd={() => {
+            if (dayLongPressRef.current) {
+              clearTimeout(dayLongPressRef.current.timer)
+              dayLongPressRef.current = null
+            }
+          }}
+        >
           {hours.map((h, i) => (
             <div
               key={h}

@@ -148,13 +148,6 @@ export async function approveAccountRequest(
       return fail(validated.error ?? 'Approval succeeded but returned unexpected data')
     }
 
-    // Fire-and-forget: Supabase Magic Link template repurposed as
-    // "account approved" notification email. Must not block or fail the approval.
-    supabase.auth.signInWithOtp({
-      email: validated.data.email,
-      options: { shouldCreateUser: false },
-    }).catch((e) => logger.warn('Approval notification email failed:', e))
-
     return succeed({
       userId: validated.data.user_id,
       email: validated.data.email,
@@ -165,6 +158,16 @@ export async function approveAccountRequest(
     logger.error('Failed to approve request:', error)
     return fail(getErrorMessage(error))
   }
+}
+
+/**
+ * Send the "account approved" notification email via Magic Link template.
+ */
+export function sendApprovalEmail(email: string): void {
+  supabase.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: false },
+  }).catch((e) => logger.warn('Approval notification email failed:', e))
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { ChevronRight } from 'lucide-react';
 import { detectPII } from '../../lib/piiDetector';
@@ -50,8 +50,6 @@ export function ProviderNote({
   onNext,
   importedMedicNote,
 }: ProviderNoteProps) {
-  const [peMode, setPeMode] = useState<'blocks' | 'text'>('blocks');
-  const [planMode, setPlanMode] = useState<'blocks' | 'text'>('text');
 
   const { profile } = useUserProfile();
   const clinicTextExpanders = useAuthStore(s => s.clinicTextExpanders);
@@ -100,24 +98,7 @@ export function ProviderNote({
       </div>
 
       <div className="space-y-3 md:space-y-2" data-tour="provider-pe">
-        <div className="flex items-center justify-between">
-          <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Physical Exam</p>
-          <label
-            className="flex items-center gap-2 cursor-pointer"
-            onClick={() => setPeMode(prev => prev === 'blocks' ? 'text' : 'blocks')}
-          >
-            <span className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Structured</span>
-            <div
-              className={`relative w-9 h-5 shrink-0 rounded-full transition-colors duration-200 ${
-                peMode === 'blocks' ? 'bg-themeblue3' : 'bg-tertiary/20'
-              }`}
-            >
-              <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                peMode === 'blocks' ? 'translate-x-4' : 'translate-x-0'
-              }`} />
-            </div>
-          </label>
-        </div>
+        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Physical Exam</p>
         {/* Block selection is handled inside PhysicalExam via popover */}
         {importedMedicNote?.medicPe && (
           <div className="rounded-xl bg-themewhite2 px-4 py-3">
@@ -125,31 +106,19 @@ export function ProviderNote({
             <div className="text-sm text-primary whitespace-pre-wrap">{importedMedicNote.medicPe}</div>
           </div>
         )}
-        {peMode === 'blocks' ? (
-          <PhysicalExam
-            key={peResetKey}
-            initialText={peNote}
-            onChange={setPeNote}
-            onStateChange={onPeStateChange}
-            colors={getColorClasses('routine')}
-            symptomCode="A-1"
-            mode="template"
-            templateBlockKeys={selectedBlockKeys}
-            onBlockKeysChange={onBlockKeysChange}
-            expanders={expanders}
-            expanderEnabled={expanderEnabled}
-          />
-        ) : (
-          <ExpandableInput
-            value={peNote}
-            onChange={setPeNote}
-            expanders={expanders}
-            expanderEnabled={expanderEnabled}
-            multiline
-            className={TEXTAREA_CLASS}
-            placeholder="Vital signs, system findings..."
-          />
-        )}
+        <PhysicalExam
+          key={peResetKey}
+          initialText={peNote}
+          onChange={setPeNote}
+          onStateChange={onPeStateChange}
+          colors={getColorClasses('routine')}
+          symptomCode="A-1"
+          mode="template"
+          templateBlockKeys={selectedBlockKeys}
+          onBlockKeysChange={onBlockKeysChange}
+          expanders={expanders}
+          expanderEnabled={expanderEnabled}
+        />
       </div>
 
       <div className="space-y-3 md:space-y-2" data-tour="provider-assessment">
@@ -172,51 +141,22 @@ export function ProviderNote({
       </div>
 
       <div className="space-y-3 md:space-y-2" data-tour="provider-plan">
-        <div className="flex items-center justify-between">
-          <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Plan</p>
-          <label
-            className="flex items-center gap-2 cursor-pointer"
-            onClick={() => setPlanMode(prev => prev === 'blocks' ? 'text' : 'blocks')}
-          >
-            <span className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Structured</span>
-            <div
-              className={`relative w-9 h-5 shrink-0 rounded-full transition-colors duration-200 ${
-                planMode === 'blocks' ? 'bg-themeblue3' : 'bg-tertiary/20'
-              }`}
-            >
-              <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                planMode === 'blocks' ? 'translate-x-4' : 'translate-x-0'
-              }`} />
-            </div>
-          </label>
-        </div>
+        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Plan</p>
         {importedMedicNote?.medicPlan && (
           <div className="rounded-xl bg-themewhite2 px-4 py-3">
             <p className="text-[10pt] text-tertiary/50 mb-1">{importedMedicNote.medicName}</p>
             <div className="text-sm text-primary whitespace-pre-wrap">{importedMedicNote.medicPlan}</div>
           </div>
         )}
-        {planMode === 'blocks' ? (
-          <Plan
-            orderTags={profile.planOrderTags ?? { referral: [], meds: [], radiology: [], lab: [], followUp: [] }}
-            instructionTags={profile.planInstructionTags ?? []}
-            orderSets={profile.planOrderSets}
-            initialText={planNote}
-            onChange={setPlanNote}
-            expanders={expanders}
-            expanderEnabled={expanderEnabled}
-          />
-        ) : (
-          <ExpandableInput
-            value={planNote}
-            onChange={setPlanNote}
-            expanders={expanders}
-            expanderEnabled={expanderEnabled}
-            multiline
-            className={TEXTAREA_CLASS}
-            placeholder="Treatment plan, orders, follow-up..."
-          />
-        )}
+        <Plan
+          orderTags={profile.planOrderTags ?? { referral: [], meds: [], radiology: [], lab: [], followUp: [] }}
+          instructionTags={profile.planInstructionTags ?? []}
+          orderSets={profile.planOrderSets}
+          initialText={planNote}
+          onChange={setPlanNote}
+          expanders={expanders}
+          expanderEnabled={expanderEnabled}
+        />
       </div>
 
       <div className="flex items-center justify-end pt-4">

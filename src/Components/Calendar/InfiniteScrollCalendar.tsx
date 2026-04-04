@@ -12,6 +12,7 @@ interface InfiniteScrollCalendarProps {
   onMoveEvent: (eventId: string, targetDateKey: string) => void
   onSelectEvent: (id: string) => void
   onEventContextMenu?: (eventId: string, x: number, y: number) => void
+  onDayContextMenu?: (dateKey: string, x: number, y: number) => void
   scrollTargetDate?: string
   scrollNonce?: number
 }
@@ -170,11 +171,13 @@ export function InfiniteScrollCalendar({
   onMoveEvent,
   onSelectEvent,
   onEventContextMenu,
+  onDayContextMenu,
   scrollTargetDate,
   scrollNonce,
 }: InfiniteScrollCalendarProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const weekRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const dayLongPressRef = useRef<{ timer: ReturnType<typeof setTimeout>; dateKey: string; fired: boolean } | null>(null)
   const [weeks, setWeeks] = useState(() => generateWeeks(new Date(), WEEKS_BUFFER, WEEKS_BUFFER))
   const [rowMinHeight, setRowMinHeight] = useState(88)
 
@@ -412,7 +415,41 @@ export function InfiniteScrollCalendar({
                       data-drop-date={day.dateKey}
                       onClick={() => {
                         if (justDroppedRef.current) return
+                        if (dayLongPressRef.current?.fired) return
                         onSelectDate(day.date)
+                      }}
+                      onContextMenu={(e) => {
+                        if (onDayContextMenu) {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          onDayContextMenu(day.dateKey, e.clientX, e.clientY)
+                        }
+                      }}
+                      onTouchStart={(e) => {
+                        if (!onDayContextMenu) return
+                        const touch = e.touches[0]
+                        const lp = { timer: setTimeout(() => {
+                          lp.fired = true
+                          onDayContextMenu(day.dateKey, touch.clientX, touch.clientY)
+                        }, 500), dateKey: day.dateKey, fired: false }
+                        dayLongPressRef.current = lp
+                      }}
+                      onTouchMove={() => {
+                        if (dayLongPressRef.current) {
+                          clearTimeout(dayLongPressRef.current.timer)
+                          dayLongPressRef.current = null
+                        }
+                      }}
+                      onTouchEnd={() => {
+                        if (dayLongPressRef.current) {
+                          clearTimeout(dayLongPressRef.current.timer)
+                          if (dayLongPressRef.current.fired) {
+                            // Suppress the click that follows
+                            setTimeout(() => { dayLongPressRef.current = null }, 50)
+                          } else {
+                            dayLongPressRef.current = null
+                          }
+                        }
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {

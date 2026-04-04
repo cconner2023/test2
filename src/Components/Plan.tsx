@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
-import type { PlanOrderTags, PlanOrderCategory, PlanOrderSet, PlanBlockKey, TextExpander } from '../Data/User';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Plus, Check } from 'lucide-react';
+import type { PlanOrderTags, PlanOrderSet, PlanBlockKey, TextExpander } from '../Data/User';
 import { PLAN_ORDER_CATEGORIES, PLAN_ORDER_LABELS } from '../Data/User';
 import { ContextMenuPreview } from './ContextMenuPreview';
-import type { ContextMenuAction } from './ContextMenuPreview';
-import { PlanBlockPreview } from './PlanBlockPreview';
+import { PlanAllBlocksPreview } from './PlanBlockPreview';
 import { ListItemRow } from './ListItemRow';
+import { ExpandableInput } from './ExpandableInput';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -181,9 +181,25 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
     // Track which order sets are "active" (have been applied)
     const [activeSetIds, setActiveSetIds] = useState<Set<string>>(new Set());
 
+    // Free text below block rows
+    const [freeTextValue, setFreeTextValue] = useState('');
+
+    // Single FAB popover state
+    const [showFabPopover, setShowFabPopover] = useState(false);
+    const [fabAnchorRect, setFabAnchorRect] = useState<DOMRect | null>(null);
+    const [focusCategory, setFocusCategory] = useState<string | null>(null);
+
+    const openFab = useCallback((e: React.MouseEvent, focusKey?: string) => {
+        setFabAnchorRect((e.currentTarget as HTMLElement).getBoundingClientRect());
+        setFocusCategory(focusKey ?? null);
+        setShowFabPopover(true);
+    }, []);
+
     useEffect(() => {
-        onChange(generateText(states));
-    }, [states]); // eslint-disable-line react-hooks/exhaustive-deps
+        const blockText = generateText(states);
+        const parts = [blockText, freeTextValue.trim()].filter(Boolean);
+        onChange(parts.join('\n'));
+    }, [states, freeTextValue]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const toggleTag = useCallback((key: PlanBlockKey, tag: string) => {
         setStates(prev => {
@@ -191,16 +207,8 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
             const next = current.includes(tag)
                 ? current.filter(t => t !== tag)
                 : [...current, tag];
-            // Auto-activate when a tag is selected
             return { ...prev, [key]: { ...prev[key], selectedTags: next, status: 'active' } };
         });
-    }, []);
-
-    const setFreeText = useCallback((key: PlanBlockKey, text: string) => {
-        setStates(prev => ({
-            ...prev,
-            [key]: { ...prev[key], freeText: text },
-        }));
     }, []);
 
     const addCustomTag = useCallback((key: PlanBlockKey, value: string) => {
@@ -266,66 +274,26 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
     }, []);
 
     // Only show blocks that have tags configured
-    const visibleBlocks = useMemo(() => ALL_BLOCK_KEYS.filter(key => allTags[key].length > 0), [allTags]);
+    const visibleBlocks = useMemo(() => ALL_BLOCK_KEYS.filter(key => states[key].status === 'active' && allTags[key].length > 0), [allTags, states]);
 
-    // ── Popover state ────────────────────────────────────────
-    const [editingIndex, setEditingIndex] = useState<number | null>(null);
-    const [popoverAnchorRect, setPopoverAnchorRect] = useState<DOMRect | null>(null);
+    const allCategories = useMemo(() =>
+        ALL_BLOCK_KEYS
+            .filter(key => allTags[key].length > 0)
+            .map(key => ({
+                key,
+                label: BLOCK_LABELS[key],
+                tags: allTags[key],
+                state: states[key],
+            })),
+        [allTags, states],
+    );
 
     const handleRowTap = useCallback((index: number, rect: DOMRect) => {
-        setPopoverAnchorRect(rect);
-        setEditingIndex(index);
-    }, []);
-
-    const editingKey = editingIndex !== null ? visibleBlocks[editingIndex] : null;
-    const editingState = editingKey ? states[editingKey] : null;
-
-    const popoverActions = useMemo((): ContextMenuAction[] => {
-        if (editingIndex === null || editingKey === null) return [];
-        const len = visibleBlocks.length;
-        const isFirst = editingIndex === 0;
-        const isLast = editingIndex === len - 1;
-        return [
-            {
-                key: 'prev',
-                label: '<',
-                icon: ChevronLeft,
-                onAction: () => { if (!isFirst) setEditingIndex(editingIndex - 1); },
-                closesOnAction: false,
-                variant: isFirst ? 'disabled' as any : 'default',
-            },
-            {
-                key: 'reset',
-                label: 'Reset',
-                icon: RotateCcw,
-                onAction: () => {
-                    setStates(prev => ({
-                        ...prev,
-                        [editingKey]: defaultBlockState(),
-                    }));
-                },
-                closesOnAction: false,
-            },
-            {
-                key: 'next',
-                label: '>',
-                icon: ChevronRight,
-                onAction: () => { if (!isLast) setEditingIndex(editingIndex + 1); },
-                closesOnAction: false,
-                variant: isLast ? 'disabled' as any : 'default',
-            },
-        ];
-    }, [editingIndex, editingKey, editingState?.status, visibleBlocks.length]);
-
-    if (visibleBlocks.length === 0 && orderSets.length === 0) {
-        return (
-            <div className="p-3">
-                <p className="text-xs text-tertiary/50 italic text-center py-4">
-                    No plan tags configured. Add tags in Settings &gt; Note Content.
-                </p>
-            </div>
-        );
-    }
+        const key = visibleBlocks[index];
+        setFabAnchorRect(rect);
+        setFocusCategory(key ?? null);
+        setShowFabPopover(true);
+    }, [visibleBlocks]);
 
     return (
         <div className="space-y-4">
@@ -360,43 +328,84 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                 </section>
             )}
 
-            {/* Block rows */}
-            <div className="rounded-xl bg-themewhite2 overflow-hidden">
-                <div className="px-4 py-3">
-                    {visibleBlocks.map((key, i) => (
-                        <PlanBlockRow
-                            key={key}
-                            label={BLOCK_LABELS[key]}
-                            state={states[key]}
-                            onTap={handleRowTap}
-                            index={i}
-                        />
-                    ))}
+            {/* Block rows or empty state */}
+            {visibleBlocks.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-tertiary/15 bg-themewhite2/50 py-8 flex flex-col items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={openFab}
+                        className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
+                    >
+                        <Plus size={16} />
+                    </button>
+                    <p className="text-[10px] text-tertiary/40">Add plan blocks</p>
                 </div>
-            </div>
-
-            {/* ── Popover ── */}
-            {editingKey && editingState && (
-                <ContextMenuPreview
-                    isVisible={editingIndex !== null}
-                    onClose={() => setEditingIndex(null)}
-                    anchorRect={popoverAnchorRect}
-                    maxWidth="max-w-[340px] md:max-w-[520px]"
-                    searchPlaceholder="Filter tags..."
-                    preview={(filter, clearFilter) => (
-                        <PlanBlockPreview
-                            label={BLOCK_LABELS[editingKey]}
-                            tags={allTags[editingKey]}
-                            state={editingState}
-                            filter={filter}
-                            onToggleTag={(tag) => { toggleTag(editingKey, tag); clearFilter(); }}
-                        />
-                    )}
-                    actions={popoverActions}
-                    onAdd={(value) => addCustomTag(editingKey, value)}
-                    addPlaceholder="Add custom tag..."
-                />
+            ) : (
+                <>
+                    <div className="rounded-xl bg-themewhite2 overflow-hidden">
+                        <div className="px-4 py-3">
+                            {visibleBlocks.map((key, i) => (
+                                <PlanBlockRow
+                                    key={key}
+                                    label={BLOCK_LABELS[key]}
+                                    state={states[key]}
+                                    onTap={handleRowTap}
+                                    index={i}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                    <div className="flex justify-center pt-1">
+                        <button
+                            type="button"
+                            onClick={openFab}
+                            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
+                        >
+                            <Plus size={14} />
+                        </button>
+                    </div>
+                </>
             )}
+
+            {/* Free text */}
+            <ExpandableInput
+                value={freeTextValue}
+                onChange={setFreeTextValue}
+                expanders={expanders}
+                expanderEnabled={expanderEnabled}
+                multiline
+                className="w-full rounded-xl border border-themeblue3/10 shadow-xs bg-themewhite p-3 text-sm text-primary placeholder:text-tertiary/30 focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none resize-none transition-all duration-300 overflow-hidden"
+                placeholder="Additional plan notes..."
+            />
+
+            {/* Unified popover — all categories with nested tags */}
+            <ContextMenuPreview
+                isVisible={showFabPopover}
+                onClose={() => setShowFabPopover(false)}
+                anchorRect={fabAnchorRect}
+                maxWidth="max-w-[340px] md:max-w-[520px]"
+                searchPlaceholder="Search plan items..."
+                preview={(filter, clearFilter) => (
+                    <PlanAllBlocksPreview
+                        categories={allCategories}
+                        filter={filter}
+                        onToggleTag={(catKey, tag) => { toggleTag(catKey as PlanBlockKey, tag); clearFilter(); }}
+                        focusKey={focusCategory}
+                    />
+                )}
+                actions={[{
+                    key: 'done',
+                    label: 'Done',
+                    icon: Check,
+                    onAction: () => setShowFabPopover(false),
+                }]}
+                onAdd={(value) => {
+                    if (focusCategory) {
+                        addCustomTag(focusCategory as PlanBlockKey, value);
+                    }
+                }}
+                addPlaceholder={focusCategory ? `Add custom ${BLOCK_LABELS[focusCategory as PlanBlockKey]?.toLowerCase()} tag...` : 'Select a category first...'}
+            />
         </div>
     );
 };

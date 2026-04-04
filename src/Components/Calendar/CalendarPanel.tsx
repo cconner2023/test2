@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Clock, Plus, Users2, CalendarDays, X, Check, Pencil, Trash2 } from 'lucide-react'
+import { Clock, Plus, Users2, CalendarDays, X, Check, Pencil, Trash2, CalendarPlus } from 'lucide-react'
 import { CardContextMenu } from '../CardContextMenu'
 import { useShallow } from 'zustand/react/shallow'
 import { useIsMobile } from '../../Hooks/useIsMobile'
@@ -22,7 +22,7 @@ import { useAuth } from '../../Hooks/useAuth'
 import { getInitials } from '../../Utilities/nameUtils'
 import type { CalendarEvent, EventFormData } from '../../Types/CalendarTypes'
 import {
-  eventToFormData, toDateKey, eventFallsOnDate, generateId,
+  eventToFormData, toDateKey, eventFallsOnDate, generateId, createEmptyFormData,
 } from '../../Types/CalendarTypes'
 import { getTombstones } from '../../lib/calendarRouting'
 
@@ -54,6 +54,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
   const [confirmDeleteEvent, setConfirmDeleteEvent] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ eventId: string; x: number; y: number } | null>(null)
+  const [dayContextMenu, setDayContextMenu] = useState<{ dateKey: string; x: number; y: number } | null>(null)
+  const [newEventDateKey, setNewEventDateKey] = useState<string | undefined>(undefined)
 
   const [showDayDrawer, setShowDayDrawer] = useState(false)
   const [dayDrawerView, setDayDrawerView] = useState<DayDrawerView>('detail')
@@ -116,6 +118,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     personnelFilter,
     setMonthLabel,
     selectedDateStr, storeSetSelectedDate,
+    vaultReplayDone,
     hydrationError, clearHydrationError,
   } = useCalendarStore(useShallow(s => ({
     viewMode: s.currentView,
@@ -132,6 +135,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     setMonthLabel: s.setMonthLabel,
     selectedDateStr: s.selectedDate,
     storeSetSelectedDate: s.setSelectedDate,
+    vaultReplayDone: s.vaultReplayDone,
     hydrationError: s.hydrationError,
     clearHydrationError: s.clearHydrationError,
   })))
@@ -195,10 +199,11 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     }
   }, [isMobile, selectEvent])
 
-  const handleNewEvent = useCallback(() => {
+  const handleNewEvent = useCallback((forDateKey?: string) => {
     setEditingEvent(null)
+    setNewEventDateKey(forDateKey ?? selectedDateStr)
     setPanelView('form')
-  }, [])
+  }, [selectedDateStr])
 
   const handleEditEvent = useCallback((id: string) => {
     const event = events.find(e => e.id === id)
@@ -343,6 +348,10 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     setContextMenu({ eventId, x, y })
   }, [isMobile])
 
+  const handleDayContextMenu = useCallback((dateKey: string, x: number, y: number) => {
+    setDayContextMenu({ dateKey, x, y })
+  }, [])
+
   // ── Day drawer handlers (mobile) ──
 
   const handleDayDrawerClose = useCallback(() => {
@@ -429,6 +438,13 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   return (
     <>
       <div className="relative h-full flex">
+        {/* Vault sync banner — mirrors messaging's "Setting up encryption…" pattern */}
+        {!vaultReplayDone && (
+          <div className="absolute top-0 inset-x-0 z-30 flex items-center gap-2 px-3 py-2 bg-themeblue3/10 border-b border-themeblue3/20">
+            <div className="w-3 h-3 border-2 border-themeblue3 border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs text-themeblue3 font-medium">Syncing calendar…</span>
+          </div>
+        )}
         {/* Vault hydration error banner */}
         {hydrationError && (
           <div className="absolute top-0 inset-x-0 z-30 flex items-center justify-between gap-2 px-3 py-2 bg-amber-100 border-b border-amber-300 text-amber-900 text-xs">
@@ -450,6 +466,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 onMoveEvent={handleMoveEventToDate}
                 onSelectEvent={handleSelectEvent}
                 onEventContextMenu={handleEventContextMenu}
+                onDayContextMenu={handleDayContextMenu}
                 scrollTargetDate={selectedDateStr}
                 scrollNonce={scrollNonce}
               />
@@ -462,6 +479,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 onSelectEvent={handleSelectEvent}
                 onMoveEvent={handleMoveEvent}
                 onEventContextMenu={handleEventContextMenu}
+                onDayContextMenu={handleDayContextMenu}
                 {...(isMobile ? {
                   onPrevDay: handlePrevDay,
                   onNextDay: handleNextDay,
@@ -520,7 +538,10 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               <button
                 data-tour="calendar-add-event"
                 onClick={handleNewEvent}
-                className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
+                disabled={!vaultReplayDone}
+                className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 ${
+                  vaultReplayDone ? 'bg-themeblue3 text-white active:scale-95' : 'bg-tertiary/30 text-tertiary cursor-not-allowed'
+                }`}
               >
                 <Plus className="w-5 h-5" />
               </button>
@@ -557,7 +578,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           >
             <EventForm
               ref={eventFormRef}
-              initialData={editingEvent ? eventToFormData(editingEvent) : undefined}
+              initialData={editingEvent ? eventToFormData(editingEvent) : createEmptyFormData(newEventDateKey)}
               onSave={handleSaveEvent}
               isEditing={!!editingEvent}
               medics={medicList}
@@ -659,7 +680,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   <div className="flex-1 min-h-0 overflow-y-auto">
                     <EventForm
                       ref={eventFormRef}
-                      initialData={editingEvent ? eventToFormData(editingEvent) : undefined}
+                      initialData={editingEvent ? eventToFormData(editingEvent) : createEmptyFormData(newEventDateKey)}
                       onSave={handleSaveEvent}
                       isEditing={!!editingEvent}
                       medics={medicList}
@@ -692,6 +713,17 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           items={[
             { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => handleEditEvent(contextMenu.eventId) },
             { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteEvent(contextMenu.eventId) },
+          ]}
+        />
+      )}
+
+      {dayContextMenu && (
+        <CardContextMenu
+          x={dayContextMenu.x}
+          y={dayContextMenu.y}
+          onClose={() => setDayContextMenu(null)}
+          items={[
+            { key: 'add', label: 'Add Event', icon: CalendarPlus, onAction: () => handleNewEvent(dayContextMenu.dateKey) },
           ]}
         />
       )}

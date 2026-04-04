@@ -24,15 +24,17 @@ import { createLogger } from '../Utilities/Logger'
 const logger = createLogger('CalendarSync')
 
 export function useCalendarSync() {
-  const { setEvents, hydrated, setHydrated } = useCalendarStore(useShallow(s => ({
+  const { setEvents, hydrated, setHydrated, vaultReplayDone } = useCalendarStore(useShallow(s => ({
     setEvents: s.setEvents,
     hydrated: s.hydrated,
     setHydrated: s.setHydrated,
+    vaultReplayDone: s.vaultReplayDone,
   })))
 
-  // Hydrate from IDB on mount
+  // Hydrate from IDB on mount — waits for vault replay so the merge sees
+  // the full vault state and the destructive IDB clear is already done.
   useEffect(() => {
-    if (hydrated) return
+    if (hydrated || !vaultReplayDone) return
     ;(async () => {
       try {
         await initCalendarTombstones()
@@ -66,5 +68,5 @@ export function useCalendarSync() {
         setHydrated(true)
       }
     })()
-  }, [hydrated, setEvents, setHydrated])
+  }, [hydrated, vaultReplayDone, setEvents, setHydrated])
 }

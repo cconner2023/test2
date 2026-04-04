@@ -1007,7 +1007,7 @@ const providerTour: TourDefinition = {
     },
     {
       target: 'provider-pe',
-      text: 'Physical Exam — structured blocks with normal/abnormal toggles, pre-filled by the template.',
+      text: 'Physical Exam — normal/abnormal toggles for each system, pre-filled by the template.',
       placement: 'top',
       beforeStep: 'provider:apply-template',
       delay: 400,
@@ -1019,7 +1019,7 @@ const providerTour: TourDefinition = {
     },
     {
       target: 'provider-plan',
-      text: 'Plan — medications, instructions, and follow-up from the template.',
+      text: 'Plan — select order sets or individual blocks for medications, instructions, and follow-up.',
       placement: 'top',
     },
     {

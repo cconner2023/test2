@@ -21,6 +21,7 @@ import {
   updateUserProfile,
   setUserRoles,
   setUserClinic,
+  sendApprovalEmail,
 } from '../../lib/adminService'
 import type { AdminClinic } from '../../lib/adminService'
 import type { AccountRequest } from '../../lib/accountRequestService'
@@ -164,6 +165,8 @@ function RequestCard({
       const clinicResult = await setUserClinic(userId, selectedClinicId)
       if (!clinicResult.success) warnings.push('Clinic assignment failed')
     }
+
+    sendApprovalEmail(approveResult.email)
 
     setProcessing(false)
 

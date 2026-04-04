@@ -381,7 +381,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     }
     clearClinicUsersCache().catch(() => {})
     useCallStore.getState().reset()
-    useCalendarStore.setState({ events: [], hydrated: false })
+    useCalendarStore.setState({ events: [], hydrated: false, vaultReplayDone: false })
 
     // Aggressively wipe browser storage
     try { localStorage.clear() } catch { /* ignore */ }
@@ -456,13 +456,16 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
                   .select('encryption_key')
                   .eq('id', cId)
                   .single()
-                if (!clinicRow?.encryption_key) return
+                if (!clinicRow?.encryption_key) {
+                  useCalendarStore.setState({ vaultReplayDone: true })
+                  return
+                }
 
                 // Clear stale calendar cache before vault replay so deleted/ghost
                 // events don't survive across sessions. The vault is the source of
                 // truth — IDB is rebuilt from scratch on each login.
                 await clearCalendarEvents()
-                useCalendarStore.setState({ events: [], hydrated: false })
+                useCalendarStore.setState({ events: [], hydrated: false, vaultReplayDone: false })
 
                 // Derive wrapping key + ensure vault device exists + process unread
                 await deriveAndCacheClinicVaultKey(cId, clinicRow.encryption_key)
@@ -474,6 +477,9 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
                 const { clinicDeviceId } = await initClinicDeviceBundle(userId, cId, initResult.deviceId)
                 const { useMessagingStore } = await import('./useMessagingStore')
                 useMessagingStore.getState().setClinicDeviceId(clinicDeviceId)
+
+                // Unlock calendar — vault replay + clinicDeviceId are both ready
+                useCalendarStore.setState({ vaultReplayDone: true })
 
                 // Wire clinic device into heartbeat so last_active_at stays fresh
                 const { updateHeartbeatClinicDevice } = await import('../lib/activityHeartbeat')
@@ -490,9 +496,12 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
                 // Surface vault replay failures so the user knows events may be missing
                 console.error('Clinic vault init failed:', e)
                 const { useCalendarStore } = await import('./useCalendarStore')
-                useCalendarStore.setState({ hydrationError: true })
+                useCalendarStore.setState({ hydrationError: true, vaultReplayDone: true })
               }
             })()
+          } else {
+            // No clinic — no vault to replay; unlock calendar immediately
+            useCalendarStore.setState({ vaultReplayDone: true })
           }
 
           // Initialize LoRa mesh subsystem (lazy — no-ops if flag is off)
@@ -505,7 +514,10 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
             .then(() => scheduleBackup(userId))
             .catch(() => scheduleBackup(userId))
         }
-      }).catch(() => { set({ signalReady: true }) }) // Mark ready even on failure — don't block UI permanently
+      }).catch(() => {
+        set({ signalReady: true }) // Mark ready even on failure — don't block UI permanently
+        useCalendarStore.setState({ vaultReplayDone: true })
+      })
 
       // Progressive unlock: first login gates UI on profile only (not Signal).
       // Returning users (localSession exists) skip this — sessionReady is already true.

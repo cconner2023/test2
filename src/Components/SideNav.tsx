@@ -215,37 +215,38 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
         )}
       </div>
 
-      {/* Feedback banner */}
-      {!feedbackDismissed && (
-        <div className="mx-3 mb-2">
-          <div className="relative flex items-center gap-3 py-2 cursor-pointer active:scale-[0.98] transform-gpu transition-all duration-200 hover:bg-themeblue2/5"
-            onClick={() => { onMenuItemClick('settings-feedback'); onClose() }}
-          >
-            <div className="w-9 h-9 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
-              <MessageSquare size={16} className="text-themeblue3" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-primary">Share feedback</div>
-              <div className="text-xs text-tertiary leading-relaxed">Help improve the application</div>
-            </div>
+      {/* Footer */}
+      <div className="border-t border-tertiary/10" style={{ paddingBottom: 'calc(var(--sab, 0px) + 0.5rem)' }}>
+        {!feedbackDismissed && (
+          <div className="px-3 pt-2">
             <button
-              onClick={(e) => { e.stopPropagation(); dismissFeedback() }}
-              className="p-1 rounded-full hover:bg-tertiary/10 text-tertiary/40 hover:text-tertiary transition-colors"
+              onClick={() => { onMenuItemClick('settings-feedback'); onClose() }}
+              className={`w-full text-left flex items-center ${isMobile ? 'pl-7 pr-3 py-3.5' : 'pl-5 pr-2 py-2.5'} rounded-xl hover:bg-themewhite2/60 bg-transparent active:scale-95 transform-gpu transition-colors`}
             >
-              <X size={14} />
+              <div className="mr-4">
+                <MessageSquare size={isMobile ? 20 : 16} className="text-primary/70" />
+              </div>
+              <span className={`tracking-wide ${isMobile ? 'text-[15px]' : 'text-[13px]'} text-primary/80 font-medium flex-1`}>
+                Share Feedback
+              </span>
+              <div
+                role="button"
+                onClick={(e) => { e.stopPropagation(); dismissFeedback() }}
+                className="p-1.5 rounded-full hover:bg-tertiary/10 text-tertiary/30 hover:text-tertiary transition-colors"
+              >
+                <X size={14} />
+              </div>
             </button>
           </div>
-        </div>
-      )}
-
-      {/* Footer */}
-      <div className="border-t border-tertiary/10 px-4 py-4 text-center" style={{ paddingBottom: 'calc(var(--sab, 0px) + 1rem)' }}>
-        <p className="text-xs text-tertiary/40 mt-1">Version {__APP_VERSION__}</p>
-        <div className="flex items-center justify-center gap-1.5 mt-2">
-          <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-themegreen' : 'bg-tertiary/40'}`} />
-          <span className={`text-[11px] font-medium ${isConnected ? 'text-themegreen' : 'text-tertiary/60'}`}>
-            {isConnected ? 'Connected' : 'Offline'}
-          </span>
+        )}
+        <div className="px-4 py-3 text-center">
+          <p className="text-xs text-tertiary/40">Version {__APP_VERSION__}</p>
+          <div className="flex items-center justify-center gap-1.5 mt-2">
+            <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-themegreen' : 'bg-tertiary/40'}`} />
+            <span className={`text-[11px] font-medium ${isConnected ? 'text-themegreen' : 'text-tertiary/60'}`}>
+              {isConnected ? 'Connected' : 'Offline'}
+            </span>
+          </div>
         </div>
       </div>
 

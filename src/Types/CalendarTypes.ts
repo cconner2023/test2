@@ -60,11 +60,19 @@ export function getCategoryMeta(category: EventCategory) {
   return EVENT_CATEGORIES.find(c => c.value === category) ?? EVENT_CATEGORIES[EVENT_CATEGORIES.length - 1]
 }
 
-export function createEmptyFormData(): EventFormData {
+export function createEmptyFormData(forDateKey?: string): EventFormData {
   const now = new Date()
   const start = new Date(now)
   start.setMinutes(0, 0, 0)
   start.setHours(start.getHours() + 1)
+
+  // If a specific date is requested and it differs from today, pin to 08:00–09:00 on that date
+  if (forDateKey && forDateKey !== toDateKey(now)) {
+    const [y, m, d] = forDateKey.split('-').map(Number)
+    start.setFullYear(y, m - 1, d)
+    start.setHours(8, 0, 0, 0)
+  }
+
   const end = new Date(start)
   end.setHours(end.getHours() + 1)
 
