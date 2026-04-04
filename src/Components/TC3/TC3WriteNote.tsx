@@ -90,7 +90,7 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
     setTimeout(() => setShareStatus('idle'), 2000)
   }
 
-  const hasInjuries = card.injuries.length > 0
+  const hasMarkers = card.markers.length > 0
 
   return (
     <BaseDrawer
@@ -130,30 +130,36 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
           </div>
         )}
 
-        {/* Body diagram with injuries */}
-        {hasInjuries && (
+        {/* Body diagram with markers */}
+        {hasMarkers && (
           <div className="rounded-xl border border-tertiary/15 bg-themewhite p-3">
             <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-2">Injury Diagram</p>
             <TC3BodyDiagramSvg
-              injuries={card.injuries}
-              editingInjury={null}
-              onAddInjury={() => {}}
-              onEditInjury={() => {}}
+              markers={card.markers}
               readOnly
               compact
             />
-            {/* Injury legend */}
+            {/* Marker legend */}
             <div className="mt-2 pt-2 border-t border-tertiary/10 flex flex-wrap gap-x-3 gap-y-1">
-              {card.injuries.map((inj, i) => {
-                const region = inj.bodyRegion ? getRegionLabel(inj.bodyRegion) : `(${Math.round(inj.x)}%, ${Math.round(inj.y)}%)`
+              {card.markers.map((m, i) => {
+                const region = m.bodyRegion ? getRegionLabel(m.bodyRegion) : `(${Math.round(m.x)}%, ${Math.round(m.y)}%)`
+                const label = [
+                  ...m.injuries,
+                  ...m.procedures,
+                ].join(', ') || 'Marker'
+                const color = m.injuries.length > 0
+                  ? (INJURY_COLORS[m.injuries[0]] ?? '#6b7280')
+                  : m.procedures.length > 0
+                    ? '#22c55e'
+                    : '#f59e0b'
                 return (
-                  <div key={inj.id} className="flex items-center gap-1">
+                  <div key={m.id} className="flex items-center gap-1">
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: INJURY_COLORS[inj.type] ?? '#6b7280' }}
+                      style={{ backgroundColor: color }}
                     />
                     <span className="text-[9px] text-tertiary">
-                      {i + 1}. {inj.type} ({region})
+                      {i + 1}. {label} ({region})
                     </span>
                   </div>
                 )

@@ -14,14 +14,14 @@ export const TC3FrontColumn = memo(function TC3FrontColumn() {
   const resetCard = useTC3Store((s) => s.resetCard)
   const panelRef = useRef<HTMLDivElement>(null)
   const [showConfirmReset, setShowConfirmReset] = useState(false)
-  const [editingInjury, setEditingInjury] = useState<string | null>(null)
+  const [editingMarker, setEditingMarker] = useState<string | null>(null)
 
   const handleReset = () => {
     resetCard()
     setShowConfirmReset(false)
   }
 
-  const injuryCount = card.injuries.length
+  const markerCount = card.markers.length
 
   return (
     <div ref={panelRef} className="relative h-full overflow-y-auto bg-themewhite">
@@ -42,27 +42,33 @@ export const TC3FrontColumn = memo(function TC3FrontColumn() {
         {/* Body Diagram — front + back side by side (desktop) */}
         <BodyDiagram
           panelRef={panelRef}
-          editingInjuryId={editingInjury}
-          onEditInjury={setEditingInjury}
+          editingMarkerId={editingMarker}
+          onEditMarker={setEditingMarker}
         />
 
-        {/* Injury list summary */}
-        {injuryCount > 0 && (
+        {/* Marker list summary */}
+        {markerCount > 0 && (
           <div className="space-y-1.5">
             <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">
-              Marked Injuries ({injuryCount})
+              Markers ({markerCount})
             </p>
             <div className="rounded-2xl border border-tertiary/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
-              {card.injuries.map((inj) => {
-                const dotColor = INJURY_TYPE_COLOR[inj.type] ?? '#6b7280'
-                const regionLabel = inj.bodyRegion ? getRegionLabel(inj.bodyRegion) : null
-                const txCount = inj.treatmentLinks.length
+              {card.markers.map((m) => {
+                const primaryInjury = m.injuries[0]
+                const dotColor = primaryInjury ? (INJURY_TYPE_COLOR[primaryInjury] ?? '#6b7280') : m.procedures.length > 0 ? '#22c55e' : '#f59e0b'
+                const typeLabel = m.injuries.length > 0
+                  ? m.injuries.join(', ')
+                  : m.procedures.length > 0
+                    ? m.procedures.join(', ')
+                    : 'Treatment'
+                const regionLabel = m.bodyRegion ? getRegionLabel(m.bodyRegion) : null
+                const txCount = m.treatments.length
 
                 return (
                   <button
-                    key={inj.id}
+                    key={m.id}
                     type="button"
-                    onClick={() => setEditingInjury(inj.id)}
+                    onClick={() => setEditingMarker(m.id)}
                     className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-tertiary/3 transition-colors"
                   >
                     {/* Colored dot */}
@@ -72,7 +78,7 @@ export const TC3FrontColumn = memo(function TC3FrontColumn() {
                     />
 
                     {/* Type label */}
-                    <span className="text-xs font-medium text-primary">{inj.type}</span>
+                    <span className="text-xs font-medium text-primary">{typeLabel}</span>
 
                     {/* Region badge */}
                     {regionLabel && (
@@ -82,8 +88,8 @@ export const TC3FrontColumn = memo(function TC3FrontColumn() {
                     )}
 
                     {/* Description (truncated) */}
-                    {inj.description && (
-                      <span className="text-[10px] text-tertiary/60 truncate min-w-0">{inj.description}</span>
+                    {m.description && (
+                      <span className="text-[10px] text-tertiary/60 truncate min-w-0">{m.description}</span>
                     )}
 
                     {/* Spacer */}

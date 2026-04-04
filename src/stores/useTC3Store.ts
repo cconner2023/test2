@@ -3,7 +3,7 @@
  *
  * Manages the active TC3 casualty card: form data across all sections,
  * selected section for navigation, and CRUD operations for list items
- * (injuries, tourniquets, medications, vitals, IV access).
+ * (markers, tourniquets, medications, vitals, IV access).
  */
 
 import { create } from 'zustand'
@@ -11,9 +11,11 @@ import type {
   TC3Card,
   TC3Section,
   TC3Injury,
+  TC3Marker,
   TC3Tourniquet,
   TC3Hemostatic,
   TC3IVAccess,
+  TC3Procedure,
   TC3Medication,
   TC3VitalSet,
   TC3InjuryTreatmentLink,
@@ -23,7 +25,194 @@ import type {
   NeedleDecompSide,
   MedRoute,
 } from '../Types/TC3Types'
-import { getBodyRegion } from '../Utilities/bodyRegionMap'
+import { getBodyRegion, getRegionLabel } from '../Utilities/bodyRegionMap'
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+
+function nowISO16(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function nowHHMM(): string {
+  return new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })
+}
+
+/** Migrate legacy injuries[] + procedures[] → unified markers[] */
+export function migrateToMarkers(card: TC3Card): TC3Marker[] {
+  const markers: TC3Marker[] = []
+  const fallbackDT = card.casualty.dateTimeOfTreatment || nowISO16()
+
+  for (const inj of card.injuries) {
+    markers.push({
+      id: inj.id,
+      x: inj.x,
+      y: inj.y,
+      bodyRegion: inj.bodyRegion,
+      injuries: [inj.type],
+      treatments: inj.treatmentLinks.map(l => l.treatmentCategory),
+      procedures: [],
+      gauge: '',
+      tqType: 'CAT',
+      tqCategory: 'Extremity',
+      dressingType: 'Hemostatic',
+      priority: '',
+      dateTime: fallbackDT,
+      description: inj.description,
+    })
+  }
+
+  for (const proc of card.procedures) {
+    markers.push({
+      id: proc.id,
+      x: proc.x,
+      y: proc.y,
+      bodyRegion: proc.bodyRegion,
+      injuries: [],
+      treatments: [],
+      procedures: [proc.type],
+      gauge: proc.gauge,
+      tqType: 'CAT',
+      tqCategory: 'Extremity',
+      dressingType: 'Hemostatic',
+      priority: '',
+      dateTime: proc.time ? `${new Date().toISOString().slice(0, 11)}${proc.time}` : fallbackDT,
+      description: '',
+    })
+  }
+
+  return markers
+}
+
+/** Sync a marker's selections into the MARCH treatment structures */
+function syncMarkerToMarch(
+  marker: TC3Marker,
+  march: TC3Card['march'],
+  regionLabel: string,
+): TC3Card['march'] {
+  let { massiveHemorrhage, respiration, circulation } = march
+
+  // Tourniquet
+  const hasTQ = marker.treatments.includes('tourniquet')
+  const existingTQ = massiveHemorrhage.tourniquets.find(t => t.injuryId === marker.id)
+  if (hasTQ && !existingTQ) {
+    massiveHemorrhage = {
+      ...massiveHemorrhage,
+      tourniquets: [...massiveHemorrhage.tourniquets, {
+        id: crypto.randomUUID(),
+        location: regionLabel,
+        time: marker.dateTime.slice(11, 16) || nowHHMM(),
+        type: marker.tqType,
+        tqCategory: marker.tqCategory,
+        injuryId: marker.id,
+      }],
+    }
+  } else if (hasTQ && existingTQ) {
+    massiveHemorrhage = {
+      ...massiveHemorrhage,
+      tourniquets: massiveHemorrhage.tourniquets.map(t =>
+        t.injuryId === marker.id ? { ...t, type: marker.tqType, tqCategory: marker.tqCategory, location: regionLabel } : t
+      ),
+    }
+  } else if (!hasTQ && existingTQ) {
+    massiveHemorrhage = {
+      ...massiveHemorrhage,
+      tourniquets: massiveHemorrhage.tourniquets.filter(t => t.injuryId !== marker.id),
+    }
+  }
+
+  // Hemostatic
+  const hasHemo = marker.treatments.includes('hemostatic')
+  const existingHemo = massiveHemorrhage.hemostatics.find(h => h.injuryId === marker.id)
+  if (hasHemo && !existingHemo) {
+    massiveHemorrhage = {
+      ...massiveHemorrhage,
+      hemostatics: [...massiveHemorrhage.hemostatics, {
+        id: crypto.randomUUID(),
+        applied: true,
+        type: 'Combat Gauze',
+        location: regionLabel,
+        dressingType: marker.dressingType,
+        injuryId: marker.id,
+      }],
+    }
+  } else if (hasHemo && existingHemo) {
+    massiveHemorrhage = {
+      ...massiveHemorrhage,
+      hemostatics: massiveHemorrhage.hemostatics.map(h =>
+        h.injuryId === marker.id ? { ...h, dressingType: marker.dressingType, location: regionLabel } : h
+      ),
+    }
+  } else if (!hasHemo && existingHemo) {
+    massiveHemorrhage = {
+      ...massiveHemorrhage,
+      hemostatics: massiveHemorrhage.hemostatics.filter(h => h.injuryId !== marker.id),
+    }
+  }
+
+  // Chest seal
+  const hasCS = marker.treatments.includes('chestSeal')
+  const side = marker.bodyRegion === 'chest-left' ? 'left'
+    : marker.bodyRegion === 'chest-right' ? 'right'
+    : 'left' as NeedleDecompSide
+  if (hasCS) {
+    respiration = { ...respiration, chestSeal: { applied: true, side } }
+  }
+
+  // Needle decomp
+  const hasND = marker.treatments.includes('needleDecomp')
+  if (hasND) {
+    respiration = { ...respiration, needleDecomp: { performed: true, side } }
+  }
+
+  // IV/IO access
+  const hasIV = marker.procedures.length > 0
+  const existingIV = circulation.ivAccess.find(iv => iv.id === marker.id)
+  if (hasIV && !existingIV) {
+    circulation = {
+      ...circulation,
+      ivAccess: [...circulation.ivAccess, {
+        id: marker.id,
+        type: marker.procedures[0],
+        site: regionLabel,
+        gauge: marker.gauge,
+        time: marker.dateTime.slice(11, 16) || nowHHMM(),
+      }],
+    }
+  } else if (hasIV && existingIV) {
+    circulation = {
+      ...circulation,
+      ivAccess: circulation.ivAccess.map(iv =>
+        iv.id === marker.id ? { ...iv, type: marker.procedures[0], gauge: marker.gauge, site: regionLabel, time: marker.dateTime.slice(11, 16) || iv.time } : iv
+      ),
+    }
+  } else if (!hasIV && existingIV) {
+    circulation = {
+      ...circulation,
+      ivAccess: circulation.ivAccess.filter(iv => iv.id !== marker.id),
+    }
+  }
+
+  return { ...march, massiveHemorrhage, respiration, circulation }
+}
+
+/** Remove all MARCH entries linked to a marker */
+function removeMarkerFromMarch(markerId: string, march: TC3Card['march']): TC3Card['march'] {
+  return {
+    ...march,
+    massiveHemorrhage: {
+      ...march.massiveHemorrhage,
+      tourniquets: march.massiveHemorrhage.tourniquets.filter(t => t.injuryId !== markerId),
+      hemostatics: march.massiveHemorrhage.hemostatics.filter(h => h.injuryId !== markerId),
+    },
+    circulation: {
+      ...march.circulation,
+      ivAccess: march.circulation.ivAccess.filter(iv => iv.id !== markerId),
+    },
+  }
+}
+
+// ── Empty card ───────────────────────────────────────────────────────────
 
 function createEmptyCard(): TC3Card {
   return {
@@ -45,7 +234,9 @@ function createEmptyCard(): TC3Card {
       types: [],
       otherDescription: '',
     },
+    markers: [],
     injuries: [],
+    procedures: [],
     march: {
       massiveHemorrhage: {
         tourniquets: [],
@@ -95,6 +286,8 @@ function createEmptyCard(): TC3Card {
   }
 }
 
+// ── Store types ──────────────────────────────────────────────────────────
+
 interface TC3State {
   card: TC3Card
   selectedSection: TC3Section
@@ -120,12 +313,22 @@ interface TC3Actions {
   toggleMechanism: (type: MechanismType) => void
   setMechanismOther: (description: string) => void
 
-  // Injuries
+  // Unified markers
+  addMarker: (marker: Omit<TC3Marker, 'bodyRegion'> & { bodyRegion?: TC3Marker['bodyRegion'] }) => void
+  updateMarker: (id: string, fields: Partial<TC3Marker>) => void
+  removeMarker: (id: string) => void
+
+  // Legacy injuries (kept for codec/import compat)
   addInjury: (injury: Omit<TC3Injury, 'bodyRegion' | 'treatmentLinks'> & { bodyRegion?: TC3Injury['bodyRegion']; treatmentLinks?: TC3Injury['treatmentLinks'] }) => void
   updateInjury: (id: string, fields: Partial<TC3Injury>) => void
   removeInjury: (id: string) => void
 
-  // Injury-treatment linking
+  // Legacy procedures (kept for codec/import compat)
+  addProcedure: (proc: Omit<TC3Procedure, 'bodyRegion'> & { bodyRegion?: TC3Procedure['bodyRegion'] }) => void
+  updateProcedure: (id: string, fields: Partial<TC3Procedure>) => void
+  removeProcedure: (id: string) => void
+
+  // Injury-treatment linking (legacy)
   linkTreatmentToInjury: (injuryId: string, link: TC3InjuryTreatmentLink) => void
   unlinkTreatmentFromInjury: (injuryId: string, treatmentId: string) => void
 
@@ -183,7 +386,7 @@ interface TC3Actions {
 
 export type TC3Store = TC3State & TC3Actions
 
-const WIZARD_PAGE_COUNT = 7 // matches TC3_WIZARD_PAGES length
+const WIZARD_PAGE_COUNT = 7
 
 export const useTC3Store = create<TC3Store>()((set) => ({
   card: createEmptyCard(),
@@ -217,7 +420,47 @@ export const useTC3Store = create<TC3Store>()((set) => ({
     card: { ...s.card, mechanism: { ...s.card.mechanism, otherDescription: description } },
   })),
 
-  // Injuries — auto-detect bodyRegion from coordinates
+  // ── Unified markers ──────────────────────────────────────────────────
+
+  addMarker: (marker) => set((s) => {
+    const fullMarker: TC3Marker = {
+      ...marker,
+      bodyRegion: marker.bodyRegion ?? getBodyRegion(marker.x, marker.y),
+    }
+    const regionLabel = fullMarker.bodyRegion
+      ? getRegionLabel(fullMarker.bodyRegion)
+      : `(${Math.round(fullMarker.x)}%, ${Math.round(fullMarker.y)}%)`
+    const march = syncMarkerToMarch(fullMarker, s.card.march, regionLabel)
+    // Also set dateTimeOfTreatment if not yet set
+    const casualty = !s.card.casualty.dateTimeOfTreatment
+      ? { ...s.card.casualty, dateTimeOfTreatment: fullMarker.dateTime }
+      : s.card.casualty
+    return {
+      card: { ...s.card, markers: [...s.card.markers, fullMarker], march, casualty },
+    }
+  }),
+
+  updateMarker: (id, fields) => set((s) => {
+    const markers = s.card.markers.map(m => m.id === id ? { ...m, ...fields } : m)
+    const updated = markers.find(m => m.id === id)
+    if (!updated) return { card: { ...s.card, markers } }
+    const regionLabel = updated.bodyRegion
+      ? getRegionLabel(updated.bodyRegion)
+      : `(${Math.round(updated.x)}%, ${Math.round(updated.y)}%)`
+    const march = syncMarkerToMarch(updated, s.card.march, regionLabel)
+    return { card: { ...s.card, markers, march } }
+  }),
+
+  removeMarker: (id) => set((s) => ({
+    card: {
+      ...s.card,
+      markers: s.card.markers.filter(m => m.id !== id),
+      march: removeMarkerFromMarch(id, s.card.march),
+    },
+  })),
+
+  // ── Legacy injury actions (preserved for codec/MARCHForm compat) ─────
+
   addInjury: (injury) => set((s) => {
     const fullInjury: TC3Injury = {
       ...injury,
@@ -233,7 +476,6 @@ export const useTC3Store = create<TC3Store>()((set) => ({
     },
   })),
   removeInjury: (id) => set((s) => {
-    // Clean up treatment injuryId references pointing to this injury
     const tourniquets = s.card.march.massiveHemorrhage.tourniquets.map(tq =>
       tq.injuryId === id ? { ...tq, injuryId: undefined } : tq
     )
@@ -252,7 +494,73 @@ export const useTC3Store = create<TC3Store>()((set) => ({
     }
   }),
 
-  // Injury-treatment linking
+  // Legacy procedures
+  addProcedure: (proc) => set((s) => {
+    const fullProc: TC3Procedure = {
+      ...proc,
+      bodyRegion: proc.bodyRegion ?? getBodyRegion(proc.x, proc.y),
+    }
+    const regionLabel = fullProc.bodyRegion
+      ? getRegionLabel(fullProc.bodyRegion)
+      : `(${Math.round(fullProc.x)}%, ${Math.round(fullProc.y)}%)`
+    const ivEntry: TC3IVAccess = {
+      id: fullProc.id,
+      type: fullProc.type,
+      site: regionLabel,
+      gauge: fullProc.gauge,
+      time: fullProc.time,
+    }
+    return {
+      card: {
+        ...s.card,
+        procedures: [...s.card.procedures, fullProc],
+        march: {
+          ...s.card.march,
+          circulation: {
+            ...s.card.march.circulation,
+            ivAccess: [...s.card.march.circulation.ivAccess, ivEntry],
+          },
+        },
+      },
+    }
+  }),
+  updateProcedure: (id, fields) => set((s) => {
+    const procedures = s.card.procedures.map(p => p.id === id ? { ...p, ...fields } : p)
+    const updated = procedures.find(p => p.id === id)
+    const ivAccess = s.card.march.circulation.ivAccess.map(iv => {
+      if (iv.id !== id) return iv
+      const patch: Partial<TC3IVAccess> = {}
+      if (fields.type) patch.type = fields.type
+      if (fields.gauge !== undefined) patch.gauge = fields.gauge
+      if (fields.time !== undefined) patch.time = fields.time
+      if (updated && fields.bodyRegion !== undefined) {
+        patch.site = fields.bodyRegion ? getRegionLabel(fields.bodyRegion) : iv.site
+      }
+      return { ...iv, ...patch }
+    })
+    return {
+      card: {
+        ...s.card,
+        procedures,
+        march: { ...s.card.march, circulation: { ...s.card.march.circulation, ivAccess } },
+      },
+    }
+  }),
+  removeProcedure: (id) => set((s) => ({
+    card: {
+      ...s.card,
+      procedures: s.card.procedures.filter(p => p.id !== id),
+      march: {
+        ...s.card.march,
+        circulation: {
+          ...s.card.march.circulation,
+          ivAccess: s.card.march.circulation.ivAccess.filter(iv => iv.id !== id),
+        },
+      },
+    },
+  })),
+
+  // Injury-treatment linking (legacy)
   linkTreatmentToInjury: (injuryId, link) => set((s) => ({
     card: {
       ...s.card,
@@ -276,213 +584,61 @@ export const useTC3Store = create<TC3Store>()((set) => ({
 
   // Treatments — Massive Hemorrhage
   addTourniquet: (tq) => set((s) => ({
-    card: {
-      ...s.card,
-      march: {
-        ...s.card.march,
-        massiveHemorrhage: {
-          ...s.card.march.massiveHemorrhage,
-          tourniquets: [...s.card.march.massiveHemorrhage.tourniquets, tq],
-        },
-      },
-    },
+    card: { ...s.card, march: { ...s.card.march, massiveHemorrhage: { ...s.card.march.massiveHemorrhage, tourniquets: [...s.card.march.massiveHemorrhage.tourniquets, tq] } } },
   })),
   updateTourniquet: (id, fields) => set((s) => ({
-    card: {
-      ...s.card,
-      march: {
-        ...s.card.march,
-        massiveHemorrhage: {
-          ...s.card.march.massiveHemorrhage,
-          tourniquets: s.card.march.massiveHemorrhage.tourniquets.map(
-            tq => tq.id === id ? { ...tq, ...fields } : tq,
-          ),
-        },
-      },
-    },
+    card: { ...s.card, march: { ...s.card.march, massiveHemorrhage: { ...s.card.march.massiveHemorrhage, tourniquets: s.card.march.massiveHemorrhage.tourniquets.map(tq => tq.id === id ? { ...tq, ...fields } : tq) } } },
   })),
   removeTourniquet: (id) => set((s) => ({
-    card: {
-      ...s.card,
-      march: {
-        ...s.card.march,
-        massiveHemorrhage: {
-          ...s.card.march.massiveHemorrhage,
-          tourniquets: s.card.march.massiveHemorrhage.tourniquets.filter(tq => tq.id !== id),
-        },
-      },
-    },
+    card: { ...s.card, march: { ...s.card.march, massiveHemorrhage: { ...s.card.march.massiveHemorrhage, tourniquets: s.card.march.massiveHemorrhage.tourniquets.filter(tq => tq.id !== id) } } },
   })),
   addHemostatic: (h) => set((s) => ({
-    card: {
-      ...s.card,
-      march: {
-        ...s.card.march,
-        massiveHemorrhage: {
-          ...s.card.march.massiveHemorrhage,
-          hemostatics: [...s.card.march.massiveHemorrhage.hemostatics, h],
-        },
-      },
-    },
+    card: { ...s.card, march: { ...s.card.march, massiveHemorrhage: { ...s.card.march.massiveHemorrhage, hemostatics: [...s.card.march.massiveHemorrhage.hemostatics, h] } } },
   })),
   updateHemostatic: (id, fields) => set((s) => ({
-    card: {
-      ...s.card,
-      march: {
-        ...s.card.march,
-        massiveHemorrhage: {
-          ...s.card.march.massiveHemorrhage,
-          hemostatics: s.card.march.massiveHemorrhage.hemostatics.map(
-            h => h.id === id ? { ...h, ...fields } : h,
-          ),
-        },
-      },
-    },
+    card: { ...s.card, march: { ...s.card.march, massiveHemorrhage: { ...s.card.march.massiveHemorrhage, hemostatics: s.card.march.massiveHemorrhage.hemostatics.map(h => h.id === id ? { ...h, ...fields } : h) } } },
   })),
   removeHemostatic: (id) => set((s) => ({
-    card: {
-      ...s.card,
-      march: {
-        ...s.card.march,
-        massiveHemorrhage: {
-          ...s.card.march.massiveHemorrhage,
-          hemostatics: s.card.march.massiveHemorrhage.hemostatics.filter(h => h.id !== id),
-        },
-      },
-    },
+    card: { ...s.card, march: { ...s.card.march, massiveHemorrhage: { ...s.card.march.massiveHemorrhage, hemostatics: s.card.march.massiveHemorrhage.hemostatics.filter(h => h.id !== id) } } },
   })),
 
   // Treatments — Airway
   updateAirway: (fields) => set((s) => ({
-    card: {
-      ...s.card,
-      march: {
-        ...s.card.march,
-        airway: { ...s.card.march.airway, ...fields },
-      },
-    },
+    card: { ...s.card, march: { ...s.card.march, airway: { ...s.card.march.airway, ...fields } } },
   })),
 
   // Treatments — Respiration
   updateNeedleDecomp: (fields) => set((s) => ({
-    card: {
-      ...s.card,
-      march: {
-        ...s.card.march,
-        respiration: {
-          ...s.card.march.respiration,
-          needleDecomp: { ...s.card.march.respiration.needleDecomp, ...fields },
-        },
-      },
-    },
+    card: { ...s.card, march: { ...s.card.march, respiration: { ...s.card.march.respiration, needleDecomp: { ...s.card.march.respiration.needleDecomp, ...fields } } } },
   })),
   updateChestSeal: (fields) => set((s) => ({
-    card: {
-      ...s.card,
-      march: {
-        ...s.card.march,
-        respiration: {
-          ...s.card.march.respiration,
-          chestSeal: { ...s.card.march.respiration.chestSeal, ...fields },
-        },
-      },
-    },
+    card: { ...s.card, march: { ...s.card.march, respiration: { ...s.card.march.respiration, chestSeal: { ...s.card.march.respiration.chestSeal, ...fields } } } },
   })),
   updateChestTube: (v) => set((s) => ({
-    card: {
-      ...s.card,
-      march: {
-        ...s.card.march,
-        respiration: { ...s.card.march.respiration, chestTube: v },
-      },
-    },
+    card: { ...s.card, march: { ...s.card.march, respiration: { ...s.card.march.respiration, chestTube: v } } },
   })),
   updateRespirationO2: (o2, method) => set((s) => ({
-    card: {
-      ...s.card,
-      march: {
-        ...s.card.march,
-        respiration: {
-          ...s.card.march.respiration,
-          o2,
-          ...(method !== undefined ? { o2Method: method } : {}),
-        },
-      },
-    },
+    card: { ...s.card, march: { ...s.card.march, respiration: { ...s.card.march.respiration, o2, ...(method !== undefined ? { o2Method: method } : {}) } } },
   })),
 
   // Treatments — Circulation
   addIVAccess: (iv) => set((s) => ({
-    card: {
-      ...s.card,
-      march: {
-        ...s.card.march,
-        circulation: {
-          ...s.card.march.circulation,
-          ivAccess: [...s.card.march.circulation.ivAccess, iv],
-        },
-      },
-    },
+    card: { ...s.card, march: { ...s.card.march, circulation: { ...s.card.march.circulation, ivAccess: [...s.card.march.circulation.ivAccess, iv] } } },
   })),
   removeIVAccess: (id) => set((s) => ({
-    card: {
-      ...s.card,
-      march: {
-        ...s.card.march,
-        circulation: {
-          ...s.card.march.circulation,
-          ivAccess: s.card.march.circulation.ivAccess.filter(iv => iv.id !== id),
-        },
-      },
-    },
+    card: { ...s.card, march: { ...s.card.march, circulation: { ...s.card.march.circulation, ivAccess: s.card.march.circulation.ivAccess.filter(iv => iv.id !== id) } } },
   })),
   addFluid: (fluid) => set((s) => ({
-    card: {
-      ...s.card,
-      march: {
-        ...s.card.march,
-        circulation: {
-          ...s.card.march.circulation,
-          fluids: [...s.card.march.circulation.fluids, fluid],
-        },
-      },
-    },
+    card: { ...s.card, march: { ...s.card.march, circulation: { ...s.card.march.circulation, fluids: [...s.card.march.circulation.fluids, fluid] } } },
   })),
   removeFluid: (index) => set((s) => ({
-    card: {
-      ...s.card,
-      march: {
-        ...s.card.march,
-        circulation: {
-          ...s.card.march.circulation,
-          fluids: s.card.march.circulation.fluids.filter((_, i) => i !== index),
-        },
-      },
-    },
+    card: { ...s.card, march: { ...s.card.march, circulation: { ...s.card.march.circulation, fluids: s.card.march.circulation.fluids.filter((_, i) => i !== index) } } },
   })),
   addBloodProduct: (product) => set((s) => ({
-    card: {
-      ...s.card,
-      march: {
-        ...s.card.march,
-        circulation: {
-          ...s.card.march.circulation,
-          bloodProducts: [...s.card.march.circulation.bloodProducts, product],
-        },
-      },
-    },
+    card: { ...s.card, march: { ...s.card.march, circulation: { ...s.card.march.circulation, bloodProducts: [...s.card.march.circulation.bloodProducts, product] } } },
   })),
   removeBloodProduct: (index) => set((s) => ({
-    card: {
-      ...s.card,
-      march: {
-        ...s.card.march,
-        circulation: {
-          ...s.card.march.circulation,
-          bloodProducts: s.card.march.circulation.bloodProducts.filter((_, i) => i !== index),
-        },
-      },
-    },
+    card: { ...s.card, march: { ...s.card.march, circulation: { ...s.card.march.circulation, bloodProducts: s.card.march.circulation.bloodProducts.filter((_, i) => i !== index) } } },
   })),
 
   // Medications
@@ -490,10 +646,7 @@ export const useTC3Store = create<TC3Store>()((set) => ({
     card: { ...s.card, medications: [...s.card.medications, med] },
   })),
   updateMedication: (id, fields) => set((s) => ({
-    card: {
-      ...s.card,
-      medications: s.card.medications.map(m => m.id === id ? { ...m, ...fields } : m),
-    },
+    card: { ...s.card, medications: s.card.medications.map(m => m.id === id ? { ...m, ...fields } : m) },
   })),
   removeMedication: (id) => set((s) => ({
     card: { ...s.card, medications: s.card.medications.filter(m => m.id !== id) },
@@ -504,10 +657,7 @@ export const useTC3Store = create<TC3Store>()((set) => ({
     card: { ...s.card, vitals: [...s.card.vitals, vitals] },
   })),
   updateVitalSet: (id, fields) => set((s) => ({
-    card: {
-      ...s.card,
-      vitals: s.card.vitals.map(v => v.id === id ? { ...v, ...fields } : v),
-    },
+    card: { ...s.card, vitals: s.card.vitals.map(v => v.id === id ? { ...v, ...fields } : v) },
   })),
   removeVitalSet: (id) => set((s) => ({
     card: { ...s.card, vitals: s.card.vitals.filter(v => v.id !== id) },

@@ -43,6 +43,16 @@ const PREKEY_BATCH_SIZE = 500
 
 // ---- Types ----
 
+/** Serialised SPK stored in the vault blob (JWK format). */
+interface StoredSignedPreKey {
+  keyId: number
+  privateKey: JsonWebKey
+  publicKey: JsonWebKey
+  publicKeyBase64: string
+  signature: string
+  createdAt: string
+}
+
 /** Plaintext vault blob — all private keys in JWK format. */
 interface VaultBlobPlaintext {
   signingPrivateKey: JsonWebKey
@@ -51,14 +61,9 @@ interface VaultBlobPlaintext {
   dhPublicKey: JsonWebKey
   signingPublicKeyBase64: string
   dhPublicKeyBase64: string
-  signedPreKey: {
-    keyId: number
-    privateKey: JsonWebKey
-    publicKey: JsonWebKey
-    publicKeyBase64: string
-    signature: string
-    createdAt: string
-  }
+  signedPreKey: StoredSignedPreKey
+  /** Retained old SPKs so vault messages encrypted with previous keys remain decryptable. */
+  previousSignedPreKeys?: StoredSignedPreKey[]
   preKeys: Array<{
     keyId: number
     privateKey: JsonWebKey
@@ -68,6 +73,16 @@ interface VaultBlobPlaintext {
   nextPreKeyId: number
 }
 
+/** Imported SPK with live CryptoKey handles. */
+interface ImportedSignedPreKey {
+  keyId: number
+  privateKey: CryptoKey
+  publicKey: CryptoKey
+  publicKeyBase64: string
+  signature: string
+  createdAt: string
+}
+
 interface VaultPrivateKeys {
   signingPrivateKey: CryptoKey
   signingPublicKey: CryptoKey
@@ -75,14 +90,9 @@ interface VaultPrivateKeys {
   dhPublicKey: CryptoKey
   signingPublicKeyBase64: string
   dhPublicKeyBase64: string
-  signedPreKey: {
-    keyId: number
-    privateKey: CryptoKey
-    publicKey: CryptoKey
-    publicKeyBase64: string
-    signature: string
-    createdAt: string
-  }
+  signedPreKey: ImportedSignedPreKey
+  /** Previous SPKs retained for decrypting older vault messages (keyed by keyId). */
+  previousSignedPreKeys: ImportedSignedPreKey[]
   preKeys: Array<{
     keyId: number
     privateKey: CryptoKey
@@ -196,6 +206,21 @@ async function signBytes(privateKey: CryptoKey, data: Uint8Array): Promise<strin
 
 // ---- Key Import ----
 
+async function importSignedPreKey(spk: StoredSignedPreKey): Promise<ImportedSignedPreKey> {
+  const [priv, pub] = await Promise.all([
+    crypto.subtle.importKey('jwk', spk.privateKey, { name: 'ECDH', namedCurve: SIGNAL.CURVE }, true, ['deriveKey', 'deriveBits']),
+    crypto.subtle.importKey('jwk', spk.publicKey, { name: 'ECDH', namedCurve: SIGNAL.CURVE }, true, []),
+  ])
+  return {
+    keyId: spk.keyId,
+    privateKey: priv,
+    publicKey: pub,
+    publicKeyBase64: spk.publicKeyBase64,
+    signature: spk.signature,
+    createdAt: spk.createdAt,
+  }
+}
+
 async function importVaultKeys(blob: VaultBlobPlaintext): Promise<VaultPrivateKeys> {
   const [signingPriv, signingPub, dhPriv, dhPub] = await Promise.all([
     crypto.subtle.importKey('jwk', blob.signingPrivateKey, { name: 'ECDSA', namedCurve: SIGNAL.CURVE }, true, ['sign']),
@@ -204,11 +229,11 @@ async function importVaultKeys(blob: VaultBlobPlaintext): Promise<VaultPrivateKe
     crypto.subtle.importKey('jwk', blob.dhPublicKey, { name: 'ECDH', namedCurve: SIGNAL.CURVE }, true, []),
   ])
 
-  const spk = blob.signedPreKey
-  const [spkPriv, spkPub] = await Promise.all([
-    crypto.subtle.importKey('jwk', spk.privateKey, { name: 'ECDH', namedCurve: SIGNAL.CURVE }, true, ['deriveKey', 'deriveBits']),
-    crypto.subtle.importKey('jwk', spk.publicKey, { name: 'ECDH', namedCurve: SIGNAL.CURVE }, true, []),
-  ])
+  const currentSpk = await importSignedPreKey(blob.signedPreKey)
+
+  const previousSpks = await Promise.all(
+    (blob.previousSignedPreKeys ?? []).map(importSignedPreKey)
+  )
 
   const preKeys = await Promise.all(blob.preKeys.map(async pk => ({
     keyId: pk.keyId,
@@ -224,14 +249,8 @@ async function importVaultKeys(blob: VaultBlobPlaintext): Promise<VaultPrivateKe
     dhPublicKey: dhPub,
     signingPublicKeyBase64: blob.signingPublicKeyBase64,
     dhPublicKeyBase64: blob.dhPublicKeyBase64,
-    signedPreKey: {
-      keyId: spk.keyId,
-      privateKey: spkPriv,
-      publicKey: spkPub,
-      publicKeyBase64: spk.publicKeyBase64,
-      signature: spk.signature,
-      createdAt: spk.createdAt,
-    },
+    signedPreKey: currentSpk,
+    previousSignedPreKeys: previousSpks,
     preKeys,
     nextPreKeyId: blob.nextPreKeyId,
   }
@@ -329,6 +348,7 @@ export async function ensureClinicVaultExists(
       signature: spkSignature,
       createdAt: new Date().toISOString(),
     },
+    previousSignedPreKeys: [],
     preKeys,
     nextPreKeyId: PREKEY_BATCH_SIZE + 1,
   }
@@ -460,11 +480,23 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
       const sessionKey = `${senderUuid}:${senderDeviceId}`
 
       if ('identitySigningKey' in inner) {
-        // X3DH initial message
+        // X3DH initial message — look up SPK by keyId (mirrors clinicSession.ts)
         const initial = inner as unknown as InitialMessage
+
+        // Match the SPK the sender used — check current + retained previous keys
+        const matchedSpk = initial.signedPreKeyId === vaultKeys.signedPreKey.keyId
+          ? vaultKeys.signedPreKey
+          : vaultKeys.previousSignedPreKeys.find(spk => spk.keyId === initial.signedPreKeyId)
+
+        if (!matchedSpk) {
+          logger.warn(`Clinic vault SPK ${initial.signedPreKeyId} not found — message undecryptable, skipping`)
+          processedIds.push(row.id)
+          continue
+        }
+
         const spkPair = {
-          publicKey: vaultKeys.signedPreKey.publicKey,
-          privateKey: vaultKeys.signedPreKey.privateKey,
+          publicKey: matchedSpk.publicKey,
+          privateKey: matchedSpk.privateKey,
         }
 
         let otpkPair: { publicKey: CryptoKey; privateKey: CryptoKey } | null = null
@@ -497,9 +529,9 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
         )
 
         const ratchetState = await initReceiver(x3dh.sharedSecret, {
-          publicKey: vaultKeys.signedPreKey.publicKey,
-          privateKey: vaultKeys.signedPreKey.privateKey,
-          publicKeyBase64: vaultKeys.signedPreKey.publicKeyBase64,
+          publicKey: matchedSpk.publicKey,
+          privateKey: matchedSpk.privateKey,
+          publicKeyBase64: matchedSpk.publicKeyBase64,
         })
 
         const { state, plaintext: ptBytes } = await ratchetDecrypt(
@@ -549,10 +581,15 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
     }
   }
 
-  // 6. Clinic vault is a shared canonical store — do NOT mark messages as read.
-  // Every clinic member replays the full vault on login. Idempotent routing
-  // (upsert + delete-aware batch + tombstones) ensures correctness.
-  // Old messages are pruned by hardDeleteByOriginId on edit/delete.
+  // 6. Mark processed vault messages as read — enters CRON cleanup pipeline.
+  // Mirrors personal vault (vaultDevice.ts). Unread messages are replayed on
+  // next login; once read, CRON can prune them.
+  if (processedIds.length > 0) {
+    await supabase
+      .from('signal_messages')
+      .update({ read_at: new Date().toISOString() })
+      .in('id', processedIds)
+  }
 
   // 7. Rotate SPK and replenish OTPs
   await rotateClinicVaultSPK(clinicId, vaultKeys, vaultRow as VaultDeviceKeysRow)
@@ -566,6 +603,22 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
 
 // ---- SPK Rotation & Pre-Key Replenishment ----
 
+/** Minimum age (ms) before rotating the clinic vault SPK. */
+const SPK_ROTATION_MIN_AGE_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
+/** Maximum age (ms) to retain previous SPKs — must exceed any realistic vault message lifetime. */
+const SPK_RETENTION_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000 // 90 days
+
+async function exportSignedPreKey(spk: ImportedSignedPreKey): Promise<StoredSignedPreKey> {
+  return {
+    keyId: spk.keyId,
+    privateKey: await crypto.subtle.exportKey('jwk', spk.privateKey),
+    publicKey: await crypto.subtle.exportKey('jwk', spk.publicKey),
+    publicKeyBase64: spk.publicKeyBase64,
+    signature: spk.signature,
+    createdAt: spk.createdAt,
+  }
+}
+
 async function rotateClinicVaultSPK(
   clinicId: string,
   vaultKeys: VaultPrivateKeys,
@@ -573,12 +626,27 @@ async function rotateClinicVaultSPK(
 ): Promise<void> {
   if (!cachedClinicVaultKey) return
 
+  // Only rotate if current SPK is old enough — vault messages must remain
+  // decryptable across logins, so frequent rotation is destructive.
+  const spkAge = Date.now() - new Date(vaultKeys.signedPreKey.createdAt).getTime()
+  if (spkAge < SPK_ROTATION_MIN_AGE_MS) return
+
   try {
     const newSpkPair = await generateDhPair()
     const newSpkPubBase64 = await exportPubKey(newSpkPair.publicKey, 'raw')
     const spkPubBytes = base64ToUint8(newSpkPubBase64)
     const newSpkSignature = await signBytes(vaultKeys.signingPrivateKey, spkPubBytes)
     const newSpkId = vaultKeys.signedPreKey.keyId + 1
+
+    // Retain the outgoing SPK so vault messages encrypted with it remain decryptable.
+    // Prune previous SPKs older than the retention window.
+    const retainedPrevious = vaultKeys.previousSignedPreKeys.filter(
+      spk => Date.now() - new Date(spk.createdAt).getTime() < SPK_RETENTION_MAX_AGE_MS
+    )
+    const allPrevious = [
+      ...await Promise.all(retainedPrevious.map(exportSignedPreKey)),
+      await exportSignedPreKey(vaultKeys.signedPreKey),
+    ]
 
     const updatedBlob: VaultBlobPlaintext = {
       signingPrivateKey: await crypto.subtle.exportKey('jwk', vaultKeys.signingPrivateKey),
@@ -595,6 +663,7 @@ async function rotateClinicVaultSPK(
         signature: newSpkSignature,
         createdAt: new Date().toISOString(),
       },
+      previousSignedPreKeys: allPrevious,
       preKeys: await Promise.all(vaultKeys.preKeys.map(async pk => ({
         keyId: pk.keyId,
         privateKey: await crypto.subtle.exportKey('jwk', pk.privateKey),
@@ -632,7 +701,7 @@ async function rotateClinicVaultSPK(
     }
     await uploadKeyBundle(publicBundle)
 
-    logger.info('Clinic vault SPK rotated')
+    logger.info(`Clinic vault SPK rotated (${vaultKeys.signedPreKey.keyId} → ${newSpkId}, retained ${allPrevious.length} previous)`)
   } catch (e) {
     logger.warn('Failed to rotate clinic vault SPK:', e)
   }
@@ -683,14 +752,10 @@ async function replenishClinicVaultPreKeys(
       dhPublicKey: await crypto.subtle.exportKey('jwk', vaultKeys.dhPublicKey),
       signingPublicKeyBase64: vaultKeys.signingPublicKeyBase64,
       dhPublicKeyBase64: vaultKeys.dhPublicKeyBase64,
-      signedPreKey: {
-        keyId: vaultKeys.signedPreKey.keyId,
-        privateKey: await crypto.subtle.exportKey('jwk', vaultKeys.signedPreKey.privateKey),
-        publicKey: await crypto.subtle.exportKey('jwk', vaultKeys.signedPreKey.publicKey),
-        publicKeyBase64: vaultKeys.signedPreKey.publicKeyBase64,
-        signature: vaultKeys.signedPreKey.signature,
-        createdAt: vaultKeys.signedPreKey.createdAt,
-      },
+      signedPreKey: await exportSignedPreKey(vaultKeys.signedPreKey),
+      previousSignedPreKeys: await Promise.all(
+        vaultKeys.previousSignedPreKeys.map(exportSignedPreKey)
+      ),
       preKeys: allPreKeys,
       nextPreKeyId: nextId,
     }

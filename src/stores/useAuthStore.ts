@@ -461,11 +461,9 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
                   return
                 }
 
-                // Clear stale calendar cache before vault replay so deleted/ghost
-                // events don't survive across sessions. The vault is the source of
-                // truth — IDB is rebuilt from scratch on each login.
-                await clearCalendarEvents()
-                useCalendarStore.setState({ events: [], hydrated: false, vaultReplayDone: false })
+                // Reset hydration gates so vault→sync→hydrate pipeline sequences correctly.
+                // IDB persists across sessions — no longer cleared on login.
+                useCalendarStore.setState({ hydrated: false, vaultReplayDone: false })
 
                 // Derive wrapping key + ensure vault device exists + process unread
                 await deriveAndCacheClinicVaultKey(cId, clinicRow.encryption_key)

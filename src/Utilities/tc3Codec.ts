@@ -4,8 +4,8 @@
 
 import { compressText, decompressText } from './textCodec'
 import type {
-  TC3Card, MechanismType, InjuryType, BodyRegion, TourniquetType,
-  TreatmentCategory, TC3InjuryTreatmentLink,
+  TC3Card, TC3Marker, MechanismType, InjuryType, BodyRegion, TourniquetType,
+  TreatmentCategory, TC3InjuryTreatmentLink, ProcedureType, TriagePriority,
   AVPU, EvacPriority, MedRoute, MedCategory, IVType, NeedleDecompSide,
   TQCategory, DressingType,
 } from '../Types/TC3Types'
@@ -50,6 +50,29 @@ export function encodeTC3Card(card: TC3Card, userId?: string): string {
       return s
     })
     parts.push(`J${injStrs.join(';')}`)
+  }
+
+  // X: Unified markers
+  if (card.markers.length > 0) {
+    const mStrs = card.markers.map(m => {
+      const parts = [
+        Math.round(m.x),
+        Math.round(m.y),
+        m.injuries.join('+') || '-',
+        m.treatments.join('+') || '-',
+        m.procedures.join('+') || '-',
+        m.gauge || '-',
+        m.tqType,
+        m.tqCategory,
+        m.dressingType,
+        m.priority || '-',
+        m.dateTime || '-',
+        m.bodyRegion || '-',
+        m.description ? compressText(m.description) : '-',
+      ]
+      return parts.join(',')
+    })
+    parts.push(`X${mStrs.join(';')}`)
   }
 
   // T: Tourniquets — now includes tqCategory
@@ -202,6 +225,7 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
     casualty: { battleRosterNo: '', lastName: '', firstName: '', last4: '', unit: '', sex: '', service: '', allergies: '', dateTimeOfInjury: '', dateTimeOfTreatment: '' },
     mechanism: { types: [], otherDescription: '' },
     injuries: [],
+    markers: [],
     march: {
       massiveHemorrhage: { tourniquets: [], hemostatics: [] },
       airway: { intact: false, npa: false, cric: false, ett: false, supraglottic: false, chinLift: false, airwayType: '' },
@@ -274,6 +298,29 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
             description: segs[3] ? decompressText(segs[3]) : '',
             bodyRegion: (segs[4] || '') as BodyRegion | '',
             treatmentLinks,
+          }
+        })
+        break
+      }
+      case 'X': {
+        const mStrs = value.split(';')
+        card.markers = mStrs.map(s => {
+          const segs = s.split(',')
+          return {
+            id: crypto.randomUUID(),
+            x: parseInt(segs[0], 10),
+            y: parseInt(segs[1], 10),
+            injuries: segs[2] === '-' ? [] : segs[2].split('+') as InjuryType[],
+            treatments: segs[3] === '-' ? [] : segs[3].split('+') as TreatmentCategory[],
+            procedures: segs[4] === '-' ? [] : segs[4].split('+') as ProcedureType[],
+            gauge: segs[5] === '-' ? '' : (segs[5] ?? ''),
+            tqType: (segs[6] ?? 'CAT') as TourniquetType,
+            tqCategory: (segs[7] ?? 'Extremity') as TQCategory,
+            dressingType: (segs[8] ?? 'Hemostatic') as DressingType,
+            priority: (segs[9] === '-' ? '' : (segs[9] ?? '')) as TriagePriority,
+            dateTime: segs[10] === '-' ? '' : (segs[10] ?? ''),
+            bodyRegion: (segs[11] === '-' ? '' : (segs[11] ?? '')) as BodyRegion | '',
+            description: segs[12] && segs[12] !== '-' ? decompressText(segs[12]) : '',
           }
         })
         break
@@ -435,6 +482,25 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
           userId = `${value.slice(0,8)}-${value.slice(8,12)}-${value.slice(12,16)}-${value.slice(16,20)}-${value.slice(20)}`
         }
         break
+    }
+  }
+
+  // Auto-migrate legacy injuries/procedures → markers
+  if (card.markers.length === 0 && (card.injuries.length > 0 || (card as any).procedures?.length > 0)) {
+    const fallbackDT = card.casualty.dateTimeOfTreatment || new Date().toISOString().slice(0, 16)
+    for (const inj of card.injuries) {
+      card.markers.push({
+        id: inj.id,
+        x: inj.x, y: inj.y,
+        bodyRegion: inj.bodyRegion,
+        injuries: [inj.type],
+        treatments: inj.treatmentLinks?.map(l => l.treatmentCategory) ?? [],
+        procedures: [],
+        gauge: '', tqType: 'CAT', tqCategory: 'Extremity', dressingType: 'Hemostatic',
+        priority: '',
+        dateTime: fallbackDT,
+        description: inj.description,
+      })
     }
   }
 

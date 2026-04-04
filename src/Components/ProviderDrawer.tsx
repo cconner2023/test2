@@ -372,7 +372,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       <div className="relative h-full">
         {/* Mobile floating header — matches CalendarDrawer pattern */}
         {isMobile && (
-          <div className="md:hidden absolute top-0 inset-x-0 z-10 backdrop-blur-sm bg-transparent">
+          <div className="md:hidden sticky top-0 inset-x-0 z-10 backdrop-blur-sm bg-transparent">
             <div className="px-3 py-3 pt-[max(0.75rem,var(--sat,0px))] flex items-center justify-between">
               {view === 'note' ? (
                 importExpanded ? (
@@ -467,7 +467,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
             </div>
           </div>
         ) : (
-          <div className="absolute inset-0 overflow-y-auto">
+          <div>
             <ContentWrapper
               slideDirection={slideDirection}
               swipeHandlers={canSwipeBack ? swipeHandlers : undefined}

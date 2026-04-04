@@ -118,7 +118,7 @@ export const MedicationsForm = memo(function MedicationsForm() {
   // --- Add handlers ---
   const handleAddIV = useCallback((e: React.MouseEvent) => {
     captureRect(e)
-    const iv: TC3IVAccess = { id: crypto.randomUUID(), type: 'IV', site: '', gauge: '18g' }
+    const iv: TC3IVAccess = { id: crypto.randomUUID(), type: 'IV', site: '', gauge: '18g', time: nowHHMM() }
     setDraftIV(iv)
     setAddingType('iv')
   }, [captureRect])

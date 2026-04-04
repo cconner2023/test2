@@ -3,7 +3,8 @@
  *
  * Startup sequence:
  *  1. Load tombstones (prevents resurrecting deleted events).
- *  2. Load the materialized event list from IndexedDB (instant render).
+ *  2. Load persisted events from IndexedDB (survives across sessions).
+ *  3. Merge with any vault-replayed events (incremental — only unread).
  *
  * Cold-start replay is handled by processClinicVaultMessages() in the
  * login flow (useAuthStore). Realtime incoming events are handled by
@@ -55,12 +56,10 @@ export function useCalendarSync() {
         }
 
         const final = Array.from(merged.values())
-        if (final.length > 0) {
-          setEvents(final)
-          // Persist merged set to IDB so vault-replayed events survive page refresh
-          if (final.length !== idbLive.length || storeEvents.length > 0) {
-            saveCalendarEvents(final).catch(() => {})
-          }
+        setEvents(final)
+        // Persist merged set to IDB so vault-replayed events survive page refresh
+        if (final.length !== idbLive.length || storeEvents.length > 0) {
+          saveCalendarEvents(final).catch(() => {})
         }
       } catch (e) {
         logger.warn('Failed to load cached calendar events:', e)

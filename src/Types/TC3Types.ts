@@ -9,9 +9,11 @@ export type DressingType = 'Hemostatic' | 'Pressure' | 'Other'
 export type MedRoute = 'IV' | 'IM' | 'IO' | 'PO' | 'IN' | 'PR' | 'topical'
 export type MedCategory = 'Analgesic' | 'Antibiotic' | 'Other'
 export type IVType = 'IV' | 'IO'
+export type ProcedureType = 'IV' | 'IO'
 export type AVPU = 'A' | 'V' | 'P' | 'U'
 export type NeedleDecompSide = 'left' | 'right' | 'bilateral' | 'none'
 export type EvacPriority = '' | 'Urgent' | 'Priority' | 'Routine'
+export type TriagePriority = 'U' | 'P' | 'R' | 'E' | ''
 
 export type BodyRegion =
   | 'head-front' | 'head-back'
@@ -72,6 +74,43 @@ export interface TC3IVAccess {
   type: IVType
   site: string
   gauge: string
+  time: string      // time established (HH:MM)
+}
+
+export interface TC3Procedure {
+  id: string
+  x: number          // % position on body diagram
+  y: number
+  bodyRegion: BodyRegion | ''
+  type: ProcedureType // 'IV' | 'IO'
+  gauge: string       // e.g. '18g'
+  time: string        // time established (HH:MM)
+}
+
+/** Unified body diagram marker — consolidates injuries, treatments, and IV/IO procedures */
+export interface TC3Marker {
+  id: string
+  x: number               // % position on body diagram
+  y: number
+  bodyRegion: BodyRegion | ''
+
+  // Multi-select from checklist
+  injuries: InjuryType[]
+  treatments: TreatmentCategory[]
+  procedures: ProcedureType[]
+
+  // Conditional detail fields
+  gauge: string            // IV/IO gauge (e.g. '18g')
+  tqType: TourniquetType
+  tqCategory: TQCategory
+  dressingType: DressingType
+
+  // Triage + datetime
+  priority: TriagePriority
+  dateTime: string         // ISO "YYYY-MM-DDTHH:MM", auto-populated from current
+
+  // Free text (custom text via onAdd)
+  description: string
 }
 
 export interface TC3Medication {
@@ -119,8 +158,12 @@ export interface TC3Card {
     otherDescription: string
   }
 
-  // Section 3: Injury Locations (body diagram markers)
+  // Section 3: Unified body diagram markers (injuries + treatments + procedures)
+  markers: TC3Marker[]
+
+  // Legacy arrays — kept for codec backward compatibility, empty for new cards
   injuries: TC3Injury[]
+  procedures: TC3Procedure[]
 
   // Section 4: Treatments (MARCH)
   march: {

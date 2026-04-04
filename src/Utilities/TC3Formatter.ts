@@ -62,8 +62,42 @@ function formatMechanism(card: TC3Card): string {
   return lines.join('\n')
 }
 
-/** Format injury locations — DD1380 Block 3 */
+/** Format injuries & procedures — DD1380 Block 3 */
 function formatInjuries(card: TC3Card): string {
+  // Use markers if available, fall back to legacy injuries
+  if (card.markers.length > 0) {
+    const lines: string[] = [
+      '┌' + line(38) + '┐',
+      '│ 3. INJURIES & PROCEDURES' + ' '.repeat(13) + '│',
+      '├' + line(38) + '┤',
+    ]
+    card.markers.forEach((m, i) => {
+      const region = m.bodyRegion ? getRegionLabel(m.bodyRegion) : `(${Math.round(m.x)}%, ${Math.round(m.y)}%)`
+      const items: string[] = [
+        ...m.injuries,
+        ...m.treatments,
+        ...m.procedures,
+      ]
+      const label = items.length > 0 ? items.join(', ') : 'Marker'
+      const prio = m.priority ? ` [${m.priority}]` : ''
+      lines.push(`│  ${(i + 1)}. ${(label + prio).substring(0, 33).padEnd(33)}│`)
+      lines.push(`│     ${region.padEnd(33)}│`)
+      if (m.dateTime) {
+        const dt = m.dateTime.replace('T', ' ')
+        lines.push(`│     ${dt.padEnd(33)}│`)
+      }
+      if (m.description) {
+        lines.push(`│     ${m.description.substring(0, 32).padEnd(32)}│`)
+      }
+      if (m.procedures.length > 0 && m.gauge) {
+        lines.push(`│     ${(m.procedures.join('/') + ' ' + m.gauge).padEnd(33)}│`)
+      }
+    })
+    lines.push('└' + line(38) + '┘')
+    return lines.join('\n')
+  }
+
+  // Legacy fallback
   if (card.injuries.length === 0) return ''
   const lines: string[] = [
     '┌' + line(38) + '┐',

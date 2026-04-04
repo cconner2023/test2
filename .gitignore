@@ -16,6 +16,8 @@ public/sw.*.js
 public/*.webmanifest  # Generated manifest
 skills-lock.json
 *skills-lock.json
+*.claude/
+.claude/
 .md
 *.md
 .omc
@@ -52,6 +54,5 @@ supabase/
 *.sln
 *.sw?
 inline-build/
-
 .playwright-cli/
 .playwright/

@@ -326,7 +326,7 @@ export const MARCHForm = memo(function MARCHForm() {
   const fabRef = useRef<HTMLButtonElement>(null)
 
   // --- Draft state for C items ---
-  const [draftIV, setDraftIV] = useState<TC3IVAccess>({ id: '', type: 'IV', site: '', gauge: '18g' })
+  const [draftIV, setDraftIV] = useState<TC3IVAccess>({ id: '', type: 'IV', site: '', gauge: '18g', time: '' })
   const [draftMed, setDraftMed] = useState<TC3Medication>({ id: '', name: '', dose: '', route: 'IV', time: '', category: 'Other' })
   const [draftFluid, setDraftFluid] = useState({ type: '', volume: '', route: 'IV' as MedRoute, time: '' })
   const [draftBlood, setDraftBlood] = useState({ type: '', volume: '', route: 'IV' as MedRoute, time: '' })
@@ -437,7 +437,7 @@ export const MARCHForm = memo(function MARCHForm() {
     }
     // C: IV/IO
     if (action === 'iv') {
-      const iv: TC3IVAccess = { id: crypto.randomUUID(), type: 'IV', site: '', gauge: '18g' }
+      const iv: TC3IVAccess = { id: crypto.randomUUID(), type: 'IV', site: '', gauge: '18g', time: nowHHMM() }
       setDraftIV(iv)
       setShowAddMenu(false)
       setAddMenuPopover('iv')
