@@ -1,1 +1,0 @@
-function t(d,n){const e=URL.createObjectURL(d),o=document.createElement("a");o.href=e,o.download=n,document.body.appendChild(o),o.click(),document.body.removeChild(o),URL.revokeObjectURL(e)}function c(d,n){const e=new Blob([d],{type:"application/pdf"});t(e,n)}export{c as d};
