@@ -3,7 +3,7 @@ import { Pencil, X } from 'lucide-react'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { BaseDrawer } from './BaseDrawer'
 import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
-import { ContentWrapper } from './Settings/ContentWrapper'
+import { ContentWrapper } from './ContentWrapper'
 import { MobileSearchBar } from './MobileSearchBar'
 import { ConfirmDialog } from './ConfirmDialog'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
@@ -183,6 +183,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             desktopWidth="w-[90%]"
             header={headerConfig}
             headerFaded={searchFocused}
+            scrollDisabled
         >
             <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && view !== 'property' ? swipeHandlers : undefined}>
                 {isMobile ? (

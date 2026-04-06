@@ -220,7 +220,6 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             desktopPosition="right"
             desktopWidth={isMessagesActive ? 'w-[90%]' : undefined}
             headerFaded={searchFocused}
-            blurHeader
         >
             <div className="h-full">
                 {panelContent}

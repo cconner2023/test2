@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { Ban, X, Pencil } from 'lucide-react'
-import { BaseDrawer } from './BaseDrawer'
-import { ContentWrapper } from './Settings/ContentWrapper'
+import { BaseDrawer, ScrollPane } from './BaseDrawer'
+import { ContentWrapper } from './ContentWrapper'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { MobileSearchBar } from './MobileSearchBar'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
@@ -427,15 +427,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     }
   }, [view, isMobile, treeSelection, handleBack, mainHeaderActions, handleClose])
 
-  // ── Subview Wrapper ────────────────────────────────────────────────────────
-
-  const subViewWrapper = (children: React.ReactNode) => (
-    <div className="h-full overflow-y-auto">
-      <div className="px-4 py-3 md:p-5 pb-8 min-h-full">
-        {children}
-      </div>
-    </div>
-  )
 
   // ── Content Rendering ──────────────────────────────────────────────────────
 
@@ -505,16 +496,18 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     // Detail screens (overlay on top of any tree selection)
     switch (view.screen) {
       case 'soldier-certs':
-        return currentUserId ? subViewWrapper(
-          <SoldierCertsEditor
-            soldier={view.soldier}
-            certs={certsForSoldier(view.soldier.id)}
-            currentUserId={currentUserId}
-            onUpdateCert={updateCert}
-            onAddCert={addCert}
-            onRemoveCert={removeCert}
-            initialEditCertId={focusCertId}
-          />
+        return currentUserId ? (
+          <ScrollPane className="px-4 py-3 md:p-5 pb-8 min-h-full">
+            <SoldierCertsEditor
+              soldier={view.soldier}
+              certs={certsForSoldier(view.soldier.id)}
+              currentUserId={currentUserId}
+              onUpdateCert={updateCert}
+              onAddCert={addCert}
+              onRemoveCert={removeCert}
+              initialEditCertId={focusCertId}
+            />
+          </ScrollPane>
         ) : null
 
       case 'evaluate-select-task':
@@ -539,43 +532,49 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         )
 
       case 'evaluate-go-nogo':
-        return subViewWrapper(
-          <EvaluateFlow
-            soldier={view.soldier}
-            taskNumber={view.taskNumber}
-            taskTitle={view.taskTitle}
-            searchQuery={taskSearchQuery}
-            onSelectTask={handleSelectTask}
-            onSubmit={handleSubmitEvaluation}
-          />
+        return (
+          <ScrollPane className="px-4 py-3 md:p-5 pb-8 min-h-full">
+            <EvaluateFlow
+              soldier={view.soldier}
+              taskNumber={view.taskNumber}
+              taskTitle={view.taskTitle}
+              searchQuery={taskSearchQuery}
+              onSelectTask={handleSelectTask}
+              onSubmit={handleSubmitEvaluation}
+            />
+          </ScrollPane>
         )
 
       case 'coverage-tasks': {
         const areaTasks = testableTaskMap.get(view.areaName) ?? []
-        return subViewWrapper(
-          <CoverageTasksView
-            areaName={view.areaName}
-            tasks={areaTasks}
-            medics={medics}
-            testsForSoldier={testsForSoldier}
-            onEvaluate={handleCoverageEvaluate}
-            onAssign={handleCoverageAssign}
-            onBack={handleBack}
-            preSelectedSoldier={view.soldier}
-          />
+        return (
+          <ScrollPane className="px-4 py-3 md:p-5 pb-8 min-h-full">
+            <CoverageTasksView
+              areaName={view.areaName}
+              tasks={areaTasks}
+              medics={medics}
+              testsForSoldier={testsForSoldier}
+              onEvaluate={handleCoverageEvaluate}
+              onAssign={handleCoverageAssign}
+              onBack={handleBack}
+              preSelectedSoldier={view.soldier}
+            />
+          </ScrollPane>
         )
       }
 
       case 'coverage-task-evaluate':
-        return subViewWrapper(
-          <EvaluateFlow
-            soldier={view.soldier}
-            taskNumber={view.taskNumber}
-            taskTitle={view.taskTitle}
-            searchQuery=""
-            onSelectTask={() => {}}
-            onSubmit={handleSubmitEvaluation}
-          />
+        return (
+          <ScrollPane className="px-4 py-3 md:p-5 pb-8 min-h-full">
+            <EvaluateFlow
+              soldier={view.soldier}
+              taskNumber={view.taskNumber}
+              taskTitle={view.taskTitle}
+              searchQuery=""
+              onSelectTask={() => {}}
+              onSubmit={handleSubmitEvaluation}
+            />
+          </ScrollPane>
         )
 
       case 'assign-task':
@@ -601,7 +600,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       default:
         // all-personnel manages its own scroll/layout
         if (treeSelection.type === 'all-personnel') return renderTreeContent()
-        return subViewWrapper(renderTreeContent())
+        return <ScrollPane className="px-4 py-3 md:p-5 pb-8 min-h-full">{renderTreeContent()}</ScrollPane>
     }
   }
 
@@ -616,7 +615,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       desktopWidth="w-[90%]"
       header={headerConfig}
       headerFaded={searchFocused}
-      blurHeader
+      scrollDisabled
     >
       <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && canSwipeBack ? swipeHandlers : undefined}>
         <div className="h-full relative">

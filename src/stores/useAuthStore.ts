@@ -212,7 +212,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   let clinicPlanOrderSets: UserTypes['planOrderSets'] | null = null
 
   // Fetch core profile + clinic name.
-  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notify_dev_alerts, text_expanders, text_expander_enabled, plan_order_tags, plan_instruction_tags, plan_order_sets, needs_password_setup, favorite_medications, provider_note_templates'
+  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notify_dev_alerts, text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets, needs_password_setup, favorite_medications, provider_note_templates'
   const { data, error: fetchError } = await supabase
     .from('profiles')
     .select(PROFILE_SELECT)
@@ -243,7 +243,6 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
 
     if (sec.notify_dev_alerts != null) profile.notifyDevAlerts = sec.notify_dev_alerts as boolean
     if (sec.text_expanders != null) profile.textExpanders = sec.text_expanders as TextExpander[]
-    if (sec.text_expander_enabled != null) profile.textExpanderEnabled = sec.text_expander_enabled as boolean
     if (sec.plan_order_tags != null) profile.planOrderTags = sec.plan_order_tags as UserTypes['planOrderTags']
     if (sec.plan_instruction_tags != null) profile.planInstructionTags = sec.plan_instruction_tags as string[]
     if (sec.plan_order_sets != null) profile.planOrderSets = sec.plan_order_sets as UserTypes['planOrderSets']

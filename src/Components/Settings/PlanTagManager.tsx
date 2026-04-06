@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Check, X, UserPlus, Pill, ScanLine, FlaskConical, CalendarCheck, ClipboardList, ChevronDown } from 'lucide-react';
+import { Check, X, Trash2, UserPlus, Pill, ScanLine, FlaskConical, CalendarCheck, ClipboardList, ChevronDown } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { PlanOrderTags, PlanOrderCategory, PlanBlockKey } from '../../Data/User';
 import { PLAN_ORDER_CATEGORIES, PLAN_ORDER_LABELS } from '../../Data/User';
@@ -19,6 +19,8 @@ export const CATEGORY_META: Record<PlanBlockKey, { label: string; icon: LucideIc
 export type StagedTagDeletes = Partial<Record<PlanBlockKey, Set<string>>>;
 /** Tags staged to be added — key → array of tag strings */
 export type StagedTagAdds = Partial<Record<PlanBlockKey, string[]>>;
+/** Tags staged for rename — key → Map<originalTag, newTag> */
+export type StagedTagEdits = Partial<Record<PlanBlockKey, Map<string, string>>>;
 
 interface PlanTagManagerProps {
     orderTags: PlanOrderTags;
@@ -31,20 +33,40 @@ interface PlanTagManagerProps {
     /** Staging props */
     stagedTagDeletes?: StagedTagDeletes;
     stagedTagAdds?: StagedTagAdds;
+    stagedTagEdits?: StagedTagEdits;
     onToggleTagDelete?: (key: PlanBlockKey, tag: string) => void;
     onStageTagAdd?: (key: PlanBlockKey, tag: string) => void;
     onUnstageTagAdd?: (key: PlanBlockKey, tag: string) => void;
+    onStageTagEdit?: (key: PlanBlockKey, original: string, next: string) => void;
+    clinicTagSets?: Record<string, Set<string>>;
+    isSupervisorRole?: boolean;
+    scope?: 'personal' | 'clinic';
+    onScopeChange?: (scope: 'personal' | 'clinic') => void;
 }
 
 export const PlanTagManager = ({
     orderTags, instructionTags,
     editing = true, selectMode = false, selectedPresets, onTogglePreset,
-    stagedTagDeletes, stagedTagAdds, onToggleTagDelete, onStageTagAdd, onUnstageTagAdd,
+    stagedTagDeletes, stagedTagAdds, stagedTagEdits,
+    onToggleTagDelete, onStageTagAdd, onUnstageTagAdd, onStageTagEdit,
+    clinicTagSets, isSupervisorRole, scope, onScopeChange,
 }: PlanTagManagerProps) => {
     const [input, setInput] = useState('');
     const [activeCategory, setActiveCategory] = useState<PlanBlockKey>('referral');
     const [showCategoryPicker, setShowCategoryPicker] = useState(false);
     const pickerRef = useRef<HTMLDivElement>(null);
+
+    // Inline rename state
+    const [editingTag, setEditingTag] = useState<{ key: PlanBlockKey; original: string } | null>(null);
+    const [editValue, setEditValue] = useState('');
+    const [editError, setEditError] = useState('');
+
+    // Reset inline editor when leaving edit mode or changing scope/select mode
+    useEffect(() => {
+        setEditingTag(null);
+        setEditValue('');
+        setEditError('');
+    }, [editing, scope, selectMode]);
 
     // Close dropdown on outside tap
     useEffect(() => {
@@ -61,6 +83,43 @@ export const PlanTagManager = ({
     const getTagsForKey = (key: PlanBlockKey): string[] => {
         if (key === 'instructions') return instructionTags;
         return orderTags[key] ?? [];
+    };
+
+    const startInlineEdit = (key: PlanBlockKey, original: string) => {
+        const current = stagedTagEdits?.[key]?.get(original) ?? original;
+        setEditingTag({ key, original });
+        setEditValue(current);
+        setEditError('');
+    };
+
+    const cancelInlineEdit = () => {
+        setEditingTag(null);
+        setEditValue('');
+        setEditError('');
+    };
+
+    const commitInlineEdit = () => {
+        if (!editingTag) return;
+        const trimmed = editValue.trim();
+        if (!trimmed) { setEditError('Cannot be empty'); return; }
+        const { key, original } = editingTag;
+        if (trimmed !== original) {
+            const otherExisting = getTagsForKey(key).filter(t => t !== original);
+            const stagedAddsForKey = stagedTagAdds?.[key] ?? [];
+            const otherEditTargets = Array.from(stagedTagEdits?.[key]?.entries() ?? [])
+                .filter(([orig]) => orig !== original)
+                .map(([, next]) => next);
+            const taken = new Set([...otherExisting, ...stagedAddsForKey, ...otherEditTargets]);
+            if (taken.has(trimmed)) { setEditError('Already exists'); return; }
+        }
+        onStageTagEdit?.(key, original, trimmed);
+        cancelInlineEdit();
+    };
+
+    const deleteFromInlineEdit = () => {
+        if (!editingTag) return;
+        onToggleTagDelete?.(editingTag.key, editingTag.original);
+        cancelInlineEdit();
     };
 
     const addTag = () => {
@@ -144,6 +203,20 @@ export const PlanTagManager = ({
                                 )}
                             </div>
 
+                            {isSupervisorRole && (
+                                <button
+                                    type="button"
+                                    onClick={() => onScopeChange?.(scope === 'personal' ? 'clinic' : 'personal')}
+                                    className={`shrink-0 px-2.5 py-2.5 rounded-full text-[10px] font-semibold tracking-wide transition-all active:scale-95 ${
+                                        scope === 'clinic'
+                                            ? 'bg-tertiary/10 text-tertiary border border-tertiary/20'
+                                            : 'bg-themeblue2/10 text-themeblue2/70 border border-themeblue2/15'
+                                    }`}
+                                >
+                                    {scope === 'clinic' ? 'Clinic' : 'Personal'}
+                                </button>
+                            )}
+
                             <div className="relative flex flex-1 items-center rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
                                 <input
                                     type="text"
@@ -216,17 +289,83 @@ export const PlanTagManager = ({
                                                 }
 
                                                 const isMarkedDelete = deletedSet?.has(tag) ?? false;
+                                                const isClinicTag = clinicTagSets?.[key]?.has(tag) ?? false;
+                                                const canEdit = !isClinicTag || (isSupervisorRole ?? false);
+                                                const stagedNewValue = stagedTagEdits?.[key]?.get(tag);
+                                                const isMarkedEdit = stagedNewValue !== undefined;
+                                                const isOpenInEditor = editingTag?.key === key && editingTag.original === tag;
+                                                const displayValue = isMarkedEdit ? stagedNewValue! : tag;
+
+                                                if (isOpenInEditor) {
+                                                    return (
+                                                        <div
+                                                            key={i}
+                                                            className="relative flex items-center gap-1.5 py-1.5 px-2 rounded-lg ring-1 ring-inset ring-themeblue3/40 bg-themeblue3/5"
+                                                        >
+                                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${meta.bg}`}>
+                                                                <CatIcon size={11} className={meta.color} />
+                                                            </div>
+                                                            <input
+                                                                autoFocus
+                                                                type="text"
+                                                                value={editValue}
+                                                                onChange={(e) => { setEditValue(e.target.value); setEditError(''); }}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(); }
+                                                                    else if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); }
+                                                                }}
+                                                                className="flex-1 min-w-0 bg-transparent outline-none text-sm text-primary placeholder:text-tertiary/30"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={deleteFromInlineEdit}
+                                                                className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-themeredred hover:bg-themeredred/10 active:scale-95 transition-all"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={cancelInlineEdit}
+                                                                className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:bg-tertiary/10 active:scale-95 transition-all"
+                                                            >
+                                                                <X size={14} />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={commitInlineEdit}
+                                                                className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-themeblue3 text-white active:scale-95 transition-all"
+                                                            >
+                                                                <Check size={14} />
+                                                            </button>
+                                                            {editError && (
+                                                                <div className="absolute left-0 right-0 top-full mt-1 z-10">
+                                                                    <p className="text-[11px] font-medium text-themeredred bg-themeredred/5 rounded-full px-3 py-1 text-center">
+                                                                        {editError}
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                }
+
+                                                const handleRowClick = editing && canEdit
+                                                    ? isMarkedDelete
+                                                        ? () => onToggleTagDelete?.(key, tag)
+                                                        : () => startInlineEdit(key, tag)
+                                                    : undefined;
 
                                                 return (
                                                     <div
                                                         key={i}
-                                                        onClick={editing ? () => onToggleTagDelete?.(key, tag) : undefined}
+                                                        onClick={handleRowClick}
                                                         className={`flex items-center gap-2.5 py-1.5 px-2 rounded-lg transition-colors ${
                                                             isMarkedDelete
                                                                 ? 'ring-1 ring-inset ring-themeredred/30 bg-themeredred/5 cursor-pointer active:scale-95'
-                                                                : editing
-                                                                    ? 'cursor-pointer active:scale-95 hover:bg-themeredred/5'
-                                                                    : ''
+                                                                : isMarkedEdit
+                                                                    ? 'ring-1 ring-inset ring-themeblue2/30 bg-themeblue2/5 cursor-pointer active:scale-95'
+                                                                    : editing && canEdit
+                                                                        ? 'cursor-pointer active:scale-95 hover:bg-themeblue3/5'
+                                                                        : ''
                                                         }`}
                                                     >
                                                         <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${meta.bg}`}>
@@ -234,7 +373,19 @@ export const PlanTagManager = ({
                                                         </div>
                                                         <p className={`text-sm ${
                                                             isMarkedDelete ? 'text-themeredred/60 line-through' : 'text-primary'
-                                                        }`}>{tag}</p>
+                                                        }`}>
+                                                            {displayValue}
+                                                            {isClinicTag && (
+                                                                <span className="text-[9px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/60 ml-1.5">
+                                                                    Clinic
+                                                                </span>
+                                                            )}
+                                                            {isMarkedEdit && !isMarkedDelete && (
+                                                                <span className="text-[9px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-themeblue2/15 text-themeblue2 ml-1.5">
+                                                                    Edited
+                                                                </span>
+                                                            )}
+                                                        </p>
                                                     </div>
                                                 );
                                             })}

@@ -37,6 +37,6 @@ export interface PEState {
     blockKeys?: string[];
     /** @deprecated Use mode instead. Kept for v6 codec backward compat. */
     depth?: 'focused' | 'comprehensive' | 'custom';
-    /** @deprecated Use blockKeys instead. */
+    /** Custom block display order — set when user manually reorders PE blocks via drag. */
     blockOrder?: string[];
 }

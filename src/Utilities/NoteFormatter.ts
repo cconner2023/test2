@@ -194,9 +194,6 @@ function formatDecisionMakingItems(items: decisionMakingType[]): string {
 
         if (index > 0) itemLines.push('---');
 
-        if (item.ddx && item.ddx.length > 0) {
-            itemLines.push(`DDx: ${item.ddx.join(', ')}`);
-        }
         if (item.text) {
             itemLines.push(item.text);
         }
@@ -285,7 +282,10 @@ export function formatSignature(profile: UserTypes): string {
 
 export interface NoteAssemblyOptions {
     includeAlgorithm: boolean;
-    includeDecisionMaking: boolean;
+    /** Defaults to true. Controls whether the DECISION MAKING section is rendered. */
+    includeDecisionMaking?: boolean;
+    selectedDdx?: string[];
+    customDdx?: string[];
     customNote: string;
     physicalExamNote?: string;
     planNote?: string;
@@ -295,7 +295,7 @@ export interface NoteAssemblyOptions {
 export interface AssembledNote {
     sections: {
         algorithm?: string;
-        decisionMaking?: string;
+        differentials?: string;
         physicalExam?: string;
         plan?: string;
         customNote: string;
@@ -318,60 +318,73 @@ export function assembleNote(
     const fullNoteParts: string[] = [];
     const customNote = options.customNote.trim();
 
-    // HPI
+    // SUBJECTIVE (HPI)
     if (customNote) {
-        fullNoteParts.push('HPI:');
+        fullNoteParts.push('SUBJECTIVE:');
         fullNoteParts.push(customNote);
-        fullNoteParts.push('');
     }
 
-    // Physical Exam
+    // OBJECTIVE (Physical Exam)
     const physicalExamNote = options.physicalExamNote?.trim();
     if (physicalExamNote) {
-        fullNoteParts.push('PHYSICAL EXAM:');
+        fullNoteParts.push('OBJECTIVE:');
         fullNoteParts.push(physicalExamNote);
-        fullNoteParts.push('');
     }
 
-    // Screening line — static for algorithm-based notes
-    if (algorithmOptions.length > 0) {
-        fullNoteParts.push('SCREENED IAW MEDCOM PAM 40-7-21 ADTMC');
-        fullNoteParts.push('');
-    }
-
-    // Algorithm content
+    // ASSESSMENT — screening, algorithm, and decision making
     let algorithmContent: string | undefined;
+    const assessmentParts: string[] = [];
+
+    if (algorithmOptions.length > 0) {
+        assessmentParts.push('SCREENED IAW MEDCOM PAM 40-7-21 ADTMC');
+    }
+
     if (options.includeAlgorithm) {
         algorithmContent = formatAlgorithmContent(algorithmOptions, cardStates);
         if (algorithmContent.trim()) {
             const algorithmTitle = selectedSymptom?.icon && selectedSymptom?.text
                 ? `${selectedSymptom.icon}: ${selectedSymptom.text}`
                 : 'ALGORITHM';
-            fullNoteParts.push(`${algorithmTitle}:`);
-            fullNoteParts.push(algorithmContent);
-            fullNoteParts.push('');
+            assessmentParts.push(`${algorithmTitle}:`);
+            assessmentParts.push(algorithmContent);
         }
     }
 
-    // Decision making content
-    let decisionMakingContent: string | undefined;
-    if (options.includeDecisionMaking) {
-        decisionMakingContent = formatDecisionMakingContent(
+    const allDdx = [
+        ...(options.selectedDdx ?? []),
+        ...(options.customDdx ?? []),
+    ];
+    let differentialsContent: string | undefined;
+
+    if (allDdx.length > 0) {
+        const numberedList = allDdx
+            .map((dx, i) => `  ${i + 1}. ${dx}`)
+            .join('\n');
+        differentialsContent = numberedList;
+        assessmentParts.push('DIFFERENTIAL DIAGNOSES:');
+        assessmentParts.push(numberedList);
+    }
+
+    if (options.includeDecisionMaking ?? true) {
+        const dmContent = formatDecisionMakingContent(
             algorithmOptions, cardStates, dispositionType, dispositionText,
         );
-        if (decisionMakingContent.trim()) {
-            fullNoteParts.push('DECISION MAKING:');
-            fullNoteParts.push(decisionMakingContent);
-            fullNoteParts.push('');
+        if (dmContent.trim()) {
+            assessmentParts.push('DECISION MAKING:');
+            assessmentParts.push(dmContent);
         }
     }
 
-    // Plan (after decision making, before signature)
+    if (assessmentParts.length > 0) {
+        fullNoteParts.push('ASSESSMENT:');
+        fullNoteParts.push(...assessmentParts);
+    }
+
+    // PLAN
     const planNote = options.planNote?.trim();
     if (planNote) {
         fullNoteParts.push('PLAN:');
         fullNoteParts.push(planNote);
-        fullNoteParts.push('');
     }
 
     // Signature
@@ -382,7 +395,7 @@ export function assembleNote(
     return {
         sections: {
             algorithm: algorithmContent,
-            decisionMaking: decisionMakingContent,
+            differentials: differentialsContent,
             physicalExam: physicalExamNote || undefined,
             plan: planNote || undefined,
             customNote,

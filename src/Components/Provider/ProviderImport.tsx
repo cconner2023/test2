@@ -137,7 +137,6 @@ export function ProviderImport({
           const assembled = assembleNote(
             {
               includeAlgorithm: parsed.flags.includeAlgorithm,
-              includeDecisionMaking: parsed.flags.includeDecisionMaking,
               customNote: '',
               physicalExamNote: '',
               planNote: '',
@@ -150,7 +149,7 @@ export function ProviderImport({
           );
           const parts: string[] = [];
           if (assembled.sections.algorithm) parts.push(assembled.sections.algorithm);
-          if (assembled.sections.decisionMaking) parts.push(assembled.sections.decisionMaking);
+          if (assembled.sections.differentials) parts.push(assembled.sections.differentials);
           assessmentText = parts.join('\n\n');
         }
       }

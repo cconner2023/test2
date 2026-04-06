@@ -1,11 +1,9 @@
 /**
  * Generic PDF export hook factory.
  *
- * Extracted from useDD689Export.ts and useDA2062Export.ts to eliminate
- * the duplicated status-state + try/catch + dynamic-import pattern.
- *
- * Each export hook calls usePdfExport with its own export function and
- * filename builder, reducing each hook to a thin wrapper.
+ * Generates PDF bytes and surfaces them for preview instead of
+ * auto-downloading. Callers render a PdfPreviewModal with the
+ * returned preview data, letting the user inspect before saving.
  */
 import { useState, useCallback } from 'react'
 import { createLogger } from '../Utilities/Logger'
@@ -13,6 +11,11 @@ import { createLogger } from '../Utilities/Logger'
 const logger = createLogger('usePdfExport')
 
 export type PdfExportStatus = 'idle' | 'generating' | 'done' | 'error'
+
+export interface PdfPreviewData {
+  bytes: Uint8Array
+  filename: string
+}
 
 export interface UsePdfExportOptions {
   /** Milliseconds to hold the done/error status before resetting to idle.
@@ -23,33 +26,34 @@ export interface UsePdfExportOptions {
 export interface UsePdfExportResult<P> {
   status: PdfExportStatus
   error: string | null
+  preview: PdfPreviewData | null
   exportPdf: (params: P) => Promise<void>
+  downloadPreview: () => void
+  clearPreview: () => void
 }
 
 /**
  * Generic PDF export hook.
  *
- * @param exportFn   Async function that generates and downloads the PDF.
- *                   Receives the params object passed to exportPdf().
- * @param options    Optional configuration (e.g. auto-reset timing).
+ * @param generatorFn  Async function that generates PDF bytes + filename.
+ * @param options      Optional configuration (e.g. auto-reset timing).
  */
 export function usePdfExport<P>(
-  exportFn: (params: P) => Promise<void>,
+  generatorFn: (params: P) => Promise<PdfPreviewData>,
   options?: UsePdfExportOptions,
 ): UsePdfExportResult<P> {
   const [status, setStatus] = useState<PdfExportStatus>('idle')
   const [error, setError] = useState<string | null>(null)
+  const [preview, setPreview] = useState<PdfPreviewData | null>(null)
 
   const exportPdf = useCallback(async (params: P) => {
     setStatus('generating')
     setError(null)
 
     try {
-      await exportFn(params)
+      const result = await generatorFn(params)
+      setPreview(result)
       setStatus('done')
-      if (options?.resetAfterMs) {
-        setTimeout(() => setStatus('idle'), options.resetAfterMs)
-      }
     } catch (err) {
       logger.error('PDF export failed:', err)
       setError(String(err))
@@ -58,7 +62,18 @@ export function usePdfExport<P>(
         setTimeout(() => setStatus('idle'), options.resetAfterMs)
       }
     }
-  }, [exportFn, options?.resetAfterMs])
+  }, [generatorFn, options?.resetAfterMs])
 
-  return { status, error, exportPdf }
+  const downloadPreview = useCallback(async () => {
+    if (!preview) return
+    const { downloadPdfBytes } = await import('../Utilities/downloadUtils')
+    downloadPdfBytes(preview.bytes, preview.filename)
+  }, [preview])
+
+  const clearPreview = useCallback(() => {
+    setPreview(null)
+    setStatus('idle')
+  }, [])
+
+  return { status, error, preview, exportPdf, downloadPreview, clearPreview }
 }

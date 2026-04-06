@@ -1,11 +1,11 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Check, X, Trash2 } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { updateClinicNoteContent } from '../../lib/supervisorService';
 import type { UserTypes, PlanBlockKey, PlanOrderSet, PlanOrderTags } from '../../Data/User';
 import { PlanTagManager } from './PlanTagManager';
-import type { StagedTagDeletes, StagedTagAdds } from './PlanTagManager';
+import type { StagedTagDeletes, StagedTagAdds, StagedTagEdits } from './PlanTagManager';
 import { OrderSetManager } from './OrderSetManager';
 
 export interface ComposingSet {
@@ -34,36 +34,48 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
     const planInstructionTags = profile.planInstructionTags ?? [];
     const planOrderSets = profile.planOrderSets ?? [];
 
-    // For non-supervisors, merge clinic data into personal view (clinic items first, deduplicated)
     const emptyTags = { referral: [], meds: [], radiology: [], lab: [], followUp: [] } as PlanOrderTags;
 
-    const mergedOrderTags = !isSupervisorRole && clinicPlanOrderTags
-        ? {
-            referral: [...new Set([...(clinicPlanOrderTags.referral ?? []), ...planOrderTags.referral])],
-            meds: [...new Set([...(clinicPlanOrderTags.meds ?? []), ...planOrderTags.meds])],
-            radiology: [...new Set([...(clinicPlanOrderTags.radiology ?? []), ...planOrderTags.radiology])],
-            lab: [...new Set([...(clinicPlanOrderTags.lab ?? []), ...planOrderTags.lab])],
-            followUp: [...new Set([...(clinicPlanOrderTags.followUp ?? []), ...planOrderTags.followUp])],
-        }
-        : null;
+    // Always compute merged data — everyone sees a unified list with provenance badges
+    const activePlanOrderTags = useMemo(() => {
+        const clinic = clinicPlanOrderTags;
+        const personal = planOrderTags;
+        return {
+            referral: [...new Set([...(clinic?.referral ?? []), ...personal.referral])],
+            meds: [...new Set([...(clinic?.meds ?? []), ...personal.meds])],
+            radiology: [...new Set([...(clinic?.radiology ?? []), ...personal.radiology])],
+            lab: [...new Set([...(clinic?.lab ?? []), ...personal.lab])],
+            followUp: [...new Set([...(clinic?.followUp ?? []), ...personal.followUp])],
+        };
+    }, [clinicPlanOrderTags, planOrderTags]);
 
-    const mergedInstructionTags = !isSupervisorRole && clinicPlanInstructionTags
-        ? [...new Set([...clinicPlanInstructionTags, ...planInstructionTags])]
-        : null;
+    const activePlanInstructionTags = useMemo(() =>
+        [...new Set([...(clinicPlanInstructionTags ?? []), ...planInstructionTags])],
+        [clinicPlanInstructionTags, planInstructionTags]
+    );
 
-    const mergedOrderSets = !isSupervisorRole && clinicPlanOrderSets
-        ? [...clinicPlanOrderSets, ...planOrderSets]
-        : null;
+    const activePlanOrderSets = useMemo(() =>
+        [...(clinicPlanOrderSets ?? []), ...planOrderSets],
+        [clinicPlanOrderSets, planOrderSets]
+    );
 
-    const activePlanOrderTags = isSupervisorRole
-        ? (scope === 'clinic' ? (clinicPlanOrderTags ?? emptyTags) : planOrderTags)
-        : (mergedOrderTags ?? planOrderTags);
-    const activePlanInstructionTags = isSupervisorRole
-        ? (scope === 'clinic' ? (clinicPlanInstructionTags ?? []) : planInstructionTags)
-        : (mergedInstructionTags ?? planInstructionTags);
-    const activePlanOrderSets = isSupervisorRole
-        ? (scope === 'clinic' ? (clinicPlanOrderSets ?? []) : planOrderSets)
-        : (mergedOrderSets ?? planOrderSets);
+    // Clinic identifier sets for provenance detection
+    const clinicOrderSetIds = useMemo(() =>
+        new Set((clinicPlanOrderSets ?? []).map(s => s.id)),
+        [clinicPlanOrderSets]
+    );
+
+    const clinicTagSets = useMemo(() => {
+        const clinic = clinicPlanOrderTags;
+        return {
+            referral: new Set(clinic?.referral ?? []),
+            meds: new Set(clinic?.meds ?? []),
+            radiology: new Set(clinic?.radiology ?? []),
+            lab: new Set(clinic?.lab ?? []),
+            followUp: new Set(clinic?.followUp ?? []),
+            instructions: new Set(clinicPlanInstructionTags ?? []),
+        };
+    }, [clinicPlanOrderTags, clinicPlanInstructionTags]);
 
     const [composing, setComposing] = useState<ComposingSet | null>(null);
 
@@ -75,10 +87,12 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
     // Tag staging
     const [stagedTagDeletes, setStagedTagDeletes] = useState<StagedTagDeletes>({});
     const [stagedTagAdds, setStagedTagAdds] = useState<StagedTagAdds>({});
+    const [stagedTagEdits, setStagedTagEdits] = useState<StagedTagEdits>({});
 
     const hasOrderSetPending = stagedDeletes.size > 0 || stagedAdds.length > 0 || stagedEdits.length > 0;
     const hasTagPending = Object.values(stagedTagDeletes).some(s => s && s.size > 0)
-        || Object.values(stagedTagAdds).some(a => a && a.length > 0);
+        || Object.values(stagedTagAdds).some(a => a && a.length > 0)
+        || Object.values(stagedTagEdits).some(m => m && m.size > 0);
     const hasPending = hasOrderSetPending || hasTagPending;
 
     useEffect(() => {
@@ -120,12 +134,16 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
                     let tags = [...(nextOrderTags[cat] ?? [])];
                     const deletes = stagedTagDeletes[cat];
                     if (deletes && deletes.size > 0) tags = tags.filter(t => !deletes.has(t));
+                    const edits = stagedTagEdits[cat];
+                    if (edits && edits.size > 0) tags = tags.map(t => edits.get(t) ?? t);
                     const adds = stagedTagAdds[cat];
                     if (adds && adds.length > 0) tags = [...tags, ...adds];
                     nextOrderTags[cat] = tags;
                 }
                 const instrDeletes = stagedTagDeletes.instructions;
                 if (instrDeletes && instrDeletes.size > 0) nextInstrTags = nextInstrTags.filter(t => !instrDeletes.has(t));
+                const instrEdits = stagedTagEdits.instructions;
+                if (instrEdits && instrEdits.size > 0) nextInstrTags = nextInstrTags.map(t => instrEdits.get(t) ?? t);
                 const instrAdds = stagedTagAdds.instructions;
                 if (instrAdds && instrAdds.length > 0) nextInstrTags = [...nextInstrTags, ...instrAdds];
             }
@@ -162,6 +180,8 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
                     let tags = [...(newOrderTags[cat] ?? [])];
                     const deletes = stagedTagDeletes[cat];
                     if (deletes && deletes.size > 0) tags = tags.filter(t => !deletes.has(t));
+                    const edits = stagedTagEdits[cat];
+                    if (edits && edits.size > 0) tags = tags.map(t => edits.get(t) ?? t);
                     const adds = stagedTagAdds[cat];
                     if (adds && adds.length > 0) tags = [...tags, ...adds];
                     newOrderTags[cat] = tags;
@@ -171,6 +191,8 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
                 let instrTags = [...planInstructionTags];
                 const instrDeletes = stagedTagDeletes.instructions;
                 if (instrDeletes && instrDeletes.size > 0) instrTags = instrTags.filter(t => !instrDeletes.has(t));
+                const instrEdits = stagedTagEdits.instructions;
+                if (instrEdits && instrEdits.size > 0) instrTags = instrTags.map(t => instrEdits.get(t) ?? t);
                 const instrAdds = stagedTagAdds.instructions;
                 if (instrAdds && instrAdds.length > 0) instrTags = [...instrTags, ...instrAdds];
                 updates.planInstructionTags = instrTags;
@@ -185,6 +207,7 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
         setStagedEdits([]);
         setStagedTagDeletes({});
         setStagedTagAdds({});
+        setStagedTagEdits({});
         setComposing(null);
         onSaveComplete?.();
     }, [saveRequested]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -197,6 +220,7 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
             setStagedEdits([]);
             setStagedTagDeletes({});
             setStagedTagAdds({});
+            setStagedTagEdits({});
             setComposing(null);
         }
     }, [editing]);
@@ -208,6 +232,7 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
         setStagedEdits([]);
         setStagedTagDeletes({});
         setStagedTagAdds({});
+        setStagedTagEdits({});
         setComposing(null);
     }, [scope]);
 
@@ -352,6 +377,26 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
         });
     }, []);
 
+    const handleStageTagEdit = useCallback((key: PlanBlockKey, original: string, next: string) => {
+        setStagedTagEdits(prev => {
+            const map = new Map(prev[key] ?? new Map<string, string>());
+            if (next === original) {
+                map.delete(original);
+            } else {
+                map.set(original, next);
+            }
+            return { ...prev, [key]: map };
+        });
+        // If this tag was staged for delete, clear the delete since the user is now renaming it
+        setStagedTagDeletes(prev => {
+            const set = prev[key];
+            if (!set || !set.has(original)) return prev;
+            const nextSet = new Set(set);
+            nextSet.delete(original);
+            return { ...prev, [key]: nextSet };
+        });
+    }, []);
+
     const handleUnstageTagAdd = useCallback((key: PlanBlockKey, tag: string) => {
         setStagedTagAdds(prev => {
             const current = prev[key] ?? [];
@@ -369,43 +414,12 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
         <div className="flex flex-col h-full" data-tour="plan-settings-panel">
             <div className="flex-1 overflow-y-auto">
                 <div className="px-5 py-4 space-y-5">
-                    {isSupervisorRole ? (
-                        <div className="flex items-center gap-2">
-                            <p className="text-xs text-tertiary leading-relaxed flex-1">
-                                {scope === 'clinic'
-                                    ? 'Clinic order sets and tags shared with all members.'
-                                    : 'Your personal order tags and order sets.'}
-                            </p>
-                            <div className="flex rounded-full border border-themeblue3/10 overflow-hidden shrink-0">
-                                <button
-                                    type="button"
-                                    onClick={() => setScope('personal')}
-                                    className={`px-3 py-1.5 text-[11px] font-semibold transition-all ${
-                                        scope === 'personal'
-                                            ? 'bg-themeblue2 text-white'
-                                            : 'text-tertiary hover:bg-tertiary/5'
-                                    }`}
-                                >
-                                    Personal
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setScope('clinic')}
-                                    className={`px-3 py-1.5 text-[11px] font-semibold transition-all ${
-                                        scope === 'clinic'
-                                            ? 'bg-themeblue2 text-white'
-                                            : 'text-tertiary hover:bg-tertiary/5'
-                                    }`}
-                                >
-                                    Clinic
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
-                        <p className="text-xs text-tertiary leading-relaxed">
-                            Manage order tags and order sets for the plan section of your notes.
-                        </p>
-                    )}
+                    <p className="text-xs text-tertiary leading-relaxed">
+                        Manage order tags and order sets for the plan section of your notes.
+                        {(clinicPlanOrderTags || clinicPlanOrderSets?.length) && (
+                            <span className="text-tertiary/50"> Includes clinic-wide items.</span>
+                        )}
+                    </p>
 
                     <OrderSetManager
                         orderSets={activePlanOrderSets}
@@ -419,6 +433,10 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
                         stagedEdits={stagedEdits}
                         onUnstageAdd={handleUnstageAdd}
                         onUnstageDelete={handleUnstageDelete}
+                        clinicOrderSetIds={clinicOrderSetIds}
+                        isSupervisorRole={isSupervisorRole}
+                        scope={scope}
+                        onScopeChange={setScope}
                     />
 
                     <PlanTagManager
@@ -430,9 +448,15 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
                         onTogglePreset={handleTogglePreset}
                         stagedTagDeletes={stagedTagDeletes}
                         stagedTagAdds={stagedTagAdds}
+                        stagedTagEdits={stagedTagEdits}
                         onToggleTagDelete={handleToggleTagDelete}
                         onStageTagAdd={handleStageTagAdd}
                         onUnstageTagAdd={handleUnstageTagAdd}
+                        onStageTagEdit={handleStageTagEdit}
+                        clinicTagSets={clinicTagSets}
+                        isSupervisorRole={isSupervisorRole}
+                        scope={scope}
+                        onScopeChange={setScope}
                     />
                 </div>
             </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { PEState } from '../Types/PETypes';
 import type { CardState } from './useAlgorithm';
@@ -9,14 +9,11 @@ import { useSF600Export } from './useSF600Export';
 import { useUserProfile } from './useUserProfile';
 import { useAuthStore } from '../stores/useAuthStore';
 import { usePageSwipe } from './usePageSwipe';
-import { useTextExpander } from './useTextExpander';
-import { useTemplateSession } from './useTemplateSession';
 import { detectPII } from '../lib/piiDetector';
 import { formatSignature } from '../Utilities/NoteFormatter';
 import { getColorClasses } from '../Utilities/ColorUtilities';
 import { UI_TIMING } from '../Utilities/constants';
 import { copyWithHtml } from '../Utilities/clipboardUtils';
-import { createHPIKeyDownHandler } from '../Components/WriteNoteHelpers';
 
 type PageId = string;
 
@@ -24,6 +21,7 @@ export interface NoteEditorConfig {
     algorithmOptions: AlgorithmOptions[];
     cardStates: CardState[];
     includeAlgorithm: boolean;
+    includeDecisionMaking?: boolean;
     dispositionType: string;
     dispositionText: string;
     selectedSymptom?: { icon: string; text: string };
@@ -32,7 +30,6 @@ export interface NoteEditorConfig {
     initialPage?: number;
     colors: ReturnType<typeof getColorClasses>;
     // Optional — WriteNotePage manages these externally
-    includeDecisionMaking?: boolean;
     shareSymptomText?: string;
 }
 
@@ -41,6 +38,7 @@ export function useNoteEditor(config: NoteEditorConfig) {
         algorithmOptions,
         cardStates,
         includeAlgorithm,
+        includeDecisionMaking = true,
         dispositionType,
         dispositionText,
         selectedSymptom,
@@ -48,54 +46,29 @@ export function useNoteEditor(config: NoteEditorConfig) {
         isMobile,
         initialPage = 0,
         colors: _colors,
-        includeDecisionMaking = false,
         shareSymptomText,
     } = config;
 
     const { profile } = useUserProfile();
     const authUserId = useAuthStore(s => s.user?.id);
-    const defaultHPI = true;
-    const defaultPE = !!(profile.peDepth);
-    const defaultPlan = !!(profile.planOrderTags && Object.values(profile.planOrderTags).some(arr => arr.length > 0));
 
     // --- Note content state ---
     const [note, setNote] = useState('');
     const [previewNote, setPreviewNote] = useState('');
-    const [includeHPI, setIncludeHPI] = useState(defaultHPI);
     const [peNote, setPeNote] = useState('');
     const [peState, setPeState] = useState<PEState | null>(null);
-    const [includePhysicalExam, setIncludePhysicalExam] = useState(defaultPE);
     const [planNote, setPlanNote] = useState('');
-    const [includePlan, setIncludePlan] = useState(defaultPlan);
+    const [selectedDdx, setSelectedDdx] = useState<string[]>([]);
+    const [customDdx, setCustomDdx] = useState<string[]>([]);
     const [encodedValue, setEncodedValue] = useState('');
-    const [barcodeBytes, setBarcodeBytes] = useState<Uint8Array | null>(null);
     const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null);
 
     // --- Page navigation state ---
     const [currentPage, setCurrentPage] = useState(() =>
         initialPage >= 3 ? visiblePages.length - 1 : Math.min(initialPage, visiblePages.length - 1)
     );
-    const currentPageId: PageId = visiblePages[currentPage]?.id ?? visiblePages[0]?.id ?? 'hpi';
+    const currentPageId: PageId = visiblePages[currentPage]?.id ?? visiblePages[0]?.id ?? 'edit';
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
-
-    // --- Text expander ---
-    const [cursorPosition, setCursorPosition] = useState(0);
-    const textExpanders = profile.textExpanders ?? [];
-    const textExpanderEnabled = profile.textExpanderEnabled ?? true;
-    const { session: templateSession, stepStartRef, startSession, fillCurrentAndAdvance, dismissDropdown, selectNextChoice, selectPrevChoice, endSession } = useTemplateSession();
-    const { suggestions: expanderSuggestions, selectedIndex: expanderIndex, accept: acceptExpander, dismiss: dismissExpander, selectNext: expanderNext, selectPrev: expanderPrev } = useTextExpander({
-        text: note,
-        cursorPosition,
-        expanders: textExpanders,
-        enabled: textExpanderEnabled && currentPageId === 'hpi' && !templateSession.isActive,
-    });
-    const hasExpanderSuggestion = expanderSuggestions.length > 0;
-
-    // --- End template session on page change ---
-    useEffect(() => {
-        if (templateSession.isActive) endSession();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentPageId]);
 
     // --- PII detection (debounced) ---
     const [piiWarnings, setPiiWarnings] = useState<string[]>([]);
@@ -111,7 +84,6 @@ export function useNoteEditor(config: NoteEditorConfig) {
     const hasPII = piiWarnings.length > 0 || pePiiWarnings.length > 0;
 
     // --- Refs ---
-    const inputRef = useRef<HTMLTextAreaElement>(null);
     const currentPageRef = useRef(currentPage);
     currentPageRef.current = currentPage;
 
@@ -119,8 +91,8 @@ export function useNoteEditor(config: NoteEditorConfig) {
     const { generateNote } = useNoteCapture(algorithmOptions, cardStates);
     const signature = formatSignature(profile);
     const { shareNote, shareStatus } = useNoteShare();
-    const { exportDD689, exportStatus } = useDD689Export();
-    const { exportSF600, sf600ExportStatus } = useSF600Export();
+    const { exportDD689, exportStatus, dd689Preview, downloadDD689, clearDD689Preview } = useDD689Export();
+    const { exportSF600, sf600ExportStatus, sf600Preview, downloadSF600, clearSF600Preview } = useSF600Export();
 
     // --- Copied state auto-revert ---
     useEffect(() => {
@@ -130,23 +102,16 @@ export function useNoteEditor(config: NoteEditorConfig) {
         }
     }, [copiedTarget]);
 
-    // --- Auto-focus HPI textarea when navigating to HPI page ---
-    useEffect(() => {
-        if (currentPageId === 'hpi' && includeHPI) {
-            setTimeout(() => inputRef.current?.focus(), UI_TIMING.AUTOFOCUS_DELAY);
-        }
-    }, [currentPageId, includeHPI]);
-
     // --- Preview note generation ---
     useEffect(() => {
         const result = generateNote(
-            { includeAlgorithm, includeDecisionMaking, customNote: includeHPI ? note : '', physicalExamNote: includePhysicalExam ? peNote : '', planNote: includePlan ? planNote : '', signature },
+            { includeAlgorithm, includeDecisionMaking, selectedDdx, customDdx, customNote: note, physicalExamNote: peNote, planNote, signature },
             dispositionType,
             dispositionText,
             selectedSymptom,
         );
         setPreviewNote(result.fullNote);
-    }, [note, includeDecisionMaking, includeHPI, peNote, includePhysicalExam, planNote, includePlan, generateNote, dispositionType, dispositionText, selectedSymptom, signature, includeAlgorithm]);
+    }, [note, selectedDdx, customDdx, peNote, planNote, generateNote, dispositionType, dispositionText, selectedSymptom, signature, includeAlgorithm, includeDecisionMaking]);
 
     // --- Copy handler ---
     const handleCopy = useCallback((text: string, target: 'preview' | 'encoded') => {
@@ -159,12 +124,11 @@ export function useNoteEditor(config: NoteEditorConfig) {
         if (!encodedValue) return;
         shareNote({
             encodedText: encodedValue,
-            barcodeBytes,
             symptomText: shareSymptomText ?? selectedSymptom?.text ?? 'Note',
             dispositionType,
             dispositionText,
         }, isMobile);
-    }, [encodedValue, barcodeBytes, selectedSymptom, dispositionType, dispositionText, isMobile, shareNote, shareSymptomText]);
+    }, [encodedValue, selectedSymptom, dispositionType, dispositionText, isMobile, shareNote, shareSymptomText]);
 
     // --- DD689 PDF export handler ---
     const handleExportDD689 = useCallback(() => {
@@ -178,27 +142,28 @@ export function useNoteEditor(config: NoteEditorConfig) {
         ].filter(Boolean);
         exportDD689({
             encodedValue,
-            barcodeBytes,
             dispositionType,
             dispositionText,
             symptomText: shareSymptomText ?? selectedSymptom?.text ?? 'Note',
             clinicName: profile.clinicName || '',
             authorLine: authorParts.length ? authorParts.join(', ') : undefined,
         });
-    }, [encodedValue, barcodeBytes, dispositionType, dispositionText, selectedSymptom, exportDD689, profile, shareSymptomText]);
+    }, [encodedValue, dispositionType, dispositionText, selectedSymptom, exportDD689, profile, shareSymptomText]);
 
     // --- SF600 PDF export handler ---
     const handleExportSF600 = useCallback(() => {
         if (!previewNote) return;
         const now = new Date();
         const dateStr = now.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+        const nameParts = [profile.lastName, profile.firstName, profile.middleInitial].filter(Boolean).join(' ');
+        const suffix = [profile.credential, profile.rank, profile.component].filter(Boolean).join(', ');
+        const sigName = suffix ? `${nameParts} ${suffix}` : nameParts;
         exportSF600({
             noteText: previewNote,
             date: dateStr,
-            facilityName: profile.clinicName || undefined,
-            signature: signature || undefined,
+            signatureName: sigName || undefined,
         });
-    }, [previewNote, exportSF600, profile.clinicName, signature]);
+    }, [previewNote, exportSF600]);
 
     // --- Slide animation helper ---
     const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
@@ -246,46 +211,15 @@ export function useNoteEditor(config: NoteEditorConfig) {
         isMobile,
     );
 
-    // --- HPI keyboard handler ---
-    const hpiKeyDownHandler = useMemo(() => createHPIKeyDownHandler({
-        inputRef,
-        note,
-        cursorPosition,
-        setNote,
-        setCursorPosition,
-        templateSession,
-        stepStartRef,
-        fillCurrentAndAdvance,
-        dismissDropdown,
-        selectNextChoice,
-        selectPrevChoice,
-        endSession,
-        startSession,
-        expanderSuggestions,
-        expanderIndex,
-        acceptExpander,
-        dismissExpander,
-        expanderNext,
-        expanderPrev,
-        hasExpanderSuggestion,
-    }), [
-        note, cursorPosition, templateSession, stepStartRef,
-        fillCurrentAndAdvance, dismissDropdown, selectNextChoice, selectPrevChoice,
-        endSession, startSession, expanderSuggestions, expanderIndex,
-        acceptExpander, dismissExpander, expanderNext, expanderPrev, hasExpanderSuggestion,
-    ]);
-
     return {
         // Note state
         note, setNote, previewNote,
         peNote, setPeNote,
         peState, setPeState,
         planNote, setPlanNote,
-        includeHPI, setIncludeHPI,
-        includePhysicalExam, setIncludePhysicalExam,
-        includePlan, setIncludePlan,
+        selectedDdx, setSelectedDdx,
+        customDdx, setCustomDdx,
         encodedValue, setEncodedValue,
-        barcodeBytes, setBarcodeBytes,
         copiedTarget, setCopiedTarget,
 
         // Page navigation
@@ -296,31 +230,19 @@ export function useNoteEditor(config: NoteEditorConfig) {
         handleSwipeLeft, handleSwipeRight,
         handleSwipeStart, handleSwipeMove, handleSwipeEnd,
 
-        // Cursor
-        cursorPosition, setCursorPosition,
-
         // PII
         piiWarnings, pePiiWarnings, hasPII,
 
         // Handlers
         handleCopy, handleShare, handleExportDD689, handleExportSF600,
         shareStatus, exportStatus, sf600ExportStatus,
-
-        // Text expander
-        expanderSuggestions, expanderIndex, acceptExpander, dismissExpander,
-        expanderNext, expanderPrev, hasExpanderSuggestion,
-
-        // Template session
-        templateSession, stepStartRef, startSession, fillCurrentAndAdvance,
-        dismissDropdown, selectNextChoice, selectPrevChoice, endSession,
-
-        // HPI keyboard handler
-        hpiKeyDownHandler,
+        dd689Preview, downloadDD689, clearDD689Preview,
+        sf600Preview, downloadSF600, clearSF600Preview,
 
         // Refs
-        inputRef, currentPageRef,
+        currentPageRef,
 
         // Profile / auth data (for barcode)
-        profile, authUserId, defaultHPI, defaultPE, defaultPlan, signature, colors: _colors,
+        profile, authUserId, signature, colors: _colors,
     };
 }

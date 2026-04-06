@@ -1,9 +1,9 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { ScanLine, X, LayoutTemplate, ChevronLeft } from 'lucide-react'
+import { ScanLine, X, LayoutTemplate } from 'lucide-react'
 import { ImportInputBar } from './ImportInputBar'
 import { ImportResultPopover } from './ImportResultPopover'
 import { BaseDrawer } from './BaseDrawer'
-import { ContentWrapper } from './Settings/ContentWrapper'
+import { ContentWrapper } from './ContentWrapper'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
@@ -104,25 +104,20 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       const text = expandTemplateText(template.peText, template.peExpanderAbbrs, template.peExpanderAbbr, expanders)
       if (text) setPeNote(text)
     }
-    // PE structured blocks — build PEState with all-normal for each selected block
+    // PE structured blocks — build PEState with all-normal for each selected block.
+    // PhysicalExam reads `initialState` directly and emits the rendered text via onChange.
     if (template.peBlockKeys?.length && !peState) {
       const items: Record<string, { status: 'normal'; selectedNormals: string[]; selectedAbnormals: string[]; findings: string }> = {}
-      const textLines: string[] = []
       for (const key of template.peBlockKeys) {
         const block = getMasterBlockByKey(key)
-        if (block) {
-          const normals = block.findings.filter(f => f.normal).map(f => f.key)
-          items[key] = {
-            status: 'normal',
-            selectedNormals: normals,
-            selectedAbnormals: [],
-            findings: '',
-          }
-          const normalLabels = block.findings.filter(f => f.normal && normals.includes(f.key)).map(f => f.normal!)
-          textLines.push(`${block.label.toUpperCase()}: ${normalLabels.join(', ') || 'Normal'}`)
+        if (!block) continue
+        items[key] = {
+          status: 'normal',
+          selectedNormals: block.findings.filter(f => f.normal).map(f => f.key),
+          selectedAbnormals: [],
+          findings: '',
         }
       }
-      setPeNote(textLines.join('\n'))
       setSelectedBlockKeys(template.peBlockKeys!)
       setPeState({
         categoryLetter: 'A',
@@ -194,12 +189,12 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
           const symptomInfo = findSymptomByCode(parsed.symptomCode)
           const selectedSymptom = symptomInfo ? { icon: symptomInfo.symptom.icon || '', text: symptomInfo.symptom.text || '' } : undefined
           const assembled = assembleNote(
-            { includeAlgorithm: parsed.flags.includeAlgorithm, includeDecisionMaking: parsed.flags.includeDecisionMaking, customNote: '', physicalExamNote: '', planNote: '' },
+            { includeAlgorithm: parsed.flags.includeAlgorithm, customNote: '', physicalExamNote: '', planNote: '' },
             algorithmOptions, cardStates, disposition?.type ?? '', disposition?.text ?? '', selectedSymptom,
           )
           const parts: string[] = []
           if (assembled.sections.algorithm) parts.push(assembled.sections.algorithm)
-          if (assembled.sections.decisionMaking) parts.push(assembled.sections.decisionMaking)
+          if (assembled.sections.differentials) parts.push(assembled.sections.differentials)
           assessmentText = parts.join('\n\n')
         }
       }
@@ -258,6 +253,8 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     setHpiNote('')
     setPeNote('')
     setPeState(null)
+    setSelectedBlockKeys([])
+    setPeResetKey(k => k + 1)
     setAssessmentNote('')
     setPlanNote('')
     setImportedMedicNote(null)
@@ -337,15 +334,50 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     </div>
   )
 
-  // ── Header config (desktop only — mobile uses custom floating header) ────
+  // ── Header config ─────────────────────────────────────────────────────────
 
   const headerConfig = useMemo(() => {
-    if (isMobile) return undefined
     if (view === 'output') {
+      return { title: 'Note Output', showBack: true, onBack: handleBack }
+    }
+    if (isMobile) {
+      if (importExpanded) {
+        return {
+          title: '',
+          rightContentFill: true,
+          hideDefaultClose: true,
+          rightContent: (
+            <ImportInputBar
+              value={barcodeImport.importText}
+              onChange={barcodeImport.setImportText}
+              onSubmit={barcodeImport.handleSubmit}
+              onClose={handleCollapseImport}
+              onScan={barcodeImport.handleScan}
+              onSerialScan={barcodeImport.handleSerialScan}
+              isSerialSupported={barcodeImport.isSerialSupported}
+              onImage={barcodeImport.stageImage}
+              inputRef={importInputRef}
+              isDecodingImage={barcodeImport.isDecodingImage}
+              hasStaged={!!barcodeImport.stagedImage}
+              className="w-full animate-expandSearch"
+            />
+          ),
+        }
+      }
       return {
-        title: 'Note Output',
-        showBack: true,
-        onBack: handleBack,
+        title: 'Provider',
+        leftContent: (
+          <HeaderPill>
+            <PillButton icon={LayoutTemplate} iconSize={20} onClick={() => setTemplateDrawerOpen(true)} label="Templates" />
+          </HeaderPill>
+        ),
+        rightContent: (
+          <HeaderPill>
+            <PillButton icon={ScanLine} iconSize={20} onClick={handleExpandImport} label="Import Medic Note" />
+            <PillButton icon={X} onClick={handleClose} label="Close" />
+          </HeaderPill>
+        ),
+        hideDefaultClose: true,
       }
     }
     return {
@@ -354,7 +386,10 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       hideDefaultClose: true,
       rightContentFill: importExpanded,
     }
-  }, [view, handleBack, desktopHeaderRight, importExpanded, isMobile])
+  }, [view, handleBack, isMobile, importExpanded, desktopHeaderRight, handleClose,
+      handleExpandImport, handleCollapseImport, barcodeImport.importText,
+      barcodeImport.setImportText, barcodeImport.handleSubmit, barcodeImport.handleScan,
+      barcodeImport.stageImage, barcodeImport.isDecodingImage, barcodeImport.stagedImage])
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -367,54 +402,9 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       desktopPosition="left"
       desktopWidth="w-[90%]"
       header={headerConfig}
-      blurHeader
+      scrollDisabled
     >
       <div className="relative h-full">
-        {/* Mobile floating header — matches CalendarDrawer pattern */}
-        {isMobile && (
-          <div className="md:hidden sticky top-0 inset-x-0 z-10 backdrop-blur-sm bg-transparent">
-            <div className="px-3 py-3 pt-[max(0.75rem,var(--sat,0px))] flex items-center justify-between">
-              {view === 'note' ? (
-                importExpanded ? (
-                  <ImportInputBar
-                    value={barcodeImport.importText}
-                    onChange={barcodeImport.setImportText}
-                    onSubmit={barcodeImport.handleSubmit}
-                    onClose={handleCollapseImport}
-                    onScan={barcodeImport.handleScan}
-                    onImage={barcodeImport.stageImage}
-                    inputRef={importInputRef}
-                    isDecodingImage={barcodeImport.isDecodingImage}
-                    hasStaged={!!barcodeImport.stagedImage}
-                    className="w-full animate-expandSearch"
-                  />
-                ) : (
-                  <>
-                    <HeaderPill>
-                      <PillButton icon={LayoutTemplate} iconSize={20} onClick={() => setTemplateDrawerOpen(true)} label="Templates" />
-                    </HeaderPill>
-                    <span className="text-sm font-semibold text-primary">Provider</span>
-                    <HeaderPill>
-                      <PillButton icon={ScanLine} iconSize={20} onClick={handleExpandImport} label="Import Medic Note" />
-                      <PillButton icon={X} onClick={handleClose} label="Close" />
-                    </HeaderPill>
-                  </>
-                )
-              ) : (
-                <>
-                  <HeaderPill>
-                    <PillButton icon={ChevronLeft} onClick={handleBack} label="Back" />
-                  </HeaderPill>
-                  <span className="text-sm font-semibold text-primary">Note Output</span>
-                  <HeaderPill>
-                    <PillButton icon={X} onClick={handleClose} label="Close" />
-                  </HeaderPill>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
         {!isMobile ? (
           <div className="flex h-full">
             {/* Left pane — templates */}
@@ -467,17 +457,17 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
             </div>
           </div>
         ) : (
-          <div>
             <ContentWrapper
               slideDirection={slideDirection}
               swipeHandlers={canSwipeBack ? swipeHandlers : undefined}
+              scrollable
             >
               {barcodeImport.error && (
                 <div className="px-4 pt-2">
                   <div className="text-xs text-themeredred">{barcodeImport.error}</div>
                 </div>
               )}
-              <div className="px-5 pt-20 py-3 pb-[max(2rem,var(--sab,0px))]">
+              <div className="px-5 py-3 pb-[max(2rem,var(--sab,0px))]">
                 {view === 'note' ? (
                 <ProviderNote
                   hpiNote={hpiNote}
@@ -509,7 +499,6 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
               )}
             </div>
             </ContentWrapper>
-          </div>
         )}
 
         {/* Import popover for scan + staged image preview */}

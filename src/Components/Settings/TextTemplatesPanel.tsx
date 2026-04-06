@@ -1,10 +1,10 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { updateClinicNoteContent } from '../../lib/supervisorService';
 import type { UserTypes, TextExpander } from '../../Data/User';
 import type { TemplateNode } from '../../Data/TemplateTypes';
-import { parseFieldText } from '../../Utilities/templateParser';
+import { parseFieldText, isFlatTemplate, templateNodesToFieldText } from '../../Utilities/templateParser';
 import { TextExpanderManager } from './TextExpanderManager';
 import type { EditCardState } from './TextExpanderManager';
 import { TextTemplateDetailPanel } from './TextTemplateDetailPanel';
@@ -27,11 +27,20 @@ export const TextTemplatesPanel = ({
     const clinicId = useAuthStore(s => s.clinicId);
 
     const textExpanders = profile.textExpanders ?? [];
-    const activeExpanders = scope === 'clinic' ? clinicTextExpanders : textExpanders;
+
+    const allExpanders = useMemo(() => {
+        return [...clinicTextExpanders, ...textExpanders];
+    }, [textExpanders, clinicTextExpanders]);
+
+    const clinicAbbrSet = useMemo(() =>
+        new Set(clinicTextExpanders.map(e => e.abbr.toLowerCase())),
+        [clinicTextExpanders]
+    );
 
     // Staging state
     const [stagedDeletes, setStagedDeletes] = useState<Set<string>>(new Set());
     const [stagedAdds, setStagedAdds] = useState<TextExpander[]>([]);
+    const [stagedEdits, setStagedEdits] = useState<Map<string, TextExpander>>(new Map());
 
     // Input bar state
     const [inputAbbr, setInputAbbr] = useState('');
@@ -43,8 +52,9 @@ export const TextTemplatesPanel = ({
 
     // Detail view for editing existing (tap a card in non-edit mode)
     const [detailExpander, setDetailExpander] = useState<TextExpander | null>(null);
+    const [detailSource, setDetailSource] = useState<'personal' | 'clinic'>('personal');
 
-    const hasPending = stagedDeletes.size > 0 || stagedAdds.length > 0;
+    const hasPending = stagedDeletes.size > 0 || stagedAdds.length > 0 || stagedEdits.size > 0;
 
     useEffect(() => {
         onPendingChangesChange?.(hasPending);
@@ -61,26 +71,46 @@ export const TextTemplatesPanel = ({
     useEffect(() => {
         if (!saveRequested) return;
 
-        if (scope === 'clinic' && clinicId) {
-            let next = [...clinicTextExpanders].filter(e => !stagedDeletes.has(e.abbr));
-            if (stagedAdds.length > 0) next = [...next, ...stagedAdds];
-            if (stagedDeletes.size > 0 || stagedAdds.length > 0) {
-                updateClinicNoteContent(clinicId, { textExpanders: next });
-                useAuthStore.setState({ clinicTextExpanders: next });
-            }
-        } else {
-            const current = [...textExpanders];
-            let next = current.filter(e => !stagedDeletes.has(e.abbr));
-            if (stagedAdds.length > 0) {
-                next = [...next, ...stagedAdds];
-            }
-            if (stagedDeletes.size > 0 || stagedAdds.length > 0) {
-                handleUpdate({ textExpanders: next });
-            }
+        // Split staged deletes by provenance
+        const clinicDeletes = new Set<string>();
+        const personalDeletes = new Set<string>();
+        for (const abbr of stagedDeletes) {
+            if (clinicAbbrSet.has(abbr.toLowerCase())) clinicDeletes.add(abbr);
+            else personalDeletes.add(abbr);
+        }
+
+        // Split staged edits by provenance
+        const clinicEdits = new Map<string, TextExpander>();
+        const personalEdits = new Map<string, TextExpander>();
+        for (const [abbr, entry] of stagedEdits) {
+            if (clinicAbbrSet.has(abbr.toLowerCase())) clinicEdits.set(abbr, entry);
+            else personalEdits.set(abbr, entry);
+        }
+
+        // Clinic mutations (deletes + edits from clinic list + adds when scope is clinic)
+        const clinicAdds = scope === 'clinic' ? stagedAdds : [];
+        if (clinicId && (clinicDeletes.size > 0 || clinicAdds.length > 0 || clinicEdits.size > 0)) {
+            let next = clinicTextExpanders
+                .filter(e => !clinicDeletes.has(e.abbr))
+                .map(e => clinicEdits.get(e.abbr) ?? e);
+            if (clinicAdds.length > 0) next = [...next, ...clinicAdds];
+            updateClinicNoteContent(clinicId, { textExpanders: next });
+            useAuthStore.setState({ clinicTextExpanders: next });
+        }
+
+        // Personal mutations (deletes + edits from personal list + adds when scope is personal)
+        const personalAdds = scope === 'personal' ? stagedAdds : [];
+        if (personalDeletes.size > 0 || personalAdds.length > 0 || personalEdits.size > 0) {
+            let next = textExpanders
+                .filter(e => !personalDeletes.has(e.abbr))
+                .map(e => personalEdits.get(e.abbr) ?? e);
+            if (personalAdds.length > 0) next = [...next, ...personalAdds];
+            handleUpdate({ textExpanders: next });
         }
 
         setStagedDeletes(new Set());
         setStagedAdds([]);
+        setStagedEdits(new Map());
         setInputAbbr('');
         setInputError('');
         setEditCard(null);
@@ -92,6 +122,7 @@ export const TextTemplatesPanel = ({
         if (!editing) {
             setStagedDeletes(new Set());
             setStagedAdds([]);
+            setStagedEdits(new Map());
             setInputAbbr('');
             setInputError('');
             setEditCard(null);
@@ -102,6 +133,7 @@ export const TextTemplatesPanel = ({
     useEffect(() => {
         setStagedDeletes(new Set());
         setStagedAdds([]);
+        setStagedEdits(new Map());
         setInputAbbr('');
         setInputError('');
         setEditCard(null);
@@ -231,8 +263,69 @@ export const TextTemplatesPanel = ({
 
         if (editCard.isNew) {
             setStagedAdds(prev => [...prev, entry]);
+        } else {
+            setStagedEdits(prev => {
+                const next = new Map(prev);
+                next.set(editCard.abbr, entry);
+                return next;
+            });
         }
 
+        setEditCard(null);
+    }, [editCard]);
+
+    // Open inline editor for an existing expander (edit mode tap)
+    const handleStartEdit = useCallback((expander: TextExpander) => {
+        const current = stagedEdits.get(expander.abbr) ?? expander;
+        const nodes = current.template ?? [];
+        if (nodes.length > 0 && !isFlatTemplate(nodes)) {
+            // Branched template — edit via step builder
+            setEditCard({
+                abbr: expander.abbr,
+                type: 'template',
+                expansion: '',
+                nodes,
+                fields: {},
+                isNew: false,
+            });
+        } else if (nodes.length > 0) {
+            // Flat field template — reconstruct simple text + fields
+            const round = templateNodesToFieldText(nodes);
+            setEditCard({
+                abbr: expander.abbr,
+                type: 'simple',
+                expansion: round?.text ?? '',
+                nodes: [],
+                fields: round?.fields ?? {},
+                isNew: false,
+            });
+        } else {
+            setEditCard({
+                abbr: expander.abbr,
+                type: 'simple',
+                expansion: current.expansion,
+                nodes: [],
+                fields: {},
+                isNew: false,
+            });
+        }
+    }, [stagedEdits]);
+
+    // Delete from inside the inline editor
+    const handleEditCardDelete = useCallback(() => {
+        if (!editCard) return;
+        setStagedDeletes(prev => {
+            const next = new Set(prev);
+            next.add(editCard.abbr);
+            return next;
+        });
+        // Drop any pending edit for this abbr — the delete supersedes it
+        setStagedEdits(prev => {
+            if (!prev.has(editCard.abbr)) return prev;
+            const next = new Map(prev);
+            next.delete(editCard.abbr);
+            return next;
+        });
         setEditCard(null);
     }, [editCard]);
 
@@ -242,14 +335,15 @@ export const TextTemplatesPanel = ({
 
     // Open detail for editing an existing expander (non-edit mode tap)
     const handleCardTap = useCallback((expander: TextExpander) => {
-        // Don't open detail for clinic expanders when viewing personal
-        if (scope === 'personal' && clinicTextExpanders.some(e => e.abbr === expander.abbr)) return;
+        const isClinic = clinicTextExpanders.some(e => e.abbr === expander.abbr);
+        if (isClinic && !isSupervisorRole) return; // non-supervisors can't edit clinic items
         setDetailExpander(expander);
-    }, [scope, clinicTextExpanders]);
+        setDetailSource(isClinic ? 'clinic' : 'personal');
+    }, [clinicTextExpanders, isSupervisorRole]);
 
     // Detail panel save handler (editing existing)
     const handleDetailSave = useCallback((entry: TextExpander, originalAbbr?: string) => {
-        if (scope === 'clinic' && clinicId) {
+        if (detailSource === 'clinic' && clinicId) {
             const current = [...clinicTextExpanders];
             const next = originalAbbr
                 ? current.map(e => e.abbr === originalAbbr ? entry : e)
@@ -264,11 +358,11 @@ export const TextTemplatesPanel = ({
             handleUpdate({ textExpanders: next });
         }
         setDetailExpander(null);
-    }, [scope, clinicId, clinicTextExpanders, profile.textExpanders, handleUpdate]);
+    }, [detailSource, clinicId, clinicTextExpanders, profile.textExpanders, handleUpdate]);
 
     // Detail panel delete handler
     const handleDetailDelete = useCallback((abbr: string) => {
-        if (scope === 'clinic' && clinicId) {
+        if (detailSource === 'clinic' && clinicId) {
             const next = clinicTextExpanders.filter(e => e.abbr !== abbr);
             updateClinicNoteContent(clinicId, { textExpanders: next });
             useAuthStore.setState({ clinicTextExpanders: next });
@@ -278,7 +372,7 @@ export const TextTemplatesPanel = ({
             handleUpdate({ textExpanders: next });
         }
         setDetailExpander(null);
-    }, [scope, clinicId, clinicTextExpanders, profile.textExpanders, handleUpdate]);
+    }, [detailSource, clinicId, clinicTextExpanders, profile.textExpanders, handleUpdate]);
 
     // ── Detail view for editing existing ──
     if (detailExpander) {
@@ -286,7 +380,7 @@ export const TextTemplatesPanel = ({
             <TextTemplateDetailPanel
                 expander={detailExpander}
                 isNew={false}
-                existingAbbrs={activeExpanders.map(e => e.abbr)}
+                existingAbbrs={allExpanders.map(e => e.abbr)}
                 onSave={handleDetailSave}
                 onDelete={handleDetailDelete}
                 onCancel={() => setDetailExpander(null)}
@@ -298,52 +392,24 @@ export const TextTemplatesPanel = ({
     return (
         <div data-tour="expander-usage-hint" className="h-full overflow-y-auto">
             <div className="px-5 py-4 space-y-5">
-                {isSupervisorRole ? (
-                    <div data-tour="expander-edit-hint" className="flex items-center gap-2">
-                        <p className="text-xs text-tertiary leading-relaxed flex-1">
-                            {scope === 'clinic'
-                                ? 'Clinic shortcuts shared with all members.'
-                                : 'Your personal autotext shortcuts.'}
-                        </p>
-                        <div className="flex rounded-full border border-themeblue3/10 overflow-hidden shrink-0">
-                            <button
-                                type="button"
-                                onClick={() => setScope('personal')}
-                                className={`px-3 py-1.5 text-[11px] font-semibold transition-all ${
-                                    scope === 'personal'
-                                        ? 'bg-themeblue2 text-white'
-                                        : 'text-tertiary hover:bg-tertiary/5'
-                                }`}
-                            >
-                                Personal
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setScope('clinic')}
-                                className={`px-3 py-1.5 text-[11px] font-semibold transition-all ${
-                                    scope === 'clinic'
-                                        ? 'bg-themeblue2 text-white'
-                                        : 'text-tertiary hover:bg-tertiary/5'
-                                }`}
-                            >
-                                Clinic
-                            </button>
-                        </div>
-                    </div>
-                ) : (
-                    <p data-tour="expander-edit-hint" className="text-xs text-tertiary leading-relaxed">
-                        Autotext shortcuts that expand abbreviations as you type in your notes.
-                    </p>
-                )}
+                <p data-tour="expander-edit-hint" className="text-xs text-tertiary leading-relaxed">
+                    Autotext shortcuts that expand abbreviations as you type in your notes.
+                    {clinicTextExpanders.length > 0 && (
+                        <span className="text-tertiary/50"> Includes clinic-wide shortcuts.</span>
+                    )}
+                </p>
 
                 <TextExpanderManager
-                    expanders={activeExpanders}
+                    expanders={allExpanders}
+                    clinicAbbrSet={clinicAbbrSet}
                     editing={editing}
                     stagedDeletes={stagedDeletes}
                     stagedAdds={stagedAdds}
+                    stagedEdits={stagedEdits}
                     onToggleDelete={handleToggleDelete}
                     onUnstageAdd={handleUnstageAdd}
                     onCardTap={handleCardTap}
+                    onStartEdit={handleStartEdit}
                     inputAbbr={inputAbbr}
                     onInputAbbrChange={(v) => { setInputAbbr(v); setInputError(''); }}
                     onInputAbbrSubmit={handleInputSubmit}
@@ -355,8 +421,9 @@ export const TextTemplatesPanel = ({
                     onEditCardChange={setEditCard}
                     onEditCardAccept={handleEditCardAccept}
                     onEditCardCancel={handleEditCardCancel}
+                    onEditCardDelete={handleEditCardDelete}
                     scope={scope}
-                    clinicExpanders={scope === 'personal' ? clinicTextExpanders : []}
+                    onScopeChange={setScope}
                     isSupervisorRole={isSupervisorRole}
                 />
             </div>

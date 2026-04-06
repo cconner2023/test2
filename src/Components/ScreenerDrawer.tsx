@@ -169,8 +169,9 @@ export function ScreenerDrawer({
             header={{ title: activeScreener.title }}
             fullHeight="90dvh"
             desktopPosition="right"
+            contentPadding="compact"
         >
-            <div className="h-full overflow-y-auto px-4 pb-6">
+            <div>
                 {/* Instruction */}
                 <p className="text-xs text-secondary py-3 border-b border-tertiary/10">
                     {screenerConfig.instruction}

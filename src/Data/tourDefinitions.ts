@@ -53,6 +53,7 @@ export interface TourDefinition {
 //   'open:symptom-info'      — open the symptom info drawer
 //   'close:symptom-info'     — close the symptom info drawer
 //   'setup:writenote-demo'   — programmatically navigate to A-1, reconstruct card states, open WriteNotePage
+//   'scroll-to:<target>'     — scroll a data-tour element into view (smooth, centered)
 //   'open:import-demo'       — generate demo barcode, open NoteImport with it
 //   'inject:note-hpi'        — fill HPI with guided tour data
 //   'inject:note-pe'         — fill PE with guided tour data
@@ -255,25 +256,11 @@ const noteLifecycleTour: TourDefinition = {
   description: 'SOAP, preview, encode, and import.',
   steps: [
     {
-      target: 'writenote-decision',
-      text: 'The note writer opens on Decision Making — treatment guidance from the algorithm tied to the disposition.',
+      target: 'writenote-hpi',
+      text: "The History of Present Illness (HPI) — Subjective information. This is what the patient TELLS you.",
       placement: 'bottom',
       beforeStep: 'setup:writenote-demo',
       delay: 600,
-      duration: 6000,
-    },
-    {
-      target: 'writenote-decision',
-      text: 'Toggle this on to include the decision-making rationale in your final note.',
-      placement: 'bottom',
-      duration: 5000,
-    },
-    {
-      target: 'writenote-hpi',
-      text: "The History of Present Illness (HPI) is part of Subjective (S) information. This is what the patient TELLS you.",
-      placement: 'bottom',
-      beforeStep: 'click:writenote-next',
-      delay: 400,
       duration: 5000,
     },
     {
@@ -288,7 +275,7 @@ const noteLifecycleTour: TourDefinition = {
       target: 'writenote-pe',
       text: 'Physical Exam — the Objective (O). Tap any body system to open its findings preview.',
       placement: 'bottom',
-      beforeStep: 'click:writenote-next',
+      beforeStep: 'scroll-to:writenote-pe',
       delay: 400,
       duration: 5000,
     },
@@ -343,9 +330,9 @@ const noteLifecycleTour: TourDefinition = {
     },
     {
       target: 'writenote-plan',
-      text: 'The Plan (P) — what\'s yout treatment: medications, instructions, and follow-up. You can make order sets in your settings and apply common bundles in one tap.',
+      text: 'The Plan (P) — what\'s your treatment: medications, instructions, and follow-up. You can make order sets in your settings and apply common bundles in one tap.',
       placement: 'bottom',
-      beforeStep: 'click:writenote-next',
+      beforeStep: 'scroll-to:writenote-plan',
       delay: 400,
       duration: 6000,
     },

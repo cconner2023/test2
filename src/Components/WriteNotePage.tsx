@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import type { dispositionType, AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 import { useNoteEditor } from '../Hooks/useNoteEditor';
@@ -11,17 +11,21 @@ import { PhysicalExam } from './PhysicalExam';
 import { Plan } from './Plan';
 import { BaseDrawer } from './BaseDrawer';
 import {
-    ActionIconButton, SlideWrapper, ToggleOption,
-    NoteHPIEditor, NoteWizardFooter,
+    ActionIconButton,
+    NoteWizardFooter,
     shareStatusToIconStatus, exportStatusToIconStatus,
 } from './WriteNoteHelpers';
+import { ExpandableInput } from './ExpandableInput';
 import { useAuthStore } from '../stores/useAuthStore';
-import { BrainCircuit, FileText, Stethoscope, ClipboardList } from 'lucide-react';
+import { useMergedNoteContent } from '../Hooks/useMergedNoteContent';
+import { X, Plus, Check } from 'lucide-react';
+import { ContextMenuPreview } from './ContextMenuPreview';
 import { GUIDED_HPI_EXPANDED, GUIDED_PE_TEXT, GUIDED_PLAN_TEXT } from '../Data/GuidedTourData';
+import { PdfPreviewModal } from './PdfPreviewModal';
 
 type DispositionType = dispositionType['type'];
 
-type PageId = 'decision' | 'hpi' | 'pe' | 'plan' | 'fullnote';
+type PageId = 'edit' | 'fullnote';
 
 interface WriteNoteProps {
     isVisible: boolean;
@@ -53,46 +57,31 @@ export const WriteNotePage = ({
 }: WriteNoteProps) => {
     const { profile } = useUserProfile();
     const isDevRole = useAuthStore(s => s.isDevRole);
+    const { expanders, orderTags, instructionTags, orderSets } = useMergedNoteContent();
     const colors = getColorClasses(disposition.type);
+    const [includeDecisionMaking, setIncludeDecisionMaking] = useState(true);
+    const [includeFullNote, setIncludeFullNote] = useState(false);
 
-    // Tour override: temporarily show all note sections during guided tour
-    // Uses a global flag so the value is available even before mount
-    const [tourOverrideAll, setTourOverrideAll] = useState(() => !!window.__tourNoteOverride);
+    // Tour override: clean up global flag on restore/unmount
     useEffect(() => {
-        const onEnable = () => setTourOverrideAll(true);
-        const onRestore = () => { setTourOverrideAll(false); window.__tourNoteOverride = false; };
-        window.addEventListener('tour:enable-all-note-sections', onEnable);
+        const onRestore = () => { window.__tourNoteOverride = false; };
         window.addEventListener('tour:restore-note-sections', onRestore);
         return () => {
-            window.removeEventListener('tour:enable-all-note-sections', onEnable);
             window.removeEventListener('tour:restore-note-sections', onRestore);
-            // Clean up global flag on unmount (e.g., tour skipped while drawer open)
             window.__tourNoteOverride = false;
         };
     }, []);
 
-    const defaultHPI = true;
-    const defaultPE = true;
-    const defaultPlan = tourOverrideAll || !!(profile.planOrderTags && Object.values(profile.planOrderTags).some(arr => arr.length > 0));
-
-    const visiblePages = useMemo(() => {
-        const pages: { id: PageId; label: string }[] = [
-            { id: 'decision', label: 'Decision Making' },
-            { id: 'hpi', label: 'HPI' },
-            { id: 'pe', label: 'Physical Exam' },
-            { id: 'plan', label: 'Plan' },
-            { id: 'fullnote', label: 'Full Note' },
-        ];
-        return pages;
-    }, []);
-
-    // WriteNotePage-unique state: includeDecisionMaking
-    const [includeDecisionMaking, setIncludeDecisionMaking] = useState<boolean>(false);
+    const visiblePages = useMemo(() => [
+        { id: 'edit' as const, label: 'Write Note' },
+        { id: 'fullnote' as const, label: 'Full Note' },
+    ], []);
 
     const editor = useNoteEditor({
         algorithmOptions,
         cardStates,
         includeAlgorithm: true,
+        includeDecisionMaking,
         dispositionType: disposition.type,
         dispositionText: disposition.text,
         selectedSymptom,
@@ -100,7 +89,6 @@ export const WriteNotePage = ({
         isMobile,
         initialPage,
         colors,
-        includeDecisionMaking,
     });
 
     const {
@@ -108,32 +96,71 @@ export const WriteNotePage = ({
         peNote, setPeNote,
         peState, setPeState,
         planNote, setPlanNote,
-        includeHPI, setIncludeHPI,
-        includePhysicalExam, setIncludePhysicalExam,
-        includePlan, setIncludePlan,
+        selectedDdx, setSelectedDdx, customDdx, setCustomDdx,
         encodedValue, setEncodedValue,
-        barcodeBytes, setBarcodeBytes,
         copiedTarget,
         currentPage, currentPageId, slideDirection,
         handleNext, handlePageBack,
         handleSwipeStart, handleSwipeMove, handleSwipeEnd,
-        setCursorPosition,
         piiWarnings, pePiiWarnings, hasPII,
         handleCopy, handleShare, handleExportDD689, handleExportSF600,
         shareStatus, exportStatus, sf600ExportStatus,
-        expanderSuggestions, expanderIndex, acceptExpander, dismissExpander,
-        hasExpanderSuggestion,
-        templateSession, startSession, fillCurrentAndAdvance, endSession, dismissDropdown,
-        hpiKeyDownHandler,
-        inputRef,
+        dd689Preview, downloadDD689, clearDD689Preview,
+        sf600Preview, downloadSF600, clearSF600Preview,
         profile: editorProfile, authUserId,
     } = editor;
 
+    // ── DDx popover state ──────────────────────────────────────────────────
+    const [ddxPopoverVisible, setDdxPopoverVisible] = useState(false);
+    const [ddxAnchorRect, setDdxAnchorRect] = useState<DOMRect | null>(null);
+
+    const openDdxPopover = useCallback((e: React.MouseEvent) => {
+        setDdxAnchorRect((e.currentTarget as HTMLElement).getBoundingClientRect());
+        setDdxPopoverVisible(true);
+    }, []);
+
+    // ── Available DDx from algorithm context ────────────────────────────────
+    const availableDdx = useMemo(() => {
+        if (!includeDecisionMaking) return [];
+        const ddxSet = new Set<string>();
+        for (let i = cardStates.length - 1; i >= 0; i--) {
+            const card = cardStates[i];
+            const algoCard = algorithmOptions[i];
+            if (!card || !algoCard || !card.isVisible) continue;
+            const selectedAnswer = algoCard.answerOptions.find(a => a.text === card.answer?.text);
+            const selectAllAnswer = card.selectedOptions?.length > 0
+                ? algoCard.answerOptions.find(a => a.selectAll)
+                : null;
+            const answerToCheck = selectedAnswer || selectAllAnswer;
+            if (answerToCheck?.disposition?.some(d => d.type === disposition.type && d.text === disposition.text)) {
+                for (const dm of answerToCheck.decisionMaking || []) {
+                    if (dm.ddx) dm.ddx.forEach(d => ddxSet.add(d));
+                }
+            }
+        }
+        return Array.from(ddxSet);
+    }, [includeDecisionMaking, algorithmOptions, cardStates, disposition.type, disposition.text]);
+
+    const toggleDdx = useCallback((dx: string) => {
+        if (availableDdx.includes(dx)) {
+            const isSelected = selectedDdx.includes(dx);
+            setSelectedDdx(isSelected ? selectedDdx.filter(d => d !== dx) : [...selectedDdx, dx]);
+        } else {
+            setCustomDdx(customDdx.filter(d => d !== dx));
+        }
+    }, [availableDdx, selectedDdx, customDdx, setSelectedDdx, setCustomDdx]);
+
+    const addCustomDdxItem = useCallback((value: string) => {
+        if (!selectedDdx.includes(value) && !customDdx.includes(value)) {
+            setCustomDdx([...customDdx, value]);
+        }
+    }, [selectedDdx, customDdx, setCustomDdx]);
+
     // ── Tour injection listeners ────────────────────────────────────────────
     useEffect(() => {
-        const onInjectHPI = () => { setNote(GUIDED_HPI_EXPANDED); setIncludeHPI(true); };
-        const onInjectPE = () => { setPeNote(GUIDED_PE_TEXT); setIncludePhysicalExam(true); };
-        const onInjectPlan = () => { setPlanNote(GUIDED_PLAN_TEXT); setIncludePlan(true); };
+        const onInjectHPI = () => { setNote(GUIDED_HPI_EXPANDED); };
+        const onInjectPE = () => { setPeNote(GUIDED_PE_TEXT); };
+        const onInjectPlan = () => { setPlanNote(GUIDED_PLAN_TEXT); };
 
         window.addEventListener('tour:inject-hpi', onInjectHPI);
         window.addEventListener('tour:inject-pe', onInjectPE);
@@ -143,9 +170,10 @@ export const WriteNotePage = ({
             window.removeEventListener('tour:inject-pe', onInjectPE);
             window.removeEventListener('tour:inject-plan', onInjectPlan);
         };
-    }, [setNote, setIncludeHPI, setPeNote, setIncludePhysicalExam, setPlanNote, setIncludePlan]);
+    }, [setNote, setPeNote, setPlanNote]);
 
     return (
+        <>
         <BaseDrawer
             isVisible={isVisible}
             onClose={() => onExpansionChange(false)}
@@ -157,33 +185,76 @@ export const WriteNotePage = ({
                 onBack: handlePageBack,
             }}
         >
-            <div className="flex flex-col h-full">
-                {/* Content Area */}
-                <div
-                    className="flex-1 overflow-hidden relative"
-                    style={{ touchAction: isMobile ? 'pan-y' : 'auto' }}
-                    onTouchStart={isMobile ? handleSwipeStart : undefined}
-                    onTouchMove={isMobile ? handleSwipeMove : undefined}
-                    onTouchEnd={isMobile ? handleSwipeEnd : undefined}
-                    onTouchCancel={isMobile ? handleSwipeEnd : undefined}
-                >
-                    <SlideWrapper slideDirection={slideDirection}>
-                        {/* Decision Making */}
-                            <div data-tour="writenote-decision" className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'decision' ? 'hidden' : ''}`}>
-                                <div className="space-y-4">
-                                    <div className="mx-2 mt-2">
-                                        <ToggleOption
-                                            checked={includeDecisionMaking}
-                                            onChange={() => setIncludeDecisionMaking(!includeDecisionMaking)}
-                                            label="Include Decision Making in note"
-                                            onDescription="Decision making will be added to your note"
-                                            offDescription="Decision making will not be included"
-                                            icon={<BrainCircuit size={18} />}
-                                            colors={colors}
-                                        />
+            <div
+                className="flex flex-col min-h-full"
+                style={{ touchAction: isMobile ? 'pan-y' : 'auto' }}
+                onTouchStart={isMobile ? handleSwipeStart : undefined}
+                onTouchMove={isMobile ? handleSwipeMove : undefined}
+                onTouchEnd={isMobile ? handleSwipeEnd : undefined}
+                onTouchCancel={isMobile ? handleSwipeEnd : undefined}
+            >
+                <div className={`flex-1 ${slideDirection === 'left' ? 'animate-slide-in-left' : slideDirection === 'right' ? 'animate-slide-in-right' : ''}`}>
+                    {/* Edit Page */}
+                    <div data-tour="writenote-hpi" className={`w-full p-4 ${currentPageId !== 'edit' ? 'hidden' : ''}`}>
+                        <div className="space-y-4">
+                                {/* Full Note toggle */}
+                                <section className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Full Note</p>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIncludeFullNote(v => !v)}
+                                            className={`relative w-8 h-[18px] rounded-full transition-colors ${includeFullNote ? colors.sliderClass : 'bg-tertiary/25'}`}
+                                        >
+                                            <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform ${includeFullNote ? 'translate-x-[15px]' : 'translate-x-[3px]'}`} />
+                                        </button>
                                     </div>
-                                    <div className="mx-2">
-                                        <div className="overflow-hidden">
+                                </section>
+
+                                {includeFullNote && (
+                                <>
+                                {/* HPI section */}
+                                <section className="space-y-2">
+                                    <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Subjective</p>
+                                    <ExpandableInput
+                                        value={note}
+                                        onChange={setNote}
+                                        expanders={expanders}
+                                        multiline
+                                        className="w-full rounded-xl border border-themegray1/20 bg-themewhite p-3 text-sm text-primary placeholder:text-tertiary/30 focus:border-themeblue1/30 focus:outline-none resize-none transition-colors leading-6"
+                                        placeholder="History of present illness..."
+                                    />
+                                </section>
+
+                                {/* PE section */}
+                                <section data-tour="writenote-pe" className="space-y-2">
+                                    <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Physical Exam</p>
+                                    <PhysicalExam
+                                        initialText={peNote}
+                                        onChange={setPeNote}
+                                        onStateChange={setPeState}
+                                        colors={colors}
+                                        symptomCode={selectedSymptom?.icon || 'A-1'}
+                                        expanders={expanders}
+                                    />
+                                </section>
+                                </>
+                                )}
+
+                                {/* Assessment */}
+                                <section className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Decision Making</p>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIncludeDecisionMaking(v => !v)}
+                                            className={`relative w-8 h-[18px] rounded-full transition-colors ${includeDecisionMaking ? colors.sliderClass : 'bg-tertiary/25'}`}
+                                        >
+                                            <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform ${includeDecisionMaking ? 'translate-x-[15px]' : 'translate-x-[3px]'}`} />
+                                        </button>
+                                    </div>
+                                    {includeDecisionMaking && (
+                                        <div className="rounded-xl border border-tertiary/15 bg-themewhite2 overflow-hidden px-2 py-2">
                                             <DecisionMaking
                                                 algorithmOptions={algorithmOptions}
                                                 cardStates={cardStates}
@@ -191,104 +262,125 @@ export const WriteNotePage = ({
                                                 dispositionType={disposition.type}
                                             />
                                         </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                        {/* HPI */}
-                            <div data-tour="writenote-hpi" className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'hpi' ? 'hidden' : ''}`}>
-                                <div className="space-y-3">
-                                    <div className="mx-2 mt-2">
-                                        <ToggleOption
-                                            checked={includeHPI}
-                                            onChange={() => { const next = !includeHPI; setIncludeHPI(next); if (next) setTimeout(() => inputRef.current?.focus(), 100); }}
-                                            label="Include HPI in note"
-                                            onDescription="HPI will be added to your note"
-                                            offDescription="HPI will not be included"
-                                            icon={<FileText size={18} />}
-                                            colors={colors}
-                                        />
-                                    </div>
-                                    {includeHPI && (
-                                        <NoteHPIEditor
-                                            inputRef={inputRef} note={note} setNote={setNote} setCursorPosition={setCursorPosition}
-                                            hpiKeyDownHandler={hpiKeyDownHandler} templateSession={templateSession}
-                                            fillCurrentAndAdvance={fillCurrentAndAdvance} endSession={endSession} dismissDropdown={dismissDropdown}
-                                            hasExpanderSuggestion={hasExpanderSuggestion} expanderSuggestions={expanderSuggestions}
-                                            expanderIndex={expanderIndex} dismissExpander={dismissExpander}
-                                            acceptExpander={acceptExpander} startSession={startSession}
-                                            piiWarnings={piiWarnings}
-                                        />
                                     )}
-                                </div>
-                            </div>
 
-                        {/* Physical Exam */}
-                            <div data-tour="writenote-pe" className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'pe' ? 'hidden' : ''}`}>
-                                <div className="space-y-3">
-                                    <div className="mx-2 mt-2">
-                                        <ToggleOption
-                                            checked={includePhysicalExam}
-                                            onChange={() => setIncludePhysicalExam(!includePhysicalExam)}
-                                            label="Include Physical Exam in note"
-                                            onDescription="Physical exam will be added to your note"
-                                            offDescription="Physical exam will not be included"
-                                            icon={<Stethoscope size={18} />}
-                                            colors={colors}
-                                        />
-                                    </div>
-                                    {includePhysicalExam && (
-                                        <div className="mx-2">
-                                            <div className="overflow-hidden">
-                                                <PhysicalExam
-                                                    initialText={peNote}
-                                                    onChange={setPeNote}
-                                                    onStateChange={setPeState}
-                                                    colors={colors}
-                                                    symptomCode={selectedSymptom?.icon || 'A-1'}
-                                                    expanders={profile.textExpanders ?? []}
-                                                    expanderEnabled={profile.textExpanderEnabled ?? false}
-                                                />
+                                    {/* Differential Diagnoses */}
+                                    <div className="space-y-2 pt-1">
+                                        {(selectedDdx.length > 0 || customDdx.length > 0) ? (
+                                            <div
+                                                className="rounded-xl bg-themewhite2 overflow-hidden cursor-pointer active:scale-[0.98] transition-all"
+                                                onClick={openDdxPopover}
+                                            >
+                                                <div className="px-4 py-3">
+                                                    <p className="text-[11px] text-primary truncate">
+                                                        {[...selectedDdx, ...customDdx].map((d, i) => `${i + 1}. ${d}`).join('; ')}
+                                                    </p>
+                                                </div>
                                             </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                        {/* Plan */}
-                            <div data-tour="writenote-plan" className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'plan' ? 'hidden' : ''}`}>
-                                <div className="space-y-3">
-                                    <div className="mx-2 mt-2">
-                                        <ToggleOption
-                                            checked={includePlan}
-                                            onChange={() => setIncludePlan(!includePlan)}
-                                            label="Include Plan in note"
-                                            onDescription="Plan will be added to your note"
-                                            offDescription="Plan will not be included"
-                                            icon={<ClipboardList size={18} />}
-                                            colors={colors}
-                                        />
-                                    </div>
-                                    {includePlan && (
-                                        <div className="mx-2">
-                                            <div className="overflow-hidden">
-                                                <Plan
-                                                    orderTags={profile.planOrderTags ?? { referral: [], meds: [], radiology: [], lab: [], followUp: [] }}
-                                                    instructionTags={profile.planInstructionTags ?? []}
-                                                    orderSets={profile.planOrderSets}
-                                                    initialText={planNote}
-                                                    onChange={setPlanNote}
-                                                    expanders={profile.textExpanders ?? []}
-                                                    expanderEnabled={profile.textExpanderEnabled ?? false}
-                                                />
+                                        ) : (
+                                            <div className="flex justify-center py-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={openDdxPopover}
+                                                    className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
+                                                >
+                                                    <Plus size={14} />
+                                                </button>
                                             </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
+                                        )}
+                                    </div>
 
-                        {/* Full Note */}
-                            <div className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'fullnote' ? 'hidden' : ''}`}>
+                                    <ContextMenuPreview
+                                        isVisible={ddxPopoverVisible}
+                                        onClose={() => setDdxPopoverVisible(false)}
+                                        anchorRect={ddxAnchorRect}
+                                        maxWidth="max-w-[340px]"
+                                        preview={(() => {
+                                            const combined = [...selectedDdx, ...customDdx];
+                                            const unselected = availableDdx.filter(d => !selectedDdx.includes(d));
+                                            return (
+                                                <div className="py-1">
+                                                    {combined.length > 0 && (
+                                                        <div className="px-4 pb-2 pt-1">
+                                                            <div className="border border-tertiary/10 rounded-xl overflow-hidden">
+                                                                {combined.map((dx, i) => (
+                                                                    <div
+                                                                        key={dx}
+                                                                        className={`flex items-center gap-2 px-3 py-2.5 bg-tertiary/4 ${i > 0 ? 'border-t border-tertiary/10' : ''}`}
+                                                                    >
+                                                                        <span className="text-[10px] text-tertiary/40 w-4 text-right shrink-0">{i + 1}.</span>
+                                                                        <span className="flex-1 text-[11pt] text-primary min-w-0 truncate">{dx}</span>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => toggleDdx(dx)}
+                                                                            className="shrink-0 p-1 text-tertiary/30 active:text-themeredred transition-colors"
+                                                                        >
+                                                                            <X size={12} />
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {unselected.length > 0 && (
+                                                        <div className="px-4 pb-2">
+                                                            <p className="text-[9px] font-semibold text-tertiary/40 uppercase tracking-wider mb-1.5">Suggested</p>
+                                                            <div className="border border-tertiary/10 rounded-xl overflow-hidden">
+                                                                {unselected.map((dx, i) => (
+                                                                    <button
+                                                                        key={dx}
+                                                                        type="button"
+                                                                        onClick={() => toggleDdx(dx)}
+                                                                        className={`flex items-center gap-3 w-full text-left px-4 py-2.5 transition-colors active:scale-[0.98] ${i > 0 ? 'border-t border-tertiary/10' : ''}`}
+                                                                    >
+                                                                        <span className="w-4 h-4 rounded-full shrink-0 ring-[1.5px] ring-inset ring-tertiary/25 bg-transparent" />
+                                                                        <span className="text-[11pt] text-tertiary/60">{dx}</span>
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {combined.length === 0 && unselected.length === 0 && (
+                                                        <p className="px-4 py-4 text-[10pt] text-tertiary/40 italic">No differentials — use + to add</p>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
+                                        actions={[{
+                                            key: 'done',
+                                            label: 'Done',
+                                            icon: Check,
+                                            onAction: () => setDdxPopoverVisible(false),
+                                        }]}
+                                        onAdd={addCustomDdxItem}
+                                        addPlaceholder="Add differential..."
+                                    />
+                                </section>
+
+                                {/* Plan */}
+                                {includeFullNote && (
+                                <section data-tour="writenote-plan" className="space-y-2">
+                                    <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Plan</p>
+                                    <Plan
+                                        orderTags={orderTags}
+                                        instructionTags={instructionTags}
+                                        orderSets={orderSets}
+                                        initialText={planNote}
+                                        onChange={setPlanNote}
+                                        expanders={expanders}
+                                    />
+                                </section>
+                                )}
+
+                                {/* PII warning */}
+                                {hasPII && <PIIWarningBanner warnings={[...new Set([...piiWarnings, ...pePiiWarnings])]} />}
+                            </div>
+                        </div>
+
+                    {/* Full Note */}
+                    <div className={`w-full p-2 ${currentPageId !== 'fullnote' ? 'hidden' : ''}`}>
                                 <div className="space-y-4 mx-2 mt-2">
                                     {hasPII && (
                                         <PIIWarningBanner warnings={[...new Set([...piiWarnings, ...pePiiWarnings])]} />
@@ -353,27 +445,25 @@ export const WriteNotePage = ({
                                                     cardStates={cardStates}
                                                     noteOptions={{
                                                         includeAlgorithm: true,
-                                                        includeDecisionMaking,
-                                                        customNote: includeHPI ? note : '',
-                                                        physicalExamNote: includePhysicalExam ? peNote : '',
-                                                        peState: includePhysicalExam ? (peState ?? undefined) : undefined,
-                                                        planNote: includePlan ? planNote : '',
+                                                        selectedDdx,
+                                                        customDdx,
+                                                        customNote: note,
+                                                        physicalExamNote: peNote,
+                                                        peState: peState ?? undefined,
+                                                        planNote,
                                                         user: profile,
                                                         userId: authUserId,
                                                     }}
                                                     symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
                                                     onEncodedValueChange={setEncodedValue}
-                                                    onBarcodeBytesChange={setBarcodeBytes}
                                                     layout={encodedValue.length > 300 ? 'col' : 'row'}
                                                 />
                                             </div>
                                         </div>
                                     </section>
 
-                                </div>
                             </div>
-                    </SlideWrapper>
-
+                    </div>
                 </div>
 
                 <NoteWizardFooter
@@ -382,5 +472,11 @@ export const WriteNotePage = ({
                 />
             </div>
         </BaseDrawer>
+        <PdfPreviewModal
+            preview={sf600Preview ?? dd689Preview ?? null}
+            onDownload={sf600Preview ? downloadSF600 : downloadDD689}
+            onClose={sf600Preview ? clearSF600Preview : clearDD689Preview}
+        />
+        </>
     );
 };

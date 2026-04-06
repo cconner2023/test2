@@ -1,12 +1,11 @@
 import { useMemo } from 'react';
-import { useAuthStore } from '../../stores/useAuthStore';
 import { ChevronRight } from 'lucide-react';
 import { detectPII } from '../../lib/piiDetector';
 import { PIIWarningBanner } from '../PIIWarningBanner';
 import { ExpandableInput } from '../ExpandableInput';
 import { PhysicalExam } from '../PhysicalExam';
 import { Plan } from '../Plan';
-import { useUserProfile } from '../../Hooks/useUserProfile';
+import { useMergedNoteContent } from '../../Hooks/useMergedNoteContent';
 import { getColorClasses } from '../../Utilities/ColorUtilities';
 import type { ImportedMedicNote } from '../ProviderDrawer';
 import type { PEState } from '../../Types/PETypes';
@@ -39,6 +38,7 @@ export function ProviderNote({
   setHpiNote,
   peNote,
   setPeNote,
+  peState,
   onPeStateChange,
   peResetKey = 0,
   selectedBlockKeys,
@@ -51,15 +51,7 @@ export function ProviderNote({
   importedMedicNote,
 }: ProviderNoteProps) {
 
-  const { profile } = useUserProfile();
-  const clinicTextExpanders = useAuthStore(s => s.clinicTextExpanders);
-  const expanders = useMemo(() => {
-    const personal = profile.textExpanders ?? [];
-    if (clinicTextExpanders.length === 0) return personal;
-    const clinicAbbrs = new Set(clinicTextExpanders.map(e => e.abbr.toLowerCase()));
-    return [...clinicTextExpanders, ...personal.filter(e => !clinicAbbrs.has(e.abbr.toLowerCase()))];
-  }, [profile.textExpanders, clinicTextExpanders]);
-  const expanderEnabled = profile.textExpanderEnabled ?? true;
+  const { expanders, orderTags, instructionTags, orderSets } = useMergedNoteContent();
 
   const piiWarnings = useMemo(
     () =>
@@ -90,7 +82,6 @@ export function ProviderNote({
           value={hpiNote}
           onChange={setHpiNote}
           expanders={expanders}
-          expanderEnabled={expanderEnabled}
           multiline
           className={TEXTAREA_CLASS}
           placeholder="Chief complaint, onset, duration, character, associated symptoms..."
@@ -109,6 +100,7 @@ export function ProviderNote({
         <PhysicalExam
           key={peResetKey}
           initialText={peNote}
+          initialState={peState}
           onChange={setPeNote}
           onStateChange={onPeStateChange}
           colors={getColorClasses('routine')}
@@ -117,7 +109,6 @@ export function ProviderNote({
           templateBlockKeys={selectedBlockKeys}
           onBlockKeysChange={onBlockKeysChange}
           expanders={expanders}
-          expanderEnabled={expanderEnabled}
         />
       </div>
 
@@ -133,7 +124,6 @@ export function ProviderNote({
           value={assessmentNote}
           onChange={setAssessmentNote}
           expanders={expanders}
-          expanderEnabled={expanderEnabled}
           multiline
           className={TEXTAREA_CLASS}
           placeholder="Clinical assessment, diagnosis, differential..."
@@ -149,13 +139,12 @@ export function ProviderNote({
           </div>
         )}
         <Plan
-          orderTags={profile.planOrderTags ?? { referral: [], meds: [], radiology: [], lab: [], followUp: [] }}
-          instructionTags={profile.planInstructionTags ?? []}
-          orderSets={profile.planOrderSets}
+          orderTags={orderTags}
+          instructionTags={instructionTags}
+          orderSets={orderSets}
           initialText={planNote}
           onChange={setPlanNote}
           expanders={expanders}
-          expanderEnabled={expanderEnabled}
         />
       </div>
 

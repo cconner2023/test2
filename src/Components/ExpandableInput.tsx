@@ -1,14 +1,15 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useTextExpander } from '../Hooks/useTextExpander';
+import { useTemplateSession } from '../Hooks/useTemplateSession';
 import { TextExpanderSuggestion } from './TextExpanderSuggestion';
+import { TemplateOverlay } from './TemplateOverlay';
 import type { TextExpander } from '../Data/User';
 
 interface ExpandableInputProps {
     value: string;
     onChange: (value: string) => void;
     expanders: TextExpander[];
-    expanderEnabled: boolean;
     placeholder?: string;
     className?: string;
     /** Render as <textarea> instead of <input> */
@@ -20,7 +21,6 @@ export function ExpandableInput({
     value,
     onChange,
     expanders,
-    expanderEnabled,
     placeholder,
     className,
     multiline = false,
@@ -31,11 +31,30 @@ export function ExpandableInput({
     const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
     const { suggestions, selectedIndex, accept, dismiss, selectNext, selectPrev } =
-        useTextExpander({ text: value, cursorPosition, expanders, enabled: expanderEnabled });
+        useTextExpander({ text: value, cursorPosition, expanders });
 
-    const hasSuggestions = suggestions.length > 0;
+    const {
+        session: templateSession,
+        stepStartRef,
+        startSession,
+        fillCurrentAndAdvance,
+        dismissDropdown,
+        selectNextChoice,
+        selectPrevChoice,
+        endSession,
+    } = useTemplateSession();
+
+    const hasSuggestions = suggestions.length > 0 && !templateSession.isActive;
     const hasValue = value.trim().length > 0;
     const showClose = focused || hasValue;
+
+    const applyCursor = useCallback((pos: number) => {
+        setCursorPosition(pos);
+        requestAnimationFrame(() => {
+            const el = inputRef.current;
+            if (el) el.setSelectionRange(pos, pos);
+        });
+    }, []);
 
     const handleSelect = useCallback((e: React.SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setCursorPosition(e.currentTarget.selectionStart ?? 0);
@@ -47,21 +66,70 @@ export function ExpandableInput({
     }, [onChange]);
 
     const handleAccept = useCallback((expander?: TextExpander) => {
+        const target = expander ?? suggestions[selectedIndex];
         const result = accept(expander);
-        if (result) {
-            onChange(result.newText);
-            setCursorPosition(result.newCursorPosition);
-            // Restore cursor position after React re-render
-            requestAnimationFrame(() => {
-                const el = inputRef.current;
-                if (el) {
-                    el.setSelectionRange(result.newCursorPosition, result.newCursorPosition);
-                }
-            });
+        if (!result) return;
+
+        // Template expander — start a template session instead of plain insertion
+        if (target?.template && target.template.length > 0) {
+            // accept() replaced the abbreviation with '' — result.newText has abbr removed
+            const tmpl = startSession(result.newText, result.newCursorPosition, target.template);
+            onChange(tmpl.newText);
+            applyCursor(tmpl.cursorPosition);
+            return;
         }
-    }, [accept, onChange]);
+
+        // Simple expander — apply the expansion text directly
+        onChange(result.newText);
+        applyCursor(result.newCursorPosition);
+    }, [accept, suggestions, selectedIndex, onChange, startSession, applyCursor]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+        // --- Template session keyboard handlers ---
+        if (templateSession.isActive && templateSession.activeNode) {
+            const { activeNode } = templateSession;
+
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                if (activeNode.type === 'choice' && templateSession.showDropdown) {
+                    dismissDropdown();
+                } else {
+                    endSession();
+                }
+                return;
+            }
+            if (templateSession.showDropdown && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+                e.preventDefault();
+                if (e.key === 'ArrowRight') selectNextChoice();
+                else selectPrevChoice();
+                return;
+            }
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (templateSession.showDropdown && templateSession.selectedChoiceIndex >= 0 && activeNode.options) {
+                    const opts = activeNode.options.filter((o) => o.trim() !== '');
+                    if (templateSession.selectedChoiceIndex < opts.length) {
+                        const result = fillCurrentAndAdvance(value, opts[templateSession.selectedChoiceIndex]);
+                        if (result) { onChange(result.newText); applyCursor(result.cursorPosition); }
+                    } else if (activeNode.type === 'choice') {
+                        dismissDropdown();
+                    }
+                    return;
+                }
+                if (activeNode.type === 'branch') return;
+                const typedValue = value.slice(stepStartRef.current, cursorPosition);
+                const result = fillCurrentAndAdvance(value, typedValue);
+                if (result) { onChange(result.newText); applyCursor(result.cursorPosition); }
+                return;
+            }
+            if (activeNode.type === 'branch') {
+                if (!e.shiftKey) e.preventDefault();
+                return;
+            }
+            return;
+        }
+
+        // --- Text expander keyboard handlers ---
         if (!hasSuggestions) return;
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -76,18 +144,22 @@ export function ExpandableInput({
             e.preventDefault();
             selectPrev();
         }
-    }, [hasSuggestions, handleAccept, dismiss, selectNext, selectPrev]);
+    }, [templateSession, hasSuggestions, handleAccept, dismiss, selectNext, selectPrev,
+        value, cursorPosition, stepStartRef, fillCurrentAndAdvance, dismissDropdown,
+        selectNextChoice, selectPrevChoice, endSession, onChange, applyCursor]);
 
     const handleClose = useCallback(() => {
         onChange('');
         setFocused(false);
+        if (templateSession.isActive) endSession();
         inputRef.current?.blur();
-    }, [onChange]);
+    }, [onChange, templateSession.isActive, endSession]);
 
     const handleFocus = useCallback(() => setFocused(true), []);
     const handleBlur = useCallback(() => {
+        if (templateSession.isActive) endSession();
         if (!value.trim()) setFocused(false);
-    }, [value]);
+    }, [value, templateSession.isActive, endSession]);
 
     // Auto-resize textarea to fit content
     useEffect(() => {
@@ -95,6 +167,10 @@ export function ExpandableInput({
         if (el && multiline) {
             el.style.height = 'auto';
             el.style.height = `${el.scrollHeight}px`;
+            // Scroll into view after resize so the input doesn't grow off-screen
+            if (document.activeElement === el) {
+                el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
         }
     }, [value, multiline]);
 
@@ -112,7 +188,7 @@ export function ExpandableInput({
 
     return (
         <div className="relative">
-            <div className="flex items-center gap-2">
+            <div className={`flex gap-2 ${multiline ? 'items-start' : 'items-center'}`}>
                 {multiline ? (
                     <textarea
                         ref={inputRef as React.RefObject<HTMLTextAreaElement>}
@@ -145,6 +221,19 @@ export function ExpandableInput({
                     selectedIndex={selectedIndex}
                     onDismiss={dismiss}
                     onAccept={handleAccept}
+                />
+            )}
+            {templateSession.isActive && templateSession.activeNode && (
+                <TemplateOverlay
+                    activeNode={templateSession.activeNode}
+                    showDropdown={templateSession.showDropdown}
+                    selectedChoiceIndex={templateSession.selectedChoiceIndex}
+                    onSelectOption={(val) => {
+                        const result = fillCurrentAndAdvance(value, val);
+                        if (result) { onChange(result.newText); applyCursor(result.cursorPosition); }
+                    }}
+                    onDismissDropdown={dismissDropdown}
+                    onEndSession={endSession}
                 />
             )}
         </div>

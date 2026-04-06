@@ -555,7 +555,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             mobileOnly
             fullHeight="85dvh"
             zIndex="z-50"
-            blurHeader
             header={{
               title: editingEvent ? 'Edit Event' : 'New Event',
               rightContent: (
@@ -593,7 +592,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             mobileOnly
             fullHeight="85dvh"
             zIndex="z-50"
-            blurHeader
             header={dayDrawerView === 'edit' ? {
               title: 'Edit Event',
               rightContent: (

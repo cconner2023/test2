@@ -26,6 +26,8 @@ export interface DrawerHeaderConfig {
     rightContentFill?: boolean;
     /** Optional progress indicator rendered below the title row */
     progressDots?: ReactNode;
+    /** Optional content rendered below the title row */
+    extraRow?: ReactNode;
 }
 
 /** Private header component rendered by BaseDrawer when header config is provided */
@@ -39,20 +41,24 @@ function DrawerHeader({
     hideDefaultClose = false,
     rightContentFill = false,
     progressDots,
+    extraRow,
     onClose,
     isMobile,
     headerFaded,
-    blurMode = false,
-}: DrawerHeaderConfig & { onClose: () => void; isMobile: boolean; headerFaded?: boolean; blurMode?: boolean }) {
+    mobileFullScreen,
+}: DrawerHeaderConfig & { onClose: () => void; isMobile: boolean; headerFaded?: boolean; mobileFullScreen?: boolean }) {
+    const verticalPad = isMobile
+        ? (mobileFullScreen ? 'pt-[max(0.75rem,var(--sat,0px))] pb-2' : 'pb-2')
+        : 'py-2.5';
     return (
-        <div className={blurMode ? '' : 'shrink-0'}>
-            {/* Drag handle — always visible on mobile */}
-            {isMobile && (
+        <div className="shrink-0">
+            {/* Drag handle — visible on mobile, hidden for full-screen drawers */}
+            {isMobile && !mobileFullScreen && (
                 <div className="flex justify-center pt-1.5 pb-1" data-drag-zone style={{ touchAction: 'none' }}>
                     <div className="w-9 h-1 rounded-full bg-tertiary/25" />
                 </div>
             )}
-            {/* Collapsible title row */}
+            {/* Title row — fades when headerFaded is true */}
             <div
                 className="overflow-hidden"
                 data-drag-zone
@@ -65,7 +71,7 @@ function DrawerHeader({
                     transformOrigin: 'top center',
                 }}
             >
-                <div className={`px-5 ${isMobile ? 'pb-2' : 'py-2.5'} ${headerFaded || blurMode ? '' : 'border-b border-tertiary/10'}`}>
+                <div className={`px-5 ${verticalPad} ${headerFaded ? '' : 'border-b border-tertiary/10'}`}>
                     <div className="flex items-center justify-between">
                         <div className={`flex items-center gap-2 min-w-0 transition-all duration-200${rightContentFill ? ' w-0 overflow-hidden' : ''}`}>
                             {leftContent && <div className="shrink-0">{leftContent}</div>}
@@ -101,6 +107,8 @@ function DrawerHeader({
                     {progressDots}
                 </div>
             </div>
+            {/* Extra row — persists below the title row */}
+            {extraRow}
         </div>
     );
 }
@@ -140,8 +148,14 @@ interface BaseDrawerProps {
     mobileFloating?: boolean;
     /** When true, fades the DrawerHeader content row (title, buttons) while keeping the drag handle visible. */
     headerFaded?: boolean;
-    /** When true, header floats over content with backdrop blur — content scrolls behind it. */
-    blurHeader?: boolean;
+    /** Skip the built-in scroll container. Header renders fixed above children.
+     *  Use for sidebar layouts that manage per-pane scroll. Default false. */
+    scrollDisabled?: boolean;
+    /** Padding preset applied inside the scroll container.
+     *  'standard' = 'px-4 py-3 md:p-5 pb-8'
+     *  'compact'  = 'px-4 pb-6'
+     *  Default: no padding (children handle their own). */
+    contentPadding?: 'standard' | 'compact';
 }
 
 export function BaseDrawer({
@@ -161,7 +175,8 @@ export function BaseDrawer({
     cardMode = false,
     mobileFloating = false,
     headerFaded = false,
-    blurHeader = false,
+    scrollDisabled = false,
+    contentPadding,
 }: BaseDrawerProps) {
     const [drawerPosition, setDrawerPosition] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
@@ -177,10 +192,18 @@ export function BaseDrawer({
     const timeoutRef = useRef<number | null>(null);
     const desktopOpenRef = useRef<number>(0);
 
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    // Mobile expand: scroll down → full height, overscroll-up at top → original height
+    const [mobileExpanded, setMobileExpanded] = useState(false);
+    const mobileExpandedRef = useRef(false);
+    mobileExpandedRef.current = mobileExpanded;
+
     useEffect(() => {
         if (isVisible) {
             setIsMounted(true);
             setDrawerPosition(0);
+            setMobileExpanded(false);
             document.body.style.overflow = 'hidden';
 
             // Animate mobile drawer in (desktop ignores drawerPosition)
@@ -211,6 +234,45 @@ export function BaseDrawer({
             if (desktopOpenRef.current) clearTimeout(desktopOpenRef.current);
         };
     }, [isVisible]);
+
+    // Mobile scroll-to-expand: scroll down → 100dvh, overscroll-up at top → original height
+    useEffect(() => {
+        if (!useMobileLayout || scrollDisabled || mobileFullScreen || cardMode) return;
+        const container = scrollContainerRef.current;
+        if (!container) return;
+
+        let startY = 0;
+        let startScrollTop = 0;
+
+        const onScroll = () => {
+            if (container.scrollTop > 0 && !mobileExpandedRef.current) {
+                setMobileExpanded(true);
+            }
+        };
+
+        const onTouchStart = (e: TouchEvent) => {
+            startY = e.touches[0].clientY;
+            startScrollTop = container.scrollTop;
+        };
+
+        const onTouchMove = (e: TouchEvent) => {
+            if (!mobileExpandedRef.current) return;
+            const deltaY = e.touches[0].clientY - startY;
+            // Collapse if touch started near top and user pulls down deliberately
+            if (startScrollTop <= 5 && container.scrollTop <= 0 && deltaY > 20) {
+                setMobileExpanded(false);
+            }
+        };
+
+        container.addEventListener('scroll', onScroll, { passive: true });
+        container.addEventListener('touchstart', onTouchStart, { passive: true });
+        container.addEventListener('touchmove', onTouchMove, { passive: true });
+        return () => {
+            container.removeEventListener('scroll', onScroll);
+            container.removeEventListener('touchstart', onTouchStart);
+            container.removeEventListener('touchmove', onTouchMove);
+        };
+    }, [useMobileLayout, scrollDisabled, mobileFullScreen, cardMode, isVisible]);
 
     const closeDelayRef = useRef<number>(0);
 
@@ -306,6 +368,10 @@ export function BaseDrawer({
         ? (children as DrawerRenderProp)(handleClose)
         : children;
 
+    // Mobile expand state — determines effective height
+    const isExpanded = useMobileLayout && mobileExpanded && !cardMode && !mobileFullScreen;
+    const mobileHeight = cardMode ? '35dvh' : ((mobileFullScreen || isExpanded) ? '100dvh' : fullHeight);
+
     if (!isMounted && !isVisible) return null;
 
     return (
@@ -331,24 +397,24 @@ export function BaseDrawer({
             {/* Drawer / Panel — single container that adapts to viewport */}
             <div
                 className={useMobileLayout
-                    ? `fixed ${mobileFloating ? 'left-3 right-3' : 'left-0 right-0'} ${zIndex} bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'} ${mobileClassName} ${header ? 'flex flex-col' : ''}`
+                    ? `fixed ${mobileFloating && !isExpanded ? 'left-3 right-3' : 'left-0 right-0'} ${zIndex} bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'} ${mobileClassName} ${header ? 'flex flex-col' : ''}`
                     : `absolute ${desktopAlignClass} top-0 ${desktopWidthClass} ${zIndex}
                         flex flex-col rounded-md border border-tertiary/20
                         shadow-lg shadow-black/8 backdrop-blur-xl bg-themewhite3/95
                         transform-gpu overflow-hidden text-primary/80 text-sm`
                 }
                 style={useMobileLayout ? {
-                    height: cardMode ? '35dvh' : (mobileFullScreen ? '100dvh' : fullHeight),
-                    maxHeight: cardMode ? '35dvh' : (mobileFullScreen ? '100dvh' : fullHeight),
-                    width: mobileFloating ? undefined : '100%',
-                    bottom: cardMode ? '55dvh' : (mobileFloating ? 12 : 0),
+                    height: mobileHeight,
+                    maxHeight: mobileHeight,
+                    width: (mobileFloating && !isExpanded) ? undefined : '100%',
+                    bottom: cardMode ? '55dvh' : ((mobileFloating && !isExpanded) ? 12 : 0),
                     transform: `translateY(${100 - drawerPosition}%)`,
                     opacity: Math.min(1, drawerPosition / 60 + 0.2),
-                    borderRadius: (cardMode || mobileFloating) ? '1.25rem' : (mobileFullScreen ? '0' : '1.25rem 1.25rem 0 0'),
+                    borderRadius: (cardMode || (mobileFloating && !isExpanded)) ? '1.25rem' : ((mobileFullScreen || isExpanded) ? '0' : '1.25rem 1.25rem 0 0'),
                     willChange: isDragging ? 'transform' : 'auto',
-                    boxShadow: (cardMode || mobileFloating)
+                    boxShadow: (cardMode || (mobileFloating && !isExpanded))
                         ? '0 4px 30px rgba(0, 0, 0, 0.12)'
-                        : (mobileFullScreen ? 'none' : '0 -4px 20px rgba(0, 0, 0, 0.1)'),
+                        : ((mobileFullScreen || isExpanded) ? 'none' : '0 -4px 20px rgba(0, 0, 0, 0.1)'),
                     overflow: 'hidden',
                     visibility: isMounted ? 'visible' : 'hidden',
                 } : {
@@ -366,57 +432,76 @@ export function BaseDrawer({
                 onClick={useMobileLayout ? undefined : (e) => e.stopPropagation()}
             >
                 {header ? (
-                    blurHeader && useMobileLayout ? (
-                        <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
-                            {!(mobileFullScreen && useMobileLayout) && (
-                                <div
-                                    className="sticky top-0 z-10 backdrop-blur-xs bg-transparent"
-                                    {...bindDrawerDrag()}
-                                >
-                                    <DrawerHeader
-                                        title={header.title}
-                                        showBack={header.showBack}
-                                        onBack={header.onBack}
-                                        badge={header.badge}
-                                        rightContent={header.rightContent}
-                                        hideDefaultClose={header.hideDefaultClose}
-                                        rightContentFill={header.rightContentFill}
-                                        progressDots={header.progressDots}
-                                        onClose={handleClose}
-                                        isMobile={useMobileLayout}
-                                        headerFaded={headerFaded}
-                                        blurMode
-                                    />
-                                </div>
-                            )}
-                            {resolvedChildren}
-                        </div>
-                    ) : (
+                    scrollDisabled ? (
+                        /* Fixed header + raw children (sidebar layouts manage their own scroll) */
                         <>
-                            {!(mobileFullScreen && useMobileLayout) && (
-                                <div {...(useMobileLayout ? bindDrawerDrag() : {})}>
-                                    <DrawerHeader
-                                        title={header.title}
-                                        showBack={header.showBack}
-                                        onBack={header.onBack}
-                                        badge={header.badge}
-                                        rightContent={header.rightContent}
-                                        hideDefaultClose={header.hideDefaultClose}
-                                        rightContentFill={header.rightContentFill}
-                                        progressDots={header.progressDots}
-                                        onClose={handleClose}
-                                        isMobile={useMobileLayout}
-                                        headerFaded={headerFaded}
-                                    />
-                                </div>
-                            )}
-                            <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
+                            <div {...(useMobileLayout ? bindDrawerDrag() : {})}>
+                                <DrawerHeader
+                                    title={header.title}
+                                    showBack={header.showBack}
+                                    onBack={header.onBack}
+                                    badge={header.badge}
+                                    leftContent={header.leftContent}
+                                    rightContent={header.rightContent}
+                                    hideDefaultClose={header.hideDefaultClose}
+                                    rightContentFill={header.rightContentFill}
+                                    progressDots={header.progressDots}
+                                    extraRow={header.extraRow}
+                                    onClose={handleClose}
+                                    isMobile={useMobileLayout}
+                                    headerFaded={headerFaded}
+                                    mobileFullScreen={mobileFullScreen && useMobileLayout}
+                                />
+                            </div>
+                            <div className="flex-1 min-h-0">
                                 {resolvedChildren}
+                            </div>
+                        </>
+                    ) : (
+                        /* Static header + scrollable content */
+                        <>
+                            <div {...(useMobileLayout ? bindDrawerDrag() : {})}>
+                                <DrawerHeader
+                                    title={header.title}
+                                    showBack={header.showBack}
+                                    onBack={header.onBack}
+                                    badge={header.badge}
+                                    leftContent={header.leftContent}
+                                    rightContent={header.rightContent}
+                                    hideDefaultClose={header.hideDefaultClose}
+                                    rightContentFill={header.rightContentFill}
+                                    progressDots={header.progressDots}
+                                    extraRow={header.extraRow}
+                                    onClose={handleClose}
+                                    isMobile={useMobileLayout}
+                                    headerFaded={headerFaded}
+                                    mobileFullScreen={mobileFullScreen && useMobileLayout}
+                                />
+                            </div>
+                            <div
+                                ref={scrollContainerRef}
+                                className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain"
+                            >
+                                {contentPadding ? (
+                                    <div className={contentPadding === 'standard' ? 'px-4 py-3 md:p-5 pb-8' : 'px-4 pb-6'}>
+                                        {resolvedChildren}
+                                    </div>
+                                ) : resolvedChildren}
                             </div>
                         </>
                     )
                 ) : resolvedChildren}
             </div>
         </>
+    );
+}
+
+/** Scrollable pane for sidebar layouts using scrollDisabled.
+ *  Wraps children in overflow-y-auto with configurable padding. */
+export function ScrollPane({ children, className }: { children: ReactNode; className?: string }) {
+    return (
+        <div className="h-full overflow-y-auto">
+            <div className={className ?? 'px-4 py-3 md:p-5 pb-8'}>{children}</div>
+        </div>
     );
 }

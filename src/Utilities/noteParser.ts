@@ -51,7 +51,8 @@ export interface ParsedNote {
 
 export interface NoteEncodeOptions {
     includeAlgorithm: boolean;
-    includeDecisionMaking: boolean;
+    selectedDdx?: string[];
+    customDdx?: string[];
     customNote: string;
     physicalExamNote?: string;
     peState?: PEState;
@@ -126,11 +127,11 @@ function decodeUserId(value: string): string | null {
 // Shared PE encode helper
 // ---------------------------------------------------------------------------
 
-/** Encode PE state with structured v6 when available, compressed text fallback. */
-function encodePE(peState: PEState | undefined, peText: string | undefined): string | null {
+/** Encode PE state with structured v8 when available, compressed text fallback. */
+function encodePE(peState: PEState | undefined, peText: string | undefined, symptomCode?: string): string | null {
     if (peState) {
         try {
-            return encodePEState(peState);
+            return encodePEState(peState, symptomCode);
         } catch (e) {
             logError('noteParser.encodePE', e);
         }
@@ -207,14 +208,30 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
         userId: null,
     };
 
-    for (let i = 1; i < parts.length; i++) {
+    // Detect compact algorithm format (v2) vs legacy
+    const hasCompactAlgo = !isProvider && isCompactAlgorithm(parts[1]);
+    let contentStart = 1;
+
+    if (hasCompactAlgo) {
+        const algorithmOptions = findAlgorithmByCode(symptomCode);
+        if (algorithmOptions) {
+            const algo = decodeAlgorithmCompact(parts[1] || '', algorithmOptions);
+            result.rfSelections = algo.rfSelections;
+            result.cardEntries = algo.cardEntries;
+            result.screenerEntries = algo.screenerEntries;
+            result.actionEntries = algo.actionEntries;
+        }
+        contentStart = 2;
+    }
+
+    for (let i = contentStart; i < parts.length; i++) {
         const part = parts[i];
         if (!part) continue;
         const prefix = part[0];
         const value = part.substring(1);
 
         switch (prefix) {
-            // ── Medic segments (uppercase) ──
+            // ── Legacy medic algorithm segments (only hit for old barcodes) ──
             case 'R': {
                 result.rfSelections = bitmaskToIndices(parseInt(value || '0', 36));
                 break;
@@ -277,6 +294,15 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
                 }
                 break;
             }
+            case 'D': {
+                // DDx list: selected~selected^custom~custom
+                const [selectedStr, customStr] = value.split('^');
+                if (selectedStr) {
+                    // Store in flags as a proxy — actual DDx values parsed here
+                    result.flags.includeDecisionMaking = true;
+                }
+                break;
+            }
             // ── Provider segments (lowercase) ──
             case 'h': {
                 result.providerHpi = decompressText(value);
@@ -325,6 +351,313 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
 }
 
 // ---------------------------------------------------------------------------
+// Compact algorithm encoding (v2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Encode algorithm card states into a compact dash-separated string.
+ * First hex digit of each group is the card index (0-f).
+ * Cards with no meaningful state are skipped — the decoder replays
+ * the algorithm flow to reconstruct visibility and answers.
+ *
+ * Group types:
+ *   RF / choice / count / initial with opts:  {idx}{hexOpt1}{hexOpt2}...
+ *   Action (non-screener):                    {idx}[{hexOpts}]{P|D}
+ *   Screener action:                          {idx}:{hexResponses}[:{followUp}]
+ *   No-opts terminal/disposition answer:       {idx}{answerIdx}
+ *   Flow-through (non-terminal, no-opts):      SKIPPED
+ *   Initial with no opts:                      SKIPPED (derived from RF)
+ */
+function encodeAlgorithmCompact(
+    algorithmOptions: AlgorithmOptions[],
+    cardStates: CardState[],
+): string {
+    const groups: string[] = [];
+
+    for (let i = 0; i < cardStates.length; i++) {
+        const state = cardStates[i];
+        const card = algorithmOptions[i];
+        if (!state?.isVisible || !card) continue;
+
+        const idx = i.toString(16);
+
+        // RF: encode selected option indices as hex
+        if (card.type === 'rf') {
+            if (state.selectedOptions.length > 0) {
+                groups.push(idx + state.selectedOptions.map(o => o.toString(16)).join(''));
+            }
+            continue;
+        }
+
+        // Screener action: {idx}:{responses}[:{followUp}]
+        if (card.type === 'action' && card.screenerConfig && state.screenerResponses) {
+            const resp = state.screenerResponses.map(d => d.toString(16)).join('');
+            let seg = `${idx}:${resp}`;
+            if (state.followUpResponse !== undefined && state.followUpResponse !== null) {
+                seg += `:${state.followUpResponse}`;
+            }
+            groups.push(seg);
+            continue;
+        }
+
+        // Non-screener action: [selections]{P|D}
+        if (card.type === 'action' && !card.screenerConfig) {
+            const selPart = (card.questionOptions.length > 0 && state.selectedOptions.length > 0)
+                ? state.selectedOptions.map(o => o.toString(16)).join('')
+                : '';
+            const statusPart = state.actionStatus
+                ? (state.actionStatus === 'deferred' ? 'D' : 'P')
+                : '';
+            if (selPart || statusPart) {
+                groups.push(idx + selPart + statusPart);
+            }
+            continue;
+        }
+
+        // Initial with no questionOptions: skip (answer derived from RF presence)
+        if (card.type === 'initial' && card.questionOptions.length === 0) {
+            continue;
+        }
+
+        // Cards with questionOptions: encode selections, answer is derived
+        if (card.questionOptions.length > 0) {
+            if (state.selectedOptions.length > 0) {
+                groups.push(idx + state.selectedOptions.map(o => o.toString(16)).join(''));
+            }
+            continue;
+        }
+
+        // Cards without questionOptions: encode answer index for terminal/disposition only
+        if (state.answer && card.answerOptions.length > 0) {
+            const answerIdx = card.answerOptions.findIndex(a => a.text === state.answer?.text);
+            if (answerIdx >= 0) {
+                const answer = card.answerOptions[answerIdx];
+                if (answer.next === null || (answer.disposition && answer.disposition.length > 0)) {
+                    groups.push(idx + answerIdx.toString());
+                }
+            }
+        }
+    }
+
+    return groups.join('-');
+}
+
+// ---------------------------------------------------------------------------
+// Compact algorithm decoding (v2)
+// ---------------------------------------------------------------------------
+
+/** Check if a pipe segment is a compact algorithm string (vs legacy R{bitmask}). */
+function isCompactAlgorithm(segment: string | undefined): boolean {
+    if (segment === undefined) return false;
+    if (segment === '') return true; // empty = no algorithm state
+    return !segment.startsWith('R');
+}
+
+/**
+ * Decode a compact algorithm string back into ParsedNote components.
+ * Replays the algorithm flow using selections to reconstruct answers and visibility.
+ */
+function decodeAlgorithmCompact(
+    compact: string,
+    algorithmOptions: AlgorithmOptions[],
+): {
+    rfSelections: number[];
+    cardEntries: { index: number; selections: number[]; answerIndex: number }[];
+    screenerEntries: ScreenerEntry[];
+    actionEntries: { index: number; status: 'performed' | 'deferred' }[];
+} {
+    const rfSelections: number[] = [];
+    const cardEntries: { index: number; selections: number[]; answerIndex: number }[] = [];
+    const screenerEntries: ScreenerEntry[] = [];
+    const actionEntries: { index: number; status: 'performed' | 'deferred' }[] = [];
+
+    if (!compact) return { rfSelections, cardEntries, screenerEntries, actionEntries };
+
+    // Parse groups into a lookup: cardIndex → rest-of-group
+    const groupMap = new Map<number, string>();
+    for (const group of compact.split('-')) {
+        if (!group) continue;
+        const cardIdx = parseInt(group[0], 16);
+        if (!isNaN(cardIdx)) groupMap.set(cardIdx, group.substring(1));
+    }
+
+    const initialIndex = algorithmOptions.findIndex(c => c.type === 'initial');
+    if (initialIndex < 0) return { rfSelections, cardEntries, screenerEntries, actionEntries };
+
+    // Phase 1: RF and pre-initial cards (always visible)
+    for (let i = 0; i < initialIndex; i++) {
+        const card = algorithmOptions[i];
+        if (!card) continue;
+        if (card.type === 'rf') {
+            if (groupMap.has(i)) {
+                rfSelections.push(...groupMap.get(i)!.split('').map(ch => parseInt(ch, 16)));
+            }
+        } else if (card.type === 'action') {
+            decodeCompactAction(i, card, groupMap, cardEntries, screenerEntries, actionEntries);
+        }
+    }
+
+    // Phase 2: Replay flow from initial card
+    const visited = new Set<number>();
+    const queue: number[] = [initialIndex];
+
+    while (queue.length > 0) {
+        const ci = queue.shift()!;
+        if (visited.has(ci) || ci < 0 || ci >= algorithmOptions.length) continue;
+        visited.add(ci);
+
+        const card = algorithmOptions[ci];
+        if (!card || card.type === 'rf') continue;
+
+        // Action cards
+        if (card.type === 'action') {
+            decodeCompactAction(ci, card, groupMap, cardEntries, screenerEntries, actionEntries);
+            continue;
+        }
+
+        let selections: number[] = [];
+        let answerIdx = -1;
+
+        if (card.questionOptions.length > 0) {
+            // Parse selections from group
+            if (groupMap.has(ci)) {
+                selections = groupMap.get(ci)!.split('').map(ch => parseInt(ch, 16));
+            }
+            // Derive answer
+            if (card.type === 'initial') {
+                answerIdx = (selections.length > 0 || rfSelections.length > 0)
+                    ? 0 : (card.answerOptions.length > 1 ? 1 : -1);
+            } else if (card.type === 'choice') {
+                answerIdx = selections.length > 0 ? 0 : (card.answerOptions.length > 1 ? 1 : -1);
+            } else if (card.type === 'count') {
+                answerIdx = selections.length >= 3 ? 0 : (card.answerOptions.length > 1 ? 1 : -1);
+            }
+        } else if (card.answerOptions.length > 0) {
+            // No questionOptions — check group or infer
+            if (groupMap.has(ci)) {
+                answerIdx = parseInt(groupMap.get(ci)!, 10);
+            } else if (card.type === 'initial') {
+                answerIdx = rfSelections.length > 0 ? 0 : (card.answerOptions.length > 1 ? 1 : -1);
+            } else {
+                answerIdx = inferFlowThroughAnswer(card, groupMap, algorithmOptions);
+            }
+        }
+
+        if (answerIdx >= 0 && answerIdx < card.answerOptions.length) {
+            cardEntries.push({ index: ci, selections, answerIndex: answerIdx });
+            const answer = card.answerOptions[answerIdx];
+            if (answer.next !== null) {
+                const nextArr = Array.isArray(answer.next) ? answer.next : [answer.next];
+                for (const n of nextArr) { if (!visited.has(n)) queue.push(n); }
+            }
+        }
+    }
+
+    return { rfSelections, cardEntries, screenerEntries, actionEntries };
+}
+
+/** Decode an action card group (screener or non-screener). */
+function decodeCompactAction(
+    ci: number,
+    card: AlgorithmOptions,
+    groupMap: Map<number, string>,
+    cardEntries: { index: number; selections: number[]; answerIndex: number }[],
+    screenerEntries: ScreenerEntry[],
+    actionEntries: { index: number; status: 'performed' | 'deferred' }[],
+): void {
+    if (!groupMap.has(ci)) return;
+    const rest = groupMap.get(ci)!;
+
+    // Screener: rest starts with ':'
+    if (card.screenerConfig && rest.startsWith(':')) {
+        const parts = rest.substring(1).split(':');
+        const responses = parts[0].split('').map(ch => parseInt(ch, 16));
+        const followUp = parts.length > 1 ? parseInt(parts[1], 10) : undefined;
+        let screenerId = card.screenerConfig.id;
+        const ext = card.screenerConfig.conditionalExtension;
+        if (ext && responses.length > card.screenerConfig.questions.length) {
+            screenerId = ext.screener.id;
+        }
+        screenerEntries.push({
+            id: screenerId,
+            responses,
+            followUp: isNaN(followUp as number) ? undefined : followUp,
+        });
+        return;
+    }
+
+    // Non-screener: optional hex selections + optional P/D suffix
+    let selStr = rest;
+    let statusChar = '';
+    if (rest.endsWith('P') || rest.endsWith('D')) {
+        statusChar = rest[rest.length - 1];
+        selStr = rest.substring(0, rest.length - 1);
+    }
+    if (statusChar) {
+        actionEntries.push({ index: ci, status: statusChar === 'D' ? 'deferred' : 'performed' });
+    }
+    if (selStr.length > 0 && card.questionOptions.length > 0) {
+        cardEntries.push({
+            index: ci,
+            selections: selStr.split('').map(ch => parseInt(ch, 16)),
+            answerIndex: -1,
+        });
+    }
+}
+
+/**
+ * Infer the answer for a flow-through card (no questionOptions, no group).
+ * Picks the non-terminal answer, or checks downstream for encoded state.
+ */
+function inferFlowThroughAnswer(
+    card: AlgorithmOptions,
+    groupMap: Map<number, string>,
+    algorithmOptions: AlgorithmOptions[],
+): number {
+    // Try to find the single non-terminal answer
+    const nonTerminal: number[] = [];
+    for (let a = 0; a < card.answerOptions.length; a++) {
+        if (card.answerOptions[a].next !== null) nonTerminal.push(a);
+    }
+    if (nonTerminal.length === 1) return nonTerminal[0];
+
+    // Multiple non-terminal: check which downstream path has encoded state
+    for (const a of nonTerminal) {
+        const answer = card.answerOptions[a];
+        const nextArr = Array.isArray(answer.next) ? answer.next! as number[] : [answer.next as number];
+        if (nextArr.some(idx => hasEncodedDescendant(idx, groupMap, algorithmOptions, new Set()))) {
+            return a;
+        }
+    }
+
+    // Fallback: pick answer 1 (typically "no" / flow-through)
+    return card.answerOptions.length > 1 ? 1 : 0;
+}
+
+/** Recursively check if a card index or any of its descendants have encoded state. */
+function hasEncodedDescendant(
+    ci: number,
+    groupMap: Map<number, string>,
+    algorithmOptions: AlgorithmOptions[],
+    visited: Set<number>,
+): boolean {
+    if (visited.has(ci)) return false;
+    visited.add(ci);
+    if (groupMap.has(ci)) return true;
+    const card = algorithmOptions[ci];
+    if (!card) return false;
+    for (const answer of card.answerOptions) {
+        if (answer.next !== null) {
+            const nextArr = Array.isArray(answer.next) ? answer.next : [answer.next];
+            for (const n of nextArr) {
+                if (hasEncodedDescendant(n, groupMap, algorithmOptions, visited)) return true;
+            }
+        }
+    }
+    return false;
+}
+
+// ---------------------------------------------------------------------------
 // Encoding (live state -> barcode string)
 // ---------------------------------------------------------------------------
 
@@ -339,67 +672,15 @@ export function encodeNoteState(
 ): string {
     const parts: string[] = [symptomCode];
 
-    // Red flag selections (card 0 if RF type)
-    const rfCard = algorithmOptions[0];
-    if (rfCard?.type === 'rf' && cardStates[0]?.selectedOptions) {
-        let bitmask = 0;
-        const totalOptions = rfCard.questionOptions?.length || 0;
-        for (let i = 0; i < totalOptions; i++) {
-            if (cardStates[0].selectedOptions.includes(i)) bitmask |= (1 << i);
-        }
-        parts.push(`R${bitmask.toString(36)}`);
-    } else {
-        parts.push('R0');
-    }
-
-    // Each visible non-RF card: {index}.{selBitmaskBase36}.{answerIndex}
-    for (let i = 0; i < cardStates.length; i++) {
-        const state = cardStates[i];
-        const card = algorithmOptions[i];
-        if (!state?.isVisible || !card || card.type === 'rf') continue;
-
-        let selBitmask = 0;
-        for (const optIdx of state.selectedOptions) selBitmask |= (1 << optIdx);
-
-        let answerIdx = -1;
-        if (state.answer) {
-            answerIdx = card.answerOptions.findIndex(a => a.text === state.answer?.text);
-        }
-        parts.push(`${i}.${selBitmask.toString(36)}.${answerIdx}`);
-    }
-
-    // Screener entries
-    for (let i = 0; i < cardStates.length; i++) {
-        const state = cardStates[i];
-        const card = algorithmOptions[i];
-        if (!state?.isVisible || !card || !card.screenerConfig || !state.screenerResponses) continue;
-
-        const screenerId = state.completedScreenerId || card.screenerConfig.id;
-        const allSingleDigit = state.screenerResponses.every(d => d >= 0 && d <= 9);
-        const encoded = allSingleDigit
-            ? state.screenerResponses.map(d => d.toString()).join('')
-            : state.screenerResponses.map(d => d.toString(36)).join('-');
-        let seg = `Q${screenerId}.${encoded}`;
-        if (state.followUpResponse !== undefined && state.followUpResponse !== null) {
-            seg += `.${state.followUpResponse}`;
-        }
-        parts.push(seg);
-    }
-
-    // Action status entries
-    for (let i = 0; i < cardStates.length; i++) {
-        const state = cardStates[i];
-        const card = algorithmOptions[i];
-        if (!state?.isVisible || !card || card.type !== 'action' || card.screenerConfig || !state.actionStatus) continue;
-        parts.push(`A${i}.${state.actionStatus === 'deferred' ? 'D' : 'P'}`);
-    }
+    // Compact algorithm encoding (v2): single dash-separated segment
+    parts.push(encodeAlgorithmCompact(algorithmOptions, cardStates));
 
     // HPI
     const customNote = noteOptions.customNote?.trim();
     if (customNote) parts.push(`H${compressText(customNote)}`);
 
     // Physical Exam
-    const peEncoded = encodePE(noteOptions.peState, noteOptions.physicalExamNote);
+    const peEncoded = encodePE(noteOptions.peState, noteOptions.physicalExamNote, symptomCode);
     const hasPE = !!peEncoded;
     if (peEncoded) parts.push(`P${peEncoded}`);
 
@@ -407,10 +688,18 @@ export function encodeNoteState(
     const planNoteText = noteOptions.planNote?.trim();
     if (planNoteText) parts.push(`N${compressText(planNoteText)}`);
 
+    // DDx list
+    const allDdx = [...(noteOptions.selectedDdx ?? []), ...(noteOptions.customDdx ?? [])];
+    if (allDdx.length > 0) {
+        const selectedPart = (noteOptions.selectedDdx ?? []).join('~');
+        const customPart = (noteOptions.customDdx ?? []).join('~');
+        parts.push(`D${selectedPart}${customPart ? '^' + customPart : ''}`);
+    }
+
     // Flags
     let flags = 0;
     if (noteOptions.includeAlgorithm) flags |= 1;
-    if (noteOptions.includeDecisionMaking) flags |= 2;
+    if ((noteOptions.selectedDdx?.length ?? 0) + (noteOptions.customDdx?.length ?? 0) > 0) flags |= 2;
     if (customNote) flags |= 4;
     if (hasPE) flags |= 8;
     if (planNoteText) flags |= 16;

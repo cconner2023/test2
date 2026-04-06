@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useMemo } from 'react';
 import type { AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 import type { UserTypes } from '../Data/User';
-import { encodeNoteState, encryptBarcodeWithBytes, renderBarcodeToCanvas } from '../Utilities/NoteCodec';
+import { encodeNoteState, encryptBarcode, renderBarcodeToCanvas } from '../Utilities/NoteCodec';
 import { logError } from '../Utilities/ErrorHandler';
 import { selectIsAuthenticated, useAuthStore } from '../stores/useAuthStore';
 
@@ -12,23 +12,22 @@ import { selectIsAuthenticated, useAuthStore } from '../stores/useAuthStore';
 
 interface BarcodeDisplayProps {
     encodedText: string;
-    barcodeBytes?: Uint8Array | null;
     layout?: 'row' | 'col';
 }
 
 /** Renders a Data Matrix barcode canvas alongside the encoded string display. */
-export function BarcodeDisplay({ encodedText, barcodeBytes, layout }: BarcodeDisplayProps) {
+export function BarcodeDisplay({ encodedText, layout }: BarcodeDisplayProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const isRow = (layout ?? (encodedText.length > 300 ? 'col' : 'row')) === 'row';
 
     useEffect(() => {
         if (!canvasRef.current || !encodedText) return;
         try {
-            renderBarcodeToCanvas(canvasRef.current, barcodeBytes ?? encodedText);
+            renderBarcodeToCanvas(canvasRef.current, encodedText);
         } catch (e) {
             logError('BarcodeDisplay.render', e);
         }
-    }, [encodedText, barcodeBytes]);
+    }, [encodedText]);
 
     return (
         <div className="p-2 bg-themewhite2">
@@ -59,7 +58,8 @@ interface NoteBarcodeGeneratorProps {
     cardStates: CardState[];
     noteOptions: {
         includeAlgorithm: boolean;
-        includeDecisionMaking: boolean;
+        selectedDdx?: string[];
+        customDdx?: string[];
         customNote: string;
         physicalExamNote?: string;
         planNote?: string;
@@ -68,7 +68,6 @@ interface NoteBarcodeGeneratorProps {
     };
     symptomCode?: string;
     onEncodedValueChange?: (value: string) => void;
-    onBarcodeBytesChange?: (bytes: Uint8Array | null) => void;
     layout?: 'row' | 'col';
 }
 
@@ -78,33 +77,29 @@ export function NoteBarcodeGenerator({
     noteOptions,
     symptomCode = "A1",
     onEncodedValueChange,
-    onBarcodeBytesChange,
     layout = 'col'
 }: NoteBarcodeGeneratorProps) {
     const [encodedText, setEncodedText] = useState<string>('');
-    const [barcodeBytes, setBarcodeBytes] = useState<Uint8Array | null>(null);
     const isAuthenticated = useAuthStore(selectIsAuthenticated);
 
     const compactString = useMemo(() =>
         encodeNoteState(algorithmOptions, cardStates, noteOptions, symptomCode),
-        [algorithmOptions, cardStates, noteOptions.includeAlgorithm, noteOptions.includeDecisionMaking, noteOptions.customNote, noteOptions.physicalExamNote, noteOptions.planNote, noteOptions.user, noteOptions.userId, symptomCode]
+        [algorithmOptions, cardStates, noteOptions.includeAlgorithm, noteOptions.selectedDdx, noteOptions.customDdx, noteOptions.customNote, noteOptions.physicalExamNote, noteOptions.planNote, noteOptions.user, noteOptions.userId, symptomCode]
     );
 
     // Encrypt (pack + deflate + AES-GCM + base64); skip for guests, fall back to plain ASCII if no key
     useEffect(() => {
         let cancelled = false;
         (async () => {
-            const result = isAuthenticated ? await encryptBarcodeWithBytes(compactString) : null;
+            const displayValue = isAuthenticated
+                ? (await encryptBarcode(compactString)) ?? compactString
+                : compactString;
             if (cancelled) return;
-            const displayValue = result?.text ?? compactString;
-            const bytes = result?.bytes ?? null;
             setEncodedText(displayValue);
-            setBarcodeBytes(bytes);
             onEncodedValueChange?.(displayValue);
-            onBarcodeBytesChange?.(bytes);
         })();
         return () => { cancelled = true; };
-    }, [compactString, isAuthenticated, onEncodedValueChange, onBarcodeBytesChange]);
+    }, [compactString, isAuthenticated, onEncodedValueChange]);
 
-    return <BarcodeDisplay encodedText={encodedText} barcodeBytes={barcodeBytes} layout={layout} />;
+    return <BarcodeDisplay encodedText={encodedText} layout={layout} />;
 }

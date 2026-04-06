@@ -122,8 +122,6 @@ export interface UserTypes {
     comprehensivePETemplate?: ComprehensivePETemplate;
     /** User-defined text expander abbreviations */
     textExpanders?: TextExpander[];
-    /** Whether text expander is active in the HPI field */
-    textExpanderEnabled?: boolean;
     /** User-defined order tags per category */
     planOrderTags?: PlanOrderTags;
     /** User-defined instruction tags */

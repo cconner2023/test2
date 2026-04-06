@@ -1,5 +1,4 @@
 import { BaseDrawer } from './BaseDrawer'
-import { ContentWrapper } from './Settings/ContentWrapper'
 import { LoRaPanel } from './Settings/LoRaPanel'
 
 interface LoRaDrawerProps {
@@ -18,9 +17,7 @@ export function LoRaDrawer({ isVisible, onClose }: LoRaDrawerProps) {
                 badge: 'BETA',
             }}
         >
-            <ContentWrapper>
-                <LoRaPanel />
-            </ContentWrapper>
+            <LoRaPanel />
         </BaseDrawer>
     )
 }

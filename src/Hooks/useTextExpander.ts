@@ -5,7 +5,6 @@ interface UseTextExpanderInput {
     text: string;
     cursorPosition: number;
     expanders: TextExpander[];
-    enabled: boolean;
 }
 
 interface UseTextExpanderResult {
@@ -33,14 +32,14 @@ function isFuzzyMatch(typed: string, abbr: string): boolean {
     return lc.length >= Math.ceil(abbr.length * 0.4);
 }
 
-export function useTextExpander({ text, cursorPosition, expanders, enabled }: UseTextExpanderInput): UseTextExpanderResult {
+export function useTextExpander({ text, cursorPosition, expanders }: UseTextExpanderInput): UseTextExpanderResult {
     const dismissedWordRef = useRef<string>('');
     const [selectedIndex, setSelectedIndex] = useState(0);
     const prevWordRef = useRef<string>('');
 
     const currentWord = useMemo(
-        () => (enabled ? extractCurrentWord(text, cursorPosition) : ''),
-        [text, cursorPosition, enabled],
+        () => extractCurrentWord(text, cursorPosition),
+        [text, cursorPosition],
     );
 
     // Reset selection when the typed word changes
@@ -50,10 +49,10 @@ export function useTextExpander({ text, cursorPosition, expanders, enabled }: Us
     }
 
     const suggestions = useMemo(() => {
-        if (!currentWord || !enabled || expanders.length === 0) return [];
+        if (!currentWord || expanders.length === 0) return [];
         if (currentWord.toLowerCase() === dismissedWordRef.current.toLowerCase()) return [];
         return expanders.filter((e) => isFuzzyMatch(currentWord, e.abbr));
-    }, [currentWord, enabled, expanders]);
+    }, [currentWord, expanders]);
 
     // Reset dismissed word when the user types something genuinely different
     if (currentWord && dismissedWordRef.current && currentWord.toLowerCase() !== dismissedWordRef.current.toLowerCase()) {

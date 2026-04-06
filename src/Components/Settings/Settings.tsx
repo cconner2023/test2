@@ -30,7 +30,7 @@ import { UI_TIMING } from '../../Utilities/constants';
 import { GUIDED_TOURS_ENABLED } from '../../lib/featureFlags';
 import { MainSettingsPanel } from './MainSettingsPanel';
 import { AvatarPickerPanel } from './AvatarPickerPanel';
-import { ContentWrapper } from './ContentWrapper';
+import { ContentWrapper } from '../ContentWrapper';
 import { HeaderPill, PillButton } from '../HeaderPill';
 import { SessionsDevicesPanel } from './SessionsDevicesPanel';
 import { ClinicPanel } from './ClinicPanel';
@@ -505,8 +505,10 @@ export const Settings = ({
             disableDrag={false}
             desktopPosition="left"
             header={headerConfig}
+            scrollDisabled
         >
             {(handleClose) => (
+                <div className="h-full overflow-y-auto overscroll-y-contain">
                 <ContentWrapper slideDirection={slideDirection} swipeHandlers={activePanel !== 'main' ? swipeHandlers : undefined}>
                     {(() => {
                         // Component lookup map — maps each panel name to its rendered JSX.
@@ -659,6 +661,7 @@ export const Settings = ({
 
                     {/* Pre-mounted panels — data loads when Settings opens, hidden until active */}
                 </ContentWrapper>
+                </div>
             )}
         </BaseDrawer>
         <ConfirmDialog

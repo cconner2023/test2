@@ -1,4 +1,4 @@
-import { TextCursorInput, Layers, Check, X } from 'lucide-react';
+import { TextCursorInput, Layers, Check, X, Trash2 } from 'lucide-react';
 import type { TextExpander } from '../../Data/User';
 import type { TemplateNode } from '../../Data/TemplateTypes';
 import type { FieldInfo } from '../../Utilities/templateParser';
@@ -39,9 +39,11 @@ interface TextExpanderManagerProps {
     editing?: boolean;
     stagedDeletes: Set<string>;
     stagedAdds: TextExpander[];
+    stagedEdits?: Map<string, TextExpander>;
     onToggleDelete: (abbr: string) => void;
     onUnstageAdd: (abbr: string) => void;
     onCardTap?: (expander: TextExpander) => void;
+    onStartEdit?: (expander: TextExpander) => void;
     /** Abbreviation input */
     inputAbbr: string;
     onInputAbbrChange: (value: string) => void;
@@ -56,25 +58,28 @@ interface TextExpanderManagerProps {
     onEditCardChange: (state: EditCardState) => void;
     onEditCardAccept: () => void;
     onEditCardCancel: () => void;
-    /** Current scope being managed */
+    onEditCardDelete?: () => void;
+    /** Current scope for new items */
     scope?: 'personal' | 'clinic';
-    /** Clinic expanders shown read-only when viewing personal scope */
-    clinicExpanders?: TextExpander[];
+    /** Callback to change scope */
+    onScopeChange?: (scope: 'personal' | 'clinic') => void;
+    /** Set of lowercase clinic abbreviations for provenance badges */
+    clinicAbbrSet?: Set<string>;
     /** Whether user has supervisor role */
     isSupervisorRole?: boolean;
 }
 
 export const TextExpanderManager = ({
     expanders, editing = false,
-    stagedDeletes, stagedAdds, onToggleDelete, onUnstageAdd,
-    onCardTap,
+    stagedDeletes, stagedAdds, stagedEdits, onToggleDelete, onUnstageAdd,
+    onCardTap, onStartEdit,
     inputAbbr, onInputAbbrChange, onInputAbbrSubmit, inputError, onClearInput,
     selectedType, onTypeChange,
-    editCard, onEditCardChange, onEditCardAccept, onEditCardCancel,
-    scope = 'personal', clinicExpanders = [], isSupervisorRole = false,
+    editCard, onEditCardChange, onEditCardAccept, onEditCardCancel, onEditCardDelete,
+    scope = 'personal', onScopeChange, clinicAbbrSet, isSupervisorRole = false,
 }: TextExpanderManagerProps) => {
-    const totalCount = expanders.length + stagedAdds.length - stagedDeletes.size + (scope === 'personal' ? clinicExpanders.length : 0);
-    const hasItems = expanders.length > 0 || stagedAdds.length > 0 || (scope === 'personal' && clinicExpanders.length > 0);
+    const totalCount = expanders.length + stagedAdds.length - stagedDeletes.size;
+    const hasItems = expanders.length > 0 || stagedAdds.length > 0;
 
     const editCardValid = editCard
         ? editCard.type === 'simple'
@@ -118,6 +123,15 @@ export const TextExpanderManager = ({
                             />
                         </div>
                         <div className="flex items-center justify-end gap-1.5 px-4 py-2.5">
+                            {!editCard.isNew && onEditCardDelete && (
+                                <button
+                                    type="button"
+                                    onClick={onEditCardDelete}
+                                    className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-themeredred hover:bg-themeredred/10 active:scale-95 transition-all mr-auto"
+                                >
+                                    <Trash2 size={18} />
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 onClick={onEditCardCancel}
@@ -154,6 +168,15 @@ export const TextExpanderManager = ({
                         />
 
                         <div className="rounded-xl bg-themewhite2 px-4 py-2.5 flex items-center justify-end gap-1.5">
+                            {!editCard.isNew && onEditCardDelete && (
+                                <button
+                                    type="button"
+                                    onClick={onEditCardDelete}
+                                    className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-themeredred hover:bg-themeredred/10 active:scale-95 transition-all mr-auto"
+                                >
+                                    <Trash2 size={18} />
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 onClick={onEditCardCancel}
@@ -195,6 +218,21 @@ export const TextExpanderManager = ({
                             >
                                 {selectedType === 'simple' ? 'Simple' : 'Template'}
                             </button>
+
+                            {/* Scope selector — supervisors only */}
+                            {isSupervisorRole && (
+                                <button
+                                    type="button"
+                                    onClick={() => onScopeChange?.(scope === 'personal' ? 'clinic' : 'personal')}
+                                    className={`shrink-0 px-2.5 py-2.5 rounded-full text-[10px] font-semibold tracking-wide transition-all active:scale-95 ${
+                                        scope === 'clinic'
+                                            ? 'bg-tertiary/10 text-tertiary border border-tertiary/20'
+                                            : 'bg-themeblue2/10 text-themeblue2/70 border border-themeblue2/15'
+                                    }`}
+                                >
+                                    {scope === 'clinic' ? 'Clinic' : 'Personal'}
+                                </button>
+                            )}
 
                             {/* Abbreviation input */}
                             <div className="relative flex flex-1 items-center rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
@@ -266,69 +304,69 @@ export const TextExpanderManager = ({
                             );
                         })}
 
-                        {/* Clinic expanders — read-only */}
-                        {scope === 'personal' && clinicExpanders.length > 0 && clinicExpanders.map(e => {
-                            const isTemplate = hasBranches(e);
-                            const Icon = isTemplate ? Layers : TextCursorInput;
-
-                            return (
-                                <div
-                                    key={`clinic-${e.abbr}`}
-                                    className="flex items-start gap-3 py-2 px-2 rounded-lg opacity-75"
-                                >
-                                    <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                                        <Icon size={14} className="text-tertiary" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-1.5">
-                                            <p className="text-sm font-medium text-primary truncate">{e.abbr}</p>
-                                            <span className="text-[9px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/60 shrink-0">
-                                                Clinic
-                                            </span>
-                                        </div>
-                                        <p className="text-[11px] text-tertiary/50 mt-0.5 leading-relaxed">
-                                            {expansionPreview(e)}
-                                        </p>
-                                    </div>
-                                </div>
-                            );
-                        })}
-
                         {/* Existing expanders */}
-                        {expanders.map(e => {
+                        {expanders.map(orig => {
+                            const edited = stagedEdits?.get(orig.abbr);
+                            const e = edited ?? orig;
                             const isTemplate = hasBranches(e);
-                            const isMarkedDelete = stagedDeletes.has(e.abbr);
+                            const isClinic = clinicAbbrSet?.has(orig.abbr.toLowerCase()) ?? false;
+                            const canEdit = editing && (!isClinic || isSupervisorRole);
+                            const isMarkedDelete = stagedDeletes.has(orig.abbr);
+                            const isMarkedEdit = !!edited;
+                            const isOpenInEditor = editCard && !editCard.isNew && editCard.abbr === orig.abbr;
                             const Icon = isTemplate ? Layers : TextCursorInput;
-                            const iconBg = isTemplate ? 'bg-themepurple/15' : 'bg-themeblue2/15';
-                            const iconColor = isTemplate ? 'text-themepurple' : 'text-themeblue2';
+                            const iconBg = isClinic ? 'bg-tertiary/10' : isTemplate ? 'bg-themepurple/15' : 'bg-themeblue2/15';
+                            const iconColor = isClinic && !isSupervisorRole ? 'text-tertiary' : isTemplate ? 'text-themepurple' : 'text-themeblue2';
+
+                            const handleClick = editing
+                                ? isMarkedDelete
+                                    ? () => onToggleDelete(orig.abbr)
+                                    : canEdit && onStartEdit
+                                        ? () => onStartEdit(orig)
+                                        : undefined
+                                : onCardTap
+                                    ? () => onCardTap(orig)
+                                    : undefined;
 
                             return (
                                 <div
-                                    key={e.abbr}
-                                    onClick={
-                                        editing
-                                            ? () => onToggleDelete(e.abbr)
-                                            : onCardTap
-                                                ? () => onCardTap(e)
-                                                : undefined
-                                    }
+                                    key={orig.abbr}
+                                    onClick={handleClick}
                                     className={`flex items-start gap-3 py-2 px-2 rounded-lg transition-colors ${
                                         isMarkedDelete
                                             ? 'ring-1 ring-inset ring-themeredred/30 bg-themeredred/5 cursor-pointer active:scale-[0.98]'
-                                            : editing
-                                                ? 'cursor-pointer active:scale-[0.98] hover:bg-themeredred/5'
-                                                : onCardTap
-                                                    ? 'cursor-pointer active:scale-[0.98]'
-                                                    : ''
+                                            : isOpenInEditor
+                                                ? 'ring-1 ring-inset ring-themeblue3/40 bg-themeblue3/5'
+                                                : isMarkedEdit
+                                                    ? 'ring-1 ring-inset ring-themeblue2/30 bg-themeblue2/5 cursor-pointer active:scale-[0.98]'
+                                                    : editing && canEdit
+                                                        ? 'cursor-pointer active:scale-[0.98] hover:bg-themeblue3/5'
+                                                        : editing && !canEdit
+                                                            ? 'opacity-60'
+                                                            : onCardTap
+                                                                ? 'cursor-pointer active:scale-[0.98]'
+                                                                : ''
                                     }`}
                                 >
                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
                                         <Icon size={14} className={iconColor} />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className={`text-sm font-medium truncate ${
-                                            isMarkedDelete ? 'text-themeredred/60 line-through' : 'text-primary'
-                                        }`}>{e.abbr}</p>
+                                        <div className="flex items-center gap-1.5">
+                                            <p className={`text-sm font-medium truncate ${
+                                                isMarkedDelete ? 'text-themeredred/60 line-through' : 'text-primary'
+                                            }`}>{orig.abbr}</p>
+                                            {isClinic && (
+                                                <span className="text-[9px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/60 shrink-0">
+                                                    Clinic
+                                                </span>
+                                            )}
+                                            {isMarkedEdit && !isMarkedDelete && (
+                                                <span className="text-[9px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-themeblue2/15 text-themeblue2 shrink-0">
+                                                    Edited
+                                                </span>
+                                            )}
+                                        </div>
                                         <p className={`text-[11px] mt-0.5 leading-relaxed ${
                                             isMarkedDelete ? 'text-themeredred/30' : 'text-tertiary/50'
                                         }`}>

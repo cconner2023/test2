@@ -5,7 +5,9 @@ import { assembleNote } from '../Utilities/NoteFormatter';
 
 interface NoteCaptureOptions {
     includeAlgorithm: boolean;
-    includeDecisionMaking: boolean;
+    includeDecisionMaking?: boolean;
+    selectedDdx?: string[];
+    customDdx?: string[];
     customNote: string;
     physicalExamNote?: string;
     planNote?: string;
@@ -15,7 +17,7 @@ interface NoteCaptureOptions {
 interface NoteCaptureResult {
     sections: {
         algorithm?: string;
-        decisionMaking?: string;
+        differentials?: string;
         physicalExam?: string;
         plan?: string;
         customNote: string;

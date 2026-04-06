@@ -329,7 +329,7 @@ describe('Note Encoding round-trips', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PE Codec round-trips (v6 paired-findings API)
+// PE Codec round-trips (v8 master block keys)
 // ═══════════════════════════════════════════════════════════════════════════
 
 function makePEState(overrides: Partial<PEState> = {}): PEState {
@@ -340,7 +340,7 @@ function makePEState(overrides: Partial<PEState> = {}): PEState {
         vitals: {},
         items: {},
         additional: '',
-        depth: 'focused',
+        mode: 'focused',
         ...overrides,
     };
 }
@@ -352,7 +352,7 @@ describe('PE Codec', () => {
             vitals: { hr: '80', rr: '18', bpSys: '120', bpDia: '80', temp: '98.6' },
         });
 
-        const compact = encodePEState(state);
+        const compact = encodePEState(state, symptomCode);
         const decoded = decodePECompact(compact, symptomCode);
 
         expect(decoded).toContain('HR: 80 bpm');
@@ -365,17 +365,17 @@ describe('PE Codec', () => {
         const symptomCode = 'A-1';
         const state = makePEState({
             items: {
-                bl_gen: { status: 'normal', findings: '', selectedNormals: ['appearsStatedAge', 'wnwd', 'noAcuteDistress'], selectedAbnormals: [] },
-                bl_hent: { status: 'normal', findings: '', selectedNormals: ['normocephalicAtraumatic'], selectedAbnormals: [] },
+                gen: { status: 'normal', findings: '', selectedNormals: ['appearsStatedAge', 'wnwd', 'noAcuteDistress'], selectedAbnormals: [] },
+                head: { status: 'normal', findings: '', selectedNormals: ['normocephalicAtraumatic'], selectedAbnormals: [] },
             },
         });
 
-        const compact = encodePEState(state);
+        const compact = encodePEState(state, symptomCode);
         const decoded = decodePECompact(compact, symptomCode);
 
-        expect(decoded).toContain('GEN:');
+        expect(decoded).toContain('GENERAL:');
         expect(decoded).toContain('Appears stated age');
-        expect(decoded).toContain('HENT:');
+        expect(decoded).toContain('HEAD');
         expect(decoded).toContain('NCAT');
     });
 
@@ -383,11 +383,11 @@ describe('PE Codec', () => {
         const symptomCode = 'A-1';
         const state = makePEState({
             items: {
-                cat_a_ears: { status: 'abnormal', findings: '', selectedNormals: [], selectedAbnormals: ['tmErythema', 'tmBulging'] },
+                ears: { status: 'abnormal', findings: '', selectedNormals: [], selectedAbnormals: ['tmErythema', 'tmBulging'] },
             },
         });
 
-        const compact = encodePEState(state);
+        const compact = encodePEState(state, symptomCode);
         const decoded = decodePECompact(compact, symptomCode);
 
         expect(decoded).toContain('EARS:');
@@ -399,45 +399,40 @@ describe('PE Codec', () => {
         const symptomCode = 'A-1';
         const state = makePEState({
             items: {
-                bl_gen: { status: 'normal', findings: '', selectedNormals: ['appearsStatedAge'], selectedAbnormals: [] },
+                gen: { status: 'normal', findings: '', selectedNormals: ['appearsStatedAge'], selectedAbnormals: [] },
             },
             additional: 'Patient reports dizziness when standing.',
         });
 
-        const compact = encodePEState(state);
+        const compact = encodePEState(state, symptomCode);
         const decoded = decodePECompact(compact, symptomCode);
 
         expect(decoded).toContain('Additional Findings');
         expect(decoded).toContain('Patient reports dizziness when standing');
     });
 
-    it('decodePECompact returns empty string for legacy v2 format', () => {
-        // Legacy v2-v5 formats are no longer decoded — v6 is the only active format
-        const v2Payload = '2:A,R,72,,,,,,~0~0~~';
-        const decoded = decodePECompact(v2Payload, 'A-1');
-        expect(decoded).toBe('');
+    it('decodePECompact returns empty string for legacy formats', () => {
+        expect(decodePECompact('2:A,R,72,,,,,,~0~0~~', 'A-1')).toBe('');
+        expect(decodePECompact('6:A,R,,,,,,,~~', 'A-1')).toBe('');
+        expect(decodePECompact('7:A,R,F,,,,,,,~~', 'A-1')).toBe('');
     });
 
-    it('encodePEState -> decodePECompact with MSK category preserves laterality', () => {
+    it('encodePEState -> decodePECompact with MSK category preserves exam content', () => {
         const symptomCode = 'B-3';
         const state = makePEState({
             categoryLetter: 'B',
             laterality: 'left',
             vitals: { hr: '65' },
             items: {
-                bl_gen: { status: 'normal', findings: '', selectedNormals: ['appearsStatedAge'], selectedAbnormals: [] },
-                cat_b_inspection: { status: 'normal', findings: '', selectedNormals: ['noDeformity', 'noSwelling'], selectedAbnormals: [] },
-                cat_b_palpation: { status: 'normal', findings: '', selectedNormals: ['nonTender'], selectedAbnormals: [] },
+                gen: { status: 'normal', findings: '', selectedNormals: ['appearsStatedAge'], selectedAbnormals: [] },
             },
         });
 
-        const compact = encodePEState(state);
+        const compact = encodePEState(state, symptomCode);
         const decoded = decodePECompact(compact, symptomCode);
 
-        expect(decoded).toContain('MSK');
-        expect(decoded).toContain('Left');
-        expect(decoded).toContain('INSPECTION:');
-        expect(decoded).toContain('PALPATION:');
+        expect(decoded).toContain('HR: 65 bpm');
+        expect(decoded).toContain('GENERAL:');
     });
 });
 

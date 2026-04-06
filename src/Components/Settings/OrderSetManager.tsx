@@ -18,12 +18,17 @@ interface OrderSetManagerProps {
     stagedEdits: PlanOrderSet[];
     onUnstageAdd: (id: string) => void;
     onUnstageDelete: (id: string) => void;
+    clinicOrderSetIds?: Set<string>;
+    isSupervisorRole?: boolean;
+    scope?: 'personal' | 'clinic';
+    onScopeChange?: (scope: 'personal' | 'clinic') => void;
 }
 
 export const OrderSetManager = ({
     orderSets, editing = true,
     composing, onComposingNameChange, onStartAdd, onStartEdit,
     stagedDeletes, stagedAdds, stagedEdits, onUnstageAdd, onUnstageDelete,
+    clinicOrderSetIds, isSupervisorRole, scope, onScopeChange,
 }: OrderSetManagerProps) => {
     const [inputName, setInputName] = useState('');
 
@@ -60,6 +65,19 @@ export const OrderSetManager = ({
                         editing && !composing ? 'max-h-16 opacity-100 mb-2' : 'max-h-0 opacity-0'
                     }`}>
                         <div className="flex items-center gap-1.5">
+                            {isSupervisorRole && (
+                                <button
+                                    type="button"
+                                    onClick={() => onScopeChange?.(scope === 'personal' ? 'clinic' : 'personal')}
+                                    className={`shrink-0 px-2.5 py-2.5 rounded-full text-[10px] font-semibold tracking-wide transition-all active:scale-95 ${
+                                        scope === 'clinic'
+                                            ? 'bg-tertiary/10 text-tertiary border border-tertiary/20'
+                                            : 'bg-themeblue2/10 text-themeblue2/70 border border-themeblue2/15'
+                                    }`}
+                                >
+                                    {scope === 'clinic' ? 'Clinic' : 'Personal'}
+                                </button>
+                            )}
                             <div className="relative flex flex-1 items-center rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
                                 <input
                                     type="text"
@@ -116,12 +134,14 @@ export const OrderSetManager = ({
                                 const isMarkedDelete = stagedDeletes.has(os.id);
                                 const isEdited = stagedEdits.some(s => s.id === os.id);
                                 const tags = collectTags(display);
+                                const isClinic = clinicOrderSetIds?.has(os.id) ?? false;
+                                const canEdit = !isClinic || (isSupervisorRole ?? false);
 
                                 return (
                                     <div
                                         key={os.id}
                                         onClick={
-                                            editing && !composing
+                                            editing && !composing && canEdit
                                                 ? isMarkedDelete
                                                     ? () => onUnstageDelete(os.id)
                                                     : () => onStartEdit(display)
@@ -134,14 +154,21 @@ export const OrderSetManager = ({
                                                     ? 'ring-1 ring-inset ring-themeredred/30 bg-themeredred/5 cursor-pointer active:scale-[0.98]'
                                                     : isEdited
                                                         ? 'ring-1 ring-inset ring-themeblue2/20 bg-themeblue2/5 cursor-pointer active:scale-[0.98]'
-                                                        : editing && !composing
+                                                        : editing && !composing && canEdit
                                                             ? 'cursor-pointer active:scale-[0.98] hover:bg-tertiary/5'
                                                             : ''
                                         }`}
                                     >
-                                        <p className={`text-sm font-medium truncate ${
-                                            isMarkedDelete ? 'text-themeredred/60 line-through' : 'text-primary'
-                                        }`}>{display.name}</p>
+                                        <div className="flex items-center">
+                                            <p className={`text-sm font-medium truncate ${
+                                                isMarkedDelete ? 'text-themeredred/60 line-through' : 'text-primary'
+                                            }`}>{display.name}</p>
+                                            {isClinic && (
+                                                <span className="text-[9px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/60 shrink-0 ml-1.5">
+                                                    Clinic
+                                                </span>
+                                            )}
+                                        </div>
                                         {tags.length > 0 && (
                                             <p className={`text-[11px] mt-0.5 pl-0.5 line-clamp-2 ${
                                                 isMarkedDelete ? 'text-themeredred/30' : 'text-tertiary/50'

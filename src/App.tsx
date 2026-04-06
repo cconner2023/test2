@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useSpring, animated } from '@react-spring/web'
 import { DRAWER_TIMING } from './Utilities/constants'
 import './App.css'
@@ -39,19 +39,18 @@ import { PushNotificationToast } from './Components/PushNotificationToast'
 import { usePushNotifications } from './Hooks/usePushNotifications'
 import type { MessageNotification } from './Hooks/useMessageNotifications'
 
-// ── Lazy-loaded drawers/panels (code-split into separate chunks) ──
-const Settings = lazy(() => import('./Components/Settings').then(m => ({ default: m.Settings })))
-const KnowledgeBaseDrawer = lazy(() => import('./Components/KnowledgeBaseDrawer').then(m => ({ default: m.KnowledgeBaseDrawer })))
-const TrainingDrawer = lazy(() => import('./Components/TrainingDrawer').then(m => ({ default: m.TrainingDrawer })))
-const MessagesDrawer = lazy(() => import('./Components/MessagesDrawer').then(m => ({ default: m.MessagesDrawer })))
-const PropertyDrawer = lazy(() => import('./Components/PropertyDrawer').then(m => ({ default: m.PropertyDrawer })))
-const AdminDrawer = lazy(() => import('./Components/AdminDrawer').then(m => ({ default: m.AdminDrawer })))
-const SupervisorDrawer = lazy(() => import('./Components/SupervisorDrawer').then(m => ({ default: m.SupervisorDrawer })))
-const ProviderDrawer = lazy(() => import('./Components/ProviderDrawer').then(m => ({ default: m.ProviderDrawer })))
-const MapOverlayDrawer = lazy(() => import('./Components/MapOverlay/MapOverlayPanel'))
-const CalendarDrawer = lazy(() => import('./Components/CalendarDrawer').then(m => ({ default: m.CalendarDrawer })))
-const WriteNotePage = lazy(() => import('./Components/WriteNotePage').then(m => ({ default: m.WriteNotePage })))
-const SymptomInfoDrawer = lazy(() => import('./Components/SymptomInfoDrawer').then(m => ({ default: m.SymptomInfoDrawer })))
+import { Settings } from './Components/Settings'
+import { KnowledgeBaseDrawer } from './Components/KnowledgeBaseDrawer'
+import { TrainingDrawer } from './Components/TrainingDrawer'
+import { MessagesDrawer } from './Components/MessagesDrawer'
+import { PropertyDrawer } from './Components/PropertyDrawer'
+import { AdminDrawer } from './Components/AdminDrawer'
+import { SupervisorDrawer } from './Components/SupervisorDrawer'
+import { ProviderDrawer } from './Components/ProviderDrawer'
+import MapOverlayDrawer from './Components/MapOverlay/MapOverlayPanel'
+import { CalendarDrawer } from './Components/CalendarDrawer'
+import { WriteNotePage } from './Components/WriteNotePage'
+import { SymptomInfoDrawer } from './Components/SymptomInfoDrawer'
 
 // PWA App Shortcut: capture ?view= URL parameter once at module load time
 const _initialViewParam = (() => {
@@ -623,7 +622,6 @@ case 'mapOverlay':
 
           >
             <ErrorBoundary>
-            <Suspense fallback={null}>
             <MessagesDrawer
               isVisible={navigation.showMessagesDrawer}
               onClose={handleMessagesClose}
@@ -631,7 +629,6 @@ case 'mapOverlay':
               initialGroupId={initialGroupId}
               initialPeerName={initialPeerName}
             />
-            </Suspense>
             </ErrorBoundary>
           </div>
         )}
@@ -654,7 +651,6 @@ case 'mapOverlay':
 
         {/* ── Drawers — outside the transform wrapper so position:fixed works correctly ── */}
         <ErrorBoundary>
-        <Suspense fallback={null}>
         <Settings
           isVisible={navigation.showSettings}
           onClose={() => { navigation.setShowSettings(false); resetSettingsPanel(); setPostUpdatePending(false) }}
@@ -662,10 +658,8 @@ case 'mapOverlay':
           onToggleTheme={toggleTheme}
           initialPanel={settingsInitialPanel}
         />
-        </Suspense>
         </ErrorBoundary>
         <ErrorBoundary>
-        <Suspense fallback={null}>
         <KnowledgeBaseDrawer
           isVisible={navigation.showKnowledgeBase}
           onClose={() => navigation.setShowKnowledgeBase(false)}
@@ -674,10 +668,8 @@ case 'mapOverlay':
           initialMedication={navigation.kbInitialMedication}
           initialScreenerId={navigation.kbInitialScreenerId}
         />
-        </Suspense>
         </ErrorBoundary>
         <ErrorBoundary>
-        <Suspense fallback={null}>
         <SymptomInfoDrawer
           isVisible={navigation.showSymptomInfo}
           onClose={() => navigation.setShowSymptomInfo(false)}
@@ -685,21 +677,17 @@ case 'mapOverlay':
           selectedCategory={navigation.selectedCategory}
           onNavigate={handleNavigationClick}
         />
-        </Suspense>
         </ErrorBoundary>
         <ErrorBoundary>
-        <Suspense fallback={null}>
         <TrainingDrawer
           isVisible={navigation.showTrainingDrawer}
           onClose={() => navigation.setShowTrainingDrawer(null)}
           taskId={navigation.trainingDrawerTaskId}
         />
-        </Suspense>
         </ErrorBoundary>
         {/* Messages — desktop only (mobile is in the viewport strip above) */}
         {!navigation.isMobile && (
           <ErrorBoundary>
-          <Suspense fallback={null}>
           <MessagesDrawer
             isVisible={navigation.showMessagesDrawer}
             onClose={handleMessagesClose}
@@ -707,61 +695,47 @@ case 'mapOverlay':
             initialGroupId={initialGroupId}
             initialPeerName={initialPeerName}
           />
-          </Suspense>
           </ErrorBoundary>
         )}
         <ErrorBoundary>
-        <Suspense fallback={null}>
         <PropertyDrawer
           isVisible={navigation.showPropertyDrawer}
           onClose={() => navigation.setShowPropertyDrawer(false)}
         />
-        </Suspense>
         </ErrorBoundary>
         <ErrorBoundary>
-        <Suspense fallback={null}>
         <MapOverlayDrawer
           isVisible={navigation.showMapOverlayDrawer}
           onClose={() => navigation.setShowMapOverlayDrawer(false)}
         />
-        </Suspense>
         </ErrorBoundary>
         <ErrorBoundary>
-        <Suspense fallback={null}>
         <CalendarDrawer
           isVisible={navigation.showCalendarDrawer}
           onClose={() => navigation.setShowCalendarDrawer(false)}
         />
-        </Suspense>
         </ErrorBoundary>
         <ErrorBoundary>
-        <Suspense fallback={null}>
         <AdminDrawer
           isVisible={navigation.showAdminDrawer}
           onClose={() => navigation.setShowAdminDrawer(false)}
         />
-        </Suspense>
         </ErrorBoundary>
         <ErrorBoundary>
-        <Suspense fallback={null}>
         <SupervisorDrawer
           isVisible={navigation.showSupervisorDrawer}
           onClose={() => navigation.setShowSupervisorDrawer(false)}
         />
-        </Suspense>
         </ErrorBoundary>
         <ErrorBoundary>
-        <Suspense fallback={null}>
         <ProviderDrawer
           isVisible={navigation.showProviderDrawer}
           onClose={() => navigation.setShowProviderDrawer(false)}
         />
-        </Suspense>
         </ErrorBoundary>
         {/* WriteNotePage — BaseDrawer handles mobile/desktop positioning */}
         {navigation.writeNoteData && (
           <ErrorBoundary>
-          <Suspense fallback={null}>
           <WriteNotePage
             isVisible={navigation.isWriteNoteVisible}
             disposition={navigation.writeNoteData.disposition}
@@ -772,7 +746,6 @@ case 'mapOverlay':
             isMobile={navigation.isMobile}
             initialPage={navigation.writeNoteData.initialPage}
           />
-          </Suspense>
           </ErrorBoundary>
         )}
         <UpdateNotification onVisibilityChange={setUpdateVisible} />

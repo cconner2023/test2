@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Plus, Check } from 'lucide-react';
+import { Plus, Check, RotateCcw, GripVertical, X } from 'lucide-react';
 import type { PlanOrderTags, PlanOrderSet, PlanBlockKey, TextExpander } from '../Data/User';
 import { PLAN_ORDER_CATEGORIES, PLAN_ORDER_LABELS } from '../Data/User';
 import { ContextMenuPreview } from './ContextMenuPreview';
-import { PlanAllBlocksPreview } from './PlanBlockPreview';
+import { PlanAllBlocksPreview, CategoryPicker } from './PlanBlockPreview';
 import { ListItemRow } from './ListItemRow';
 import { ExpandableInput } from './ExpandableInput';
 
@@ -36,7 +36,6 @@ interface PlanProps {
     initialText?: string;
     onChange: (text: string) => void;
     expanders?: TextExpander[];
-    expanderEnabled?: boolean;
 }
 
 // ── Parsing ──────────────────────────────────────────────────
@@ -95,9 +94,10 @@ function parseInitialText(
 
 // ── Text generation ──────────────────────────────────────────
 
-function generateText(states: Record<PlanBlockKey, BlockState>): string {
+function generateText(states: Record<PlanBlockKey, BlockState>, orderedKeys?: PlanBlockKey[]): string {
+    const keys = orderedKeys ?? ALL_BLOCK_KEYS;
     const lines: string[] = [];
-    for (const key of ALL_BLOCK_KEYS) {
+    for (const key of keys) {
         const s = states[key];
         if (s.status !== 'active') continue;
         const parts: string[] = [...s.selectedTags];
@@ -110,11 +110,14 @@ function generateText(states: Record<PlanBlockKey, BlockState>): string {
 
 // ── Summary row (tap opens popover) ──────────────────────────
 
-function PlanBlockRow({ label, state, onTap, index }: {
+function PlanBlockRow({ label, state, onTap, index, isDragging, dragOffset, onDragStart }: {
     label: string;
     state: BlockState;
     onTap: (index: number, rect: DOMRect) => void;
     index: number;
+    isDragging?: boolean;
+    dragOffset?: number;
+    onDragStart?: (index: number, e: React.PointerEvent) => void;
 }) {
     const rowRef = useRef<HTMLDivElement>(null);
 
@@ -127,22 +130,29 @@ function PlanBlockRow({ label, state, onTap, index }: {
     const hasSummary = state.status === 'active' && (state.selectedTags.length > 0 || state.freeText.trim());
 
     return (
-        <div ref={rowRef}>
+        <div
+            ref={rowRef}
+            data-block-row
+            style={isDragging ? { transform: `translateY(${dragOffset}px)`, zIndex: 50, position: 'relative' } : undefined}
+            className={isDragging ? 'opacity-80 shadow-lg rounded-lg bg-themewhite2' : ''}
+        >
             <ListItemRow
+                as="div"
                 onClick={handleTap}
-                className="py-2.5 active:scale-[0.98] transition-all"
+                className="py-2.5 active:scale-[0.98] transition-all cursor-pointer"
                 left={
-                    <span className={`w-3.5 h-3.5 rounded-full shrink-0 transition-colors duration-200 ${
-                        state.status === 'active'
-                            ? 'bg-themegreen'
-                            : 'ring-[1.5px] ring-inset ring-tertiary/25 bg-transparent'
-                    }`} />
+                    <div
+                        className="shrink-0 text-tertiary/30 touch-none cursor-grab active:cursor-grabbing"
+                        onPointerDown={onDragStart ? (e) => { e.stopPropagation(); onDragStart(index, e); } : undefined}
+                    >
+                        <GripVertical size={16} />
+                    </div>
                 }
                 center={
                     <>
                         <p className="text-sm font-medium text-primary truncate">{label}</p>
                         {hasSummary && (
-                            <p className="text-[11px] text-tertiary/70 mt-0.5 truncate">
+                            <p className="text-[11px] text-primary mt-0.5 truncate">
                                 {[...state.selectedTags, ...(state.freeText.trim() ? [state.freeText.trim()] : [])].join('; ')}
                             </p>
                         )}
@@ -155,7 +165,8 @@ function PlanBlockRow({ label, state, onTap, index }: {
 
 // ── Main component ───────────────────────────────────────────
 
-export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, onChange, expanders = [], expanderEnabled = false }: PlanProps) => {
+export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, onChange, expanders = [],
+}: PlanProps) => {
     // Custom tags added inline via popover — merged with profile tags
     const [customTags, setCustomTags] = useState<Record<PlanBlockKey, string[]>>({
         referral: [], meds: [], radiology: [], lab: [], followUp: [], instructions: [],
@@ -181,25 +192,40 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
     // Track which order sets are "active" (have been applied)
     const [activeSetIds, setActiveSetIds] = useState<Set<string>>(new Set());
 
-    // Free text below block rows
-    const [freeTextValue, setFreeTextValue] = useState('');
+    // ── Block reorder state ──────────────────────────────────────
+    const [blockOrder, setBlockOrder] = useState<PlanBlockKey[] | null>(null);
+
+    const dragStateRef = useRef<{
+        dragIndex: number;
+        currentIndex: number;
+        startY: number;
+        itemHeight: number;
+    } | null>(null);
+    const [dragIndex, setDragIndex] = useState<number | null>(null);
+    const [dragOffset, setDragOffset] = useState(0);
+    const listRef = useRef<HTMLDivElement>(null);
 
     // Single FAB popover state
     const [showFabPopover, setShowFabPopover] = useState(false);
     const [fabAnchorRect, setFabAnchorRect] = useState<DOMRect | null>(null);
-    const [focusCategory, setFocusCategory] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<PlanBlockKey | null>(null);
+    const [inputValue, setInputValue] = useState('');
+    const [addCategory, setAddCategory] = useState<PlanBlockKey | null>(null);
+
+    const addTarget = addCategory ?? activeTab;
 
     const openFab = useCallback((e: React.MouseEvent, focusKey?: string) => {
         setFabAnchorRect((e.currentTarget as HTMLElement).getBoundingClientRect());
-        setFocusCategory(focusKey ?? null);
+        const tab = (focusKey as PlanBlockKey) ?? null;
+        setActiveTab(tab);
+        setAddCategory(tab);
+        setInputValue('');
         setShowFabPopover(true);
     }, []);
 
     useEffect(() => {
-        const blockText = generateText(states);
-        const parts = [blockText, freeTextValue.trim()].filter(Boolean);
-        onChange(parts.join('\n'));
-    }, [states, freeTextValue]); // eslint-disable-line react-hooks/exhaustive-deps
+        onChange(generateText(states, blockOrder ?? undefined));
+    }, [states, blockOrder]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const toggleTag = useCallback((key: PlanBlockKey, tag: string) => {
         setStates(prev => {
@@ -228,6 +254,22 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
             },
         }));
     }, [allTags]);
+
+    const handleInputSubmit = useCallback(() => {
+        if (!inputValue.trim()) return;
+        const value = inputValue.trim();
+        // Resolve target: explicit selection → first category with a matching tag → first with tags
+        const key = (addTarget as PlanBlockKey)
+            ?? ALL_BLOCK_KEYS.find(k => allTags[k].includes(value))
+            ?? ALL_BLOCK_KEYS.find(k => allTags[k].length > 0);
+        if (!key) return;
+        if (allTags[key].includes(value)) {
+            toggleTag(key, value);
+        } else {
+            addCustomTag(key, value);
+        }
+        setInputValue('');
+    }, [inputValue, addTarget, allTags, toggleTag, addCustomTag]);
 
     /** Apply an order set — activates blocks and unions the preset tags */
     const applyOrderSet = useCallback((os: PlanOrderSet) => {
@@ -273,77 +315,114 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
         });
     }, []);
 
-    // Only show blocks that have tags configured
-    const visibleBlocks = useMemo(() => ALL_BLOCK_KEYS.filter(key => states[key].status === 'active' && allTags[key].length > 0), [allTags, states]);
+    // Only show blocks that have tags configured, respecting custom order
+    const visibleBlocks = useMemo(() => {
+        const active = ALL_BLOCK_KEYS.filter(key => states[key].status === 'active' && allTags[key].length > 0);
+        if (!blockOrder) return active;
+        const activeSet = new Set(active);
+        return [
+            ...blockOrder.filter(k => activeSet.has(k)),
+            ...active.filter(k => !blockOrder.includes(k)),
+        ];
+    }, [allTags, states, blockOrder]);
 
-    const allCategories = useMemo(() =>
-        ALL_BLOCK_KEYS
+    const allCategories = useMemo(() => {
+        const planCats = ALL_BLOCK_KEYS
             .filter(key => allTags[key].length > 0)
             .map(key => ({
                 key,
                 label: BLOCK_LABELS[key],
                 tags: allTags[key],
                 state: states[key],
-            })),
-        [allTags, states],
-    );
+            }));
+        return planCats;
+    }, [allTags, states]);
 
     const handleRowTap = useCallback((index: number, rect: DOMRect) => {
         const key = visibleBlocks[index];
         setFabAnchorRect(rect);
-        setFocusCategory(key ?? null);
+        setActiveTab(key ?? null);
+        setAddCategory(key ?? null);
+        setInputValue('');
         setShowFabPopover(true);
+    }, [visibleBlocks]);
+
+    const reorderTag = useCallback((key: PlanBlockKey, fromIndex: number, toIndex: number) => {
+        setStates(prev => {
+            const tags = [...prev[key].selectedTags];
+            const [moved] = tags.splice(fromIndex, 1);
+            tags.splice(toIndex, 0, moved);
+            return { ...prev, [key]: { ...prev[key], selectedTags: tags } };
+        });
+    }, []);
+
+    // ── Drag handlers ────────────────────────────────────────────
+    const handleDragStart = useCallback((index: number, e: React.PointerEvent) => {
+        const target = (e.currentTarget as HTMLElement).closest('[data-block-row]') as HTMLElement | null;
+        if (!target) return;
+        const rect = target.getBoundingClientRect();
+        dragStateRef.current = {
+            dragIndex: index,
+            currentIndex: index,
+            startY: e.clientY,
+            itemHeight: rect.height,
+        };
+        setDragIndex(index);
+        setDragOffset(0);
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    }, []);
+
+    const handleDragMove = useCallback((e: React.PointerEvent) => {
+        const ds = dragStateRef.current;
+        if (!ds) return;
+        const dy = e.clientY - ds.startY;
+        setDragOffset(dy);
+        const indexShift = Math.round(dy / ds.itemHeight);
+        ds.currentIndex = Math.max(0, Math.min(visibleBlocks.length - 1, ds.dragIndex + indexShift));
+    }, [visibleBlocks.length]);
+
+    const handleDragEnd = useCallback(() => {
+        const ds = dragStateRef.current;
+        if (!ds) {
+            setDragIndex(null);
+            setDragOffset(0);
+            return;
+        }
+        if (ds.dragIndex !== ds.currentIndex) {
+            const keys = [...visibleBlocks];
+            const [moved] = keys.splice(ds.dragIndex, 1);
+            keys.splice(ds.currentIndex, 0, moved);
+            setBlockOrder(keys);
+        }
+        dragStateRef.current = null;
+        setDragIndex(null);
+        setDragOffset(0);
     }, [visibleBlocks]);
 
     return (
         <div className="space-y-4">
-            {/* Order Set chips */}
-            {orderSets.length > 0 && (
-                <section>
-                    <div className="pb-2 flex items-center gap-2">
-                        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Order Sets</p>
-                    </div>
-                    <div className="rounded-xl bg-themewhite2 overflow-hidden">
-                        <div className="px-4 py-3">
-                            <div className="flex flex-wrap gap-1.5">
-                                {orderSets.map(os => {
-                                    const isActive = activeSetIds.has(os.id);
-                                    return (
-                                        <button
-                                            key={os.id}
-                                            onClick={() => applyOrderSet(os)}
-                                            className={`px-2.5 py-1 text-[10pt] rounded-full transition-colors active:scale-95 ${
-                                                isActive
-                                                    ? 'bg-themegreen/15 text-themegreen'
-                                                    : 'bg-tertiary/5 text-tertiary/40'
-                                            }`}
-                                        >
-                                            {os.name}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
-                </section>
-            )}
-
             {/* Block rows or empty state */}
             {visibleBlocks.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-tertiary/15 bg-themewhite2/50 py-8 flex flex-col items-center gap-2">
+                <div className="flex flex-col items-center gap-2 py-6">
                     <button
                         type="button"
                         onClick={openFab}
-                        className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
+                        className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
                     >
-                        <Plus size={16} />
+                        <Plus size={14} />
                     </button>
                     <p className="text-[10px] text-tertiary/40">Add plan blocks</p>
                 </div>
             ) : (
                 <>
                     <div className="rounded-xl bg-themewhite2 overflow-hidden">
-                        <div className="px-4 py-3">
+                        <div
+                            ref={listRef}
+                            className="px-4 py-3"
+                            onPointerMove={handleDragMove}
+                            onPointerUp={handleDragEnd}
+                            onPointerCancel={handleDragEnd}
+                        >
                             {visibleBlocks.map((key, i) => (
                                 <PlanBlockRow
                                     key={key}
@@ -351,6 +430,9 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                                     state={states[key]}
                                     onTap={handleRowTap}
                                     index={i}
+                                    isDragging={dragIndex === i}
+                                    dragOffset={dragIndex === i ? dragOffset : 0}
+                                    onDragStart={handleDragStart}
                                 />
                             ))}
                         </div>
@@ -367,44 +449,94 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                 </>
             )}
 
-            {/* Free text */}
-            <ExpandableInput
-                value={freeTextValue}
-                onChange={setFreeTextValue}
-                expanders={expanders}
-                expanderEnabled={expanderEnabled}
-                multiline
-                className="w-full rounded-xl border border-themeblue3/10 shadow-xs bg-themewhite p-3 text-sm text-primary placeholder:text-tertiary/30 focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none resize-none transition-all duration-300 overflow-hidden"
-                placeholder="Additional plan notes..."
-            />
-
             {/* Unified popover — all categories with nested tags */}
             <ContextMenuPreview
                 isVisible={showFabPopover}
                 onClose={() => setShowFabPopover(false)}
                 anchorRect={fabAnchorRect}
                 maxWidth="max-w-[340px] md:max-w-[520px]"
-                searchPlaceholder="Search plan items..."
-                preview={(filter, clearFilter) => (
+                preview={
                     <PlanAllBlocksPreview
                         categories={allCategories}
-                        filter={filter}
-                        onToggleTag={(catKey, tag) => { toggleTag(catKey as PlanBlockKey, tag); clearFilter(); }}
-                        focusKey={focusCategory}
+                        filter={inputValue}
+                        onToggleTag={(catKey, tag) => {
+                            toggleTag(catKey as PlanBlockKey, tag);
+                            setInputValue('');
+                        }}
+                        activeTab={activeTab}
+                        onTabChange={(key) => { setActiveTab(key as PlanBlockKey); setAddCategory(key as PlanBlockKey); }}
+                        onReorderTag={(catKey, from, to) => {
+                            reorderTag(catKey as PlanBlockKey, from, to);
+                        }}
+                        orderSets={orderSets}
+                        activeSetIds={activeSetIds}
+                        onToggleOrderSet={applyOrderSet}
                     />
-                )}
-                actions={[{
-                    key: 'done',
-                    label: 'Done',
-                    icon: Check,
-                    onAction: () => setShowFabPopover(false),
-                }]}
-                onAdd={(value) => {
-                    if (focusCategory) {
-                        addCustomTag(focusCategory as PlanBlockKey, value);
-                    }
-                }}
-                addPlaceholder={focusCategory ? `Add custom ${BLOCK_LABELS[focusCategory as PlanBlockKey]?.toLowerCase()} tag...` : 'Select a category first...'}
+                }
+                supplemental={
+                    <div className="flex items-center gap-2">
+                        <CategoryPicker
+                            value={addTarget}
+                            categories={allCategories}
+                            onChange={(key) => setAddCategory(key as PlanBlockKey)}
+                        />
+                        <input
+                            type="text"
+                            value={inputValue}
+                            onChange={(e) => setInputValue(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleInputSubmit(); }}
+                            placeholder="Search or add item..."
+                            className="flex-1 min-w-0 text-[10pt] pl-3 pr-3 py-2 rounded-full border border-tertiary/15 bg-transparent text-primary outline-none focus:border-themeblue1/30 placeholder:text-tertiary/30 transition-all duration-200"
+                        />
+                        {inputValue && (
+                            <button
+                                type="button"
+                                onClick={() => setInputValue('')}
+                                className="shrink-0 w-7 h-7 rounded-full bg-tertiary/8 flex items-center justify-center active:scale-95 transition-all"
+                            >
+                                <X size={13} className="text-tertiary/50" />
+                            </button>
+                        )}
+                        {inputValue.trim() && (
+                            <button
+                                type="button"
+                                onClick={handleInputSubmit}
+                                className="shrink-0 w-7 h-7 rounded-full bg-tertiary/8 flex items-center justify-center active:scale-95 transition-all"
+                            >
+                                <Check size={13} className="text-primary" />
+                            </button>
+                        )}
+                    </div>
+                }
+                actions={[
+                    {
+                        key: 'reset',
+                        label: 'Reset',
+                        icon: RotateCcw,
+                        onAction: () => {
+                            setStates({
+                                referral: defaultBlockState(),
+                                meds: defaultBlockState(),
+                                radiology: defaultBlockState(),
+                                lab: defaultBlockState(),
+                                followUp: defaultBlockState(),
+                                instructions: defaultBlockState(),
+                            });
+                            setActiveSetIds(new Set());
+                            setCustomTags({
+                                referral: [], meds: [], radiology: [], lab: [], followUp: [], instructions: [],
+                            });
+                        },
+                        closesOnAction: false,
+                        variant: 'danger' as const,
+                    },
+                    {
+                        key: 'done',
+                        label: 'Done',
+                        icon: Check,
+                        onAction: () => setShowFabPopover(false),
+                    },
+                ]}
             />
         </div>
     );

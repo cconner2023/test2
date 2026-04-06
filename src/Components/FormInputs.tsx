@@ -155,7 +155,7 @@ export const PickerInput = ({
           type="button"
           onClick={() => setVisible(true)}
           className={`w-full px-4 py-2.5 rounded-full text-left text-sm
-                     border border-themeblue3/10 shadow-xs bg-themewhite dark:bg-themewhite3
+                     border border-themeblue3/10 shadow-xs bg-themewhite2
                      transition-all duration-200 flex items-center justify-between active:scale-[0.98] ${
                        value ? 'text-primary' : 'text-tertiary/30'
                      }`}
@@ -484,7 +484,7 @@ export const DatePickerInput = ({
         type="button"
         onClick={() => setVisible(true)}
         className={`w-full px-4 py-2.5 rounded-full text-left text-sm
-                   border border-themeblue3/10 shadow-xs bg-themewhite dark:bg-themewhite3
+                   border border-themeblue3/10 shadow-xs bg-themewhite2
                    transition-all duration-200 flex items-center justify-between active:scale-[0.98] ${
                      display ? 'text-primary' : 'text-tertiary/30'
                    }`}
@@ -849,7 +849,7 @@ export const MultiPickerInput = ({
           type="button"
           onClick={() => setVisible(true)}
           className={`w-full px-4 py-2.5 rounded-full text-left text-sm
-                     border border-themeblue3/10 shadow-xs bg-themewhite dark:bg-themewhite3
+                     border border-themeblue3/10 shadow-xs bg-themewhite2
                      transition-all duration-200 flex items-center justify-between active:scale-[0.98] ${
                        value.length > 0 ? 'text-primary' : 'text-tertiary/30'
                      }`}

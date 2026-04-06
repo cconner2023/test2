@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Check, RotateCcw, Plus, AlertTriangle, ChevronLeft, ChevronRight, X, Trash2 } from 'lucide-react';
+import { Check, RotateCcw, Plus, AlertTriangle, ChevronLeft, ChevronRight, X, Trash2, GripVertical } from 'lucide-react';
 import { ContextMenuPreview } from './ContextMenuPreview';
 import type { ContextMenuAction } from './ContextMenuPreview';
 import { ExamBlockPreview } from './ExamBlockPreview';
@@ -42,6 +42,7 @@ interface ItemState {
 
 interface PhysicalExamProps {
     initialText?: string;
+    initialState?: PEState | null;
     onChange: (text: string) => void;
     onStateChange?: (state: PEState) => void;
     colors: ReturnType<typeof getColorClasses>;
@@ -50,7 +51,6 @@ interface PhysicalExamProps {
     templateBlockKeys?: string[];
     onBlockKeysChange?: (keys: string[]) => void;
     expanders?: TextExpander[];
-    expanderEnabled?: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -382,12 +382,14 @@ function summarizeFindings(findings: PEFinding[], state: ItemState): { normals: 
     return { normals, abnormals };
 }
 
-function ExamItemRow({ block, state, onCycleStatus, onTap, index }: {
+function ExamItemRow({ block, state, onTap, index, isDragging, dragOffset, onDragStart }: {
     block: PEBlock;
     state: ItemState;
-    onCycleStatus: () => void;
     onTap: (index: number, rect: DOMRect) => void;
     index: number;
+    isDragging?: boolean;
+    dragOffset?: number;
+    onDragStart?: (index: number, e: React.PointerEvent) => void;
 }) {
     const rowRef = useRef<HTMLDivElement>(null);
 
@@ -401,31 +403,32 @@ function ExamItemRow({ block, state, onCycleStatus, onTap, index }: {
     const hasSummary = state.status !== 'not-examined' && (normals.length > 0 || abnormals.length > 0);
 
     return (
-        <div ref={rowRef}>
+        <div
+            ref={rowRef}
+            data-block-row
+            style={isDragging ? { transform: `translateY(${dragOffset}px)`, zIndex: 50, position: 'relative' } : undefined}
+            className={isDragging ? 'opacity-80 shadow-lg rounded-lg bg-themewhite2' : ''}
+        >
             <ListItemRow
+                as="div"
                 onClick={handleTap}
-                className="py-2.5 active:scale-[0.98] transition-all"
+                className="py-2.5 active:scale-[0.98] transition-all cursor-pointer"
                 left={
-                    <button
-                        type="button"
-                        className="shrink-0 active:scale-90 transition-transform"
-                        onClick={(e) => { e.stopPropagation(); onCycleStatus(); }}
+                    <div
+                        className="shrink-0 text-tertiary/30 touch-none cursor-grab active:cursor-grabbing"
+                        onPointerDown={onDragStart ? (e) => onDragStart(index, e) : undefined}
                     >
-                        <span className={`block w-3.5 h-3.5 rounded-full transition-colors duration-200 ${
-                            state.status === 'normal' ? 'bg-themegreen'
-                            : state.status === 'abnormal' ? 'bg-themeredred'
-                            : 'ring-[1.5px] ring-inset ring-tertiary/25 bg-transparent'
-                        }`} />
-                    </button>
+                        <GripVertical size={16} />
+                    </div>
                 }
                 center={
                     <>
                         <p className="text-sm font-medium text-primary truncate">{block.label}</p>
                         {hasSummary && (
-                            <p className="text-[11px] text-tertiary/70 mt-0.5 truncate">
-                                {normals.length > 0 && normals.join(', ')}
-                                {normals.length > 0 && abnormals.length > 0 && ' · '}
-                                {abnormals.length > 0 && abnormals.join(', ')}
+                            <p className="text-[11px] mt-0.5 truncate">
+                                {normals.length > 0 && <span className="text-tertiary/70">{normals.join(', ')}</span>}
+                                {normals.length > 0 && abnormals.length > 0 && <span className="text-tertiary/70"> · </span>}
+                                {abnormals.length > 0 && <span className="text-primary font-medium">{abnormals.join(', ')}</span>}
                             </p>
                         )}
                     </>
@@ -512,6 +515,7 @@ function InlineAddCard({ onSubmit, onCancel }: {
 
 export function PhysicalExam({
     initialText = '',
+    initialState = null,
     onChange,
     onStateChange,
     colors,
@@ -520,7 +524,6 @@ export function PhysicalExam({
     templateBlockKeys,
     onBlockKeysChange,
     expanders = [],
-    expanderEnabled = false,
 }: PhysicalExamProps) {
     const categoryLetter = (getCategoryFromSymptomCode(symptomCode) || 'A') as CategoryLetter;
     const isBack = isBackPainCode(symptomCode);
@@ -550,8 +553,33 @@ export function PhysicalExam({
         return map;
     }, [activeBlocks, expandedKeys]);
 
-    // ── Parse initial text ─────────────────────────────────────
-    const [parsed] = useState(() => parseInitialText(initialText, activeBlocks));
+    // ── Seed initial state — prefer structured initialState over text parsing ─
+    const [parsed] = useState(() => {
+        if (initialState) {
+            const blockStates: Record<string, ItemState> = {};
+            for (const b of activeBlocks) {
+                const seeded = initialState.items[b.key];
+                blockStates[b.key] = seeded
+                    ? {
+                        status: seeded.status,
+                        selectedNormals: [...seeded.selectedNormals],
+                        selectedAbnormals: [...seeded.selectedAbnormals],
+                        findings: seeded.findings,
+                    }
+                    : defaultItemState();
+            }
+            const vit: Record<string, string> = {};
+            VITAL_SIGNS.forEach(v => { vit[v.key] = ''; });
+            return {
+                blockStates,
+                laterality: initialState.laterality,
+                spineRegion: initialState.spineRegion,
+                additional: initialState.additional,
+                vitals: { ...vit, ...initialState.vitals },
+            };
+        }
+        return parseInitialText(initialText, activeBlocks);
+    });
 
     const [blockStates, setBlockStates] = useState<Record<string, ItemState>>(() => parsed.blockStates);
 
@@ -578,6 +606,14 @@ export function PhysicalExam({
     const [showAddCard, setShowAddCard] = useState(false);
     const [addedBlocks, setAddedBlocks] = useState<PEBlock[]>([]);
 
+    // ── Block reorder state ──────────────────────────────────
+    const [blockOrder, setBlockOrder] = useState<string[] | null>(null);
+
+    // Reset custom order when the underlying block set changes
+    useEffect(() => {
+        setBlockOrder(null);
+    }, [activeBlocks]);
+
     // ── Block picker (template mode) ─────────────────────────
     const [showBlockPicker, setShowBlockPicker] = useState(false);
     const [blockPickerAnchorRect, setBlockPickerAnchorRect] = useState<DOMRect | null>(null);
@@ -586,6 +622,22 @@ export function PhysicalExam({
         setBlockPickerAnchorRect((e.currentTarget as HTMLElement).getBoundingClientRect());
         setShowBlockPicker(true);
     }, []);
+
+
+    const vitalsSummary = useMemo(() => {
+        const parts: string[] = [];
+        const sys = vitals['bpSys']?.trim();
+        const dia = vitals['bpDia']?.trim();
+        if (sys || dia) parts.push(`BP ${sys || '—'}/${dia || '—'}`);
+        for (const v of VITAL_SIGNS) {
+            if (v.key === 'bpSys' || v.key === 'bpDia') continue;
+            const val = vitals[v.key]?.trim();
+            if (val) parts.push(`${v.shortLabel} ${val}`);
+        }
+        return parts.join(' · ');
+    }, [vitals]);
+
+    const hasAnyVitals = useMemo(() => Object.values(vitals).some(v => v?.trim()), [vitals]);
 
     const toggleBlockKey = useCallback((key: string) => {
         if (!onBlockKeysChange) return;
@@ -624,9 +676,10 @@ export function PhysicalExam({
                 additional: add,
                 mode,
                 blockKeys: mode === 'template' ? templateBlockKeys : undefined,
+                blockOrder: blockOrder ?? undefined,
             });
         }
-    }, [onChange, onStateChange, activeBlocks, expandedKeys, categoryLetter, mode, templateBlockKeys]);
+    }, [onChange, onStateChange, activeBlocks, expandedKeys, categoryLetter, mode, templateBlockKeys, blockOrder]);
 
     useEffect(() => {
         emitChange(blockStates, laterality, spineRegion, additional, vitals);
@@ -762,9 +815,16 @@ export function PhysicalExam({
 
     const flatBlockList = useMemo((): FlatEntry[] => {
         const list: FlatEntry[] = [];
-        for (const block of activeBlocks) {
-            const vb = viewBlockMap.get(block.key);
-            if (vb) list.push({ viewBlock: vb, key: block.key });
+
+        // If user has set a custom order, use it (filtering to only active keys)
+        const activeKeys = new Set(activeBlocks.map(b => b.key));
+        const orderedKeys = blockOrder
+            ? [...blockOrder.filter(k => activeKeys.has(k)), ...activeBlocks.filter(b => !blockOrder.includes(b.key)).map(b => b.key)]
+            : activeBlocks.map(b => b.key);
+
+        for (const key of orderedKeys) {
+            const vb = viewBlockMap.get(key);
+            if (vb) list.push({ viewBlock: vb, key });
         }
         // Added blocks from inline add card
         for (const b of addedBlocks) {
@@ -773,7 +833,7 @@ export function PhysicalExam({
             }
         }
         return list;
-    }, [activeBlocks, viewBlockMap, addedBlocks]);
+    }, [activeBlocks, viewBlockMap, addedBlocks, blockOrder]);
 
     // ── Custom findings added inline via popover ──────────────
     const [customFindings, setCustomFindings] = useState<Record<string, { key: string; label: string }[]>>({});
@@ -838,8 +898,6 @@ export function PhysicalExam({
         const isFirst = editingIndex === 0;
         const isLast = editingIndex === len - 1;
         const entry = flatBlockList[editingIndex];
-        const state = blockStates[entry.key] ?? defaultItemState();
-        const hasSelections = state.status !== 'not-examined';
         const actions: ContextMenuAction[] = [];
         if (!isFirst) {
             actions.push({
@@ -857,15 +915,13 @@ export function PhysicalExam({
             onAction: () => setBlockStates(prev => ({ ...prev, [entry.key]: allNormalsSelected(entry.viewBlock.findings) })),
             closesOnAction: false,
         });
-        if (hasSelections) {
-            actions.push({
-                key: 'reset',
-                label: '',
-                icon: RotateCcw,
-                onAction: () => setBlockStates(prev => ({ ...prev, [entry.key]: defaultItemState() })),
-                closesOnAction: false,
-            });
-        }
+        actions.push({
+            key: 'reset',
+            label: '',
+            icon: RotateCcw,
+            onAction: () => setBlockStates(prev => ({ ...prev, [entry.key]: defaultItemState() })),
+            closesOnAction: false,
+        });
         if (!isLast) {
             actions.push({
                 key: 'next',
@@ -941,86 +997,75 @@ export function PhysicalExam({
         };
     }, [flatBlockList, editingIndex, augmentBlock]);
 
+    // ── Drag reorder ─────────────────────────────────────────────
+    const dragStateRef = useRef<{
+        dragIndex: number;
+        currentIndex: number;
+        startY: number;
+        itemHeight: number;
+    } | null>(null);
+    const [dragIndex, setDragIndex] = useState<number | null>(null);
+    const [dragOffset, setDragOffset] = useState(0);
+    const listRef = useRef<HTMLDivElement>(null);
+
+    const handleDragStart = useCallback((index: number, e: React.PointerEvent) => {
+        const target = (e.currentTarget as HTMLElement).closest('[data-block-row]') as HTMLElement | null;
+        if (!target) return;
+        const rect = target.getBoundingClientRect();
+        dragStateRef.current = {
+            dragIndex: index,
+            currentIndex: index,
+            startY: e.clientY,
+            itemHeight: rect.height,
+        };
+        setDragIndex(index);
+        setDragOffset(0);
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    }, []);
+
+    const handleDragMove = useCallback((e: React.PointerEvent) => {
+        const ds = dragStateRef.current;
+        if (!ds) return;
+        const dy = e.clientY - ds.startY;
+        setDragOffset(dy);
+
+        const indexShift = Math.round(dy / ds.itemHeight);
+        const newIndex = Math.max(0, Math.min(flatBlockList.length - 1, ds.dragIndex + indexShift));
+        ds.currentIndex = newIndex;
+    }, [flatBlockList.length]);
+
+    const handleDragEnd = useCallback(() => {
+        const ds = dragStateRef.current;
+        if (!ds) {
+            setDragIndex(null);
+            setDragOffset(0);
+            return;
+        }
+
+        if (ds.dragIndex !== ds.currentIndex) {
+            const keys = flatBlockList.map(e => e.key);
+            const [moved] = keys.splice(ds.dragIndex, 1);
+            keys.splice(ds.currentIndex, 0, moved);
+            setBlockOrder(keys);
+        }
+
+        dragStateRef.current = null;
+        setDragIndex(null);
+        setDragOffset(0);
+    }, [flatBlockList]);
+
     return (
         <div className="space-y-4">
-            {/* ── Vital Signs ──────────────────────────────────────── */}
-            <section>
-                <div className="rounded-xl bg-themewhite2 overflow-hidden">
-                    <div className="px-4 py-3">
-                        <div className="grid grid-cols-3 gap-2">
-                            {VITAL_SIGNS.map(v => {
-                                if (v.key === 'bpDia') return null;
-                                if (v.key === 'bpSys') return (
-                                    <div key="bp" className="flex items-center gap-1">
-                                        <input
-                                            type="text"
-                                            value={vitals['bpSys'] || ''}
-                                            onChange={(e) => setVitalValue('bpSys', e.target.value)}
-                                            placeholder="BP sys"
-                                            className="w-1/2 text-[10pt] px-3 py-2.5 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
-                                        />
-                                        <span className="text-[10pt] text-tertiary/40">/</span>
-                                        <input
-                                            type="text"
-                                            value={vitals['bpDia'] || ''}
-                                            onChange={(e) => setVitalValue('bpDia', e.target.value)}
-                                            placeholder="dia"
-                                            className="w-1/2 text-[10pt] px-3 py-2.5 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
-                                        />
-                                    </div>
-                                );
-                                return (
-                                    <div key={v.key}>
-                                        <input
-                                            type="text"
-                                            value={vitals[v.key] || ''}
-                                            onChange={(e) => setVitalValue(v.key, e.target.value)}
-                                            placeholder={`${v.shortLabel} (${v.unit})`}
-                                            className="w-full text-[10pt] px-3 py-2.5 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
-                                        />
-                                        {v.key === 'ht' && vitals[v.key]?.trim() && !isNaN(parseFloat(vitals[v.key])) && (
-                                            <span className="text-[10pt] text-secondary/50 mt-0.5 block">{(parseFloat(vitals[v.key]) * 2.54).toFixed(1)} cm</span>
-                                        )}
-                                        {v.key === 'wt' && vitals[v.key]?.trim() && !isNaN(parseFloat(vitals[v.key])) && (
-                                            <span className="text-[10pt] text-secondary/50 mt-0.5 block">{(parseFloat(vitals[v.key]) * 0.453592).toFixed(1)} kg</span>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        {bmiInfo && (
-                            <div className="flex items-center gap-2 mt-1.5">
-                                <span className="text-[10pt] text-secondary">BMI:</span>
-                                <span className={`text-[10pt] font-medium ${
-                                    bmiInfo.value < 18.5 ? 'text-amber-500'
-                                    : bmiInfo.value < 25 ? 'text-themegreen'
-                                    : bmiInfo.value < 30 ? 'text-amber-500'
-                                    : 'text-themeredred'
-                                }`}>
-                                    {bmiInfo.display}
-                                </span>
-                                <span className="text-[10pt] text-secondary/50">
-                                    {bmiInfo.value < 18.5 ? 'Underweight'
-                                    : bmiInfo.value < 25 ? 'Normal'
-                                    : bmiInfo.value < 30 ? 'Overweight'
-                                    : 'Obese'}
-                                </span>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </section>
-
             {/* ── Exam Blocks ──────────────────────────────────────── */}
             {mode === 'template' && flatBlockList.length === 0 ? (
                 /* Empty state — provider hasn't selected any blocks yet */
-                <div className="rounded-2xl border border-dashed border-tertiary/15 bg-themewhite2/50 py-8 flex flex-col items-center gap-2">
+                <div className="flex flex-col items-center gap-2 py-6">
                     <button
                         type="button"
                         onClick={openBlockPicker}
-                        className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
+                        className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
                     >
-                        <Plus size={16} />
+                        <Plus size={14} />
                     </button>
                     <p className="text-[10px] text-tertiary/40">Add exam systems</p>
                 </div>
@@ -1083,15 +1128,22 @@ export function PhysicalExam({
                             )}
                         </div>
 
-                        <div>
+                        <div
+                            ref={listRef}
+                            onPointerMove={handleDragMove}
+                            onPointerUp={handleDragEnd}
+                            onPointerCancel={handleDragEnd}
+                        >
                             {flatBlockList.map((entry, i) => (
                                 <ExamItemRow
                                     key={entry.key}
                                     block={entry.viewBlock}
                                     state={blockStates[entry.key] ?? defaultItemState()}
-                                    onCycleStatus={() => cycleStatus(entry.key, entry.viewBlock)}
                                     onTap={handleRowTap}
                                     index={i}
+                                    isDragging={dragIndex === i}
+                                    dragOffset={dragIndex === i ? dragOffset : 0}
+                                    onDragStart={handleDragStart}
                                 />
                             ))}
                         </div>
@@ -1141,6 +1193,71 @@ export function PhysicalExam({
                         const showMsk = tl.some(b => b.key === 'msk') || childMatch.length > 0;
                         return (
                             <div className="py-1">
+                                {(!lc || 'vitals'.includes(lc) || 'vital signs'.includes(lc)) && (
+                                    <div className="px-3 py-2 border-b border-tertiary/10">
+                                        <p className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">Vital Signs</p>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {VITAL_SIGNS.map(v => {
+                                                if (v.key === 'bpDia') return null;
+                                                if (v.key === 'bpSys') return (
+                                                    <div key="bp" className="flex items-center gap-1">
+                                                        <input
+                                                            type="text"
+                                                            value={vitals['bpSys'] || ''}
+                                                            onChange={(e) => setVitalValue('bpSys', e.target.value)}
+                                                            placeholder="BP sys"
+                                                            className="w-1/2 text-[10pt] px-3 py-2.5 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
+                                                        />
+                                                        <span className="text-[10pt] text-tertiary/40">/</span>
+                                                        <input
+                                                            type="text"
+                                                            value={vitals['bpDia'] || ''}
+                                                            onChange={(e) => setVitalValue('bpDia', e.target.value)}
+                                                            placeholder="dia"
+                                                            className="w-1/2 text-[10pt] px-3 py-2.5 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
+                                                        />
+                                                    </div>
+                                                );
+                                                return (
+                                                    <div key={v.key}>
+                                                        <input
+                                                            type="text"
+                                                            value={vitals[v.key] || ''}
+                                                            onChange={(e) => setVitalValue(v.key, e.target.value)}
+                                                            placeholder={`${v.shortLabel} (${v.unit})`}
+                                                            className="w-full text-[10pt] px-3 py-2.5 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
+                                                        />
+                                                        {v.key === 'ht' && vitals[v.key]?.trim() && !isNaN(parseFloat(vitals[v.key])) && (
+                                                            <span className="text-[10pt] text-secondary/50 mt-0.5 block">{(parseFloat(vitals[v.key]) * 2.54).toFixed(1)} cm</span>
+                                                        )}
+                                                        {v.key === 'wt' && vitals[v.key]?.trim() && !isNaN(parseFloat(vitals[v.key])) && (
+                                                            <span className="text-[10pt] text-secondary/50 mt-0.5 block">{(parseFloat(vitals[v.key]) * 0.453592).toFixed(1)} kg</span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        {bmiInfo && (
+                                            <div className="flex items-center gap-2 mt-1.5">
+                                                <span className="text-[10pt] text-secondary">BMI:</span>
+                                                <span className={`text-[10pt] font-medium ${
+                                                    bmiInfo.value < 18.5 ? 'text-amber-500'
+                                                    : bmiInfo.value < 25 ? 'text-themegreen'
+                                                    : bmiInfo.value < 30 ? 'text-amber-500'
+                                                    : 'text-themeredred'
+                                                }`}>
+                                                    {bmiInfo.display}
+                                                </span>
+                                                <span className="text-[10pt] text-secondary/50">
+                                                    {bmiInfo.value < 18.5 ? 'Underweight'
+                                                    : bmiInfo.value < 25 ? 'Normal'
+                                                    : bmiInfo.value < 30 ? 'Overweight'
+                                                    : 'Obese'}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                                 {(showMsk && !tl.some(b => b.key === 'msk') ? [...tl, MASTER_BLOCK_LIBRARY['msk']!] : tl).map(block => {
                                     if (!block) return null;
                                     const selected = (templateBlockKeys ?? []).includes(block.key);
@@ -1191,6 +1308,21 @@ export function PhysicalExam({
                         );
                     }}
                     actions={[{
+                        key: 'reset',
+                        label: 'Reset',
+                        icon: RotateCcw,
+                        onAction: () => {
+                            setVitals(() => {
+                                const init: Record<string, string> = {};
+                                VITAL_SIGNS.forEach(v => { init[v.key] = ''; });
+                                return init;
+                            });
+                            if (onBlockKeysChange) onBlockKeysChange([]);
+                            setBlockStates({});
+                        },
+                        closesOnAction: false,
+                        variant: 'danger',
+                    }, {
                         key: 'done',
                         label: 'Done',
                         icon: Check,
@@ -1198,6 +1330,7 @@ export function PhysicalExam({
                     }]}
                 />
             )}
+
 
             {/* ── Inline add card (focused mode only) ── */}
             {mode === 'focused' && (

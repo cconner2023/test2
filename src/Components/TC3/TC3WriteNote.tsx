@@ -10,7 +10,7 @@ import { formatTC3Note } from '../../Utilities/TC3Formatter'
 import { formatSignature } from '../../Utilities/NoteFormatter'
 import { getRegionLabel } from '../../Utilities/bodyRegionMap'
 import { encodeTC3Card } from '../../Utilities/tc3Codec'
-import { encryptBarcodeWithBytes } from '../../Utilities/barcodeCodec'
+import { encryptBarcode } from '../../Utilities/barcodeCodec'
 import { TC3BodyDiagramSvg } from './TC3BodyDiagramSvg'
 
 /** Injury type → color mapping (matches InjuryMarker) */
@@ -39,7 +39,6 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
   const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null)
   const [shareStatus, setShareStatus] = useState<'idle' | 'sharing' | 'shared'>('idle')
   const [encodedText, setEncodedText] = useState('')
-  const [barcodeBytes, setBarcodeBytes] = useState<Uint8Array | null>(null)
 
   // Format the readable note text
   const noteText = useMemo(() => formatTC3Note(card, profile), [card, profile])
@@ -54,10 +53,9 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const result = isAuthenticated ? await encryptBarcodeWithBytes(compactString) : null
+      const encrypted = isAuthenticated ? await encryptBarcode(compactString) : null
       if (cancelled) return
-      setEncodedText(result?.text ?? compactString)
-      setBarcodeBytes(result?.bytes ?? null)
+      setEncodedText(encrypted ?? compactString)
     })()
     return () => { cancelled = true }
   }, [compactString, isAuthenticated])
@@ -99,8 +97,9 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
       fullHeight="90dvh"
       mobileClassName="flex flex-col bg-themewhite2"
       header={{ title: 'TC3 Card — Export' }}
+      contentPadding="standard"
     >
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="space-y-4">
         {/* Medic signature & avatar */}
         {signature && (
           <div className="flex items-center gap-3 px-3 py-3 rounded-xl border border-tertiary/15 bg-themewhite">
@@ -206,7 +205,7 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
             </div>
           </div>
           <div className="mt-1">
-            {encodedText && <BarcodeDisplay encodedText={encodedText} barcodeBytes={barcodeBytes} layout={encodedText.length > 300 ? 'col' : 'row'} />}
+            {encodedText && <BarcodeDisplay encodedText={encodedText} layout={encodedText.length > 300 ? 'col' : 'row'} />}
           </div>
         </div>
       </div>

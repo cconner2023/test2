@@ -24,7 +24,6 @@ const COORDS = {
 
 export interface DD689ExportParams {
     encodedValue: string;
-    barcodeBytes?: Uint8Array | null;
     dispositionType: string;
     dispositionText: string;
     symptomText: string;
@@ -35,7 +34,7 @@ export interface DD689ExportParams {
 /**
  * Generate a Data Matrix barcode as PNG bytes using bwip-js.
  */
-function generateBarcodePng(data: string | Uint8Array): Uint8Array {
+function generateBarcodePng(data: string): Uint8Array {
     const canvas = document.createElement('canvas');
     renderBarcodeToCanvas(canvas, data, { scale: 4, padding: 2 });
 
@@ -63,7 +62,7 @@ export async function generateDD689Pdf(params: DD689ExportParams): Promise<Uint8
     // ── Draw barcode ──
     if (params.encodedValue) {
         try {
-            const pngBytes = generateBarcodePng(params.barcodeBytes ?? params.encodedValue);
+            const pngBytes = generateBarcodePng(params.encodedValue);
             const barcodeImage = await pdfDoc.embedPng(pngBytes);
             page.drawImage(barcodeImage, {
                 x: COORDS.barcode.x,

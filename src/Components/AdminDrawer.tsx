@@ -1,9 +1,9 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { Pencil, Plus, Building2, Trash2, X, Inbox, Users, Check } from 'lucide-react'
-import { BaseDrawer } from './BaseDrawer'
+import { BaseDrawer, ScrollPane } from './BaseDrawer'
 import { MobileSearchBar } from './MobileSearchBar'
 import { HeaderPill, PillButton } from './HeaderPill'
-import { ContentWrapper } from './Settings/ContentWrapper'
+import { ContentWrapper } from './ContentWrapper'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ActionSheet } from './ActionSheet'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
@@ -394,14 +394,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         }
     }, [view, selectedUser, selectedClinic, handleBack, detailHeaderActions, mainHeaderActions])
 
-    // Scrollable padded wrapper for sub-views (detail/form)
-    const subViewWrapper = (children: React.ReactNode) => (
-        <div className="h-full overflow-y-auto">
-            <div className="px-4 py-3 md:p-5 pb-8">
-                {children}
-            </div>
-        </div>
-    )
 
     // After creating a user, load full user and switch to view mode
     const handleUserCreated = useCallback(async (userId: string) => {
@@ -433,33 +425,37 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const renderContent = () => {
         switch (view) {
             case 'admin-user-detail':
-                return subViewWrapper(
-                    <AdminUserDetail
-                        user={selectedUser}
-                        onBack={handleBack}
-                        onUserUpdated={(u) => setSelectedUser(u)}
-                        onCreated={handleUserCreated}
-                        editing={userEditing}
-                        onEditingChange={setUserEditing}
-                        saveRequested={userSaveRequested}
-                        onSaveComplete={() => setUserSaveRequested(false)}
-                        onPendingChangesChange={setUserHasPending}
-                    />
+                return (
+                    <ScrollPane>
+                        <AdminUserDetail
+                            user={selectedUser}
+                            onBack={handleBack}
+                            onUserUpdated={(u) => setSelectedUser(u)}
+                            onCreated={handleUserCreated}
+                            editing={userEditing}
+                            onEditingChange={setUserEditing}
+                            saveRequested={userSaveRequested}
+                            onSaveComplete={() => setUserSaveRequested(false)}
+                            onPendingChangesChange={setUserHasPending}
+                        />
+                    </ScrollPane>
                 )
 
             case 'admin-clinic-detail':
-                return subViewWrapper(
-                    <AdminClinicDetail
-                        clinic={selectedClinic}
-                        onClinicUpdated={(c) => setSelectedClinic(c)}
-                        onSelectUser={handleSelectUser}
-                        onCreated={handleClinicCreated}
-                        editing={clinicEditing}
-                        onEditingChange={setClinicEditing}
-                        saveRequested={clinicSaveRequested}
-                        onSaveComplete={() => setClinicSaveRequested(false)}
-                        onPendingChangesChange={setClinicHasPending}
-                    />
+                return (
+                    <ScrollPane>
+                        <AdminClinicDetail
+                            clinic={selectedClinic}
+                            onClinicUpdated={(c) => setSelectedClinic(c)}
+                            onSelectUser={handleSelectUser}
+                            onCreated={handleClinicCreated}
+                            editing={clinicEditing}
+                            onEditingChange={setClinicEditing}
+                            saveRequested={clinicSaveRequested}
+                            onSaveComplete={() => setClinicSaveRequested(false)}
+                            onPendingChangesChange={setClinicHasPending}
+                        />
+                    </ScrollPane>
                 )
 
             case 'admin':
@@ -609,6 +605,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             desktopWidth="w-[90%]"
             header={headerConfig}
             headerFaded={searchFocused}
+            scrollDisabled
         >
             <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && view !== 'admin' ? swipeHandlers : undefined}>
                 <div className="h-full relative">

@@ -4,7 +4,7 @@ import { MobileSearchBar } from './MobileSearchBar'
 import { BaseDrawer } from './BaseDrawer'
 import { TrainingPanel, type TrainingView } from './Settings/TrainingPanel'
 import { MedicationContent } from './MedicationContent'
-import { ContentWrapper } from './Settings/ContentWrapper'
+import { ContentWrapper } from './ContentWrapper'
 import { QuestionRow, WordListContent } from './ScreenerDrawer'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { VitalSignsCalculator } from './VitalSignsCalculator'
@@ -243,7 +243,6 @@ export function KnowledgeBaseDrawer({
             desktopPosition="left"
             header={headerConfig}
             headerFaded={searchFocused}
-            blurHeader
         >
             <ContentWrapper slideDirection={slideDirection} swipeHandlers={canSwipeBack ? swipeHandlers : undefined}>
                 {view === 'home' && (

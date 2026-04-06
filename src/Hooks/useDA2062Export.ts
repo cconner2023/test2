@@ -10,17 +10,17 @@ import { usePdfExport } from './usePdfExport'
 export type ExportStatus = 'idle' | 'generating' | 'done' | 'error'
 
 export function useDA2062Export() {
-  const doExport = useCallback(async (params: DA2062Params) => {
-    const { generateDA2062, downloadPdfBytes } = await import('../Utilities/DA2062Export')
+  const generateFn = useCallback(async (params: DA2062Params) => {
+    const { generateDA2062 } = await import('../Utilities/DA2062Export')
     const bytes = await generateDA2062(params)
 
     const holderName = params.toHolder.displayName.replace(/[^a-zA-Z0-9]/g, '_')
     const filename = `DA2062-${holderName}-${params.date.replace(/\//g, '-')}.pdf`
 
-    downloadPdfBytes(bytes, filename)
+    return { bytes, filename }
   }, [])
 
-  const { status, error, exportPdf: exportDA2062 } = usePdfExport(doExport)
+  const { status, error, preview, exportPdf: exportDA2062, downloadPreview: downloadDA2062, clearPreview: clearDA2062Preview } = usePdfExport(generateFn)
 
-  return { exportDA2062, status, error }
+  return { exportDA2062, status, error, da2062Preview: preview, downloadDA2062, clearDA2062Preview }
 }

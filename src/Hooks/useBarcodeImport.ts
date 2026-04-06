@@ -3,7 +3,6 @@ import { useImagePaste } from './useImagePaste'
 import { useBarcodeScanner } from './useBarcodeScanner'
 import { decodeImageBarcode } from '../Utilities/barcodeImageDecode'
 import { decryptBarcodePayload, isEncryptedBarcode } from '../Utilities/barcodeCodec'
-import { uint8ToBase64 } from '../Utilities/textCodec'
 
 export interface BarcodeImportResult {
   /** Decrypted plaintext payload (pipe-delimited or plain) */
@@ -23,20 +22,13 @@ interface UseBarcodeImportOptions {
 function computeEncodedText(
   text: string,
   payload: string,
-  rawBytes?: Uint8Array | null,
 ): string {
   // If no decryption happened, the original text is the display text
   if (payload === text) return text
-  // Raw binary bytes → show as enc:base64
-  if (rawBytes && rawBytes.length > 0 && !isEncryptedBarcode(text)) {
-    return 'enc:' + uint8ToBase64(rawBytes)
-  }
   // Already enc:-prefixed text → use as-is
   if (isEncryptedBarcode(text)) return text
-  // Binary ISO-8859-1 path → encode the raw chars
-  const bytes = new Uint8Array(text.length)
-  for (let i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i)
-  return 'enc:' + uint8ToBase64(bytes)
+  // Fallback: return original text
+  return text
 }
 
 /**
@@ -80,7 +72,7 @@ export function useBarcodeImport({ onDecoded, enabled = true }: UseBarcodeImport
         setError('Sign in and connect to sync encryption key')
         return
       }
-      const encodedText = computeEncodedText(text, payload, rawBytes)
+      const encodedText = computeEncodedText(text, payload)
       onDecoded({ payload, encodedText })
     } catch (err: any) {
       setError(err.message || 'Failed to decode barcode')

@@ -88,8 +88,7 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
     }
 
     return (
-        <div className="h-full overflow-y-auto">
-            <div className="px-4 py-3 md:p-5 pb-12">
+        <>
                 {/* Header */}
                 <div className="mb-5">
                     <p className="text-[8pt] text-tertiary/50 font-mono">{taskData.taskNumber}</p>
@@ -174,8 +173,7 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
 
                 {/* Bottom sentinel for auto-complete */}
                 <div ref={bottomRef} className="h-1" />
-            </div>
-        </div>
+        </>
     )
 }
 
@@ -191,6 +189,7 @@ export function TrainingDrawer({ isVisible, onClose, taskId }: TrainingDrawerPro
             header={{
                 title: headerTitle,
             }}
+            contentPadding="standard"
         >
             {taskId ? (
                 <TrainingDrawerContent taskId={taskId} />

@@ -8,8 +8,9 @@ import { useNoteShare } from '../../Hooks/useNoteShare';
 import { formatSignature } from '../../Utilities/NoteFormatter';
 import { copyWithHtml } from '../../Utilities/clipboardUtils';
 import { encodeProviderNote, encodeProviderBundle } from '../../Utilities/noteParser';
-import { encryptBarcodeWithBytes } from '../../Utilities/barcodeCodec';
+import { encryptBarcode } from '../../Utilities/barcodeCodec';
 import { selectIsAuthenticated, useAuthStore } from '../../stores/useAuthStore';
+import { PdfPreviewModal } from '../PdfPreviewModal';
 
 import type { ImportedMedicNote } from '../ProviderDrawer'
 import type { PEState } from '../../Types/PETypes'
@@ -36,7 +37,7 @@ export function ProviderNoteOutput({
     const { profile } = useUserProfile();
     const isMobile = useIsMobile();
     const { shareNote, shareStatus } = useNoteShare();
-    const { exportSF600, sf600ExportStatus } = useSF600Export();
+    const { exportSF600, sf600ExportStatus, sf600Preview, downloadSF600, clearSF600Preview } = useSF600Export();
     const isDevRole = useAuthStore(s => s.isDevRole);
     const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null);
 
@@ -66,23 +67,21 @@ export function ProviderNoteOutput({
     }, [hpiNote, peNote, peState, assessmentNote, planNote, profile, userId, importedMedicNote, medicBarcode]);
 
     const [encodedValue, setEncodedValue] = useState(compactString);
-    const [barcodeBytes, setBarcodeBytes] = useState<Uint8Array | null>(null);
 
     useEffect(() => {
         let cancelled = false;
         (async () => {
             if (!isAuthenticated) {
-                if (!cancelled) { setEncodedValue(compactString); setBarcodeBytes(null); }
+                if (!cancelled) { setEncodedValue(compactString); }
                 return;
             }
             try {
-                const result = await encryptBarcodeWithBytes(compactString);
+                const encrypted = await encryptBarcode(compactString);
                 if (!cancelled) {
-                    setEncodedValue(result?.text ?? compactString);
-                    setBarcodeBytes(result?.bytes ?? null);
+                    setEncodedValue(encrypted ?? compactString);
                 }
             } catch {
-                if (!cancelled) { setEncodedValue(compactString); setBarcodeBytes(null); }
+                if (!cancelled) { setEncodedValue(compactString); }
             }
         })();
         return () => { cancelled = true; };
@@ -97,10 +96,10 @@ export function ProviderNoteOutput({
 
         if (medic && !sameAuthor) {
             const layout: [string, string?, string?][] = [
-                ['HPI', medic.medicHpi || undefined, hpiNote || undefined],
-                ['Physical Exam', medic.medicPe || undefined, peNote || undefined],
-                ['Assessment', medic.medicAssessment || undefined, assessmentNote || undefined],
-                ['Plan', medic.medicPlan || undefined, planNote || undefined],
+                ['SUBJECTIVE', medic.medicHpi || undefined, hpiNote || undefined],
+                ['OBJECTIVE', medic.medicPe || undefined, peNote || undefined],
+                ['ASSESSMENT', medic.medicAssessment || undefined, assessmentNote || undefined],
+                ['PLAN', medic.medicPlan || undefined, planNote || undefined],
             ];
 
             // Find last index where each voice has content
@@ -112,7 +111,6 @@ export function ProviderNoteOutput({
 
             layout.forEach(([header, medicText, providerText], i) => {
                 if (!medicText && !providerText) return;
-                if (sections.length > 0) sections.push('');
                 sections.push(header);
                 if (medicText) {
                     sections.push(medicText);
@@ -129,22 +127,21 @@ export function ProviderNoteOutput({
             const addSection = (header: string, medicText?: string, providerText?: string) => {
                 const combined = [medicText, providerText].filter(Boolean).join('\n');
                 if (!combined) return;
-                if (sections.length > 0) sections.push('');
                 sections.push(header);
                 sections.push(combined);
             };
             if (medic) {
-                addSection('HPI', medic.medicHpi, hpiNote);
-                addSection('Physical Exam', medic.medicPe, peNote);
-                addSection('Assessment', medic.medicAssessment, assessmentNote);
-                addSection('Plan', medic.medicPlan, planNote);
+                addSection('SUBJECTIVE', medic.medicHpi, hpiNote);
+                addSection('OBJECTIVE', medic.medicPe, peNote);
+                addSection('ASSESSMENT', medic.medicAssessment, assessmentNote);
+                addSection('PLAN', medic.medicPlan, planNote);
             } else {
-                addSection('HPI', undefined, hpiNote);
-                addSection('Physical Exam', undefined, peNote);
-                addSection('Assessment', undefined, assessmentNote);
-                addSection('Plan', undefined, planNote);
+                addSection('SUBJECTIVE', undefined, hpiNote);
+                addSection('OBJECTIVE', undefined, peNote);
+                addSection('ASSESSMENT', undefined, assessmentNote);
+                addSection('PLAN', undefined, planNote);
             }
-            if (signature) { sections.push(''); sections.push(signature); }
+            if (signature) { sections.push(signature); }
         }
 
         return sections.join('\n');
@@ -164,11 +161,13 @@ export function ProviderNoteOutput({
         if (!previewNote) return;
         const now = new Date();
         const dateStr = now.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+        const nameParts = [profile.lastName, profile.firstName, profile.middleInitial].filter(Boolean).join(' ');
+        const suffix = [profile.credential, profile.rank, profile.component].filter(Boolean).join(', ');
+        const sigName = suffix ? `${nameParts} ${suffix}` : nameParts;
         exportSF600({
             noteText: previewNote,
             date: dateStr,
-            facilityName: profile?.clinicName || undefined,
-            signature: signature || undefined,
+            signatureName: sigName || undefined,
         });
     }
 
@@ -228,7 +227,6 @@ export function ProviderNoteOutput({
                 <div>
                     <BarcodeDisplay
                         encodedText={encodedValue}
-                        barcodeBytes={barcodeBytes}
                         layout={encodedValue.length > 300 ? 'col' : 'row'}
                     />
                 </div>
@@ -238,6 +236,11 @@ export function ProviderNoteOutput({
                     </div>
                 )}
             </div>
+            <PdfPreviewModal
+                preview={sf600Preview}
+                onDownload={downloadSF600}
+                onClose={clearSF600Preview}
+            />
         </div>
     );
 }

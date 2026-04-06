@@ -5,7 +5,7 @@ import { LoadingSpinner } from '../LoadingSpinner';
 import { forward } from 'mgrs';
 import { BaseDrawer } from '../BaseDrawer';
 import { HeaderPill, PillButton } from '../HeaderPill';
-import { ContentWrapper } from '../Settings/ContentWrapper';
+import { ContentWrapper } from '../ContentWrapper';
 import { ErrorDisplay } from '../ErrorDisplay';
 import { useGeolocation } from '../../Hooks/useGeolocation';
 import { useIsMobile } from '../../Hooks/useIsMobile';
@@ -496,26 +496,17 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
       header={view === 'list' ? {
         title: 'Map Overlay',
         badge: 'BETA',
+        leftContent: isMobile ? (
+          <HeaderPill>
+            <PillButton icon={Compass} onClick={handleOpenConverter} label="MGRS" />
+          </HeaderPill>
+        ) : undefined,
       } : undefined}
     >
       <ContentWrapper slideDirection="">
         {/* ── List view ── */}
         {view === 'list' && (
           <div className="flex flex-col h-full">
-            {/* Mobile blurred header */}
-            {isMobile && (
-              <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center backdrop-blur-xl bg-themewhite3/80">
-                <HeaderPill>
-                  <PillButton icon={Compass} onClick={handleOpenConverter} label="MGRS" />
-                </HeaderPill>
-                <p className="flex-1 text-sm font-medium text-primary truncate text-center mx-3">
-                  Map Overlay
-                </p>
-                <HeaderPill>
-                  <PillButton icon={X} onClick={onClose} label="Close" />
-                </HeaderPill>
-              </div>
-            )}
             {loading ? (
               <div className="flex-1 flex items-center justify-center">
                 <LoadingSpinner size="lg" className="text-themeblue3" />

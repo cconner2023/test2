@@ -183,26 +183,6 @@ export const ActionIconButton = ({
     );
 };
 
-export const SlideWrapper = ({
-    children,
-    slideDirection
-}: {
-    children: React.ReactNode;
-    slideDirection: 'left' | 'right' | '';
-}) => {
-    const slideClasses = {
-        '': '',
-        'left': 'animate-slide-in-left',
-        'right': 'animate-slide-in-right'
-    };
-
-    return (
-        <div className={`h-full w-full ${slideClasses[slideDirection]}`}>
-            {children}
-        </div>
-    );
-};
-
 export const ToggleOption: React.FC<{
     checked: boolean;
     onChange: () => void;

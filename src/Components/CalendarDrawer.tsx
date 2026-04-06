@@ -269,37 +269,32 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
             onClose={onClose}
             mobileFullScreen
             desktopWidth="w-[90%]"
-            header={!isMobile ? {
-                title: 'Calendar',
-            } : undefined}
+            header={{
+                title: isMobile ? monthLabel : 'Calendar',
+                leftContent: isMobile ? (
+                    <HeaderPill>
+                        <PillButton data-tour="calendar-mobile-filter" icon={ListFilter} onClick={() => setShowControlsDrawer(true)} label="Filter" />
+                    </HeaderPill>
+                ) : undefined,
+                rightContent: isMobile ? (
+                    <HeaderPill>
+                        <PillButton icon={X} onClick={onClose} label="Close" />
+                    </HeaderPill>
+                ) : undefined,
+                hideDefaultClose: isMobile,
+                extraRow: isMobile && viewMode === 'month' ? (
+                    <div className="grid grid-cols-7">
+                        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((label, i) => (
+                            <div key={i} className="text-center text-[10px] font-semibold text-tertiary/50 py-1 uppercase">
+                                {label}
+                            </div>
+                        ))}
+                    </div>
+                ) : undefined,
+            }}
+            scrollDisabled
         >
             <div className="relative h-full">
-                {/* Mobile header — floats over content for scroll-behind blur */}
-                {isMobile && (
-                    <div className="md:hidden absolute top-0 inset-x-0 z-10 backdrop-blur-sm bg-transparent">
-                        <div className="px-3 py-3 pt-[max(0.75rem,var(--sat,0px))] flex items-center justify-between">
-                            <HeaderPill>
-                                <PillButton data-tour="calendar-mobile-filter" icon={ListFilter} onClick={() => setShowControlsDrawer(true)} label="Filter" />
-                            </HeaderPill>
-                            <span className="text-sm font-semibold text-primary">
-                                {monthLabel}
-                            </span>
-                            <HeaderPill>
-                                <PillButton icon={X} onClick={onClose} label="Close" />
-                            </HeaderPill>
-                        </div>
-                        {viewMode === 'month' && (
-                            <div className="grid grid-cols-7">
-                                {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((label, i) => (
-                                    <div key={i} className="text-center text-[10px] font-semibold text-tertiary/50 py-1 uppercase">
-                                        {label}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
-
                 <div className="flex absolute inset-0 overflow-hidden">
                     {/* Contextual sidebar — desktop only, hidden for troops-to-task (has its own personnel column) */}
                     {!isMobile && viewMode !== 'troops' && (
@@ -353,6 +348,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                     fullHeight="90dvh"
                     zIndex="z-50"
                     header={{ title: '', hideDefaultClose: true, rightContentFill: true, rightContent: controlsMonthNav }}
+                    scrollDisabled
                 >
                     <div data-tour="calendar-controls-drawer" className="flex flex-col h-full">
                         <div className="shrink-0 px-3">

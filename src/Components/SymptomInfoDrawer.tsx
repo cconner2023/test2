@@ -61,9 +61,9 @@ export function SymptomInfoDrawer({
                 ),
                 hideDefaultClose: true,
             }}
-            blurHeader
+            contentPadding="compact"
         >
-            <div className="px-4 pb-4" data-tour="symptom-info-content">
+            <div data-tour="symptom-info-content">
                 <SymptomGuidelines
                     symptom={selectedSymptom}
                     category={selectedCategory}

@@ -2,7 +2,8 @@ import { memo, useState, useCallback } from 'react'
 import { ChevronLeft, ChevronRight, FileText } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { TC3_WIZARD_PAGES } from '../../Types/TC3Types'
-import { SlideWrapper, ProgressDots } from '../WriteNoteHelpers'
+import { ProgressDots } from '../WriteNoteHelpers'
+import { ContentWrapper } from '../ContentWrapper'
 import { CasualtyInfoForm } from './CasualtyInfoForm'
 import { MechanismForm } from './MechanismForm'
 import { BodyDiagram } from './BodyDiagram'
@@ -72,7 +73,7 @@ export const TC3MobileWizard = memo(function TC3MobileWizard() {
 
       {/* Page content */}
       <div className="flex-1 overflow-y-auto">
-        <SlideWrapper slideDirection={slideDirection}>
+        <ContentWrapper slideDirection={slideDirection}>
           <div className="px-4 py-4 min-h-full">
             {wizardStep === 0 && <CasualtyInfoForm />}
             {wizardStep === 1 && <MechanismForm />}
@@ -91,7 +92,7 @@ export const TC3MobileWizard = memo(function TC3MobileWizard() {
               </div>
             )}
           </div>
-        </SlideWrapper>
+        </ContentWrapper>
       </div>
 
       {/* Footer — Next / Export button */}

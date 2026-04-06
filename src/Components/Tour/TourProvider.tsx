@@ -127,6 +127,19 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       return
     }
 
+    // ── scroll-to:target — scroll a data-tour element into view ──
+    const scrollMatch = action.match(/^scroll-to:(.+)$/)
+    if (scrollMatch) {
+      const target = scrollMatch[1]
+      await waitForTarget(target)
+      const el = document.querySelector(`[data-tour="${target}"]`) as HTMLElement | null
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        await new Promise(r => setTimeout(r, 400))
+      }
+      return
+    }
+
     // ── navigate:category:id — select a category in ColumnA ──
     const catMatch = action.match(/^navigate:category:(\d+)$/)
     if (catMatch) {
@@ -187,8 +200,8 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       // Set global flag before mount so WriteNotePage initializes with all sections
       window.__tourNoteOverride = true
       clickTarget('algorithm-expand-note')
-      // Wait for WriteNotePage to mount (Decision Making is the first page)
-      await waitForTarget('writenote-decision', 3000)
+      // Wait for WriteNotePage to mount (HPI is the first page)
+      await waitForTarget('writenote-hpi', 3000)
       await new Promise(r => setTimeout(r, 300))
       return
     }
@@ -462,7 +475,7 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
         cardStates,
         selectedSymptom: { icon: 'A-1', text: 'Sore Throat/Hoarseness' },
       })
-      await waitForTarget('writenote-decision', 3000)
+      await waitForTarget('writenote-hpi', 3000)
       await new Promise(r => setTimeout(r, 300))
       return
     }

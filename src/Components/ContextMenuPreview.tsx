@@ -34,6 +34,8 @@ interface ContextMenuPreviewProps {
   onAdd?: (value: string) => void
   /** Placeholder for the add input */
   addPlaceholder?: string
+  /** Optional element rendered before the add input (e.g. category selector) */
+  addPrefix?: ReactNode
   /** When provided, scopes the popover to this container (absolute instead of fixed).
    *  The container element must have `position: relative` and a defined height. */
   containerRef?: React.RefObject<HTMLElement | null>
@@ -68,6 +70,7 @@ export function ContextMenuPreview({
   supplemental,
   onAdd,
   addPlaceholder = 'New item...',
+  addPrefix,
   containerRef,
 }: ContextMenuPreviewProps) {
   const [mounted, setMounted] = useState(false)
@@ -185,6 +188,7 @@ export function ContextMenuPreview({
             >
               <div className="overflow-hidden min-h-0">
                 <div className="flex items-center gap-2">
+                  {addPrefix}
                   <div className="flex-1 relative">
                     <input
                       ref={addInputRef}
@@ -218,9 +222,9 @@ export function ContextMenuPreview({
             </div>
           )}
 
-          {/* Supplemental card — optional */}
+          {/* Supplemental — optional, rendered without wrapper */}
           {supplemental && (
-            <div className="w-full rounded-2xl bg-themewhite shadow-xl border border-tertiary/10 overflow-hidden shrink-0">
+            <div className="w-full shrink-0">
               {supplemental}
             </div>
           )}

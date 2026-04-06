@@ -106,7 +106,6 @@ export const useNoteImport = () => {
         const result = assembleNote(
             {
                 includeAlgorithm: parsed.flags.includeAlgorithm,
-                includeDecisionMaking: parsed.flags.includeDecisionMaking,
                 customNote: parsed.flags.includeHPI ? parsed.hpiText : '',
                 physicalExamNote: parsed.flags.includePhysicalExam ? parsed.peText : '',
                 planNote: parsed.flags.includePlan ? parsed.planText : '',
@@ -140,7 +139,7 @@ export const useNoteImport = () => {
             addMerged('HPI:', result.sections.customNote || undefined, parsed.providerHpi);
             addMerged('PHYSICAL EXAM:', result.sections.physicalExam, parsed.providerPe);
             if (result.sections.algorithm) { parts.push(''); const t = selectedSymptom?.icon && selectedSymptom?.text ? `${selectedSymptom.icon}: ${selectedSymptom.text}:` : 'ALGORITHM:'; parts.push(t); parts.push(result.sections.algorithm); }
-            if (result.sections.decisionMaking) { parts.push(''); parts.push('DECISION MAKING:'); parts.push(result.sections.decisionMaking); }
+            if (result.sections.differentials) { parts.push(''); parts.push('DIFFERENTIALS:'); parts.push(result.sections.differentials); }
             addMerged('ASSESSMENT:', undefined, parsed.providerAssessment);
             addMerged('PLAN:', result.sections.plan, parsed.providerPlan);
             if (medicSig) { parts.push(''); parts.push(medicSig); }
@@ -157,8 +156,8 @@ export const useNoteImport = () => {
                     ? `${selectedSymptom.icon}: ${selectedSymptom.text}:` : 'ALGORITHM:';
                 layout.push([title, result.sections.algorithm, undefined, true]);
             }
-            if (result.sections.decisionMaking) {
-                layout.push(['DECISION MAKING:', result.sections.decisionMaking, undefined, true]);
+            if (result.sections.differentials) {
+                layout.push(['DIFFERENTIALS:', result.sections.differentials, undefined, true]);
             }
             layout.push(['ASSESSMENT:', undefined, parsed.providerAssessment, false]);
             layout.push(['PLAN:', result.sections.plan, parsed.providerPlan, false]);

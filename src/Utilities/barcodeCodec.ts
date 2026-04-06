@@ -21,12 +21,6 @@ import { uint8ToBase64, base64ToUint8 } from './textCodec'
 import { aesGcmEncrypt, aesGcmDecrypt } from '../lib/aesGcm'
 import { logError } from './ErrorHandler'
 
-/** Dual-format encrypted barcode: raw bytes for binary barcode, text for clipboard. */
-export interface EncryptedBarcode {
-  bytes: Uint8Array;   // raw IV + ciphertext + tag → binary barcode
-  text: string;        // "enc:{base64(bytes)}" → clipboard/paste
-}
-
 // ---- Constants ----
 
 /** Prefix for the encrypted barcode display/paste format. */
@@ -266,31 +260,6 @@ export async function encryptBarcode(asciiPayload: string): Promise<string | nul
   }
 }
 
-/**
- * Encrypt an ASCII barcode payload, returning both raw bytes and text formats.
- *
- * Pipeline: pack (strip base64) → deflateRaw → AES-GCM → { bytes, text: "enc:" + base64 }
- *
- * Returns null if no encryption key available.
- */
-export async function encryptBarcodeWithBytes(asciiPayload: string): Promise<EncryptedBarcode | null> {
-  const key = await getBarcodeKey()
-  if (!key) return null
-
-  try {
-    const packed = packToMixedBinary(asciiPayload)
-    const compressed = deflateRaw(packed)
-    const binary = await aesGcmEncrypt(key, compressed)
-
-    return {
-      bytes: binary,
-      text: ENCRYPTED_PREFIX + uint8ToBase64(binary),
-    }
-  } catch (err) {
-    logError('barcodeCodec.encryptWithBytes', err)
-    return null
-  }
-}
 
 /**
  * Decrypt an "enc:{base64}" barcode string back to ASCII pipe-delimited format.
@@ -344,14 +313,6 @@ export function isEncryptedBarcode(text: string): boolean {
   return !!text && text.startsWith(ENCRYPTED_PREFIX)
 }
 
-/** Convert a Uint8Array to a binary string (each byte → one char via charCode). Chunked to avoid call stack overflow. */
-function bytesToBinaryString(bytes: Uint8Array): string {
-  const chunks: string[] = [];
-  for (let i = 0; i < bytes.length; i += 8192) {
-    chunks.push(String.fromCharCode(...bytes.subarray(i, i + 8192)));
-  }
-  return chunks.join('');
-}
 
 // ---- 3-path decrypt waterfall ----
 
@@ -394,20 +355,18 @@ export async function decryptBarcodePayload(
 
 /**
  * Render a Data Matrix barcode to a canvas element.
- * Accepts either an ASCII-safe string (plain or "enc:{base64}") or raw Uint8Array (binary mode).
+ * Accepts an ASCII-safe string (plain pipe-delimited or "enc:{base64}").
  */
 export function renderBarcodeToCanvas(
   canvas: HTMLCanvasElement,
-  encodedData: string | Uint8Array,
+  encodedData: string,
   options?: { scale?: number; padding?: number; backgroundcolor?: string }
 ): void {
-  const isBinary = encodedData instanceof Uint8Array
   bwipjs.toCanvas(canvas, {
     bcid: 'datamatrix',
-    text: isBinary ? bytesToBinaryString(encodedData) : encodedData,
+    text: encodedData,
     scale: options?.scale ?? 2,
     padding: options?.padding ?? 3,
-    ...(isBinary ? { binarytext: true } : {}),
     ...(options?.backgroundcolor ? { backgroundcolor: options.backgroundcolor } : {}),
   })
 }
