@@ -493,6 +493,9 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
       onClose={onClose}
       mobileFullScreen
       fullHeight="95dvh"
+      // Viewer view uses a custom in-content header: an animated proportional
+      // flex split between the search pill and tool pill that DrawerHeader's
+      // left/right slot model doesn't accommodate. Intentional exception.
       header={view === 'list' ? {
         title: 'Map Overlay',
         badge: 'BETA',

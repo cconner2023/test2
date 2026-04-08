@@ -163,6 +163,103 @@ function PlanBlockRow({ label, state, onTap, index, isDragging, dragOffset, onDr
     );
 }
 
+// ── Active items card (all selected tags, cross-category) ────
+
+interface ActiveItemEntry {
+    tag: string;
+    catKey: string;
+    catLabel: string;
+}
+
+function ActiveItemsCard({ items, onToggle, onReorder }: {
+    items: ActiveItemEntry[];
+    onToggle: (catKey: string, tag: string) => void;
+    onReorder: (catKey: string, fromIdx: number, toIdx: number) => void;
+}) {
+    const dragRef = useRef<{
+        index: number;
+        currentIndex: number;
+        startY: number;
+        itemHeight: number;
+    } | null>(null);
+    const [dragIndex, setDragIndex] = useState<number | null>(null);
+    const [dragOffset, setDragOffset] = useState(0);
+
+    const handleDragStart = useCallback((index: number, e: React.PointerEvent) => {
+        const row = (e.currentTarget as HTMLElement).closest('[data-active-row]') as HTMLElement | null;
+        if (!row) return;
+        dragRef.current = { index, currentIndex: index, startY: e.clientY, itemHeight: row.getBoundingClientRect().height };
+        setDragIndex(index);
+        setDragOffset(0);
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    }, []);
+
+    const handleDragMove = useCallback((e: React.PointerEvent) => {
+        const ds = dragRef.current;
+        if (!ds) return;
+        const dy = e.clientY - ds.startY;
+        setDragOffset(dy);
+        ds.currentIndex = Math.max(0, Math.min(items.length - 1, ds.index + Math.round(dy / ds.itemHeight)));
+    }, [items.length]);
+
+    const handleDragEnd = useCallback(() => {
+        const ds = dragRef.current;
+        if (ds && ds.index !== ds.currentIndex) {
+            const dragged = items[ds.index];
+            const target = items[ds.currentIndex];
+            if (dragged.catKey === target.catKey) {
+                const catItems = items.filter(x => x.catKey === dragged.catKey);
+                const fromIdx = catItems.findIndex(x => x.tag === dragged.tag);
+                const toIdx = catItems.findIndex(x => x.tag === target.tag);
+                if (fromIdx !== -1 && toIdx !== -1) onReorder(dragged.catKey, fromIdx, toIdx);
+            }
+        }
+        dragRef.current = null;
+        setDragIndex(null);
+        setDragOffset(0);
+    }, [items, onReorder]);
+
+    return (
+        <div className="w-full rounded-2xl bg-themewhite shadow-xl border border-tertiary/10 overflow-hidden shrink-0">
+            <div
+                className="overflow-y-auto overscroll-contain"
+                style={{ maxHeight: '120px' }}
+                onPointerMove={handleDragMove}
+                onPointerUp={handleDragEnd}
+                onPointerCancel={handleDragEnd}
+            >
+                {items.map(({ tag, catKey, catLabel }, i) => {
+                    const isDragging = dragIndex === i;
+                    return (
+                        <div
+                            key={`${catKey}-${tag}`}
+                            data-active-row
+                            style={isDragging ? { transform: `translateY(${dragOffset}px)`, zIndex: 50, position: 'relative' } : undefined}
+                            className={`flex items-center gap-2 px-3 py-2.5 bg-tertiary/4 ${i > 0 ? 'border-t border-tertiary/10' : ''} ${isDragging ? 'opacity-80 shadow-lg rounded-lg bg-themewhite2' : ''}`}
+                        >
+                            <div
+                                className="shrink-0 text-tertiary/30 touch-none cursor-grab active:cursor-grabbing"
+                                onPointerDown={(e) => { e.stopPropagation(); handleDragStart(i, e); }}
+                            >
+                                <GripVertical size={16} />
+                            </div>
+                            <span className="flex-1 text-[11pt] text-primary min-w-0 truncate">{tag}</span>
+                            <span className="text-[9px] text-tertiary/30 shrink-0">{catLabel}</span>
+                            <button
+                                type="button"
+                                onClick={() => onToggle(catKey, tag)}
+                                className="shrink-0 p-1 text-tertiary/30 active:text-themeredred transition-colors"
+                            >
+                                <X size={12} />
+                            </button>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
 // ── Main component ───────────────────────────────────────────
 
 export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, onChange, expanders = [],
@@ -338,6 +435,12 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
         return planCats;
     }, [allTags, states]);
 
+    const activeItems = useMemo(() =>
+        allCategories.flatMap(cat =>
+            cat.state.selectedTags.map(tag => ({ tag, catKey: cat.key, catLabel: cat.label })),
+        ),
+    [allCategories]);
+
     const handleRowTap = useCallback((index: number, rect: DOMRect) => {
         const key = visibleBlocks[index];
         setFabAnchorRect(rect);
@@ -404,13 +507,15 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
             {/* Block rows or empty state */}
             {visibleBlocks.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-6">
-                    <button
-                        type="button"
-                        onClick={openFab}
-                        className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
-                    >
-                        <Plus size={14} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={openFab}
+                            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
+                        >
+                            <Plus size={14} />
+                        </button>
+                    </div>
                     <p className="text-[10px] text-tertiary/40">Add plan blocks</p>
                 </div>
             ) : (
@@ -437,7 +542,7 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                             ))}
                         </div>
                     </div>
-                    <div className="flex justify-center pt-1">
+                    <div className="flex justify-center items-center gap-2 pt-1">
                         <button
                             type="button"
                             onClick={openFab}
@@ -455,6 +560,44 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                 onClose={() => setShowFabPopover(false)}
                 anchorRect={fabAnchorRect}
                 maxWidth="max-w-[340px] md:max-w-[520px]"
+                previewMaxHeight="168px"
+                headerCard={
+                    <>
+                        {orderSets.length > 0 && (
+                            <div className="w-full rounded-2xl bg-themewhite shadow-xl border border-tertiary/10 overflow-hidden shrink-0">
+                                <div className="py-2 px-3">
+                                    <p className="text-[9px] font-semibold text-tertiary/40 uppercase tracking-wider mb-2">Order Sets</p>
+                                    <div className="flex overflow-x-auto gap-1.5 pb-1" style={{ scrollbarWidth: 'none' }}>
+                                        {orderSets.map(os => {
+                                            const isActive = activeSetIds.has(os.id);
+                                            return (
+                                                <button
+                                                    key={os.id}
+                                                    type="button"
+                                                    onClick={() => applyOrderSet(os)}
+                                                    className={`shrink-0 px-3 py-1.5 text-[10pt] rounded-full transition-colors active:scale-95 ${
+                                                        isActive
+                                                            ? 'bg-tertiary/8 text-primary font-medium'
+                                                            : 'bg-tertiary/5 text-tertiary/40'
+                                                    }`}
+                                                >
+                                                    {os.name}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {activeItems.length > 0 && (
+                            <ActiveItemsCard
+                                items={activeItems}
+                                onToggle={(catKey, tag) => toggleTag(catKey as PlanBlockKey, tag)}
+                                onReorder={(catKey, from, to) => reorderTag(catKey as PlanBlockKey, from, to)}
+                            />
+                        )}
+                    </>
+                }
                 preview={
                     <PlanAllBlocksPreview
                         categories={allCategories}
@@ -465,12 +608,6 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                         }}
                         activeTab={activeTab}
                         onTabChange={(key) => { setActiveTab(key as PlanBlockKey); setAddCategory(key as PlanBlockKey); }}
-                        onReorderTag={(catKey, from, to) => {
-                            reorderTag(catKey as PlanBlockKey, from, to);
-                        }}
-                        orderSets={orderSets}
-                        activeSetIds={activeSetIds}
-                        onToggleOrderSet={applyOrderSet}
                     />
                 }
                 supplemental={

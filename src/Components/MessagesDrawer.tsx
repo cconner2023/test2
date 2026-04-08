@@ -168,6 +168,9 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
         }
     }, [view, selectedPeerId, selectedGroupId, selectedPeerName, handleBack, handleClose, callActions])
 
+    // Mobile bypasses BaseDrawer: App.tsx owns the horizontal slide-in
+    // transition for the conversation pane. BaseDrawer's vertical drawer
+    // animation model would fight that animation. Intentional exception.
     // ── Mobile: full-screen content (animation handled by App.tsx) ────────
     if (isMobile) {
         const mobileHeader = view === 'messages' ? (

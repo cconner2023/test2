@@ -26,8 +26,12 @@ interface ContextMenuPreviewProps {
   actions: ContextMenuAction[]
   /** Override the default max-width (340px) of the card */
   maxWidth?: string
+  /** Override the default max-height of the scrollable preview card (default: 40dvh) */
+  previewMaxHeight?: string
   /** Adds a search input pinned to the top of the preview card */
   searchPlaceholder?: string
+  /** Optional card rendered above the main preview card */
+  headerCard?: ReactNode
   /** Optional second card rendered between preview and actions */
   supplemental?: ReactNode
   /** When provided, shows an "Add" action in the bar that reveals an inline input */
@@ -66,7 +70,9 @@ export function ContextMenuPreview({
   preview,
   actions,
   maxWidth,
+  previewMaxHeight,
   searchPlaceholder,
+  headerCard,
   supplemental,
   onAdd,
   addPlaceholder = 'New item...',
@@ -170,8 +176,11 @@ export function ContextMenuPreview({
             </div>
           )}
 
+          {/* Header cards — floats above main preview; callers supply their own card styling */}
+          {headerCard}
+
           {/* Preview card — scrollable content */}
-          <div className="w-full rounded-2xl bg-themewhite shadow-xl border border-tertiary/10 overflow-hidden min-h-0" style={{ maxHeight: '40dvh' }}>
+          <div className="w-full rounded-2xl bg-themewhite shadow-xl border border-tertiary/10 overflow-hidden min-h-0" style={{ maxHeight: previewMaxHeight ?? '40dvh' }}>
             <div className="overflow-y-auto h-full overscroll-contain">
               {resolvedPreview}
             </div>

@@ -321,7 +321,7 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
       className="touch-pan-xy h-full min-h-0 min-w-0 overflow-auto overscroll-contain"
       onScroll={handleScroll}
     >
-      <div className="relative" style={{ minWidth: totalWidth, display: 'grid', gridTemplateRows: `auto auto repeat(${medics.length + (unassignedLanes.length > 0 ? 1 : 0)}, auto) auto` }}>
+      <div className="relative" style={{ minWidth: totalWidth, display: 'grid', gridTemplateRows: `auto repeat(${medics.length + (unassignedLanes.length > 0 ? 1 : 0)}, auto) 1fr` }}>
         {/* Current time indicator — vertical red line spanning all rows */}
         {nowLineX !== null && (
           <div
@@ -335,11 +335,8 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
           </div>
         )}
 
-        {/* Spacer for mobile floating header */}
-        <div className="h-[calc(var(--sat,0px)+3.75rem)] md:hidden" />
-
         {/* Time header with day boundaries */}
-        <div className="sticky top-[calc(var(--sat,0px)+3.75rem)] md:top-0 z-10 flex items-end backdrop-blur-xs bg-transparent border-b border-primary/10">
+        <div className="sticky top-0 z-10 flex items-end backdrop-blur-xs bg-transparent border-b border-primary/10">
           {/* Date nav in personnel column */}
           <div className="sticky left-0 z-20 shrink-0 border-r border-primary/10 flex items-center justify-between px-1.5 py-1 bg-themewhite3" style={{ width: NAME_COL_WIDTH }}>
             <button onClick={prevDay} className="w-6 h-6 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95">

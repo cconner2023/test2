@@ -245,62 +245,60 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
 
   return (
     <div data-tour="calendar-day-view" className="flex flex-col h-full">
-      {/* Spacer for mobile floating header */}
-      <div className="h-[calc(var(--sat,0px)+3.75rem)] md:hidden shrink-0" />
-
-      {hasNav ? (
-        <div className="flex items-center justify-between px-3 py-2 border-b border-primary/10">
-          <button
-            onClick={onPrevDay}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95"
-            aria-label="Previous day"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button
-            onClick={onDateTap}
-            className="text-xs font-medium text-tertiary/50 uppercase tracking-wider hover:text-primary transition-colors active:scale-95"
-          >
-            {dateLabel}
-          </button>
-          <button
-            onClick={onNextDay}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95"
-            aria-label="Next day"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-      ) : (
-        <p className="px-3 py-2 text-xs font-medium text-tertiary/50 uppercase tracking-wider border-b border-primary/10">
-          {dateLabel}
-        </p>
-      )}
-
-      {allDayEvents.length > 0 && (
-        <div className="px-3 py-2 border-b border-primary/10 space-y-1">
-          {allDayEvents.map(e => (
-            <button
-              key={e.id}
-              onClick={() => onSelectEvent(e.id)}
-              onContextMenu={(ev) => {
-                if (onEventContextMenu) {
-                  ev.preventDefault()
-                  onEventContextMenu(e.id, ev.clientX, ev.clientY)
-                }
-              }}
-              className={`w-full text-left text-xs font-normal px-2 py-1 rounded border ${CATEGORY_BG_MAP[e.category]} active:scale-95 transition-all duration-200 truncate`}
-            >
-              {e.title}
-            </button>
-          ))}
-        </div>
-      )}
-
       <div
         ref={scrollRef}
-        className={`flex-1 ${isDragging ? 'overflow-hidden' : 'overflow-y-auto'}`}
+        className={`flex-1 min-h-0 ${isDragging ? 'overflow-hidden' : 'overflow-y-auto'}`}
       >
+        <div className="sticky top-0 z-10 bg-themewhite3">
+          {hasNav ? (
+            <div className="flex items-center justify-between px-3 py-2 border-b border-primary/10">
+              <button
+                onClick={onPrevDay}
+                className="w-8 h-8 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95"
+                aria-label="Previous day"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={onDateTap}
+                className="text-xs font-medium text-tertiary/50 uppercase tracking-wider hover:text-primary transition-colors active:scale-95"
+              >
+                {dateLabel}
+              </button>
+              <button
+                onClick={onNextDay}
+                className="w-8 h-8 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95"
+                aria-label="Next day"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <p className="px-3 py-2 text-xs font-medium text-tertiary/50 uppercase tracking-wider border-b border-primary/10">
+              {dateLabel}
+            </p>
+          )}
+
+          {allDayEvents.length > 0 && (
+            <div className="px-3 py-2 border-b border-primary/10 space-y-1">
+              {allDayEvents.map(e => (
+                <button
+                  key={e.id}
+                  onClick={() => onSelectEvent(e.id)}
+                  onContextMenu={(ev) => {
+                    if (onEventContextMenu) {
+                      ev.preventDefault()
+                      onEventContextMenu(e.id, ev.clientX, ev.clientY)
+                    }
+                  }}
+                  className={`w-full text-left text-xs font-normal px-2 py-1 rounded border ${CATEGORY_BG_MAP[e.category]} active:scale-95 transition-all duration-200 truncate`}
+                >
+                  {e.title}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <div
           className="relative"
           style={{ height: totalHeight }}

@@ -25,6 +25,26 @@ import { PdfPreviewModal } from './PdfPreviewModal';
 
 type DispositionType = dispositionType['type'];
 
+interface SectionToggleProps {
+    label: string;
+    enabled: boolean;
+    onToggle: () => void;
+    colors: ReturnType<typeof getColorClasses>;
+}
+
+const SectionToggle = ({ label, enabled, onToggle, colors }: SectionToggleProps) => (
+    <div className="flex items-center justify-between py-1">
+        <p className="text-[10pt] font-semibold text-primary/80 uppercase tracking-wider">{label}</p>
+        <button
+            type="button"
+            onClick={onToggle}
+            className={`relative w-9 h-5 rounded-full transition-colors ${enabled ? colors.sliderClass : 'bg-tertiary/25'}`}
+        >
+            <div className={`absolute top-[2px] w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${enabled ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} />
+        </button>
+    </div>
+);
+
 type PageId = 'edit' | 'fullnote';
 
 interface WriteNoteProps {
@@ -198,22 +218,16 @@ export const WriteNotePage = ({
                     <div data-tour="writenote-hpi" className={`w-full p-4 ${currentPageId !== 'edit' ? 'hidden' : ''}`}>
                         <div className="space-y-4">
                                 {/* Full Note toggle */}
-                                <section className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Full Note</p>
-                                        <button
-                                            type="button"
-                                            onClick={() => setIncludeFullNote(v => !v)}
-                                            className={`relative w-8 h-[18px] rounded-full transition-colors ${includeFullNote ? colors.sliderClass : 'bg-tertiary/25'}`}
-                                        >
-                                            <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform ${includeFullNote ? 'translate-x-[15px]' : 'translate-x-[3px]'}`} />
-                                        </button>
-                                    </div>
-                                </section>
+                                <SectionToggle
+                                    label="Full Note"
+                                    enabled={includeFullNote}
+                                    onToggle={() => setIncludeFullNote(v => !v)}
+                                    colors={colors}
+                                />
 
                                 {includeFullNote && (
                                 <>
-                                {/* HPI section */}
+                                {/* Subjective section */}
                                 <section className="space-y-2">
                                     <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Subjective</p>
                                     <ExpandableInput
@@ -241,126 +255,122 @@ export const WriteNotePage = ({
                                 </>
                                 )}
 
-                                {/* Assessment */}
-                                <section className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Decision Making</p>
-                                        <button
-                                            type="button"
-                                            onClick={() => setIncludeDecisionMaking(v => !v)}
-                                            className={`relative w-8 h-[18px] rounded-full transition-colors ${includeDecisionMaking ? colors.sliderClass : 'bg-tertiary/25'}`}
-                                        >
-                                            <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform ${includeDecisionMaking ? 'translate-x-[15px]' : 'translate-x-[3px]'}`} />
-                                        </button>
+                                {/* Decision Making toggle */}
+                                <SectionToggle
+                                    label="Decision Making"
+                                    enabled={includeDecisionMaking}
+                                    onToggle={() => setIncludeDecisionMaking(v => !v)}
+                                    colors={colors}
+                                />
+
+                                {includeDecisionMaking && (
+                                    <div className="rounded-xl border border-tertiary/15 bg-themewhite2 overflow-hidden px-2 py-2">
+                                        <DecisionMaking
+                                            algorithmOptions={algorithmOptions}
+                                            cardStates={cardStates}
+                                            disposition={disposition}
+                                            dispositionType={disposition.type}
+                                        />
                                     </div>
-                                    {includeDecisionMaking && (
-                                        <div className="rounded-xl border border-tertiary/15 bg-themewhite2 overflow-hidden px-2 py-2">
-                                            <DecisionMaking
-                                                algorithmOptions={algorithmOptions}
-                                                cardStates={cardStates}
-                                                disposition={disposition}
-                                                dispositionType={disposition.type}
-                                            />
+                                )}
+
+                                {includeFullNote && (
+                                <>
+                                {/* Differential Diagnoses */}
+                                <div className="space-y-2 pt-1">
+                                    {(selectedDdx.length > 0 || customDdx.length > 0) ? (
+                                        <div
+                                            className="rounded-xl bg-themewhite2 overflow-hidden cursor-pointer active:scale-[0.98] transition-all"
+                                            onClick={openDdxPopover}
+                                        >
+                                            <div className="px-4 py-3">
+                                                <p className="text-[11px] text-primary truncate">
+                                                    {[...selectedDdx, ...customDdx].map((d, i) => `${i + 1}. ${d}`).join('; ')}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex justify-center py-2">
+                                            <button
+                                                type="button"
+                                                onClick={openDdxPopover}
+                                                className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
+                                            >
+                                                <Plus size={14} />
+                                            </button>
                                         </div>
                                     )}
+                                </div>
 
-                                    {/* Differential Diagnoses */}
-                                    <div className="space-y-2 pt-1">
-                                        {(selectedDdx.length > 0 || customDdx.length > 0) ? (
-                                            <div
-                                                className="rounded-xl bg-themewhite2 overflow-hidden cursor-pointer active:scale-[0.98] transition-all"
-                                                onClick={openDdxPopover}
-                                            >
-                                                <div className="px-4 py-3">
-                                                    <p className="text-[11px] text-primary truncate">
-                                                        {[...selectedDdx, ...customDdx].map((d, i) => `${i + 1}. ${d}`).join('; ')}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="flex justify-center py-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={openDdxPopover}
-                                                    className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
-                                                >
-                                                    <Plus size={14} />
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <ContextMenuPreview
-                                        isVisible={ddxPopoverVisible}
-                                        onClose={() => setDdxPopoverVisible(false)}
-                                        anchorRect={ddxAnchorRect}
-                                        maxWidth="max-w-[340px]"
-                                        preview={(() => {
-                                            const combined = [...selectedDdx, ...customDdx];
-                                            const unselected = availableDdx.filter(d => !selectedDdx.includes(d));
-                                            return (
-                                                <div className="py-1">
-                                                    {combined.length > 0 && (
-                                                        <div className="px-4 pb-2 pt-1">
-                                                            <div className="border border-tertiary/10 rounded-xl overflow-hidden">
-                                                                {combined.map((dx, i) => (
-                                                                    <div
-                                                                        key={dx}
-                                                                        className={`flex items-center gap-2 px-3 py-2.5 bg-tertiary/4 ${i > 0 ? 'border-t border-tertiary/10' : ''}`}
-                                                                    >
-                                                                        <span className="text-[10px] text-tertiary/40 w-4 text-right shrink-0">{i + 1}.</span>
-                                                                        <span className="flex-1 text-[11pt] text-primary min-w-0 truncate">{dx}</span>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => toggleDdx(dx)}
-                                                                            className="shrink-0 p-1 text-tertiary/30 active:text-themeredred transition-colors"
-                                                                        >
-                                                                            <X size={12} />
-                                                                        </button>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    {unselected.length > 0 && (
-                                                        <div className="px-4 pb-2">
-                                                            <p className="text-[9px] font-semibold text-tertiary/40 uppercase tracking-wider mb-1.5">Suggested</p>
-                                                            <div className="border border-tertiary/10 rounded-xl overflow-hidden">
-                                                                {unselected.map((dx, i) => (
+                                <ContextMenuPreview
+                                    isVisible={ddxPopoverVisible}
+                                    onClose={() => setDdxPopoverVisible(false)}
+                                    anchorRect={ddxAnchorRect}
+                                    maxWidth="max-w-[340px]"
+                                    preview={(() => {
+                                        const combined = [...selectedDdx, ...customDdx];
+                                        const unselected = availableDdx.filter(d => !selectedDdx.includes(d));
+                                        return (
+                                            <div className="py-1">
+                                                {combined.length > 0 && (
+                                                    <div className="px-4 pb-2 pt-1">
+                                                        <div className="border border-tertiary/10 rounded-xl overflow-hidden">
+                                                            {combined.map((dx, i) => (
+                                                                <div
+                                                                    key={dx}
+                                                                    className={`flex items-center gap-2 px-3 py-2.5 bg-tertiary/4 ${i > 0 ? 'border-t border-tertiary/10' : ''}`}
+                                                                >
+                                                                    <span className="text-[10px] text-tertiary/40 w-4 text-right shrink-0">{i + 1}.</span>
+                                                                    <span className="flex-1 text-[11pt] text-primary min-w-0 truncate">{dx}</span>
                                                                     <button
-                                                                        key={dx}
                                                                         type="button"
                                                                         onClick={() => toggleDdx(dx)}
-                                                                        className={`flex items-center gap-3 w-full text-left px-4 py-2.5 transition-colors active:scale-[0.98] ${i > 0 ? 'border-t border-tertiary/10' : ''}`}
+                                                                        className="shrink-0 p-1 text-tertiary/30 active:text-themeredred transition-colors"
                                                                     >
-                                                                        <span className="w-4 h-4 rounded-full shrink-0 ring-[1.5px] ring-inset ring-tertiary/25 bg-transparent" />
-                                                                        <span className="text-[11pt] text-tertiary/60">{dx}</span>
+                                                                        <X size={12} />
                                                                     </button>
-                                                                ))}
-                                                            </div>
+                                                                </div>
+                                                            ))}
                                                         </div>
-                                                    )}
+                                                    </div>
+                                                )}
 
-                                                    {combined.length === 0 && unselected.length === 0 && (
-                                                        <p className="px-4 py-4 text-[10pt] text-tertiary/40 italic">No differentials — use + to add</p>
-                                                    )}
-                                                </div>
-                                            );
-                                        })()}
-                                        actions={[{
-                                            key: 'done',
-                                            label: 'Done',
-                                            icon: Check,
-                                            onAction: () => setDdxPopoverVisible(false),
-                                        }]}
-                                        onAdd={addCustomDdxItem}
-                                        addPlaceholder="Add differential..."
-                                    />
-                                </section>
+                                                {unselected.length > 0 && (
+                                                    <div className="px-4 pb-2">
+                                                        <p className="text-[9px] font-semibold text-tertiary/40 uppercase tracking-wider mb-1.5">Suggested</p>
+                                                        <div className="border border-tertiary/10 rounded-xl overflow-hidden">
+                                                            {unselected.map((dx, i) => (
+                                                                <button
+                                                                    key={dx}
+                                                                    type="button"
+                                                                    onClick={() => toggleDdx(dx)}
+                                                                    className={`flex items-center gap-3 w-full text-left px-4 py-2.5 transition-colors active:scale-[0.98] ${i > 0 ? 'border-t border-tertiary/10' : ''}`}
+                                                                >
+                                                                    <span className="w-4 h-4 rounded-full shrink-0 ring-[1.5px] ring-inset ring-tertiary/25 bg-transparent" />
+                                                                    <span className="text-[11pt] text-tertiary/60">{dx}</span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {combined.length === 0 && unselected.length === 0 && (
+                                                    <p className="px-4 py-4 text-[10pt] text-tertiary/40 italic">No differentials — use + to add</p>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
+                                    actions={[{
+                                        key: 'done',
+                                        label: 'Done',
+                                        icon: Check,
+                                        onAction: () => setDdxPopoverVisible(false),
+                                    }]}
+                                    onAdd={addCustomDdxItem}
+                                    addPlaceholder="Add differential..."
+                                />
 
                                 {/* Plan */}
-                                {includeFullNote && (
                                 <section data-tour="writenote-plan" className="space-y-2">
                                     <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Plan</p>
                                     <Plan
@@ -372,6 +382,7 @@ export const WriteNotePage = ({
                                         expanders={expanders}
                                     />
                                 </section>
+                                </>
                                 )}
 
                                 {/* PII warning */}

@@ -1,7 +1,6 @@
-import React, { useMemo, useState, useRef, useCallback } from 'react';
+import React, { useMemo, useState } from 'react';
 
-import { GripVertical, X } from 'lucide-react';
-import type { PlanOrderSet } from '../Data/User';
+import { X } from 'lucide-react';
 
 type BlockStatus = 'inactive' | 'active';
 
@@ -24,10 +23,6 @@ interface PlanAllBlocksPreviewProps {
   onToggleTag: (categoryKey: string, tag: string) => void;
   activeTab: string | null;
   onTabChange: (key: string) => void;
-  onReorderTag: (categoryKey: string, fromIndex: number, toIndex: number) => void;
-  orderSets?: PlanOrderSet[];
-  activeSetIds?: Set<string>;
-  onToggleOrderSet?: (os: PlanOrderSet) => void;
 }
 
 // ── Category picker (portaled menu) ──
@@ -45,7 +40,7 @@ export function CategoryPicker({ value, categories, onChange }: {
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="shrink-0 px-2.5 py-2 text-[10px] font-medium text-tertiary/60 bg-tertiary/5 rounded-full border border-tertiary/15 transition-colors active:scale-95"
+        className="shrink-0 px-2.5 py-2 text-[10pt] font-medium text-tertiary/60 bg-tertiary/5 rounded-full border border-tertiary/15 transition-colors active:scale-95"
       >
         {label}
       </button>
@@ -81,10 +76,6 @@ export const PlanAllBlocksPreview: React.FC<PlanAllBlocksPreviewProps> = ({
   onToggleTag,
   activeTab,
   onTabChange,
-  onReorderTag,
-  orderSets = [],
-  activeSetIds,
-  onToggleOrderSet,
 }) => {
   const lc = filter.toLowerCase();
 
@@ -99,12 +90,10 @@ export const PlanAllBlocksPreview: React.FC<PlanAllBlocksPreviewProps> = ({
   );
 
   // When filtering: search across ALL categories. Otherwise: show active tab only.
-  const { selectedTags, availableItems, crossCategoryResults } = useMemo(() => {
-    if (!activeCat) return { selectedTags: [], availableItems: [], crossCategoryResults: [] };
+  const { availableItems, crossCategoryResults } = useMemo(() => {
+    if (!activeCat) return { availableItems: [], crossCategoryResults: [] };
 
-    // Active tab's selected items (always visible)
-    const selected = activeCat.state.selectedTags;
-    const selectedSet = new Set(selected);
+    const selectedSet = new Set(activeCat.state.selectedTags);
     const available = activeCat.tags
       .filter(t => !selectedSet.has(t))
       .filter(t => !lc || t.toLowerCase().includes(lc))
@@ -129,159 +118,48 @@ export const PlanAllBlocksPreview: React.FC<PlanAllBlocksPreviewProps> = ({
       }
     }
 
-    return { selectedTags: selected, availableItems: available, crossCategoryResults: crossResults };
+    return { availableItems: available, crossCategoryResults: crossResults };
   }, [activeCat, lc, categories]);
 
-  // ── Drag state for selected item reorder ──
-  const dragRef = useRef<{
-    index: number;
-    currentIndex: number;
-    startY: number;
-    itemHeight: number;
-  } | null>(null);
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [dragOffset, setDragOffset] = useState(0);
-
-  const handleDragStart = useCallback((index: number, e: React.PointerEvent) => {
-    const row = (e.currentTarget as HTMLElement).closest('[data-tag-row]') as HTMLElement | null;
-    if (!row) return;
-    dragRef.current = {
-      index,
-      currentIndex: index,
-      startY: e.clientY,
-      itemHeight: row.getBoundingClientRect().height,
-    };
-    setDragIndex(index);
-    setDragOffset(0);
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  }, []);
-
-  const handleDragMove = useCallback((e: React.PointerEvent) => {
-    const ds = dragRef.current;
-    if (!ds) return;
-    const dy = e.clientY - ds.startY;
-    setDragOffset(dy);
-    ds.currentIndex = Math.max(0, Math.min(selectedTags.length - 1, ds.index + Math.round(dy / ds.itemHeight)));
-  }, [selectedTags.length]);
-
-  const handleDragEnd = useCallback(() => {
-    const ds = dragRef.current;
-    if (ds && ds.index !== ds.currentIndex && activeCat) {
-      onReorderTag(activeCat.key, ds.index, ds.currentIndex);
-    }
-    dragRef.current = null;
-    setDragIndex(null);
-    setDragOffset(0);
-  }, [activeCat, onReorderTag]);
-
-  // Order sets
-  const showOrderSets = orderSets.length > 0 && !!onToggleOrderSet;
-  const filteredOrderSets = useMemo(() => {
-    if (!lc) return orderSets;
-    return orderSets.filter(os => os.name.toLowerCase().includes(lc));
-  }, [orderSets, lc]);
-
-  if (availableTabs.length === 0 && !showOrderSets) {
+  if (availableTabs.length === 0) {
     return <p className="px-4 py-4 text-[10pt] text-tertiary/40 italic">No plan items configured</p>;
   }
 
   return (
     <div className="py-1">
-      {/* Order Sets — above tabs, always accessible */}
-      {showOrderSets && filteredOrderSets.length > 0 && (
-        <div className="px-4 pt-2 pb-2 border-b border-tertiary/8">
-          <p className="text-[9px] font-semibold text-tertiary/40 uppercase tracking-wider mb-1.5">Order Sets</p>
-          <div className="flex flex-wrap gap-1.5">
-            {filteredOrderSets.map(os => {
-              const isActive = activeSetIds?.has(os.id) ?? false;
-              return (
-                <button
-                  key={os.id}
-                  type="button"
-                  onClick={() => onToggleOrderSet!(os)}
-                  className={`px-2.5 py-1 text-[10pt] rounded-full transition-colors active:scale-95 ${
-                    isActive
-                      ? 'bg-tertiary/8 text-primary font-medium'
-                      : 'bg-tertiary/5 text-tertiary/40'
-                  }`}
-                >
-                  {os.name}
-                </button>
-              );
-            })}
-          </div>
+      {/* Tab bar — horizontal carousel with fade edges */}
+      <div className="relative">
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-themewhite to-transparent z-10" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-themewhite to-transparent z-10" />
+        <div className="px-3 pt-3 pb-2.5 flex overflow-x-auto gap-1" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}>
+          {availableTabs.map(cat => {
+            const isActive = activeCat?.key === cat.key;
+            const hasSelected = cat.state.selectedTags.length > 0;
+            return (
+              <button
+                key={cat.key}
+                type="button"
+                onClick={() => onTabChange(cat.key)}
+                style={{ scrollSnapAlign: 'start' }}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all active:scale-95 flex items-center justify-center gap-1.5 ${
+                  isActive
+                    ? 'bg-tertiary/10 text-primary'
+                    : 'text-tertiary/50'
+                }`}
+              >
+                {hasSelected && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-tertiary/40 shrink-0" />
+                )}
+                {cat.label}
+              </button>
+            );
+          })}
         </div>
-      )}
-
-      {/* Tab bar — scrollable on mobile */}
-      <div className="px-3 pt-2.5 pb-2 flex overflow-x-auto gap-1" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
-        {availableTabs.map(cat => {
-          const isActive = activeCat?.key === cat.key;
-          const hasSelected = cat.state.selectedTags.length > 0;
-          return (
-            <button
-              key={cat.key}
-              type="button"
-              onClick={() => onTabChange(cat.key)}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all active:scale-95 flex items-center justify-center gap-1.5 ${
-                isActive
-                  ? 'bg-tertiary/10 text-primary'
-                  : 'text-tertiary/50'
-              }`}
-            >
-              {hasSelected && (
-                <span className="w-1.5 h-1.5 rounded-full bg-tertiary/40 shrink-0" />
-              )}
-              {cat.label}
-            </button>
-          );
-        })}
       </div>
 
       {/* Active section content */}
       {activeCat && (
         <div>
-          {/* Selected items — drag to reorder */}
-          {selectedTags.length > 0 && (
-            <div
-              className="px-4 pb-2"
-              onPointerMove={handleDragMove}
-              onPointerUp={handleDragEnd}
-              onPointerCancel={handleDragEnd}
-            >
-              <div className="border border-tertiary/10 rounded-xl overflow-hidden">
-                {selectedTags.map((tag, i) => {
-                  const isDragging = dragIndex === i;
-                  return (
-                    <div
-                      key={tag}
-                      data-tag-row
-                      style={isDragging ? { transform: `translateY(${dragOffset}px)`, zIndex: 50, position: 'relative' } : undefined}
-                      className={`flex items-center gap-2 px-3 py-2.5 bg-tertiary/4 ${
-                        i > 0 ? 'border-t border-tertiary/10' : ''
-                      } ${isDragging ? 'opacity-80 shadow-lg rounded-lg bg-themewhite2' : ''}`}
-                    >
-                      <div
-                        className="shrink-0 text-tertiary/30 touch-none cursor-grab active:cursor-grabbing"
-                        onPointerDown={(e) => { e.stopPropagation(); handleDragStart(i, e); }}
-                      >
-                        <GripVertical size={16} />
-                      </div>
-                      <span className="flex-1 text-[11pt] text-primary min-w-0 truncate">{tag}</span>
-                      <button
-                        type="button"
-                        onClick={() => onToggleTag(activeCat.key, tag)}
-                        className="shrink-0 p-1 text-tertiary/30 active:text-themeredred transition-colors"
-                      >
-                        <X size={12} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
           {/* Available items — toggle to select */}
           {availableItems.length > 0 && (
             <div className="px-4 pb-2">
@@ -329,7 +207,7 @@ export const PlanAllBlocksPreview: React.FC<PlanAllBlocksPreviewProps> = ({
           )}
 
           {/* Empty state */}
-          {selectedTags.length === 0 && availableItems.length === 0 && crossCategoryResults.length === 0 && !filter && (
+          {availableItems.length === 0 && crossCategoryResults.length === 0 && !filter && (
             <p className="px-4 py-4 text-[10pt] text-tertiary/40 italic">No items available</p>
           )}
         </div>

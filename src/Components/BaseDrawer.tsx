@@ -24,8 +24,6 @@ export interface DrawerHeaderConfig {
     hideDefaultClose?: boolean;
     /** When true, rightContent fills the header width (title collapses) */
     rightContentFill?: boolean;
-    /** Optional progress indicator rendered below the title row */
-    progressDots?: ReactNode;
     /** Optional content rendered below the title row */
     extraRow?: ReactNode;
 }
@@ -40,7 +38,6 @@ function DrawerHeader({
     rightContent,
     hideDefaultClose = false,
     rightContentFill = false,
-    progressDots,
     extraRow,
     onClose,
     isMobile,
@@ -104,7 +101,6 @@ function DrawerHeader({
                             )}
                         </div>
                     </div>
-                    {progressDots}
                 </div>
             </div>
             {/* Extra row — persists below the title row */}
@@ -194,16 +190,10 @@ export function BaseDrawer({
 
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-    // Mobile expand: scroll down → full height, overscroll-up at top → original height
-    const [mobileExpanded, setMobileExpanded] = useState(false);
-    const mobileExpandedRef = useRef(false);
-    mobileExpandedRef.current = mobileExpanded;
-
     useEffect(() => {
         if (isVisible) {
             setIsMounted(true);
             setDrawerPosition(0);
-            setMobileExpanded(false);
             document.body.style.overflow = 'hidden';
 
             // Animate mobile drawer in (desktop ignores drawerPosition)
@@ -234,45 +224,6 @@ export function BaseDrawer({
             if (desktopOpenRef.current) clearTimeout(desktopOpenRef.current);
         };
     }, [isVisible]);
-
-    // Mobile scroll-to-expand: scroll down → 100dvh, overscroll-up at top → original height
-    useEffect(() => {
-        if (!useMobileLayout || scrollDisabled || mobileFullScreen || cardMode) return;
-        const container = scrollContainerRef.current;
-        if (!container) return;
-
-        let startY = 0;
-        let startScrollTop = 0;
-
-        const onScroll = () => {
-            if (container.scrollTop > 0 && !mobileExpandedRef.current) {
-                setMobileExpanded(true);
-            }
-        };
-
-        const onTouchStart = (e: TouchEvent) => {
-            startY = e.touches[0].clientY;
-            startScrollTop = container.scrollTop;
-        };
-
-        const onTouchMove = (e: TouchEvent) => {
-            if (!mobileExpandedRef.current) return;
-            const deltaY = e.touches[0].clientY - startY;
-            // Collapse if touch started near top and user pulls down deliberately
-            if (startScrollTop <= 5 && container.scrollTop <= 0 && deltaY > 20) {
-                setMobileExpanded(false);
-            }
-        };
-
-        container.addEventListener('scroll', onScroll, { passive: true });
-        container.addEventListener('touchstart', onTouchStart, { passive: true });
-        container.addEventListener('touchmove', onTouchMove, { passive: true });
-        return () => {
-            container.removeEventListener('scroll', onScroll);
-            container.removeEventListener('touchstart', onTouchStart);
-            container.removeEventListener('touchmove', onTouchMove);
-        };
-    }, [useMobileLayout, scrollDisabled, mobileFullScreen, cardMode, isVisible]);
 
     const closeDelayRef = useRef<number>(0);
 
@@ -368,9 +319,7 @@ export function BaseDrawer({
         ? (children as DrawerRenderProp)(handleClose)
         : children;
 
-    // Mobile expand state — determines effective height
-    const isExpanded = useMobileLayout && mobileExpanded && !cardMode && !mobileFullScreen;
-    const mobileHeight = cardMode ? '35dvh' : ((mobileFullScreen || isExpanded) ? '100dvh' : fullHeight);
+    const mobileHeight = cardMode ? '35dvh' : (mobileFullScreen ? '100dvh' : fullHeight);
 
     if (!isMounted && !isVisible) return null;
 
@@ -397,7 +346,7 @@ export function BaseDrawer({
             {/* Drawer / Panel — single container that adapts to viewport */}
             <div
                 className={useMobileLayout
-                    ? `fixed ${mobileFloating && !isExpanded ? 'left-3 right-3' : 'left-0 right-0'} ${zIndex} bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'} ${mobileClassName} ${header ? 'flex flex-col' : ''}`
+                    ? `fixed ${mobileFloating ? 'left-3 right-3' : 'left-0 right-0'} ${zIndex} bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'} ${mobileClassName} ${header ? 'flex flex-col' : ''}`
                     : `absolute ${desktopAlignClass} top-0 ${desktopWidthClass} ${zIndex}
                         flex flex-col rounded-md border border-tertiary/20
                         shadow-lg shadow-black/8 backdrop-blur-xl bg-themewhite3/95
@@ -406,15 +355,15 @@ export function BaseDrawer({
                 style={useMobileLayout ? {
                     height: mobileHeight,
                     maxHeight: mobileHeight,
-                    width: (mobileFloating && !isExpanded) ? undefined : '100%',
-                    bottom: cardMode ? '55dvh' : ((mobileFloating && !isExpanded) ? 12 : 0),
+                    width: mobileFloating ? undefined : '100%',
+                    bottom: cardMode ? '55dvh' : (mobileFloating ? 12 : 0),
                     transform: `translateY(${100 - drawerPosition}%)`,
                     opacity: Math.min(1, drawerPosition / 60 + 0.2),
-                    borderRadius: (cardMode || (mobileFloating && !isExpanded)) ? '1.25rem' : ((mobileFullScreen || isExpanded) ? '0' : '1.25rem 1.25rem 0 0'),
+                    borderRadius: (cardMode || mobileFloating) ? '1.25rem' : (mobileFullScreen ? '0' : '1.25rem 1.25rem 0 0'),
                     willChange: isDragging ? 'transform' : 'auto',
-                    boxShadow: (cardMode || (mobileFloating && !isExpanded))
+                    boxShadow: (cardMode || mobileFloating)
                         ? '0 4px 30px rgba(0, 0, 0, 0.12)'
-                        : ((mobileFullScreen || isExpanded) ? 'none' : '0 -4px 20px rgba(0, 0, 0, 0.1)'),
+                        : (mobileFullScreen ? 'none' : '0 -4px 20px rgba(0, 0, 0, 0.1)'),
                     overflow: 'hidden',
                     visibility: isMounted ? 'visible' : 'hidden',
                 } : {
@@ -445,7 +394,6 @@ export function BaseDrawer({
                                     rightContent={header.rightContent}
                                     hideDefaultClose={header.hideDefaultClose}
                                     rightContentFill={header.rightContentFill}
-                                    progressDots={header.progressDots}
                                     extraRow={header.extraRow}
                                     onClose={handleClose}
                                     isMobile={useMobileLayout}
@@ -470,7 +418,6 @@ export function BaseDrawer({
                                     rightContent={header.rightContent}
                                     hideDefaultClose={header.hideDefaultClose}
                                     rightContentFill={header.rightContentFill}
-                                    progressDots={header.progressDots}
                                     extraRow={header.extraRow}
                                     onClose={handleClose}
                                     isMobile={useMobileLayout}

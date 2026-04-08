@@ -1,6 +1,4 @@
-import { X } from 'lucide-react';
 import { BaseDrawer } from './BaseDrawer';
-import { HeaderPill, PillButton } from './HeaderPill';
 import { SymptomGuidelines } from './CategoryList';
 import type { GuidelineItemData } from './CategoryList';
 import type { catDataTypes, subCatDataTypes, SearchResultType } from '../Types/CatTypes';
@@ -54,12 +52,6 @@ export function SymptomInfoDrawer({
             mobileClassName="flex flex-col"
             header={{
                 title: selectedSymptom.text || 'Symptom Info',
-                rightContent: (
-                    <HeaderPill>
-                        <PillButton icon={X} onClick={onClose} label="Close" />
-                    </HeaderPill>
-                ),
-                hideDefaultClose: true,
             }}
             contentPadding="compact"
         >
