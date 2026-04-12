@@ -537,7 +537,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
               <button
                 data-tour="calendar-add-event"
-                onClick={handleNewEvent}
+                onClick={() => handleNewEvent()}
                 disabled={!vaultReplayDone}
                 className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 ${
                   vaultReplayDone ? 'bg-themeblue3 text-white active:scale-95' : 'bg-tertiary/30 text-tertiary cursor-not-allowed'

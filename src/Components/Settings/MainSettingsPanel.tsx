@@ -1,5 +1,5 @@
 import { ChevronRight } from 'lucide-react';
-import type { PanelId, SettingsItem } from './SettingsTypes';
+import { PANEL, type PanelId, type SettingsItem } from './SettingsTypes';
 import { useAvatar } from '../../Utilities/AvatarContext';
 import { useAuth } from '../../Hooks/useAuth';
 import { getInitials } from '../../Utilities/nameUtils';
@@ -26,13 +26,14 @@ export const MainSettingsPanel = ({
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar();
     const { profile } = useAuth();
 
-    const tourTargets: Record<number, string> = {
-        0: 'settings-theme',
-        15: 'settings-pin',
-        17: 'settings-notifications',
-        19: 'settings-note-content',
-        28: 'settings-clinic',
-        34: 'settings-guided-tours',
+    const tourTargets: Partial<Record<PanelId, string>> = {
+        [PANEL.TOGGLE_THEME]: 'settings-theme',
+        [PANEL.PIN_SETUP]: 'settings-pin',
+        [PANEL.NOTIFICATION_SETTINGS]: 'settings-notifications',
+        [PANEL.NOTE_CONTENT]: 'settings-note-content',
+        [PANEL.CLINIC]: 'settings-clinic',
+        [PANEL.GUIDED_TOURS]: 'settings-guided-tours',
+        [PANEL.PROVIDER_TEMPLATES]: 'settings-provider-templates',
     };
     // Separate top row items (no header before them) from card sections
     const topItems: Extract<SettingsItem, { type: 'option' }>[] = [];

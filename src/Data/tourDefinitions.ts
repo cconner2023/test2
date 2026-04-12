@@ -96,6 +96,7 @@ const gettingStarted: TourDefinition = {
   id: 'getting-started',
   name: 'Getting Started',
   tier: 'medic',
+  scene: 'getting-started',
   description: 'Learn the basics — navigation, menu, and core features.',
   steps: [
     {
@@ -203,16 +204,10 @@ const algorithmNavTour: TourDefinition = {
       duration: 5000,
     },
     {
-      target: 'algorithm-card-1',
-      text: "Our patient has none. Answering 'No'.",
-      placement: 'bottom',
-      beforeStep: 'answer:1:1',
-      delay: 1200,
-      duration: 4000,
-    },
-    {
       target: 'algorithm-card-2',
       text: 'Card 2: Complicating factors. Select any that apply.',
+      beforeStep: 'answer:1:1',
+      delay: 1200,
       placement: 'bottom',
       duration: 5000,
     },
@@ -414,7 +409,7 @@ const textExpanderTour: TourDefinition = {
     },
     {
       target: 'expander-input-bar',
-      text: "Edit mode was turned on in the header. Our shortuct name is 'ABCCD' — confirm to open the editor.",
+      text: "Edit mode was turned on in the header. Our shortcut name is 'ABCCD' — confirm to open the editor.",
       placement: 'bottom',
       beforeStep: 'expander:demo:open-and-type',
       delay: 600,
@@ -521,7 +516,7 @@ const plansOrderSetsTour: TourDefinition = {
       duration: 5000,
     },
     {
-      target: 'plan-tag-followup',
+      target: 'plan-tag-followUp',
       text: 'Follow-up instructions staged — 10-14 days, sooner if worsening.',
       placement: 'bottom',
       beforeStep: 'planorderset:add-followup',
@@ -732,7 +727,7 @@ const calendarTour: TourDefinition = {
     // ── Filter: mobile ──
     {
       target: 'calendar-mobile-filter',
-      text: 'Tap the filter to open date picker and personnel controls.',
+      text: 'Tap the filter to open personnel controls.',
       placement: 'bottom',
       beforeStep: 'calendar:view:month',
       delay: 400,
@@ -741,7 +736,7 @@ const calendarTour: TourDefinition = {
     },
     {
       target: 'calendar-controls-drawer',
-      text: 'Pick a date and filter by personnel — only their events show on the calendar.',
+      text: 'Filter by personnel — only their events show on the calendar.',
       placement: 'top',
       beforeStep: 'calendar:open-controls',
       delay: 500,

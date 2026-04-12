@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-
-import { X } from 'lucide-react';
+import type { PlanBlockKey } from '../Data/User';
+import { CATEGORY_META } from './Settings/PlanTagManager';
 
 type BlockStatus = 'inactive' | 'active';
 
@@ -22,7 +22,6 @@ interface PlanAllBlocksPreviewProps {
   filter?: string;
   onToggleTag: (categoryKey: string, tag: string) => void;
   activeTab: string | null;
-  onTabChange: (key: string) => void;
 }
 
 // ── Category picker (portaled menu) ──
@@ -30,10 +29,10 @@ interface PlanAllBlocksPreviewProps {
 export function CategoryPicker({ value, categories, onChange }: {
   value: string | null;
   categories: { key: string; label: string }[];
-  onChange: (key: string) => void;
+  onChange: (key: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const label = value ? categories.find(c => c.key === value)?.label ?? value : 'Select';
+  const label = value ? categories.find(c => c.key === value)?.label ?? value : 'All';
 
   return (
     <div className="relative shrink-0">
@@ -49,6 +48,15 @@ export function CategoryPicker({ value, categories, onChange }: {
           <div className="fixed inset-0 z-[100]" onClick={() => setOpen(false)} />
           <div className="absolute bottom-full left-0 mb-2 z-[101] w-[min(280px,80vw)] bg-themewhite rounded-2xl shadow-xl border border-tertiary/10 py-2 overflow-y-auto" style={{ maxHeight: '40dvh' }}>
             <p className="px-3 pb-1.5 text-[9px] font-semibold text-tertiary/40 uppercase tracking-wider">Category</p>
+            <button
+              type="button"
+              onClick={() => { onChange(null); setOpen(false); }}
+              className={`w-full text-left px-4 py-2.5 text-xs transition-colors active:scale-[0.98] ${
+                value === null ? 'text-primary font-medium bg-tertiary/6' : 'text-tertiary/60'
+              }`}
+            >
+              All
+            </button>
             {categories.map(cat => (
               <button
                 key={cat.key}
@@ -75,142 +83,59 @@ export const PlanAllBlocksPreview: React.FC<PlanAllBlocksPreviewProps> = ({
   filter = '',
   onToggleTag,
   activeTab,
-  onTabChange,
 }) => {
   const lc = filter.toLowerCase();
 
-  const availableTabs = useMemo(() =>
-    categories.filter(c => c.tags.length > 0),
-    [categories],
-  );
+  const hasAnyTags = categories.some(c => c.tags.length > 0);
 
-  const activeCat = useMemo(() =>
-    availableTabs.find(c => c.key === activeTab) ?? availableTabs[0] ?? null,
-    [availableTabs, activeTab],
-  );
-
-  // When filtering: search across ALL categories. Otherwise: show active tab only.
-  const { availableItems, crossCategoryResults } = useMemo(() => {
-    if (!activeCat) return { availableItems: [], crossCategoryResults: [] };
-
-    const selectedSet = new Set(activeCat.state.selectedTags);
-    const available = activeCat.tags
-      .filter(t => !selectedSet.has(t))
-      .filter(t => !lc || t.toLowerCase().includes(lc))
-      .sort((a, b) => a.localeCompare(b));
-
-    // Universal search: when filtering, also search other categories
-    const crossResults: { catKey: string; catLabel: string; tag: string; isSelected: boolean }[] = [];
-    if (lc) {
-      for (const cat of categories) {
-        if (cat.key === activeCat.key) continue;
-        const catSelectedSet = new Set(cat.state.selectedTags);
-        for (const tag of cat.tags) {
-          if (tag.toLowerCase().includes(lc)) {
-            crossResults.push({
-              catKey: cat.key,
-              catLabel: cat.label,
-              tag,
-              isSelected: catSelectedSet.has(tag),
-            });
-          }
-        }
+  // Grouped: category order preserved (meds first per CATEGORY_META order), alpha within each group
+  const groupedItems = useMemo(() => {
+    const result: { catKey: string; tag: string }[] = [];
+    for (const cat of categories) {
+      if (cat.tags.length === 0) continue;
+      if (activeTab && cat.key !== activeTab) continue;
+      const selectedSet = new Set(cat.state.selectedTags);
+      const matching = cat.tags
+        .filter(t => !selectedSet.has(t))
+        .filter(t => !lc || t.toLowerCase().includes(lc))
+        .sort((a, b) => a.localeCompare(b));
+      for (const tag of matching) {
+        result.push({ catKey: cat.key, tag });
       }
     }
+    return result;
+  }, [categories, activeTab, lc]);
 
-    return { availableItems: available, crossCategoryResults: crossResults };
-  }, [activeCat, lc, categories]);
-
-  if (availableTabs.length === 0) {
+  if (!hasAnyTags) {
     return <p className="px-4 py-4 text-[10pt] text-tertiary/40 italic">No plan items configured</p>;
   }
 
   return (
     <div className="py-1">
-      {/* Tab bar — horizontal carousel with fade edges */}
-      <div className="relative">
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-themewhite to-transparent z-10" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-themewhite to-transparent z-10" />
-        <div className="px-3 pt-3 pb-2.5 flex overflow-x-auto gap-1" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}>
-          {availableTabs.map(cat => {
-            const isActive = activeCat?.key === cat.key;
-            const hasSelected = cat.state.selectedTags.length > 0;
+      {groupedItems.length > 0 ? (
+        <div className="px-3 pb-2 space-y-0.5">
+          {groupedItems.map(({ catKey, tag }) => {
+            const meta = CATEGORY_META[catKey as PlanBlockKey];
+            const CatIcon = meta.icon;
             return (
               <button
-                key={cat.key}
+                key={`${catKey}-${tag}`}
                 type="button"
-                onClick={() => onTabChange(cat.key)}
-                style={{ scrollSnapAlign: 'start' }}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all active:scale-95 flex items-center justify-center gap-1.5 ${
-                  isActive
-                    ? 'bg-tertiary/10 text-primary'
-                    : 'text-tertiary/50'
-                }`}
+                onClick={() => onToggleTag(catKey, tag)}
+                className="flex items-center gap-2.5 w-full text-left py-1.5 px-2 rounded-lg transition-colors active:scale-[0.98] hover:bg-tertiary/5"
               >
-                {hasSelected && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-tertiary/40 shrink-0" />
-                )}
-                {cat.label}
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${meta.bg}`}>
+                  <CatIcon size={11} className={meta.color} />
+                </div>
+                <span className="text-sm text-primary min-w-0 truncate">{tag}</span>
               </button>
             );
           })}
         </div>
-      </div>
-
-      {/* Active section content */}
-      {activeCat && (
-        <div>
-          {/* Available items — toggle to select */}
-          {availableItems.length > 0 && (
-            <div className="px-4 pb-2">
-              <div className="border border-tertiary/10 rounded-xl overflow-hidden">
-                {availableItems.map((tag, i) => (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => onToggleTag(activeCat.key, tag)}
-                    className={`flex items-center gap-3 w-full text-left px-4 py-2.5 transition-colors active:scale-[0.98] ${
-                      i > 0 ? 'border-t border-tertiary/10' : ''
-                    }`}
-                  >
-                    <span className="w-4 h-4 rounded-full shrink-0 ring-[1.5px] ring-inset ring-tertiary/25 bg-transparent" />
-                    <span className="text-[11pt] text-tertiary/60">{tag}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Cross-category search results */}
-          {crossCategoryResults.length > 0 && (
-            <div className="px-4 pb-2">
-              <p className="text-[9px] font-semibold text-tertiary/40 uppercase tracking-wider mb-1.5 mt-1">Other sections</p>
-              <div className="border border-tertiary/10 rounded-xl overflow-hidden">
-                {crossCategoryResults.map((result, i) => (
-                  <button
-                    key={`${result.catKey}-${result.tag}`}
-                    type="button"
-                    onClick={() => onToggleTag(result.catKey, result.tag)}
-                    className={`flex items-center gap-3 w-full text-left px-4 py-2.5 transition-colors active:scale-[0.98] ${
-                      i > 0 ? 'border-t border-tertiary/10' : ''
-                    }`}
-                  >
-                    <span className={`w-4 h-4 rounded-full shrink-0 ring-[1.5px] ring-inset ${
-                      result.isSelected ? 'ring-primary bg-primary/15' : 'ring-tertiary/25 bg-transparent'
-                    }`} />
-                    <span className={`text-[11pt] flex-1 min-w-0 truncate ${result.isSelected ? 'text-primary' : 'text-tertiary/60'}`}>{result.tag}</span>
-                    <span className="text-[9px] text-tertiary/30 shrink-0">{result.catLabel}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Empty state */}
-          {availableItems.length === 0 && crossCategoryResults.length === 0 && !filter && (
-            <p className="px-4 py-4 text-[10pt] text-tertiary/40 italic">No items available</p>
-          )}
-        </div>
+      ) : (
+        <p className="px-4 py-4 text-[10pt] text-tertiary/40 italic">
+          {filter ? 'No matches' : 'No items available'}
+        </p>
       )}
     </div>
   );

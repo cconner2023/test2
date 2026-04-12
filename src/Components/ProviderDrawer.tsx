@@ -397,7 +397,6 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     <BaseDrawer
       isVisible={isVisible}
       onClose={handleClose}
-      mobileFullScreen
       fullHeight="90dvh"
       desktopPosition="left"
       desktopWidth="w-[90%]"

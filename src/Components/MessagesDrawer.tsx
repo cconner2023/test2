@@ -10,6 +10,7 @@ import { useUserProfile } from '../Hooks/useUserProfile'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { useCallActions } from '../Hooks/CallContext'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
+import { useTourContext } from './Tour/TourProvider'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 import type { GroupInfo } from '../lib/signal/groupTypes'
 
@@ -38,6 +39,8 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     const { profile } = useUserProfile()
     const panelRef = useRef<MessagesPanelHandle>(null)
     const isMobile = useIsMobile()
+    const tourCtx = useTourContext()
+    const isTourActive = tourCtx?.isActive ?? false
     const callActions = useCallActions()
     // Apply deep-link when drawer opens
     useMemo(() => {
@@ -126,6 +129,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             onSearchChange={setSearchQuery}
             onSearchFocusChange={setSearchFocused}
             headerCollapse={headerCollapseSpring.collapse}
+            tourVariant={isTourActive ? (isMobile ? 'mobile' : 'desktop') : undefined}
         />
     )
 

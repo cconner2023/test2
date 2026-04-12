@@ -7,10 +7,11 @@ import { MedicationContent } from './MedicationContent'
 import { ContentWrapper } from './ContentWrapper'
 import { QuestionRow, WordListContent } from './ScreenerDrawer'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
-import { VitalSignsCalculator } from './VitalSignsCalculator'
+import { VitalSignsCalculator, type VitalSignsCalculatorHandle } from './VitalSignsCalculator'
 import { BurnCalculator } from './BurnCalculator'
 import { BloodProductsReference } from './BloodProductsReference'
 import { KBOverlay } from './KBOverlay'
+import { Popover } from './Popover'
 import { KBItemContextMenu } from './KBItemContextMenu'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useNavPreferencesStore } from '../stores/useNavPreferencesStore'
@@ -69,6 +70,7 @@ export function KnowledgeBaseDrawer({
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
     const [calculatorOpen, setCalculatorOpen] = useState(false)
     const [bloodOpen, setBloodOpen] = useState(false)
+    const vsRef = useRef<VitalSignsCalculatorHandle>(null)
     const [searchQuery, setSearchQuery] = useState('')
     const [searchFocused, setSearchFocused] = useState(false)
 
@@ -286,10 +288,25 @@ export function KnowledgeBaseDrawer({
                 )}
             </ContentWrapper>
 
-            {/* Overlay calculators/references — slide up on top of KB content */}
-            <KBOverlay title="Vital Signs" isOpen={calculatorOpen} onClose={() => setCalculatorOpen(false)}>
-                <VitalSignsCalculator />
-            </KBOverlay>
+            {/* Overlay calculators/references */}
+            <Popover
+                isOpen={calculatorOpen}
+                onClose={() => setCalculatorOpen(false)}
+                title="Vital Signs"
+                maxWidth={390}
+                footer={
+                    <button
+                        type="button"
+                        onClick={() => vsRef.current?.reset()}
+                        className="flex items-center gap-1.5 min-w-[52px] px-3 py-2 rounded-xl bg-tertiary/8 text-tertiary/60 text-[9px] font-medium active:scale-95 transition-all"
+                    >
+                        <RotateCcw size={10} />
+                        Clear
+                    </button>
+                }
+            >
+                <VitalSignsCalculator ref={vsRef} />
+            </Popover>
 <KBOverlay title="Blood Products" isOpen={bloodOpen} onClose={() => setBloodOpen(false)}>
                 <BloodProductsReference />
             </KBOverlay>

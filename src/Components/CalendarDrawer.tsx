@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { X, ListFilter, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { HeaderPill, PillButton } from './HeaderPill'
+import { Popover } from './Popover'
 import { CalendarPanel } from './Calendar/CalendarPanel'
 import { RosterPane } from './Calendar/RosterPane'
 import { MiniCalendar } from './Calendar/MiniCalendar'
@@ -66,10 +67,10 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         }
     }, [isVisible, setSelectedDate])
 
-    // Tour events — open/close the mobile controls drawer programmatically
+    // Tour events — open/close the mobile filter drawer programmatically
     useEffect(() => {
-        const openHandler = () => setShowControlsDrawer(true)
-        const closeHandler = () => setShowControlsDrawer(false)
+        const openHandler = () => setShowFilterDrawer(true)
+        const closeHandler = () => setShowFilterDrawer(false)
         window.addEventListener('tour:calendar-open-controls', openHandler)
         window.addEventListener('tour:calendar-close-controls', closeHandler)
         return () => {
@@ -78,7 +79,8 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         }
     }, [])
 
-    const [showControlsDrawer, setShowControlsDrawer] = useState(false)
+    const [showDatePopover, setShowDatePopover] = useState(false)
+    const [showFilterDrawer, setShowFilterDrawer] = useState(false)
     const [controlsDisplayMonth, setControlsDisplayMonth] = useState(() => {
         const [y, m] = selectedDate.split('-').map(Number)
         return new Date(y, m - 1, 1)
@@ -192,7 +194,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
 
     const handleMobileDateSelect = useCallback((dateKey: string) => {
         setSelectedDate(dateKey)
-        setShowControlsDrawer(false)
+        setShowDatePopover(false)
     }, [setSelectedDate])
 
     const handleRosterAssign = useCallback((userId: string) => {
@@ -270,16 +272,23 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
             mobileFullScreen
             desktopWidth="w-[90%]"
             header={{
-                title: isMobile ? monthLabel : 'Calendar',
-                leftContent: isMobile ? (
-                    <HeaderPill>
-                        <PillButton data-tour="calendar-mobile-filter" icon={ListFilter} onClick={() => setShowControlsDrawer(true)} label="Filter" />
-                    </HeaderPill>
-                ) : undefined,
+                title: isMobile ? '' : 'Calendar',
+                rightContentFill: isMobile,
                 rightContent: isMobile ? (
-                    <HeaderPill>
-                        <PillButton icon={X} onClick={onClose} label="Close" />
-                    </HeaderPill>
+                    <div className="flex items-center w-full gap-2 px-1">
+                        <HeaderPill>
+                            <PillButton data-tour="calendar-mobile-filter" icon={ListFilter} onClick={() => setShowFilterDrawer(true)} label="Filter" />
+                        </HeaderPill>
+                        <button
+                            onClick={() => setShowDatePopover(true)}
+                            className="flex-1 text-center text-sm font-semibold text-primary active:opacity-70 transition-opacity"
+                        >
+                            {monthLabel}
+                        </button>
+                        <HeaderPill>
+                            <PillButton icon={X} onClick={onClose} label="Close" />
+                        </HeaderPill>
+                    </div>
                 ) : undefined,
                 hideDefaultClose: isMobile,
                 extraRow: isMobile && viewMode === 'month' ? (
@@ -335,36 +344,43 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
 
                     {/* Schedule — right pane (or full width on mobile) */}
                     <div className="flex-1 min-w-0">
-                        <CalendarPanel onBack={onClose} scrollNonce={scrollNonce} onPanelStateChange={setRightPanelOpen} onOpenControls={() => setShowControlsDrawer(true)} />
+                        <CalendarPanel onBack={onClose} scrollNonce={scrollNonce} onPanelStateChange={setRightPanelOpen} onOpenControls={() => setShowDatePopover(true)} />
                     </div>
 
                 </div>
 
-                {/* Mobile controls drawer — date picker + personnel filter */}
-                <BaseDrawer
-                    isVisible={showControlsDrawer}
-                    onClose={() => setShowControlsDrawer(false)}
-                    mobileOnly
-                    fullHeight="90dvh"
-                    zIndex="z-50"
-                    header={{ title: '', hideDefaultClose: true, rightContentFill: true, rightContent: controlsMonthNav }}
-                    scrollDisabled
+                {/* Mobile date popover — anchored to the month label in the header */}
+                <Popover
+                    isOpen={showDatePopover}
+                    onClose={() => setShowDatePopover(false)}
+                    maxWidth={340}
                 >
-                    <div data-tour="calendar-controls-drawer" className="flex flex-col h-full">
-                        <div className="shrink-0 px-3">
-                            <MiniCalendar
-                                selectedDate={selectedDate}
-                                onSelectDate={handleMobileDateSelect}
-                                events={events}
-                                hideHeader
-                                displayMonth={controlsDisplayMonth}
-                                onDisplayMonthChange={setControlsDisplayMonth}
-                            />
-                        </div>
-                        <div className="border-t border-primary/10 mt-2" />
-                        <div className="flex-1 min-h-0 overflow-y-auto pb-[max(1rem,var(--sab,0px))]">
-                            {personnelFilterPanel}
-                        </div>
+                    <div className="flex items-center justify-between px-3 py-2">
+                        {controlsMonthNav}
+                    </div>
+                    <div className="px-1 pb-2">
+                        <MiniCalendar
+                            selectedDate={selectedDate}
+                            onSelectDate={handleMobileDateSelect}
+                            events={events}
+                            hideHeader
+                            displayMonth={controlsDisplayMonth}
+                            onDisplayMonthChange={setControlsDisplayMonth}
+                        />
+                    </div>
+                </Popover>
+
+                {/* Mobile filter drawer — personnel filter only */}
+                <BaseDrawer
+                    isVisible={showFilterDrawer}
+                    onClose={() => setShowFilterDrawer(false)}
+                    mobileOnly
+                    fullHeight="60dvh"
+                    zIndex="z-50"
+                    header={{ title: 'Filter Personnel', hideDefaultClose: false }}
+                >
+                    <div data-tour="calendar-controls-drawer" className="pb-[max(1rem,var(--sab,0px))]">
+                        {personnelFilterPanel}
                     </div>
                 </BaseDrawer>
             </div>

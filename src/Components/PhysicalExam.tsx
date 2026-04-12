@@ -454,62 +454,6 @@ function toEncodableState(blockStates: Record<string, ItemState>): Record<string
     return result;
 }
 
-// ── Inline add card ──────────────────────────────────────────
-
-function InlineAddCard({ onSubmit, onCancel }: {
-    onSubmit: (label: string, findings: string) => void;
-    onCancel: () => void;
-}) {
-    const [label, setLabel] = useState('');
-    const [findings, setFindings] = useState('');
-
-    return (
-        <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3 space-y-2">
-            <div className="relative flex flex-1 items-center rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
-                <input
-                    type="text"
-                    value={label}
-                    onChange={e => setLabel(e.target.value)}
-                    placeholder="Label (e.g. CARDIO, NEURO)"
-                    className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary/30"
-                />
-            </div>
-
-            <textarea
-                value={findings}
-                onChange={e => setFindings(e.target.value)}
-                placeholder="Findings..."
-                className="w-full min-h-[3rem] px-3.5 py-2.5 rounded-xl text-sm text-primary border border-themeblue3/10 shadow-xs bg-themewhite focus:border-themeblue1/30 focus:outline-none transition-all placeholder:text-tertiary/30 resize-none leading-5"
-            />
-
-            <div className="flex gap-1.5 justify-end">
-                <button
-                    type="button"
-                    onClick={onCancel}
-                    className="w-10 h-10 rounded-full flex items-center justify-center text-tertiary hover:bg-tertiary/10 active:scale-95 transition-all"
-                >
-                    <X size={18} />
-                </button>
-                <button
-                    type="button"
-                    onClick={() => {
-                        const l = label.trim();
-                        const f = findings.trim();
-                        if (!l && !f) return;
-                        onSubmit(l, f);
-                    }}
-                    className={`w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-all ${
-                        label.trim() || findings.trim()
-                            ? 'bg-themeblue3 text-white'
-                            : 'bg-tertiary/8 text-tertiary/30 cursor-default'
-                    }`}
-                >
-                    <Check size={18} />
-                </button>
-            </div>
-        </div>
-    );
-}
 
 // ── Component ─────────────────────────────────────────────────
 
@@ -603,7 +547,6 @@ export function PhysicalExam({
     }, [vitals]);
 
     // ── Add section / text state ────────────────────────────────
-    const [showAddCard, setShowAddCard] = useState(false);
     const [addedBlocks, setAddedBlocks] = useState<PEBlock[]>([]);
 
     // ── Block reorder state ──────────────────────────────────
@@ -621,6 +564,44 @@ export function PhysicalExam({
     const openBlockPicker = useCallback((e: React.MouseEvent) => {
         setBlockPickerAnchorRect((e.currentTarget as HTMLElement).getBoundingClientRect());
         setShowBlockPicker(true);
+    }, []);
+
+    // ── Add block picker (focused mode) ──────────────────────
+    const [showAddPicker, setShowAddPicker] = useState(false);
+    const [addPickerAnchorRect, setAddPickerAnchorRect] = useState<DOMRect | null>(null);
+
+    const openAddPicker = useCallback((e: React.MouseEvent) => {
+        setAddPickerAnchorRect((e.currentTarget as HTMLElement).getBoundingClientRect());
+        setShowAddPicker(true);
+    }, []);
+
+    const activeAndAddedKeys = useMemo(() => new Set([
+        ...activeBlocks.map(b => b.key),
+        ...addedBlocks.map(b => b.key),
+    ]), [activeBlocks, addedBlocks]);
+
+    const availableToAdd = useMemo((): MasterPEBlock[] => {
+        const result: MasterPEBlock[] = [];
+        for (const b of MASTER_BLOCKS_TOP_LEVEL) {
+            if (b.key === 'msk') {
+                for (const ck of MSK_CHILD_KEYS) {
+                    if (!activeAndAddedKeys.has(ck)) {
+                        const child = MASTER_BLOCK_LIBRARY[ck];
+                        if (child) result.push(child);
+                    }
+                }
+            } else if (!activeAndAddedKeys.has(b.key)) {
+                result.push(b);
+            }
+        }
+        return result;
+    }, [activeAndAddedKeys]);
+
+    const addMasterBlock = useCallback((key: string) => {
+        const master = MASTER_BLOCK_LIBRARY[key];
+        if (!master) return;
+        setAddedBlocks(prev => [...prev, toViewBlock(master, master.findings)]);
+        setBlockStates(prev => ({ ...prev, [key]: defaultItemState() }));
     }, []);
 
 
@@ -1186,79 +1167,81 @@ export function PhysicalExam({
                     anchorRect={blockPickerAnchorRect}
                     maxWidth="max-w-[340px]"
                     searchPlaceholder="Search systems..."
+                    headerCard={
+                        <div className="w-full rounded-2xl bg-themewhite shadow-xl border border-tertiary/10 overflow-hidden shrink-0 px-3 py-2.5">
+                            <p className="text-[9px] font-semibold text-tertiary/40 uppercase tracking-wider mb-1.5">Vital Signs</p>
+                            <div className="grid grid-cols-3 gap-1.5">
+                                {VITAL_SIGNS.map(v => {
+                                    if (v.key === 'bpDia') return null;
+                                    if (v.key === 'bpSys') return (
+                                        <div key="bp" className="flex items-center gap-1">
+                                            <input
+                                                type="text"
+                                                value={vitals['bpSys'] || ''}
+                                                onChange={(e) => setVitalValue('bpSys', e.target.value)}
+                                                placeholder="BP sys"
+                                                className="w-1/2 text-xs px-2.5 py-2 rounded-lg border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
+                                            />
+                                            <span className="text-xs text-tertiary/40">/</span>
+                                            <input
+                                                type="text"
+                                                value={vitals['bpDia'] || ''}
+                                                onChange={(e) => setVitalValue('bpDia', e.target.value)}
+                                                placeholder="dia"
+                                                className="w-1/2 text-xs px-2.5 py-2 rounded-lg border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
+                                            />
+                                        </div>
+                                    );
+                                    return (
+                                        <div key={v.key}>
+                                            <input
+                                                type="text"
+                                                value={vitals[v.key] || ''}
+                                                onChange={(e) => setVitalValue(v.key, e.target.value)}
+                                                placeholder={`${v.shortLabel} (${v.unit})`}
+                                                className="w-full text-xs px-2.5 py-2 rounded-lg border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
+                                            />
+                                            {v.key === 'ht' && vitals[v.key]?.trim() && !isNaN(parseFloat(vitals[v.key])) && (
+                                                <span className="text-xs text-secondary/50 mt-0.5 block">{(parseFloat(vitals[v.key]) * 2.54).toFixed(1)} cm</span>
+                                            )}
+                                            {v.key === 'wt' && vitals[v.key]?.trim() && !isNaN(parseFloat(vitals[v.key])) && (
+                                                <span className="text-xs text-secondary/50 mt-0.5 block">{(parseFloat(vitals[v.key]) * 0.453592).toFixed(1)} kg</span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            {bmiInfo && (
+                                <div className="flex items-center gap-2 mt-1.5">
+                                    <span className="text-xs text-secondary">BMI:</span>
+                                    <span className={`text-xs font-medium ${
+                                        bmiInfo.value < 18.5 ? 'text-amber-500'
+                                        : bmiInfo.value < 25 ? 'text-themegreen'
+                                        : bmiInfo.value < 30 ? 'text-amber-500'
+                                        : 'text-themeredred'
+                                    }`}>
+                                        {bmiInfo.display}
+                                    </span>
+                                    <span className="text-xs text-secondary/50">
+                                        {bmiInfo.value < 18.5 ? 'Underweight'
+                                        : bmiInfo.value < 25 ? 'Normal'
+                                        : bmiInfo.value < 30 ? 'Overweight'
+                                        : 'Obese'}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    }
                     preview={(filter) => {
                         const lc = filter.toLowerCase();
                         const tl = lc ? MASTER_BLOCKS_TOP_LEVEL.filter(b => b.label.toLowerCase().includes(lc)) : MASTER_BLOCKS_TOP_LEVEL;
                         const childMatch = lc ? MSK_CHILD_KEYS.filter(k => MASTER_BLOCK_LIBRARY[k]?.label.toLowerCase().includes(lc)) : [];
                         const showMsk = tl.some(b => b.key === 'msk') || childMatch.length > 0;
+                        const blocks = showMsk && !tl.some(b => b.key === 'msk') ? [...tl, MASTER_BLOCK_LIBRARY['msk']!] : tl;
                         return (
-                            <div className="py-1">
-                                {(!lc || 'vitals'.includes(lc) || 'vital signs'.includes(lc)) && (
-                                    <div className="px-3 py-2 border-b border-tertiary/10">
-                                        <p className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">Vital Signs</p>
-                                        <div className="grid grid-cols-3 gap-2">
-                                            {VITAL_SIGNS.map(v => {
-                                                if (v.key === 'bpDia') return null;
-                                                if (v.key === 'bpSys') return (
-                                                    <div key="bp" className="flex items-center gap-1">
-                                                        <input
-                                                            type="text"
-                                                            value={vitals['bpSys'] || ''}
-                                                            onChange={(e) => setVitalValue('bpSys', e.target.value)}
-                                                            placeholder="BP sys"
-                                                            className="w-1/2 text-[10pt] px-3 py-2.5 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
-                                                        />
-                                                        <span className="text-[10pt] text-tertiary/40">/</span>
-                                                        <input
-                                                            type="text"
-                                                            value={vitals['bpDia'] || ''}
-                                                            onChange={(e) => setVitalValue('bpDia', e.target.value)}
-                                                            placeholder="dia"
-                                                            className="w-1/2 text-[10pt] px-3 py-2.5 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
-                                                        />
-                                                    </div>
-                                                );
-                                                return (
-                                                    <div key={v.key}>
-                                                        <input
-                                                            type="text"
-                                                            value={vitals[v.key] || ''}
-                                                            onChange={(e) => setVitalValue(v.key, e.target.value)}
-                                                            placeholder={`${v.shortLabel} (${v.unit})`}
-                                                            className="w-full text-[10pt] px-3 py-2.5 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
-                                                        />
-                                                        {v.key === 'ht' && vitals[v.key]?.trim() && !isNaN(parseFloat(vitals[v.key])) && (
-                                                            <span className="text-[10pt] text-secondary/50 mt-0.5 block">{(parseFloat(vitals[v.key]) * 2.54).toFixed(1)} cm</span>
-                                                        )}
-                                                        {v.key === 'wt' && vitals[v.key]?.trim() && !isNaN(parseFloat(vitals[v.key])) && (
-                                                            <span className="text-[10pt] text-secondary/50 mt-0.5 block">{(parseFloat(vitals[v.key]) * 0.453592).toFixed(1)} kg</span>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                        {bmiInfo && (
-                                            <div className="flex items-center gap-2 mt-1.5">
-                                                <span className="text-[10pt] text-secondary">BMI:</span>
-                                                <span className={`text-[10pt] font-medium ${
-                                                    bmiInfo.value < 18.5 ? 'text-amber-500'
-                                                    : bmiInfo.value < 25 ? 'text-themegreen'
-                                                    : bmiInfo.value < 30 ? 'text-amber-500'
-                                                    : 'text-themeredred'
-                                                }`}>
-                                                    {bmiInfo.display}
-                                                </span>
-                                                <span className="text-[10pt] text-secondary/50">
-                                                    {bmiInfo.value < 18.5 ? 'Underweight'
-                                                    : bmiInfo.value < 25 ? 'Normal'
-                                                    : bmiInfo.value < 30 ? 'Overweight'
-                                                    : 'Obese'}
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                                {(showMsk && !tl.some(b => b.key === 'msk') ? [...tl, MASTER_BLOCK_LIBRARY['msk']!] : tl).map(block => {
+                            <div>
+                                <p className="text-[9px] font-semibold text-tertiary/40 uppercase tracking-wider px-3 pt-2 pb-1">Systems</p>
+                                {blocks.map(block => {
                                     if (!block) return null;
                                     const selected = (templateBlockKeys ?? []).includes(block.key);
                                     return (
@@ -1332,27 +1315,43 @@ export function PhysicalExam({
             )}
 
 
-            {/* ── Inline add card (focused mode only) ── */}
+            {/* ── Add block picker (focused mode) ── */}
             {mode === 'focused' && (
-                <div className={`overflow-hidden transition-all duration-300 ease-out ${
-                    showAddCard ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'
-                }`}>
-                    {showAddCard && (
-                        <InlineAddCard
-                            onCancel={() => setShowAddCard(false)}
-                            onSubmit={(label, findings) => {
-                                const key = `inline_${Date.now()}`;
-                                const block: PEBlock = { key, label: label || 'Additional', findings: [] };
-                                setAddedBlocks(prev => [...prev, block]);
-                                setBlockStates(prev => ({
-                                    ...prev,
-                                    [key]: { status: 'abnormal', selectedNormals: [], selectedAbnormals: [], findings },
-                                }));
-                                setShowAddCard(false);
-                            }}
-                        />
-                    )}
-                </div>
+                <ContextMenuPreview
+                    isVisible={showAddPicker}
+                    onClose={() => setShowAddPicker(false)}
+                    anchorRect={addPickerAnchorRect}
+                    maxWidth="max-w-[300px]"
+                    searchPlaceholder="Search systems..."
+                    preview={(filter) => {
+                        const lc = filter.toLowerCase();
+                        const filtered = lc
+                            ? availableToAdd.filter(b => b.label.toLowerCase().includes(lc))
+                            : availableToAdd;
+                        return (
+                            <div>
+                                <p className="text-[9px] font-semibold text-tertiary/40 uppercase tracking-wider px-3 pt-2 pb-1">Add System</p>
+                                {filtered.map(block => (
+                                    <button
+                                        key={block.key}
+                                        type="button"
+                                        onClick={() => addMasterBlock(block.key)}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-all active:scale-[0.98] hover:bg-tertiary/5"
+                                    >
+                                        <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10 text-tertiary/50">
+                                            <Plus size={10} />
+                                        </span>
+                                        <span className="text-xs font-medium text-primary">{block.label}</span>
+                                    </button>
+                                ))}
+                                {filtered.length === 0 && (
+                                    <p className="text-xs text-tertiary/40 px-3 py-3">No additional systems available</p>
+                                )}
+                            </div>
+                        );
+                    }}
+                    actions={[{ key: 'done', label: 'Done', icon: Check, onAction: () => setShowAddPicker(false) }]}
+                />
             )}
 
             {/* ── Add button ── */}
@@ -1366,11 +1365,11 @@ export function PhysicalExam({
                         <Plus size={14} />
                     </button>
                 </div>
-            ) : mode === 'focused' && !showAddCard ? (
+            ) : mode === 'focused' && availableToAdd.length > 0 ? (
                 <div className="flex justify-center pt-1">
                     <button
                         type="button"
-                        onClick={() => setShowAddCard(true)}
+                        onClick={openAddPicker}
                         className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
                     >
                         <Plus size={14} />

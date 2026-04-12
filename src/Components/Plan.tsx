@@ -223,7 +223,7 @@ function ActiveItemsCard({ items, onToggle, onReorder }: {
         <div className="w-full rounded-2xl bg-themewhite shadow-xl border border-tertiary/10 overflow-hidden shrink-0">
             <div
                 className="overflow-y-auto overscroll-contain"
-                style={{ maxHeight: '120px' }}
+                style={{ maxHeight: '160px' }}
                 onPointerMove={handleDragMove}
                 onPointerUp={handleDragEnd}
                 onPointerCancel={handleDragEnd}
@@ -559,8 +559,8 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                 isVisible={showFabPopover}
                 onClose={() => setShowFabPopover(false)}
                 anchorRect={fabAnchorRect}
-                maxWidth="max-w-[340px] md:max-w-[520px]"
-                previewMaxHeight="168px"
+                maxWidth="max-w-[400px] md:max-w-[520px]"
+                previewMaxHeight="280px"
                 headerCard={
                     <>
                         {orderSets.length > 0 && (
@@ -607,7 +607,6 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                             setInputValue('');
                         }}
                         activeTab={activeTab}
-                        onTabChange={(key) => { setActiveTab(key as PlanBlockKey); setAddCategory(key as PlanBlockKey); }}
                     />
                 }
                 supplemental={
@@ -615,7 +614,7 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                         <CategoryPicker
                             value={addTarget}
                             categories={allCategories}
-                            onChange={(key) => setAddCategory(key as PlanBlockKey)}
+                            onChange={(key) => { setAddCategory(key as PlanBlockKey | null); setActiveTab(key as PlanBlockKey | null); }}
                         />
                         <input
                             type="text"

@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Eye, EyeOff, ChevronDown, Check, ChevronLeft, ChevronRight } from 'lucide-react'
-import { useIsMobile } from '../Hooks/useIsMobile'
-import { useOverlay } from '../Hooks/useOverlay'
+import { Popover } from './Popover'
 
 export const TextInput = ({
   label,
@@ -131,9 +130,8 @@ export const PickerInput = ({
   required?: boolean
   label?: string
 }) => {
-  const isMobile = useIsMobile()
   const [visible, setVisible] = useState(false)
-  const { mounted, open, dragY, isDragging, close, touchHandlers } = useOverlay(visible, () => setVisible(false))
+  const close = useCallback(() => setVisible(false), [])
 
   const displayValue = options.find((o) => getOptionValue(o) === value)
   const displayLabel = displayValue ? getOptionLabel(displayValue) : ''
@@ -168,105 +166,44 @@ export const PickerInput = ({
         )}
       </div>
 
-      {mounted && (isMobile ? (
-        <>
-          <div
-            className={`fixed inset-0 z-50 bg-black transition-opacity duration-300 ${open ? 'opacity-40' : 'opacity-0'}`}
-            style={{ pointerEvents: open ? 'auto' : 'none' }}
+      <Popover
+        isOpen={visible}
+        onClose={close}
+        maxWidth={280}
+        title={placeholder}
+        footer={
+          <button
+            type="button"
             onClick={close}
-          />
-          <div
-            className={`fixed left-0 right-0 bottom-0 z-50 bg-themewhite3 rounded-t-[1.25rem] ${isDragging ? '' : 'transition-transform duration-300 ease-out'}`}
-            style={{
-              transform: open ? `translateY(${dragY}px)` : 'translateY(100%)',
-              maxHeight: '50dvh',
-            }}
-            role="listbox"
-            aria-label={placeholder}
-            {...touchHandlers}
+            className="flex flex-col items-center justify-center min-w-[52px] px-3 py-2 rounded-xl bg-tertiary/8 text-tertiary/60 text-[9px] font-medium active:scale-95 transition-all"
           >
-            <div className="flex justify-center pt-2 pb-1" data-drag-zone style={{ touchAction: 'none' }}>
-              <div className="w-9 h-1 rounded-full bg-tertiary/25" />
-            </div>
-            <p className="px-5 pb-2 text-xs font-medium text-tertiary/50 uppercase tracking-wide">
-              {placeholder}
-            </p>
-            <div className="px-3 pb-5 overflow-y-auto" style={{ maxHeight: 'calc(50dvh - 3.5rem)' }}>
-              {options.map((opt) => {
-                const optVal = getOptionValue(opt)
-                const optLbl = getOptionLabel(opt)
-                const selected = optVal === value
-                return (
-                  <button
-                    key={optVal}
-                    type="button"
-                    role="option"
-                    aria-selected={selected}
-                    onClick={() => handleSelect(opt)}
-                    className={`w-full text-left px-4 py-3 rounded-xl text-sm transition-colors active:scale-95 flex items-center justify-between ${
-                      selected ? 'text-themeblue2 font-medium bg-themeblue2/5' : 'text-primary'
-                    }`}
-                  >
-                    {optLbl}
-                    {selected && <Check size={16} className="shrink-0 text-themeblue2" />}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </>
-      ) : (
-        <>
-          <div
-            className={`fixed inset-0 z-50 bg-black transition-opacity duration-200 ${open ? 'opacity-15' : 'opacity-0'}`}
-            style={{ pointerEvents: open ? 'auto' : 'none' }}
-            onClick={close}
-          />
-          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-            <div
-              className={`bg-themewhite2 rounded-xl shadow-lg border border-primary/10 py-1.5 min-w-[200px] max-w-[260px] w-full pointer-events-auto transition-all duration-200 ease-out ${
-                open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2'
-              }`}
-              role="listbox"
-              aria-label={placeholder}
-            >
-              <p className="px-3.5 py-1.5 text-[10pt] font-medium text-tertiary/60 uppercase tracking-wider">
-                {placeholder}
-              </p>
-              <div className="max-h-60 overflow-y-auto">
-                {options.map((opt) => {
-                  const optVal = getOptionValue(opt)
-                  const optLbl = getOptionLabel(opt)
-                  const selected = optVal === value
-                  return (
-                    <button
-                      key={optVal}
-                      type="button"
-                      role="option"
-                      aria-selected={selected}
-                      onClick={() => handleSelect(opt)}
-                      className={`w-full text-left px-3.5 py-2 text-sm hover:bg-primary/5 active:bg-primary/10 transition-colors flex items-center justify-between ${
-                        selected ? 'text-themeblue2 font-medium' : 'text-primary'
-                      }`}
-                    >
-                      {optLbl}
-                      {selected && <Check size={16} className="shrink-0 text-themeblue2" />}
-                    </button>
-                  )
-                })}
-              </div>
-              <div className="h-px bg-tertiary/10 mx-2.5 my-1" />
+            Cancel
+          </button>
+        }
+      >
+        <div className="max-h-60 overflow-y-auto py-1" role="listbox" aria-label={placeholder}>
+          {options.map((opt) => {
+            const optVal = getOptionValue(opt)
+            const optLbl = getOptionLabel(opt)
+            const selected = optVal === value
+            return (
               <button
+                key={optVal}
                 type="button"
-                onClick={close}
-                className="flex items-center w-full px-3.5 py-2 text-sm text-tertiary hover:bg-primary/5 transition-colors"
+                role="option"
+                aria-selected={selected}
+                onClick={() => handleSelect(opt)}
+                className={`w-full text-left px-3.5 py-2 text-sm hover:bg-primary/5 active:bg-primary/10 transition-colors flex items-center justify-between ${
+                  selected ? 'text-themeblue2 font-medium' : 'text-primary'
+                }`}
               >
-                Cancel
+                {optLbl}
+                {selected && <Check size={16} className="shrink-0 text-themeblue2" />}
               </button>
-            </div>
-          </div>
-        </>
-      ))}
+            )
+          })}
+        </div>
+      </Popover>
     </div>
   )
 }
@@ -472,9 +409,8 @@ export const DatePickerInput = ({
   minDate?: string
   maxDate?: string
 }) => {
-  const isMobile = useIsMobile()
   const [visible, setVisible] = useState(false)
-  const { mounted, open, dragY, isDragging, close, touchHandlers } = useOverlay(visible, () => setVisible(false))
+  const close = () => setVisible(false)
 
   const display = formatDisplay(value)
 
@@ -493,74 +429,28 @@ export const DatePickerInput = ({
         <ChevronDown size={16} className="shrink-0 ml-2 text-tertiary/40" />
       </button>
 
-      {mounted && (isMobile ? (
-        <>
-          <div
-            className={`fixed inset-0 z-50 bg-black transition-opacity duration-300 ${open ? 'opacity-40' : 'opacity-0'}`}
-            style={{ pointerEvents: open ? 'auto' : 'none' }}
+      <Popover
+        isOpen={visible}
+        onClose={close}
+        title={placeholder ?? 'Select Date'}
+        footer={
+          <button
+            type="button"
             onClick={close}
-          />
-          <div
-            className={`fixed left-0 right-0 bottom-0 z-50 bg-themewhite3 rounded-t-[1.25rem] ${isDragging ? '' : 'transition-transform duration-300 ease-out'}`}
-            style={{
-              transform: open ? `translateY(${dragY}px)` : 'translateY(100%)',
-              maxHeight: '50dvh',
-            }}
-            {...touchHandlers}
+            className="flex flex-col items-center justify-center min-w-[52px] px-3 py-2 rounded-xl bg-tertiary/8 text-tertiary/60 text-[9px] font-medium active:scale-95 transition-all"
           >
-            <div className="flex justify-center pt-2 pb-1" data-drag-zone style={{ touchAction: 'none' }}>
-              <div className="w-9 h-1 rounded-full bg-tertiary/25" />
-            </div>
-            <p className="px-5 pb-1 text-xs font-medium text-tertiary/50 uppercase tracking-wide">
-              {placeholder ?? 'Select Date'}
-            </p>
-            <div className="overflow-y-auto" style={{ maxHeight: 'calc(50dvh - 3.5rem)' }}>
-              <DatePickerCalendar
-                value={value}
-                onChange={onChange}
-                onClose={close}
-                minDate={minDate}
-                maxDate={maxDate}
-              />
-            </div>
-          </div>
-        </>
-      ) : (
-        <>
-          <div
-            className={`fixed inset-0 z-50 bg-black transition-opacity duration-300 ${open ? 'opacity-20' : 'opacity-0'}`}
-            style={{ pointerEvents: open ? 'auto' : 'none' }}
-            onClick={close}
-          />
-          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-            <div
-              className={`bg-themewhite rounded-3xl shadow-xl px-2 py-4 max-w-[320px] w-full pointer-events-auto transition-all duration-300 ease-out ${
-                open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-90 translate-y-4'
-              }`}
-            >
-              <p className="px-4 pb-2 text-xs font-medium text-tertiary/50 uppercase tracking-wide">
-                {placeholder ?? 'Select Date'}
-              </p>
-              <DatePickerCalendar
-                value={value}
-                onChange={onChange}
-                onClose={close}
-                minDate={minDate}
-                maxDate={maxDate}
-              />
-              <div className="px-4">
-                <button
-                  type="button"
-                  onClick={close}
-                  className="w-full py-2.5 rounded-full text-sm font-medium text-tertiary active:scale-95 transition-all"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
-      ))}
+            Cancel
+          </button>
+        }
+      >
+        <DatePickerCalendar
+          value={value}
+          onChange={onChange}
+          onClose={close}
+          minDate={minDate}
+          maxDate={maxDate}
+        />
+      </Popover>
     </div>
   )
 }
@@ -794,9 +684,8 @@ export const MultiPickerInput = ({
   required?: boolean
   label?: string
 }) => {
-  const isMobile = useIsMobile()
   const [visible, setVisible] = useState(false)
-  const { mounted, open, dragY, isDragging, close, touchHandlers } = useOverlay(visible, () => setVisible(false))
+  const close = useCallback(() => setVisible(false), [])
 
   const displayLabel = value.length > 0
     ? options
@@ -813,29 +702,6 @@ export const MultiPickerInput = ({
       onChange([...value, optVal])
     }
   }, [value, onChange])
-
-  const optionList = (mobile: boolean) => options.map((opt) => {
-    const optVal = getOptionValue(opt)
-    const optLbl = getOptionLabel(opt)
-    const selected = value.includes(optVal)
-    return (
-      <button
-        key={optVal}
-        type="button"
-        role="option"
-        aria-selected={selected}
-        onClick={() => toggleOption(opt)}
-        className={`w-full text-left ${mobile ? 'px-4 py-3 rounded-xl' : 'px-3.5 py-2'} text-sm transition-colors active:scale-95 flex items-center justify-between ${
-          selected
-            ? mobile ? 'text-themeblue2 font-medium bg-themeblue2/5' : 'text-themeblue2 font-medium'
-            : 'text-primary'
-        } ${mobile ? '' : 'hover:bg-primary/5 active:bg-primary/10'}`}
-      >
-        {optLbl}
-        {selected && <Check size={16} className="shrink-0 text-themeblue2" />}
-      </button>
-    )
-  })
 
   return (
     <div>
@@ -862,78 +728,44 @@ export const MultiPickerInput = ({
         )}
       </div>
 
-      {mounted && (isMobile ? (
-        <>
-          <div
-            className={`fixed inset-0 z-50 bg-black transition-opacity duration-300 ${open ? 'opacity-40' : 'opacity-0'}`}
-            style={{ pointerEvents: open ? 'auto' : 'none' }}
+      <Popover
+        isOpen={visible}
+        onClose={close}
+        maxWidth={280}
+        title={placeholder}
+        footer={
+          <button
+            type="button"
             onClick={close}
-          />
-          <div
-            className={`fixed left-0 right-0 bottom-0 z-50 bg-themewhite3 rounded-t-[1.25rem] ${isDragging ? '' : 'transition-transform duration-300 ease-out'}`}
-            style={{
-              transform: open ? `translateY(${dragY}px)` : 'translateY(100%)',
-              maxHeight: '50dvh',
-            }}
-            role="listbox"
-            aria-label={placeholder}
-            aria-multiselectable="true"
-            {...touchHandlers}
+            className="flex flex-col items-center justify-center min-w-[52px] px-3 py-2 rounded-xl bg-themeblue2/8 text-themeblue2 text-[9px] font-medium active:scale-95 transition-all"
           >
-            <div className="flex justify-center pt-2 pb-1" data-drag-zone style={{ touchAction: 'none' }}>
-              <div className="w-9 h-1 rounded-full bg-tertiary/25" />
-            </div>
-            <p className="px-5 pb-2 text-xs font-medium text-tertiary/50 uppercase tracking-wide">
-              {placeholder}
-            </p>
-            <div className="px-3 pb-3 overflow-y-auto" style={{ maxHeight: 'calc(50dvh - 5.5rem)' }}>
-              {optionList(true)}
-            </div>
-            <div className="px-4 pb-5">
+            Done
+          </button>
+        }
+      >
+        <div className="max-h-60 overflow-y-auto py-1" role="listbox" aria-label={placeholder} aria-multiselectable="true">
+          {options.map((opt) => {
+            const optVal = getOptionValue(opt)
+            const optLbl = getOptionLabel(opt)
+            const selected = value.includes(optVal)
+            return (
               <button
+                key={optVal}
                 type="button"
-                onClick={close}
-                className="w-full py-2.5 rounded-full text-sm font-medium bg-themeblue3 text-white active:scale-95 transition-all"
+                role="option"
+                aria-selected={selected}
+                onClick={() => toggleOption(opt)}
+                className={`w-full text-left px-3.5 py-2 text-sm hover:bg-primary/5 active:bg-primary/10 transition-colors flex items-center justify-between ${
+                  selected ? 'text-themeblue2 font-medium' : 'text-primary'
+                }`}
               >
-                Done
+                {optLbl}
+                {selected && <Check size={16} className="shrink-0 text-themeblue2" />}
               </button>
-            </div>
-          </div>
-        </>
-      ) : (
-        <>
-          <div
-            className={`fixed inset-0 z-50 bg-black transition-opacity duration-200 ${open ? 'opacity-15' : 'opacity-0'}`}
-            style={{ pointerEvents: open ? 'auto' : 'none' }}
-            onClick={close}
-          />
-          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-            <div
-              className={`bg-themewhite2 rounded-xl shadow-lg border border-primary/10 py-1.5 min-w-[200px] max-w-[260px] w-full pointer-events-auto transition-all duration-200 ease-out ${
-                open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2'
-              }`}
-              role="listbox"
-              aria-label={placeholder}
-              aria-multiselectable="true"
-            >
-              <p className="px-3.5 py-1.5 text-[10pt] font-medium text-tertiary/60 uppercase tracking-wider">
-                {placeholder}
-              </p>
-              <div className="max-h-60 overflow-y-auto">
-                {optionList(false)}
-              </div>
-              <div className="h-px bg-tertiary/10 mx-2.5 my-1" />
-              <button
-                type="button"
-                onClick={close}
-                className="flex items-center justify-center w-full px-3.5 py-2 text-sm font-medium text-themeblue2 hover:bg-primary/5 transition-colors"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </>
-      ))}
+            )
+          })}
+        </div>
+      </Popover>
     </div>
   )
 }
