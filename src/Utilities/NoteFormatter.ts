@@ -192,8 +192,6 @@ function formatDecisionMakingItems(items: decisionMakingType[]): string {
     items.forEach((item, index) => {
         const itemLines: string[] = [];
 
-        if (index > 0) itemLines.push('---');
-
         if (item.text) {
             itemLines.push(item.text);
         }

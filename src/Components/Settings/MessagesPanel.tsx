@@ -19,12 +19,13 @@ import { ProvisionalDeviceModal } from './ProvisionalDeviceModal'
 import { useAuth } from '../../Hooks/useAuth'
 import { useCallActions } from '../../Hooks/CallContext'
 import { useAvatar } from '../../Utilities/AvatarContext'
-import { CardContextMenu } from '../CardContextMenu'
+import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { SwipeableCard, type SwipeAction as SwipeCardAction } from '../SwipeableCard'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { usePeerAvailability, type UnavailableReason } from '../../Hooks/usePeerAvailability'
 import { ChatDetailView, type ParticipantStatus } from '../ChatDetailView'
-import { ContextMenuPreview, type ContextMenuAction } from '../ContextMenuPreview'
+import { PreviewOverlay } from '../PreviewOverlay'
+import type { ContextMenuAction } from '../PreviewOverlay'
 import { ConversationPreview } from '../ConversationPreview'
 import { useLongPress } from '../../Hooks/useLongPress'
 import { useIsMobile } from '../../Hooks/useIsMobile'
@@ -576,7 +577,7 @@ function ConversationPane({
 
       {/* Right-click context menu */}
       {contextMenu && (
-        <CardContextMenu
+        <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           onClose={() => setContextMenu(null)}
@@ -608,8 +609,8 @@ function ConversationPane({
 
       {/* Long-press preview (mobile) */}
       {isMobile && (
-        <ContextMenuPreview
-          isVisible={!!previewTarget}
+        <PreviewOverlay
+          isOpen={!!previewTarget}
           onClose={handleClosePreview}
           anchorRect={previewAnchorRect}
           preview={

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Plus, Check, RotateCcw, GripVertical, X } from 'lucide-react';
 import type { PlanOrderTags, PlanOrderSet, PlanBlockKey, TextExpander } from '../Data/User';
 import { PLAN_ORDER_CATEGORIES, PLAN_ORDER_LABELS } from '../Data/User';
-import { ContextMenuPreview } from './ContextMenuPreview';
+import { PreviewOverlay } from './PreviewOverlay';
 import { PlanAllBlocksPreview, CategoryPicker } from './PlanBlockPreview';
 import { ListItemRow } from './ListItemRow';
 import { ExpandableInput } from './ExpandableInput';
@@ -555,11 +555,11 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
             )}
 
             {/* Unified popover — all categories with nested tags */}
-            <ContextMenuPreview
-                isVisible={showFabPopover}
+            <PreviewOverlay
+                isOpen={showFabPopover}
                 onClose={() => setShowFabPopover(false)}
                 anchorRect={fabAnchorRect}
-                maxWidth="max-w-[400px] md:max-w-[520px]"
+                maxWidth={520}
                 previewMaxHeight="280px"
                 headerCard={
                     <>

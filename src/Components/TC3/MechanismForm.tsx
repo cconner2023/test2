@@ -1,7 +1,7 @@
 import { memo, useState, useRef, useCallback } from 'react'
 import { Plus, Check, RotateCcw, ChevronRight, Crosshair } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
-import { ContextMenuPreview } from '../ContextMenuPreview'
+import { PreviewOverlay } from '../PreviewOverlay'
 import type { MechanismType } from '../../Types/TC3Types'
 
 const MECHANISM_OPTIONS: { type: MechanismType; label: string }[] = [
@@ -18,11 +18,7 @@ const MECHANISM_OPTIONS: { type: MechanismType; label: string }[] = [
   { type: 'Other', label: 'Other' },
 ]
 
-export const MechanismForm = memo(function MechanismForm({
-  panelRef,
-}: {
-  panelRef?: React.RefObject<HTMLElement | null>
-}) {
+export const MechanismForm = memo(function MechanismForm() {
   const mechanism = useTC3Store((s) => s.card.mechanism)
   const toggleMechanism = useTC3Store((s) => s.toggleMechanism)
   const setMechanismOther = useTC3Store((s) => s.setMechanismOther)
@@ -72,20 +68,10 @@ export const MechanismForm = memo(function MechanismForm({
   return (
     <div>
       {/* Section header */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="mb-2">
         <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
           Mechanism of Injury
         </p>
-        {!populated && (
-          <button
-            ref={btnRef}
-            type="button"
-            onClick={() => openPopover(btnRef)}
-            className="w-7 h-7 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
-          >
-            <Plus size={13} />
-          </button>
-        )}
       </div>
 
       {/* Section card */}
@@ -116,25 +102,25 @@ export const MechanismForm = memo(function MechanismForm({
           </button>
         </div>
       ) : (
-        <div className="rounded-2xl border border-dashed border-tertiary/15 bg-themewhite2/50 py-6 flex flex-col items-center gap-1.5">
+        <div className="flex flex-col items-center gap-2 py-6">
           <button
+            ref={btnRef}
             type="button"
             onClick={() => openPopover(btnRef)}
-            className="w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
+            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
           >
-            <Plus size={15} />
+            <Plus size={14} />
           </button>
           <p className="text-[10px] text-tertiary/40">Add mechanism of injury</p>
         </div>
       )}
 
       {/* Edit popover */}
-      <ContextMenuPreview
-        isVisible={popoverVisible}
+      <PreviewOverlay
+        isOpen={popoverVisible}
         onClose={() => setPopoverVisible(false)}
         anchorRect={anchorRect}
-        maxWidth="max-w-[380px]"
-        containerRef={panelRef}
+        maxWidth={380}
         preview={
           <div className="px-4 py-3 space-y-3">
             <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Select All That Apply</span>

@@ -1,7 +1,7 @@
 import { memo, useState, useCallback } from 'react'
 import { X, Check, ChevronRight, Plus } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
-import { ContextMenuPreview } from '../ContextMenuPreview'
+import { PreviewOverlay } from '../PreviewOverlay'
 import type { TC3Medication, TC3IVAccess, MedRoute, MedCategory } from '../../Types/TC3Types'
 
 // ---------------------------------------------------------------------------
@@ -702,8 +702,8 @@ export const MedicationsForm = memo(function MedicationsForm() {
       </div>
 
       {/* Unified popover */}
-      <ContextMenuPreview
-        isVisible={popoverType !== null}
+      <PreviewOverlay
+        isOpen={popoverType !== null}
         onClose={closePopover}
         anchorRect={anchorRect}
         preview={currentPreview}

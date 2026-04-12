@@ -1,11 +1,11 @@
 import { useCallback, useRef, useState, useSyncExternalStore } from 'react'
-import { Upload, BookOpen, Mail, Package, ClipboardCheck, Settings, HelpCircle, UserCog, Radio, Map as MapIcon, Eye, CalendarDays, Stethoscope, MessageSquare, X } from 'lucide-react'
+import { Upload, BookOpen, Mail, Package, ClipboardCheck, Settings, HelpCircle, UserCog, Radio, Map as MapIcon, Eye, CalendarDays, Stethoscope, MessageSquare, X, Pin, ChevronUp, ChevronDown, EyeOff } from 'lucide-react'
 import { useAuth } from '../Hooks/useAuth'
 import { useAvatar } from '../Utilities/AvatarContext'
 import { useTotalUnread } from '../stores/useMessagingStore'
 import { getInitials } from '../Utilities/nameUtils'
 import { useNavItems } from '../Hooks/useNavItems'
-import { NavItemContextMenu } from './NavItemContextMenu'
+import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 
 const iconMapMobile: Record<string, React.ReactNode> = {
   'import': <Upload size={20} className="text-primary/70" />,
@@ -250,26 +250,52 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
         </div>
       </div>
 
-      {contextMenu && (
-        <NavItemContextMenu
-          action={contextMenu.action}
-          label={contextMenu.label}
-          isStarred={starred.includes(contextMenu.action)}
-          isHidden={false}
-          position={contextMenu.position}
-          onStar={() => toggleStar(contextMenu.action)}
-          onHide={() => toggleHide(contextMenu.action)}
-          onMoveUp={() => moveItem(contextMenu.action, 'up', currentActionOrder)}
-          onMoveDown={() => moveItem(contextMenu.action, 'down', currentActionOrder)}
-          onClose={() => setContextMenu(null)}
-          canMoveUp={currentActionOrder.indexOf(contextMenu.action) > 0}
-          canMoveDown={(() => {
-            const idx = currentActionOrder.indexOf(contextMenu.action)
-            const settingsIdx = currentActionOrder.indexOf('settings')
-            return idx < (settingsIdx !== -1 ? settingsIdx - 1 : currentActionOrder.length - 1)
-          })()}
-        />
-      )}
+      {contextMenu && (() => {
+        const canMoveUp = currentActionOrder.indexOf(contextMenu.action) > 0
+        const canMoveDown = (() => {
+          const idx = currentActionOrder.indexOf(contextMenu.action)
+          const settingsIdx = currentActionOrder.indexOf('settings')
+          return idx < (settingsIdx !== -1 ? settingsIdx - 1 : currentActionOrder.length - 1)
+        })()
+        const isStarred = starred.includes(contextMenu.action)
+        const items: ContextMenuItem[] = [
+          {
+            key: 'pin',
+            label: isStarred ? 'Unpin' : 'Pin',
+            icon: Pin,
+            onAction: () => toggleStar(contextMenu.action),
+          },
+          {
+            key: 'up',
+            label: 'Move Up',
+            icon: ChevronUp,
+            onAction: () => moveItem(contextMenu.action, 'up', currentActionOrder),
+            disabled: !canMoveUp,
+          },
+          {
+            key: 'down',
+            label: 'Move Down',
+            icon: ChevronDown,
+            onAction: () => moveItem(contextMenu.action, 'down', currentActionOrder),
+            disabled: !canMoveDown,
+          },
+          {
+            key: 'hide',
+            label: 'Hide',
+            icon: EyeOff,
+            onAction: () => toggleHide(contextMenu.action),
+            destructive: true,
+          },
+        ]
+        return (
+          <ContextMenu
+            x={contextMenu.position.x}
+            y={contextMenu.position.y}
+            onClose={() => setContextMenu(null)}
+            items={items}
+          />
+        )
+      })()}
     </div>
   )
 }

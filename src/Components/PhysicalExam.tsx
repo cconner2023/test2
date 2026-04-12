@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Check, RotateCcw, Plus, AlertTriangle, ChevronLeft, ChevronRight, X, Trash2, GripVertical } from 'lucide-react';
-import { ContextMenuPreview } from './ContextMenuPreview';
-import type { ContextMenuAction } from './ContextMenuPreview';
+import { PreviewOverlay } from './PreviewOverlay';
+import type { ContextMenuAction } from './PreviewOverlay';
 import { ExamBlockPreview } from './ExamBlockPreview';
 import { ListItemRow } from './ListItemRow';
 import type { getColorClasses } from '../Utilities/ColorUtilities';
@@ -1135,11 +1135,11 @@ export function PhysicalExam({
 
             {/* ── Lifted single popover ── */}
             {editingEntry && editingState && (
-                <ContextMenuPreview
-                    isVisible={editingIndex !== null}
+                <PreviewOverlay
+                    isOpen={editingIndex !== null}
                     onClose={() => setEditingIndex(null)}
                     anchorRect={popoverAnchorRect}
-                    maxWidth="max-w-[340px] md:max-w-[520px]"
+                    maxWidth={520}
                     searchPlaceholder="Filter findings..."
                     preview={(filter, clearFilter) => {
                         const augmented = augmentBlock(editingEntry.viewBlock, editingEntry.key);
@@ -1161,11 +1161,11 @@ export function PhysicalExam({
 
             {/* ── Block picker popover (template mode) ── */}
             {mode === 'template' && onBlockKeysChange && (
-                <ContextMenuPreview
-                    isVisible={showBlockPicker}
+                <PreviewOverlay
+                    isOpen={showBlockPicker}
                     onClose={() => setShowBlockPicker(false)}
                     anchorRect={blockPickerAnchorRect}
-                    maxWidth="max-w-[340px]"
+                    maxWidth={340}
                     searchPlaceholder="Search systems..."
                     headerCard={
                         <div className="w-full rounded-2xl bg-themewhite shadow-xl border border-tertiary/10 overflow-hidden shrink-0 px-3 py-2.5">
@@ -1317,11 +1317,11 @@ export function PhysicalExam({
 
             {/* ── Add block picker (focused mode) ── */}
             {mode === 'focused' && (
-                <ContextMenuPreview
-                    isVisible={showAddPicker}
+                <PreviewOverlay
+                    isOpen={showAddPicker}
                     onClose={() => setShowAddPicker(false)}
                     anchorRect={addPickerAnchorRect}
-                    maxWidth="max-w-[300px]"
+                    maxWidth={300}
                     searchPlaceholder="Search systems..."
                     preview={(filter) => {
                         const lc = filter.toLowerCase();

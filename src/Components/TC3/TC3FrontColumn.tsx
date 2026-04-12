@@ -1,4 +1,4 @@
-import { memo, useState, useRef } from 'react'
+import { memo, useState } from 'react'
 import { RotateCcw, ChevronRight } from 'lucide-react'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { useTC3Store } from '../../stores/useTC3Store'
@@ -12,7 +12,6 @@ import { getRegionLabel } from '../../Utilities/bodyRegionMap'
 export const TC3FrontColumn = memo(function TC3FrontColumn() {
   const card = useTC3Store((s) => s.card)
   const resetCard = useTC3Store((s) => s.resetCard)
-  const panelRef = useRef<HTMLDivElement>(null)
   const [showConfirmReset, setShowConfirmReset] = useState(false)
   const [editingMarker, setEditingMarker] = useState<string | null>(null)
 
@@ -24,24 +23,16 @@ export const TC3FrontColumn = memo(function TC3FrontColumn() {
   const markerCount = card.markers.length
 
   return (
-    <div ref={panelRef} className="relative h-full overflow-y-auto bg-themewhite">
+    <div className="relative h-full overflow-y-auto bg-themewhite">
       <div className="px-3 py-4 space-y-6">
-        {/* Header */}
-        <div className="px-1">
-          <p className="text-[10px] font-semibold text-themeredred/60 tracking-widest uppercase">
-            DD 1380 — TC3 Card (Front)
-          </p>
-        </div>
-
         {/* Casualty Info */}
-        <CasualtyInfoForm panelRef={panelRef} />
+        <CasualtyInfoForm />
 
         {/* Mechanism */}
-        <MechanismForm panelRef={panelRef} />
+        <MechanismForm />
 
         {/* Body Diagram — front + back side by side (desktop) */}
         <BodyDiagram
-          panelRef={panelRef}
           editingMarkerId={editingMarker}
           onEditMarker={setEditingMarker}
         />

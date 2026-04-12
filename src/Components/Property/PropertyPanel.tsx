@@ -140,7 +140,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   const renderNewLocationForm = () => {
     if (!showNewLocation) return null
     return (
-      <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-primary/10 bg-themewhite2/50">
+      <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-primary/10">
         <input
           type="text"
           value={newLocationName}
@@ -151,20 +151,20 @@ export const PropertyPanel = memo(function PropertyPanel({
           }}
           placeholder="Location name"
           autoFocus
-          className="flex-1 min-w-0 px-3 py-2.5 rounded-lg text-primary text-base border border-tertiary/10 focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none transition-all placeholder:text-tertiary/30"
+          className="flex-1 min-w-0 rounded-full py-2.5 px-4 border border-themeblue1/30 shadow-xs bg-themewhite2 focus:outline-none text-base text-primary placeholder:text-tertiary/30 transition-all duration-300"
         />
         <button
           onClick={() => setShowNewLocation(false)}
-          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+          className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary active:scale-95 transition-all duration-300"
         >
-          <X size={18} />
+          <X size={20} />
         </button>
         <button
           onClick={handleCreateLocation}
           disabled={!newLocationName.trim()}
-          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+          className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-themeblue3 text-white border border-themeblue1/30 disabled:opacity-30 active:scale-95 transition-all duration-300"
         >
-          <Check size={18} />
+          <Check size={20} />
         </button>
       </div>
     )
@@ -173,7 +173,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   const renderRenameForm = () => {
     if (!renamingLocation) return null
     return (
-      <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-primary/10 bg-themewhite2/50">
+      <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-primary/10">
         <input
           type="text"
           value={renamingLocation.name}
@@ -187,13 +187,13 @@ export const PropertyPanel = memo(function PropertyPanel({
           }}
           placeholder="Rename location"
           autoFocus
-          className="flex-1 min-w-0 px-3 py-2.5 rounded-lg text-primary text-base border border-tertiary/10 focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none transition-all placeholder:text-tertiary/30"
+          className="flex-1 min-w-0 rounded-full py-2.5 px-4 border border-themeblue1/30 shadow-xs bg-themewhite2 focus:outline-none text-base text-primary placeholder:text-tertiary/30 transition-all duration-300"
         />
         <button
           onClick={() => setRenamingLocation(null)}
-          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+          className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary active:scale-95 transition-all duration-300"
         >
-          <X size={18} />
+          <X size={20} />
         </button>
         <button
           onClick={() => {
@@ -203,9 +203,9 @@ export const PropertyPanel = memo(function PropertyPanel({
             }
           }}
           disabled={!renamingLocation.name.trim()}
-          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+          className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-themeblue3 text-white border border-themeblue1/30 disabled:opacity-30 active:scale-95 transition-all duration-300"
         >
-          <Check size={18} />
+          <Check size={20} />
         </button>
       </div>
     )
@@ -269,6 +269,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 onEditLocation={(loc) => setRenamingLocation({ id: loc.id, name: loc.name })}
                 onDeleteLocation={(locId) => setPendingDeleteLocId(locId)}
                 onDeleteItem={(item) => setPendingDeleteItem(item)}
+                editing={editing}
               />
             </div>
           </div>
@@ -406,10 +407,12 @@ export const PropertyPanel = memo(function PropertyPanel({
             onSelectItem={handleSelectItem}
             onEditLocation={(loc) => setRenamingLocation({ id: loc.id, name: loc.name })}
             onDeleteLocation={(locId) => setPendingDeleteLocId(locId)}
+            onDeleteItem={(item) => setPendingDeleteItem(item)}
             onDrilldownChange={onDrilldownChange}
             showInlineForm={showInlineForm}
             inlineEditItem={store.editingItem}
             onInlineFormClose={() => { setShowInlineForm(false); store.setEditingItem(null) }}
+            editing={editing}
           />
         </div>
 

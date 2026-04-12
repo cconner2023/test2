@@ -292,6 +292,7 @@ interface TC3State {
   card: TC3Card
   selectedSection: TC3Section
   wizardStep: number
+  showExport: boolean
 }
 
 interface TC3Actions {
@@ -302,6 +303,10 @@ interface TC3Actions {
   nextWizardStep: () => void
   prevWizardStep: () => void
   setWizardStep: (step: number) => void
+
+  // Export drawer
+  openExport: () => void
+  closeExport: () => void
 
   // Card lifecycle
   resetCard: () => void
@@ -386,12 +391,13 @@ interface TC3Actions {
 
 export type TC3Store = TC3State & TC3Actions
 
-const WIZARD_PAGE_COUNT = 7
+const WIZARD_PAGE_COUNT = 2
 
 export const useTC3Store = create<TC3Store>()((set) => ({
   card: createEmptyCard(),
   selectedSection: 'casualty',
   wizardStep: 0,
+  showExport: false,
 
   // Section navigation
   setSelectedSection: (section) => set({ selectedSection: section }),
@@ -400,6 +406,10 @@ export const useTC3Store = create<TC3Store>()((set) => ({
   nextWizardStep: () => set((s) => ({ wizardStep: Math.min(s.wizardStep + 1, WIZARD_PAGE_COUNT - 1) })),
   prevWizardStep: () => set((s) => ({ wizardStep: Math.max(s.wizardStep - 1, 0) })),
   setWizardStep: (step) => set({ wizardStep: step }),
+
+  // Export drawer
+  openExport: () => set({ showExport: true }),
+  closeExport: () => set({ showExport: false }),
 
   // Card lifecycle
   resetCard: () => set({ card: createEmptyCard(), selectedSection: 'casualty', wizardStep: 0 }),

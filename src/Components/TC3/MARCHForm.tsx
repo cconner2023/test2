@@ -1,7 +1,7 @@
 import { memo, useState, useCallback, useRef } from 'react'
 import { Plus, X, Check, ChevronRight } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
-import { ContextMenuPreview } from '../ContextMenuPreview'
+import { PreviewOverlay } from '../PreviewOverlay'
 import { getRegionLabel } from '../../Utilities/bodyRegionMap'
 import type {
   TC3Tourniquet, TC3Hemostatic, TC3IVAccess, TC3Medication,
@@ -925,41 +925,38 @@ export const MARCHForm = memo(function MARCHForm() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="mb-2">
         <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
           Interventions
         </p>
-        {rows.length > 0 && (
-          <button ref={fabRef} type="button" onClick={handleFab}
-            className="w-7 h-7 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40">
-            <Plus size={13} />
-          </button>
-        )}
       </div>
 
       {/* Unified list */}
       {rows.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-tertiary/15 bg-themewhite2/50 py-6 flex flex-col items-center gap-1.5">
+        <div className="flex flex-col items-center gap-2 py-6">
           <button ref={fabRef} type="button" onClick={handleFab}
-            className="w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40">
-            <Plus size={15} />
+            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40">
+            <Plus size={14} />
           </button>
           <p className="text-[10px] text-tertiary/40">Add intervention</p>
         </div>
       ) : (
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
-          {rows.map((row, idx) => renderRow(row, idx))}
-          {/* Inline add at bottom — matches VitalsForm pattern */}
-          <button ref={fabRef} type="button" onClick={handleFab}
-            className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-[11px] text-tertiary/50 hover:text-primary hover:bg-themeblue2/5 transition-colors">
-            <Plus size={12} /> Add
-          </button>
-        </div>
+        <>
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
+            {rows.map((row, idx) => renderRow(row, idx))}
+          </div>
+          <div className="flex justify-center items-center gap-2 pt-1">
+            <button ref={fabRef} type="button" onClick={handleFab}
+              className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40">
+              <Plus size={14} />
+            </button>
+          </div>
+        </>
       )}
 
       {/* Add menu popover */}
-      <ContextMenuPreview
-        isVisible={showAddMenu}
+      <PreviewOverlay
+        isOpen={showAddMenu}
         onClose={closeAll}
         anchorRect={anchorRef.current}
         preview={
@@ -992,8 +989,8 @@ export const MARCHForm = memo(function MARCHForm() {
       />
 
       {/* Edit / Add-form popover */}
-      <ContextMenuPreview
-        isVisible={isPopoverOpen}
+      <PreviewOverlay
+        isOpen={isPopoverOpen}
         onClose={closeAll}
         anchorRect={anchorRef.current}
         preview={popoverPreview}

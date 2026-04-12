@@ -1,7 +1,7 @@
 import { memo, useState } from 'react'
 import { Plus, X, Check, ChevronRight } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
-import { ContextMenuPreview } from '../ContextMenuPreview'
+import { PreviewOverlay } from '../PreviewOverlay'
 import type { TC3VitalSet, AVPU } from '../../Types/TC3Types'
 
 const AVPU_OPTIONS: AVPU[] = ['A', 'V', 'P', 'U']
@@ -258,24 +258,18 @@ export const VitalsForm = memo(function VitalsForm() {
   return (
     <div>
       {/* Section header */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="mb-2">
         <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
           Signs & Symptoms
         </p>
-        {!hasData && (
-          <button type="button" onClick={handleAddVitals}
-            className="w-7 h-7 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40">
-            <Plus size={13} />
-          </button>
-        )}
       </div>
 
       {/* Empty state */}
       {!hasData && (
-        <div className="rounded-2xl border border-dashed border-tertiary/15 bg-themewhite2/50 py-6 flex flex-col items-center gap-1.5">
+        <div className="flex flex-col items-center gap-2 py-6">
           <button type="button" onClick={handleAddVitals}
-            className="w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40">
-            <Plus size={15} />
+            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40">
+            <Plus size={14} />
           </button>
           <p className="text-[10px] text-tertiary/40">Add vital signs</p>
         </div>
@@ -350,8 +344,8 @@ export const VitalsForm = memo(function VitalsForm() {
 
       {/* Popover for editing a vital set (includes AVPU + GCS + vitals) */}
       {editingSet && (
-        <ContextMenuPreview
-          isVisible={!!editingId}
+        <PreviewOverlay
+          isOpen={!!editingId}
           onClose={handleClose}
           anchorRect={null}
           preview={<VitalSetPreviewContent id={editingSet.id} />}

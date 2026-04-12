@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Eye, EyeOff, ChevronDown, Check, ChevronLeft, ChevronRight } from 'lucide-react'
-import { Popover } from './Popover'
+import { Eye, EyeOff, ChevronDown, Check, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { PreviewOverlay } from './PreviewOverlay'
+import { ActionButton } from './ActionButton'
 
 export const TextInput = ({
   label,
@@ -166,19 +167,16 @@ export const PickerInput = ({
         )}
       </div>
 
-      <Popover
+      <PreviewOverlay
         isOpen={visible}
         onClose={close}
+        anchorRect={null}
         maxWidth={280}
         title={placeholder}
         footer={
-          <button
-            type="button"
-            onClick={close}
-            className="flex flex-col items-center justify-center min-w-[52px] px-3 py-2 rounded-xl bg-tertiary/8 text-tertiary/60 text-[9px] font-medium active:scale-95 transition-all"
-          >
-            Cancel
-          </button>
+          <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+            <ActionButton icon={X} label="Cancel" onClick={close} />
+          </div>
         }
       >
         <div className="max-h-60 overflow-y-auto py-1" role="listbox" aria-label={placeholder}>
@@ -203,7 +201,7 @@ export const PickerInput = ({
             )
           })}
         </div>
-      </Popover>
+      </PreviewOverlay>
     </div>
   )
 }
@@ -429,18 +427,15 @@ export const DatePickerInput = ({
         <ChevronDown size={16} className="shrink-0 ml-2 text-tertiary/40" />
       </button>
 
-      <Popover
+      <PreviewOverlay
         isOpen={visible}
         onClose={close}
+        anchorRect={null}
         title={placeholder ?? 'Select Date'}
         footer={
-          <button
-            type="button"
-            onClick={close}
-            className="flex flex-col items-center justify-center min-w-[52px] px-3 py-2 rounded-xl bg-tertiary/8 text-tertiary/60 text-[9px] font-medium active:scale-95 transition-all"
-          >
-            Cancel
-          </button>
+          <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+            <ActionButton icon={X} label="Cancel" onClick={close} />
+          </div>
         }
       >
         <DatePickerCalendar
@@ -450,7 +445,7 @@ export const DatePickerInput = ({
           minDate={minDate}
           maxDate={maxDate}
         />
-      </Popover>
+      </PreviewOverlay>
     </div>
   )
 }
@@ -728,19 +723,16 @@ export const MultiPickerInput = ({
         )}
       </div>
 
-      <Popover
+      <PreviewOverlay
         isOpen={visible}
         onClose={close}
+        anchorRect={null}
         maxWidth={280}
         title={placeholder}
         footer={
-          <button
-            type="button"
-            onClick={close}
-            className="flex flex-col items-center justify-center min-w-[52px] px-3 py-2 rounded-xl bg-themeblue2/8 text-themeblue2 text-[9px] font-medium active:scale-95 transition-all"
-          >
-            Done
-          </button>
+          <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+            <ActionButton icon={Check} label="Done" onClick={close} />
+          </div>
         }
       >
         <div className="max-h-60 overflow-y-auto py-1" role="listbox" aria-label={placeholder} aria-multiselectable="true">
@@ -765,7 +757,7 @@ export const MultiPickerInput = ({
             )
           })}
         </div>
-      </Popover>
+      </PreviewOverlay>
     </div>
   )
 }

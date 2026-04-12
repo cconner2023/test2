@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronRight, ChevronDown, Pencil, Trash2, Eye } from 'lucide-react'
 import { useDrag } from '@use-gesture/react'
-import { CardContextMenu } from '../CardContextMenu'
+import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import type { LocalPropertyLocation, LocalPropertyItem } from '../../Types/PropertyTypes'
 
 interface PropertyLocationTreeProps {
@@ -19,6 +19,7 @@ interface PropertyLocationTreeProps {
   onEditLocation?: (loc: LocalPropertyLocation) => void
   onDeleteLocation?: (locId: string) => void
   onDeleteItem?: (item: LocalPropertyItem) => void
+  editing?: boolean
 }
 
 interface TreeNode {
@@ -48,6 +49,7 @@ export function PropertyLocationTree({
   onEditLocation,
   onDeleteLocation,
   onDeleteItem,
+  editing = false,
 }: PropertyLocationTreeProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [dragState, setDragState] = useState<DragState | null>(null)
@@ -305,6 +307,28 @@ export function PropertyLocationTree({
               {totalItems}
             </span>
           )}
+
+          {/* Inline edit controls */}
+          {editing && (
+            <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+              {onEditLocation && (
+                <button
+                  onClick={() => onEditLocation(node.location)}
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                >
+                  <Pencil size={13} />
+                </button>
+              )}
+              {onDeleteLocation && (
+                <button
+                  onClick={() => onDeleteLocation(node.location.id)}
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
+                >
+                  <Trash2 size={13} />
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Children + items when expanded */}
@@ -334,6 +358,14 @@ export function PropertyLocationTree({
                     <span className="text-[9pt] text-tertiary/60 tabular-nums shrink-0">
                       {item.quantity}
                     </span>
+                  )}
+                  {editing && onDeleteItem && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onDeleteItem(item) }}
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all shrink-0"
+                    >
+                      <Trash2 size={13} />
+                    </button>
                   )}
                 </div>
               )
@@ -435,6 +467,14 @@ export function PropertyLocationTree({
                         {item.quantity}
                       </span>
                     )}
+                    {editing && onDeleteItem && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onDeleteItem(item) }}
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all shrink-0"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
                   </div>
                 )
               })}
@@ -449,7 +489,7 @@ export function PropertyLocationTree({
           const loc = locations.find(l => l.id === contextMenu.id)
           if (!loc) return null
           return (
-            <CardContextMenu
+            <ContextMenu
               x={contextMenu.x}
               y={contextMenu.y}
               onClose={() => setContextMenu(null)}
@@ -463,7 +503,7 @@ export function PropertyLocationTree({
           const item = items.find(i => i.id === contextMenu.id)
           if (!item) return null
           return (
-            <CardContextMenu
+            <ContextMenu
               x={contextMenu.x}
               y={contextMenu.y}
               onClose={() => setContextMenu(null)}

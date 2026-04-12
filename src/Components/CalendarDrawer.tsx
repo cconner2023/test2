@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { X, ListFilter, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { HeaderPill, PillButton } from './HeaderPill'
-import { Popover } from './Popover'
+import { PreviewOverlay } from './PreviewOverlay'
 import { CalendarPanel } from './Calendar/CalendarPanel'
 import { RosterPane } from './Calendar/RosterPane'
 import { MiniCalendar } from './Calendar/MiniCalendar'
@@ -350,9 +350,10 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                 </div>
 
                 {/* Mobile date popover — anchored to the month label in the header */}
-                <Popover
+                <PreviewOverlay
                     isOpen={showDatePopover}
                     onClose={() => setShowDatePopover(false)}
+                    anchorRect={null}
                     maxWidth={340}
                 >
                     <div className="flex items-center justify-between px-3 py-2">
@@ -368,7 +369,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                             onDisplayMonthChange={setControlsDisplayMonth}
                         />
                     </div>
-                </Popover>
+                </PreviewOverlay>
 
                 {/* Mobile filter drawer — personnel filter only */}
                 <BaseDrawer

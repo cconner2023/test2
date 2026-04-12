@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { ChevronRight, RotateCcw, Pin, Pill, BookOpen } from 'lucide-react'
 import { MobileSearchBar } from './MobileSearchBar'
+import { ActionButton } from './ActionButton'
 import { BaseDrawer } from './BaseDrawer'
 import { TrainingPanel, type TrainingView } from './Settings/TrainingPanel'
 import { MedicationContent } from './MedicationContent'
@@ -11,8 +12,8 @@ import { VitalSignsCalculator, type VitalSignsCalculatorHandle } from './VitalSi
 import { BurnCalculator } from './BurnCalculator'
 import { BloodProductsReference } from './BloodProductsReference'
 import { KBOverlay } from './KBOverlay'
-import { Popover } from './Popover'
-import { KBItemContextMenu } from './KBItemContextMenu'
+import { PreviewOverlay } from './PreviewOverlay'
+import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useNavPreferencesStore } from '../stores/useNavPreferencesStore'
 import { useShallow } from 'zustand/react/shallow'
@@ -289,24 +290,20 @@ export function KnowledgeBaseDrawer({
             </ContentWrapper>
 
             {/* Overlay calculators/references */}
-            <Popover
+            <PreviewOverlay
                 isOpen={calculatorOpen}
                 onClose={() => setCalculatorOpen(false)}
+                anchorRect={null}
                 title="Vital Signs"
                 maxWidth={390}
                 footer={
-                    <button
-                        type="button"
-                        onClick={() => vsRef.current?.reset()}
-                        className="flex items-center gap-1.5 min-w-[52px] px-3 py-2 rounded-xl bg-tertiary/8 text-tertiary/60 text-[9px] font-medium active:scale-95 transition-all"
-                    >
-                        <RotateCcw size={10} />
-                        Clear
-                    </button>
+                    <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+                        <ActionButton icon={RotateCcw} label="Clear" onClick={() => vsRef.current?.reset()} />
+                    </div>
                 }
             >
                 <VitalSignsCalculator ref={vsRef} />
-            </Popover>
+            </PreviewOverlay>
 <KBOverlay title="Blood Products" isOpen={bloodOpen} onClose={() => setBloodOpen(false)}>
                 <BloodProductsReference />
             </KBOverlay>
@@ -687,11 +684,16 @@ function KBHome({
 
             {/* Context menu */}
             {contextMenu && (
-                <KBItemContextMenu
-                    isPinned={pinnedKB.includes(contextMenu.id)}
-                    position={contextMenu.position}
-                    onTogglePin={() => togglePinKB(contextMenu.id)}
+                <ContextMenu
+                    x={contextMenu.position.x}
+                    y={contextMenu.position.y}
                     onClose={() => setContextMenu(null)}
+                    items={[{
+                        key: 'pin',
+                        label: pinnedKB.includes(contextMenu.id) ? 'Unpin' : 'Pin',
+                        icon: Pin,
+                        onAction: () => togglePinKB(contextMenu.id),
+                    }]}
                 />
             )}
         </div>

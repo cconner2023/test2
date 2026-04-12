@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Clock, Building2, Trash2, UserCheck, Eye, X, HelpCircle, Check, RefreshCw } from 'lucide-react'
 import { TextInput, PickerInput, MultiPickerInput, UicPinInput } from '../FormInputs'
 import { EmptyState } from '../EmptyState'
-import { CardContextMenu } from '../CardContextMenu'
+import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { ErrorDisplay } from '../ErrorDisplay'
@@ -650,7 +650,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
         {contextMenu && (() => {
           const ctxRequest = requests.find(r => r.id === contextMenu.requestId)
           const ctxItems = buildContextItems(ctxRequest, contextMenu.requestId)
-          return <CardContextMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} items={ctxItems} />
+          return <ContextMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} items={ctxItems} />
         })()}
 
         <ConfirmDialog
@@ -715,7 +715,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
         const ctxItems = buildContextItems(ctxRequest, contextMenu.requestId)
 
         return (
-          <CardContextMenu
+          <ContextMenu
             x={contextMenu.x}
             y={contextMenu.y}
             onClose={() => setContextMenu(null)}

@@ -45,7 +45,7 @@ export const ExamBlockPreview: React.FC<ExamBlockPreviewProps> = ({
 
       {/* Findings grid — left: normal, right: abnormals (one per row) */}
       {filtered.length > 0 ? (
-        <div className="mx-4 mb-4 border border-tertiary/10 rounded-xl overflow-hidden">
+        <div className="mb-4 border border-tertiary/10 rounded-xl overflow-hidden">
           {filtered.map((finding: PEFinding, i: number) => {
             const abnormalCount = Math.max(finding.abnormals.length, 1);
             const hasNormal = !!finding.normal;
@@ -65,8 +65,8 @@ export const ExamBlockPreview: React.FC<ExamBlockPreviewProps> = ({
                   >
                     <span className={`text-[9pt] transition-colors ${
                       state.selectedNormals.includes(finding.key)
-                        ? 'text-themegreen font-medium'
-                        : 'text-tertiary/40'
+                        ? 'text-primary font-medium'
+                        : 'text-secondary'
                     }`}>
                       {finding.normal}
                     </span>
@@ -88,8 +88,8 @@ export const ExamBlockPreview: React.FC<ExamBlockPreviewProps> = ({
                     >
                       <span className={`text-[9pt] transition-colors ${
                         state.selectedAbnormals.includes(ab.key)
-                          ? 'text-themeredred font-medium'
-                          : 'text-tertiary/40'
+                          ? 'text-primary font-medium'
+                          : 'text-secondary'
                       }`}>
                         {ab.label}
                       </span>
@@ -103,7 +103,7 @@ export const ExamBlockPreview: React.FC<ExamBlockPreviewProps> = ({
           })}
         </div>
       ) : (
-        <p className="px-4 pb-4 text-[9pt] text-tertiary/40 italic">No matches</p>
+        <p className="px-4 pb-4 text-[9pt] text-secondary italic">No matches</p>
       )}
     </div>
   );

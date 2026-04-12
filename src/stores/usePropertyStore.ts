@@ -69,7 +69,7 @@ interface PropertyState {
   addItem: (data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at'>) => Promise<void>
   editItem: (id: string, updates: Partial<PropertyItem>) => Promise<void>
   removeItem: (id: string) => Promise<void>
-  addLocation: (data: Omit<PropertyLocation, 'id' | 'created_at' | 'updated_at'>) => Promise<void>
+  addLocation: (data: Omit<PropertyLocation, 'id' | 'created_at' | 'updated_at'>) => Promise<{ success: boolean; location?: LocalPropertyLocation }>
   editLocation: (id: string, updates: Partial<PropertyLocation>) => Promise<void>
   removeLocation: (id: string) => Promise<void>
   refreshItems: () => Promise<void>
@@ -239,12 +239,14 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
 
   addLocation: async (data) => {
     const user = useAuthStore.getState().user
-    if (!user) return
+    if (!user) return { success: false }
 
     const result = await createLocation(data, user.id)
     if (result.success) {
       set({ locations: [...get().locations, result.location] })
+      return { success: true, location: result.location }
     }
+    return { success: false }
   },
 
   editLocation: async (id, updates) => {

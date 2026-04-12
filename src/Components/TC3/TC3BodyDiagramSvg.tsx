@@ -42,12 +42,6 @@ const PROCEDURE_COLORS: Record<string, string> = {
     IO: '#14b8a6',
 }
 
-const PRIORITY_COLORS: Record<string, string> = {
-    U: '#ef4444',
-    P: '#f59e0b',
-    R: '#22c55e',
-    E: '#6b7280',
-}
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 
@@ -236,18 +230,6 @@ export function TC3BodyDiagramSvg({ markers = [], editingMarker = null, onAddMar
                                 />
                             )}
 
-                            {/* Priority pip at bottom-right */}
-                            {marker.priority !== '' && (
-                                <circle
-                                    cx={mx + r * 0.7}
-                                    cy={my + r * 0.7}
-                                    r={compact ? 3 : 4}
-                                    fill={PRIORITY_COLORS[marker.priority] ?? '#6b7280'}
-                                    stroke="white"
-                                    strokeWidth={1.5}
-                                />
-                            )}
-
                             {/* Editing ring */}
                             {isEditing && (
                                 <circle
@@ -265,9 +247,9 @@ export function TC3BodyDiagramSvg({ markers = [], editingMarker = null, onAddMar
             </svg>
 
             {/* Labels outside SVG canvas */}
-            <div className="flex justify-around mt-1" style={{ width: w }}>
-                <p className="text-[9px] font-semibold text-tertiary/50 uppercase tracking-widest">Posterior</p>
-                <p className="text-[9px] font-semibold text-tertiary/50 uppercase tracking-widest">Anterior</p>
+            <div className="flex mt-1" style={{ width: w }}>
+                <p className="flex-1 text-center text-[9px] font-semibold text-tertiary/50 uppercase tracking-widest">Anterior</p>
+                <p className="flex-1 text-center text-[9px] font-semibold text-tertiary/50 uppercase tracking-widest">Posterior</p>
             </div>
         </div>
     )

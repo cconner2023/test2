@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
-import { ArrowUp, X, Plus, Mic, ChevronLeft } from 'lucide-react'
+import { ArrowUp, X, Plus, Mic, ChevronLeft, Copy, Pencil, Download, Reply, Trash2, Forward } from 'lucide-react'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MessageBubble } from './Settings/MessageBubble'
-import { MessageContextMenu } from './Settings/MessageContextMenu'
+import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import { ContactListItem } from './Settings/ContactListItem'
 import { useAuth } from '../Hooks/useAuth'
 import { useAuthStore } from '../stores/useAuthStore'
@@ -580,21 +580,25 @@ export function ChatDetailView({
   return (
     <div className="flex flex-col h-full relative" {...mainSwipeBack}>
       {renderMessageList(mainViewMessages, emptyText, true)}
-      {!showThread && contextMenu && contextMsg && (
-        <MessageContextMenu
-          x={contextMenu.x} y={contextMenu.y}
-          isOwn={contextMsg.senderId === userId}
-          isImage={contextMsg.content?.type === 'image'}
-          isVoice={contextMsg.content?.type === 'voice'}
-          onReply={handleContextReply}
-          onCopy={handleCopy}
-          onEdit={handleStartEdit}
-          onForward={handleContextForward}
-          onDelete={handleContextDelete}
-          onSave={handleSaveImage}
-          onClose={closeContextMenu}
-        />
-      )}
+      {!showThread && contextMenu && contextMsg && (() => {
+        const isOwn = contextMsg.senderId === userId
+        const isMedia = contextMsg.content?.type === 'image' || contextMsg.content?.type === 'voice'
+        const items: ContextMenuItem[] = [
+          { key: 'reply', label: 'Reply', icon: Reply, onAction: handleContextReply },
+          ...(!isMedia ? [{ key: 'copy', label: 'Copy', icon: Copy, onAction: handleCopy }] : []),
+          ...(isMedia && handleSaveImage ? [{ key: 'save', label: 'Save', icon: Download, onAction: handleSaveImage }] : []),
+          ...(isOwn && !isMedia ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: handleStartEdit }] : []),
+          { key: 'forward', label: 'Forward', icon: Forward, onAction: handleContextForward },
+          ...(isOwn ? [{ key: 'delete', label: 'Delete', icon: Trash2, onAction: handleContextDelete, destructive: true }] : []),
+        ]
+        return (
+          <ContextMenu
+            x={contextMenu.x} y={contextMenu.y}
+            onClose={closeContextMenu}
+            items={items}
+          />
+        )
+      })()}
       {!showThread && renderInputArea()}
 
       {/* Thread overlay */}
@@ -615,21 +619,25 @@ export function ChatDetailView({
               <div className="w-12 shrink-0" />
             </div>
           )}
-          {contextMenu && contextMsg && (
-            <MessageContextMenu
-              x={contextMenu.x} y={contextMenu.y}
-              isOwn={contextMsg.senderId === userId}
-              isImage={contextMsg.content?.type === 'image'}
-              isVoice={contextMsg.content?.type === 'voice'}
-              onReply={handleContextReply}
-              onCopy={handleCopy}
-              onEdit={handleStartEdit}
-              onForward={handleContextForward}
-              onDelete={handleContextDelete}
-              onSave={handleSaveImage}
-              onClose={closeContextMenu}
-            />
-          )}
+          {contextMenu && contextMsg && (() => {
+            const isOwn = contextMsg.senderId === userId
+            const isMedia = contextMsg.content?.type === 'image' || contextMsg.content?.type === 'voice'
+            const items: ContextMenuItem[] = [
+              { key: 'reply', label: 'Reply', icon: Reply, onAction: handleContextReply },
+              ...(!isMedia ? [{ key: 'copy', label: 'Copy', icon: Copy, onAction: handleCopy }] : []),
+              ...(isMedia && handleSaveImage ? [{ key: 'save', label: 'Save', icon: Download, onAction: handleSaveImage }] : []),
+              ...(isOwn && !isMedia ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: handleStartEdit }] : []),
+              { key: 'forward', label: 'Forward', icon: Forward, onAction: handleContextForward },
+              ...(isOwn ? [{ key: 'delete', label: 'Delete', icon: Trash2, onAction: handleContextDelete, destructive: true }] : []),
+            ]
+            return (
+              <ContextMenu
+                x={contextMenu.x} y={contextMenu.y}
+                onClose={closeContextMenu}
+                items={items}
+              />
+            )
+          })()}
           {renderInputArea()}
         </div>
       )}

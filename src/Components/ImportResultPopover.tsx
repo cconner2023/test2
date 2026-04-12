@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Copy, Share2, ScanLine, User, Check, X } from 'lucide-react'
-import { ContextMenuPreview } from './ContextMenuPreview'
-import type { ContextMenuAction } from './ContextMenuPreview'
+import { PreviewOverlay } from './PreviewOverlay'
+import type { ContextMenuAction } from './PreviewOverlay'
 import { BarcodeDisplay } from './Barcode'
 import type { ImportPreview } from '../Hooks/useNoteImport'
 import { useNoteShare } from '../Hooks/useNoteShare'
@@ -78,7 +78,9 @@ function NotePreviewContent({ preview }: { preview: ImportPreview }) {
       {/* Note text */}
       <div data-tour="import-note-preview" className="rounded-xl bg-themewhite2 overflow-hidden">
         <div className="px-3 py-2 text-tertiary text-[8pt] whitespace-pre-wrap max-h-36 overflow-y-auto">
-          {preview.fullNote || 'No content'}
+          {preview.fullNote
+            ? preview.fullNote.split('\n').filter(l => !l.startsWith('Signed:')).join('\n').trim()
+            : 'No content'}
         </div>
       </div>
       {/* Barcode */}
@@ -213,13 +215,13 @@ export function ImportResultPopover({
   }, [isVisible])
 
   return (
-    <ContextMenuPreview
-      isVisible={isVisible}
+    <PreviewOverlay
+      isOpen={isVisible}
       onClose={onClose}
       anchorRect={anchorRect}
       preview={popoverPreview}
       actions={actions}
-      maxWidth="max-w-[360px]"
+      maxWidth={360}
     />
   )
 }

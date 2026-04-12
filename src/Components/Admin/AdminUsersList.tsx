@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { UserPlus, Pencil, KeyRound, Trash2, LogOut, Eye, Check, X } from 'lucide-react'
 import { UserRow } from '../UserRow'
 import { EmptyState } from '../EmptyState'
-import { CardContextMenu } from '../CardContextMenu'
+import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { ErrorDisplay } from '../ErrorDisplay'
@@ -335,7 +335,7 @@ export function AdminUsersList({
         const contextUser = users.find((u) => u.id === contextMenu.userId)
         if (!contextUser) return null
         return (
-          <CardContextMenu
+          <ContextMenu
             x={contextMenu.x}
             y={contextMenu.y}
             onClose={() => setContextMenu(null)}

@@ -40,16 +40,10 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
   const [shareStatus, setShareStatus] = useState<'idle' | 'sharing' | 'shared'>('idle')
   const [encodedText, setEncodedText] = useState('')
 
-  // Format the readable note text
   const noteText = useMemo(() => formatTC3Note(card, profile), [card, profile])
-
-  // Signature line
   const signature = useMemo(() => formatSignature(profile), [profile])
-
-  // Encode the TC3 card to compact barcode string
   const compactString = useMemo(() => encodeTC3Card(card, userId), [card, userId])
 
-  // Encrypt (same pipeline as ADTMC: pack + deflate + AES-GCM + base64)
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -100,6 +94,7 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
       contentPadding="standard"
     >
       <div className="space-y-4">
+
         {/* Medic signature & avatar */}
         {signature && (
           <div className="flex items-center gap-3 px-3 py-3 rounded-xl border border-tertiary/15 bg-themewhite">
@@ -138,28 +133,17 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
               readOnly
               compact
             />
-            {/* Marker legend */}
             <div className="mt-2 pt-2 border-t border-tertiary/10 flex flex-wrap gap-x-3 gap-y-1">
               {card.markers.map((m, i) => {
                 const region = m.bodyRegion ? getRegionLabel(m.bodyRegion) : `(${Math.round(m.x)}%, ${Math.round(m.y)}%)`
-                const label = [
-                  ...m.injuries,
-                  ...m.procedures,
-                ].join(', ') || 'Marker'
+                const label = [...m.injuries, ...m.procedures].join(', ') || 'Marker'
                 const color = m.injuries.length > 0
                   ? (INJURY_COLORS[m.injuries[0]] ?? '#6b7280')
-                  : m.procedures.length > 0
-                    ? '#22c55e'
-                    : '#f59e0b'
+                  : m.procedures.length > 0 ? '#22c55e' : '#f59e0b'
                 return (
                   <div key={m.id} className="flex items-center gap-1">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: color }}
-                    />
-                    <span className="text-[9px] text-tertiary">
-                      {i + 1}. {label} ({region})
-                    </span>
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                    <span className="text-[9px] text-tertiary">{i + 1}. {label} ({region})</span>
                   </div>
                 )
               })}
@@ -168,9 +152,8 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
         )}
 
         {/* Note Preview */}
-        <div>
-          <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
-            <span className="font-medium">Note Preview</span>
+        <div className="rounded-xl bg-themewhite2 overflow-hidden">
+          <div className="flex items-center justify-end px-3 pt-3">
             <ActionIconButton
               onClick={() => handleCopy(noteText, 'preview')}
               status={copiedTarget === 'preview' ? 'done' : 'idle'}
@@ -178,36 +161,34 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
               title="Copy note text"
             />
           </div>
-          <pre className="p-3 rounded-b-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap max-h-48 overflow-y-auto border border-themegray1/15">
+          <pre className="px-4 pb-4 text-tertiary text-[8pt] whitespace-pre-wrap">
             {noteText || 'No content'}
           </pre>
         </div>
 
         {/* Encoded Note / Barcode */}
-        <div>
-          <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
-            <span className="font-medium">Encoded Note</span>
-            <div className="flex items-center gap-1">
+        <div className="rounded-xl bg-themewhite2 overflow-hidden">
+          <div className="flex items-center justify-end gap-1 px-3 pt-3">
+            <ActionIconButton
+              onClick={() => handleCopy(encodedText, 'encoded')}
+              status={copiedTarget === 'encoded' ? 'done' : 'idle'}
+              variant="copy"
+              title="Copy encoded text"
+            />
+            {typeof navigator.share === 'function' && (
               <ActionIconButton
-                onClick={() => handleCopy(encodedText, 'encoded')}
-                status={copiedTarget === 'encoded' ? 'done' : 'idle'}
-                variant="copy"
-                title="Copy encoded text"
+                onClick={handleShare}
+                status={shareStatus === 'shared' ? 'done' : shareStatus === 'sharing' ? 'busy' : 'idle'}
+                variant="share"
+                title="Share note"
               />
-              {typeof navigator.share === 'function' && (
-                <ActionIconButton
-                  onClick={handleShare}
-                  status={shareStatus === 'shared' ? 'done' : shareStatus === 'sharing' ? 'busy' : 'idle'}
-                  variant="share"
-                  title="Share note"
-                />
-              )}
-            </div>
+            )}
           </div>
-          <div className="mt-1">
+          <div className="px-3 pb-4">
             {encodedText && <BarcodeDisplay encodedText={encodedText} layout={encodedText.length > 300 ? 'col' : 'row'} />}
           </div>
         </div>
+
       </div>
     </BaseDrawer>
   )

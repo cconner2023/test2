@@ -250,10 +250,6 @@ export const TC3_SECTIONS: { id: TC3Section; label: string; icon: string }[] = [
 
 /** Mobile wizard page order */
 export const TC3_WIZARD_PAGES: { id: string; label: string }[] = [
-  { id: 'casualty', label: 'Casualty Info' },
-  { id: 'mechanism', label: 'Mechanism of Injury' },
-  { id: 'injuries', label: 'Injuries' },
-  { id: 'vitals', label: 'Signs & Symptoms' },
-  { id: 'treatments', label: 'Interventions' },
-  { id: 'other', label: 'Other / Notes' },
+  { id: 'front', label: 'TC3 Card (Front)' },
+  { id: 'back', label: 'TC3 Card (Back)' },
 ]

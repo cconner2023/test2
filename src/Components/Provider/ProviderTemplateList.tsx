@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react'
 import { FileText, LayoutTemplate, Check } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { ListItemRow } from '../ListItemRow'
-import { ContextMenuPreview } from '../ContextMenuPreview'
+import { PreviewOverlay } from '../PreviewOverlay'
 import { useLongPress } from '../../Hooks/useLongPress'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { useUserProfile } from '../../Hooks/useUserProfile'
@@ -233,8 +233,8 @@ export function ProviderTemplateList({ templates, onSelect, hideHeader }: Provid
       </div>
 
       {isMobile && (
-        <ContextMenuPreview
-          isVisible={!!previewTemplate}
+        <PreviewOverlay
+          isOpen={!!previewTemplate}
           onClose={handleClosePreview}
           anchorRect={anchorRect}
           preview={

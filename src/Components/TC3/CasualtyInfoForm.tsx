@@ -1,19 +1,19 @@
 import { memo, useState, useRef, useCallback } from 'react'
-import { Plus, Check, RotateCcw, ChevronRight, User, Clock, ShieldAlert } from 'lucide-react'
+import { Plus, Check, RotateCcw, User } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
-import { ContextMenuPreview } from '../ContextMenuPreview'
+import { PreviewOverlay } from '../PreviewOverlay'
 import { TextInput } from '../FormInputs'
 import type { EvacPriority } from '../../Types/TC3Types'
 
 const EVAC_OPTIONS: { value: EvacPriority; label: string; color: string }[] = [
-  { value: 'Urgent', label: 'Urgent', color: 'bg-themeredred' },
-  { value: 'Priority', label: 'Priority', color: 'bg-amber-500' },
-  { value: 'Routine', label: 'Routine', color: 'bg-themegreen' },
+  { value: 'Urgent', label: 'U', color: 'bg-themeredred' },
+  { value: 'Priority', label: 'P', color: 'bg-amber-500' },
+  { value: 'Routine', label: 'R', color: 'bg-themegreen' },
 ]
 
 const SEX_OPTIONS = [
-  { value: 'M' as const, label: 'Male' },
-  { value: 'F' as const, label: 'Female' },
+  { value: 'M' as const, label: 'M' },
+  { value: 'F' as const, label: 'F' },
 ]
 
 const EMPTY_CASUALTY = {
@@ -35,11 +35,7 @@ function formatDT(iso: string) {
   } catch { return iso }
 }
 
-export const CasualtyInfoForm = memo(function CasualtyInfoForm({
-  panelRef,
-}: {
-  panelRef?: React.RefObject<HTMLElement | null>
-}) {
+export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
   const casualty = useTC3Store((s) => s.card.casualty)
   const updateCasualty = useTC3Store((s) => s.updateCasualty)
   const evacuation = useTC3Store((s) => s.card.evacuation)
@@ -81,112 +77,109 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm({
   return (
     <div>
       {/* ── Section header ── */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="mb-2">
         <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
           Casualty Information
         </p>
-        {!populated && (
-          <button
-            ref={btnRef}
-            type="button"
-            onClick={() => openPopover(btnRef)}
-            className="w-7 h-7 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
-          >
-            <Plus size={13} />
-          </button>
-        )}
       </div>
 
       {/* ── Section card ── */}
       {populated ? (
-        <div ref={cardRef} className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-          {/* Identity row */}
-          <button
-            type="button"
-            onClick={() => openPopover(cardRef)}
-            className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5"
-          >
-            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-              <User size={18} className="text-tertiary/60" />
-            </div>
-            <div className="flex-1 min-w-0 text-left">
-              <p className="text-sm font-medium text-primary">
-                {[casualty.lastName, casualty.firstName].filter(Boolean).join(', ') || 'No name'}
-              </p>
-              <p className="text-[11px] text-tertiary/70 mt-0.5">
-                {[
-                  casualty.battleRosterNo && `Roster: ${casualty.battleRosterNo}`,
-                  casualty.last4 && `Last 4: ${casualty.last4}`,
-                  casualty.sex === 'M' ? 'Male' : casualty.sex === 'F' ? 'Female' : '',
-                ].filter(Boolean).join(' · ')}
-              </p>
-            </div>
+        <button
+          ref={cardRef}
+          type="button"
+          onClick={() => openPopover(cardRef)}
+          className="w-full rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden text-left active:scale-95 transition-all hover:bg-themeblue2/5"
+        >
+          {/* Name + EVAC header */}
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <User size={15} className="text-secondary shrink-0" />
+            <p className="flex-1 min-w-0 text-sm font-medium text-primary truncate">
+              {[casualty.lastName, casualty.firstName].filter(Boolean).join(', ') || '—'}
+            </p>
             {evacuation.priority && (
-              <span className={`text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full text-white shrink-0 ${
+              <span className={`text-[10px] font-bold w-6 h-6 flex items-center justify-center rounded-full text-white shrink-0 ${
                 evacuation.priority === 'Urgent' ? 'bg-themeredred' :
                 evacuation.priority === 'Priority' ? 'bg-amber-500' : 'bg-themegreen'
               }`}>
-                {evacuation.priority}
+                {evacuation.priority === 'Urgent' ? 'U' : evacuation.priority === 'Priority' ? 'P' : 'R'}
               </span>
             )}
-            <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
-          </button>
+          </div>
 
-          {/* Unit / Service row — only when data exists */}
-          {(casualty.unit || casualty.service) && (
-            <div className="flex items-center gap-3 w-full px-4 py-3.5 border-t border-tertiary/6">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                <ShieldAlert size={18} className="text-tertiary/60" />
+          {/* DD1380 fields grid */}
+          <div className="px-4 pb-3.5 border-t border-tertiary/8 pt-3 grid grid-cols-2 gap-x-6 gap-y-2.5">
+            {casualty.battleRosterNo && (
+              <div>
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-secondary">Battle Roster</p>
+                <p className="text-xs text-primary mt-0.5">{casualty.battleRosterNo}</p>
               </div>
-              <div className="flex-1 min-w-0 text-left">
-                <p className="text-sm font-medium text-primary">
-                  {[casualty.unit, casualty.service].filter(Boolean).join(' · ')}
-                </p>
-                {casualty.allergies && (
-                  <p className="text-[11px] text-tertiary/70 mt-0.5">Allergies: {casualty.allergies}</p>
-                )}
+            )}
+            {casualty.last4 && (
+              <div>
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-secondary">Last 4</p>
+                <p className="text-xs text-primary mt-0.5">{casualty.last4}</p>
               </div>
-            </div>
-          )}
-
-          {/* Timeline row — only when data exists */}
-          {(casualty.dateTimeOfInjury || casualty.dateTimeOfTreatment) && (
-            <div className="flex items-center gap-3 w-full px-4 py-3.5 border-t border-tertiary/6">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                <Clock size={18} className="text-tertiary/60" />
+            )}
+            {casualty.sex && (
+              <div>
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-secondary">Sex</p>
+                <p className="text-xs text-primary mt-0.5">{casualty.sex}</p>
               </div>
-              <div className="flex-1 min-w-0 text-left">
-                {casualty.dateTimeOfInjury && (
-                  <p className="text-sm font-medium text-primary">Injury: {formatDT(casualty.dateTimeOfInjury)}</p>
-                )}
-                {casualty.dateTimeOfTreatment && (
-                  <p className="text-[11px] text-tertiary/70 mt-0.5">Treatment: {formatDT(casualty.dateTimeOfTreatment)}</p>
-                )}
+            )}
+            {casualty.service && (
+              <div>
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-secondary">Service</p>
+                <p className="text-xs text-primary mt-0.5">{casualty.service}</p>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+            {casualty.unit && (
+              <div>
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-secondary">Unit</p>
+                <p className="text-xs text-primary mt-0.5">{casualty.unit}</p>
+              </div>
+            )}
+            {casualty.allergies && (
+              <div>
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-secondary">Allergies</p>
+                <p className="text-xs text-primary mt-0.5">{casualty.allergies}</p>
+              </div>
+            )}
+            {casualty.dateTimeOfInjury && (
+              <div>
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-secondary">DTG Injury</p>
+                <p className="text-xs text-primary mt-0.5">{formatDT(casualty.dateTimeOfInjury)}</p>
+              </div>
+            )}
+            {casualty.dateTimeOfTreatment && (
+              <div>
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-secondary">DTG Treatment</p>
+                <p className="text-xs text-primary mt-0.5">{formatDT(casualty.dateTimeOfTreatment)}</p>
+              </div>
+            )}
+          </div>
+        </button>
       ) : (
         /* ── Empty state ── */
-        <div className="rounded-2xl border border-dashed border-tertiary/15 bg-themewhite2/50 py-6 flex flex-col items-center gap-1.5">
+        <div className="flex flex-col items-center gap-2 py-6">
           <button
+            ref={btnRef}
             type="button"
             onClick={() => openPopover(btnRef)}
-            className="w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
+            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
           >
-            <Plus size={15} />
+            <Plus size={14} />
           </button>
           <p className="text-[10px] text-tertiary/40">Add casualty details</p>
         </div>
       )}
 
       {/* ── Edit popover ── */}
-      <ContextMenuPreview
-        isVisible={popoverVisible}
+      <PreviewOverlay
+        isOpen={popoverVisible}
         onClose={() => setPopoverVisible(false)}
         anchorRect={anchorRect}
-        maxWidth="max-w-[380px]"
-        containerRef={panelRef}
+        maxWidth={380}
         preview={
           <div className="px-4 py-3 space-y-3">
             {/* EVAC Priority */}
@@ -198,7 +191,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm({
                     key={opt.value}
                     type="button"
                     onClick={() => setDraftEvac(prev => prev === opt.value ? '' : opt.value)}
-                    className={`flex-1 py-2 rounded-full text-xs font-bold transition-all border ${
+                    className={`w-9 h-9 rounded-full text-xs font-bold transition-all border active:scale-95 ${
                       draftEvac === opt.value
                         ? `${opt.color} text-white border-transparent`
                         : 'border-tertiary/15 text-tertiary hover:bg-tertiary/5'
@@ -252,7 +245,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm({
                     key={opt.value}
                     type="button"
                     onClick={() => updateDraft({ sex: draft.sex === opt.value ? '' : opt.value })}
-                    className={`flex-1 py-2 rounded-full text-xs font-bold transition-all border ${
+                    className={`w-9 h-9 rounded-full text-xs font-bold transition-all border active:scale-95 ${
                       draft.sex === opt.value
                         ? 'bg-themeblue3 text-white border-transparent'
                         : 'border-tertiary/15 text-tertiary hover:bg-tertiary/5'

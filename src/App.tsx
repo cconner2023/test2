@@ -20,6 +20,8 @@ import InstallPrompt from './Components/InstallPrompt'
 import { ColumnA } from './Components/ColumnA'
 import { TC3DesktopLayout } from './Components/TC3/TC3DesktopLayout'
 import { TC3MobileWizard } from './Components/TC3/TC3MobileWizard'
+import { TC3WriteNote } from './Components/TC3/TC3WriteNote'
+import { useTC3Store } from './stores/useTC3Store'
 
 import { useNoteImport } from './Hooks/useNoteImport'
 import type { ImportPreview } from './Hooks/useNoteImport'
@@ -82,6 +84,10 @@ function AppContent() {
   const { user } = useAuth()
   const avatarState = useProfileAvatar(user?.id)
   const tc3Mode = useAuthStore((s) => s.profile.tc3Mode) ?? false
+  const showTC3Export = useTC3Store((s) => s.showExport)
+  const closeTC3Export = useTC3Store((s) => s.closeExport)
+  const tc3WizardStep = useTC3Store((s) => s.wizardStep)
+  const tc3PrevStep = useTC3Store((s) => s.prevWizardStep)
 
   // ── Menu slide (mobile: swipe + click, desktop: click-only) ──
   const menuNavWidth = navigation.isMobile ? MENU_NAV_WIDTH_MOBILE : MENU_NAV_WIDTH_DESKTOP
@@ -397,6 +403,11 @@ case 'mapOverlay':
       return
     }
 
+    if (tc3Mode && navigation.isMobile && tc3WizardStep > 0) {
+      tc3PrevStep()
+      return
+    }
+
     // State change drives grid column transition and Column A carousel
     navigation.handleBackClick()
   }
@@ -498,7 +509,9 @@ case 'mapOverlay':
                 onMessagesClick: handleMessagesClick,
               }}
               ui={{
-                showBack: navigation.shouldShowBackButton(!!search.searchInput.trim()),
+                showBack: tc3Mode && navigation.isMobile
+                  ? tc3WizardStep > 0
+                  : navigation.shouldShowBackButton(!!search.searchInput.trim()),
                 showMenu: navigation.shouldShowMenuButton(!!search.searchInput.trim()),
                 dynamicTitle: title,
                 isMobile: navigation.isMobile,
@@ -733,6 +746,8 @@ case 'mapOverlay':
           onClose={() => navigation.setShowProviderDrawer(false)}
         />
         </ErrorBoundary>
+        {/* TC3WriteNote — lifted to root to escape transform stacking context */}
+        <TC3WriteNote isVisible={showTC3Export} onClose={closeTC3Export} />
         {/* WriteNotePage — BaseDrawer handles mobile/desktop positioning */}
         {navigation.writeNoteData && (
           <ErrorBoundary>

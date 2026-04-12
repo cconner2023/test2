@@ -19,7 +19,7 @@ import { ExpandableInput } from './ExpandableInput';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useMergedNoteContent } from '../Hooks/useMergedNoteContent';
 import { X, Plus, Check } from 'lucide-react';
-import { ContextMenuPreview } from './ContextMenuPreview';
+import { PreviewOverlay } from './PreviewOverlay';
 import { GUIDED_HPI_EXPANDED, GUIDED_PE_TEXT, GUIDED_PLAN_TEXT } from '../Data/GuidedTourData';
 import { PdfPreviewModal } from './PdfPreviewModal';
 
@@ -302,11 +302,11 @@ export const WriteNotePage = ({
                                     )}
                                 </div>
 
-                                <ContextMenuPreview
-                                    isVisible={ddxPopoverVisible}
+                                <PreviewOverlay
+                                    isOpen={ddxPopoverVisible}
                                     onClose={() => setDdxPopoverVisible(false)}
                                     anchorRect={ddxAnchorRect}
-                                    maxWidth="max-w-[340px]"
+                                    maxWidth={340}
                                     preview={(() => {
                                         const combined = [...selectedDdx, ...customDdx];
                                         const unselected = availableDdx.filter(d => !selectedDdx.includes(d));

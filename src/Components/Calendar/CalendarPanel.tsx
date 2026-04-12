@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { Clock, Plus, Users2, CalendarDays, X, Check, Pencil, Trash2, CalendarPlus } from 'lucide-react'
-import { CardContextMenu } from '../CardContextMenu'
+import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { useShallow } from 'zustand/react/shallow'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { EventForm } from './EventForm'
@@ -704,7 +704,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       {deleteConfirmDialog}
 
       {contextMenu && (
-        <CardContextMenu
+        <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           onClose={() => setContextMenu(null)}
@@ -716,7 +716,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       )}
 
       {dayContextMenu && (
-        <CardContextMenu
+        <ContextMenu
           x={dayContextMenu.x}
           y={dayContextMenu.y}
           onClose={() => setDayContextMenu(null)}

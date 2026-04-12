@@ -5,7 +5,7 @@ import { medList, type medListTypes } from '../Data/MedData'
 import { tc3MedList } from '../Data/TC3MedData'
 import { useNavPreferencesStore } from '../stores/useNavPreferencesStore'
 import { useShallow } from 'zustand/react/shallow'
-import { KBItemContextMenu } from './KBItemContextMenu'
+import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 
 const LONG_PRESS_MS = 500
 
@@ -173,11 +173,16 @@ export function MedicationContent({
             ))}
 
             {contextMenu && (
-                <KBItemContextMenu
-                    isPinned={pinnedKB.includes(contextMenu.id)}
-                    position={contextMenu.position}
-                    onTogglePin={() => togglePinKB(contextMenu.id)}
+                <ContextMenu
+                    x={contextMenu.position.x}
+                    y={contextMenu.position.y}
                     onClose={() => setContextMenu(null)}
+                    items={[{
+                        key: 'pin',
+                        label: pinnedKB.includes(contextMenu.id) ? 'Unpin' : 'Pin',
+                        icon: Pin,
+                        onAction: () => togglePinKB(contextMenu.id),
+                    }]}
                 />
             )}
         </div>

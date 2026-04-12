@@ -20,8 +20,7 @@ import { LocationTagPhoto } from './LocationTagPhoto'
 import { CanvasEditOverlay } from './CanvasEditOverlay'
 import type { CanvasEditHandle } from './CanvasEditOverlay'
 import { ConfirmDialog } from '../ConfirmDialog'
-import { CardContextMenu } from '../CardContextMenu'
-import type { CardContextMenuItem } from '../CardContextMenu'
+import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { createLogger } from '../../Utilities/Logger'
 import type { LocalPropertyItem, LocalPropertyLocation, PropertyLocation, LocationTag } from '../../Types/PropertyTypes'
 
@@ -1249,34 +1248,32 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
           {/* Rename dropdown — expands below the toolbar pill */}
           {namingState && (
-            <div className="mt-1.5 bg-themewhite rounded-xl shadow-lg p-2 border border-primary/10 w-[calc(100vw-2rem)] max-w-xs">
-              <div className="flex items-center gap-2">
-                <input
-                  ref={nameInputRef}
-                  type="text"
-                  value={nameInput}
-                  onChange={(e) => setNameInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleExternalNameConfirm()
-                    if (e.key === 'Escape') handleExternalNameCancel()
-                  }}
-                  placeholder={namingState.existingLabel ? 'Rename zone' : 'Name this zone'}
-                  className="flex-1 min-w-0 px-3 py-2.5 rounded-lg text-primary text-base border border-tertiary/10 focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none transition-all placeholder:text-tertiary/30"
-                />
-                <button
-                  onClick={handleExternalNameCancel}
-                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
-                >
-                  <X size={18} />
-                </button>
-                <button
-                  onClick={handleExternalNameConfirm}
-                  disabled={!nameInput.trim()}
-                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
-                >
-                  <Check size={18} />
-                </button>
-              </div>
+            <div className="mt-1.5 flex items-center gap-2 w-[calc(100vw-2rem)] max-w-xs">
+              <input
+                ref={nameInputRef}
+                type="text"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleExternalNameConfirm()
+                  if (e.key === 'Escape') handleExternalNameCancel()
+                }}
+                placeholder={namingState.existingLabel ? 'Rename zone' : 'Name this zone'}
+                className="flex-1 min-w-0 rounded-full py-2.5 px-4 border border-themeblue1/30 shadow-xs bg-themewhite2 focus:outline-none text-base text-primary placeholder:text-tertiary/30 transition-all duration-300"
+              />
+              <button
+                onClick={handleExternalNameCancel}
+                className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary active:scale-95 transition-all duration-300"
+              >
+                <X size={20} />
+              </button>
+              <button
+                onClick={handleExternalNameConfirm}
+                disabled={!nameInput.trim()}
+                className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-themeblue3 text-white border border-themeblue1/30 disabled:opacity-30 active:scale-95 transition-all duration-300"
+              >
+                <Check size={20} />
+              </button>
             </div>
           )}
 
@@ -1366,7 +1363,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       {/* Zone ellipsis context menu */}
       {zoneMenu && (() => {
         const hasPhoto = !!photoMap?.get(zoneMenu.targetId)
-        const menuItems: CardContextMenuItem[] = [
+        const menuItems: ContextMenuItem[] = [
           {
             key: 'photo',
             label: hasPhoto ? 'Change Photo' : 'Add Photo',
@@ -1382,7 +1379,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
           }] : []),
         ]
         return (
-          <CardContextMenu
+          <ContextMenu
             x={zoneMenu.x}
             y={zoneMenu.y}
             items={menuItems}

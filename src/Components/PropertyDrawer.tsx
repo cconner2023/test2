@@ -1,17 +1,20 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Pencil, X } from 'lucide-react'
+import { Pencil, X, List, Map as MapIcon } from 'lucide-react'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { BaseDrawer } from './BaseDrawer'
 import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
+import { PropertyLocationMap, type MapNavHandle } from './Property/PropertyLocationMap'
 import { ContentWrapper } from './ContentWrapper'
 import { MobileSearchBar } from './MobileSearchBar'
 import { ConfirmDialog } from './ConfirmDialog'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
+import { useClinicName } from '../Hooks/useClinicNameResolver'
 import type { LocalPropertyItem } from '../Types/PropertyTypes'
 import type { PropertyLocationListHandle, DrilldownSegment } from './Property/PropertyLocationList'
 import { UI_TIMING } from '../Utilities/constants'
 import { usePropertyStore } from '../stores/usePropertyStore'
+import { useShallow } from 'zustand/react/shallow'
 
 interface PropertyDrawerProps {
     isVisible: boolean
@@ -19,12 +22,32 @@ interface PropertyDrawerProps {
 }
 
 export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
-    const { navigateToPath, init, setEditingItem, removeItem, items } = usePropertyStore()
+    const store = usePropertyStore(
+        useShallow((s) => ({
+            navigateToPath: s.navigateToPath,
+            init: s.init,
+            setEditingItem: s.setEditingItem,
+            removeItem: s.removeItem,
+            items: s.items,
+            locations: s.locations,
+            clinicId: s.clinicId,
+            addLocation: s.addLocation,
+            editLocation: s.editLocation,
+            removeLocation: s.removeLocation,
+            editItem: s.editItem,
+            visibleLocations: s.visibleLocations,
+        }))
+    )
+    const { navigateToPath, init, setEditingItem, removeItem, items } = store
+    const clinicName = useClinicName(store.clinicId) || 'Clinic'
+
     const [view, setView] = useState<PropertyView>('property')
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
+    const [mapView, setMapView] = useState(false)
 
     const [drilldownPath, setDrilldownPath] = useState<DrilldownSegment[]>([])
     const locationListRef = useRef<PropertyLocationListHandle>(null)
+    const mapRef = useRef<MapNavHandle>(null)
 
     const [searchQuery, setSearchQuery] = useState('')
     const [searchFocused, setSearchFocused] = useState(false)
@@ -61,6 +84,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
 
     const handleSelectItem = useCallback((item: LocalPropertyItem) => {
         setSelectedItem(item)
+        setMapView(false)
         handleSlideAnimation('left')
         setView('property-detail')
     }, [handleSlideAnimation])
@@ -125,11 +149,16 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         setDrilldownPath([])
         setSearchQuery('')
         setEditing(false)
+        setMapView(false)
         setSelectedItem(null)
         setEditingItem(null)
         navigateToPath([])
         onClose()
     }, [onClose, navigateToPath, setEditingItem])
+
+    const handleCreateLocation = useCallback(async (data: Parameters<typeof store.addLocation>[0]) => {
+        return store.addLocation(data)
+    }, [store])
 
     const swipeHandlers = useSwipeBack(
         useMemo(() => {
@@ -141,15 +170,17 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
 
     const mainHeaderActions = useMemo(() => (
         <HeaderPill>
-            <PillButton
-              icon={Pencil}
-              onClick={() => setEditing((e) => !e)}
-              label={editing ? 'Done' : 'Edit'}
-              circleBg={editing ? 'bg-themeblue2/15 text-themeblue2' : undefined}
-            />
+            {!mapView && (
+                <PillButton
+                  icon={Pencil}
+                  onClick={() => setEditing((e) => !e)}
+                  label={editing ? 'Done' : 'Edit'}
+                  circleBg={editing ? 'bg-themeblue2/15 text-themeblue2' : undefined}
+                />
+            )}
             <PillButton icon={X} onClick={handleClose} label="Close" />
         </HeaderPill>
-    ), [handleClose, editing])
+    ), [handleClose, editing, mapView])
 
     const headerConfig = useMemo(() => {
         switch (view) {
@@ -185,49 +216,85 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             headerFaded={searchFocused}
             scrollDisabled
         >
-            <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && view !== 'property' ? swipeHandlers : undefined}>
-                {isMobile ? (
-                    <MobileSearchBar variant="property"
-                        value={searchQuery}
-                        onChange={setSearchQuery}
-                        enabled={view === 'property'}
-                        onFocusChange={setSearchFocused}
-                    >
-                        <div className="h-full relative">
-                            <PropertyPanel
-                                isMobile={isMobile}
-                                view={view}
-                                searchQuery={searchQuery}
-                                editing={editing}
-                                selectedItem={selectedItem}
-                                onSelectItem={handleSelectItem}
-                                onEditItem={handleEditItem}
-                                onDeleteItem={handleDeleteItem}
-                                onAddItem={handleAddItem}
-                                onBack={handleBack}
-                                onDrilldownChange={setDrilldownPath}
-                                locationListRef={locationListRef}
-                            />
-                        </div>
-                    </MobileSearchBar>
+            <div className="h-full relative">
+                {mapView && store.clinicId ? (
+                    <PropertyLocationMap
+                        ref={mapRef}
+                        clinicId={store.clinicId}
+                        clinicName={clinicName}
+                        locations={store.visibleLocations()}
+                        items={items}
+                        onCreateLocation={handleCreateLocation}
+                        onDeleteLocation={store.removeLocation}
+                        onEditItem={(id, updates) => store.editItem(id, updates)}
+                        onUpdateLocation={(id, updates) => store.editLocation(id, updates)}
+                        onSelectItem={handleSelectItem}
+                    />
                 ) : (
-                    <div className="h-full relative">
-                        <PropertyPanel
-                            isMobile={false}
-                            view={view}
-                            searchQuery={searchQuery}
-                            editing={editing}
-                            selectedItem={selectedItem}
-                            onSearchChange={setSearchQuery}
-                            onSelectItem={handleSelectItem}
-                            onEditItem={handleEditItem}
-                            onDeleteItem={handleDeleteItem}
-                            onAddItem={handleAddItem}
-                            onBack={handleBack}
-                        />
+                    <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && view !== 'property' ? swipeHandlers : undefined}>
+                        {isMobile ? (
+                            <MobileSearchBar variant="property"
+                                value={searchQuery}
+                                onChange={setSearchQuery}
+                                enabled={view === 'property'}
+                                onFocusChange={setSearchFocused}
+                            >
+                                <div className="h-full relative">
+                                    <PropertyPanel
+                                        isMobile={isMobile}
+                                        view={view}
+                                        searchQuery={searchQuery}
+                                        editing={editing}
+                                        selectedItem={selectedItem}
+                                        onSelectItem={handleSelectItem}
+                                        onEditItem={handleEditItem}
+                                        onDeleteItem={handleDeleteItem}
+                                        onAddItem={handleAddItem}
+                                        onBack={handleBack}
+                                        onDrilldownChange={setDrilldownPath}
+                                        locationListRef={locationListRef}
+                                    />
+                                </div>
+                            </MobileSearchBar>
+                        ) : (
+                            <div className="h-full relative">
+                                <PropertyPanel
+                                    isMobile={false}
+                                    view={view}
+                                    searchQuery={searchQuery}
+                                    editing={editing}
+                                    selectedItem={selectedItem}
+                                    onSearchChange={setSearchQuery}
+                                    onSelectItem={handleSelectItem}
+                                    onEditItem={handleEditItem}
+                                    onDeleteItem={handleDeleteItem}
+                                    onAddItem={handleAddItem}
+                                    onBack={handleBack}
+                                />
+                            </div>
+                        )}
+                    </ContentWrapper>
+                )}
+
+                {(view === 'property' || mapView) && (
+                    <div className="absolute bottom-4 inset-x-0 flex items-center justify-center z-30 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
+                        <div className="flex items-center gap-1.5 rounded-full bg-themewhite border border-tertiary/20 px-0.5 py-0.5 shadow-lg pointer-events-auto">
+                            <button
+                                onClick={() => { setMapView(false); setEditing(false) }}
+                                className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${!mapView ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+                            >
+                                <List className="w-5 h-5" />
+                            </button>
+                            <button
+                                onClick={() => { setMapView(true); setEditing(false) }}
+                                className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${mapView ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+                            >
+                                <MapIcon className="w-5 h-5" />
+                            </button>
+                        </div>
                     </div>
                 )}
-            </ContentWrapper>
+            </div>
 
             <ConfirmDialog
                 visible={!!pendingDeleteItem}

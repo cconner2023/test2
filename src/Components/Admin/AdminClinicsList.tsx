@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Pencil, Trash2, Building2, Eye, ChevronRight } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
-import { CardContextMenu } from '../CardContextMenu'
+import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { ErrorDisplay } from '../ErrorDisplay'
@@ -134,7 +134,7 @@ export function AdminClinicsList({
   const renderOverlays = () => (
     <>
       {contextMenu && (
-        <CardContextMenu
+        <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           onClose={() => setContextMenu(null)}

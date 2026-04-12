@@ -229,7 +229,7 @@ export function LoginScreen() {
 
                   {mode === 'token' && (
                     <PinCodeInput
-                      length={6}
+                      length={8}
                       onSubmit={handleTokenSubmit}
                       label={loading ? 'Verifying...' : undefined}
                       error={error ?? undefined}

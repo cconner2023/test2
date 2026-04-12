@@ -1,8 +1,8 @@
 import { useState, useMemo, useCallback, useRef, forwardRef, useImperativeHandle } from 'react'
-import { ChevronRight, Pencil, Trash2, Map, X, Check } from 'lucide-react'
+import { ChevronRight, Pencil, Trash2, Map as MapIcon, X, Check } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { Section, SectionCard } from '../Section'
-import { CardContextMenu } from '../CardContextMenu'
+import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { PropertyItemForm } from './PropertyItemForm'
 import type { LocalPropertyLocation, LocalPropertyItem, HolderInfo } from '../../Types/PropertyTypes'
 
@@ -42,6 +42,7 @@ interface PropertyLocationListProps {
   /** Editing an existing item inline */
   inlineEditItem?: LocalPropertyItem | null
   onInlineFormClose?: () => void
+  editing?: boolean
 }
 
 export const PropertyLocationList = forwardRef<PropertyLocationListHandle, PropertyLocationListProps>(function PropertyLocationList({
@@ -59,6 +60,7 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
   showInlineForm = false,
   inlineEditItem = null,
   onInlineFormClose,
+  editing = false,
 }, ref) {
   const [path, setPath] = useState<DrilldownSegment[]>([])
   const [contextMenu, setContextMenu] = useState<{ locId: string; x: number; y: number } | null>(null)
@@ -246,7 +248,7 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
 
     if (isRenaming) {
       return (
-        <div key={loc.id} className="flex items-center gap-2 px-4 py-3 bg-themewhite2">
+        <div key={loc.id} className="flex items-center gap-2 px-4 py-3">
           <input
             ref={renameInputRef}
             type="text"
@@ -257,20 +259,20 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
               if (e.key === 'Escape') cancelRename()
             }}
             placeholder="Rename location"
-            className="flex-1 min-w-0 px-3 py-2.5 rounded-lg text-primary text-base border border-tertiary/10 focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none transition-all placeholder:text-tertiary/30"
+            className="flex-1 min-w-0 rounded-full py-2.5 px-4 border border-themeblue1/30 shadow-xs bg-themewhite2 focus:outline-none text-base text-primary placeholder:text-tertiary/30 transition-all duration-300"
           />
           <button
             onClick={cancelRename}
-            className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+            className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary active:scale-95 transition-all duration-300"
           >
-            <X size={18} />
+            <X size={20} />
           </button>
           <button
             onClick={commitRename}
             disabled={!renameValue.trim()}
-            className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+            className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-themeblue3 text-white border border-themeblue1/30 disabled:opacity-30 active:scale-95 transition-all duration-300"
           >
-            <Check size={18} />
+            <Check size={20} />
           </button>
         </div>
       )
@@ -302,26 +304,59 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
             {count}
           </span>
         )}
-        <ChevronRight size={16} className="text-tertiary/30 shrink-0" />
+        {editing ? (
+          <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+            {onEditLocation && (
+              <button
+                onClick={() => startRename(loc)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+              >
+                <Pencil size={14} />
+              </button>
+            )}
+            {onDeleteLocation && (
+              <button
+                onClick={() => onDeleteLocation(loc.id)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
+          </div>
+        ) : (
+          <ChevronRight size={16} className="text-tertiary/30 shrink-0" />
+        )}
       </div>
     )
   }
 
   const renderItemRow = (item: LocalPropertyItem, isLast: boolean) => (
-    <button
+    <div
       key={item.id}
-      onClick={() => onSelectItem(item)}
-      className={`w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-secondary/5 transition-colors active:scale-[0.98] ${
+      className={`flex items-center gap-3 px-4 py-3.5 ${
         !isLast ? 'border-b border-tertiary/8' : ''
       }`}
     >
-      <span className="flex-1 text-sm text-primary truncate">{item.name}</span>
-      {item.quantity > 1 && (
-        <span className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0 bg-themeblue3/10 text-themeblue3">
-          {item.quantity}
-        </span>
+      <button
+        onClick={() => onSelectItem(item)}
+        className="flex-1 min-w-0 flex items-center gap-3 text-left active:opacity-70 transition-opacity"
+      >
+        <span className="flex-1 text-sm text-primary truncate">{item.name}</span>
+        {item.quantity > 1 && (
+          <span className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0 bg-themeblue3/10 text-themeblue3">
+            {item.quantity}
+          </span>
+        )}
+      </button>
+      {editing && onDeleteItem && (
+        <button
+          onClick={() => onDeleteItem(item)}
+          className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all shrink-0"
+        >
+          <Trash2 size={14} />
+        </button>
       )}
-    </button>
+    </div>
   )
 
   const renderSearchResultRow = (item: LocalPropertyItem, isLast: boolean) => {
@@ -408,7 +443,7 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
               onClick={() => onViewOnMap(currentParentId)}
               className="flex items-center gap-2 py-1 text-left active:scale-[0.98] transition-all"
             >
-              <Map size={14} className="text-themeblue3 shrink-0" />
+              <MapIcon size={14} className="text-themeblue3 shrink-0" />
               <span className="text-sm text-themeblue3">View on Map</span>
             </button>
           )}
@@ -451,7 +486,7 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
             const loc = locations.find((l) => l.id === contextMenu.locId)
             if (!loc) return null
             return (
-              <CardContextMenu
+              <ContextMenu
                 x={contextMenu.x}
                 y={contextMenu.y}
                 onClose={() => setContextMenu(null)}

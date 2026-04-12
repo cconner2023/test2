@@ -2,7 +2,7 @@ import { memo, useState, useCallback, useRef } from 'react'
 import { X, Check } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { TC3BodyDiagramSvg } from './TC3BodyDiagramSvg'
-import { ContextMenuPreview } from '../ContextMenuPreview'
+import { PreviewOverlay } from '../PreviewOverlay'
 import { MarkerPopover } from './MarkerPopover'
 import { getRegionLabel } from '../../Utilities/bodyRegionMap'
 import type { TC3Marker, InjuryType } from '../../Types/TC3Types'
@@ -33,13 +33,11 @@ function nowISO16(): string {
 /* ── BodyDiagram ─────────────────────────────────────────────────────────── */
 
 interface BodyDiagramProps {
-  panelRef?: React.RefObject<HTMLElement | null>
   editingMarkerId?: string | null
   onEditMarker?: (id: string | null) => void
 }
 
 export const BodyDiagram = memo(function BodyDiagram({
-  panelRef,
   editingMarkerId,
   onEditMarker,
 }: BodyDiagramProps) {
@@ -107,12 +105,11 @@ export const BodyDiagram = memo(function BodyDiagram({
         />
       </div>
 
-      {/* ContextMenuPreview popover for editing marker */}
-      <ContextMenuPreview
-        isVisible={!!editedMarker}
+      {/* PreviewOverlay popover for editing marker */}
+      <PreviewOverlay
+        isOpen={!!editedMarker}
         onClose={handleDone}
         anchorRect={anchorRect}
-        containerRef={panelRef}
         searchPlaceholder="Search items..."
         preview={(filter, clearFilter) => (
           editedMarker ? (
@@ -139,15 +136,6 @@ export const BodyDiagram = memo(function BodyDiagram({
         addPlaceholder="Add custom note..."
       />
 
-      {markers.length > 0 ? (
-        <p className="text-[9px] text-tertiary/50 text-center">
-          {markers.length} marker{markers.length === 1 ? '' : 's'} — tap body to add
-        </p>
-      ) : (
-        <p className="text-[9px] text-tertiary/30 text-center">
-          Tap body to mark injuries or IV/IO sites
-        </p>
-      )}
     </div>
   )
 })

@@ -105,13 +105,13 @@ export function useNoteEditor(config: NoteEditorConfig) {
     // --- Preview note generation ---
     useEffect(() => {
         const result = generateNote(
-            { includeAlgorithm, includeDecisionMaking, selectedDdx, customDdx, customNote: note, physicalExamNote: peNote, planNote, signature },
+            { includeAlgorithm, includeDecisionMaking, selectedDdx, customDdx, customNote: note, physicalExamNote: peNote, planNote },
             dispositionType,
             dispositionText,
             selectedSymptom,
         );
         setPreviewNote(result.fullNote);
-    }, [note, selectedDdx, customDdx, peNote, planNote, generateNote, dispositionType, dispositionText, selectedSymptom, signature, includeAlgorithm, includeDecisionMaking]);
+    }, [note, selectedDdx, customDdx, peNote, planNote, generateNote, dispositionType, dispositionText, selectedSymptom, includeAlgorithm, includeDecisionMaking]);
 
     // --- Copy handler ---
     const handleCopy = useCallback((text: string, target: 'preview' | 'encoded') => {

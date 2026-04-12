@@ -13,7 +13,7 @@ import { AudioAidPlayer } from '../AudioAidPlayer'
 import { skillLevelLabels, categoryOrder } from '../../Data/TrainingConstants'
 import { StepCallout, PerformanceStepItem } from '../TrainingStepComponents'
 import { SectionHeader } from '../Section'
-import { KBItemContextMenu } from '../KBItemContextMenu'
+import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { useNavPreferencesStore } from '../../stores/useNavPreferencesStore'
 import { useShallow } from 'zustand/react/shallow'
 
@@ -389,11 +389,16 @@ function TrainingList({
         </div>
 
         {contextMenu && (
-            <KBItemContextMenu
-                isPinned={pinnedKB.includes(contextMenu.id)}
-                position={contextMenu.position}
-                onTogglePin={() => togglePinKB(contextMenu.id)}
+            <ContextMenu
+                x={contextMenu.position.x}
+                y={contextMenu.position.y}
                 onClose={() => setContextMenu(null)}
+                items={[{
+                    key: 'pin',
+                    label: pinnedKB.includes(contextMenu.id) ? 'Unpin' : 'Pin',
+                    icon: Pin,
+                    onAction: () => togglePinKB(contextMenu.id),
+                }]}
             />
         )}
         </>

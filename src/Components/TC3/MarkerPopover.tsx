@@ -8,7 +8,6 @@ import type {
   InjuryType,
   TreatmentCategory,
   ProcedureType,
-  TriagePriority,
   TourniquetType,
   TQCategory,
   DressingType,
@@ -35,13 +34,6 @@ const ALL_TREATMENTS: { value: TreatmentCategory; label: string }[] = [
 const PROCEDURE_OPTIONS: { value: ProcedureType; label: string }[] = [
   { value: 'IV', label: 'IV' },
   { value: 'IO', label: 'IO' },
-]
-
-const PRIORITY_OPTIONS: { value: TriagePriority; label: string; color: string }[] = [
-  { value: 'U', label: 'U', color: '#ef4444' },
-  { value: 'P', label: 'P', color: '#f59e0b' },
-  { value: 'R', label: 'R', color: '#22c55e' },
-  { value: 'E', label: 'E', color: '#6b7280' },
 ]
 
 const TQ_TYPES: TourniquetType[] = ['CAT', 'SOFT-T']
@@ -110,16 +102,11 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
     updateMarker(marker.id, { procedures: next })
   }
 
-  const togglePriority = (val: TriagePriority) => {
-    updateMarker(marker.id, { priority: marker.priority === val ? '' : val })
-  }
-
   /* ── Filtered lists ── */
 
   const filteredInjuries = INJURY_OPTIONS.filter(o => matchesFilter(o.label, filter))
   const filteredTreatments = sortedTreatments.filter(o => matchesFilter(o.label, filter))
   const filteredProcedures = PROCEDURE_OPTIONS.filter(o => matchesFilter(o.label, filter))
-  const showPriority = !filter || matchesFilter('priority', filter) || matchesFilter('triage', filter)
   const showDateTime = !filter || matchesFilter('date', filter) || matchesFilter('time', filter)
   const showDetails = !filter || matchesFilter('gauge', filter) || matchesFilter('tourniquet', filter) || matchesFilter('dressing', filter)
 
@@ -320,32 +307,6 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
         </div>
       )}
 
-      {/* ── PRIORITY ── */}
-      {showPriority && (
-        <div className="mx-3 mb-2 mt-1">
-          <p className="text-[9px] font-semibold text-tertiary/50 tracking-wider uppercase mb-1.5 px-1">Priority</p>
-          <div className="flex gap-1.5 px-1">
-            {PRIORITY_OPTIONS.map(p => {
-              const selected = marker.priority === p.value
-              return (
-                <button
-                  key={p.value}
-                  type="button"
-                  onClick={() => togglePriority(p.value as TriagePriority)}
-                  className="w-9 h-9 rounded-full text-xs font-bold transition-all"
-                  style={{
-                    backgroundColor: selected ? p.color : undefined,
-                    color: selected ? 'white' : p.color,
-                    border: selected ? 'none' : `2px solid ${p.color}40`,
-                  }}
-                >
-                  {p.label}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       {/* ── DATE / TIME ── */}
       {showDateTime && (
