@@ -89,6 +89,9 @@ export interface TourDefinition {
 //   'planorderset:select-tags'    — select all staged tags in compose mode
 //   'planorderset:save-compose'   — save the composed order set
 //   'planorderset:cleanup'        — cancel edit (discards staging), return to guided tours
+//   'open:tc3'                    — enable TC3 mode (sets tc3Mode = true in authStore)
+//   'tc3:advance-page'            — advance mobile wizard to MARCH page (mobile only)
+//   'tc3:cleanup'                 — exit TC3 mode, reset wizard step, return to guided tours
 
 // ─── Tier 1: Medic Tours ─────────────────────────────────────────────────────
 
@@ -554,6 +557,68 @@ const plansOrderSetsTour: TourDefinition = {
       delay: 400,
       pausePoint: true,
       afterStep: 'planorderset:cleanup',
+    },
+  ],
+}
+
+const tc3Tour: TourDefinition = {
+  id: 'tc3',
+  name: 'TC3 Casualty Card',
+  tier: 'medic',
+  description: 'Digital DD Form 1380 — casualty tracking, MARCH interventions, and export.',
+  steps: [
+    {
+      target: 'sidenav-tc3',
+      text: 'TC3 is your digital DD Form 1380 — a field casualty card that works fully offline.',
+      placement: 'bottom',
+      beforeStep: 'open:sidenav',
+      delay: 350,
+      pausePoint: true,
+    },
+    {
+      target: 'tc3-casualty-info',
+      text: 'Start with casualty identity and EVAC priority — Urgent (U), Priority (P), or Routine (R).',
+      placement: 'bottom',
+      beforeStep: 'open:tc3',
+      delay: 500,
+      duration: 5000,
+    },
+    {
+      target: 'tc3-body-diagram',
+      text: 'Tap the body diagram to place markers — pinpoint injuries and treatment locations.',
+      placement: 'bottom',
+      duration: 5000,
+    },
+    {
+      target: 'tc3-vitals',
+      text: 'Log serial vitals with AVPU and GCS. Each set is time-stamped for tracking trends.',
+      placement: 'bottom',
+      duration: 5000,
+    },
+    // Desktop: MARCH column is always visible
+    {
+      target: 'tc3-march',
+      text: 'MARCH interventions — tourniquets, airway, IV access, medications, and fluid resuscitation.',
+      placement: 'bottom',
+      duration: 5000,
+      desktopOnly: true,
+    },
+    // Mobile: advance to page 2 before showing MARCH
+    {
+      target: 'tc3-march',
+      text: 'MARCH interventions — tourniquets, airway, IV access, medications, and fluid resuscitation.',
+      placement: 'bottom',
+      beforeStep: 'tc3:advance-page',
+      delay: 400,
+      duration: 5000,
+      mobileOnly: true,
+    },
+    {
+      target: 'tc3-notes',
+      text: 'Add handoff notes — free text with your text expanders for quick documentation.',
+      placement: 'top',
+      pausePoint: true,
+      afterStep: 'tc3:cleanup',
     },
   ],
 }
@@ -1025,6 +1090,7 @@ export const allTours: TourDefinition[] = [
   noteLifecycleTour,
   textExpanderTour,
   plansOrderSetsTour,
+  tc3Tour,
   knowledgeBaseTour,
   messagingTour,
   calendarTour,

@@ -78,3 +78,11 @@ export function getRegionLabel(region: BodyRegion | ''): string {
     if (!region) return ''
     return REGION_LABELS[region] ?? region
 }
+
+/** Center coordinates (x%, y%) of a body region's hit rect. */
+export function getRegionCenter(region: BodyRegion | ''): { x: number; y: number } | null {
+    if (!region) return null
+    const rect = ALL_TC3_RECTS.find(r => r.id === region)
+    if (!rect) return null
+    return { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 }
+}

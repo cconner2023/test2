@@ -2,6 +2,7 @@ import { memo, useState, useRef, useCallback } from 'react'
 import { Plus, Check, RotateCcw, ChevronRight, Crosshair } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { PreviewOverlay } from '../PreviewOverlay'
+import { SectionHeader } from '../Section'
 import type { MechanismType } from '../../Types/TC3Types'
 
 const MECHANISM_OPTIONS: { type: MechanismType; label: string }[] = [
@@ -26,7 +27,7 @@ export const MechanismForm = memo(function MechanismForm() {
   const [popoverVisible, setPopoverVisible] = useState(false)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
-  const cardRef = useRef<HTMLDivElement>(null)
+  const cardRef = useRef<HTMLButtonElement>(null)
 
   const [draftTypes, setDraftTypes] = useState<MechanismType[]>([])
   const [draftOther, setDraftOther] = useState('')
@@ -76,16 +77,17 @@ export const MechanismForm = memo(function MechanismForm() {
 
       {/* Section card */}
       {populated ? (
-        <div ref={cardRef} className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-          <button
-            type="button"
-            onClick={() => openPopover(cardRef)}
-            className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5"
-          >
+        <button
+          ref={cardRef}
+          type="button"
+          onClick={() => openPopover(cardRef)}
+          className="w-full rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden text-left active:scale-95 transition-all hover:bg-themeblue2/5"
+        >
+          <div className="flex items-center gap-3 px-4 py-3.5">
             <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
               <Crosshair size={18} className="text-tertiary/60" />
             </div>
-            <div className="flex-1 min-w-0 text-left">
+            <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-primary">
                 {mechanism.types.join(', ')}
               </p>
@@ -95,12 +97,9 @@ export const MechanismForm = memo(function MechanismForm() {
                 </p>
               )}
             </div>
-            <span className="text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-themeredred/10 text-themeredred shrink-0">
-              {mechanism.types.length}
-            </span>
             <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
-          </button>
-        </div>
+          </div>
+        </button>
       ) : (
         <div className="flex flex-col items-center gap-2 py-6">
           <button
@@ -123,8 +122,8 @@ export const MechanismForm = memo(function MechanismForm() {
         maxWidth={380}
         preview={
           <div className="px-4 py-3 space-y-3">
-            <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Select All That Apply</span>
-            <div className="space-y-2 mt-1.5">
+            <SectionHeader>Select All That Apply</SectionHeader>
+            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite overflow-hidden divide-y divide-tertiary/8 mt-1.5">
               {MECHANISM_OPTIONS.map((opt) => {
                 const isSelected = draftTypes.includes(opt.type)
                 return (
@@ -132,24 +131,13 @@ export const MechanismForm = memo(function MechanismForm() {
                     key={opt.type}
                     type="button"
                     onClick={() => handleToggleDraft(opt.type)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left
-                      ${isSelected
-                        ? 'border-themeredred/25 bg-themeredred/10'
-                        : 'border-tertiary/15 bg-themewhite2 hover:bg-themewhite2/80'
-                      }`}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-themeblue2/5 transition-colors"
                   >
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors
-                      ${isSelected ? 'border-themeredred bg-themeredred' : 'border-tertiary/30'}`}
-                    >
-                      {isSelected && (
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                          <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </div>
-                    <span className={`text-sm font-medium ${isSelected ? 'text-primary' : 'text-tertiary'}`}>
+                    <span className={`w-2 h-2 rounded-full shrink-0 transition-colors ${isSelected ? 'bg-themeredred' : 'bg-tertiary/20'}`} />
+                    <span className={`text-sm flex-1 ${isSelected ? 'font-medium text-primary' : 'text-tertiary'}`}>
                       {opt.label}
                     </span>
+                    {isSelected && <Check size={14} className="text-themeredred shrink-0" />}
                   </button>
                 )
               })}

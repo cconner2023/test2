@@ -4,10 +4,7 @@ import { BarcodeDisplay } from '../Barcode'
 import { ActionIconButton } from '../WriteNoteHelpers'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { useAuthStore, selectIsAuthenticated } from '../../stores/useAuthStore'
-import { useAvatar } from '../../Utilities/AvatarContext'
-import { getInitials } from '../../Utilities/nameUtils'
 import { formatTC3Note } from '../../Utilities/TC3Formatter'
-import { formatSignature } from '../../Utilities/NoteFormatter'
 import { getRegionLabel } from '../../Utilities/bodyRegionMap'
 import { encodeTC3Card } from '../../Utilities/tc3Codec'
 import { encryptBarcode } from '../../Utilities/barcodeCodec'
@@ -34,14 +31,12 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
   const profile = useAuthStore((s) => s.profile)
   const userId = useAuthStore((s) => s.user?.id)
   const isAuthenticated = useAuthStore(selectIsAuthenticated)
-  const { currentAvatar, customImage, isCustom, isInitials } = useAvatar()
 
   const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null)
   const [shareStatus, setShareStatus] = useState<'idle' | 'sharing' | 'shared'>('idle')
   const [encodedText, setEncodedText] = useState('')
 
   const noteText = useMemo(() => formatTC3Note(card, profile), [card, profile])
-  const signature = useMemo(() => formatSignature(profile), [profile])
   const compactString = useMemo(() => encodeTC3Card(card, userId), [card, userId])
 
   useEffect(() => {
@@ -94,35 +89,6 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
       contentPadding="standard"
     >
       <div className="space-y-4">
-
-        {/* Medic signature & avatar */}
-        {signature && (
-          <div className="flex items-center gap-3 px-3 py-3 rounded-xl border border-tertiary/15 bg-themewhite">
-            <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
-              {isCustom && customImage ? (
-                <img src={customImage} alt="Profile" className="w-full h-full object-cover" />
-              ) : isInitials ? (
-                <div className="w-full h-full rounded-full bg-themeblue2/15 flex items-center justify-center">
-                  <span className="text-sm font-semibold text-themeblue2">
-                    {getInitials(profile.firstName, profile.lastName)}
-                  </span>
-                </div>
-              ) : (
-                <div className="w-full h-full [&>svg]:w-full [&>svg]:h-full">
-                  {currentAvatar.svg}
-                </div>
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-primary truncate">
-                {[profile.rank, profile.lastName, profile.firstName].filter(Boolean).join(' ')}
-              </p>
-              <p className="text-[11px] text-tertiary/70 truncate">
-                {[profile.credential, profile.component].filter(Boolean).join(' — ')}
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* Body diagram with markers */}
         {hasMarkers && (

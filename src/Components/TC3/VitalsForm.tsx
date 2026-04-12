@@ -1,7 +1,8 @@
 import { memo, useState } from 'react'
-import { Plus, X, Check, ChevronRight } from 'lucide-react'
+import { Plus, X, Check, ChevronRight, Activity } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { PreviewOverlay } from '../PreviewOverlay'
+import { TextInput } from '../FormInputs'
 import type { TC3VitalSet, AVPU } from '../../Types/TC3Types'
 
 const AVPU_OPTIONS: AVPU[] = ['A', 'V', 'P', 'U']
@@ -11,6 +12,19 @@ const AVPU_LABELS: Record<AVPU, string> = {
   P: 'Pain',
   U: 'Unresponsive',
 }
+
+const PULSE_LOCATION_OPTIONS = ['C', 'R', 'F'] as const
+type PulseLocation = typeof PULSE_LOCATION_OPTIONS[number]
+
+const BP_INPUT_CLASS = 'w-full px-4 py-2.5 rounded-full text-primary text-sm border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none transition-all duration-300 placeholder:text-tertiary/30'
+
+/** Estimated minimum systolic by palpable pulse site (TCCC) */
+const BP_LOCATION_DEFAULTS: Record<PulseLocation, string> = {
+  R: '80/p',
+  F: '70/p',
+  C: '60/p',
+}
+const BP_AUTO_VALUES = new Set(Object.values(BP_LOCATION_DEFAULTS))
 
 /* ── AVPU ↔ GCS bidirectional mapping ── */
 
@@ -68,118 +82,108 @@ function VitalSetPreviewContent({ id }: { id: string }) {
 
   const gcsTotal = gcs ? gcs.eye + gcs.verbal + gcs.motor : null
 
-  const inputClass =
-    'w-full text-xs px-2 py-1 rounded border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary'
+  const bpSys = vs.bp.split('/')[0]?.trim() ?? ''
+  const bpDia = vs.bp.split('/')[1]?.trim() ?? ''
 
   return (
-    <div className="p-2.5 min-w-[200px]" onClick={(e) => e.stopPropagation()}>
-      {/* AVPU */}
-      <div className="mb-2.5">
-        <label className="text-[9px] text-tertiary/50 block mb-1">AVPU</label>
-        <div className="flex gap-1">
-          {AVPU_OPTIONS.map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => handleAVPU(opt)}
-              className={`flex-1 py-1.5 rounded text-[10px] font-bold transition-all border
-                ${avpu === opt
-                  ? 'bg-themeredred text-white border-themeredred'
-                  : 'border-tertiary/15 text-tertiary hover:bg-tertiary/5'
-                }`}
-            >
-              <div>{opt}</div>
-              <div className="text-[8px] font-normal opacity-70">{AVPU_LABELS[opt]}</div>
-            </button>
-          ))}
-        </div>
+    <div className="px-4 py-3 space-y-3" onClick={(e) => e.stopPropagation()}>
+      {/* AVPU — standardized pill selectors */}
+      <div className="flex gap-1.5">
+        {AVPU_OPTIONS.map((opt) => (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => handleAVPU(opt)}
+            className={`w-9 h-9 rounded-full text-xs font-bold transition-all border active:scale-95 ${
+              avpu === opt
+                ? 'bg-themeredred text-white border-transparent'
+                : 'border-tertiary/15 text-tertiary hover:bg-tertiary/5'
+            }`}
+          >
+            {opt}
+          </button>
+        ))}
       </div>
 
-      {/* GCS — linked to AVPU */}
-      <div className="mb-2.5">
-        <label className="text-[9px] text-tertiary/50 block mb-1">
-          GCS{gcsTotal ? ` — ${gcsTotal}` : ''}
-        </label>
-        <div className="grid grid-cols-3 gap-1.5">
-          <div>
-            <label className="text-[8px] text-tertiary/40 block mb-0.5">Eye (1-4)</label>
-            <input
-              type="number"
-              min={1} max={4}
-              value={gcs?.eye ?? ''}
-              onChange={(e) => handleGCS('eye', e.target.value)}
-              className={`${inputClass} text-center`}
-            />
-          </div>
-          <div>
-            <label className="text-[8px] text-tertiary/40 block mb-0.5">Verbal (1-5)</label>
-            <input
-              type="number"
-              min={1} max={5}
-              value={gcs?.verbal ?? ''}
-              onChange={(e) => handleGCS('verbal', e.target.value)}
-              className={`${inputClass} text-center`}
-            />
-          </div>
-          <div>
-            <label className="text-[8px] text-tertiary/40 block mb-0.5">Motor (1-6)</label>
-            <input
-              type="number"
-              min={1} max={6}
-              value={gcs?.motor ?? ''}
-              onChange={(e) => handleGCS('motor', e.target.value)}
-              className={`${inputClass} text-center`}
-            />
-          </div>
+      {/* GCS inputs — total shown below */}
+      <div className="space-y-1.5">
+        <div className="grid grid-cols-3 gap-2">
+          <TextInput label="Eye (1-4)" value={String(gcs?.eye ?? '')} onChange={(v) => handleGCS('eye', v)} type="number" />
+          <TextInput label="Verbal (1-5)" value={String(gcs?.verbal ?? '')} onChange={(v) => handleGCS('verbal', v)} type="number" />
+          <TextInput label="Motor (1-6)" value={String(gcs?.motor ?? '')} onChange={(v) => handleGCS('motor', v)} type="number" />
         </div>
+        {gcsTotal !== null && gcsTotal > 0 && (
+          <p className="text-xs font-medium text-tertiary/60 uppercase tracking-wide pl-1">GCS — {gcsTotal}</p>
+        )}
       </div>
 
       {/* Divider */}
-      <div className="border-t border-tertiary/10 my-2" />
+      <div className="border-t border-tertiary/10" />
 
       {/* Time */}
-      <div className="mb-2">
-        <label className="text-[9px] text-tertiary/50 block mb-0.5">Time</label>
-        <input
-          type="text"
-          value={vs.time}
-          onChange={(e) => handleChange('time', e.target.value)}
-          className={inputClass}
-        />
+      <TextInput label="Time" value={vs.time} onChange={(v) => handleChange('time', v)} placeholder="HH:MM" />
+
+      {/* Pulse + Location pills */}
+      <div className="grid grid-cols-2 gap-2">
+        <TextInput label="Pulse" value={vs.pulse} onChange={(v) => handleChange('pulse', v)} placeholder="HR" />
+        <div>
+          <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Location</span>
+          <div className="flex gap-1.5 mt-1.5">
+            {PULSE_LOCATION_OPTIONS.map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => {
+                  const newLoc = vs.pulseLocation === opt ? '' : opt
+                  const isAutoDefault = BP_AUTO_VALUES.has(vs.bp)
+                  const updates: Partial<TC3VitalSet> = { pulseLocation: newLoc }
+                  if (newLoc && (!vs.bp || isAutoDefault)) {
+                    updates.bp = BP_LOCATION_DEFAULTS[newLoc]
+                  } else if (!newLoc && isAutoDefault) {
+                    updates.bp = ''
+                  }
+                  updateVitalSet(id, updates)
+                }}
+                className={`w-9 h-9 rounded-full text-xs font-bold transition-all border active:scale-95 ${
+                  vs.pulseLocation === opt
+                    ? 'bg-themeblue3 text-white border-transparent'
+                    : 'border-tertiary/15 text-tertiary hover:bg-tertiary/5'
+                }`}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* 2-column grid of vital fields */}
+      {/* BP — side-by-side with / separator (VS calculator pattern) */}
+      <div>
+        <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">BP (mmHg)</span>
+        <div className="flex items-center gap-1.5 mt-1">
+          <input
+            type="text" inputMode="numeric"
+            value={bpSys}
+            onChange={(e) => handleChange('bp', `${e.target.value}/${bpDia}`)}
+            placeholder="120"
+            className={BP_INPUT_CLASS}
+          />
+          <span className="text-xs text-secondary shrink-0">/</span>
+          <input
+            type="text" inputMode="numeric"
+            value={bpDia}
+            onChange={(e) => handleChange('bp', `${bpSys}/${e.target.value}`)}
+            placeholder="80"
+            className={BP_INPUT_CLASS}
+          />
+        </div>
+      </div>
+
+      {/* Remaining vitals */}
       <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[9px] text-tertiary/50 block mb-0.5">Pulse</label>
-          <input type="text" value={vs.pulse} onChange={(e) => handleChange('pulse', e.target.value)}
-            placeholder="HR" className={inputClass} />
-        </div>
-        <div>
-          <label className="text-[9px] text-tertiary/50 block mb-0.5">Pulse Location</label>
-          <input type="text" value={vs.pulseLocation} onChange={(e) => handleChange('pulseLocation', e.target.value)}
-            placeholder="Radial, Carotid..." className={inputClass} />
-        </div>
-        <div>
-          <label className="text-[9px] text-tertiary/50 block mb-0.5">BP</label>
-          <input type="text" value={vs.bp} onChange={(e) => handleChange('bp', e.target.value)}
-            placeholder="120/80" className={inputClass} />
-        </div>
-        <div>
-          <label className="text-[9px] text-tertiary/50 block mb-0.5">RR</label>
-          <input type="text" value={vs.rr} onChange={(e) => handleChange('rr', e.target.value)}
-            placeholder="RR" className={inputClass} />
-        </div>
-        <div>
-          <label className="text-[9px] text-tertiary/50 block mb-0.5">SpO2</label>
-          <input type="text" value={vs.spo2} onChange={(e) => handleChange('spo2', e.target.value)}
-            placeholder="%" className={inputClass} />
-        </div>
-        <div>
-          <label className="text-[9px] text-tertiary/50 block mb-0.5">Pain Scale</label>
-          <input type="text" value={vs.painScale} onChange={(e) => handleChange('painScale', e.target.value)}
-            placeholder="0-10" className={inputClass} />
-        </div>
+        <TextInput label="RR" value={vs.rr} onChange={(v) => handleChange('rr', v)} placeholder="/min" />
+        <TextInput label="SpO2" value={vs.spo2} onChange={(v) => handleChange('spo2', v)} placeholder="%" />
+        <TextInput label="Pain" value={vs.painScale} onChange={(v) => handleChange('painScale', v)} placeholder="0-10" />
       </div>
     </div>
   )
@@ -256,7 +260,7 @@ export const VitalsForm = memo(function VitalsForm() {
   const gcsTotal = gcs ? gcs.eye + gcs.verbal + gcs.motor : null
 
   return (
-    <div>
+    <div data-tour="tc3-vitals">
       {/* Section header */}
       <div className="mb-2">
         <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
@@ -275,71 +279,66 @@ export const VitalsForm = memo(function VitalsForm() {
         </div>
       )}
 
-      {/* Populated — unified card with AVPU/GCS header + vital set chips */}
+      {/* Populated card */}
       {hasData && (
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-          {/* AVPU / GCS summary row */}
-          <button
-            type="button"
-            onClick={() => {
-              if (vitals.length > 0) setEditingId(vitals[0].id)
-              else handleAddVitals()
-            }}
-            className="w-full flex items-center gap-3 px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5"
-          >
-            <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
-              {avpu && (
-                <span className={`text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full text-white shrink-0 ${
-                  avpu === 'A' ? 'bg-themegreen' :
-                  avpu === 'V' ? 'bg-amber-500' :
-                  avpu === 'P' ? 'bg-orange-500' : 'bg-themeredred'
-                }`}>
-                  {avpu} — {AVPU_LABELS[avpu]}
-                </span>
-              )}
-              {gcsTotal !== null && (
-                <span className="text-[11px] text-tertiary/70">
-                  GCS: {gcsTotal} (E{gcs!.eye} V{gcs!.verbal} M{gcs!.motor})
-                </span>
-              )}
-              {populatedSets.length > 0 && (
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-themeredred/10 text-themeredred font-medium shrink-0">
-                  {populatedSets.length} set{populatedSets.length !== 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-            <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
-          </button>
+        <>
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+            {populatedSets.length > 0 ? populatedSets.map((vs, idx) => (
+              <button
+                key={vs.id}
+                type="button"
+                onClick={() => setEditingId(vs.id)}
+                className={`w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-themeblue2/5 active:scale-95 transition-colors ${idx > 0 ? 'border-t border-tertiary/6' : ''}`}
+              >
+                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10 font-bold text-sm text-tertiary/50">
+                  {avpu || <Activity size={18} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  {gcsTotal !== null && gcsTotal > 0 && idx === 0 && (
+                    <p className="text-sm font-medium text-primary truncate">
+                      GCS {gcsTotal} (E{gcs!.eye} V{gcs!.verbal} M{gcs!.motor})
+                    </p>
+                  )}
+                  <p className={`text-[11px] text-secondary truncate ${gcsTotal && idx === 0 ? 'mt-0.5' : ''}`}>
+                    {buildChipSummary(vs)}
+                  </p>
+                </div>
+                <span className="text-[11px] text-secondary shrink-0">{vs.time}</span>
+                <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+              </button>
+            )) : (
+              /* AVPU/GCS only — no vital sets yet */
+              <button
+                type="button"
+                onClick={handleAddVitals}
+                className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-themeblue2/5 active:scale-95 transition-colors"
+              >
+                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10 font-bold text-sm text-tertiary/50">
+                  {avpu || <Activity size={18} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  {gcsTotal !== null && gcsTotal > 0 && (
+                    <p className="text-sm font-medium text-primary truncate">
+                      GCS {gcsTotal} (E{gcs!.eye} V{gcs!.verbal} M{gcs!.motor})
+                    </p>
+                  )}
+                </div>
+                <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+              </button>
+            )}
+          </div>
 
-          {/* Vital set chips — only sets with data */}
-          {populatedSets.length > 0 && populatedSets.map((vs, idx) => (
+          {/* Standalone add FAB */}
+          <div className="flex justify-end mt-2">
             <button
-              key={vs.id}
               type="button"
-              onClick={() => setEditingId(vs.id)}
-              className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-themeblue2/5 active:scale-95 transition-colors border-t border-tertiary/6"
+              onClick={handleAddVitals}
+              className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40 hover:text-primary hover:bg-themeblue2/5"
             >
-              <span className="text-xs font-medium text-primary shrink-0">Set #{idx + 1}</span>
-              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-tertiary/8 text-tertiary/60 shrink-0">
-                {vs.time}
-              </span>
-              <span className="text-[10px] text-tertiary/60 truncate min-w-0">
-                {buildChipSummary(vs)}
-              </span>
-              <span className="flex-1" />
-              <ChevronRight size={14} className="text-tertiary/30 shrink-0" />
+              <Plus size={14} />
             </button>
-          ))}
-
-          {/* Add another set — inline at bottom of card */}
-          <button
-            type="button"
-            onClick={handleAddVitals}
-            className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-[11px] text-tertiary/50 hover:text-primary hover:bg-themeblue2/5 transition-colors border-t border-tertiary/6"
-          >
-            <Plus size={12} /> Add set
-          </button>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Popover for editing a vital set (includes AVPU + GCS + vitals) */}

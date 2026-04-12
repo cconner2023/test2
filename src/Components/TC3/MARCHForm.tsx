@@ -1,13 +1,65 @@
 import { memo, useState, useCallback, useRef } from 'react'
-import { Plus, X, Check, ChevronRight } from 'lucide-react'
-import { useTC3Store } from '../../stores/useTC3Store'
-import { PreviewOverlay } from '../PreviewOverlay'
-import { getRegionLabel } from '../../Utilities/bodyRegionMap'
+import { Plus, X, Check, ChevronRight, MapPin } from 'lucide-react'
 import type {
   TC3Tourniquet, TC3Hemostatic, TC3IVAccess, TC3Medication,
   TourniquetType, TQCategory, DressingType, NeedleDecompSide,
-  MedRoute, MedCategory,
+  MedRoute, MedCategory, BodyRegion,
 } from '../../Types/TC3Types'
+import { useTC3Store } from '../../stores/useTC3Store'
+import { PreviewOverlay } from '../PreviewOverlay'
+import { SectionHeader } from '../Section'
+import { getBodyRegion, getRegionLabel, getRegionCenter } from '../../Utilities/bodyRegionMap'
+import { TC3BodyDiagramSvg } from './TC3BodyDiagramSvg'
+
+// ── Shared input / select classes ────────────────
+const inputCls = 'w-full px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary/30'
+const selectCls = 'px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:outline-none transition-all'
+
+// ── Location region picker ────────────────────────
+function LocationRegionPicker({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (label: string, region: BodyRegion | '') => void
+}) {
+  const [open, setOpen] = useState(false)
+
+  const handlePick = (x: number, y: number) => {
+    const region = getBodyRegion(x, y)
+    const label = region ? getRegionLabel(region) : ''
+    if (label) {
+      onChange(label, region)
+      setOpen(false)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={() => setOpen(s => !s)}
+        className="w-full px-4 py-2.5 rounded-full text-sm bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:outline-none transition-all flex items-center justify-between gap-2"
+      >
+        <span className={value ? 'text-primary' : 'text-tertiary/30'}>{value || 'Select on diagram'}</span>
+        {value ? (
+          <X
+            size={14}
+            className="text-tertiary/40 shrink-0"
+            onClick={(e) => { e.stopPropagation(); onChange('', '') }}
+          />
+        ) : (
+          <MapPin size={14} className="text-tertiary/30 shrink-0" />
+        )}
+      </button>
+      {open && (
+        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden flex justify-center py-2">
+          <TC3BodyDiagramSvg onAddMarker={handlePick} compact />
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ── Constants ────────────────────────────────────
 const TOURNIQUET_TYPES: TourniquetType[] = ['CAT', 'SOFT-T', 'other']
@@ -59,8 +111,9 @@ const COMMON_BLOOD = [
   { type: 'Platelets', volume: '1 unit' },
 ]
 
-// ── MARCH category badge ─────────────────────────
+// ── MARCH category primitives ────────────────────
 type MarchCat = 'H' | 'A' | 'B' | 'C'
+
 const MARCH_COLORS: Record<MarchCat, string> = {
   H: 'bg-themeredred/15 text-themeredred',
   A: 'bg-amber-500/15 text-amber-600',
@@ -68,11 +121,24 @@ const MARCH_COLORS: Record<MarchCat, string> = {
   C: 'bg-themegreen/15 text-themegreen',
 }
 
+/** Display letters spell MARCH: H→M, A→A, B→R, C→C */
+const MARCH_LABELS: Record<MarchCat, string> = { H: 'M', A: 'A', B: 'R', C: 'C' }
+
+/** Small dot used in the add-menu overlay */
 function MarchBadge({ cat }: { cat: MarchCat }) {
   return (
     <span className={`text-[8px] font-bold w-4 h-4 rounded flex items-center justify-center shrink-0 ${MARCH_COLORS[cat]}`}>
-      {cat}
+      {MARCH_LABELS[cat]}
     </span>
+  )
+}
+
+/** Full-size icon used in list card rows */
+function MarchIcon({ cat }: { cat: MarchCat }) {
+  return (
+    <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+      <span className="text-xs font-bold text-tertiary/60">{MARCH_LABELS[cat]}</span>
+    </div>
   )
 }
 
@@ -83,14 +149,14 @@ function nowHHMM() {
 
 function PillSelector<T extends string>({ options, value, onChange }: { options: T[]; value: T; onChange: (v: T) => void }) {
   return (
-    <div className="flex gap-1">
+    <div className="flex flex-wrap gap-1.5">
       {options.map((opt) => (
         <button
           key={opt} type="button" onClick={() => onChange(opt)}
-          className={`px-2.5 py-1 rounded-full text-[10px] font-medium border transition-all
+          className={`px-3 py-1.5 rounded-full text-[10px] font-semibold border transition-all active:scale-95
             ${value === opt
-              ? 'border-themeredred/25 bg-themeredred/10 text-primary'
-              : 'border-tertiary/15 text-tertiary/60 hover:bg-tertiary/5'
+              ? 'bg-themeblue3 text-white border-transparent'
+              : 'border-tertiary/15 text-tertiary/60 bg-tertiary/8 hover:bg-tertiary/12'
             }`}
         >
           {opt}
@@ -158,30 +224,51 @@ const ADD_MENU: AddMenuItem[] = [
 function TourniquetPreview({ id }: { id: string }) {
   const tq = useTC3Store((s) => s.card.march.massiveHemorrhage.tourniquets.find((t) => t.id === id))
   const updateTourniquet = useTC3Store((s) => s.updateTourniquet)
+  const addMarker = useTC3Store((s) => s.addMarker)
+  const updateMarker = useTC3Store((s) => s.updateMarker)
   if (!tq) return null
+
+  const handleLocation = (label: string, region: BodyRegion | '') => {
+    updateTourniquet(id, { location: label })
+    if (!region) return
+    const center = getRegionCenter(region)
+    if (!center) return
+    if (tq.injuryId) {
+      updateMarker(tq.injuryId, { bodyRegion: region, x: center.x, y: center.y })
+    } else {
+      const markerId = crypto.randomUUID()
+      // Link the tourniquet first so syncMarkerToMarch finds it and updates rather than duplicating
+      updateTourniquet(id, { location: label, injuryId: markerId })
+      addMarker({
+        id: markerId, x: center.x, y: center.y, bodyRegion: region,
+        injuries: [], treatments: ['tourniquet'], procedures: [],
+        gauge: '', tqType: tq.type, tqCategory: tq.tqCategory,
+        dressingType: 'Hemostatic', priority: '',
+        dateTime: new Date().toISOString().slice(0, 16), description: '',
+      })
+    }
+  }
+
   return (
-    <div className="p-3 space-y-3" onClick={(e) => e.stopPropagation()}>
-      <div className="space-y-1">
-        <label className="text-[10px] text-tertiary/50">Category</label>
+    <div className="px-4 py-3 space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="space-y-1.5">
+        <SectionHeader>Category</SectionHeader>
         <PillSelector options={TQ_CATEGORIES} value={tq.tqCategory} onChange={(v) => updateTourniquet(id, { tqCategory: v })} />
       </div>
-      <div className="space-y-1">
-        <label className="text-[10px] text-tertiary/50">Type</label>
+      <div className="space-y-1.5">
+        <SectionHeader>Type</SectionHeader>
         <PillSelector options={TOURNIQUET_TYPES} value={tq.type} onChange={(v) => updateTourniquet(id, { type: v })} />
       </div>
-      <div className="space-y-1">
-        <label className="text-[10px] text-tertiary/50">Location</label>
-        <input type="text" autoFocus value={tq.location}
-          onChange={(e) => updateTourniquet(id, { location: e.target.value })}
-          placeholder="Location"
-          className="w-full text-xs px-3 py-2 rounded-lg border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
+      <div className="space-y-1.5">
+        <SectionHeader>Location</SectionHeader>
+        <LocationRegionPicker value={tq.location} onChange={handleLocation} />
       </div>
-      <div className="space-y-1">
-        <label className="text-[10px] text-tertiary/50">Time</label>
+      <div className="space-y-1.5">
+        <SectionHeader>Time</SectionHeader>
         <input type="text" value={tq.time}
           onChange={(e) => updateTourniquet(id, { time: e.target.value })}
-          placeholder="Time"
-          className="w-full text-xs px-3 py-2 rounded-lg border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
+          placeholder="HH:MM"
+          className={inputCls} />
       </div>
       <InjuryBadge injuryId={tq.injuryId} />
     </div>
@@ -191,26 +278,46 @@ function TourniquetPreview({ id }: { id: string }) {
 function DressingPreview({ id }: { id: string }) {
   const h = useTC3Store((s) => s.card.march.massiveHemorrhage.hemostatics.find((d) => d.id === id))
   const updateHemostatic = useTC3Store((s) => s.updateHemostatic)
+  const addMarker = useTC3Store((s) => s.addMarker)
+  const updateMarker = useTC3Store((s) => s.updateMarker)
   if (!h) return null
+
+  const handleLocation = (label: string, region: BodyRegion | '') => {
+    updateHemostatic(id, { location: label })
+    if (!region) return
+    const center = getRegionCenter(region)
+    if (!center) return
+    if (h.injuryId) {
+      updateMarker(h.injuryId, { bodyRegion: region, x: center.x, y: center.y })
+    } else {
+      const markerId = crypto.randomUUID()
+      updateHemostatic(id, { location: label, injuryId: markerId })
+      addMarker({
+        id: markerId, x: center.x, y: center.y, bodyRegion: region,
+        injuries: [], treatments: ['hemostatic'], procedures: [],
+        gauge: '', tqType: 'CAT', tqCategory: 'Extremity',
+        dressingType: h.dressingType, priority: '',
+        dateTime: new Date().toISOString().slice(0, 16), description: '',
+      })
+    }
+  }
+
   return (
-    <div className="p-3 space-y-3" onClick={(e) => e.stopPropagation()}>
-      <div className="space-y-1">
-        <label className="text-[10px] text-tertiary/50">Dressing Type</label>
+    <div className="px-4 py-3 space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="space-y-1.5">
+        <SectionHeader>Dressing Type</SectionHeader>
         <PillSelector options={DRESSING_TYPES} value={h.dressingType} onChange={(v) => updateHemostatic(id, { dressingType: v })} />
       </div>
-      <div className="space-y-1">
-        <label className="text-[10px] text-tertiary/50">Type</label>
+      <div className="space-y-1.5">
+        <SectionHeader>Agent</SectionHeader>
         <input type="text" value={h.type}
           onChange={(e) => updateHemostatic(id, { type: e.target.value })}
-          placeholder="Type (Combat Gauze, etc.)"
-          className="w-full text-xs px-3 py-2 rounded-lg border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
+          placeholder="Combat Gauze, QuikClot..."
+          className={inputCls} />
       </div>
-      <div className="space-y-1">
-        <label className="text-[10px] text-tertiary/50">Location</label>
-        <input type="text" autoFocus value={h.location}
-          onChange={(e) => updateHemostatic(id, { location: e.target.value })}
-          placeholder="Location"
-          className="w-full text-xs px-3 py-2 rounded-lg border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
+      <div className="space-y-1.5">
+        <SectionHeader>Location</SectionHeader>
+        <LocationRegionPicker value={h.location} onChange={handleLocation} />
       </div>
       <InjuryBadge injuryId={h.injuryId} />
     </div>
@@ -221,17 +328,13 @@ function NeedleDecompPreview() {
   const nd = useTC3Store((s) => s.card.march.respiration.needleDecomp)
   const updateNeedleDecomp = useTC3Store((s) => s.updateNeedleDecomp)
   return (
-    <div className="p-3 space-y-2" onClick={(e) => e.stopPropagation()}>
-      <label className="text-[10px] text-tertiary/50">Side</label>
-      <div className="flex gap-2">
-        {SIDE_OPTIONS.map((side) => (
-          <button key={side} onClick={() => updateNeedleDecomp({ side })}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all
-              ${nd.side === side ? 'border-themeredred/25 bg-themeredred/10 text-primary' : 'border-tertiary/15 text-tertiary hover:bg-tertiary/5'}`}>
-            {side.charAt(0).toUpperCase() + side.slice(1)}
-          </button>
-        ))}
-      </div>
+    <div className="px-4 py-3 space-y-2" onClick={(e) => e.stopPropagation()}>
+      <SectionHeader>Side</SectionHeader>
+      <PillSelector
+        options={SIDE_OPTIONS}
+        value={nd.side}
+        onChange={(side) => updateNeedleDecomp({ side })}
+      />
     </div>
   )
 }
@@ -240,17 +343,13 @@ function ChestSealPreview() {
   const cs = useTC3Store((s) => s.card.march.respiration.chestSeal)
   const updateChestSeal = useTC3Store((s) => s.updateChestSeal)
   return (
-    <div className="p-3 space-y-2" onClick={(e) => e.stopPropagation()}>
-      <label className="text-[10px] text-tertiary/50">Side</label>
-      <div className="flex gap-2">
-        {SIDE_OPTIONS.map((side) => (
-          <button key={side} onClick={() => updateChestSeal({ side })}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all
-              ${cs.side === side ? 'border-themeredred/25 bg-themeredred/10 text-primary' : 'border-tertiary/15 text-tertiary hover:bg-tertiary/5'}`}>
-            {side.charAt(0).toUpperCase() + side.slice(1)}
-          </button>
-        ))}
-      </div>
+    <div className="px-4 py-3 space-y-2" onClick={(e) => e.stopPropagation()}>
+      <SectionHeader>Side</SectionHeader>
+      <PillSelector
+        options={SIDE_OPTIONS}
+        value={cs.side}
+        onChange={(side) => updateChestSeal({ side })}
+      />
     </div>
   )
 }
@@ -259,12 +358,12 @@ function O2Preview() {
   const resp = useTC3Store((s) => s.card.march.respiration)
   const updateRespirationO2 = useTC3Store((s) => s.updateRespirationO2)
   return (
-    <div className="p-3 space-y-2" onClick={(e) => e.stopPropagation()}>
-      <label className="text-[10px] text-tertiary/50">Method</label>
+    <div className="px-4 py-3 space-y-2" onClick={(e) => e.stopPropagation()}>
+      <SectionHeader>Method</SectionHeader>
       <input type="text" autoFocus value={resp.o2Method}
         onChange={(e) => updateRespirationO2(true, e.target.value)}
-        placeholder="Method (NRB, NC, BVM...)"
-        className="w-full text-xs px-3 py-2 rounded-lg border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
+        placeholder="NRB, NC, BVM..."
+        className={inputCls} />
     </div>
   )
 }
@@ -273,12 +372,12 @@ function AirwayTypePreview() {
   const airway = useTC3Store((s) => s.card.march.airway)
   const updateAirway = useTC3Store((s) => s.updateAirway)
   return (
-    <div className="p-3 space-y-2" onClick={(e) => e.stopPropagation()}>
-      <label className="text-[10px] text-tertiary/50">Airway Type / Size</label>
+    <div className="px-4 py-3 space-y-2" onClick={(e) => e.stopPropagation()}>
+      <SectionHeader>Type / Size</SectionHeader>
       <input type="text" autoFocus value={airway.airwayType}
         onChange={(e) => updateAirway({ airwayType: e.target.value })}
         placeholder="Type / size..."
-        className="w-full text-xs px-3 py-2 rounded-lg border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
+        className={inputCls} />
     </div>
   )
 }
@@ -308,6 +407,9 @@ export const MARCHForm = memo(function MARCHForm() {
   const ivAccess = useTC3Store((s) => s.card.march.circulation.ivAccess)
   const addIVAccess = useTC3Store((s) => s.addIVAccess)
   const removeIVAccess = useTC3Store((s) => s.removeIVAccess)
+  const markers = useTC3Store((s) => s.card.markers)
+  const addMarker = useTC3Store((s) => s.addMarker)
+  const updateMarker = useTC3Store((s) => s.updateMarker)
   const medications = useTC3Store((s) => s.card.medications)
   const addMedication = useTC3Store((s) => s.addMedication)
   const removeMedication = useTC3Store((s) => s.removeMedication)
@@ -573,104 +675,144 @@ export const MARCHForm = memo(function MARCHForm() {
       // chestTube has no sub-fields — just remove/done
       popoverActions = [removeAction, doneAction]
     } else if (editing.kind === 'iv') {
+      const handleIVSite = (label: string, region: BodyRegion | '') => {
+        setDraftIV(d => ({ ...d, site: label }))
+        if (!region) return
+        const center = getRegionCenter(region)
+        if (!center) return
+        const existingMarker = markers.find(m => m.id === draftIV.id)
+        if (existingMarker) {
+          updateMarker(draftIV.id, { bodyRegion: region, x: center.x, y: center.y })
+        } else {
+          addMarker({
+            id: draftIV.id, x: center.x, y: center.y, bodyRegion: region,
+            injuries: [], treatments: [], procedures: [draftIV.type as 'IV' | 'IO'],
+            gauge: draftIV.gauge, tqType: 'CAT', tqCategory: 'Extremity',
+            dressingType: 'Hemostatic', priority: '',
+            dateTime: draftIV.time
+              ? `${new Date().toISOString().slice(0, 11)}${draftIV.time}`
+              : new Date().toISOString().slice(0, 16),
+            description: '',
+          })
+        }
+      }
       popoverPreview = (
-        <div className="p-4 space-y-3">
-          <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">IV/IO Access</p>
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <select value={draftIV.type}
-                onChange={(e) => setDraftIV(d => ({ ...d, type: e.target.value as 'IV' | 'IO' }))}
-                className="text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary">
-                {ROUTE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <input type="text" autoFocus value={draftIV.site}
-              onChange={(e) => setDraftIV(d => ({ ...d, site: e.target.value }))}
-              placeholder="Site (e.g. R AC)"
-              className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
+        <div className="px-4 py-3 space-y-3">
+          <div className="space-y-1.5">
+            <SectionHeader>Access Type</SectionHeader>
+            <PillSelector options={ROUTE_OPTIONS} value={draftIV.type} onChange={(v) => setDraftIV(d => ({ ...d, type: v }))} />
+          </div>
+          <div className="space-y-1.5">
+            <SectionHeader>Site</SectionHeader>
+            <LocationRegionPicker value={draftIV.site} onChange={handleIVSite} />
+          </div>
+          <div className="space-y-1.5">
+            <SectionHeader>Gauge</SectionHeader>
             <input type="text" value={draftIV.gauge}
               onChange={(e) => setDraftIV(d => ({ ...d, gauge: e.target.value }))}
-              placeholder="Gauge (e.g. 18g)"
-              className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
+              placeholder="e.g. 18g"
+              className={inputCls} />
           </div>
         </div>
       )
       popoverActions = [removeAction, { key: 'done', label: 'Done', icon: Check, onAction: handleEditDoneIV }]
     } else if (editing.kind === 'med') {
       popoverPreview = (
-        <div className="p-4 space-y-2">
-          <input type="text" autoFocus value={draftMed.name}
-            onChange={(e) => setDraftMed(d => ({ ...d, name: e.target.value }))}
-            placeholder="Medication name"
-            className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
+        <div className="px-4 py-3 space-y-3">
+          <div className="space-y-1.5">
+            <SectionHeader>Medication</SectionHeader>
+            <input type="text" autoFocus value={draftMed.name}
+              onChange={(e) => setDraftMed(d => ({ ...d, name: e.target.value }))}
+              placeholder="Medication name"
+              className={inputCls} />
+          </div>
           <div className="flex gap-2">
             <input type="text" value={draftMed.dose}
               onChange={(e) => setDraftMed(d => ({ ...d, dose: e.target.value }))}
               placeholder="Dose"
-              className="flex-1 text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
+              className={`flex-1 px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary/30`} />
             <select value={draftMed.route}
               onChange={(e) => setDraftMed(d => ({ ...d, route: e.target.value as MedRoute }))}
-              className="text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary">
+              className={selectCls}>
               {MED_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
           <select value={draftMed.category}
             onChange={(e) => setDraftMed(d => ({ ...d, category: e.target.value as MedCategory }))}
-            className="text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary">
+            className={`w-full ${selectCls}`}>
             <option value="Analgesic">Analgesic</option>
             <option value="Antibiotic">Antibiotic</option>
             <option value="Other">Other</option>
           </select>
-          <input type="text" value={draftMed.time}
-            onChange={(e) => setDraftMed(d => ({ ...d, time: e.target.value }))}
-            placeholder="Time (HH:MM)"
-            className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
+          <div className="space-y-1.5">
+            <SectionHeader>Time</SectionHeader>
+            <input type="text" value={draftMed.time}
+              onChange={(e) => setDraftMed(d => ({ ...d, time: e.target.value }))}
+              placeholder="HH:MM"
+              className={inputCls} />
+          </div>
         </div>
       )
       popoverActions = [removeAction, { key: 'done', label: 'Done', icon: Check, onAction: handleEditDoneMed }]
     } else if (editing.kind === 'fluid') {
       popoverPreview = (
-        <div className="p-4 space-y-2">
-          <input type="text" autoFocus value={draftFluid.type}
-            onChange={(e) => setDraftFluid(d => ({ ...d, type: e.target.value }))}
-            placeholder="Fluid type"
-            className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
-          <input type="text" value={draftFluid.volume}
-            onChange={(e) => setDraftFluid(d => ({ ...d, volume: e.target.value }))}
-            placeholder="Volume"
-            className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
-          <select value={draftFluid.route}
-            onChange={(e) => setDraftFluid(d => ({ ...d, route: e.target.value as MedRoute }))}
-            className="text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary">
-            {MED_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
-          <input type="text" value={draftFluid.time}
-            onChange={(e) => setDraftFluid(d => ({ ...d, time: e.target.value }))}
-            placeholder="Time (HH:MM)"
-            className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
+        <div className="px-4 py-3 space-y-3">
+          <div className="space-y-1.5">
+            <SectionHeader>Fluid Type</SectionHeader>
+            <input type="text" autoFocus value={draftFluid.type}
+              onChange={(e) => setDraftFluid(d => ({ ...d, type: e.target.value }))}
+              placeholder="e.g. Normal Saline"
+              className={inputCls} />
+          </div>
+          <div className="flex gap-2">
+            <input type="text" value={draftFluid.volume}
+              onChange={(e) => setDraftFluid(d => ({ ...d, volume: e.target.value }))}
+              placeholder="Volume"
+              className={`flex-1 px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary/30`} />
+            <select value={draftFluid.route}
+              onChange={(e) => setDraftFluid(d => ({ ...d, route: e.target.value as MedRoute }))}
+              className={selectCls}>
+              {MED_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <SectionHeader>Time</SectionHeader>
+            <input type="text" value={draftFluid.time}
+              onChange={(e) => setDraftFluid(d => ({ ...d, time: e.target.value }))}
+              placeholder="HH:MM"
+              className={inputCls} />
+          </div>
         </div>
       )
       popoverActions = [removeAction, { key: 'done', label: 'Done', icon: Check, onAction: handleEditDoneFluid }]
     } else if (editing.kind === 'blood') {
       popoverPreview = (
-        <div className="p-4 space-y-2">
-          <input type="text" autoFocus value={draftBlood.type}
-            onChange={(e) => setDraftBlood(d => ({ ...d, type: e.target.value }))}
-            placeholder="Blood product type"
-            className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
-          <input type="text" value={draftBlood.volume}
-            onChange={(e) => setDraftBlood(d => ({ ...d, volume: e.target.value }))}
-            placeholder="Volume"
-            className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
-          <select value={draftBlood.route}
-            onChange={(e) => setDraftBlood(d => ({ ...d, route: e.target.value as MedRoute }))}
-            className="text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary">
-            {MED_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
-          <input type="text" value={draftBlood.time}
-            onChange={(e) => setDraftBlood(d => ({ ...d, time: e.target.value }))}
-            placeholder="Time (HH:MM)"
-            className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
+        <div className="px-4 py-3 space-y-3">
+          <div className="space-y-1.5">
+            <SectionHeader>Blood Product</SectionHeader>
+            <input type="text" autoFocus value={draftBlood.type}
+              onChange={(e) => setDraftBlood(d => ({ ...d, type: e.target.value }))}
+              placeholder="e.g. Whole Blood"
+              className={inputCls} />
+          </div>
+          <div className="flex gap-2">
+            <input type="text" value={draftBlood.volume}
+              onChange={(e) => setDraftBlood(d => ({ ...d, volume: e.target.value }))}
+              placeholder="Volume"
+              className={`flex-1 px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary/30`} />
+            <select value={draftBlood.route}
+              onChange={(e) => setDraftBlood(d => ({ ...d, route: e.target.value as MedRoute }))}
+              className={selectCls}>
+              {MED_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <SectionHeader>Time</SectionHeader>
+            <input type="text" value={draftBlood.time}
+              onChange={(e) => setDraftBlood(d => ({ ...d, time: e.target.value }))}
+              placeholder="HH:MM"
+              className={inputCls} />
+          </div>
         </div>
       )
       popoverActions = [removeAction, { key: 'done', label: 'Done', icon: Check, onAction: handleEditDoneBlood }]
@@ -678,40 +820,38 @@ export const MARCHForm = memo(function MARCHForm() {
   }
 
   // --- Add menu popovers (for C items that need forms) ---
+  const chipCls = 'px-3 py-1.5 text-xs font-medium rounded-full border border-themeblue3/10 bg-themewhite2 text-primary hover:bg-themeredred/5 hover:border-themeredred/20 transition-all active:scale-95'
+
   if (addMenuPopover === 'iv') {
     popoverPreview = (
-      <div className="p-4 space-y-3">
-        <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">IV/IO Access</p>
-        <div className="space-y-2">
-          <div className="flex gap-2">
-            <select value={draftIV.type}
-              onChange={(e) => setDraftIV(d => ({ ...d, type: e.target.value as 'IV' | 'IO' }))}
-              className="text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary">
-              {ROUTE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-          <input type="text" autoFocus value={draftIV.site}
-            onChange={(e) => setDraftIV(d => ({ ...d, site: e.target.value }))}
-            placeholder="Site (e.g. R AC)"
-            className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
+      <div className="px-4 py-3 space-y-3">
+        <div className="space-y-1.5">
+          <SectionHeader>Access Type</SectionHeader>
+          <PillSelector options={ROUTE_OPTIONS} value={draftIV.type} onChange={(v) => setDraftIV(d => ({ ...d, type: v }))} />
+        </div>
+        <div className="space-y-1.5">
+          <SectionHeader>Site</SectionHeader>
+          <LocationRegionPicker value={draftIV.site} onChange={(label) => setDraftIV(d => ({ ...d, site: label }))} />
+        </div>
+        <div className="space-y-1.5">
+          <SectionHeader>Gauge</SectionHeader>
           <input type="text" value={draftIV.gauge}
             onChange={(e) => setDraftIV(d => ({ ...d, gauge: e.target.value }))}
-            placeholder="Gauge (e.g. 18g)"
-            className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
+            placeholder="e.g. 18g"
+            className={inputCls} />
         </div>
       </div>
     )
     popoverActions = [{ key: 'done', label: 'Done', icon: Check, onAction: handleDoneIV }]
   } else if (addMenuPopover === 'med') {
     popoverPreview = (
-      <div className="p-4 space-y-3">
+      <div className="px-4 py-3 space-y-3">
         {CATEGORIZED_MEDS.map((group) => (
           <div key={group.category} className="space-y-1.5">
-            <p className="text-[9px] font-semibold text-tertiary/50 tracking-wider uppercase">{group.label}</p>
+            <SectionHeader>{group.label}</SectionHeader>
             <div className="flex flex-wrap gap-1.5">
               {group.meds.map((med, i) => (
-                <button key={i} onClick={() => handleQuickAddMed(med, group.category)}
-                  className="px-2.5 py-1.5 text-[11px] rounded-lg border border-tertiary/15 bg-themewhite2 text-tertiary hover:bg-themeredred/5 hover:border-themeredred/20 transition-all">
+                <button key={i} onClick={() => handleQuickAddMed(med, group.category)} className={chipCls}>
                   {med.name} {med.dose} {med.route}
                 </button>
               ))}
@@ -719,25 +859,25 @@ export const MARCHForm = memo(function MARCHForm() {
           </div>
         ))}
         <div className="border-t border-tertiary/10 pt-3 space-y-2">
-          <p className="text-[9px] font-semibold text-tertiary/50 tracking-wider uppercase">Custom</p>
+          <SectionHeader>Custom</SectionHeader>
           <input type="text" value={draftMed.name}
             onChange={(e) => setDraftMed(d => ({ ...d, name: e.target.value }))}
             placeholder="Medication name"
-            className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
+            className={inputCls} />
           <div className="flex gap-2">
             <input type="text" value={draftMed.dose}
               onChange={(e) => setDraftMed(d => ({ ...d, dose: e.target.value }))}
               placeholder="Dose"
-              className="flex-1 text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
+              className={`flex-1 px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary/30`} />
             <select value={draftMed.route}
               onChange={(e) => setDraftMed(d => ({ ...d, route: e.target.value as MedRoute }))}
-              className="text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary">
+              className={selectCls}>
               {MED_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
           <select value={draftMed.category}
             onChange={(e) => setDraftMed(d => ({ ...d, category: e.target.value as MedCategory }))}
-            className="text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary">
+            className={`w-full ${selectCls}`}>
             <option value="Analgesic">Analgesic</option>
             <option value="Antibiotic">Antibiotic</option>
             <option value="Other">Other</option>
@@ -748,38 +888,36 @@ export const MARCHForm = memo(function MARCHForm() {
     popoverActions = [{ key: 'done', label: 'Done', icon: Check, onAction: handleDoneMed }]
   } else if (addMenuPopover === 'fluid') {
     popoverPreview = (
-      <div className="p-4 space-y-3">
-        <p className="text-[9px] font-semibold text-tertiary/50 tracking-wider uppercase">Common Fluids</p>
+      <div className="px-4 py-3 space-y-3">
+        <SectionHeader>Common Fluids</SectionHeader>
         <div className="flex flex-wrap gap-1.5">
           {COMMON_FLUIDS.map((f, i) => (
-            <button key={i} onClick={() => handleQuickAddFluid(f.type, f.volume)}
-              className="px-2.5 py-1.5 text-[11px] rounded-lg border border-tertiary/15 bg-themewhite2 text-tertiary hover:bg-themeredred/5 hover:border-themeredred/20 transition-all">
+            <button key={i} onClick={() => handleQuickAddFluid(f.type, f.volume)} className={chipCls}>
               {f.type} {f.volume}
             </button>
           ))}
         </div>
         <div className="border-t border-tertiary/10 pt-3 space-y-2">
-          <p className="text-[9px] font-semibold text-tertiary/50 tracking-wider uppercase">Custom</p>
+          <SectionHeader>Custom</SectionHeader>
           <input type="text" value={draftFluid.type}
             onChange={(e) => setDraftFluid(d => ({ ...d, type: e.target.value }))}
             placeholder="Fluid type"
-            className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
+            className={inputCls} />
           <input type="text" value={draftFluid.volume}
             onChange={(e) => setDraftFluid(d => ({ ...d, volume: e.target.value }))}
             placeholder="Volume"
-            className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary" />
+            className={inputCls} />
         </div>
       </div>
     )
     popoverActions = [{ key: 'done', label: 'Done', icon: Check, onAction: handleDoneFluid }]
   } else if (addMenuPopover === 'blood') {
     popoverPreview = (
-      <div className="p-4 space-y-3">
-        <p className="text-[9px] font-semibold text-tertiary/50 tracking-wider uppercase">Common Blood Products</p>
+      <div className="px-4 py-3 space-y-3">
+        <SectionHeader>Common Blood Products</SectionHeader>
         <div className="flex flex-wrap gap-1.5">
           {COMMON_BLOOD.map((b, i) => (
-            <button key={i} onClick={() => handleQuickAddBlood(b.type, b.volume)}
-              className="px-2.5 py-1.5 text-[11px] rounded-lg border border-tertiary/15 bg-themewhite2 text-tertiary hover:bg-themeredred/5 hover:border-themeredred/20 transition-all">
+            <button key={i} onClick={() => handleQuickAddBlood(b.type, b.volume)} className={chipCls}>
               {b.type} {b.volume}
             </button>
           ))}
@@ -812,118 +950,76 @@ export const MARCHForm = memo(function MARCHForm() {
     const isC = row.kind === 'iv' || row.kind === 'med' || row.kind === 'fluid' || row.kind === 'blood'
     const onClick = isC ? (e: React.MouseEvent) => openEditC(row, e) : (e: React.MouseEvent) => openEdit(row, e)
 
-    let content: React.ReactNode = null
+    let icon: MarchCat = 'H'
+    let primary = ''
+    let secondary = ''
+    let trailing = ''
 
     if (row.kind === 'tourniquet') {
       const tq = tourniquets.find(t => t.id === row.id)!
-      content = (
-        <>
-          <MarchBadge cat="H" />
-          <span className="text-xs font-medium text-primary">{tq.tqCategory}</span>
-          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-tertiary/8 text-tertiary/70 shrink-0">{tq.type}</span>
-          {tq.location && <span className="text-[10px] text-tertiary/60 truncate min-w-0">{tq.location}</span>}
-          <span className="flex-1" />
-          {tq.time && <span className="text-[10px] text-tertiary/50 shrink-0">{tq.time}</span>}
-          <InjuryBadge injuryId={tq.injuryId} />
-        </>
-      )
+      icon = 'H'
+      primary = `Tourniquet · ${tq.tqCategory}`
+      secondary = [tq.type, tq.location].filter(Boolean).join(' · ')
+      trailing = tq.time
     } else if (row.kind === 'dressing') {
       const h = hemostatics.find(d => d.id === row.id)!
-      content = (
-        <>
-          <MarchBadge cat="H" />
-          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-themeblue2/10 text-themeblue2 shrink-0">{h.dressingType}</span>
-          {h.type && <span className="text-xs font-medium text-primary truncate min-w-0">{h.type}</span>}
-          {h.location && <span className="text-[10px] text-tertiary/60 truncate min-w-0">{h.location}</span>}
-          <span className="flex-1" />
-          <InjuryBadge injuryId={h.injuryId} />
-        </>
-      )
+      icon = 'H'
+      primary = `${h.dressingType} Dressing`
+      secondary = [h.type, h.location].filter(Boolean).join(' · ')
     } else if (row.kind === 'airway') {
-      content = (
-        <>
-          <MarchBadge cat="A" />
-          <span className="text-xs font-medium text-primary">{AIRWAY_LABELS[row.key]}</span>
-          {airway.airwayType && <span className="text-[10px] text-tertiary/60 truncate min-w-0">{airway.airwayType}</span>}
-          <span className="flex-1" />
-        </>
-      )
+      icon = 'A'
+      primary = AIRWAY_LABELS[row.key]
+      secondary = airway.airwayType
     } else if (row.kind === 'breathing') {
-      let detail = ''
+      icon = 'B'
+      primary = BREATHING_LABELS[row.key]
       if (row.key === 'needleDecomp' && respiration.needleDecomp.side !== 'none')
-        detail = respiration.needleDecomp.side.charAt(0).toUpperCase() + respiration.needleDecomp.side.slice(1)
+        secondary = respiration.needleDecomp.side.charAt(0).toUpperCase() + respiration.needleDecomp.side.slice(1)
       else if (row.key === 'chestSeal' && respiration.chestSeal.side !== 'none')
-        detail = respiration.chestSeal.side.charAt(0).toUpperCase() + respiration.chestSeal.side.slice(1)
+        secondary = respiration.chestSeal.side.charAt(0).toUpperCase() + respiration.chestSeal.side.slice(1)
       else if (row.key === 'o2' && respiration.o2Method)
-        detail = respiration.o2Method
-      content = (
-        <>
-          <MarchBadge cat="B" />
-          <span className="text-xs font-medium text-primary">{BREATHING_LABELS[row.key]}</span>
-          {detail && <span className="text-[10px] text-tertiary/60 truncate min-w-0">{detail}</span>}
-          <span className="flex-1" />
-        </>
-      )
+        secondary = respiration.o2Method
     } else if (row.kind === 'iv') {
       const iv = ivAccess.find(v => v.id === row.id)!
-      content = (
-        <>
-          <MarchBadge cat="C" />
-          <span className="text-xs font-medium text-primary">{iv.type}</span>
-          <span className="text-xs text-tertiary/70">{iv.gauge}</span>
-          <span className="text-xs text-tertiary/70 truncate">{iv.site || 'No site'}</span>
-          <span className="flex-1" />
-        </>
-      )
+      icon = 'C'
+      primary = `${iv.type} Access`
+      secondary = [iv.gauge, iv.site || 'No site'].filter(Boolean).join(' · ')
     } else if (row.kind === 'med') {
       const med = medications.find(m => m.id === row.id)!
-      content = (
-        <>
-          <MarchBadge cat="C" />
-          <span className="text-xs font-medium text-primary truncate">{med.name}</span>
-          <span className="text-xs text-tertiary/70">{med.dose}</span>
-          <span className="text-xs text-tertiary/70">{med.route}</span>
-          <span className="flex-1" />
-          <span className="text-[10px] text-tertiary/60">{med.time}</span>
-        </>
-      )
+      icon = 'C'
+      primary = med.name
+      secondary = `${med.dose} ${med.route}`
+      trailing = med.time
     } else if (row.kind === 'fluid') {
       const f = fluids[row.index]
-      content = (
-        <>
-          <MarchBadge cat="C" />
-          <span className="text-xs font-medium text-primary truncate">{f.type}</span>
-          <span className="text-xs text-tertiary/70">{f.volume}</span>
-          <span className="text-xs text-tertiary/70">{f.route}</span>
-          <span className="flex-1" />
-          <span className="text-[10px] text-tertiary/60">{f.time}</span>
-        </>
-      )
+      icon = 'C'
+      primary = f.type
+      secondary = `${f.volume} · ${f.route}`
+      trailing = f.time
     } else if (row.kind === 'blood') {
       const b = bloodProducts[row.index]
-      content = (
-        <>
-          <MarchBadge cat="C" />
-          <span className="text-xs font-medium text-primary truncate">{b.type}</span>
-          <span className="text-xs text-tertiary/70">{b.volume}</span>
-          <span className="text-xs text-tertiary/70">{b.route}</span>
-          <span className="flex-1" />
-          <span className="text-[10px] text-tertiary/60">{b.time}</span>
-        </>
-      )
+      icon = 'C'
+      primary = b.type
+      secondary = `${b.volume} · ${b.route}`
+      trailing = b.time
     }
 
     return (
       <button key={idx} type="button" onClick={onClick}
-        className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-themeblue2/5 active:scale-[0.98] transition-all">
-        {content}
-        <ChevronRight size={14} className="text-tertiary/30 shrink-0" />
+        className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-themeblue2/5 active:scale-[0.98] transition-all">
+        <MarchIcon cat={icon} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-primary truncate">{primary}</p>
+          {secondary && <p className="text-[11px] text-secondary mt-0.5 truncate">{secondary}</p>}
+        </div>
+        {trailing && <span className="text-[11px] text-secondary shrink-0">{trailing}</span>}
+        <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
       </button>
     )
   }
 
   return (
-    <div>
+    <div data-tour="tc3-march">
       {/* Header */}
       <div className="mb-2">
         <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
@@ -960,22 +1056,22 @@ export const MARCHForm = memo(function MARCHForm() {
         onClose={closeAll}
         anchorRect={anchorRef.current}
         preview={
-          <div className="p-3 space-y-2">
+          <div className="px-4 py-3 space-y-3">
             {(['H', 'A', 'B', 'C'] as MarchCat[]).map(cat => {
               const items = filteredAddMenu.filter(i => i.cat === cat)
               if (items.length === 0) return null
               return (
-                <div key={cat} className="space-y-1">
-                  <div className="flex items-center gap-1.5 px-1">
+                <div key={cat} className="space-y-1.5">
+                  <div className="flex items-center gap-1.5">
                     <MarchBadge cat={cat} />
-                    <span className="text-[9px] font-semibold text-tertiary/50 tracking-wider uppercase">
+                    <span className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
                       {cat === 'H' ? 'Hemorrhage' : cat === 'A' ? 'Airway' : cat === 'B' ? 'Breathing' : 'Circulation'}
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {items.map(item => (
                       <button key={item.action} onClick={() => handleAddAction(item.action)}
-                        className="px-2.5 py-1.5 text-[11px] rounded-lg border border-tertiary/15 bg-themewhite text-tertiary hover:bg-themeredred/5 hover:border-themeredred/20 transition-all">
+                        className="px-3 py-1.5 text-xs font-medium rounded-full border border-themeblue3/10 bg-themewhite2 text-primary hover:bg-themeredred/5 hover:border-themeredred/20 transition-all active:scale-95">
                         {item.label}
                       </button>
                     ))}
@@ -995,6 +1091,7 @@ export const MARCHForm = memo(function MARCHForm() {
         anchorRect={anchorRef.current}
         preview={popoverPreview}
         actions={popoverActions}
+        previewMaxHeight="65dvh"
       />
     </div>
   )

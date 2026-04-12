@@ -1,9 +1,24 @@
 import { memo, useState, useRef, useCallback } from 'react'
-import { Plus, Check, RotateCcw, User } from 'lucide-react'
+import { Plus, Check, RotateCcw, User, ChevronRight } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { TextInput } from '../FormInputs'
+import { TextInput, DatePickerInput, PickerInput } from '../FormInputs'
 import type { EvacPriority } from '../../Types/TC3Types'
+
+/** 30-min military time options: "0000", "0030", … "2330" */
+const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
+  const h = String(Math.floor(i / 2)).padStart(2, '0')
+  const m = i % 2 === 0 ? '00' : '30'
+  return `${h}${m}`
+})
+
+function militaryToHHMM(mil: string): string {
+  return `${mil.slice(0, 2)}:${mil.slice(2)}`
+}
+
+function hhmmToMilitary(hhmm: string): string {
+  return hhmm.replace(':', '')
+}
 
 const EVAC_OPTIONS: { value: EvacPriority; label: string; color: string }[] = [
   { value: 'Urgent', label: 'U', color: 'bg-themeredred' },
@@ -17,13 +32,13 @@ const SEX_OPTIONS = [
 ]
 
 const EMPTY_CASUALTY = {
-  battleRosterNo: '', lastName: '', firstName: '', last4: '',
+  battleRosterNo: '', lastName: '', firstName: '',
   unit: '', sex: '' as '' | 'M' | 'F', service: '', allergies: '',
   dateTimeOfInjury: '', dateTimeOfTreatment: '',
 }
 
 function hasData(c: typeof EMPTY_CASUALTY) {
-  return !!(c.lastName || c.firstName || c.battleRosterNo || c.last4)
+  return !!(c.lastName || c.firstName || c.battleRosterNo)
 }
 
 function formatDT(iso: string) {
@@ -50,7 +65,8 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
   const [draftEvac, setDraftEvac] = useState<EvacPriority>('')
 
   const openPopover = useCallback((ref: React.RefObject<HTMLElement | null>) => {
-    setDraft({ ...casualty })
+    const { battleRosterNo, lastName, firstName, unit, sex, service, allergies, dateTimeOfInjury, dateTimeOfTreatment } = casualty
+    setDraft({ battleRosterNo, lastName, firstName, unit, sex, service, allergies, dateTimeOfInjury, dateTimeOfTreatment })
     setDraftEvac(evacuation.priority)
     setAnchorRect(ref.current?.getBoundingClientRect() ?? null)
     setPopoverVisible(true)
@@ -75,7 +91,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
   const populated = hasData(casualty)
 
   return (
-    <div>
+    <div data-tour="tc3-casualty-info">
       {/* ── Section header ── */}
       <div className="mb-2">
         <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
@@ -91,72 +107,49 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
           onClick={() => openPopover(cardRef)}
           className="w-full rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden text-left active:scale-95 transition-all hover:bg-themeblue2/5"
         >
-          {/* Name + EVAC header */}
-          <div className="flex items-center gap-3 px-4 py-3.5">
-            <User size={15} className="text-secondary shrink-0" />
-            <p className="flex-1 min-w-0 text-sm font-medium text-primary truncate">
-              {[casualty.lastName, casualty.firstName].filter(Boolean).join(', ') || '—'}
-            </p>
-            {evacuation.priority && (
-              <span className={`text-[10px] font-bold w-6 h-6 flex items-center justify-center rounded-full text-white shrink-0 ${
-                evacuation.priority === 'Urgent' ? 'bg-themeredred' :
-                evacuation.priority === 'Priority' ? 'bg-amber-500' : 'bg-themegreen'
-              }`}>
-                {evacuation.priority === 'Urgent' ? 'U' : evacuation.priority === 'Priority' ? 'P' : 'R'}
-              </span>
-            )}
-          </div>
-
-          {/* DD1380 fields grid */}
-          <div className="px-4 pb-3.5 border-t border-tertiary/8 pt-3 grid grid-cols-2 gap-x-6 gap-y-2.5">
-            {casualty.battleRosterNo && (
-              <div>
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-secondary">Battle Roster</p>
-                <p className="text-xs text-primary mt-0.5">{casualty.battleRosterNo}</p>
+          <div className="flex items-start gap-3 px-4 py-3.5">
+            {evacuation.priority ? (
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-tertiary/10`}>
+                <span className="text-[18px] font-medium text-tertiary/50">
+                  {evacuation.priority === 'Urgent' ? 'U' : evacuation.priority === 'Priority' ? 'P' : 'R'}
+                </span>
+              </div>
+            ) : (
+              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10 mt-0.5">
+                <User size={18} className="text-tertiary/50" />
               </div>
             )}
-            {casualty.last4 && (
-              <div>
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-secondary">Last 4</p>
-                <p className="text-xs text-primary mt-0.5">{casualty.last4}</p>
+            <div className="flex-1 min-w-0">
+              {/* Name + chevron */}
+              <div className="flex items-center gap-1.5">
+                <p className="flex-1 min-w-0 text-sm font-medium text-primary truncate">
+                  {[casualty.lastName, casualty.firstName].filter(Boolean).join(', ') || '—'}
+                </p>
+                <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
               </div>
-            )}
-            {casualty.sex && (
-              <div>
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-secondary">Sex</p>
-                <p className="text-xs text-primary mt-0.5">{casualty.sex}</p>
+              {/* Detail grid */}
+              <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1">
+                <p className="text-[11px] text-secondary flex flex-wrap items-center gap-x-2">
+                  {casualty.battleRosterNo && <span className="font-medium uppercase">{casualty.battleRosterNo}</span>}
+                  {casualty.sex && <span>{casualty.sex}</span>}
+                  {casualty.service && <span>{casualty.service}</span>}
+                  {casualty.unit && <span>{casualty.unit}</span>}
+                </p>
+                <p className="text-[11px] text-secondary truncate">
+                  {casualty.allergies
+                    ? <><span className="font-medium">Allergies:</span> {casualty.allergies}</>
+                    : null}
+                </p>
+                <p className="text-[11px] text-secondary">
+                  {casualty.dateTimeOfInjury
+                    ? <><span className="font-medium">Inj</span> {formatDT(casualty.dateTimeOfInjury)}</>
+                    : null}
+                </p>
+                <p className="text-[11px] text-secondary">
+                  {casualty.dateTimeOfTreatment ? formatDT(casualty.dateTimeOfTreatment) : null}
+                </p>
               </div>
-            )}
-            {casualty.service && (
-              <div>
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-secondary">Service</p>
-                <p className="text-xs text-primary mt-0.5">{casualty.service}</p>
-              </div>
-            )}
-            {casualty.unit && (
-              <div>
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-secondary">Unit</p>
-                <p className="text-xs text-primary mt-0.5">{casualty.unit}</p>
-              </div>
-            )}
-            {casualty.allergies && (
-              <div>
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-secondary">Allergies</p>
-                <p className="text-xs text-primary mt-0.5">{casualty.allergies}</p>
-              </div>
-            )}
-            {casualty.dateTimeOfInjury && (
-              <div>
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-secondary">DTG Injury</p>
-                <p className="text-xs text-primary mt-0.5">{formatDT(casualty.dateTimeOfInjury)}</p>
-              </div>
-            )}
-            {casualty.dateTimeOfTreatment && (
-              <div>
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-secondary">DTG Treatment</p>
-                <p className="text-xs text-primary mt-0.5">{formatDT(casualty.dateTimeOfTreatment)}</p>
-              </div>
-            )}
+            </div>
           </div>
         </button>
       ) : (
@@ -219,22 +212,13 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
               />
             </div>
 
-            {/* Roster + Last 4 */}
-            <div className="grid grid-cols-2 gap-2">
-              <TextInput
-                label="Battle Roster No."
-                value={draft.battleRosterNo}
-                onChange={(v) => updateDraft({ battleRosterNo: v })}
-                placeholder="Roster number"
-              />
-              <TextInput
-                label="Last 4"
-                value={draft.last4}
-                onChange={(v) => updateDraft({ last4: v.slice(0, 4) })}
-                placeholder="0000"
-                maxLength={4}
-              />
-            </div>
+            {/* Battle Roster */}
+            <TextInput
+              label="Battle Roster No."
+              value={draft.battleRosterNo}
+              onChange={(v) => updateDraft({ battleRosterNo: v })}
+              placeholder="Roster number"
+            />
 
             {/* Sex */}
             <div>
@@ -281,26 +265,52 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
               placeholder="NKDA if none"
             />
 
-            {/* Datetime fields */}
-            <div className="grid grid-cols-2 gap-2">
-              <label className="block">
-                <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Injury Date/Time</span>
-                <input
-                  type="datetime-local"
-                  value={draft.dateTimeOfInjury}
-                  onChange={(e) => updateDraft({ dateTimeOfInjury: e.target.value })}
-                  className="mt-1 w-full px-3 py-2.5 rounded-full text-primary text-sm border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none transition-all duration-300"
+            {/* DTG Injury */}
+            <div>
+              <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">DTG Injury</span>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <DatePickerInput
+                  value={draft.dateTimeOfInjury.slice(0, 10)}
+                  onChange={(date) => {
+                    const time = draft.dateTimeOfInjury.slice(11) || '08:00'
+                    updateDraft({ dateTimeOfInjury: `${date}T${time}` })
+                  }}
+                  placeholder="Date"
                 />
-              </label>
-              <label className="block">
-                <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Treatment Date/Time</span>
-                <input
-                  type="datetime-local"
-                  value={draft.dateTimeOfTreatment}
-                  onChange={(e) => updateDraft({ dateTimeOfTreatment: e.target.value })}
-                  className="mt-1 w-full px-3 py-2.5 rounded-full text-primary text-sm border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none transition-all duration-300"
+                <PickerInput
+                  value={draft.dateTimeOfInjury.slice(11) ? hhmmToMilitary(draft.dateTimeOfInjury.slice(11)) : ''}
+                  onChange={(mil) => {
+                    const date = draft.dateTimeOfInjury.slice(0, 10) || new Date().toISOString().slice(0, 10)
+                    updateDraft({ dateTimeOfInjury: `${date}T${militaryToHHMM(mil)}` })
+                  }}
+                  options={TIME_OPTIONS}
+                  placeholder="Time"
                 />
-              </label>
+              </div>
+            </div>
+
+            {/* DTG Treatment */}
+            <div>
+              <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">DTG Treatment</span>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <DatePickerInput
+                  value={draft.dateTimeOfTreatment.slice(0, 10)}
+                  onChange={(date) => {
+                    const time = draft.dateTimeOfTreatment.slice(11) || '08:00'
+                    updateDraft({ dateTimeOfTreatment: `${date}T${time}` })
+                  }}
+                  placeholder="Date"
+                />
+                <PickerInput
+                  value={draft.dateTimeOfTreatment.slice(11) ? hhmmToMilitary(draft.dateTimeOfTreatment.slice(11)) : ''}
+                  onChange={(mil) => {
+                    const date = draft.dateTimeOfTreatment.slice(0, 10) || new Date().toISOString().slice(0, 10)
+                    updateDraft({ dateTimeOfTreatment: `${date}T${militaryToHHMM(mil)}` })
+                  }}
+                  options={TIME_OPTIONS}
+                  placeholder="Time"
+                />
+              </div>
             </div>
           </div>
         }

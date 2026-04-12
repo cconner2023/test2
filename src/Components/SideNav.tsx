@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, useSyncExternalStore } from 'react'
-import { Upload, BookOpen, Mail, Package, ClipboardCheck, Settings, HelpCircle, UserCog, Radio, Map as MapIcon, Eye, CalendarDays, Stethoscope, MessageSquare, X, Pin, ChevronUp, ChevronDown, EyeOff } from 'lucide-react'
+import { Upload, BookOpen, Mail, Package, ClipboardCheck, Settings, HelpCircle, UserCog, Radio, Map as MapIcon, Eye, CalendarDays, Stethoscope, MessageSquare, X, Pin, ChevronUp, ChevronDown, EyeOff, Crosshair } from 'lucide-react'
 import { useAuth } from '../Hooks/useAuth'
+import { useAuthStore } from '../stores/useAuthStore'
 import { useAvatar } from '../Utilities/AvatarContext'
 import { useTotalUnread } from '../stores/useMessagingStore'
 import { getInitials } from '../Utilities/nameUtils'
@@ -19,6 +20,7 @@ const iconMapMobile: Record<string, React.ReactNode> = {
   'lora': <Radio size={20} className="text-primary/70" />,
   'mapOverlay': <MapIcon size={20} className="text-primary/70" />,
   'calendar': <CalendarDays size={20} className="text-primary/70" />,
+  'tc3': <Crosshair size={20} className="text-primary/70" />,
 }
 
 const iconMapDesktop: Record<string, React.ReactNode> = {
@@ -33,9 +35,10 @@ const iconMapDesktop: Record<string, React.ReactNode> = {
   'lora': <Radio size={16} className="text-primary/70" />,
   'mapOverlay': <MapIcon size={16} className="text-primary/70" />,
   'calendar': <CalendarDays size={16} className="text-primary/70" />,
+  'tc3': <Crosshair size={16} className="text-primary/70" />,
 }
 
-const BETA_ACTIONS = new Set(['lora', 'mapOverlay', 'property'])
+const BETA_ACTIONS = new Set(['lora', 'mapOverlay', 'property', 'tc3'])
 const LONG_PRESS_MS = 500
 
 const subscribeOnline = (cb: () => void) => {
@@ -57,6 +60,7 @@ interface SideNavProps {
 export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavProps) {
   const { currentAvatar, customImage, isCustom, isInitials } = useAvatar()
   const { profile } = useAuth()
+  const tc3Mode = useAuthStore((s) => s.profile.tc3Mode) ?? false
   const totalUnread = useTotalUnread()
   const isConnected = useSyncExternalStore(subscribeOnline, getOnline)
 
@@ -189,7 +193,7 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
                     )}
                   </div>
                   <span className={`tracking-wide ${isMobile ? 'text-[15px]' : 'text-[13px]'} text-primary/80 font-medium flex-1`}>
-                    {item.text}
+                    {item.action === 'tc3' ? (tc3Mode ? 'ADTMC' : 'TC3') : item.text}
                     {BETA_ACTIONS.has(item.action) && (
                       <span className="ml-2 text-[11px] font-semibold text-themeyellow bg-themeyellow/15 px-2 py-0.5 rounded-full align-middle tracking-wide">
                         BETA

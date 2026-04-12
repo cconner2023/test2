@@ -2,6 +2,7 @@ import { memo } from 'react'
 import { Check } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { getSuggestedTreatments, getRegionLabel } from '../../Utilities/bodyRegionMap'
+import { SectionHeader } from '../Section'
 import { DatePickerInput, PickerInput } from '../FormInputs'
 import type {
   TC3Marker,
@@ -59,6 +60,42 @@ function matchesFilter(label: string, filter: string): boolean {
   return label.toLowerCase().includes(filter.toLowerCase())
 }
 
+/* ── Shared row list ─────────────────────────────────────────────────────── */
+
+function SelectList<T extends string>({
+  options,
+  selected,
+  onToggle,
+  accentClass,
+}: {
+  options: { value: T; label: string }[]
+  selected: T[]
+  onToggle: (val: T) => void
+  accentClass: string
+}) {
+  return (
+    <div className="mx-3 rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
+      {options.map((opt) => {
+        const isSelected = selected.includes(opt.value)
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onToggle(opt.value)}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-themeblue2/5 transition-colors"
+          >
+            <span className={`w-2 h-2 rounded-full shrink-0 transition-colors ${isSelected ? accentClass : 'bg-tertiary/20'}`} />
+            <span className={`text-sm flex-1 ${isSelected ? 'font-medium text-primary' : 'text-tertiary'}`}>
+              {opt.label}
+            </span>
+            {isSelected && <Check size={14} className={`shrink-0 ${accentClass.replace('bg-', 'text-')}`} />}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 /* ── Component ───────────────────────────────────────────────────────────── */
 
 interface MarkerPopoverProps {
@@ -73,13 +110,10 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
   const regionLabel = marker.bodyRegion ? getRegionLabel(marker.bodyRegion) : ''
   const suggested = getSuggestedTreatments(marker.bodyRegion)
 
-  // Sort treatments: suggested first, then the rest
   const sortedTreatments = [
     ...ALL_TREATMENTS.filter(t => suggested.includes(t.value)),
     ...ALL_TREATMENTS.filter(t => !suggested.includes(t.value)),
   ]
-
-  /* ── Toggle helpers ── */
 
   const toggleInjury = (val: InjuryType) => {
     const next = marker.injuries.includes(val)
@@ -102,8 +136,6 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
     updateMarker(marker.id, { procedures: next })
   }
 
-  /* ── Filtered lists ── */
-
   const filteredInjuries = INJURY_OPTIONS.filter(o => matchesFilter(o.label, filter))
   const filteredTreatments = sortedTreatments.filter(o => matchesFilter(o.label, filter))
   const filteredProcedures = PROCEDURE_OPTIONS.filter(o => matchesFilter(o.label, filter))
@@ -116,163 +148,108 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
 
   return (
     <div className="py-2 min-w-[200px]" onClick={(e) => e.stopPropagation()}>
+
       {/* Region label */}
       {regionLabel && (
-        <p className="px-4 pb-1 text-[9px] font-semibold text-themeredred/70 tracking-wider uppercase">
-          {regionLabel}
-        </p>
+        <div className="px-4 pb-1">
+          <SectionHeader>{regionLabel}</SectionHeader>
+        </div>
       )}
 
       {/* ── INJURIES ── */}
       {filteredInjuries.length > 0 && (
-        <div className="mb-1">
-          <div className="flex items-center gap-1.5 px-4 py-1.5">
-            <div className={`w-1.5 h-1.5 rounded-full ${marker.injuries.length > 0 ? 'bg-themegreen' : 'bg-tertiary/20'}`} />
-            <span className="text-[9px] font-semibold text-tertiary/50 tracking-wider uppercase">
-              Injuries{marker.injuries.length > 0 ? ` (${marker.injuries.length})` : ''}
-            </span>
+        <div className="mb-3">
+          <div className="px-4 pb-1.5">
+            <SectionHeader>Injuries</SectionHeader>
           </div>
-          <div className="mx-3 rounded-xl border border-tertiary/10 overflow-hidden">
-            {filteredInjuries.map((opt, i) => {
-              const selected = marker.injuries.includes(opt.value)
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => toggleInjury(opt.value)}
-                  className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-left transition-colors ${
-                    selected ? 'bg-themegreen/5' : ''
-                  } ${i > 0 ? 'border-t border-tertiary/5' : ''}`}
-                >
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
-                    selected ? 'bg-themegreen' : 'border border-tertiary/20'
-                  }`}>
-                    {selected && <Check size={12} className="text-white" />}
-                  </div>
-                  <span className={selected ? 'text-primary font-medium' : 'text-tertiary'}>{opt.label}</span>
-                </button>
-              )
-            })}
-          </div>
+          <SelectList
+            options={filteredInjuries}
+            selected={marker.injuries}
+            onToggle={toggleInjury}
+            accentClass="bg-themeredred"
+          />
         </div>
       )}
 
       {/* ── TREATMENTS ── */}
       {filteredTreatments.length > 0 && (
-        <div className="mb-1">
-          <div className="flex items-center gap-1.5 px-4 py-1.5">
-            <div className={`w-1.5 h-1.5 rounded-full ${marker.treatments.length > 0 ? 'bg-themegreen' : 'bg-tertiary/20'}`} />
-            <span className="text-[9px] font-semibold text-tertiary/50 tracking-wider uppercase">
-              Treatments{marker.treatments.length > 0 ? ` (${marker.treatments.length})` : ''}
-            </span>
+        <div className="mb-3">
+          <div className="px-4 pb-1.5">
+            <SectionHeader>Treatments</SectionHeader>
           </div>
-          <div className="mx-3 rounded-xl border border-tertiary/10 overflow-hidden">
-            {filteredTreatments.map((opt, i) => {
-              const selected = marker.treatments.includes(opt.value)
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => toggleTreatment(opt.value)}
-                  className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-left transition-colors ${
-                    selected ? 'bg-themegreen/5' : ''
-                  } ${i > 0 ? 'border-t border-tertiary/5' : ''}`}
-                >
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
-                    selected ? 'bg-themegreen' : 'border border-tertiary/20'
-                  }`}>
-                    {selected && <Check size={12} className="text-white" />}
-                  </div>
-                  <span className={selected ? 'text-primary font-medium' : 'text-tertiary'}>{opt.label}</span>
-                </button>
-              )
-            })}
-          </div>
+          <SelectList
+            options={filteredTreatments}
+            selected={marker.treatments}
+            onToggle={toggleTreatment}
+            accentClass="bg-themegreen"
+          />
         </div>
       )}
 
       {/* ── PROCEDURES ── */}
       {filteredProcedures.length > 0 && (
-        <div className="mb-1">
-          <div className="flex items-center gap-1.5 px-4 py-1.5">
-            <div className={`w-1.5 h-1.5 rounded-full ${marker.procedures.length > 0 ? 'bg-themegreen' : 'bg-tertiary/20'}`} />
-            <span className="text-[9px] font-semibold text-tertiary/50 tracking-wider uppercase">
-              Procedures{marker.procedures.length > 0 ? ` (${marker.procedures.length})` : ''}
-            </span>
+        <div className="mb-3">
+          <div className="px-4 pb-1.5">
+            <SectionHeader>Procedures</SectionHeader>
           </div>
-          <div className="mx-3 rounded-xl border border-tertiary/10 overflow-hidden">
-            {filteredProcedures.map((opt, i) => {
-              const selected = marker.procedures.includes(opt.value)
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => toggleProcedure(opt.value)}
-                  className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-left transition-colors ${
-                    selected ? 'bg-themegreen/5' : ''
-                  } ${i > 0 ? 'border-t border-tertiary/5' : ''}`}
-                >
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
-                    selected ? 'bg-themegreen' : 'border border-tertiary/20'
-                  }`}>
-                    {selected && <Check size={12} className="text-white" />}
-                  </div>
-                  <span className={selected ? 'text-primary font-medium' : 'text-tertiary'}>{opt.label}</span>
-                </button>
-              )
-            })}
-          </div>
+          <SelectList
+            options={filteredProcedures}
+            selected={marker.procedures}
+            onToggle={toggleProcedure}
+            accentClass="bg-themeblue3"
+          />
         </div>
       )}
 
       {/* ── CONDITIONAL DETAILS ── */}
       {showDetails && (hasIVIO || hasTourniquet || hasHemostatic) && (
-        <div className="mx-3 mb-2 mt-1 space-y-2">
-          {/* Gauge — shown when IV or IO selected */}
+        <div className="mx-3 mb-3 mt-1 space-y-3">
+
           {hasIVIO && (
             <div>
-              <p className="text-[9px] font-semibold text-tertiary/50 tracking-wider uppercase mb-1 px-1">Gauge</p>
+              <div className="px-1 pb-1.5">
+                <SectionHeader>Gauge</SectionHeader>
+              </div>
               <input
                 type="text"
                 value={marker.gauge}
                 onChange={(e) => updateMarker(marker.id, { gauge: e.target.value })}
                 placeholder="Gauge (e.g. 18g)"
-                className="w-full text-xs px-3 py-2 rounded-xl border border-tertiary/10 bg-themewhite outline-none focus:border-themeblue1/30 text-tertiary"
+                className="w-full text-sm px-4 py-2.5 rounded-2xl border border-themeblue3/10 bg-themewhite2 outline-none focus:border-themeblue1/30 text-primary placeholder:text-tertiary/30 transition-all"
               />
             </div>
           )}
 
-          {/* TQ Type + Category — shown when tourniquet selected */}
           {hasTourniquet && (
-            <div className="space-y-1.5">
-              <p className="text-[9px] font-semibold text-tertiary/50 tracking-wider uppercase px-1">TQ Type</p>
-              <div className="flex gap-1 px-1">
+            <div className="space-y-2">
+              <div className="px-1 pb-0.5">
+                <SectionHeader>TQ Type</SectionHeader>
+              </div>
+              <div className="flex gap-1.5">
                 {TQ_TYPES.map(t => (
                   <button
                     key={t}
                     type="button"
                     onClick={() => updateMarker(marker.id, { tqType: t })}
                     className={`px-3 py-1.5 text-[10px] font-semibold rounded-full transition-all ${
-                      marker.tqType === t
-                        ? 'bg-themeblue3 text-white'
-                        : 'bg-tertiary/5 text-tertiary/60'
+                      marker.tqType === t ? 'bg-themeblue3 text-white' : 'bg-tertiary/8 text-tertiary/60 hover:bg-tertiary/12'
                     }`}
                   >
                     {t}
                   </button>
                 ))}
               </div>
-              <p className="text-[9px] font-semibold text-tertiary/50 tracking-wider uppercase px-1 pt-1">TQ Category</p>
-              <div className="flex gap-1 px-1">
+              <div className="px-1 pb-0.5 pt-1">
+                <SectionHeader>TQ Category</SectionHeader>
+              </div>
+              <div className="flex gap-1.5">
                 {TQ_CATEGORIES.map(c => (
                   <button
                     key={c}
                     type="button"
                     onClick={() => updateMarker(marker.id, { tqCategory: c })}
                     className={`px-3 py-1.5 text-[10px] font-semibold rounded-full transition-all ${
-                      marker.tqCategory === c
-                        ? 'bg-themeblue3 text-white'
-                        : 'bg-tertiary/5 text-tertiary/60'
+                      marker.tqCategory === c ? 'bg-themeblue3 text-white' : 'bg-tertiary/8 text-tertiary/60 hover:bg-tertiary/12'
                     }`}
                   >
                     {c}
@@ -282,20 +259,19 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
             </div>
           )}
 
-          {/* Dressing type — shown when hemostatic selected */}
           {hasHemostatic && (
             <div>
-              <p className="text-[9px] font-semibold text-tertiary/50 tracking-wider uppercase mb-1 px-1">Dressing Type</p>
-              <div className="flex gap-1 px-1">
+              <div className="px-1 pb-1.5">
+                <SectionHeader>Dressing Type</SectionHeader>
+              </div>
+              <div className="flex gap-1.5">
                 {DRESSING_TYPES.map(d => (
                   <button
                     key={d}
                     type="button"
                     onClick={() => updateMarker(marker.id, { dressingType: d })}
                     className={`px-3 py-1.5 text-[10px] font-semibold rounded-full transition-all ${
-                      marker.dressingType === d
-                        ? 'bg-themeblue3 text-white'
-                        : 'bg-tertiary/5 text-tertiary/60'
+                      marker.dressingType === d ? 'bg-themeblue3 text-white' : 'bg-tertiary/8 text-tertiary/60 hover:bg-tertiary/12'
                     }`}
                   >
                     {d}
@@ -307,11 +283,12 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
         </div>
       )}
 
-
       {/* ── DATE / TIME ── */}
       {showDateTime && (
         <div className="mx-3 mb-2 mt-1">
-          <p className="text-[9px] font-semibold text-tertiary/50 tracking-wider uppercase mb-1.5 px-1">Date / Time</p>
+          <div className="px-1 pb-1.5">
+            <SectionHeader>Date / Time</SectionHeader>
+          </div>
           <div className="flex gap-2">
             <div className="flex-1">
               <DatePickerInput

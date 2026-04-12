@@ -24,7 +24,13 @@ export const menuData: sideMenuDataType[] = [
         group: 'roles',
         access: 'admin',
     },
-    // Utility — mobile-only tools
+    // Utility — tools
+    {
+        text: "TC3",
+        icon: 'tc3',
+        action: 'tc3',
+        group: 'utility',
+    },
     {
         text: "Import Note",
         icon: 'import',

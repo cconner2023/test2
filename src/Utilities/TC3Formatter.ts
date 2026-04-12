@@ -29,20 +29,15 @@ function formatCasualty(card: TC3Card): string {
   if (c.service) lines.push(`Service: ${c.service}`)
   if (c.unit) lines.push(`Unit: ${c.unit}`)
   if (c.allergies) lines.push(`Allergies: ${c.allergies}`)
+  const m = card.mechanism
+  if (m.types.length > 0) {
+    let moiLine = `MOI: ${m.types.join(', ')}`
+    if (m.types.includes('Other') && m.otherDescription) moiLine += ` (${m.otherDescription})`
+    lines.push(moiLine)
+  }
   if (c.dateTimeOfInjury) lines.push(`DTG Injury: ${fmtDateTime(c.dateTimeOfInjury)}`)
   if (c.dateTimeOfTreatment) lines.push(`DTG Treatment: ${fmtDateTime(c.dateTimeOfTreatment)}`)
   return lines.length > 1 ? lines.join('\n') : ''
-}
-
-function formatMechanism(card: TC3Card): string {
-  const m = card.mechanism
-  if (m.types.length === 0) return ''
-  const lines: string[] = ['MECHANISM OF INJURY']
-  lines.push(m.types.map(t => `[X] ${t}`).join('  '))
-  if (m.types.includes('Other') && m.otherDescription) {
-    lines.push(`Other: ${m.otherDescription}`)
-  }
-  return lines.join('\n')
 }
 
 function formatInjuries(card: TC3Card): string {
@@ -164,36 +159,33 @@ function formatFluids(card: TC3Card): string {
 }
 
 function formatVitals(card: TC3Card): string {
-  const parts: string[] = []
+  if (card.vitals.length === 0 && !card.avpu && !card.gcs) return ''
 
-  if (card.vitals.length > 0) {
-    const lines: string[] = ['VITAL SIGNS']
-    card.vitals.forEach((vs, i) => {
-      lines.push(`Set #${i + 1} (${vs.time})`)
-      const items = [
-        fmt('HR', vs.pulse),
-        vs.pulseLocation ? `(${vs.pulseLocation})` : '',
-        fmt('BP', vs.bp),
-        fmt('RR', vs.rr),
-        fmt('SpO2', vs.spo2),
-      ].filter(Boolean)
-      if (items.length > 0) lines.push(`  ${items.join(', ')}`)
-      lines.push(`  AVPU: ${vs.avpu}  Pain: ${vs.painScale || '-'}`)
-    })
-    parts.push(lines.join('\n'))
+  const lines: string[] = ['VITAL SIGNS']
+
+  // Mental status first
+  const mentalParts: string[] = []
+  if (card.avpu) mentalParts.push(`AVPU: ${card.avpu}`)
+  if (card.gcs) {
+    const total = card.gcs.eye + card.gcs.verbal + card.gcs.motor
+    mentalParts.push(`GCS: ${total} (E${card.gcs.eye} V${card.gcs.verbal} M${card.gcs.motor})`)
   }
+  if (mentalParts.length > 0) lines.push(`  ${mentalParts.join('  ')}`)
 
-  if (card.avpu || card.gcs) {
-    const lines: string[] = ['MENTAL STATUS']
-    if (card.avpu) lines.push(`AVPU: ${card.avpu}`)
-    if (card.gcs) {
-      const total = card.gcs.eye + card.gcs.verbal + card.gcs.motor
-      lines.push(`GCS: ${total} (E${card.gcs.eye} V${card.gcs.verbal} M${card.gcs.motor})`)
-    }
-    parts.push(lines.join('\n'))
-  }
+  card.vitals.forEach((vs, i) => {
+    lines.push(`Set #${i + 1} (${vs.time})`)
+    const items = [
+      fmt('HR', vs.pulse),
+      vs.pulseLocation ? `(${vs.pulseLocation})` : '',
+      fmt('BP', vs.bp),
+      fmt('RR', vs.rr),
+      fmt('SpO2', vs.spo2),
+    ].filter(Boolean)
+    if (items.length > 0) lines.push(`  ${items.join(', ')}`)
+    if (vs.painScale) lines.push(`  Pain: ${vs.painScale}`)
+  })
 
-  return parts.join('\n\n')
+  return lines.join('\n')
 }
 
 function formatOther(card: TC3Card): string {
@@ -223,9 +215,6 @@ export function formatTC3Note(card: TC3Card, profile?: UserTypes): string {
 
   const casualty = formatCasualty(card)
   if (casualty) sections.push(casualty)
-
-  const mechanism = formatMechanism(card)
-  if (mechanism) sections.push(mechanism)
 
   const injuries = formatInjuries(card)
   if (injuries) sections.push(injuries)

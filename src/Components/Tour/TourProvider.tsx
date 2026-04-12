@@ -798,7 +798,41 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
         case 'import': store.toggleImportExpanded(); break
         case 'admin': store.setShowAdminDrawer(true); break
         case 'property': store.setShowPropertyDrawer(true); break
+        case 'tc3': {
+          const { useAuthStore } = await import('../../stores/useAuthStore')
+          useAuthStore.getState().patchProfile({ tc3Mode: true })
+          await waitForTarget('tc3-casualty-info', 3000)
+          break
+        }
       }
+    }
+
+    // ── tc3:advance-page — advance mobile wizard to MARCH page ──
+    if (action === 'tc3:advance-page') {
+      const { useTC3Store } = await import('../../stores/useTC3Store')
+      useTC3Store.getState().setWizardStep(1)
+      await waitForTarget('tc3-march', 2000)
+      return
+    }
+
+    // ── tc3:cleanup — exit TC3 mode, reset wizard, return to guided tours ──
+    if (action === 'tc3:cleanup') {
+      setTooltipHidden(true)
+      await new Promise(r => setTimeout(r, 250))
+      setCurtainVisible(true)
+      await new Promise(r => setTimeout(r, 350))
+      const { useAuthStore } = await import('../../stores/useAuthStore')
+      const { useTC3Store } = await import('../../stores/useTC3Store')
+      useAuthStore.getState().patchProfile({ tc3Mode: false })
+      useTC3Store.getState().setWizardStep(0)
+      closeAllDrawers()
+      store.closeMenu()
+      store.setShowSettings(true)
+      await new Promise(r => setTimeout(r, 350))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'guided-tours' }))
+      setCurtainVisible(false)
+      await new Promise(r => setTimeout(r, 350))
+      return
     }
   }, [nav, closeAllDrawers])
 

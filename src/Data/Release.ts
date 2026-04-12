@@ -7,6 +7,8 @@ export interface ReleaseNoteTypes {
 }
 
 export const ReleaseNotes: ReleaseNoteTypes[] = [
+    { version: '2.6.5', type: 'added', text: 'TC3 — digital DD Form 1380 casualty card with MARCH interventions, body diagram markers, and barcode export' },
+    { version: '2.6.5', type: 'added', text: 'TC3 guided tour' },
     { version: '2.6.4', type: 'added', text: 'burn assessment calculator — Rule of Nines TBSA with Parkland formula fluid resuscitation' },
     { version: '2.6.4', type: 'added', text: 'pin Knowledge Base categories for quick access' },
     { version: '2.6.4', type: 'added', text: 'encrypted calendar events with troops to task view' },

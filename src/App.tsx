@@ -256,6 +256,15 @@ function AppContent() {
 case 'mapOverlay':
         handleMapOverlayClick()
         break
+      case 'tc3': {
+        const currentTc3Mode = useAuthStore.getState().profile.tc3Mode
+        useAuthStore.getState().patchProfile({ tc3Mode: !currentTc3Mode })
+        if (currentTc3Mode) {
+          // Leaving TC3 → transitioning to ADTMC: clear the notes field
+          useTC3Store.getState().setNotes('')
+        }
+        break
+      }
       case 'calendar':
         handleCalendarClick()
         break

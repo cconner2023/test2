@@ -149,7 +149,7 @@ export function LoginScreen() {
               </svg>
             </div>
             <h1 className="text-xl font-semibold tracking-[2px] text-themeblue3 dark:text-themeblue1">
-              {view !== 'request' && <div className='text-[10pt] text-tertiary/60'>Medical Knowledge Repository and Operational Network</div>}
+              {view !== 'request' && <div className='text-[10pt] text-secondary'>Medical Knowledge Repository and Operational Network</div>}
             </h1>
           </div>
 
@@ -159,7 +159,7 @@ export function LoginScreen() {
           {view === 'main' && (
             <>
               <div className="pb-2">
-                <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Sign In</p>
+                <p className="text-[10px] font-semibold text-secondary/70 tracking-widest uppercase">Sign In</p>
               </div>
               <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
                 <form onSubmit={handleSignIn} className="space-y-3">
@@ -263,7 +263,7 @@ export function LoginScreen() {
                   <div className="w-full border-t border-themeblue3/10" />
                 </div>
                 <div className="relative flex justify-center text-xs">
-                  <span className="px-3 bg-themewhite dark:bg-themewhite3 text-tertiary/50">or</span>
+                  <span className="px-3 bg-themewhite dark:bg-themewhite3 text-secondary/60">or</span>
                 </div>
               </div>
 
@@ -284,7 +284,7 @@ export function LoginScreen() {
                 </button>
               </div>
 
-              <p className="mt-2 text-[10px] text-center text-tertiary/50">
+              <p className="mt-2 text-[10px] text-center text-secondary/60">
                 Guest mode keeps training and preferences local to this device.
               </p>
 
@@ -295,7 +295,7 @@ export function LoginScreen() {
                 Need help? Contact support
               </button>
 
-              <p className="mt-6 text-[11px] text-center text-tertiary/40 leading-relaxed max-w-xs mx-auto">
+              <p className="mt-6 text-[11px] text-center text-secondary/50 leading-relaxed max-w-xs mx-auto">
                 Not affiliated with or endorsed by the Department of Defense. Clinical references derived from publicly available U.S. Army doctrine.
               </p>
             </>
@@ -306,16 +306,10 @@ export function LoginScreen() {
             <>
               {helpSubmitted ? (
                 <>
-                  <div className="pb-2">
-                    <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Support</p>
-                  </div>
                   <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
-                    <div className="space-y-3">
-                      <p className="text-sm font-medium text-primary">Request Received</p>
-                      <p className="text-xs text-tertiary/50">
-                        We'll review your message and get back to you at {helpEmail}.
-                      </p>
-                    </div>
+                    <p className="text-xs text-secondary">
+                      We'll review your message and get back to you at {helpEmail}.
+                    </p>
                   </div>
                   <button onClick={() => switchView('main')} className="w-full text-xs text-themeblue3 dark:text-themeblue1 hover:underline mt-3 active:scale-95 transition-transform">
                     Back to sign in
@@ -323,13 +317,7 @@ export function LoginScreen() {
                 </>
               ) : (
                 <>
-                  <div className="pb-2">
-                    <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Support</p>
-                  </div>
                   <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
-                    <p className="text-xs text-tertiary/60 mb-3">
-                      Having trouble signing in or need assistance? Send us a message.
-                    </p>
                     <form onSubmit={handleSupportSubmit} className="space-y-3">
                       <TextInput
                         value={helpName}
