@@ -113,7 +113,13 @@ export async function clearCalendarEvents(): Promise<void> {
   }
 }
 
-/** Destroy the entire database (sign-out / account wipe). */
+/**
+ * Destroy the entire database including tombstones — NOT called on logout.
+ * Logout uses clearCalendarEvents() to preserve tombstones so vault replay
+ * cannot resurrect deleted events on next login.
+ * Only valid for full account wipe scenarios where the user is permanently
+ * leaving (clinic dissolution, device wipe) and tombstone continuity is moot.
+ */
 export async function destroyCalendarEventStore(): Promise<void> {
   await destroyDb()
 }

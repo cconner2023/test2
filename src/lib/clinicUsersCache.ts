@@ -54,6 +54,16 @@ export async function loadCachedClinicUsers(): Promise<ClinicMedic[]> {
 
 // ---- Save ----
 
+/** Upsert a single user profile without clearing the store. */
+export async function upsertCachedClinicUser(medic: ClinicMedic): Promise<void> {
+  try {
+    const db = await getDb()
+    await db.put('users', medic)
+  } catch (err) {
+    logger.warn('Failed to upsert cached clinic user:', err)
+  }
+}
+
 /** Clear store and write a fresh list of clinic users. */
 export async function saveCachedClinicUsers(medics: ClinicMedic[]): Promise<void> {
   try {

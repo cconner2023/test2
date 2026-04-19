@@ -300,7 +300,14 @@ export async function ensureClinicVaultExists(
     .eq('user_id', clinicId)
     .maybeSingle()
 
-  if (data) return ok(undefined) // Already provisioned
+  if (data) {
+    // Keys already exist — ensure device is registered in user_devices.
+    // Handles the edge case where vault_device_keys was provisioned but
+    // the user_devices row was subsequently lost (e.g. partial DB cleanup).
+    // registerDevice is idempotent (upsert), so safe to call every login.
+    await registerDevice(clinicId, CLINIC_VAULT_DEVICE_ID, 'Clinic Vault')
+    return ok(undefined)
+  }
 
   logger.info('Provisioning clinic vault device')
 
@@ -443,7 +450,6 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
     .select('*')
     .eq('recipient_id', clinicId)
     .eq('recipient_device_id', CLINIC_VAULT_DEVICE_ID)
-    .is('read_at', null)
     .order('created_at', { ascending: true })
 
   if (fetchError || !rows || rows.length === 0) {
@@ -568,7 +574,10 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
     }
   }
 
-  // 5. Route calendar events with delete-awareness
+  // 5. Route calendar events with delete-awareness.
+  // Delete messages no longer fan out to the vault (useCalendarVault filters them),
+  // so this pre-scan is dead code for new messages. Kept for backward compat with
+  // any legacy 'd' messages already in the vault store.
   if (calendarRoutes.length > 0) {
     const deletedEventIds = new Set<string>()
     for (const c of calendarRoutes) {
@@ -581,17 +590,7 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
     }
   }
 
-  // 6. Mark processed vault messages as read — enters CRON cleanup pipeline.
-  // Mirrors personal vault (vaultDevice.ts). Unread messages are replayed on
-  // next login; once read, CRON can prune them.
-  if (processedIds.length > 0) {
-    await supabase
-      .from('signal_messages')
-      .update({ read_at: new Date().toISOString() })
-      .in('id', processedIds)
-  }
-
-  // 7. Rotate SPK and replenish OTPs
+  // 6. Rotate SPK and replenish OTPs
   await rotateClinicVaultSPK(clinicId, vaultKeys, vaultRow as VaultDeviceKeysRow)
   if (consumedOtpIds.size > 0) {
     await replenishClinicVaultPreKeys(clinicId, vaultKeys, consumedOtpIds, vaultRow as VaultDeviceKeysRow)

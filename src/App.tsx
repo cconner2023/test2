@@ -41,6 +41,7 @@ import { PushNotificationToast } from './Components/PushNotificationToast'
 import { usePushNotifications } from './Hooks/usePushNotifications'
 import type { MessageNotification } from './Hooks/useMessageNotifications'
 
+import { MissionBoardPanel } from './Components/MissionBoard/MissionBoardPanel'
 import { Settings } from './Components/Settings'
 import { KnowledgeBaseDrawer } from './Components/KnowledgeBaseDrawer'
 import { TrainingDrawer } from './Components/TrainingDrawer'
@@ -447,7 +448,7 @@ case 'mapOverlay':
     <MessagesProvider>
     <CallProvider>
     <div className='h-screen bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden'>
-      <div id="app-drawer-root" className="max-w-315 shrink w-full md:rounded-md md:border md:border-[rgba(0,0,0,0.03)] md:shadow-[0px_2px_4px] md:shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full relative md:bg-themewhite md:pb-10">
+      <div id="app-drawer-root" className="max-w-315 shrink w-full md:rounded-md md:border md:border-[rgba(0,0,0,0.03)] md:shadow-[0px_2px_4px] md:shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full relative md:bg-themewhite">
 
         {/* Viewport strip — SideNav + content side by side, pans to reveal nav or shift for messages */}
         <div
@@ -591,8 +592,8 @@ case 'mapOverlay':
                       </ErrorBoundary>
                     </div>
                   ) : (
-                    <div className="h-full flex items-center justify-center text-secondary text-sm">
-                      Select a symptom to see algorithm
+                    <div className="h-full px-3">
+                      <MissionBoardPanel standalone />
                     </div>
                   )}
                 </div>

@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useSpring, animated } from '@react-spring/web'
-import { ChevronLeft, PenLine, X, Video, Phone, Info } from 'lucide-react'
+import { ChevronLeft, Plus, X, Play, Headset, Info } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { MessagesPanel, type MessagesView, type MessagesPanelHandle } from './Settings/MessagesPanel'
@@ -108,8 +108,9 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     const isMessagesActive = view === 'messages' || isConversationView
 
     // ── Header collapse spring (mirrors NavTop pattern in App.tsx) ─────
+    // Collapses on search focus (messages list) OR when entering a conversation view
     const headerCollapseSpring = useSpring({
-        collapse: searchFocused && view === 'messages' ? 1 : 0,
+        collapse: isConversationView || (searchFocused && view === 'messages') ? 1 : 0,
         config: { tension: 280, friction: 28 },
     })
 
@@ -142,8 +143,8 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                 onBack: handleBack,
                 rightContent: callActions ? (
                     <HeaderPill>
-                        <PillButton icon={Video} onClick={() => callActions.startVideoCall({ userId: selectedPeerId, displayName: selectedPeerName ?? 'Unknown' })} label="Video call" compact />
-                        <PillButton icon={Phone} onClick={() => callActions.startCall({ userId: selectedPeerId, displayName: selectedPeerName ?? 'Unknown' })} label="Voice call" compact />
+                        <PillButton icon={Play} onClick={() => callActions.startVideoCall({ userId: selectedPeerId, displayName: selectedPeerName ?? 'Unknown' })} label="Video call" compact />
+                        <PillButton icon={Headset} onClick={() => callActions.startCall({ userId: selectedPeerId, displayName: selectedPeerName ?? 'Unknown' })} label="Voice call" compact />
                     </HeaderPill>
                 ) : undefined,
             }
@@ -165,7 +166,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             hideDefaultClose: true,
             rightContent: (
                 <HeaderPill>
-                    <PillButton icon={PenLine} onClick={() => panelRef.current?.createGroup()} label="New message" />
+                    <PillButton icon={Plus} onClick={() => panelRef.current?.openNew()} label="New" />
                     <PillButton icon={X} onClick={handleClose} label="Close" />
                 </HeaderPill>
             ),
@@ -177,37 +178,31 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     // animation model would fight that animation. Intentional exception.
     // ── Mobile: full-screen content (animation handled by App.tsx) ────────
     if (isMobile) {
-        const mobileHeader = view === 'messages' ? (
-            <div className="shrink-0 px-3 py-3 pt-[max(0.75rem,var(--sat,0px))] flex items-center gap-2 backdrop-blur-xs bg-themewhite3/80">
-                <HeaderPill>
-                    <PillButton icon={ChevronLeft} onClick={handleClose} label="Back" />
-                </HeaderPill>
-                <h2 className="text-[17px] font-semibold text-primary flex-1 truncate">Messages</h2>
-                <HeaderPill>
-                    <PillButton icon={PenLine} onClick={() => panelRef.current?.createGroup()} label="New message" />
-                </HeaderPill>
-            </div>
-        ) : null
-
         return (
             <div className="h-full relative bg-themewhite3" {...contactsSwipeBack}>
-                {/* Floating header — collapses on search focus like NavTop */}
-                {mobileHeader && (
-                    <animated.div
-                        className="absolute top-0 left-0 right-0 z-10 overflow-hidden"
-                        style={{
-                            height: headerCollapseSpring.collapse.to(
-                                (c: number) => `calc((var(--sat, 0px) + 4.375rem) * ${1 - c})`
-                            ),
-                            opacity: headerCollapseSpring.collapse.to((c: number) => 1 - c),
-                            transform: headerCollapseSpring.collapse.to(
-                                (c: number) => `scale(${1 - c * 0.03})`
-                            ),
-                        }}
-                    >
-                        {mobileHeader}
-                    </animated.div>
-                )}
+                {/* Floating header — collapses on search focus and when entering a conversation */}
+                <animated.div
+                    className="absolute top-0 left-0 right-0 z-10 overflow-hidden"
+                    style={{
+                        height: headerCollapseSpring.collapse.to(
+                            (c: number) => `calc((var(--sat, 0px) + 4.375rem) * ${1 - c})`
+                        ),
+                        opacity: headerCollapseSpring.collapse.to((c: number) => 1 - c),
+                        transform: headerCollapseSpring.collapse.to(
+                            (c: number) => `scale(${1 - c * 0.03})`
+                        ),
+                    }}
+                >
+                    <div className="shrink-0 px-3 py-3 pt-[max(0.75rem,var(--sat,0px))] flex items-center gap-2 backdrop-blur-xs bg-themewhite3/80">
+                        <HeaderPill>
+                            <PillButton icon={ChevronLeft} onClick={handleClose} label="Back" />
+                        </HeaderPill>
+                        <h2 className="text-[17px] font-semibold text-primary flex-1 truncate">Messages</h2>
+                        <HeaderPill>
+                            <PillButton icon={Plus} onClick={() => panelRef.current?.openNew()} label="New" />
+                        </HeaderPill>
+                    </div>
+                </animated.div>
                 <div className="h-full overflow-hidden">
                     {panelContent}
                 </div>

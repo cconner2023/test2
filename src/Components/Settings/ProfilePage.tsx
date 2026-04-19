@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { User, Award, KeyRound, LogOut, ChevronRight, Trash2 } from 'lucide-react';
+import bwipjs from 'bwip-js';
 import { useAuth } from '../../Hooks/useAuth';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useAvatar } from '../../Utilities/AvatarContext';
@@ -7,6 +8,7 @@ import { getInitials } from '../../Utilities/nameUtils';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { PinKeypad } from '../PinKeypad';
 import { isPinEnabled, verifyPin } from '../../lib/pinService';
+import { ActionIconButton } from '../WriteNoteHelpers';
 
 interface ProfilePageProps {
     onAvatarClick: () => void;
@@ -22,7 +24,7 @@ export const ProfilePage = ({
     onDeleteAccount,
 }: ProfilePageProps) => {
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar();
-    const { profile } = useAuth();
+    const { profile, user } = useAuth();
     const deviceRole = useAuthStore(s => s.deviceRole);
 
     // Sign out dialog
@@ -33,6 +35,26 @@ export const ProfilePage = ({
     const [deletePhase, setDeletePhase] = useState<'idle' | 'pin' | 'processing'>('idle');
     const [deleteError, setDeleteError] = useState('');
     const hasPinEnabled = isPinEnabled();
+
+    const idQrCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
+        if (!canvas || !user?.id) return
+        try {
+            bwipjs.toCanvas(canvas, {
+                bcid: 'qrcode',
+                text: user.id,
+                scale: 3,
+                padding: 2,
+            })
+        } catch { /* non-critical */ }
+    }, [user?.id])
+
+    const [idCopied, setIdCopied] = useState(false)
+    const handleCopyId = useCallback(async () => {
+        if (!user?.id) return
+        await navigator.clipboard.writeText(user.id)
+        setIdCopied(true)
+        setTimeout(() => setIdCopied(false), 2000)
+    }, [user?.id])
 
     const displayName = profile.lastName
         ? `${profile.rank ? profile.rank + ' ' : ''}${profile.firstName || ''} ${profile.lastName}`
@@ -127,7 +149,25 @@ export const ProfilePage = ({
                             {displayClinic && (
                                 <p className="text-xs text-tertiary mt-0.5 truncate">{displayClinic}</p>
                             )}
+                            {user?.id && (
+                                <div className="flex items-center gap-2 mt-2">
+                                    <span className="text-[11px] font-mono tracking-[0.2em] text-tertiary/60 select-all">
+                                        {user.id.slice(0, 8).toUpperCase()}
+                                    </span>
+                                    <ActionIconButton
+                                        onClick={handleCopyId}
+                                        status={idCopied ? 'done' : 'idle'}
+                                        variant="copy"
+                                        title="Copy user ID"
+                                    />
+                                </div>
+                            )}
                         </div>
+                        {user?.id && (
+                            <div className="bg-white rounded-lg p-1.5 shrink-0">
+                                <canvas ref={idQrCanvasRef} className="w-16 h-16 rounded" />
+                            </div>
+                        )}
                     </div>
                 </div>
 

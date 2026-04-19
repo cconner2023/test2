@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { Plus, Check, X } from 'lucide-react'
+import { Plus, Check, X, ChevronLeft } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { SearchInput } from './SearchInput'
@@ -16,10 +16,21 @@ export interface ContextMenuAction {
   closesOnAction?: boolean
 }
 
-export function PopoverHeader({ title, onClose }: { title: string; onClose: () => void }) {
+export function PopoverHeader({ title, onClose, onBack }: { title: string; onClose: () => void; onBack?: () => void }) {
   return (
     <div className="flex items-center justify-between px-4 pt-3.5 pb-3">
-      <span className="text-sm font-medium text-primary">{title}</span>
+      <div className="flex items-center gap-1">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary/50 hover:text-tertiary active:scale-95 transition-all -ml-1"
+            aria-label="Back"
+          >
+            <ChevronLeft size={16} />
+          </button>
+        )}
+        <span className="text-sm font-medium text-primary">{title}</span>
+      </div>
       <button
         onClick={onClose}
         className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary/50 hover:text-tertiary active:scale-95 transition-all"
@@ -46,6 +57,8 @@ interface PreviewOverlayProps {
   footer?: ReactNode
   /** Title shown in the outer shell header alongside the X close button */
   title?: string
+  /** When provided, shows a back chevron to the left of the title */
+  onBack?: () => void
   /** Override the default max-width (340px) of the card */
   maxWidth?: number | string
   /** Override the default max-height of the scrollable preview card (default: 40dvh) */
@@ -77,6 +90,7 @@ export function PreviewOverlay({
   actions = [],
   footer,
   title,
+  onBack,
   maxWidth,
   previewMaxHeight,
   searchPlaceholder,
@@ -147,7 +161,7 @@ export function PreviewOverlay({
   const trailing = onAdd && actions.length > 0 ? actions[actions.length - 1] : null
 
   return (
-    <BaseOverlay isOpen={isOpen} onClose={onClose} zIndex={80} containerRef={containerRef}>
+    <BaseOverlay isOpen={isOpen} onClose={onClose} zIndex={95} containerRef={containerRef}>
       {(visible) => {
         const containerRect = scoped ? containerRef!.current!.getBoundingClientRect() : null
         const originX = anchorRect
@@ -158,7 +172,7 @@ export function PreviewOverlay({
           : (containerRect?.height ?? window.innerHeight) / 2
 
         return (
-          <div className={`${posClass} inset-0 z-[80] flex flex-col items-center justify-center pointer-events-none px-6 py-10`}>
+          <div className={`${posClass} inset-0 z-[95] flex flex-col items-center justify-center pointer-events-none px-6 py-10`}>
             <div
               className="pointer-events-auto w-full max-h-full"
               style={{
@@ -177,7 +191,7 @@ export function PreviewOverlay({
 
                 {/* Inner white card — title + search + scrollable preview */}
                 <div className="bg-themewhite rounded-2xl overflow-hidden min-h-0">
-                  {title && <PopoverHeader title={title} onClose={onClose} />}
+                  {title && <PopoverHeader title={title} onClose={onClose} onBack={onBack} />}
                   {searchPlaceholder && preview && (
                     <div className="border-b border-tertiary/10 px-2 py-1.5">
                       <SearchInput

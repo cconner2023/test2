@@ -157,12 +157,18 @@ input, textarea, [contenteditable="true"] {
 body {
   background-color: var(--color-themewhite);
   width: 100vw;
+  /* iOS keyboard fix: lock body to viewport so keyboard open/close
+     doesn't resize the layout viewport and reflow the app */
+  position: fixed;
+  height: 100%;
+  overflow: hidden;
 }
 
 html {
   overflow: hidden !important;
   overscroll-behavior: none !important;
   -webkit-overflow-scrolling: auto !important;
+  height: 100%;
 }
 
 input, select, textarea {

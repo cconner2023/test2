@@ -1,7 +1,9 @@
 export type EventCategory =
-  | 'training' | 'duty' | 'range' | 'appointment' | 'other'
+  | 'training' | 'duty' | 'range' | 'appointment' | 'mission' | 'other'
 
 export type EventStatus = 'planned' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
+
+import type { ResourceAllocation, StructuredLocation } from './MissionTypes'
 
 export interface CalendarEvent {
   id: string
@@ -19,6 +21,10 @@ export interface CalendarEvent {
   report_time: string | null
   assigned_to: string[]
   property_item_ids: string[]
+  /** Structured geo-binding — links to a map overlay and optionally a primary waypoint. */
+  structured_location?: StructuredLocation | null
+  /** Resource allocations — items staged at specific waypoints with roles and responsible personnel. */
+  resource_allocations?: ResourceAllocation[] | null
   created_by: string
   created_at: string
   updated_at: string
@@ -38,6 +44,8 @@ export interface EventFormData {
   report_time: string
   assigned_to: string[]
   property_item_ids: string[]
+  /** Overlay link set from the overlay picker — undefined means no overlay selected. */
+  structured_location?: StructuredLocation | null
 }
 
 export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: string }[] = [
@@ -45,6 +53,7 @@ export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: str
   { value: 'duty', label: 'Duty', color: 'bg-themeredred/20' },
   { value: 'range', label: 'Range', color: 'bg-themeblue2/20' },
   { value: 'appointment', label: 'Appointment', color: 'bg-themeblue1/20' },
+  { value: 'mission', label: 'Mission', color: 'bg-themegreen/20' },
   { value: 'other', label: 'Other', color: 'bg-tertiary/50' },
 ]
 
@@ -53,6 +62,7 @@ export const CATEGORY_BG_MAP: Record<EventCategory, string> = {
   duty: 'bg-themeredred/20 border-themeredred/30 text-primary',
   range: 'bg-themeblue2/20 border-themeblue2/30 text-primary',
   appointment: 'bg-themeblue1/20 border-themeblue1/30 text-primary',
+  mission: 'bg-themegreen/20 border-themegreen/30 text-primary',
   other: 'bg-tertiary/20 border-tertiary/20 text-secondary',
 }
 
@@ -88,6 +98,7 @@ export function createEmptyFormData(forDateKey?: string): EventFormData {
     report_time: '',
     assigned_to: [],
     property_item_ids: [],
+    structured_location: null,
   }
 }
 
@@ -104,6 +115,7 @@ export function eventToFormData(event: CalendarEvent): EventFormData {
     report_time: event.report_time ?? '',
     assigned_to: event.assigned_to ?? [],
     property_item_ids: event.property_item_ids ?? [],
+    structured_location: event.structured_location ?? null,
   }
 }
 

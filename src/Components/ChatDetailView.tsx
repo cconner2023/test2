@@ -7,7 +7,7 @@ import { ContactListItem } from './Settings/ContactListItem'
 import { useAuth } from '../Hooks/useAuth'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useImagePaste } from '../Hooks/useImagePaste'
-import { useIOSKeyboard } from '../Hooks/useIOSKeyboard'
+import { useIOSKeyboard, isIOS } from '../Hooks/useIOSKeyboard'
 import { useChatInteractions } from '../Hooks/useChatInteractions'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useVoiceRecorder } from '../Hooks/useVoiceRecorder'
@@ -172,7 +172,7 @@ export function ChatDetailView({
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { isKeyboardOpen } = useIOSKeyboard()
+  const { isKeyboardOpen, keyboardHeight } = useIOSKeyboard()
 
   const [threadClosing, setThreadClosing] = useState(false)
   const messages = conversations[conversationId] ?? []
@@ -402,7 +402,11 @@ export function ChatDetailView({
           </div>
         )}
 
-        <div data-tour="messages-input" className={`px-4 pt-3 ${isKeyboardOpen ? 'pb-3' : 'pb-8'} md:pb-3`}>
+        <div
+          data-tour="messages-input"
+          className="px-4 pt-3 pb-8 md:pb-3"
+          style={isIOS && keyboardHeight > 0 ? { paddingBottom: keyboardHeight } : undefined}
+        >
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
 
           {isRecording ? (
@@ -493,7 +497,7 @@ export function ChatDetailView({
   const renderMessageList = (msgs: DecryptedSignalMessage[], emptyLabel: string, showHeaders = false, headerOverride?: ReactNode) => (
     <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden" onScroll={closeContextMenu}>
       {showHeaders && (
-        <div className="sticky top-0 z-10 backdrop-blur-sm bg-themewhite3/80">
+        <div className="sticky top-0 z-10 backdrop-blur-sm bg-themewhite3/80 animate-fadeIn">
           {headerOverride ?? (<>{mobileHeader}{desktopHeader}</>)}
         </div>
       )}

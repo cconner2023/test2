@@ -1,16 +1,18 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
-import { Trash2, Phone, Video, MessageSquare, Info, ChevronLeft, Pin } from 'lucide-react'
+import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, Pin, Search, Users, Check, QrCode } from 'lucide-react'
 import { useSpring, animated, type SpringValue } from '@react-spring/web'
 import { MobileSearchBar } from '../MobileSearchBar'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
+import { useOrphanedProfiles } from '../../Hooks/useOrphanedProfiles'
+import { supabase } from '../../lib/supabase'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import { useMessagingStore } from '../../stores/useMessagingStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import type { RequestStatus } from '../../Hooks/useMessages'
 import { ContactListItem } from './ContactListItem'
 import { GroupListItem } from './GroupListItem'
-import { CreateGroupModal } from './CreateGroupModal'
+import { getDisplayName } from '../../Utilities/nameUtils'
 import { GroupInfoPanel } from './GroupInfoPanel'
 import { UserAvatar } from './UserAvatar'
 import { LoadingSpinner } from '../LoadingSpinner'
@@ -32,11 +34,13 @@ import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
+import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
+import { getMemberProfile } from '../../lib/supervisorService'
 
 export type MessagesView = 'messages' | 'messages-chat' | 'messages-group-chat'
 
 export interface MessagesPanelHandle {
-  createGroup: () => void
+  openNew: () => void
   showGroupInfo: () => void
 }
 
@@ -54,6 +58,9 @@ interface MessagesPanelProps {
   onSearchFocusChange?: (focused: boolean) => void
   headerCollapse?: SpringValue<number>
 }
+
+/** Extends ClinicMedic with email for global search display. */
+type GlobalContactResult = ClinicMedic & { email?: string }
 
 // ── Long-press preview types + wrapper ────────────────────────────────────
 
@@ -131,6 +138,7 @@ interface ConversationPaneProps {
   onSelectGroup: (group: GroupInfo) => void
   onCreateGroup: () => void
   deleteConversation: (conversationKey: string) => void
+  onSelectNewPeer: (medic: ClinicMedic) => void
   loading?: boolean
   searchQuery: string
   onSearchClear: () => void
@@ -148,6 +156,7 @@ function ConversationPane({
   onSelectGroup,
   onCreateGroup,
   deleteConversation,
+  onSelectNewPeer,
   loading,
   searchQuery,
   onSearchClear,
@@ -165,6 +174,55 @@ function ConversationPane({
   const [previewTarget, setPreviewTarget] = useState<PreviewTarget | null>(null)
   const [previewAnchorRect, setPreviewAnchorRect] = useState<DOMRect | null>(null)
   const showLoading = useMinLoadTime(loading ?? false)
+
+  // Global user search state
+  const [globalResults, setGlobalResults] = useState<GlobalContactResult[] | null>(null)
+  const [globalSearchLoading, setGlobalSearchLoading] = useState(false)
+  const globalSearchQRef = useRef<string>('')
+
+  const runGlobalSearch = useCallback(async (q: string) => {
+    setGlobalSearchLoading(true)
+    try {
+      const { data, error } = await supabase.rpc('search_users', { query: q })
+      if (error || !data) { setGlobalResults([]); return }
+      const knownIds = new Set([...medics.map(m => m.id), userId ?? ''])
+      setGlobalResults(
+        (data as any[])
+          .filter(r => !knownIds.has(r.id))
+          .map(r => ({
+            id: r.id, firstName: r.first_name, lastName: r.last_name,
+            middleInitial: r.middle_initial, rank: r.rank, credential: r.credential,
+            avatarId: r.avatar_id ?? null, clinicId: r.clinic_id, clinicName: r.clinic_name,
+            email: r.email,
+          }))
+      )
+    } catch {
+      setGlobalResults([])
+    } finally {
+      setGlobalSearchLoading(false)
+    }
+  }, [medics, userId])
+
+  // Auto-fire global search for email queries; reset when query changes
+  useEffect(() => {
+    globalSearchQRef.current = ''
+    setGlobalResults(null)
+    const q = searchQuery.trim()
+    if (!q.includes('@') || q.length < 3) return
+    const timer = setTimeout(() => {
+      if (globalSearchQRef.current === q) return
+      globalSearchQRef.current = q
+      runGlobalSearch(q)
+    }, 600)
+    return () => clearTimeout(timer)
+  }, [searchQuery, runGlobalSearch])
+
+  const handleGlobalSearchClick = useCallback(() => {
+    const q = searchQuery.trim()
+    if (q.length < 3 || globalSearchQRef.current === q) return
+    globalSearchQRef.current = q
+    runGlobalSearch(q)
+  }, [searchQuery, runGlobalSearch])
 
   const handlePreview = useCallback((target: PreviewTarget, rect: DOMRect) => {
     setPreviewTarget(target)
@@ -289,7 +347,7 @@ function ConversationPane({
         {/* Search results */}
         {searchResults ? (
           <div>
-            {searchResults.groups.length === 0 && searchResults.medics.length === 0 && searchResults.messages.length === 0 && (
+            {searchResults.groups.length === 0 && searchResults.medics.length === 0 && searchResults.messages.length === 0 && globalResults !== null && !globalSearchLoading && globalResults.length === 0 && (
               <p className="text-xs text-tertiary/30 px-3 py-4 text-center">No results for &ldquo;{searchQuery}&rdquo;</p>
             )}
             {searchResults.groups.length > 0 && (
@@ -353,6 +411,35 @@ function ConversationPane({
                   return null
                 })}
               </>
+            )}
+            {/* Global user search */}
+            {searchQuery.trim().length >= 3 && (
+              globalSearchLoading ? (
+                <LoadingSpinner label="Searching all users..." className="py-3 text-tertiary" />
+              ) : globalResults !== null ? (
+                globalResults.length > 0 ? (
+                  <>
+                    <p className="text-xs text-tertiary/50 px-3 mb-1 mt-2 uppercase tracking-wider font-semibold">All Users</p>
+                    {globalResults.map(result => (
+                      <ContactListItem
+                        key={result.id}
+                        medic={result}
+                        lastMessage={result.email}
+                        unreadCount={0}
+                        onClick={() => { onSearchClear(); onSelectNewPeer(result) }}
+                      />
+                    ))}
+                  </>
+                ) : null
+              ) : (
+                <button
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-primary/5 active:bg-primary/10 transition-colors"
+                  onClick={handleGlobalSearchClick}
+                >
+                  <Search className="w-4 h-4 text-tertiary/40 shrink-0" />
+                  <span className="text-xs text-tertiary/50">Search all users for &ldquo;{searchQuery}&rdquo;</span>
+                </button>
+              )
             )}
           </div>
         ) : (
@@ -475,7 +562,6 @@ function ConversationPane({
                   <>
                     <div className="flex items-center gap-1.5 px-3 py-1.5">
                       <p className="text-xs text-tertiary/50 uppercase tracking-wider font-semibold">My Clinic</p>
-                      <span className="text-[9px] text-tertiary/30 ml-auto">{filtered.length}</span>
                     </div>
                     {filtered.map(medic => isMobile ? (
                       <LongPressRow
@@ -510,7 +596,6 @@ function ConversationPane({
                   <div key={clinicName}>
                     <div className="flex items-center gap-1.5 px-3 py-1.5">
                       <p className="text-xs text-tertiary/50 uppercase tracking-wider font-semibold">{clinicName}</p>
-                      <span className="text-[9px] text-tertiary/30 ml-auto">{filtered.length}</span>
                     </div>
                     {filtered.map(medic => isMobile ? (
                       <LongPressRow
@@ -730,10 +815,10 @@ function ChatDetail({
       {canCall ? (
         <HeaderPill>
           {onStartVideoCall && (
-            <PillButton icon={Video} onClick={onStartVideoCall} label="Video call" />
+            <PillButton icon={Play} onClick={onStartVideoCall} label="Video call" />
           )}
           {onStartCall && (
-            <PillButton icon={Phone} onClick={onStartCall} label="Voice call" />
+            <PillButton icon={Headset} onClick={onStartCall} label="Voice call" />
           )}
         </HeaderPill>
       ) : (
@@ -935,17 +1020,83 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   const messagesCtx = useMessagesContext()
   const { medics, loading } = useClinicMedics()
   const callActions = useCallActions()
-  const [showCreateGroup, setShowCreateGroup] = useState(false)
+  const [showNewMsg, setShowNewMsg] = useState(false)
+  const [newMsgMode, setNewMsgMode] = useState<'contacts' | 'group'>('contacts')
+  const [groupName, setGroupName] = useState('')
+  const [groupSelectedIds, setGroupSelectedIds] = useState<Set<string>>(new Set())
+  const [groupCreating, setGroupCreating] = useState(false)
   const [showGroupInfo, setShowGroupInfo] = useState(false)
+  const [extraMedics, setExtraMedics] = useState<ClinicMedic[]>([])
+  const [qrScanOpen, setQrScanOpen] = useState(false)
+  const [qrLookupError, setQrLookupError] = useState<string | null>(null)
+  const qrVideoRef = useRef<HTMLVideoElement>(null)
+
+  const {
+    isScanning: qrIsScanning,
+    error: qrScanError,
+    result: qrScanResult,
+    startScanning: qrStartScanning,
+    stopScanning: qrStopScanning,
+    clearResult: qrClearResult,
+  } = useBarcodeScanner()
 
   useImperativeHandle(ref, () => ({
-    createGroup: () => setShowCreateGroup(true),
+    openNew: () => { setShowNewMsg(true); setNewMsgMode('contacts') },
     showGroupInfo: () => setShowGroupInfo(true),
   }), [])
 
-  // Batch-check which contacts have active devices
-  const medicIds = useMemo(() => medics.map(m => m.id), [medics])
+  // Store subscriptions — before early return so hook order is always stable
+  const conversations = useMessagingStore(s => s.conversations)
+  const unreadCounts = useMessagingStore(s => s.unreadCounts)
+  const groups = useMessagingStore(s => s.groups)
+  const sendingMap = useMessagingStore(s => s.sendingMap)
+
+  // Orphaned profiles: conversation peers no longer visible in the clinic roster
+  const orphanedIds = useMemo(() => {
+    const selfId = useAuthStore.getState().user?.id ?? ''
+    const medicIdSet = new Set(medics.map(m => m.id))
+    return Object.keys(conversations).filter(
+      key => key !== selfId && !groups[key] && !medicIdSet.has(key)
+    )
+  }, [conversations, groups, medics])
+  const orphanedProfiles = useOrphanedProfiles(orphanedIds)
+
+  // Merge clinic roster + orphaned + search-discovered contacts
+  const allMedics = useMemo(() => {
+    if (orphanedProfiles.size === 0 && extraMedics.length === 0) return medics
+    const extraFromOrphan = [...orphanedProfiles.values()]
+    const extraFromSearch = extraMedics.filter(m => !orphanedProfiles.has(m.id))
+    return [...medics, ...extraFromOrphan, ...extraFromSearch]
+  }, [medics, orphanedProfiles, extraMedics])
+
+  // Batch-check which contacts have active devices (includes orphaned + search-found)
+  const medicIds = useMemo(() => allMedics.map(m => m.id), [allMedics])
   const unavailableIds = usePeerAvailability(medicIds)
+
+  // Add a globally-discovered contact to extraMedics before navigating to their chat
+  const handleSelectNewPeer = useCallback((medic: ClinicMedic) => {
+    setExtraMedics(prev => prev.some(m => m.id === medic.id) ? prev : [...prev, medic])
+    onSelectPeer(medic)
+  }, [onSelectPeer])
+
+  const toggleGroupMember = useCallback((id: string) => {
+    setGroupSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const handleCreateGroup = useCallback(async () => {
+    if (!messagesCtx) return
+    const trimmed = groupName.trim()
+    if (!trimmed || groupSelectedIds.size === 0 || groupCreating) return
+    setGroupCreating(true)
+    const id = await messagesCtx.createGroup(trimmed, [...groupSelectedIds])
+    setGroupCreating(false)
+    if (id) setShowNewMsg(false)
+  }, [messagesCtx, groupName, groupSelectedIds, groupCreating])
 
   // Fade transition for the right content area when view changes.
   const prevViewRef = useRef(view)
@@ -961,6 +1112,34 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
       contentApi.start({ opacity: 1, from: { opacity: 0 }, config: { tension: 300, friction: 26 } })
     }
   }, [view, contentApi])
+
+  useEffect(() => {
+    if (!qrScanResult || !qrScanOpen) return
+
+    const userId = qrScanResult.trim()
+    setQrLookupError(null)
+
+    getMemberProfile(userId).then(result => {
+      if (!result.ok) {
+        setQrLookupError('User not found')
+        qrClearResult()
+        return
+      }
+      const medic: ClinicMedic = {
+        id: userId,
+        firstName: result.data.firstName,
+        lastName: result.data.lastName,
+        middleInitial: result.data.middleInitial,
+        rank: result.data.rank,
+        credential: result.data.credential,
+        avatarId: null,
+      }
+      setQrScanOpen(false)
+      setShowNewMsg(false)
+      qrClearResult()
+      onSelectPeer(medic)
+    })
+  }, [qrScanResult, qrScanOpen, qrClearResult, onSelectPeer])
 
   if (!messagesCtx) {
     return (
@@ -979,16 +1158,6 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     fetchGroupMembers, fetchGroupHistory,
   } = messagesCtx
 
-  // Read state from store — granular subscriptions, no re-render on unrelated state
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const conversations = useMessagingStore(s => s.conversations)
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const unreadCounts = useMessagingStore(s => s.unreadCounts)
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const groups = useMessagingStore(s => s.groups)
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const sendingMap = useMessagingStore(s => s.sendingMap)
-
   const activeSending = selectedPeerId
     ? (sendingMap[selectedPeerId] ?? false)
     : selectedGroupId
@@ -1004,7 +1173,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         groupId={selectedGroupId}
         group={groups[selectedGroupId]}
         conversations={conversations}
-        medics={medics}
+        medics={allMedics}
         sendGroupMessage={sendGroupMessage}
         sendGroupImage={sendGroupImage}
         sendGroupVoice={sendGroupVoice}
@@ -1025,7 +1194,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
       />
     )
   } else if (view === 'messages-chat' && selectedPeerId) {
-    const peer = medics.find(m => m.id === selectedPeerId)
+    const peer = allMedics.find(m => m.id === selectedPeerId)
     const peerName = peer
       ? [peer.rank, peer.lastName].filter(Boolean).join(' ') || peer.firstName || undefined
       : undefined
@@ -1034,7 +1203,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
       <ChatDetail
         peerId={selectedPeerId}
         conversations={conversations}
-        medics={medics}
+        medics={allMedics}
         sendMessage={sendMessage}
         sendImage={sendImage}
         sendVoice={sendVoice}
@@ -1068,14 +1237,15 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   }
 
   const conversationPaneProps: ConversationPaneProps = {
-    medics,
+    medics: allMedics,
     groups,
     conversations,
     unreadCounts,
     unavailableIds,
     onSelectPeer,
     onSelectGroup,
-    onCreateGroup: () => setShowCreateGroup(true),
+    onCreateGroup: () => { setShowNewMsg(true); setNewMsgMode('group'); setGroupName(''); setGroupSelectedIds(new Set()) },
+    onSelectNewPeer: handleSelectNewPeer,
     deleteConversation,
     loading,
     searchQuery,
@@ -1118,14 +1288,138 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         </animated.div>
       </div>
 
-      {/* Modals */}
-      {showCreateGroup && (
-        <CreateGroupModal
-          medics={medics}
-          onClose={() => setShowCreateGroup(false)}
-          onCreate={createGroup}
-        />
-      )}
+      {/* New Message / New Group overlay */}
+      <PreviewOverlay
+        isOpen={showNewMsg}
+        onClose={() => { setShowNewMsg(false); setNewMsgMode('contacts'); setQrScanOpen(false); qrStopScanning(); qrClearResult() }}
+        anchorRect={null}
+        title={newMsgMode === 'contacts' ? 'New Message' : 'New Group'}
+        onBack={newMsgMode === 'group' ? () => { setNewMsgMode('contacts'); setGroupSelectedIds(new Set()) } : undefined}
+        searchPlaceholder="Search contacts..."
+        previewMaxHeight="50dvh"
+        preview={(filter: string) => {
+          const q = filter.toLowerCase()
+          const filtered = q
+            ? allMedics.filter(m =>
+                m.firstName?.toLowerCase().includes(q) ||
+                m.lastName?.toLowerCase().includes(q) ||
+                m.rank?.toLowerCase().includes(q) ||
+                [m.rank, m.lastName].filter(Boolean).join(' ').toLowerCase().includes(q)
+              )
+            : allMedics
+          if (qrScanOpen) {
+            return (
+              <div className="px-4 py-3 space-y-2">
+                <p className="text-xs text-tertiary/70">
+                  Scan another user's QR code to open a conversation.
+                </p>
+                <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black/5 border border-tertiary/10">
+                  <video
+                    ref={qrVideoRef}
+                    className="absolute inset-0 w-full h-full object-cover"
+                    playsInline
+                    muted
+                  />
+                  {!qrIsScanning && !qrScanError && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <p className="text-xs text-tertiary">Starting camera…</p>
+                    </div>
+                  )}
+                </div>
+                {(qrScanError || qrLookupError) && (
+                  <p className="text-xs text-themeredred">{qrScanError || qrLookupError}</p>
+                )}
+                <button
+                  onClick={() => { qrStopScanning(); setQrScanOpen(false); qrClearResult(); setQrLookupError(null) }}
+                  className="w-full py-2 text-xs text-tertiary active:opacity-70 transition-opacity"
+                >
+                  Cancel
+                </button>
+              </div>
+            )
+          }
+          return (
+            <div className="py-1">
+              {newMsgMode === 'contacts' ? (
+                <>
+                  <button
+                    onClick={() => { setNewMsgMode('group'); setGroupName(''); setGroupSelectedIds(new Set()) }}
+                    className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
+                      <Users size={16} className="text-themeblue3" />
+                    </div>
+                    <span className="flex-1 text-sm font-medium text-themeblue3">New Group</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setQrScanOpen(true)
+                      setQrLookupError(null)
+                      requestAnimationFrame(() => {
+                        if (qrVideoRef.current) qrStartScanning(qrVideoRef.current)
+                      })
+                    }}
+                    className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all"
+                  >
+                    <div className="w-9 h-9 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
+                      <QrCode size={18} className="text-themeblue2" />
+                    </div>
+                    <span className="text-sm font-medium text-primary">Scan QR</span>
+                  </button>
+                </>
+              ) : (
+                <div className="px-4 pb-2 pt-1">
+                  <input
+                    type="text"
+                    value={groupName}
+                    onChange={e => setGroupName(e.target.value)}
+                    placeholder="Group name"
+                    autoFocus
+                    className="w-full px-4 py-2 rounded-full bg-themewhite2 text-sm text-primary
+                               placeholder:text-tertiary/40 outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
+                  />
+                </div>
+              )}
+              {filtered.map(medic => (
+                newMsgMode === 'group' ? (
+                  <button
+                    key={medic.id}
+                    onClick={() => toggleGroupMember(medic.id)}
+                    className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all"
+                  >
+                    <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
+                    <span className="flex-1 text-sm text-primary truncate">{getDisplayName(medic)}</span>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors
+                                   ${groupSelectedIds.has(medic.id) ? 'bg-themeblue2 border-themeblue2' : 'border-tertiary/30'}`}>
+                      {groupSelectedIds.has(medic.id) && <Check size={12} className="text-white" />}
+                    </div>
+                  </button>
+                ) : (
+                  <button
+                    key={medic.id}
+                    onClick={() => { setShowNewMsg(false); onSelectPeer(medic) }}
+                    className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all"
+                  >
+                    <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
+                    <span className="flex-1 text-sm text-primary truncate">{getDisplayName(medic)}</span>
+                  </button>
+                )
+              ))}
+              {filtered.length === 0 && (
+                <p className="text-xs text-tertiary/40 text-center py-6">No contacts found</p>
+              )}
+            </div>
+          )
+        }}
+        actions={newMsgMode === 'group' ? [{
+          key: 'create-group',
+          label: 'Create Group',
+          icon: Check,
+          onAction: handleCreateGroup,
+          closesOnAction: false,
+          variant: (!groupName.trim() || groupSelectedIds.size === 0 || groupCreating) ? 'disabled' : 'default',
+        }] : []}
+      />
       <ProvisionalDeviceModal />
     </animated.div>
   )

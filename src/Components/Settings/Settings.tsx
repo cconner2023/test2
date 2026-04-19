@@ -350,7 +350,7 @@ export const Settings = ({
             case 'release-notes':       return { title: 'Release Notes', ...backTo() };
             case 'avatar-picker':       return { title: 'Choose Avatar', ...backTo() };
             case 'user-profile':        return { title: 'Profile', ...backTo() };
-            case 'sessions-devices':    return { title: 'Sessions & Devices', ...backTo('pin-setup') };
+            case 'sessions-devices':    return { title: 'Linked Devices', ...backTo('pin-setup') };
             case 'lora':                return { title: 'WhisperNet', ...backTo() };
             case 'pin-setup':           return { title: 'Security', ...backTo() };
             case 'notification-settings': return { title: 'Notifications', ...backTo() };

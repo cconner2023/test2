@@ -1,4 +1,4 @@
-import { Pencil, X, CalendarPlus } from 'lucide-react'
+import { Pencil, X, CalendarPlus, Map } from 'lucide-react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
 import { getCategoryMeta } from '../../Types/CalendarTypes'
 import { HeaderPill, PillButton } from '../HeaderPill'
@@ -26,6 +26,7 @@ interface EventDetailPanelProps {
   onClose: () => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  onOpenMissionBoard?: () => void
   assignedNames?: AssignedPerson[]
   linkedPropertyItems?: LinkedPropertyItem[]
   hideHeader?: boolean
@@ -40,7 +41,7 @@ function formatDateTime(iso: string, allDay: boolean): string {
     ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
-export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, assignedNames = [], linkedPropertyItems = [], hideHeader }: EventDetailPanelProps) {
+export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, onOpenMissionBoard, assignedNames = [], linkedPropertyItems = [], hideHeader }: EventDetailPanelProps) {
   const isMobile = useIsMobile()
   const cat = getCategoryMeta(event.category)
 
@@ -141,6 +142,19 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
               ))}
             </div>
           </div>
+        )}
+
+        {/* Mission Board — shown when event has an overlay link */}
+        {event.structured_location?.overlay_id && onOpenMissionBoard && (
+          <button
+            onClick={onOpenMissionBoard}
+            className={`w-full flex items-center justify-center gap-2 rounded-2xl border border-themegreen/30 bg-themegreen/10 font-medium text-themegreen active:scale-95 transition-all duration-200 ${
+              isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-xs'
+            }`}
+          >
+            <Map className={isMobile ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
+            Open Mission Board
+          </button>
         )}
 
         {/* Add to phone calendar */}

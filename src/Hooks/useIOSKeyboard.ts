@@ -5,6 +5,8 @@ const isIOS =
   /iPad|iPhone|iPod/.test(navigator.userAgent) &&
   !(window as any).MSStream
 
+export { isIOS }
+
 export function useIOSKeyboard() {
   const [keyboardHeight, setKeyboardHeight] = useState(0)
   const rafRef = useRef(0)

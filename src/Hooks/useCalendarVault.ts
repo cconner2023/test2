@@ -131,8 +131,14 @@ export function useCalendarVault(): UseCalendarVaultResult {
         return null
       }
 
-      // Filter out our own clinic device — we don't send to ourselves
-      const targetDevices = devicesResult.data.filter(d => d.deviceId !== clinicDeviceId)
+      // Filter out our own clinic device — we don't send to ourselves.
+      // Also skip the vault for delete actions: the original create/update is already
+      // hard-deleted from Supabase, so the vault has nothing to replay and needs no tombstone.
+      const targetDevices = devicesResult.data.filter(d => {
+        if (d.deviceId === clinicDeviceId) return false
+        if (action === 'd' && d.deviceId === 'vault') return false
+        return true
+      })
       if (targetDevices.length === 0) {
         logger.warn('No target clinic devices for fan-out (only self)')
         return null

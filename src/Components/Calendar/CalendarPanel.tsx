@@ -19,6 +19,10 @@ import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useCalendarSync } from '../../Hooks/useCalendarSync'
 import { useCalendarVault } from '../../Hooks/useCalendarVault'
 import { useAuth } from '../../Hooks/useAuth'
+import { getOverlays } from '../../lib/mapOverlayService'
+import type { OverlayOption } from './EventForm'
+import { MissionBoard } from '../Mission/MissionBoard'
+import type { ResourceAllocation } from '../../Types/MissionTypes'
 import { getInitials } from '../../Utilities/nameUtils'
 import type { CalendarEvent, EventFormData } from '../../Types/CalendarTypes'
 import {
@@ -51,6 +55,19 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
   // Kick off IDB hydration + vault subscription
   useCalendarSync()
+
+  // Load overlay options for the event form
+  useEffect(() => {
+    if (!clinicId) return
+    getOverlays(clinicId).then(result => {
+      if (result.ok) {
+        setOverlayOptions(result.data.map(o => ({ id: o.id, name: o.name })))
+      }
+    }).catch(() => {})
+  }, [clinicId])
+
+  const [overlayOptions, setOverlayOptions] = useState<OverlayOption[]>([])
+  const [missionBoardEventId, setMissionBoardEventId] = useState<string | null>(null)
 
   const [confirmDeleteEvent, setConfirmDeleteEvent] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ eventId: string; x: number; y: number } | null>(null)
@@ -230,6 +247,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
         report_time: data.report_time || null,
         assigned_to: data.assigned_to,
         property_item_ids: data.property_item_ids,
+        structured_location: data.structured_location ?? null,
         updated_at: now,
       }
       // Hard-delete old vault message, then send replacement
@@ -257,6 +275,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
         report_time: data.report_time || null,
         assigned_to: data.assigned_to,
         property_item_ids: data.property_item_ids,
+        structured_location: data.structured_location ?? null,
         created_by: user?.id ?? '',
         created_at: now,
         updated_at: now,
@@ -343,6 +362,33 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     setPanelView('calendar')
   }, [selectEvent])
 
+  const handleOpenMissionBoard = useCallback((eventId: string) => {
+    setMissionBoardEventId(eventId)
+    if (!isMobile) setPanelView('detail') // keep detail open on desktop; board replaces it
+  }, [isMobile])
+
+  const handleCloseMissionBoard = useCallback(() => {
+    setMissionBoardEventId(null)
+  }, [])
+
+  const handleSaveMissionBoard = useCallback((allocations: ResourceAllocation[]) => {
+    if (!missionBoardEventId) return
+    const event = events.find(e => e.id === missionBoardEventId)
+    if (!event) return
+    const updatedEvent: CalendarEvent = {
+      ...event,
+      resource_allocations: allocations,
+      updated_at: new Date().toISOString(),
+    }
+    const oldOriginIds = event.originId ? [event.originId] : []
+    if (oldOriginIds.length > 0) vaultDeleteEvents(oldOriginIds).catch(() => {})
+    vaultSendEvent('c', updatedEvent).then(newOriginId => {
+      if (newOriginId) updateEvent(missionBoardEventId, { ...updatedEvent, originId: newOriginId })
+    }).catch(() => {})
+    updateEvent(missionBoardEventId, updatedEvent)
+    setMissionBoardEventId(null)
+  }, [missionBoardEventId, events, updateEvent, vaultSendEvent, vaultDeleteEvents])
+
   const handleEventContextMenu = useCallback((eventId: string, x: number, y: number) => {
     if (isMobile) return
     setContextMenu({ eventId, x, y })
@@ -371,7 +417,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const handleDayDrawerSave = useCallback((data: EventFormData) => {
     if (editingEvent) {
       const now = new Date().toISOString()
-      const changes = {
+      const updatedEvent: CalendarEvent = {
+        ...editingEvent,
         title: data.title,
         description: data.description || null,
         category: data.category,
@@ -383,14 +430,19 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
         report_time: data.report_time || null,
         assigned_to: data.assigned_to,
         property_item_ids: data.property_item_ids,
+        structured_location: data.structured_location ?? null,
         updated_at: now,
       }
-      updateEvent(editingEvent.id, changes)
-      vaultSendEvent('u', { id: editingEvent.id, ...changes }).catch(() => {})
+      const oldOriginIds = editingEvent.originId ? [editingEvent.originId] : []
+      if (oldOriginIds.length > 0) vaultDeleteEvents(oldOriginIds).catch(() => {})
+      vaultSendEvent('c', updatedEvent).then(newOriginId => {
+        if (newOriginId) updateEvent(editingEvent.id, { ...updatedEvent, originId: newOriginId })
+      }).catch(() => {})
+      updateEvent(editingEvent.id, updatedEvent)
     }
     setEditingEvent(null)
     setDayDrawerView('detail')
-  }, [editingEvent, updateEvent, vaultSendEvent])
+  }, [editingEvent, updateEvent, vaultSendEvent, vaultDeleteEvents])
 
   const handleDayDrawerEditCancel = useCallback(() => {
     setEditingEvent(null)
@@ -433,7 +485,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   // ── Calendar views ──
 
   const showFormDrawer = isMobile && panelView === 'form'
-  const showDesktopPanel = !isMobile && (panelView === 'detail' || panelView === 'form')
+  const showDesktopPanel = !isMobile && (panelView === 'detail' || panelView === 'form' || !!missionBoardEventId)
 
   return (
     <>
@@ -582,6 +634,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               isEditing={!!editingEvent}
               medics={medicList}
               propertyItems={propertyItems}
+              overlayOptions={overlayOptions}
             />
           </BaseDrawer>
 
@@ -630,6 +683,10 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   handleDeleteEvent(id)
                   handleDayDrawerClose()
                 }}
+                onOpenMissionBoard={() => {
+                  handleDayDrawerClose()
+                  handleOpenMissionBoard(dayDrawerEvent.id)
+                }}
                 assignedNames={resolveAssigned(dayDrawerEvent.assigned_to)}
                 linkedPropertyItems={resolvePropertyItems(dayDrawerEvent.property_item_ids ?? [])}
                 hideHeader
@@ -646,6 +703,30 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               />
             )}
           </BaseDrawer>
+
+          {/* Mobile Mission Board drawer */}
+          {(() => {
+            const missionEvent = missionBoardEventId ? events.find(e => e.id === missionBoardEventId) : null
+            return missionEvent ? (
+              <BaseDrawer
+                isVisible={!!missionBoardEventId}
+                onClose={handleCloseMissionBoard}
+                mobileOnly
+                fullHeight="92dvh"
+                zIndex="z-50"
+                header={{ title: 'Mission Board', hideDefaultClose: true }}
+              >
+                <div className="h-full px-3 py-3">
+                  <MissionBoard
+                    event={missionEvent}
+                    medics={medicList.map(m => ({ id: m.id, name: m.name }))}
+                    onClose={handleCloseMissionBoard}
+                    onSave={handleSaveMissionBoard}
+                  />
+                </div>
+              </BaseDrawer>
+            ) : null
+          })()}
 
         </div>
 
@@ -686,16 +767,27 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     />
                   </div>
                 </>
-              ) : panelView === 'detail' && selectedEvent ? (
+              ) : panelView === 'detail' && selectedEvent && !missionBoardEventId ? (
                 <EventDetailPanel
                   event={selectedEvent}
                   onClose={handleDetailBack}
                   onEdit={handleEditEvent}
                   onDelete={handleDeleteEvent}
+                  onOpenMissionBoard={() => handleOpenMissionBoard(selectedEvent.id)}
                   assignedNames={resolveAssigned(selectedEvent.assigned_to)}
                   linkedPropertyItems={resolvePropertyItems(selectedEvent.property_item_ids ?? [])}
                 />
-              ) : null
+              ) : panelView === 'detail' && missionBoardEventId ? (() => {
+                const missionEvent = events.find(e => e.id === missionBoardEventId)
+                return missionEvent ? (
+                  <MissionBoard
+                    event={missionEvent}
+                    medics={medicList.map(m => ({ id: m.id, name: m.name }))}
+                    onClose={handleCloseMissionBoard}
+                    onSave={handleSaveMissionBoard}
+                  />
+                ) : null
+              })() : null
             )}
           </div>
         )}

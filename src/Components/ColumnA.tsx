@@ -3,6 +3,7 @@ import { Search, X } from 'lucide-react'
 import { animated, type SpringValue } from '@react-spring/web'
 import { CategoryList } from './CategoryList'
 import { SearchResults } from './SearchResults'
+import { MissionBoardPanel } from './MissionBoard/MissionBoardPanel'
 import { useColumnCarousel } from '../Hooks/useColumnCarousel'
 import type { SearchResultType } from '../Types/CatTypes'
 import {
@@ -296,9 +297,10 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
         className={`flex flex-1 min-h-0 ${hasSearch ? 'hidden' : ''}`}
         style={{ width: `${panelCount * 100}%` }}
       >
-        {/* Panel 0: Main categories */}
+        {/* Panel 0: Mission Board (mobile) + Main categories */}
         <div ref={panel0ScrollRef} data-tour="category-list" className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
           <animated.div className="px-2 md:px-0 min-h-full" style={{ paddingTop: mobilePanelPadding }}>
+            {isMobile && <MissionBoardPanel />}
             <CategoryList mobilePanel="main" onNavigate={onNavigate} />
           </animated.div>
         </div>

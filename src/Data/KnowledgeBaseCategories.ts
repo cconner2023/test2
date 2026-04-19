@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { Pill, BookOpen, Brain, ClipboardList, Calculator, Droplets } from 'lucide-react'
+import { Pill, BookOpen, Brain, ClipboardList, Calculator } from 'lucide-react'
 
 export type KBGroup = 'medications' | 'training' | 'screening' | 'calculators'
 
@@ -29,22 +29,6 @@ export const kbCategories: KBCategory[] = [
         description: 'Soldier Training Publication',
         icon: BookOpen,
         group: 'training',
-    },
-    {
-        id: 'efmb',
-        label: 'EFMB',
-        description: 'Expert Field Medical Badge',
-        icon: BookOpen,
-        group: 'training',
-        comingSoon: true,
-    },
-    {
-        id: 'medcom',
-        label: 'MEDCOM REF',
-        description: 'Coming Soon',
-        icon: BookOpen,
-        group: 'training',
-        comingSoon: true,
     },
 
     // ── Screening Tools ───────────────────────────────────────
@@ -83,13 +67,6 @@ export const kbCategories: KBCategory[] = [
         label: 'Vital Signs',
         description: 'Height, weight, BMI & temperature',
         icon: Calculator,
-        group: 'calculators',
-    },
-    {
-        id: 'blood-products',
-        label: 'Blood Products',
-        description: 'MTP, DCR & transfusion protocols',
-        icon: Droplets,
         group: 'calculators',
     },
     {

@@ -34,16 +34,22 @@ export interface PropertyItemOption {
   serial_number: string | null
 }
 
+export interface OverlayOption {
+  id: string
+  name: string
+}
+
 interface EventFormProps {
   initialData?: EventFormData
   onSave: (data: EventFormData) => void
   isEditing?: boolean
   medics?: { id: string; initials: string; name: string; credential?: string; avatarId?: string | null; firstName?: string | null; lastName?: string | null }[]
   propertyItems?: PropertyItemOption[]
+  overlayOptions?: OverlayOption[]
 }
 
 export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
-  function EventForm({ initialData, onSave, isEditing, medics, propertyItems }, ref) {
+  function EventForm({ initialData, onSave, isEditing, medics, propertyItems, overlayOptions }, ref) {
     const isMobile = useIsMobile()
     const [form, setForm] = useState<EventFormData>(initialData ?? createEmptyFormData())
     const [errors, setErrors] = useState<Record<string, string>>({})
@@ -236,6 +242,33 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           placeholder="Location"
           className={inputCx}
         />
+
+        {overlayOptions && overlayOptions.length > 0 && (
+          <div>
+            <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1.5 block">Map Overlay</span>
+            <select
+              value={form.structured_location?.overlay_id ?? ''}
+              onChange={e => {
+                const id = e.target.value
+                if (!id) {
+                  updateField('structured_location', null)
+                } else {
+                  updateField('structured_location', { overlay_id: id })
+                  // Auto-suggest mission category when overlay is linked
+                  if (form.category === 'other') updateField('category', 'mission')
+                }
+              }}
+              className={`w-full rounded-full border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none bg-themewhite2 text-primary transition-all duration-300 appearance-none ${
+                isMobile ? 'py-2.5 px-4 text-sm' : 'py-2 px-3 text-xs'
+              } ${!form.structured_location?.overlay_id ? 'text-tertiary/30' : ''}`}
+            >
+              <option value="">No overlay</option>
+              {overlayOptions.map(o => (
+                <option key={o.id} value={o.id}>{o.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <textarea
           value={form.description}

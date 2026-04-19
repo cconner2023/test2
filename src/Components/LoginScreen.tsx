@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react'
-import { Check, X, RefreshCw } from 'lucide-react'
+import bwipjs from 'bwip-js'
+import { useLinkeeChannel } from '../Hooks/useDeviceLink'
+import { Check, X, RefreshCw, ArrowLeft } from 'lucide-react'
 import { useAuthStore } from '../stores/useAuthStore'
 import { signIn } from '../lib/authService'
 import { supabase } from '../lib/supabase'
@@ -9,12 +11,42 @@ import { AccountRequestForm } from './Settings/AccountRequestForm'
 import { submitSupportRequest } from '../lib/accountRequestService'
 
 type View = 'main' | 'request' | 'help'
-type LoginMode = 'password' | 'pin' | 'token'
+type LoginMode = 'password' | 'qr'
+type ForgotStep = null | 'email' | 'token'
 
-const modeLabels: Record<LoginMode, string> = {
-  password: 'Password',
-  pin: 'PIN',
-  token: 'Reset Token',
+/** Rendered only when mode === 'qr'. Subscribes to Realtime and shows QR. */
+function DeviceLinkQrView() {
+  const { channelId, status, error } = useLinkeeChannel()
+
+  const qrCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
+    if (!canvas || !channelId) return
+    try {
+      bwipjs.toCanvas(canvas, {
+        bcid: 'qrcode',
+        text: channelId,
+        scale: 4,
+        padding: 3,
+      })
+    } catch {
+      // non-critical
+    }
+  }, [channelId])
+
+  return (
+    <div className="py-2 overflow-hidden">
+      <div className="float-right ml-3 mb-1 w-[38%]">
+        <canvas ref={qrCanvasRef} className="block w-full border border-gray-200 bg-white rounded-xl" />
+      </div>
+      <p className="text-sm font-semibold text-primary mb-1.5">Link This Device</p>
+      <p className="text-xs text-secondary leading-relaxed">
+        Open the application on another logged-in device, go to <span className="font-medium text-primary">Settings → Linked Devices</span>, and scan this code to log in.
+      </p>
+      {status === 'receiving' && (
+        <p className="text-xs text-themegreen font-medium mt-1.5">Linking device…</p>
+      )}
+      {error && <p className="text-xs text-themeredred mt-1.5">{error}</p>}
+    </div>
+  )
 }
 
 export function LoginScreen() {
@@ -22,11 +54,9 @@ export function LoginScreen() {
 
   const [view, setView] = useState<View>('main')
   const [mode, setMode] = useState<LoginMode>('password')
+  const [forgotStep, setForgotStep] = useState<ForgotStep>(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [pinError, setPinError] = useState('')
-  const [pinLoading, setPinLoading] = useState(false)
-  const [resetSent, setResetSent] = useState(false)
   const [helpName, setHelpName] = useState('')
   const [helpEmail, setHelpEmail] = useState('')
   const [helpNotes, setHelpNotes] = useState('')
@@ -44,31 +74,6 @@ export function LoginScreen() {
     setLoading(false)
   }
 
-  const handlePinSubmit = useCallback(async (pin: string) => {
-    if (!email.trim() || pinLoading) return
-    setPinLoading(true)
-    setPinError('')
-    try {
-      const { data, error: fnError } = await supabase.functions.invoke('pin-login', {
-        body: { email, pin },
-      })
-      if (fnError || !data?.token) {
-        setPinError(data?.error || 'Invalid email or PIN.')
-        setPinLoading(false)
-        return
-      }
-      const { error: otpError } = await supabase.auth.verifyOtp({
-        email, token: data.token, type: 'magiclink',
-      })
-      if (otpError) {
-        setPinError(otpError.message)
-      }
-    } catch {
-      setPinError('Connection error')
-    }
-    setPinLoading(false)
-  }, [email, pinLoading])
-
   const handleTokenSubmit = useCallback(async (token: string) => {
     if (!email.trim() || loading) return
     setLoading(true)
@@ -81,14 +86,17 @@ export function LoginScreen() {
   }, [email, loading])
 
   const handleSendResetToken = async () => {
-    if (!email.trim()) return
+    if (!email.trim()) {
+      setError('Enter your email address first.')
+      return
+    }
     setLoading(true)
     setError(null)
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email)
     if (resetError) {
       setError(resetError.message)
     } else {
-      setResetSent(true)
+      setForgotStep('token')
     }
     setLoading(false)
   }
@@ -96,9 +104,7 @@ export function LoginScreen() {
   const switchMode = (next: LoginMode) => {
     setMode(next)
     setPassword('')
-    setPinError('')
     setError(null)
-    setResetSent(false)
   }
 
   const switchView = (next: View) => {
@@ -106,10 +112,19 @@ export function LoginScreen() {
     setError(null)
     if (next === 'main') {
       switchMode('password')
+      setForgotStep(null)
     }
-    if (next === 'help') {
-      setHelpSubmitted(false)
-    }
+    if (next === 'help') setHelpSubmitted(false)
+  }
+
+  const openForgot = () => {
+    setForgotStep('email')
+    setError(null)
+  }
+
+  const closeForgot = () => {
+    setForgotStep(null)
+    setError(null)
   }
 
   const handleSupportSubmit = async (e: React.FormEvent) => {
@@ -162,101 +177,166 @@ export function LoginScreen() {
                 <p className="text-[10px] font-semibold text-secondary/70 tracking-widest uppercase">Sign In</p>
               </div>
               <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
-                <form onSubmit={handleSignIn} className="space-y-3">
-                  <TextInput
-                    value={email}
-                    onChange={setEmail}
-                    type="email"
-                    placeholder="your.email@mail.mil"
-                    required
-                  />
+                <form onSubmit={handleSignIn}>
+                  <div className="relative">
 
-                  {/* Mode selector */}
-                  <div className="flex gap-1 p-0.5 rounded-full bg-themewhite dark:bg-themewhite3 border border-themeblue3/10">
-                    {(['password', 'pin', 'token'] as LoginMode[]).map(m => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => switchMode(m)}
-                        className={`flex-1 py-1.5 text-[10px] font-medium rounded-full transition-all duration-200 active:scale-95 ${
-                          mode === m
-                            ? 'bg-themeblue3 text-white shadow-sm'
-                            : 'text-tertiary/50 hover:text-tertiary/70'
-                        }`}
-                      >
-                        {modeLabels[m]}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Credential field — swaps based on mode */}
-                  {mode === 'password' && (
-                    <>
-                      <PasswordInput
-                        value={password}
-                        onChange={setPassword}
-                        placeholder="Password"
-                      />
-                      <div className={`flex items-center justify-end gap-2 overflow-hidden transition-all duration-300 ease-out ${
-                        email.trim() && password ? 'max-h-12 opacity-100 pt-1' : 'max-h-0 opacity-0'
+                    {/* ── Main login content ── */}
+                    <div className={`transition-all duration-300 ease-out space-y-3 ${forgotStep === null
+                      ? 'relative opacity-100 translate-y-0'
+                      : 'absolute inset-x-0 top-0 opacity-0 -translate-y-2 pointer-events-none'
                       }`}>
-                        <button
-                          type="button"
-                          onClick={() => { setEmail(''); setPassword(''); setError(null) }}
-                          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
-                        >
-                          <X size={18} />
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={loading}
-                          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
-                        >
-                          {loading ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
-                        </button>
+                      {/* Pill selector */}
+                      <div className="flex gap-1 p-0.5 rounded-full bg-themewhite dark:bg-themewhite3 border border-themeblue3/10">
+                        {(['password', 'qr'] as LoginMode[]).map(m => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => switchMode(m)}
+                            className={`flex-1 py-1.5 text-[10px] font-medium rounded-full transition-all duration-200 active:scale-95 ${mode === m
+                              ? 'bg-themeblue3 text-white shadow-sm'
+                              : 'text-tertiary/50 hover:text-tertiary/70'
+                              }`}
+                          >
+                            {m === 'password' ? 'Password' : 'Link Device'}
+                          </button>
+                        ))}
                       </div>
-                    </>
-                  )}
 
-                  {mode === 'pin' && (
-                    <PinCodeInput
-                      onSubmit={handlePinSubmit}
-                      label={pinLoading ? 'Verifying...' : undefined}
-                      error={pinError}
-                      disabled={pinLoading || !email.trim()}
-                    />
-                  )}
+                      {/* Content panels — active is in flow, inactive is absolute */}
+                      <div className="relative">
+                        <div className={`transition-all duration-300 ease-out space-y-3 ${mode === 'password'
+                          ? 'relative opacity-100 translate-x-0'
+                          : 'absolute inset-x-0 top-0 opacity-0 -translate-x-3 pointer-events-none'
+                          }`}>
+                          <TextInput
+                            value={email}
+                            onChange={setEmail}
+                            type="email"
+                            placeholder="your.email@mail.mil"
+                            required
+                          />
+                          <PasswordInput
+                            value={password}
+                            onChange={setPassword}
+                            placeholder="Password"
+                          />
+                          <div className={`flex items-center justify-end gap-2 overflow-hidden transition-all duration-300 ease-out ${email.trim() && password ? 'max-h-12 opacity-100 pt-1' : 'max-h-0 opacity-0'
+                            }`}>
+                            <button
+                              type="button"
+                              onClick={() => { setEmail(''); setPassword(''); setError(null) }}
+                              className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                            >
+                              <X size={18} />
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={loading}
+                              className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+                            >
+                              {loading ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
+                            </button>
+                          </div>
+                        </div>
 
-                  {mode === 'token' && (
-                    <PinCodeInput
-                      length={8}
-                      onSubmit={handleTokenSubmit}
-                      label={loading ? 'Verifying...' : undefined}
-                      error={error ?? undefined}
-                      disabled={loading}
-                    />
-                  )}
+                        <div className={`transition-all duration-300 ease-out ${mode === 'qr'
+                          ? 'relative opacity-100 translate-x-0'
+                          : 'absolute inset-x-0 top-0 opacity-0 translate-x-3 pointer-events-none'
+                          }`}>
+                          <DeviceLinkQrView />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ── Forgot password flow ── */}
+                    <div className={`transition-all duration-300 ease-out ${forgotStep !== null
+                      ? 'relative opacity-100 translate-y-0'
+                      : 'absolute inset-x-0 top-0 opacity-0 translate-y-2 pointer-events-none'
+                      }`}>
+                      <div className="relative">
+                        {/* Step 1 — email */}
+                        <div className={`transition-all duration-300 ease-out space-y-3 ${forgotStep === 'email'
+                          ? 'relative opacity-100 translate-x-0'
+                          : 'absolute inset-x-0 top-0 opacity-0 -translate-x-3 pointer-events-none'
+                          }`}>
+                          <p className="text-xs text-secondary leading-relaxed">
+                            Enter your email - if an account exists you'll receive an 8 digit password reset pin.
+                          </p>
+                          <TextInput
+                            value={email}
+                            onChange={setEmail}
+                            type="email"
+                            placeholder="your.email@mail.mil"
+                          />
+                          <div className="flex items-center justify-end gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={closeForgot}
+                              className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                            >
+                              <X size={18} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleSendResetToken}
+                              disabled={loading || !email.trim()}
+                              className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+                            >
+                              {loading ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Step 2 — token entry */}
+                        <div className={`transition-all duration-300 ease-out space-y-3 ${forgotStep === 'token'
+                          ? 'relative opacity-100 translate-x-0'
+                          : 'absolute inset-x-0 top-0 opacity-0 translate-x-3 pointer-events-none'
+                          }`}>
+                          <p className="text-xs text-secondary leading-relaxed">
+                            Check <span className="font-medium text-primary">{email}</span> for an 8-digit reset token and enter it below.
+                          </p>
+                          <PinCodeInput
+                            length={8}
+                            onSubmit={handleTokenSubmit}
+                            label={loading ? 'Verifying...' : undefined}
+                            error={error ?? undefined}
+                            disabled={loading}
+                          />
+                          <div className="flex items-center justify-end gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={closeForgot}
+                              className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white active:scale-95 transition-all"
+                            >
+                              <ArrowLeft size={18} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleSendResetToken}
+                              disabled={loading}
+                              className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+                            >
+                              <RefreshCw size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
                 </form>
               </div>
 
-              <div className="flex items-center justify-center mt-2 px-1">
-                {mode === 'token' ? (
+              {forgotStep === null && mode === 'password' && (
+                <div className="flex items-center justify-center mt-2 px-1">
                   <button
-                    onClick={handleSendResetToken}
-                    disabled={!email.trim() || loading}
-                    className="text-xs text-themeblue3 dark:text-themeblue1 hover:underline active:scale-95 transition-transform disabled:opacity-30"
-                  >
-                    {resetSent ? 'Resend token' : 'Send reset token'}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => { switchMode('token'); if (email.trim()) handleSendResetToken() }}
+                    onClick={openForgot}
                     className="text-xs text-themeblue3 dark:text-themeblue1 hover:underline active:scale-95 transition-transform"
                   >
                     Forgot password?
                   </button>
-                )}
-              </div>
+                </div>
+              )}
 
               <div className="relative my-3">
                 <div className="absolute inset-0 flex items-center">
@@ -283,10 +363,6 @@ export function LoginScreen() {
                   Request Account
                 </button>
               </div>
-
-              <p className="mt-2 text-[10px] text-center text-secondary/60">
-                Guest mode keeps training and preferences local to this device.
-              </p>
 
               <button
                 onClick={() => switchView('help')}
@@ -316,7 +392,6 @@ export function LoginScreen() {
                   </button>
                 </>
               ) : (
-                <>
                   <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
                     <form onSubmit={handleSupportSubmit} className="space-y-3">
                       <TextInput
@@ -339,8 +414,8 @@ export function LoginScreen() {
                         required
                         rows={3}
                         className="w-full px-4 py-2.5 rounded-2xl bg-themewhite dark:bg-themewhite3 text-primary text-sm
-                                 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2
-                                 focus:outline-none transition-all duration-300 placeholder:text-tertiary/30 resize-none"
+                               border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2
+                               focus:outline-none transition-all duration-300 placeholder:text-tertiary/30 resize-none"
                       />
                       <div className="flex items-center justify-end gap-2 pt-1">
                         <button
@@ -360,7 +435,6 @@ export function LoginScreen() {
                       </div>
                     </form>
                   </div>
-                </>
               )}
             </>
           )}

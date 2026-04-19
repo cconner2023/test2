@@ -6,10 +6,12 @@
  * or signing out all other sessions (primary device only).
  */
 
-import { useState, useEffect, useCallback } from 'react'
-import { Smartphone, Monitor, LogOut, Info, Shield } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Smartphone, Monitor, LogOut, Info, Shield, Camera, Link2 } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { ConfirmDialog } from '../ConfirmDialog'
+import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
+import { useLinkerBroadcast } from '../../Hooks/useDeviceLink'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useAuth } from '../../Hooks/useAuth'
@@ -35,6 +37,10 @@ export function SessionsDevicesPanel() {
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null)
   const [confirmSignOut, setConfirmSignOut] = useState(false)
   const signOut = useAuthStore((s) => s.signOut)
+
+  const [addPhase, setAddPhase] = useState<'idle' | 'scanning' | 'confirm' | 'sending'>('idle')
+  const [pendingChannelId, setPendingChannelId] = useState<string | null>(null)
+  const qrVideoRef = useRef<HTMLVideoElement>(null)
 
   // Clear status banner after a delay
   useEffect(() => {
@@ -77,6 +83,17 @@ export function SessionsDevicesPanel() {
 
   useEffect(() => { loadDevices() }, [loadDevices])
 
+  const {
+    isScanning: qrIsScanning,
+    error: qrScanError,
+    result: qrScanResult,
+    startScanning: qrStartScanning,
+    stopScanning: qrStopScanning,
+    clearResult: qrClearResult,
+  } = useBarcodeScanner()
+
+  const { broadcast, sending: linkSending, sent: linkSent, broadcastError } = useLinkerBroadcast()
+
   // Remove a single device
   const handleRemove = useCallback(async (deviceId: string) => {
     if (!user?.id) return
@@ -112,6 +129,38 @@ export function SessionsDevicesPanel() {
     setStatus({ type: 'success', message: `Signed out ${result.data.devicesDeleted} device(s)` })
     loadDevices()
   }, [loadDevices])
+
+  // Handle QR scan result
+  useEffect(() => {
+    if (!qrScanResult || addPhase !== 'scanning') return
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (uuidPattern.test(qrScanResult.trim())) {
+      setPendingChannelId(qrScanResult.trim())
+      setAddPhase('confirm')
+    } else {
+      setStatus({ type: 'error', message: 'Invalid QR code' })
+      setAddPhase('idle')
+      qrClearResult()
+    }
+  }, [qrScanResult, addPhase, qrClearResult])
+
+  useEffect(() => {
+    if (linkSent) {
+      setStatus({ type: 'success', message: 'Device linked successfully' })
+      setAddPhase('idle')
+      setPendingChannelId(null)
+      qrClearResult()
+    }
+  }, [linkSent, qrClearResult])
+
+  useEffect(() => {
+    if (broadcastError) {
+      setStatus({ type: 'error', message: broadcastError })
+      setAddPhase('idle')
+      setPendingChannelId(null)
+      qrClearResult()
+    }
+  }, [broadcastError, qrClearResult])
 
   // Activity dot color + label
   const activityInfo = (lastActiveAt: string) => {
@@ -159,6 +208,85 @@ export function SessionsDevicesPanel() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="px-5 py-4 space-y-3">
+
+        {/* Add Device — primary only */}
+        {isPrimary && addPhase === 'idle' && (
+          <button
+            onClick={() => {
+              setAddPhase('scanning')
+              requestAnimationFrame(() => {
+                if (qrVideoRef.current) qrStartScanning(qrVideoRef.current)
+              })
+            }}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-themeblue2/10 text-themeblue2 text-sm font-medium active:scale-95 transition-all"
+          >
+            <Link2 size={16} />
+            Add Device
+          </button>
+        )}
+
+        {addPhase === 'scanning' && (
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+            <div className="px-4 py-3 space-y-2">
+              <p className="text-xs text-tertiary/70">
+                Scan the QR code shown on the new device's login screen.
+              </p>
+              <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black/5 border border-tertiary/10">
+                <video
+                  ref={qrVideoRef}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  playsInline
+                  muted
+                />
+                {!qrIsScanning && !qrScanError && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <p className="text-xs text-tertiary">Starting camera…</p>
+                  </div>
+                )}
+              </div>
+              {qrScanError && (
+                <p className="text-xs text-themeredred">{qrScanError}</p>
+              )}
+              <button
+                onClick={() => { qrStopScanning(); setAddPhase('idle'); qrClearResult() }}
+                className="w-full py-2 text-xs text-tertiary active:opacity-70 transition-opacity"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {(addPhase === 'confirm' || addPhase === 'sending') && pendingChannelId && (
+          <div className="rounded-2xl border border-themeblue2/20 bg-themewhite2 overflow-hidden px-4 py-4 flex flex-col items-center gap-3">
+            <Camera size={24} className="text-themeblue2" />
+            <div className="text-center">
+              <p className="text-sm font-semibold text-primary">Link this device?</p>
+              <p className="text-xs text-tertiary/70 mt-1">
+                Device code: <span className="font-mono">{pendingChannelId.slice(0, 8).toUpperCase()}</span>
+              </p>
+            </div>
+            <div className="flex gap-2 w-full">
+              <button
+                onClick={() => { setAddPhase('idle'); setPendingChannelId(null); qrClearResult() }}
+                disabled={linkSending}
+                className="flex-1 py-2.5 rounded-xl border border-tertiary/15 text-tertiary text-sm font-medium active:scale-95 transition-all disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setAddPhase('sending')
+                  await broadcast(pendingChannelId)
+                }}
+                disabled={linkSending}
+                className="flex-1 py-2.5 rounded-xl bg-themeblue2 text-white text-sm font-medium active:scale-95 transition-all disabled:opacity-40"
+              >
+                {linkSending ? 'Linking…' : 'Link Device'}
+              </button>
+            </div>
+          </div>
+        )}
 
         <p className="text-xs text-tertiary leading-relaxed">
           Devices registered to your account. Tap a device to remove it.
