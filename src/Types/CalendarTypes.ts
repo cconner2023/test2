@@ -30,6 +30,18 @@ export interface CalendarEvent {
   updated_at: string
   /** Origin ID of the latest broadcast message — used for hard-delete on update/delete. */
   originId?: string
+  /** Last-known field positions for mission participants — keyed by user_id. Updated via location publisher; rides the normal event edit fan-out. */
+  field_positions?: Record<string, FieldPosition> | null
+}
+
+/** A single user's last-known field position, stored on a CalendarEvent. */
+export interface FieldPosition {
+  lat: number
+  lng: number
+  /** MGRS at 1m precision — pre-computed on device to avoid server-side geo logic. */
+  mgrs: string
+  /** ISO timestamp of the fix. Used to compute staleness on render. */
+  timestamp: string
 }
 
 export interface EventFormData {

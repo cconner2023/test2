@@ -1,5 +1,5 @@
 import { useRef, useState, type RefObject } from 'react'
-import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, Play, CheckCircle2, Ban } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Clock, Play, CheckCircle2, Ban } from 'lucide-react'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { toDateKey, eventFallsOnDate } from '../../Types/CalendarTypes'
@@ -243,7 +243,6 @@ export function MissionGantt({ onEventClick, onOpenCalendar, onStatusChange }: M
   const userId     = useAuthStore(s => s.user?.id)
 
   const [selectedDate, setSelectedDate] = useState(() => new Date())
-  const [collapsed, setCollapsed]       = useState(false)
   const [pickerOpen, setPickerOpen]     = useState(false)
   const [anchorRect, setAnchorRect]     = useState<DOMRect | null>(null)
   const [contextMenu, setContextMenu]   = useState<{ event: CalendarEvent; x: number; y: number } | null>(null)
@@ -288,13 +287,6 @@ export function MissionGantt({ onEventClick, onOpenCalendar, onStatusChange }: M
         </div>
 
         <div className="flex-1" />
-
-        <button
-          className="p-1 rounded active:bg-themeblue2/10 text-tertiary"
-          onClick={() => setCollapsed(c => !c)}
-        >
-          {collapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
-        </button>
       </div>
 
       <PreviewOverlay isOpen={pickerOpen} onClose={() => setPickerOpen(false)} anchorRect={anchorRect}>
@@ -305,66 +297,64 @@ export function MissionGantt({ onEventClick, onOpenCalendar, onStatusChange }: M
         />
       </PreviewOverlay>
 
-      {!collapsed && (
-        <div className="relative">
+      <div className="relative">
 
-          {/* My tasks — top section */}
-          {myTasks.length === 0 ? (
-            <div className="px-2.5 py-2 text-xs text-secondary">No assigned tasks</div>
-          ) : (
-            <div className="flex flex-col px-2.5 pt-2 pb-2">
-              {activeTasks.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  {activeTasks.map(event => (
-                    <TaskRow key={event.id} event={event} onClick={() => onEventClick(event.id)} onContextMenu={(x, y) => setContextMenu({ event, x, y })} />
-                  ))}
-                </div>
-              )}
-              {activeTasks.length > 0 && doneTasks.length > 0 && (
-                <div className="flex items-center gap-2 mt-2 mb-1.5">
-                  <div className="flex-1 border-t border-themeblue3/10" />
-                  <span className="text-[9px] font-medium text-tertiary/60 uppercase tracking-wide">Completed</span>
-                  <div className="flex-1 border-t border-themeblue3/10" />
-                </div>
-              )}
-              {doneTasks.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  {doneTasks.map(event => (
-                    <TaskRow key={event.id} event={event} onClick={() => onEventClick(event.id)} onContextMenu={(x, y) => setContextMenu({ event, x, y })} />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+        {/* My tasks — top section */}
+        {myTasks.length === 0 ? (
+          <div className="px-2.5 py-2 text-xs text-secondary">No assigned tasks</div>
+        ) : (
+          <div className="flex flex-col px-2.5 pt-2 pb-2">
+            {activeTasks.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                {activeTasks.map(event => (
+                  <TaskRow key={event.id} event={event} onClick={() => onEventClick(event.id)} onContextMenu={(x, y) => setContextMenu({ event, x, y })} />
+                ))}
+              </div>
+            )}
+            {activeTasks.length > 0 && doneTasks.length > 0 && (
+              <div className="flex items-center gap-2 mt-2 mb-1.5">
+                <div className="flex-1 border-t border-themeblue3/10" />
+                <span className="text-[9px] font-medium text-tertiary/60 uppercase tracking-wide">Completed</span>
+                <div className="flex-1 border-t border-themeblue3/10" />
+              </div>
+            )}
+            {doneTasks.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                {doneTasks.map(event => (
+                  <TaskRow key={event.id} event={event} onClick={() => onEventClick(event.id)} onContextMenu={(x, y) => setContextMenu({ event, x, y })} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
-          {/* Divider */}
-          <div className="border-t border-themeblue3/10 mx-0" />
+        {/* Divider */}
+        <div className="border-t border-themeblue3/10 mx-0" />
 
-          {/* Clinic-wide gantt — bottom section */}
-          {allDayEvents.length === 0 ? (
-            <div className="flex items-center justify-center h-14 text-secondary text-xs">
-              No missions
-            </div>
-          ) : (
-            <GanttBody
-              scrollRef={scrollRef}
-              events={allDayEvents}
-              userId={userId}
-              onEventClick={onEventClick}
-              onEventContextMenu={(event, x, y) => setContextMenu({ event, x, y })}
-              selectedDate={selectedDate}
-            />
-          )}
+        {/* Clinic-wide gantt — bottom section */}
+        {allDayEvents.length === 0 ? (
+          <div className="flex items-center justify-center h-14 text-secondary text-xs">
+            No missions
+          </div>
+        ) : (
+          <GanttBody
+            scrollRef={scrollRef}
+            events={allDayEvents}
+            userId={userId}
+            onEventClick={onEventClick}
+            onEventContextMenu={(event, x, y) => setContextMenu({ event, x, y })}
+            selectedDate={selectedDate}
+          />
+        )}
 
-          {/* Open Calendar — bottom-right, matches Open Map style */}
-          <button
-            onClick={onOpenCalendar}
-            className="absolute bottom-2 right-2 z-10 text-[10px] font-semibold px-2.5 py-1 rounded-full bg-themewhite/90 border border-themeblue3/15 text-themeblue1 shadow-xs active:scale-95 transition-transform"
-          >
-            Open Calendar
-          </button>
-        </div>
-      )}
+        {/* Open Calendar — bottom-right, matches Open Map style */}
+        <button
+          onClick={onOpenCalendar}
+          className="absolute bottom-2 right-2 z-10 text-[10px] font-semibold px-2.5 py-1 rounded-full bg-themewhite/90 border border-themeblue3/15 text-themeblue1 shadow-xs active:scale-95 transition-transform"
+        >
+          Open Calendar
+        </button>
+      </div>
 
       {contextMenu && (
         <ContextMenu

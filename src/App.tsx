@@ -542,7 +542,7 @@ case 'mapOverlay':
               )
             ) : (
             <div
-              className={`h-full grid gap-1 transition-[grid-template-columns] duration-300 ease-in-out ${navigation.mobileGridClass} md:grid-cols-[0.45fr_0.55fr]`}
+              className={`h-full grid grid-rows-1 gap-1 transition-[grid-template-columns] duration-300 ease-in-out ${navigation.mobileGridClass} md:grid-cols-[0.45fr_0.55fr]`}
               {...(navigation.isMobile ? swipe.touchHandlers : {})}
             >
               {/* Column A: Navigation carousel (ADTMC) */}

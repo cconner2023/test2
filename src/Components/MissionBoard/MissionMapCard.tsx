@@ -1,7 +1,6 @@
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useGeolocation } from '../../Hooks/useGeolocation'
 import { useTheme } from '../../Utilities/ThemeContext'
 import { createThemedTileLayer, TILE_THEME_LIGHT, TILE_THEME_DARK } from '../MapOverlay/ThemedTileLayer'
@@ -27,8 +26,6 @@ export function MissionMapCard({ onOpenMap, overlayFeatures, overlayId: _overlay
   const tileLayerRef = useRef<L.GridLayer | null>(null)
   const gpsMarkerRef = useRef<L.CircleMarker | null>(null)
   const featureLayerRef = useRef<L.LayerGroup>(L.layerGroup())
-  const [expanded, setExpanded] = useState(true)
-
   // Init map once
   useEffect(() => {
     if (!mapDivRef.current || mapRef.current) return
@@ -160,36 +157,24 @@ export function MissionMapCard({ onOpenMap, overlayFeatures, overlayId: _overlay
     }
   }, [position])
 
-  // Invalidate size after expand animation
+  // Invalidate size on mount
   useEffect(() => {
-    if (expanded) {
-      const t = setTimeout(() => mapRef.current?.invalidateSize(), 60)
-      return () => clearTimeout(t)
-    }
-  }, [expanded])
+    const t = setTimeout(() => mapRef.current?.invalidateSize(), 60)
+    return () => clearTimeout(t)
+  }, [])
 
   return (
     <div className="rounded-xl overflow-hidden border border-themeblue3/10 bg-themewhite2">
-      {/* Header — toggle */}
-      <button
-        className="w-full flex items-center gap-2 px-3 py-2.5 active:bg-themeblue2/5"
-        onClick={() => setExpanded(e => !e)}
-      >
+      {/* Header */}
+      <div className="flex items-center gap-2 px-3 py-2.5">
         <span className="text-xs font-medium text-primary flex-1 text-left">Map</span>
         {position && (
           <span className="text-[10px] text-secondary">GPS</span>
         )}
-        {expanded
-          ? <ChevronUp size={13} className="text-tertiary shrink-0" />
-          : <ChevronDown size={13} className="text-tertiary shrink-0" />
-        }
-      </button>
+      </div>
 
       {/* Map area */}
-      <div
-        className="overflow-hidden transition-[height] duration-300 ease-in-out relative"
-        style={{ height: expanded ? MAP_HEIGHT : 0 }}
-      >
+      <div className="relative" style={{ height: MAP_HEIGHT }}>
         <div ref={mapDivRef} className="w-full" style={{ height: MAP_HEIGHT }} />
         <button
           onClick={onOpenMap}

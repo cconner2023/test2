@@ -15,6 +15,16 @@ export interface MapViewHandle {
   fitBounds: (bbox: [number, number, number, number]) => void;
 }
 
+export interface PresenceMarker {
+  userId: string
+  lat: number
+  lng: number
+  /** ISO timestamp — drives staleness decay on render. */
+  timestamp: string
+  /** Display label — typically MGRS or a short name. */
+  label?: string
+}
+
 interface MapViewProps {
   features: OverlayFeature[];
   drawMode: DrawMode;
@@ -33,6 +43,8 @@ interface MapViewProps {
   overlayId?: string;
   /** Only true when tiles for this overlay have actually been downloaded to IDB */
   tilesCached?: boolean;
+  /** Live field positions for mission participants — rendered as decaying presence markers. */
+  presenceMarkers?: PresenceMarker[];
 }
 
 const DEFAULT_CENTER: [number, number] = [38.8977, -77.0365];
@@ -71,6 +83,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   measureResult,
   overlayId,
   tilesCached = false,
+  presenceMarkers,
 }, ref) {
   const { theme } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -80,6 +93,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   const featureLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const gpsLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const measureLayerRef = useRef<L.LayerGroup>(L.layerGroup());
+  const presenceLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const [mgrsReadout, setMgrsReadout] = useState('');
   const [mgrsCopied, setMgrsCopied] = useState(false);
   const [showAttribution, setShowAttribution] = useState(false);
@@ -141,6 +155,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 
     featureLayerRef.current.addTo(map);
     gpsLayerRef.current.addTo(map);
+    presenceLayerRef.current.addTo(map);
     measureLayerRef.current.addTo(map);
 
     updateMgrs(map);
@@ -321,6 +336,50 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 
     L.circleMarker([lat, lng], GPS_MARKER_STYLE).addTo(group);
   }, [gpsPosition]);
+
+  // Sync presence markers — field positions from mission event's field_positions
+  useEffect(() => {
+    const group = presenceLayerRef.current;
+    group.clearLayers();
+    if (!presenceMarkers?.length) return;
+
+    const now = Date.now();
+
+    for (const marker of presenceMarkers) {
+      const ageMs = now - new Date(marker.timestamp).getTime();
+      const ageMin = ageMs / 60_000;
+      const fillOpacity = Math.max(0.15, 0.9 - ageMin * 0.025);
+      // Decay ring grows from 50m to 1000m over ~32 min
+      const decayRadius = Math.min(1000, 50 + ageMin * 30);
+
+      // Uncertainty ring
+      L.circle([marker.lat, marker.lng], {
+        radius: decayRadius,
+        color: '#22C55E',
+        fillColor: '#22C55E',
+        fillOpacity: fillOpacity * 0.12,
+        weight: 1,
+        interactive: false,
+      }).addTo(group);
+
+      // Position dot
+      const ageLabel = ageMin < 1 ? 'just now'
+        : ageMin < 60 ? `${Math.round(ageMin)}m ago`
+        : `${Math.round(ageMin / 60)}h ago`;
+
+      L.circleMarker([marker.lat, marker.lng], {
+        radius: 7,
+        color: '#15803D',
+        fillColor: '#22C55E',
+        fillOpacity,
+        weight: 2,
+      }).bindTooltip(`${marker.label ?? 'Field'} · ${ageLabel}`, {
+        direction: 'top',
+        offset: [0, -10],
+        className: 'leaflet-tooltip-tactical',
+      }).addTo(group);
+    }
+  }, [presenceMarkers]);
 
   // Sync measure tool visualization
   useEffect(() => {

@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useSpring, animated } from '@react-spring/web';
-import { ChevronLeft, Compass, Move, MapPin, Route, Pentagon, Pencil, Trash2, Check, X, Search, RefreshCw, Ruler, Wifi } from 'lucide-react';
+import { ChevronLeft, Compass, Move, MapPin, Route, Pentagon, Pencil, Trash2, Check, X, Search, RefreshCw, Ruler, Wifi, RadioTower } from 'lucide-react';
 import { LoadingSpinner } from '../LoadingSpinner';
 import { forward } from 'mgrs';
 import { BaseDrawer } from '../BaseDrawer';
@@ -23,7 +23,9 @@ import type { OverlayFeature, DrawMode, WaypointType } from '../../Types/MapOver
 import type { LocalMapOverlay, MapOverlay } from '../../Types/MapOverlayTypes';
 import { DEFAULT_FEATURE_STYLE, TACTICAL_COLORS, WAYPOINT_LABELS } from '../../Types/MapOverlayTypes';
 import MapView from './MapView';
-import type { MapViewHandle } from './MapView';
+import type { MapViewHandle, PresenceMarker } from './MapView';
+import { useLocationPublisher } from '../../Hooks/useLocationPublisher';
+import { useCalendarStore } from '../../stores/useCalendarStore';
 import { MGRSConverter } from './MGRSConverter';
 import { OverlayList } from './OverlayList';
 import { FeatureEditor } from './FeatureEditor';
@@ -127,6 +129,26 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   const gpsPosition = position
     ? { lat: position.lat, lng: position.lng, accuracy: position.accuracy }
     : null;
+
+  // ── Location sharing ──
+  const [isSharing, setIsSharing] = useState(false);
+  const allEvents = useCalendarStore(s => s.events);
+  // Find the calendar event that owns this overlay (structured_location.overlay_id)
+  const linkedEvent = overlayId
+    ? (allEvents.find(e => e.structured_location?.overlay_id === overlayId) ?? null)
+    : null;
+  // Derive presence markers from the event's field_positions for all participants
+  const presenceMarkers: PresenceMarker[] = linkedEvent?.field_positions
+    ? Object.entries(linkedEvent.field_positions).map(([userId, pos]) => ({
+        userId,
+        lat: pos.lat,
+        lng: pos.lng,
+        timestamp: pos.timestamp,
+        label: pos.mgrs || userId.slice(0, 8),
+      }))
+    : [];
+
+  useLocationPublisher(linkedEvent?.id ?? null, user?.id ?? null, position, isSharing);
 
   const [isEditing, setIsEditing] = useState(false);
 
@@ -295,7 +317,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   }, []);
 
   const handleBack = useCallback(() => {
-    if (view === 'viewer') stopWatching();
+    if (view === 'viewer') { stopWatching(); setIsSharing(false); }
     setView('list');
     setDrawMode('pan');
     setSelectedFeatureId(null);
@@ -725,6 +747,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                 center={initialCenter ?? undefined}
                 overlayId={overlayId ?? undefined}
                 tilesCached={overlayId ? tileMetaMap.has(overlayId) : false}
+                presenceMarkers={presenceMarkers}
               />
 
               {/* ── FAB toolbar — Property-style floating pill, top-right of map ── */}
@@ -802,6 +825,24 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                     {isEditing ? <Check size={18} /> : <Pencil size={18} />}
                   </button>
                 </div>
+
+                {/* ── Share position toggle — only when overlay is linked to a mission event ── */}
+                {linkedEvent && (
+                  <button
+                    type="button"
+                    onClick={() => setIsSharing(prev => !prev)}
+                    className={`mt-1.5 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium
+                      shadow-sm active:scale-95 transition-all
+                      ${isSharing
+                        ? 'bg-themegreen text-white'
+                        : 'bg-themewhite border border-tertiary/20 text-tertiary'
+                      }`}
+                    title={isSharing ? 'Stop sharing position' : 'Share my position'}
+                  >
+                    <RadioTower size={13} className={isSharing ? 'animate-pulse' : ''} />
+                    {isSharing ? 'Sharing' : 'Share'}
+                  </button>
+                )}
 
                 {/* ── Naming modal — drops below FAB ── */}
                 {namingFeatureId && (() => {
