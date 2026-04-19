@@ -5,6 +5,9 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useGeolocation } from '../../Hooks/useGeolocation'
 import { useTheme } from '../../Utilities/ThemeContext'
 import { createThemedTileLayer, TILE_THEME_LIGHT, TILE_THEME_DARK } from '../MapOverlay/ThemedTileLayer'
+import type { OverlayFeature } from '../../Types/MapOverlayTypes'
+import { waypointIconSvg } from '../MapOverlay/WaypointIcon'
+import { computeOverlayBbox } from '../../lib/mapTileService'
 
 const MAP_HEIGHT = 220
 const DEFAULT_CENTER: [number, number] = [38.8977, -77.0365]
@@ -12,15 +15,18 @@ const DEFAULT_ZOOM = 13
 
 interface MissionMapCardProps {
   onOpenMap: () => void
+  overlayFeatures?: OverlayFeature[]
+  overlayId?: string
 }
 
-export function MissionMapCard({ onOpenMap }: MissionMapCardProps) {
+export function MissionMapCard({ onOpenMap, overlayFeatures, overlayId: _overlayId }: MissionMapCardProps) {
   const { theme } = useTheme()
   const { position, startWatching, stopWatching } = useGeolocation()
   const mapDivRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
   const tileLayerRef = useRef<L.GridLayer | null>(null)
   const gpsMarkerRef = useRef<L.CircleMarker | null>(null)
+  const featureLayerRef = useRef<L.LayerGroup>(L.layerGroup())
   const [expanded, setExpanded] = useState(true)
 
   // Init map once
@@ -44,6 +50,8 @@ export function MissionMapCard({ onOpenMap }: MissionMapCardProps) {
     layer.addTo(map)
     tileLayerRef.current = layer
 
+    featureLayerRef.current.addTo(map)
+
     return () => {
       map.remove()
       mapRef.current = null
@@ -61,6 +69,68 @@ export function MissionMapCard({ onOpenMap }: MissionMapCardProps) {
     layer.addTo(map)
     tileLayerRef.current = layer
   }, [theme])
+
+  // Sync overlay features to feature layer group
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    featureLayerRef.current.clearLayers()
+
+    const features = overlayFeatures ?? []
+
+    for (const feature of features) {
+      const geom = feature.geometry
+      const color = feature.style?.color ?? '#2563EB'
+      const label = feature.label
+
+      if (feature.type === 'waypoint' && geom.length > 0) {
+        const [lat, lng] = geom[0]
+        const icon = L.divIcon({
+          html: waypointIconSvg(feature.waypoint_type ?? 'generic', color, 22),
+          className: '',
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
+        })
+        const marker = L.marker([lat, lng], { icon })
+        if (label) {
+          marker.bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -15] })
+        }
+        marker.addTo(featureLayerRef.current)
+      } else if (feature.type === 'route' && geom.length >= 2) {
+        const line = L.polyline(geom, {
+          color,
+          weight: 2.5,
+          opacity: feature.style?.opacity ?? 1,
+        })
+        if (label) {
+          line.bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -15] })
+        }
+        line.addTo(featureLayerRef.current)
+      } else if (feature.type === 'area' && geom.length >= 3) {
+        const poly = L.polygon(geom, {
+          color,
+          weight: 2,
+          fillColor: color,
+          fillOpacity: 0.15,
+        })
+        if (label) {
+          poly.bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -15] })
+        }
+        poly.addTo(featureLayerRef.current)
+      }
+    }
+
+    if (features.length > 0 && !position) {
+      const bbox = computeOverlayBbox(features)
+      if (bbox) {
+        map.fitBounds(
+          [[bbox[1], bbox[0]], [bbox[3], bbox[2]]],
+          { padding: [20, 20], maxZoom: 14 }
+        )
+      }
+    }
+  }, [overlayFeatures])
 
   // GPS tracking
   useEffect(() => {
@@ -83,7 +153,10 @@ export function MissionMapCard({ onOpenMap }: MissionMapCardProps) {
         fillOpacity: 1,
         weight: 2,
       }).addTo(map)
-      map.setView(latlng, map.getZoom())
+      const hasOverlay = (overlayFeatures ?? []).length > 0
+      if (!hasOverlay) {
+        map.setView(latlng, map.getZoom())
+      }
     }
   }, [position])
 

@@ -12,6 +12,7 @@ import { waypointIconSvg } from './WaypointIcon';
 
 export interface MapViewHandle {
   flyTo: (lat: number, lng: number, zoom?: number) => void;
+  fitBounds: (bbox: [number, number, number, number]) => void;
 }
 
 interface MapViewProps {
@@ -366,6 +367,10 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   useImperativeHandle(ref, () => ({
     flyTo: (lat: number, lng: number, z?: number) => {
       mapRef.current?.flyTo([lat, lng], z ?? mapRef.current.getZoom(), { duration: 1.2 });
+    },
+    fitBounds: (bbox: [number, number, number, number]) => {
+      const [west, south, east, north] = bbox;
+      mapRef.current?.fitBounds([[south, west], [north, east]], { padding: [40, 40], maxZoom: 15 });
     },
   }), []);
 

@@ -15,6 +15,7 @@ import {
   downloadTilesForOverlay,
   evictOverlayTiles,
   getAllTileMeta,
+  computeOverlayBbox,
   type TileMetadata,
 } from '../../lib/mapTileService';
 import { getClinicDetails } from '../../lib/supervisorService';
@@ -33,6 +34,7 @@ type ViewState = 'list' | 'viewer' | 'converter';
 interface MapOverlayPanelProps {
   isVisible: boolean;
   onClose: () => void;
+  initialOverlayId?: string | null;
 }
 
 const UI_TIMING = { FEEDBACK_DURATION: 4000 } as const;
@@ -66,7 +68,7 @@ function featureMgrs(feature: OverlayFeature): string {
   }
 }
 
-export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
+export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOverlayPanelProps) {
   const isMobile = useIsMobile();
   const { user, clinicId } = useAuth();
 
@@ -147,7 +149,14 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
       setLoading(false);
       if (!hasAutoNavigated.current) {
         hasAutoNavigated.current = true;
-        if (loaded.length > 0) {
+        if (initialOverlayId) {
+          const target = loaded.find(o => o.id === initialOverlayId);
+          if (target) {
+            handleOpenOverlay(target as MapOverlay);
+          } else {
+            handleNewOverlay();
+          }
+        } else if (loaded.length > 0) {
           const latest = loaded.reduce((best, o) =>
             new Date(o.updated_at) > new Date(best.updated_at) ? o : best
           );
@@ -227,7 +236,13 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
     inProgressFeatureId.current = null;
     setView('viewer');
     startWatching();
-  }, [startWatching]);
+    if (overlay.features.length > 0) {
+      const bbox = computeOverlayBbox(overlay.features);
+      if (bbox) setTimeout(() => mapRef.current?.fitBounds(bbox), 400);
+    } else if (initialCenter) {
+      setTimeout(() => mapRef.current?.flyTo(initialCenter[0], initialCenter[1], 12), 400);
+    }
+  }, [startWatching, initialCenter]);
 
   const handleDeleteOverlay = useCallback(async (id: string) => {
     if (!user) return;

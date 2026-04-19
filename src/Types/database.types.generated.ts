@@ -381,6 +381,7 @@ export type Database = {
           notes: string | null
           recorded_at: string
           recorded_by: string
+          quantity_delta: number
           sub_item_check: Json | null
           to_holder_id: string | null
         }
@@ -392,6 +393,7 @@ export type Database = {
           id?: string
           item_id: string
           notes?: string | null
+          quantity_delta?: number
           recorded_at?: string
           recorded_by: string
           sub_item_check?: Json | null
@@ -405,6 +407,7 @@ export type Database = {
           id?: string
           item_id?: string
           notes?: string | null
+          quantity_delta?: number | null
           recorded_at?: string
           recorded_by?: string
           sub_item_check?: Json | null
@@ -828,9 +831,11 @@ export type Database = {
           notes: string | null
           nsn: string | null
           parent_item_id: string | null
+          is_serialized: boolean
           photo_url: string | null
           serial_number: string | null
           updated_at: string
+          visual_fingerprint: Json | null
         }
         Insert: {
           clinic_id: string
@@ -846,9 +851,11 @@ export type Database = {
           notes?: string | null
           nsn?: string | null
           parent_item_id?: string | null
+          is_serialized?: boolean
           photo_url?: string | null
           serial_number?: string | null
           updated_at?: string
+          visual_fingerprint?: Json | null
         }
         Update: {
           clinic_id?: string
@@ -863,10 +870,12 @@ export type Database = {
           nomenclature?: string | null
           notes?: string | null
           nsn?: string | null
+          is_serialized?: boolean | null
           parent_item_id?: string | null
           photo_url?: string | null
           serial_number?: string | null
           updated_at?: string
+          visual_fingerprint?: Json | null
         }
         Relationships: [
           {
@@ -1561,6 +1570,7 @@ export type Database = {
         | "lateral"
         | "initial_issue"
         | "turn_in"
+        | "expended"
       discrepancy_status: "open" | "rectified"
       property_condition:
         | "serviceable"
@@ -1709,6 +1719,7 @@ export const Constants = {
         "lateral",
         "initial_issue",
         "turn_in",
+        "expended",
       ],
       discrepancy_status: ["open", "rectified"],
       property_condition: [

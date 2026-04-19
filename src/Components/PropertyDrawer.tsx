@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Pencil, X, List, Map as MapIcon } from 'lucide-react'
+import { Pencil, X, List, Map as MapIcon, ScanLine } from 'lucide-react'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { BaseDrawer } from './BaseDrawer'
 import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
@@ -7,6 +7,8 @@ import { PropertyLocationMap, type MapNavHandle } from './Property/PropertyLocat
 import { ContentWrapper } from './ContentWrapper'
 import { MobileSearchBar } from './MobileSearchBar'
 import { ConfirmDialog } from './ConfirmDialog'
+import { ItemScanner } from './Property/ItemScanner'
+import { EnrollScanStep } from './Property/EnrollScanStep'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { useClinicName } from '../Hooks/useClinicNameResolver'
@@ -36,6 +38,8 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             removeLocation: s.removeLocation,
             editItem: s.editItem,
             visibleLocations: s.visibleLocations,
+            enrollFingerprint: s.enrollFingerprint,
+            expendItem: s.expendItem,
         }))
     )
     const { navigateToPath, init, setEditingItem, removeItem, items } = store
@@ -54,6 +58,8 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const [editing, setEditing] = useState(false)
     const [selectedItem, setSelectedItem] = useState<LocalPropertyItem | null>(null)
     const [pendingDeleteItem, setPendingDeleteItem] = useState<LocalPropertyItem | null>(null)
+    const [scanMode, setScanMode] = useState(false)
+    const [enrollingItem, setEnrollingItem] = useState<LocalPropertyItem | null>(null)
     const initRef = useRef(false)
 
     useEffect(() => { setSearchQuery(''); setSearchFocused(false); setEditing(false) }, [view])
@@ -124,6 +130,11 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             setView('property-form')
         }
     }, [handleSlideAnimation, isMobile])
+
+    const handleScanMatch = useCallback(async (itemId: string, qty: number) => {
+        await store.expendItem(itemId, qty)
+        setScanMode(false)
+    }, [store])
 
     const handleBack = useCallback(() => {
         if (view === 'property-form') {
@@ -253,6 +264,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                                         onBack={handleBack}
                                         onDrilldownChange={setDrilldownPath}
                                         locationListRef={locationListRef}
+                                        onEnrollItem={(item) => setEnrollingItem(item)}
                                     />
                                 </div>
                             </MobileSearchBar>
@@ -270,6 +282,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                                     onDeleteItem={handleDeleteItem}
                                     onAddItem={handleAddItem}
                                     onBack={handleBack}
+                                    onEnrollItem={(item) => setEnrollingItem(item)}
                                 />
                             </div>
                         )}
@@ -284,6 +297,12 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                                 className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${!mapView ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
                             >
                                 <List className="w-5 h-5" />
+                            </button>
+                            <button
+                                onClick={() => setScanMode(true)}
+                                className="w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 text-tertiary hover:text-primary"
+                            >
+                                <ScanLine className="w-5 h-5" />
                             </button>
                             <button
                                 onClick={() => { setMapView(true); setEditing(false) }}
@@ -304,6 +323,30 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 onConfirm={handleConfirmDelete}
                 onCancel={() => setPendingDeleteItem(null)}
             />
+
+            {scanMode && (
+                <ItemScanner
+                    items={items}
+                    onMatch={handleScanMatch}
+                    onClose={() => setScanMode(false)}
+                />
+            )}
+
+            {enrollingItem && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center pb-8">
+                    <div className="w-full max-w-md bg-themewhite rounded-3xl p-6 mx-4">
+                        <EnrollScanStep
+                            itemId={enrollingItem.id}
+                            itemName={enrollingItem.name}
+                            onEnrolled={async (fp) => {
+                                await store.enrollFingerprint(enrollingItem.id, fp)
+                                setEnrollingItem(null)
+                            }}
+                            onSkip={() => setEnrollingItem(null)}
+                        />
+                    </div>
+                </div>
+            )}
         </BaseDrawer>
     )
 }

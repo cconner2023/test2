@@ -1,10 +1,11 @@
 import { useState, useMemo, useCallback } from 'react'
-import { X, Check } from 'lucide-react'
+import { X, Check, Square, CheckSquare } from 'lucide-react'
 import { TextInput, PickerInput } from '../FormInputs'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useShallow } from 'zustand/react/shallow'
 import type { LocalPropertyItem } from '../../Types/PropertyTypes'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
+import { EnrollScanStep } from './EnrollScanStep'
 
 interface PropertyItemFormProps {
   editingItem?: LocalPropertyItem | null
@@ -45,6 +46,8 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
   const [parentItemId, setParentItemId] = useState(editingItem?.parent_item_id ?? '')
   const [notes, setNotes] = useState(editingItem?.notes ?? '')
   const [isSaving, setIsSaving] = useState(false)
+  const [isSerialized, setIsSerialized] = useState(editingItem?.is_serialized ?? true)
+  const [showEnrollStep, setShowEnrollStep] = useState(false)
 
   const locationOptions = useMemo(
     () =>
@@ -91,7 +94,9 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
           current_holder_id: holderId || null,
           parent_item_id: parentItemId || null,
           notes: notes.trim() || null,
+          is_serialized: isSerialized,
         })
+        onClose()
       } else {
         await addItem({
           clinic_id: clinicId,
@@ -108,9 +113,10 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
           location_tag_id: null,
           photo_url: null,
           notes: notes.trim() || null,
+          is_serialized: isSerialized,
         })
+        setShowEnrollStep(true)
       }
-      onClose()
     } catch {
       // error handled by service layer
     } finally {
@@ -118,12 +124,25 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
     }
   }, [
     name, nomenclature, nsn, lin, serialNumber, quantity,
-    locationId, holderId, parentItemId, notes,
+    locationId, holderId, parentItemId, notes, isSerialized,
     isEdit, editingItem, clinicId, addItem, editItem, onClose,
   ])
 
   const hasLocations = locationOptions.length > 0
   const hasParentItems = parentItemOptions.length > 0
+
+  if (showEnrollStep) {
+    return (
+      <div className="rounded-xl bg-themewhite2">
+        <EnrollScanStep
+          itemId=""
+          itemName={name.trim()}
+          onEnrolled={onClose}
+          onSkip={onClose}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="rounded-xl bg-themewhite2 divide-y divide-tertiary/10">
@@ -139,10 +158,20 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
             <TextInput value={lin} onChange={setLin} placeholder="LIN" />
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => setIsSerialized((v) => !v)}
+          className="flex items-center gap-1.5 text-xs text-secondary active:scale-95 transition-all"
+        >
+          {isSerialized ? <CheckSquare size={14} /> : <Square size={14} />}
+          Track individually (serialized)
+        </button>
         <div className="flex gap-2">
-          <div className="flex-1 min-w-0">
-            <TextInput value={serialNumber} onChange={setSerialNumber} placeholder="Serial number" />
-          </div>
+          {isSerialized && (
+            <div className="flex-1 min-w-0">
+              <TextInput value={serialNumber} onChange={setSerialNumber} placeholder="Serial number" />
+            </div>
+          )}
           <div className="w-24 shrink-0">
             <TextInput type="number" value={quantity} onChange={setQuantity} placeholder="Qty" />
           </div>

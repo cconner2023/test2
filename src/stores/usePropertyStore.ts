@@ -5,6 +5,7 @@ import type {
   HolderInfo,
   PropertyItem,
   PropertyLocation,
+  VisualFingerprint,
 } from '../Types/PropertyTypes'
 import { ROOT_LOCATION_NAME } from '../Types/PropertyTypes'
 import { useAuthStore } from './useAuthStore'
@@ -21,6 +22,8 @@ import {
   fetchSubItems,
   syncLocationNameToTags,
   ensureRootLocation,
+  updateFingerprint,
+  recordExpendedEntry,
 } from '../lib/propertyService'
 import { setupConnectivityListeners, healStuckPendingRecords } from '../lib/syncService'
 import { createLogger } from '../Utilities/Logger'
@@ -74,6 +77,8 @@ interface PropertyState {
   removeLocation: (id: string) => Promise<void>
   refreshItems: () => Promise<void>
   refreshLocations: () => Promise<void>
+  enrollFingerprint: (itemId: string, fingerprint: VisualFingerprint) => Promise<void>
+  expendItem: (itemId: string, quantityDelta: number) => Promise<void>
 }
 
 let cleanupListeners: (() => void) | null = null
@@ -307,5 +312,34 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     if (!clinicId) return
     const locations = await fetchClinicLocations(clinicId)
     set({ locations })
+  },
+
+  enrollFingerprint: async (itemId, fingerprint) => {
+    const user = useAuthStore.getState().user
+    if (!user) return
+
+    const result = await updateFingerprint(itemId, fingerprint, user.id)
+    if (result.success) {
+      set({ items: get().items.map(i => i.id === itemId ? result.item : i) })
+    }
+  },
+
+  expendItem: async (itemId, quantityDelta) => {
+    const user = useAuthStore.getState().user
+    if (!user) return
+
+    const { clinicId, items } = get()
+    if (!clinicId) return
+
+    const item = items.find(i => i.id === itemId)
+    if (!item) return
+
+    if (item.is_serialized || item.quantity - quantityDelta <= 0) {
+      await get().removeItem(itemId)
+    } else {
+      await get().editItem(itemId, { quantity: item.quantity - quantityDelta })
+    }
+
+    await recordExpendedEntry(itemId, quantityDelta, clinicId, user.id)
   },
 }))

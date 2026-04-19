@@ -33,6 +33,7 @@ interface PropertyPanelProps {
   onSearchChange?: (query: string) => void
   mobileLocationView?: boolean
   onMobileLocationViewChange?: (active: boolean) => void
+  onEnrollItem?: (item: LocalPropertyItem) => void
 }
 
 export const PropertyPanel = memo(function PropertyPanel({
@@ -52,6 +53,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   onSearchChange,
   mobileLocationView = false,
   onMobileLocationViewChange,
+  onEnrollItem,
 }: PropertyPanelProps) {
   const store = usePropertyStore(
     useShallow((s) => ({
@@ -232,6 +234,7 @@ export const PropertyPanel = memo(function PropertyPanel({
         items={store.items}
         onEdit={onEditItem}
         onDelete={() => onDeleteItem(selectedItem)}
+        onEnroll={() => onEnrollItem?.(selectedItem)}
       />
     )
   }
@@ -333,6 +336,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                     items={store.items}
                     onEdit={onEditItem}
                     onDelete={() => onDeleteItem(selectedItem)}
+                    onEnroll={() => onEnrollItem?.(selectedItem)}
                   />
                 </div>
               </>

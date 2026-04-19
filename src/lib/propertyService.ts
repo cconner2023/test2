@@ -40,6 +40,7 @@ import type {
   PropertySearchResult,
   SubItemCheck,
   SyncStatus,
+  VisualFingerprint,
 } from '../Types/PropertyTypes'
 
 const logger = createLogger('PropertyService')
@@ -905,6 +906,78 @@ export async function executeTransfer(
     }
 
     return succeed({ ledgerEntryId: ledgerResult.entry.id, discrepancyCount })
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
+// ── Visual Fingerprint ───────────────────────────────────────
+
+export async function updateFingerprint(
+  id: string,
+  fingerprint: VisualFingerprint,
+  userId: string,
+): Promise<ServiceResult<{ item: LocalPropertyItem }>> {
+  try {
+    const db = await getDb()
+    const existing = await db.get('propertyItems', id)
+    if (!existing) return fail('Item not found')
+
+    const now = new Date().toISOString()
+    const updates = { visual_fingerprint: fingerprint, updated_at: now }
+    const updated: LocalPropertyItem = {
+      ...existing,
+      ...updates,
+      _sync_status: 'pending',
+    }
+
+    await saveLocalPropertyItem(updated)
+
+    await addToSyncQueue({
+      user_id: userId,
+      action: 'update',
+      table_name: 'property_items',
+      record_id: id,
+      payload: updates as unknown as Record<string, unknown>,
+    })
+
+    immediateSync(userId)
+    return succeed({ item: updated })
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
+// ── Expended Entry ───────────────────────────────────────────
+
+export async function recordExpendedEntry(
+  itemId: string,
+  quantityDelta: number,
+  clinicId: string,
+  userId: string,
+): Promise<ServiceResult> {
+  if (!isOnline()) {
+    logger.warn('recordExpendedEntry: offline — ledger entry skipped (best-effort)')
+    return succeed()
+  }
+  try {
+    const now = new Date().toISOString()
+    const entry = {
+      item_id: itemId,
+      clinic_id: clinicId,
+      action: 'expended' as const,
+      quantity_delta: quantityDelta,
+      from_holder_id: null,
+      to_holder_id: null,
+      condition_code: 'serviceable' as const,
+      sub_item_check: null,
+      notes: null,
+      recorded_at: now,
+      recorded_by: userId,
+    }
+    const { error } = await supabase.from('custody_ledger').insert(entry)
+    if (error) return fail(error.message)
+    return succeed()
   } catch (err) {
     return fail(String(err))
   }

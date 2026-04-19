@@ -16,6 +16,7 @@ export type CustodyAction =
   | 'lateral'       // peer-to-peer transfer
   | 'initial_issue' // first receipt
   | 'turn_in'       // back to supply
+  | 'expended'      // consumable used/expended
 
 export type DiscrepancyStatus = 'open' | 'rectified'
 
@@ -27,6 +28,21 @@ export type RectifyMethod =
 
 // ── Core data models ─────────────────────────────────────────
 
+export interface VisualFingerprint {
+  /** Barcodes decoded from item label at enrollment (NSN, serial, etc.) — primary match signal */
+  barcodes: string[]
+  /** Width / height of bounding rect */
+  aspect_ratio: number
+  /** Silhouette area as fraction of frame */
+  area_norm: number
+  /** 7 Hu invariant moments — rotation/scale-invariant shape signature */
+  hu_moments: number[]
+  /** 24-bin RGB color histogram (8 per channel), L1-normalized */
+  color_hist: number[]
+  enrolled_at: string
+  enroll_method: 'barcode' | 'visual' | 'both'
+}
+
 export interface PropertyItem {
   id: string
   clinic_id: string
@@ -36,12 +52,14 @@ export interface PropertyItem {
   lin: string | null
   serial_number: string | null
   quantity: number
+  is_serialized: boolean
   condition_code: PropertyCondition
   parent_item_id: string | null   // self-FK for sub-items / components
   location_id: string | null      // FK to property_locations for placement
   current_holder_id: string | null
   location_tag_id: string | null
   photo_url: string | null
+  visual_fingerprint: VisualFingerprint | null
   notes: string | null
   created_at: string
   updated_at: string

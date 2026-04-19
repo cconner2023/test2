@@ -1,4 +1,4 @@
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2, ScanLine } from 'lucide-react'
 import { SectionCard } from '../Section'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { LocalPropertyItem, LocalPropertyLocation } from '../../Types/PropertyTypes'
@@ -11,6 +11,7 @@ interface PropertyItemDetailProps {
   items: LocalPropertyItem[]
   onEdit: () => void
   onDelete: () => void
+  onEnroll: () => void
 }
 
 function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
@@ -30,7 +31,7 @@ const CONDITION_LABELS: Record<string, { label: string; color: string }> = {
   missing: { label: 'Missing', color: 'bg-themeredred' },
 }
 
-export function PropertyItemDetail({ item, locations, holders, items, onEdit, onDelete }: PropertyItemDetailProps) {
+export function PropertyItemDetail({ item, locations, holders, items, onEdit, onDelete, onEnroll }: PropertyItemDetailProps) {
   const isMobile = useIsMobile()
   const location = item.location_id ? locations.find(l => l.id === item.location_id) : null
   const holder = item.current_holder_id ? holders.get(item.current_holder_id) : null
@@ -110,6 +111,16 @@ export function PropertyItemDetail({ item, locations, holders, items, onEdit, on
       >
         <Pencil className={isMobile ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
         Edit Item
+      </button>
+
+      <button
+        onClick={onEnroll}
+        className={`w-full flex items-center justify-center gap-2 rounded-2xl border border-tertiary/20 bg-themewhite2 font-medium text-secondary active:scale-95 transition-all duration-200 ${
+          isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-xs'
+        }`}
+      >
+        <ScanLine className={isMobile ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
+        {item.visual_fingerprint ? 'Update Visual ID' : 'Enroll Visual ID'}
       </button>
 
       <button
