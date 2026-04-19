@@ -34,8 +34,8 @@ function toIcsDateOnly(iso: string): string {
 
 function statusToIcs(status: EventStatus): string {
   switch (status) {
-    case 'confirmed':
-    case 'in_progress': return 'CONFIRMED'
+    case 'in_progress':
+    case 'completed': return 'CONFIRMED'
     case 'cancelled': return 'CANCELLED'
     default: return 'TENTATIVE'
   }

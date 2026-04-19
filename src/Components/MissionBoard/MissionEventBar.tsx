@@ -1,5 +1,6 @@
 import { Package } from 'lucide-react'
 import type { CalendarEvent, EventCategory } from '../../Types/CalendarTypes'
+import { useLongPress } from '../../Hooks/useLongPress'
 
 const CATEGORY_STRIPE: Record<EventCategory, string> = {
   training: 'bg-themeyellow',
@@ -18,12 +19,14 @@ interface MissionEventBarProps {
   top: number
   height: number
   onClick: () => void
+  onContextMenu?: (x: number, y: number) => void
 }
 
-export function MissionEventBar({ event, isAssigned, width, left, top, height, onClick }: MissionEventBarProps) {
+export function MissionEventBar({ event, isAssigned, width, left, top, height, onClick, onContextMenu }: MissionEventBarProps) {
   const stripe = CATEGORY_STRIPE[event.category]
   const isCompleted = event.status === 'completed' || event.status === 'cancelled'
   const isActive = event.status === 'in_progress'
+  const longPress = useLongPress(onContextMenu ?? (() => {}))
 
   return (
     <button
@@ -32,6 +35,8 @@ export function MissionEventBar({ event, isAssigned, width, left, top, height, o
       } ${isAssigned ? 'ring-2 ring-themeblue1 ring-inset' : ''}`}
       style={{ left, top, width: Math.max(width - 2, 36), height }}
       onClick={onClick}
+      onContextMenu={onContextMenu ? (e) => { e.preventDefault(); onContextMenu(e.clientX, e.clientY) } : undefined}
+      {...(onContextMenu ? longPress : {})}
     >
       <div className={`w-1 shrink-0 ${stripe} ${isActive ? 'animate-pulse' : ''}`} />
       <div className={`flex-1 min-w-0 px-1.5 flex flex-col justify-center gap-px border-y border-r border-themeblue3/10 ${isAssigned ? 'bg-themeblue1/8' : 'bg-themewhite2'}`}>

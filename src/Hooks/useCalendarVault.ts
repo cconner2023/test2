@@ -6,7 +6,7 @@
  * device plus each member's clinic-scoped device.
  */
 
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useAuth } from './useAuth'
 import { supabase } from '../lib/supabase'
 import { useMessagingStore } from '../stores/useMessagingStore'
@@ -27,6 +27,8 @@ import type { CalendarEventContent, CalendarEventPayload } from '../lib/signal/m
 import type { PeerDevice, FanOutMessageInput, PeerBundleRpcResult } from '../lib/signal/transportTypes'
 import type { PublicKeyBundle } from '../lib/signal/types'
 import type { CalendarEvent } from '../Types/CalendarTypes'
+import { loadPendingVaultSends, clearPendingVaultSend } from '../lib/calendarEventStore'
+import { useCalendarStore } from '../stores/useCalendarStore'
 
 const logger = createLogger('CalendarVault')
 
@@ -169,6 +171,28 @@ export function useCalendarVault(): UseCalendarVaultResult {
       logger.warn('Failed to delete vault messages:', e instanceof Error ? e.message : e)
     }
   }, [clinicId])
+
+  // Drain pending vault sends on mount and whenever connectivity returns.
+  // Events queued offline (e.g. algorithm metrics) are re-sent here.
+  useEffect(() => {
+    if (!clinicId || !userId) return
+    const drain = async () => {
+      const pending = await loadPendingVaultSends()
+      if (pending.length === 0) return
+      logger.info(`Draining ${pending.length} pending vault sends`)
+      for (const item of pending) {
+        const originId = await sendEvent('c', item.event)
+        if (originId) {
+          await clearPendingVaultSend(item.id)
+          useCalendarStore.getState().updateEvent(item.id, { originId })
+        }
+      }
+    }
+    // Drain immediately — covers the case where app restarts while already online.
+    drain()
+    window.addEventListener('online', drain)
+    return () => window.removeEventListener('online', drain)
+  }, [sendEvent, clinicId, userId])
 
   return {
     ready: !!clinicId && !!userId,

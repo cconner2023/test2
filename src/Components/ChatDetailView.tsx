@@ -7,7 +7,7 @@ import { ContactListItem } from './Settings/ContactListItem'
 import { useAuth } from '../Hooks/useAuth'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useImagePaste } from '../Hooks/useImagePaste'
-import { useIOSKeyboard, isIOS } from '../Hooks/useIOSKeyboard'
+import { useIOSKeyboard } from '../Hooks/useIOSKeyboard'
 import { useChatInteractions } from '../Hooks/useChatInteractions'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useVoiceRecorder } from '../Hooks/useVoiceRecorder'
@@ -172,7 +172,7 @@ export function ChatDetailView({
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { isKeyboardOpen, keyboardHeight } = useIOSKeyboard()
+  const { isKeyboardOpen } = useIOSKeyboard()
 
   const [threadClosing, setThreadClosing] = useState(false)
   const messages = conversations[conversationId] ?? []
@@ -405,7 +405,6 @@ export function ChatDetailView({
         <div
           data-tour="messages-input"
           className="px-4 pt-3 pb-8 md:pb-3"
-          style={isIOS && keyboardHeight > 0 ? { paddingBottom: keyboardHeight } : undefined}
         >
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
 
@@ -462,6 +461,9 @@ export function ChatDetailView({
                   value={text}
                   onChange={e => setText(e.target.value)}
                   onKeyDown={handleKeyDown}
+                  onFocus={() => requestAnimationFrame(() => {
+                    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
+                  })}
                   placeholder={placeholder}
                   className="w-full bg-transparent outline-none text-[16px] text-tertiary px-3.5 py-2.5
                       rounded-2xl min-w-0 placeholder:text-tertiary/30 resize-none leading-snug"

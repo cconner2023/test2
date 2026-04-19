@@ -369,11 +369,11 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         style={{ backgroundColor: theme === 'dark' ? 'rgb(15, 25, 35)' : 'rgb(240, 242, 245)' }}
       />
 
-      {/* MGRS readout — top-right pill */}
+      {/* MGRS readout — top-left pill */}
       <button
         type="button"
         onClick={handleCopyMgrs}
-        className="absolute right-3 z-[1000] flex items-center gap-1.5
+        className="absolute left-3 z-[1000] flex items-center gap-1.5
           bg-themewhite2/90 dark:bg-themewhite3/90 backdrop-blur-sm
           text-primary text-xs font-mono px-2.5 py-1.5 rounded-lg shadow-sm
           active:scale-95 transition-all select-none"

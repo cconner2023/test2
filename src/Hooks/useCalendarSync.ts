@@ -3,8 +3,13 @@
  *
  * Startup sequence:
  *  1. Load tombstones (prevents resurrecting deleted events).
- *  2. Load persisted events from IndexedDB (survives across sessions).
- *  3. Merge with any vault-replayed events (incremental — only unread).
+ *  2. Load persisted events from IndexedDB.
+ *  3. Merge with vault-replayed events already in the store.
+ *
+ * Vault replay is full (replay-all, age-pruned 90 days) so the store is
+ * authoritative after processClinicVaultMessages() completes. IDB events
+ * whose vault message was hard-deleted (i.e. deleted on another device)
+ * are excluded from the merge to prevent resurrection.
  *
  * Cold-start replay is handled by processClinicVaultMessages() in the
  * login flow (useAuthStore). Realtime incoming events are handled by
@@ -42,12 +47,22 @@ export function useCalendarSync() {
         clearExpiredTombstones().catch(() => {})
 
         const idbEvents = await loadCalendarEvents()
-        const idbLive = idbEvents.filter(e => !getTombstones().has(e.id))
 
-        // Vault replay may have routed events to the Zustand store before hydration
-        // (IDB writes are gated on hydrated=true, so those events aren't persisted yet).
-        // Merge IDB events with any vault-replayed events already in the store.
+        // Vault replay is authoritative — it replays ALL vault messages on every login
+        // (no ACK pruning). Any IDB event absent from the vault-replayed store either:
+        //   (a) was deleted on another device (vault 'c' was hard-deleted), or
+        //   (b) aged out past 90 days.
+        // In both cases the IDB copy is stale and must not be merged in.
+        //
+        // Exception: events with no originId were created locally and never vaulted
+        // (pending sends). Keep those — the drain will send them.
         const storeEvents = useCalendarStore.getState().events
+        const vaultIds = new Set(storeEvents.map(e => e.id))
+        const idbLive = idbEvents.filter(e => {
+          if (getTombstones().has(e.id)) return false
+          return vaultIds.has(e.id) || !e.originId
+        })
+
         const merged = new Map<string, typeof storeEvents[number]>()
         for (const e of idbLive) merged.set(e.id, e)
         // Vault-replayed events take precedence (newer state)

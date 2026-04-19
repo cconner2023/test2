@@ -14,6 +14,7 @@ import { ConnectorDots } from './ConnectorDots';
 import { ALGORITHM_TIMING } from '../Utilities/constants';
 import { useNavigationStore } from '../stores/useNavigationStore';
 import { useTourContext } from './Tour/TourProvider';
+import { useAlgorithmMetrics } from '../Hooks/useAlgorithmMetrics';
 import type { SearchResultType } from '../Types/CatTypes';
 
 interface AlgorithmPageProps {
@@ -53,6 +54,8 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
         setScreenerResults,
         setActionStatus,
     } = useAlgorithm(algorithmOptions);
+
+    const { recordOpen, recordCompletion } = useAlgorithmMetrics();
 
     // Screener drawer state
     const [openScreenerCardIndex, setOpenScreenerCardIndex] = useState<number | null>(null);
@@ -166,6 +169,8 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
     const handleExpandNote = () => {
         if (!currentDisposition || !selectedSymptom) return;
 
+        recordCompletion(selectedSymptom.icon || '', selectedSymptom.text || '');
+
         openWriteNote({
             disposition: currentDisposition,
             algorithmOptions,
@@ -177,10 +182,11 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
         });
     };
 
-    // Reset initial scroll flag when algorithm changes
+    // Reset initial scroll flag when algorithm changes; record open time for metrics
     useEffect(() => {
         initialScrollDone.current = false;
-    }, [selectedSymptom?.id, algorithm]);
+        if (selectedSymptom?.icon) recordOpen(selectedSymptom.icon);
+    }, [selectedSymptom?.id, algorithm, recordOpen]);
 
     // Initial scroll when algorithm loads
     useEffect(() => {

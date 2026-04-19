@@ -47,9 +47,19 @@ export function EventCard({ event, onSelect, onContextMenu }: EventCardProps) {
               </span>
             )}
           </div>
+          {event.status === 'in_progress' && (
+            <span className="inline-block mt-1 text-[10px] font-semibold text-themeblue1 bg-themeblue1/10 rounded px-1.5 py-0.5 uppercase tracking-wide">
+              Active
+            </span>
+          )}
+          {event.status === 'completed' && (
+            <span className="inline-block mt-1 text-[10px] font-semibold text-themegreen bg-themegreen/10 rounded px-1.5 py-0.5 uppercase tracking-wide">
+              Done
+            </span>
+          )}
           {event.status === 'cancelled' && (
-            <span className="inline-block mt-1 text-[10px] font-medium text-themeredred bg-themeredred/10 rounded px-1.5 py-0.5">
-              CANCELLED
+            <span className="inline-block mt-1 text-[10px] font-semibold text-themeredred bg-themeredred/10 rounded px-1.5 py-0.5 uppercase tracking-wide">
+              Cancelled
             </span>
           )}
         </div>

@@ -1,7 +1,7 @@
 export type EventCategory =
   | 'training' | 'duty' | 'range' | 'appointment' | 'mission' | 'other'
 
-export type EventStatus = 'planned' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
+export type EventStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
 
 import type { ResourceAllocation, StructuredLocation } from './MissionTypes'
 

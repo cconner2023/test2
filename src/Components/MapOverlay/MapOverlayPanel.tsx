@@ -106,6 +106,7 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
   const inProgressFeatureId = useRef<string | null>(null);
 
   const mapRef = useRef<MapViewHandle>(null);
+  const hasAutoNavigated = useRef(false);
   const [searchPending, setSearchPending] = useState(false);
 
   const { position, startWatching, stopWatching } = useGeolocation();
@@ -118,19 +119,34 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
 
   const selectedFeature = features.find(f => f.id === selectedFeatureId) ?? null;
 
-  // ── Load overlays when panel becomes visible ──
+  // ── Load overlays + auto-navigate to viewer on first open ──
   useEffect(() => {
-    if (!isVisible || !clinicId) return;
+    if (!isVisible) {
+      hasAutoNavigated.current = false;
+      return;
+    }
+    if (!clinicId) return;
     let cancelled = false;
     setLoading(true);
     getOverlays(clinicId).then((result) => {
       if (cancelled) return;
-      if (result.ok) {
-        setOverlays(result.data);
-      }
+      const loaded: LocalMapOverlay[] = result.ok ? result.data : [];
+      if (result.ok) setOverlays(loaded);
       setLoading(false);
+      if (!hasAutoNavigated.current) {
+        hasAutoNavigated.current = true;
+        if (loaded.length > 0) {
+          const latest = loaded.reduce((best, o) =>
+            new Date(o.updated_at) > new Date(best.updated_at) ? o : best
+          );
+          handleOpenOverlay(latest as MapOverlay);
+        } else {
+          handleNewOverlay();
+        }
+      }
     });
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isVisible, clinicId]);
 
   // ── Auto-clear save error ──
@@ -549,35 +565,39 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
               </div>
             )}
 
-            {/* Sub-header: back + search/spacer + toolbar pill */}
+            {/* Sub-header: back + search (static — toolbar is now a map FAB) */}
             <div className={
               isMobile
                 ? 'absolute top-0 left-0 right-0 z-[1001] flex items-center gap-2 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))]'
                 : 'flex items-center gap-2 px-3 py-2 border-b border-tertiary/10'
             }>
               {isMobile ? (
-                <HeaderPill>
-                  <PillButton icon={ChevronLeft} onClick={handleBack} label="Back to list" />
+                <HeaderPill multi>
+                  <PillButton icon={ChevronLeft} onClick={handleBack} label="Overlays" />
+                  <button
+                    type="button"
+                    onClick={handleBack}
+                    className="text-xs font-medium text-primary truncate max-w-[6rem] pr-2 pl-0.5 active:opacity-60 transition-opacity"
+                  >
+                    {overlayName || 'New Overlay'}
+                  </button>
                 </HeaderPill>
               ) : (
                 <button
                   type="button"
                   onClick={handleBack}
-                  className="p-1.5 shrink-0 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
-                  aria-label="Back to list"
+                  className="flex items-center gap-1 p-1.5 shrink-0 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
+                  aria-label="Overlays"
                 >
                   <ChevronLeft size={20} className="text-tertiary" />
+                  <span className="text-xs text-secondary truncate max-w-[7rem]">
+                    {overlayName || 'New Overlay'}
+                  </span>
                 </button>
               )}
 
-              {/* Search — clinic-style: full pill when empty, X + check spring in with text */}
-              <animated.div
-                className="min-w-0 overflow-hidden flex items-center gap-1.5"
-                style={{
-                  flex: toolbarSpring.progress.to((p: number) => `${1 - p} 1 0%`),
-                  opacity: toolbarSpring.progress.to((p: number) => 1 - p),
-                }}
-              >
+              {/* Search — always full-width */}
+              <div className="flex flex-1 items-center gap-1.5 min-w-0 overflow-hidden">
                 <div className="relative flex flex-1 items-center rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
                   <Search size={16} className="absolute left-3 text-tertiary/50 pointer-events-none" />
                   <input
@@ -608,188 +628,7 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                     </button>
                   </>
                 )}
-              </animated.div>
-
-              {/* Toolbar pill — right side, expands to fill search area */}
-              <animated.div
-                className="relative"
-                style={{
-                  flex: toolbarSpring.progress.to((p: number) => `${p} 0 auto`),
-                }}
-              >
-                <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 flex items-center shadow-sm">
-                  {/* Tools — Pan (left anchor) through Save (right anchor), spread evenly */}
-                  <animated.div
-                    className="flex items-center overflow-hidden justify-between"
-                    style={{
-                      flex: toolbarSpring.progress.to((p: number) => `${p} 1 0%`),
-                      maxWidth: toolbarSpring.progress.to((p: number) => `${p * 600}px`),
-                      opacity: toolbarSpring.progress,
-                    }}
-                  >
-                    {/* Pan — left anchor */}
-                    <button
-                      onClick={() => handleModeChange('pan')}
-                      className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'pan' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
-                      title="Pan"
-                    >
-                      <Move size={18} />
-                    </button>
-                    {/* Measure */}
-                    <button
-                      onClick={() => handleModeChange('measure')}
-                      className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'measure' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
-                      title="Measure"
-                    >
-                      <Ruler size={18} />
-                    </button>
-                    {/* Drop Pin */}
-                    <button
-                      onClick={() => handleModeChange('pin')}
-                      className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'pin' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
-                      title="Drop pin"
-                    >
-                      <MapPin size={18} />
-                    </button>
-                    {/* Route */}
-                    <button
-                      onClick={() => handleModeChange('route')}
-                      className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'route' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
-                      title="Route"
-                    >
-                      <Route size={18} />
-                    </button>
-                    {/* Area */}
-                    <button
-                      onClick={() => handleModeChange('area')}
-                      className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'area' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
-                      title="Area"
-                    >
-                      <Pentagon size={18} />
-                    </button>
-                    {/* Edit */}
-                    <button
-                      onClick={() => handleModeChange('edit')}
-                      className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'edit' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
-                      title="Edit feature"
-                    >
-                      <Pencil size={18} />
-                    </button>
-                    {/* Delete — disabled until feature selected */}
-                    <button
-                      onClick={handleDeleteSelected}
-                      disabled={!selectedFeatureId}
-                      className="w-11 h-11 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
-                      title="Delete selected"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </animated.div>
-
-                  {/* Edit/Save toggle — always anchored far right */}
-                  <button
-                    onClick={handleToggleEditing}
-                    className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${isEditing ? 'bg-themegreen text-white' : 'text-tertiary hover:text-primary'}`}
-                    title={isEditing ? 'Save' : 'Edit'}
-                  >
-                    {isEditing ? <Check size={18} /> : <Pencil size={18} />}
-                  </button>
-                </div>
-
-                {/* ── Naming modal — drops below toolbar ── */}
-                {namingFeatureId && (() => {
-                  const namingFeature = features.find(f => f.id === namingFeatureId);
-                  const isWaypoint = namingFeature?.type === 'waypoint';
-                  const PICKER_TYPES: WaypointType[] = ['generic', 'hlz', 'ccp'];
-                  return (
-                    <div className="absolute top-full right-0 mt-1.5 z-[1001] bg-themewhite rounded-xl shadow-lg w-56 p-3 border border-primary/10">
-                      <p className="text-[10pt] font-medium text-primary mb-2">
-                        {isWaypoint ? 'Name this point' : namingFeature?.type === 'route' ? 'Name this route' : 'Name this area'}
-                      </p>
-                      {isWaypoint && (
-                        <div className="flex items-center gap-1.5 mb-2">
-                          {PICKER_TYPES.map((wt) => (
-                            <button
-                              key={wt}
-                              type="button"
-                              onClick={() => setPendingWaypointType(wt)}
-                              className={`flex-1 py-1.5 rounded-lg text-[9pt] font-medium active:scale-95 transition-all
-                                ${pendingWaypointType === wt
-                                  ? 'bg-themeblue3 text-white'
-                                  : 'bg-themewhite2 text-tertiary'}`}
-                            >
-                              {WAYPOINT_LABELS[wt]}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      <input
-                        ref={nameInputRef}
-                        type="text"
-                        value={nameInput}
-                        onChange={(e) => setNameInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleNameConfirm();
-                          if (e.key === 'Escape') handleNameCancel();
-                        }}
-                        placeholder={isWaypoint ? 'e.g. HLZ Eagle, CCP North' : 'e.g. MSR Tampa, Sector 3'}
-                        className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-[10pt] text-primary
-                          placeholder:text-tertiary/40 outline-none focus:border-themeblue2 focus:outline-none
-                          border border-tertiary/20 transition-all"
-                      />
-                      <div className="flex items-center gap-2 mt-2">
-                        <button
-                          onClick={handleNameCancel}
-                          className="flex-1 py-1.5 rounded-lg text-[10pt] text-tertiary hover:bg-primary/5 active:scale-95 transition-all"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={handleNameConfirm}
-                          className="flex-1 py-1.5 rounded-lg bg-themeblue3 text-[10pt] text-white active:scale-95 transition-all"
-                        >
-                          Done
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* ── Save naming modal — drops below toolbar ── */}
-                {savingOverlayName && (
-                  <div className="absolute top-full right-0 mt-1.5 z-[1001] bg-themewhite rounded-xl shadow-lg w-56 p-3 border border-primary/10">
-                    <p className="text-[10pt] font-medium text-primary mb-2">Name this overlay</p>
-                    <input
-                      type="text"
-                      value={overlayName}
-                      onChange={(e) => setOverlayName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSaveConfirm();
-                        if (e.key === 'Escape') setSavingOverlayName(false);
-                      }}
-                      placeholder="e.g. Patrol Route Alpha"
-                      className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-[10pt] text-primary
-                        placeholder:text-tertiary/40 outline-none focus:border-themeblue2 focus:outline-none
-                        border border-tertiary/20 transition-all"
-                      autoFocus
-                    />
-                    <div className="flex items-center gap-2 mt-2">
-                      <button
-                        onClick={() => setSavingOverlayName(false)}
-                        className="flex-1 py-1.5 rounded-lg text-[10pt] text-tertiary hover:bg-primary/5 active:scale-95 transition-all"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleSaveConfirm}
-                        className="flex-1 py-1.5 rounded-lg bg-themeblue3 text-[10pt] text-white active:scale-95 transition-all"
-                      >
-                        Save
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </animated.div>
+              </div>
             </div>
 
             {/* Map area */}
@@ -809,6 +648,161 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                 measureResult={measureResult}
                 center={initialCenter ?? undefined}
               />
+
+              {/* ── FAB toolbar — Property-style floating pill, top-right of map ── */}
+              <div
+                className="absolute right-3 z-[1002] flex flex-col items-end"
+                style={{ top: isMobile ? '68px' : '12px' }}
+              >
+                <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 flex items-center shadow-sm">
+                  <animated.div
+                    className="flex items-center overflow-hidden"
+                    style={{
+                      maxWidth: toolbarSpring.progress.to((p: number) => `${p * 360}px`),
+                      opacity: toolbarSpring.progress,
+                    }}
+                  >
+                    <button
+                      onClick={() => handleModeChange('pan')}
+                      className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'pan' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+                      title="Pan"
+                    >
+                      <Move size={17} />
+                    </button>
+                    <button
+                      onClick={() => handleModeChange('measure')}
+                      className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'measure' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+                      title="Measure"
+                    >
+                      <Ruler size={17} />
+                    </button>
+                    <button
+                      onClick={() => handleModeChange('pin')}
+                      className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'pin' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+                      title="Drop pin"
+                    >
+                      <MapPin size={17} />
+                    </button>
+                    <button
+                      onClick={() => handleModeChange('route')}
+                      className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'route' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+                      title="Route"
+                    >
+                      <Route size={17} />
+                    </button>
+                    <button
+                      onClick={() => handleModeChange('area')}
+                      className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'area' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+                      title="Area"
+                    >
+                      <Pentagon size={17} />
+                    </button>
+                    <button
+                      onClick={() => handleModeChange('edit')}
+                      className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'edit' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+                      title="Edit feature"
+                    >
+                      <Pencil size={17} />
+                    </button>
+                    <div className="h-5 w-px shrink-0 bg-tertiary/15" />
+                    <button
+                      onClick={handleDeleteSelected}
+                      disabled={!selectedFeatureId}
+                      className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
+                      title="Delete selected"
+                    >
+                      <Trash2 size={17} />
+                    </button>
+                  </animated.div>
+
+                  {/* Anchored edit/save toggle — always visible */}
+                  <button
+                    onClick={handleToggleEditing}
+                    className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${isEditing ? 'bg-themegreen text-white' : 'text-tertiary hover:text-primary'}`}
+                    title={isEditing ? 'Save' : 'Edit'}
+                  >
+                    {isEditing ? <Check size={18} /> : <Pencil size={18} />}
+                  </button>
+                </div>
+
+                {/* ── Naming modal — drops below FAB ── */}
+                {namingFeatureId && (() => {
+                  const namingFeature = features.find(f => f.id === namingFeatureId);
+                  const isWaypoint = namingFeature?.type === 'waypoint';
+                  const PICKER_TYPES: WaypointType[] = ['generic', 'hlz', 'ccp'];
+                  return (
+                    <div className="mt-1.5 bg-themewhite rounded-xl shadow-lg w-56 p-3 border border-primary/10">
+                      <p className="text-[10pt] font-medium text-primary mb-2">
+                        {isWaypoint ? 'Name this point' : namingFeature?.type === 'route' ? 'Name this route' : 'Name this area'}
+                      </p>
+                      {isWaypoint && (
+                        <div className="flex items-center gap-1.5 mb-2">
+                          {PICKER_TYPES.map((wt) => (
+                            <button
+                              key={wt}
+                              type="button"
+                              onClick={() => setPendingWaypointType(wt)}
+                              className={`flex-1 py-1.5 rounded-lg text-[9pt] font-medium active:scale-95 transition-all
+                                ${pendingWaypointType === wt ? 'bg-themeblue3 text-white' : 'bg-themewhite2 text-tertiary'}`}
+                            >
+                              {WAYPOINT_LABELS[wt]}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <input
+                        ref={nameInputRef}
+                        type="text"
+                        value={nameInput}
+                        onChange={(e) => setNameInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleNameConfirm();
+                          if (e.key === 'Escape') handleNameCancel();
+                        }}
+                        placeholder={isWaypoint ? 'e.g. HLZ Eagle, CCP North' : 'e.g. MSR Tampa, Sector 3'}
+                        className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-[10pt] text-primary
+                          placeholder:text-tertiary/40 outline-none border border-tertiary/20 transition-all"
+                      />
+                      <div className="flex items-center gap-2 mt-2">
+                        <button onClick={handleNameCancel} className="flex-1 py-1.5 rounded-lg text-[10pt] text-tertiary hover:bg-primary/5 active:scale-95 transition-all">
+                          Cancel
+                        </button>
+                        <button onClick={handleNameConfirm} className="flex-1 py-1.5 rounded-lg bg-themeblue3 text-[10pt] text-white active:scale-95 transition-all">
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* ── Save naming modal — drops below FAB ── */}
+                {savingOverlayName && (
+                  <div className="mt-1.5 bg-themewhite rounded-xl shadow-lg w-56 p-3 border border-primary/10">
+                    <p className="text-[10pt] font-medium text-primary mb-2">Name this overlay</p>
+                    <input
+                      type="text"
+                      value={overlayName}
+                      onChange={(e) => setOverlayName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveConfirm();
+                        if (e.key === 'Escape') setSavingOverlayName(false);
+                      }}
+                      placeholder="e.g. Patrol Route Alpha"
+                      className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-[10pt] text-primary
+                        placeholder:text-tertiary/40 outline-none border border-tertiary/20 transition-all"
+                      autoFocus
+                    />
+                    <div className="flex items-center gap-2 mt-2">
+                      <button onClick={() => setSavingOverlayName(false)} className="flex-1 py-1.5 rounded-lg text-[10pt] text-tertiary hover:bg-primary/5 active:scale-95 transition-all">
+                        Cancel
+                      </button>
+                      <button onClick={handleSaveConfirm} className="flex-1 py-1.5 rounded-lg bg-themeblue3 text-[10pt] text-white active:scale-95 transition-all">
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Search spinner overlay */}
               <animated.div

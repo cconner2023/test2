@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Clock, Plus, Users2, CalendarDays, X, Check, Pencil, Trash2, CalendarPlus } from 'lucide-react'
+import { Clock, Plus, Users2, CalendarDays, X, Check, Pencil, Trash2, CalendarPlus, Play, CheckCircle2, Ban } from 'lucide-react'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { useShallow } from 'zustand/react/shallow'
 import { useIsMobile } from '../../Hooks/useIsMobile'
@@ -24,7 +24,7 @@ import type { OverlayOption } from './EventForm'
 import { MissionBoard } from '../Mission/MissionBoard'
 import type { ResourceAllocation } from '../../Types/MissionTypes'
 import { getInitials } from '../../Utilities/nameUtils'
-import type { CalendarEvent, EventFormData } from '../../Types/CalendarTypes'
+import type { CalendarEvent, EventFormData, EventStatus } from '../../Types/CalendarTypes'
 import {
   eventToFormData, toDateKey, eventFallsOnDate, generateId, createEmptyFormData,
 } from '../../Types/CalendarTypes'
@@ -265,7 +265,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
         title: data.title,
         description: data.description || null,
         category: data.category,
-        status: 'planned',
+        status: 'pending',
         start_time: data.start_time,
         end_time: data.end_time,
         all_day: data.all_day,
@@ -388,6 +388,19 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     updateEvent(missionBoardEventId, updatedEvent)
     setMissionBoardEventId(null)
   }, [missionBoardEventId, events, updateEvent, vaultSendEvent, vaultDeleteEvents])
+
+  const handleStatusChange = useCallback((eventId: string, status: EventStatus) => {
+    const event = events.find(e => e.id === eventId)
+    if (!event) return
+    const updatedEvent: CalendarEvent = { ...event, status, updated_at: new Date().toISOString() }
+    const oldOriginIds = event.originId ? [event.originId] : []
+    if (oldOriginIds.length > 0) vaultDeleteEvents(oldOriginIds).catch(() => {})
+    vaultSendEvent('c', updatedEvent).then(newOriginId => {
+      if (newOriginId) updateEvent(eventId, { originId: newOriginId })
+    }).catch(() => {})
+    updateEvent(eventId, { status })
+    setContextMenu(null)
+  }, [events, updateEvent, vaultSendEvent, vaultDeleteEvents])
 
   const handleEventContextMenu = useCallback((eventId: string, x: number, y: number) => {
     if (isMobile) return
@@ -795,17 +808,27 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
       {deleteConfirmDialog}
 
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          onClose={() => setContextMenu(null)}
-          items={[
-            { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => handleEditEvent(contextMenu.eventId) },
-            { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteEvent(contextMenu.eventId) },
-          ]}
-        />
-      )}
+      {contextMenu && (() => {
+        const ctxEvent = events.find(e => e.id === contextMenu.eventId)
+        const statusItems: ContextMenuItem[] = ctxEvent ? [
+          ...(ctxEvent.status !== 'pending'     ? [{ key: 'status-pending',     label: 'Pending',      icon: Clock,        onAction: () => handleStatusChange(contextMenu.eventId, 'pending') }] : []),
+          ...(ctxEvent.status !== 'in_progress' ? [{ key: 'status-inprogress',  label: 'Active',       icon: Play,         onAction: () => handleStatusChange(contextMenu.eventId, 'in_progress') }] : []),
+          ...(ctxEvent.status !== 'completed'   ? [{ key: 'status-completed',   label: 'Done',         icon: CheckCircle2, onAction: () => handleStatusChange(contextMenu.eventId, 'completed') }] : []),
+          ...(ctxEvent.status !== 'cancelled'   ? [{ key: 'status-cancelled',   label: 'Cancel',       icon: Ban,          onAction: () => handleStatusChange(contextMenu.eventId, 'cancelled'), destructive: true }] : []),
+        ] : []
+        return (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            onClose={() => setContextMenu(null)}
+            items={[
+              ...statusItems,
+              { key: 'edit',   label: 'Edit',   icon: Pencil, onAction: () => handleEditEvent(contextMenu.eventId) },
+              { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteEvent(contextMenu.eventId) },
+            ]}
+          />
+        )
+      })()}
 
       {dayContextMenu && (
         <ContextMenu

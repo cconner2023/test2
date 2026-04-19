@@ -102,7 +102,7 @@ export function MissionMapCard({ onOpenMap }: MissionMapCardProps) {
         className="w-full flex items-center gap-2 px-3 py-2.5 active:bg-themeblue2/5"
         onClick={() => setExpanded(e => !e)}
       >
-        <span className="text-xs font-medium text-primary flex-1 text-left">Tactical Map</span>
+        <span className="text-xs font-medium text-primary flex-1 text-left">Map</span>
         {position && (
           <span className="text-[10px] text-secondary">GPS</span>
         )}

@@ -32,7 +32,7 @@ export function createCalendarTourEvent(clinicId: string, userId: string): impor
     title: 'Table XII Support',
     description: 'Guided tour demo event.',
     category: 'training',
-    status: 'planned',
+    status: 'pending',
     start_time: `${dateKey}T00:00`,
     end_time: `${dateKey}T23:59`,
     all_day: true,

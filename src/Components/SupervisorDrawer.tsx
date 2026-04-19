@@ -164,7 +164,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         title: `Training: ${taskTitle}`,
         description: notes || '',
         category: 'training' as const,
-        status: 'planned' as const,
+        status: 'pending' as const,
         start_time: `${dueDate}T00:00`,
         end_time: `${dueDate}T23:59`,
         all_day: true,

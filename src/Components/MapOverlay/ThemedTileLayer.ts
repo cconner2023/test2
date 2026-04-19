@@ -12,15 +12,15 @@ export interface TileTheme {
 }
 
 export const TILE_THEME_LIGHT: TileTheme = {
-  background: [240, 242, 245],   // themewhite2
-  foreground: [0, 66, 92],       // themeblue3
-  accent: [129, 161, 181],       // themeblue1
+  background: [238, 241, 245],   // themewhite2
+  foreground: [8, 18, 28],       // near-black — crisp text/roads
+  accent: [88, 128, 152],        // mid-blue features (water, parks)
 };
 
 export const TILE_THEME_DARK: TileTheme = {
-  background: [15, 25, 35],      // themewhite (dark)
-  foreground: [129, 161, 181],   // themeblue1
-  accent: [0, 66, 92],           // themeblue3
+  background: [14, 22, 32],      // themewhite (dark)
+  foreground: [200, 215, 228],   // near-white — crisp text/roads
+  accent: [35, 72, 98],          // deep blue features
 };
 
 const TILE_SUBDOMAINS = ['a', 'b', 'c'];
@@ -83,15 +83,18 @@ function recolorPixels(data: Uint8ClampedArray, colors: TileTheme): void {
 
     let r: number, g: number, b: number;
 
-    if (lum < 0.35) {
-      // Dark pixels → foreground to accent
-      const t = lum / 0.35;
+    if (lum < 0.10) {
+      // Very dark pixels (text, outlines) → pure foreground for maximum contrast
+      r = fg[0]; g = fg[1]; b = fg[2];
+    } else if (lum < 0.38) {
+      // Anti-aliasing / dark mid-tones → blend fg → ac
+      const t = (lum - 0.10) / 0.28;
       r = fg[0] + (ac[0] - fg[0]) * t;
       g = fg[1] + (ac[1] - fg[1]) * t;
       b = fg[2] + (ac[2] - fg[2]) * t;
     } else if (lum < 0.65) {
-      // Mid-range → accent
-      const t = (lum - 0.35) / 0.3;
+      // Mid-range → accent to background
+      const t = (lum - 0.38) / 0.27;
       r = ac[0] + (bg[0] - ac[0]) * t * 0.3;
       g = ac[1] + (bg[1] - ac[1]) * t * 0.3;
       b = ac[2] + (bg[2] - ac[2]) * t * 0.3;

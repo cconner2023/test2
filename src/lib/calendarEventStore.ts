@@ -24,6 +24,12 @@ interface CalendarTombstone {
   deletedAt: number
 }
 
+interface PendingVaultSend {
+  id: string
+  event: Partial<CalendarEvent> & { id: string }
+  queuedAt: number
+}
+
 interface CalendarEventsDB extends DBSchema {
   events: {
     key: string
@@ -33,10 +39,14 @@ interface CalendarEventsDB extends DBSchema {
     key: string
     value: CalendarTombstone
   }
+  pendingVaultSends: {
+    key: string
+    value: PendingVaultSend
+  }
 }
 
 const DB_NAME = 'adtmc-calendar-events'
-const DB_VERSION = 2
+const DB_VERSION = 3
 
 const { getDb, destroy: destroyDb } = createIdbSingleton<CalendarEventsDB>(
   DB_NAME,
@@ -48,6 +58,9 @@ const { getDb, destroy: destroyDb } = createIdbSingleton<CalendarEventsDB>(
       }
       if (oldVersion < 2) {
         db.createObjectStore('tombstones', { keyPath: 'id' })
+      }
+      if (oldVersion < 3) {
+        db.createObjectStore('pendingVaultSends', { keyPath: 'id' })
       }
     },
   },
@@ -156,6 +169,49 @@ export async function loadCalendarTombstones(): Promise<Set<string>> {
   } catch (e) {
     logger.warn('Failed to load calendar tombstones:', e)
     return new Set()
+  }
+}
+
+// ---- Pending Vault Send Queue ----
+
+/** Queue a calendar event for vault fan-out retry when connectivity returns. */
+export async function queuePendingVaultSend(event: Partial<CalendarEvent> & { id: string }): Promise<void> {
+  try {
+    const db = await getDb()
+    await db.put('pendingVaultSends', { id: event.id, event, queuedAt: Date.now() })
+  } catch (e) {
+    logger.warn('Failed to queue pending vault send:', e)
+  }
+}
+
+/** Load all queued vault sends pending retry. */
+export async function loadPendingVaultSends(): Promise<PendingVaultSend[]> {
+  try {
+    const db = await getDb()
+    return db.getAll('pendingVaultSends')
+  } catch (e) {
+    logger.warn('Failed to load pending vault sends:', e)
+    return []
+  }
+}
+
+/** Remove a successfully sent event from the retry queue. */
+export async function clearPendingVaultSend(id: string): Promise<void> {
+  try {
+    const db = await getDb()
+    await db.delete('pendingVaultSends', id)
+  } catch (e) {
+    logger.warn('Failed to clear pending vault send:', e)
+  }
+}
+
+/** Clear all pending vault sends — called on logout alongside clearCalendarEvents(). */
+export async function clearAllPendingVaultSends(): Promise<void> {
+  try {
+    const db = await getDb()
+    await db.clear('pendingVaultSends')
+  } catch (e) {
+    logger.warn('Failed to clear pending vault sends:', e)
   }
 }
 

@@ -25,7 +25,7 @@ import { useCallStore } from './useCallStore'
 import { unregisterDevice, deleteKeyBundle, primaryLogoutAll, initLoRaMesh } from '../lib/signal/signalService'
 import { secureSet, secureGet, secureRemove, persistSupabaseAuth, destroySecureStore } from '../lib/secureStorage'
 import { clearOutboundQueue, destroyOutboundQueue } from '../lib/signal/outboundQueue'
-import { clearCalendarEvents } from '../lib/calendarEventStore'
+import { clearCalendarEvents, clearAllPendingVaultSends } from '../lib/calendarEventStore'
 import { useCalendarStore } from './useCalendarStore'
 import { clearBackupKey, createBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
 import { processVaultMessages, clearVaultKey } from '../lib/signal/vaultDevice'
@@ -331,6 +331,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     // logout types. Tombstones prevent vault replay from resurrecting deleted
     // events — destroying the DB wipes them, creating a resurrection vector.
     clearCalendarEvents().catch(() => {})
+    clearAllPendingVaultSends().catch(() => {})
 
     if (wasPrimary) {
       // Primary logout: destroy entire IDB databases (nuke containers + encryption key).
