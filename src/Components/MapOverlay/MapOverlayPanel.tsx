@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useSpring, animated } from '@react-spring/web';
-import { ChevronLeft, Compass, Move, MapPin, Route, Pentagon, Pencil, Trash2, Check, X, Search, RefreshCw, Ruler } from 'lucide-react';
+import { ChevronLeft, Compass, Move, MapPin, Route, Pentagon, Pencil, Trash2, Check, X, Search, RefreshCw, Ruler, Wifi } from 'lucide-react';
 import { LoadingSpinner } from '../LoadingSpinner';
 import { forward } from 'mgrs';
 import { BaseDrawer } from '../BaseDrawer';
@@ -11,6 +11,12 @@ import { useGeolocation } from '../../Hooks/useGeolocation';
 import { useIsMobile } from '../../Hooks/useIsMobile';
 import { useAuth } from '../../Hooks/useAuth';
 import { getOverlays, saveOverlay, deleteOverlay } from '../../lib/mapOverlayService';
+import {
+  downloadTilesForOverlay,
+  evictOverlayTiles,
+  getAllTileMeta,
+  type TileMetadata,
+} from '../../lib/mapTileService';
 import { getClinicDetails } from '../../lib/supervisorService';
 import type { OverlayFeature, DrawMode, WaypointType } from '../../Types/MapOverlayTypes';
 import type { LocalMapOverlay, MapOverlay } from '../../Types/MapOverlayTypes';
@@ -109,6 +115,11 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
   const hasAutoNavigated = useRef(false);
   const [searchPending, setSearchPending] = useState(false);
 
+  // Tile cache state
+  const [tileMetaMap, setTileMetaMap] = useState<Map<string, TileMetadata>>(new Map());
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<{ done: number; total: number } | null>(null);
+
   const { position, startWatching, stopWatching } = useGeolocation();
 
   const gpsPosition = position
@@ -128,10 +139,11 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
     if (!clinicId) return;
     let cancelled = false;
     setLoading(true);
-    getOverlays(clinicId).then((result) => {
+    Promise.all([getOverlays(clinicId), getAllTileMeta()]).then(([result, meta]) => {
       if (cancelled) return;
       const loaded: LocalMapOverlay[] = result.ok ? result.data : [];
       if (result.ok) setOverlays(loaded);
+      setTileMetaMap(meta);
       setLoading(false);
       if (!hasAutoNavigated.current) {
         hasAutoNavigated.current = true;
@@ -222,10 +234,46 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
     const result = await deleteOverlay(id, user.id);
     if (result.ok) {
       setOverlays(prev => prev.filter(o => o.id !== id));
+      // Evict cached tiles for deleted overlay (fire-and-forget)
+      evictOverlayTiles(id).then(() => {
+        setTileMetaMap(prev => {
+          const next = new Map(prev);
+          next.delete(id);
+          return next;
+        });
+      });
     } else {
       setSaveError(result.error);
     }
   }, [user]);
+
+  const handleDownloadTiles = useCallback(async (overlay: MapOverlay) => {
+    if (downloadingId) return;
+    setDownloadingId(overlay.id);
+    setDownloadProgress({ done: 0, total: 0 });
+    try {
+      const meta = await downloadTilesForOverlay(
+        overlay.id,
+        overlay.features,
+        (done, total) => setDownloadProgress({ done, total }),
+      );
+      if (meta) {
+        setTileMetaMap(prev => new Map(prev).set(overlay.id, meta));
+      }
+    } finally {
+      setDownloadingId(null);
+      setDownloadProgress(null);
+    }
+  }, [downloadingId]);
+
+  const handleEvictTiles = useCallback(async (id: string) => {
+    await evictOverlayTiles(id);
+    setTileMetaMap(prev => {
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
 
   const handleOpenConverter = useCallback(() => {
     setView('converter');
@@ -536,6 +584,11 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                 onSelect={handleOpenOverlay}
                 onDelete={handleDeleteOverlay}
                 onNewOverlay={handleNewOverlay}
+                tileMeta={tileMetaMap}
+                downloadingId={downloadingId}
+                downloadProgress={downloadProgress}
+                onDownloadTiles={handleDownloadTiles}
+                onEvictTiles={handleEvictTiles}
               />
             )}
             {!isMobile && (
@@ -581,6 +634,11 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                   >
                     {overlayName || 'New Overlay'}
                   </button>
+                  {overlayId && tileMetaMap.has(overlayId) && (
+                    <span className="pr-1.5" title="Tiles cached — available offline">
+                      <Wifi size={13} className="text-themegreen" />
+                    </span>
+                  )}
                 </HeaderPill>
               ) : (
                 <button
@@ -593,6 +651,9 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                   <span className="text-xs text-secondary truncate max-w-[7rem]">
                     {overlayName || 'New Overlay'}
                   </span>
+                  {overlayId && tileMetaMap.has(overlayId) && (
+                    <Wifi size={13} className="text-themegreen shrink-0" title="Tiles cached — available offline" />
+                  )}
                 </button>
               )}
 
@@ -647,6 +708,8 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                 measurePoints={measurePoints}
                 measureResult={measureResult}
                 center={initialCenter ?? undefined}
+                overlayId={overlayId ?? undefined}
+                tilesCached={overlayId ? tileMetaMap.has(overlayId) : false}
               />
 
               {/* ── FAB toolbar — Property-style floating pill, top-right of map ── */}

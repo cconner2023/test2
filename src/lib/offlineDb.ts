@@ -23,6 +23,23 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import type { CompletionType, CompletionResult, Json } from '../Types/database.types'
 import type { LocalPropertyItem, LocalPropertyLocation, LocalDiscrepancy, LocationTag } from '../Types/PropertyTypes'
 import type { LocalMapOverlay } from '../Types/MapOverlayTypes'
+
+// ---- Tile Cache Types ----
+
+export interface TileCacheEntry {
+  key: string  // "overlayId/z/x/y"
+  data: Blob
+}
+
+export interface TileMetadata {
+  overlayId: string  // keyPath
+  bbox: [number, number, number, number]  // [west, south, east, north]
+  tileCount: number
+  sizeBytes: number
+  cachedAt: string
+  zoomMin: number
+  zoomMax: number
+}
 import { createLogger } from '../Utilities/Logger'
 import { encryptString, decryptString } from './secureStorage'
 
@@ -140,10 +157,18 @@ interface PackageBackEndDB extends DBSchema {
       'by-clinic-sync': [string, string]
     }
   }
+  cachedTiles: {
+    key: string  // "overlayId/z/x/y"
+    value: TileCacheEntry
+  }
+  tileMetadata: {
+    key: string  // overlayId
+    value: TileMetadata
+  }
 }
 
 const DB_NAME = 'packagebackend-offline'
-const DB_VERSION = 6
+const DB_VERSION = 7
 
 let dbInstance: IDBPDatabase<PackageBackEndDB> | null = null
 
@@ -240,6 +265,12 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
         const overlaysStore = db.createObjectStore('mapOverlays', { keyPath: 'id' })
         overlaysStore.createIndex('by-clinic', 'clinic_id')
         overlaysStore.createIndex('by-clinic-sync', ['clinic_id', '_sync_status'])
+      }
+
+      // v6 → v7: Offline tile cache stores
+      if (oldVersion < 7) {
+        db.createObjectStore('cachedTiles', { keyPath: 'key' })
+        db.createObjectStore('tileMetadata', { keyPath: 'overlayId' })
       }
     },
   })
@@ -839,7 +870,7 @@ export async function deleteLocalMapOverlay(overlayId: string): Promise<void> {
 export async function clearAllUserData(): Promise<void> {
   const db = await getDb()
   const tx = db.transaction(
-    ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations', 'propertyDiscrepancies', 'locationTags', 'mapOverlays'],
+    ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations', 'propertyDiscrepancies', 'locationTags', 'mapOverlays', 'cachedTiles', 'tileMetadata'],
     'readwrite',
   )
   await tx.objectStore('syncQueue').clear()
@@ -849,6 +880,8 @@ export async function clearAllUserData(): Promise<void> {
   await tx.objectStore('propertyDiscrepancies').clear()
   await tx.objectStore('locationTags').clear()
   await tx.objectStore('mapOverlays').clear()
+  await tx.objectStore('cachedTiles').clear()
+  await tx.objectStore('tileMetadata').clear()
   await tx.done
   logger.info('Cleared all user data from IndexedDB')
 }

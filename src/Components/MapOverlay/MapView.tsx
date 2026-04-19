@@ -5,6 +5,7 @@ import { forward } from 'mgrs';
 import { Plus, Minus, Info, Copy, ClipboardCheck } from 'lucide-react';
 import { useTheme } from '../../Utilities/ThemeContext';
 import { createThemedTileLayer, TILE_THEME_LIGHT, TILE_THEME_DARK } from './ThemedTileLayer';
+import { getTileFromCache } from '../../lib/mapTileService';
 import { createMGRSGridLayer, GRID_THEME_LIGHT, GRID_THEME_DARK } from './MGRSGridLayer';
 import type { OverlayFeature, DrawMode } from '../../Types/MapOverlayTypes';
 import { waypointIconSvg } from './WaypointIcon';
@@ -28,6 +29,9 @@ interface MapViewProps {
   controlsTopOffset?: number;
   measurePoints?: [number, number][];
   measureResult?: { distanceM: number; bearing: number } | null;
+  overlayId?: string;
+  /** Only true when tiles for this overlay have actually been downloaded to IDB */
+  tilesCached?: boolean;
 }
 
 const DEFAULT_CENTER: [number, number] = [38.8977, -77.0365];
@@ -64,6 +68,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   controlsTopOffset = 0,
   measurePoints,
   measureResult,
+  overlayId,
+  tilesCached = false,
 }, ref) {
   const { theme } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -130,6 +136,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     const gridLayer = createMGRSGridLayer(gridTheme);
     gridLayer.addTo(map);
     gridLayerRef.current = gridLayer;
+    // Note: overlayId-aware tile cache is applied in the theme/overlayId effect below
 
     featureLayerRef.current.addTo(map);
     gpsLayerRef.current.addTo(map);
@@ -158,7 +165,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Swap themed tile + grid layers when theme changes
+  // Swap themed tile + grid layers when theme, showGrid, or overlayId changes
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -166,7 +173,10 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     if (gridLayerRef.current) map.removeLayer(gridLayerRef.current);
 
     const tileTheme = theme === 'dark' ? TILE_THEME_DARK : TILE_THEME_LIGHT;
-    const tileLayer = createThemedTileLayer(tileTheme);
+    const tileCache = (overlayId && tilesCached)
+      ? (z: number, x: number, y: number) => getTileFromCache(overlayId, z, x, y)
+      : null;
+    const tileLayer = createThemedTileLayer(tileTheme, tileCache);
     tileLayer.addTo(map);
     tileLayerRef.current = tileLayer;
 
@@ -178,7 +188,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     } else {
       gridLayerRef.current = null;
     }
-  }, [theme, showGrid]);
+  }, [theme, showGrid, overlayId, tilesCached]);
 
   // Map click handler
   useEffect(() => {
@@ -258,7 +268,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         });
 
         if (feature.label) {
-          line.bindTooltip(feature.label, { sticky: true });
+          line.bindTooltip(feature.label, { sticky: true, className: 'leaflet-tooltip-tactical' });
         }
 
         line.on('click', (e) => {
@@ -281,7 +291,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         });
 
         if (feature.label) {
-          polygon.bindTooltip(feature.label, { sticky: true });
+          polygon.bindTooltip(feature.label, { sticky: true, className: 'leaflet-tooltip-tactical' });
         }
 
         polygon.on('click', (e) => {

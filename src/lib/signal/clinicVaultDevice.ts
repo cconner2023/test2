@@ -465,7 +465,6 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
   const sessionMap = new Map<string, { state: RatchetState; ad: Uint8Array }>()
   const processedIds: string[] = []
   let processedCount = 0
-  const consumedOtpIds = new Set<number>()
   const calendarRoutes: CalendarEventContent[] = []
 
   for (const row of rows as SignalMessageRow[]) {
@@ -474,13 +473,20 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
       const senderDeviceId = row.sender_device_id ?? 'unknown'
 
       // Unseal with vault's DH keys
-      const { inner, senderUuid } = await unseal(
-        envelope,
-        clinicId,
-        vaultKeys.dhPrivateKey,
-        vaultKeys.dhPublicKeyBase64,
-        { skipExpiry: true }
-      )
+      let inner: Record<string, unknown>
+      let senderUuid: string
+      try {
+        ;({ inner, senderUuid } = await unseal(
+          envelope,
+          clinicId,
+          vaultKeys.dhPrivateKey,
+          vaultKeys.dhPublicKeyBase64,
+          { skipExpiry: true }
+        ))
+      } catch (e) {
+        logger.error(`Vault unseal failed for message ${row.id}:`, e)
+        continue
+      }
 
       let plaintext: string
       const sessionKey = `${senderUuid}:${senderDeviceId}`
@@ -505,34 +511,47 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
           privateKey: matchedSpk.privateKey,
         }
 
+        // The vault is a replay archive — OTP private keys must NEVER be evicted from the blob.
+        // Every vault message uses fresh X3DH (deleteClinicSession before send), so every
+        // message includes a oneTimePreKeyId. If we remove OTP private keys after the first
+        // successful replay (login N), subsequent logins cannot recompute DH4 → wrong shared
+        // secret → AEAD failure for ALL vault messages.
+        // Solution: look up by keyId only, never mark consumed, never remove from blob.
+        // SPK rotation already re-uploads the full OTP list to the public bundle every 7 days,
+        // so senders continue to have public OTPs to use.
         let otpkPair: { publicKey: CryptoKey; privateKey: CryptoKey } | null = null
         if (initial.oneTimePreKeyId !== null) {
-          const otpk = vaultKeys.preKeys.find(
-            pk => pk.keyId === initial.oneTimePreKeyId && !consumedOtpIds.has(pk.keyId)
-          )
+          const otpk = vaultKeys.preKeys.find(pk => pk.keyId === initial.oneTimePreKeyId)
           if (otpk) {
             otpkPair = { publicKey: otpk.publicKey, privateKey: otpk.privateKey }
-            consumedOtpIds.add(otpk.keyId)
+          } else {
+            logger.warn(`Vault OTP keyId ${initial.oneTimePreKeyId} absent from blob for message ${row.id} — OTP was consumed and removed on a prior login. This message is permanently undecryptable.`)
           }
         }
 
-        const x3dh = await x3dhRespond(
-          {
-            deviceId: CLINIC_VAULT_DEVICE_ID,
-            signingPublicKey: vaultKeys.signingPublicKey,
-            signingPrivateKey: vaultKeys.signingPrivateKey,
-            dhPublicKey: vaultKeys.dhPublicKey,
-            dhPrivateKey: vaultKeys.dhPrivateKey,
-            signingPublicKeyBase64: vaultKeys.signingPublicKeyBase64,
-            dhPublicKeyBase64: vaultKeys.dhPublicKeyBase64,
-            nextPreKeyId: vaultKeys.nextPreKeyId,
-            createdAt: '',
-          },
-          spkPair,
-          otpkPair,
-          initial.identityDhKey,
-          initial.ephemeralKey
-        )
+        let x3dh: Awaited<ReturnType<typeof x3dhRespond>>
+        try {
+          x3dh = await x3dhRespond(
+            {
+              deviceId: CLINIC_VAULT_DEVICE_ID,
+              signingPublicKey: vaultKeys.signingPublicKey,
+              signingPrivateKey: vaultKeys.signingPrivateKey,
+              dhPublicKey: vaultKeys.dhPublicKey,
+              dhPrivateKey: vaultKeys.dhPrivateKey,
+              signingPublicKeyBase64: vaultKeys.signingPublicKeyBase64,
+              dhPublicKeyBase64: vaultKeys.dhPublicKeyBase64,
+              nextPreKeyId: vaultKeys.nextPreKeyId,
+              createdAt: '',
+            },
+            spkPair,
+            otpkPair,
+            initial.identityDhKey,
+            initial.ephemeralKey
+          )
+        } catch (e) {
+          logger.error(`Vault X3DH failed for message ${row.id} (SPK ${initial.signedPreKeyId}):`, e)
+          continue
+        }
 
         const ratchetState = await initReceiver(x3dh.sharedSecret, {
           publicKey: matchedSpk.publicKey,
@@ -570,7 +589,7 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
       processedIds.push(row.id)
       processedCount++
     } catch (e) {
-      logger.error(`Failed to process clinic vault message ${row.id}:`, e instanceof Error ? e.message : e)
+      logger.error(`Failed to process clinic vault message ${row.id}:`, e)
     }
   }
 
@@ -590,11 +609,10 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
     }
   }
 
-  // 6. Rotate SPK and replenish OTPs
+  // 6. Rotate SPK. OTPs are never consumed from the blob (see comment above).
+  // SPK rotation re-uploads the full OTP public list to the key bundle, ensuring senders
+  // continue to have OTPs. replenishClinicVaultPreKeys is intentionally not called here.
   await rotateClinicVaultSPK(clinicId, vaultKeys, vaultRow as VaultDeviceKeysRow)
-  if (consumedOtpIds.size > 0) {
-    await replenishClinicVaultPreKeys(clinicId, vaultKeys, consumedOtpIds, vaultRow as VaultDeviceKeysRow)
-  }
 
   logger.info(`Processed ${processedCount} clinic vault messages`)
   return processedCount

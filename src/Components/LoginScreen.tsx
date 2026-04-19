@@ -170,9 +170,14 @@ export function LoginScreen() {
 
           {error && <div className="mb-3"><ErrorDisplay message={error} /></div>}
 
-          {/* ── Sign In ── */}
-          {view === 'main' && (
-            <>
+          {/* ── View panels ── */}
+          <div className="relative overflow-hidden">
+
+            {/* ── Sign In ── */}
+            <div className={`transition-all duration-300 ease-out ${view === 'main'
+              ? 'relative opacity-100 translate-x-0'
+              : 'absolute inset-x-0 top-0 opacity-0 -translate-x-3 pointer-events-none'
+            }`}>
               <div className="pb-2">
                 <p className="text-[10px] font-semibold text-secondary/70 tracking-widest uppercase">Sign In</p>
               </div>
@@ -184,7 +189,7 @@ export function LoginScreen() {
                     <div className={`transition-all duration-300 ease-out space-y-3 ${forgotStep === null
                       ? 'relative opacity-100 translate-y-0'
                       : 'absolute inset-x-0 top-0 opacity-0 -translate-y-2 pointer-events-none'
-                      }`}>
+                    }`}>
                       {/* Pill selector */}
                       <div className="flex gap-1 p-0.5 rounded-full bg-themewhite dark:bg-themewhite3 border border-themeblue3/10">
                         {(['password', 'qr'] as LoginMode[]).map(m => (
@@ -195,7 +200,7 @@ export function LoginScreen() {
                             className={`flex-1 py-1.5 text-[10px] font-medium rounded-full transition-all duration-200 active:scale-95 ${mode === m
                               ? 'bg-themeblue3 text-white shadow-sm'
                               : 'text-tertiary/50 hover:text-tertiary/70'
-                              }`}
+                            }`}
                           >
                             {m === 'password' ? 'Password' : 'Link Device'}
                           </button>
@@ -207,7 +212,7 @@ export function LoginScreen() {
                         <div className={`transition-all duration-300 ease-out space-y-3 ${mode === 'password'
                           ? 'relative opacity-100 translate-x-0'
                           : 'absolute inset-x-0 top-0 opacity-0 -translate-x-3 pointer-events-none'
-                          }`}>
+                        }`}>
                           <TextInput
                             value={email}
                             onChange={setEmail}
@@ -221,7 +226,7 @@ export function LoginScreen() {
                             placeholder="Password"
                           />
                           <div className={`flex items-center justify-end gap-2 overflow-hidden transition-all duration-300 ease-out ${email.trim() && password ? 'max-h-12 opacity-100 pt-1' : 'max-h-0 opacity-0'
-                            }`}>
+                          }`}>
                             <button
                               type="button"
                               onClick={() => { setEmail(''); setPassword(''); setError(null) }}
@@ -242,7 +247,7 @@ export function LoginScreen() {
                         <div className={`transition-all duration-300 ease-out ${mode === 'qr'
                           ? 'relative opacity-100 translate-x-0'
                           : 'absolute inset-x-0 top-0 opacity-0 translate-x-3 pointer-events-none'
-                          }`}>
+                        }`}>
                           <DeviceLinkQrView />
                         </div>
                       </div>
@@ -252,13 +257,13 @@ export function LoginScreen() {
                     <div className={`transition-all duration-300 ease-out ${forgotStep !== null
                       ? 'relative opacity-100 translate-y-0'
                       : 'absolute inset-x-0 top-0 opacity-0 translate-y-2 pointer-events-none'
-                      }`}>
+                    }`}>
                       <div className="relative">
                         {/* Step 1 — email */}
                         <div className={`transition-all duration-300 ease-out space-y-3 ${forgotStep === 'email'
                           ? 'relative opacity-100 translate-x-0'
                           : 'absolute inset-x-0 top-0 opacity-0 -translate-x-3 pointer-events-none'
-                          }`}>
+                        }`}>
                           <p className="text-xs text-secondary leading-relaxed">
                             Enter your email - if an account exists you'll receive an 8 digit password reset pin.
                           </p>
@@ -291,7 +296,7 @@ export function LoginScreen() {
                         <div className={`transition-all duration-300 ease-out space-y-3 ${forgotStep === 'token'
                           ? 'relative opacity-100 translate-x-0'
                           : 'absolute inset-x-0 top-0 opacity-0 translate-x-3 pointer-events-none'
-                          }`}>
+                        }`}>
                           <p className="text-xs text-secondary leading-relaxed">
                             Check <span className="font-medium text-primary">{email}</span> for an 8-digit reset token and enter it below.
                           </p>
@@ -366,20 +371,21 @@ export function LoginScreen() {
 
               <button
                 onClick={() => switchView('help')}
-                className="w-full text-[10px] text-center text-themeblue3 dark:text-themeblue1 hover:underline mt-1.5 active:scale-95 transition-transform"
+                className="w-full text-xs text-center text-themeblue3 dark:text-themeblue1 hover:underline mt-1.5 active:scale-95 transition-transform"
               >
                 Need help? Contact support
               </button>
 
-              <p className="mt-6 text-[11px] text-center text-secondary/50 leading-relaxed max-w-xs mx-auto">
+              <p className="mt-6 text-xs text-center text-secondary/70 leading-relaxed max-w-xs mx-auto">
                 Not affiliated with or endorsed by the Department of Defense. Clinical references derived from publicly available U.S. Army doctrine.
               </p>
-            </>
-          )}
+            </div>
 
-          {/* ── Help / Support ── */}
-          {view === 'help' && (
-            <>
+            {/* ── Help / Support ── */}
+            <div className={`transition-all duration-300 ease-out ${view === 'help'
+              ? 'relative opacity-100 translate-x-0'
+              : 'absolute inset-x-0 top-0 opacity-0 translate-x-3 pointer-events-none'
+            }`}>
               {helpSubmitted ? (
                 <>
                   <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
@@ -392,57 +398,61 @@ export function LoginScreen() {
                   </button>
                 </>
               ) : (
-                  <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
-                    <form onSubmit={handleSupportSubmit} className="space-y-3">
-                      <TextInput
-                        value={helpName}
-                        onChange={setHelpName}
-                        placeholder="Your name *"
-                        required
-                      />
-                      <TextInput
-                        value={helpEmail}
-                        onChange={setHelpEmail}
-                        type="email"
-                        placeholder="your.email@mail.mil *"
-                        required
-                      />
-                      <textarea
-                        value={helpNotes}
-                        onChange={(e) => setHelpNotes(e.target.value)}
-                        placeholder="How can we help? *"
-                        required
-                        rows={3}
-                        className="w-full px-4 py-2.5 rounded-2xl bg-themewhite dark:bg-themewhite3 text-primary text-sm
-                               border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2
-                               focus:outline-none transition-all duration-300 placeholder:text-tertiary/30 resize-none"
-                      />
-                      <div className="flex items-center justify-end gap-2 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => switchView('main')}
-                          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
-                        >
-                          <X size={18} />
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={loading || !helpName.trim() || !helpEmail.trim() || !helpNotes.trim()}
-                          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
-                        >
-                          {loading ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
-                        </button>
-                      </div>
-                    </form>
-                  </div>
+                <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
+                  <form onSubmit={handleSupportSubmit} className="space-y-3">
+                    <TextInput
+                      value={helpName}
+                      onChange={setHelpName}
+                      placeholder="Your name *"
+                      required
+                    />
+                    <TextInput
+                      value={helpEmail}
+                      onChange={setHelpEmail}
+                      type="email"
+                      placeholder="your.email@mail.mil *"
+                      required
+                    />
+                    <textarea
+                      value={helpNotes}
+                      onChange={(e) => setHelpNotes(e.target.value)}
+                      placeholder="How can we help? *"
+                      required
+                      rows={3}
+                      className="w-full px-4 py-2.5 rounded-2xl bg-themewhite dark:bg-themewhite3 text-primary text-sm
+                             border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2
+                             focus:outline-none transition-all duration-300 placeholder:text-tertiary/30 resize-none"
+                    />
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => switchView('main')}
+                        className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                      >
+                        <X size={18} />
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={loading || !helpName.trim() || !helpEmail.trim() || !helpNotes.trim()}
+                        className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+                      >
+                        {loading ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
+                      </button>
+                    </div>
+                  </form>
+                </div>
               )}
-            </>
-          )}
+            </div>
 
-          {/* ── Request Account ── */}
-          {view === 'request' && (
-            <AccountRequestForm onBack={() => switchView('main')} />
-          )}
+            {/* ── Request Account ── */}
+            <div className={`transition-all duration-300 ease-out ${view === 'request'
+              ? 'relative opacity-100 translate-x-0'
+              : 'absolute inset-x-0 top-0 opacity-0 translate-x-3 pointer-events-none'
+            }`}>
+              <AccountRequestForm onBack={() => switchView('main')} />
+            </div>
+
+          </div>
         </div>
       </div>
     </div>

@@ -25,11 +25,14 @@ export const TILE_THEME_DARK: TileTheme = {
 
 const TILE_SUBDOMAINS = ['a', 'b', 'c'];
 
+type TileCacheFn = (z: number, x: number, y: number) => Promise<Blob | null>;
+
 const ThemedGridLayer = L.GridLayer.extend({
   options: {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom: 19,
     tileTheme: TILE_THEME_LIGHT as TileTheme,
+    tileCache: null as TileCacheFn | null,
   },
 
   createTile(coords: L.Coords, done: L.DoneCallback): HTMLCanvasElement {
@@ -44,32 +47,51 @@ const ThemedGridLayer = L.GridLayer.extend({
       return tile;
     }
 
-    const sub = TILE_SUBDOMAINS[Math.abs(coords.x + coords.y) % TILE_SUBDOMAINS.length];
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = `https://${sub}.tile.openstreetmap.org/${coords.z}/${coords.x}/${coords.y}.png`;
-
     const colors = this.options.tileTheme as TileTheme;
+    const tileCache = this.options.tileCache as TileCacheFn | null;
 
-    img.onload = () => {
-      ctx.drawImage(img, 0, 0, size.x, size.y);
-      try {
-        const imageData = ctx.getImageData(0, 0, size.x, size.y);
-        recolorPixels(imageData.data, colors);
-        ctx.putImageData(imageData, 0, 0);
-      } catch {
-        // CORS tainted canvas — show the uncolored tile rather than blank
-      }
-      done(undefined, tile);
+    const sub = TILE_SUBDOMAINS[Math.abs(coords.x + coords.y) % TILE_SUBDOMAINS.length];
+    const networkUrl = `https://${sub}.tile.openstreetmap.org/${coords.z}/${coords.x}/${coords.y}.png`;
+
+    const renderFromSource = (src: string, isObjectUrl: boolean) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = src;
+
+      img.onload = () => {
+        if (isObjectUrl) URL.revokeObjectURL(src);
+        ctx.drawImage(img, 0, 0, size.x, size.y);
+        try {
+          const imageData = ctx.getImageData(0, 0, size.x, size.y);
+          recolorPixels(imageData.data, colors);
+          ctx.putImageData(imageData, 0, 0);
+        } catch {
+          // CORS tainted canvas — show the uncolored tile rather than blank
+        }
+        done(undefined, tile);
+      };
+
+      img.onerror = () => {
+        if (isObjectUrl) URL.revokeObjectURL(src);
+        ctx.fillStyle = `rgb(${colors.background[0]},${colors.background[1]},${colors.background[2]})`;
+        ctx.fillRect(0, 0, size.x, size.y);
+        done(undefined, tile);
+      };
     };
 
-    img.onerror = () => {
-      ctx.fillStyle = colors.background
-        ? `rgb(${colors.background[0]},${colors.background[1]},${colors.background[2]})`
-        : '#f0f2f5';
-      ctx.fillRect(0, 0, size.x, size.y);
-      done(undefined, tile);
-    };
+    if (tileCache) {
+      tileCache(coords.z, coords.x, coords.y)
+        .then((blob) => {
+          if (blob) {
+            renderFromSource(URL.createObjectURL(blob), true);
+          } else {
+            renderFromSource(networkUrl, false);
+          }
+        })
+        .catch(() => renderFromSource(networkUrl, false));
+    } else {
+      renderFromSource(networkUrl, false);
+    }
 
     return tile;
   },
@@ -112,6 +134,9 @@ function recolorPixels(data: Uint8ClampedArray, colors: TileTheme): void {
   }
 }
 
-export function createThemedTileLayer(tileTheme: TileTheme): L.GridLayer {
-  return new ThemedGridLayer({ tileTheme });
+export function createThemedTileLayer(
+  tileTheme: TileTheme,
+  tileCache?: TileCacheFn | null,
+): L.GridLayer {
+  return new ThemedGridLayer({ tileTheme, tileCache: tileCache ?? null });
 }
