@@ -509,8 +509,8 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
               onClick={() => onViewOnMap(currentParentId)}
               className="flex items-center gap-2 py-1 text-left active:scale-[0.98] transition-all"
             >
-              <MapIcon size={14} className="text-themeblue3 shrink-0" />
-              <span className="text-sm text-themeblue3">View on Map</span>
+              <MapIcon size={14} className="text-themeblue2 shrink-0" />
+              <span className="text-sm text-themeblue2">View on Map</span>
             </button>
           )}
 

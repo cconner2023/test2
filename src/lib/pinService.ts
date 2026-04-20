@@ -10,6 +10,7 @@ const STORAGE_KEYS = {
   lockoutUntil: 'adtmc_pin_lockout_until',
   permanentLock: 'adtmc_pin_permanent_lock',
   inactivityTimeout: 'adtmc_inactivity_timeout_ms',
+  appLockEnabled: 'adtmc_app_lock_enabled',
 } as const
 
 let _pinHash: string | null = null
@@ -54,6 +55,29 @@ async function hydrateLockoutCache(): Promise<void> {
     localStorage.removeItem(STORAGE_KEYS.failures)
   } catch { /* ignore */ }
   _lockoutHydrated = true
+}
+
+// --- App Lock ---
+
+/** True when the app should auto-lock on background/inactivity (independent of PIN existence). */
+export function isAppLockEnabled(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.appLockEnabled) === 'true'
+  } catch {
+    return false
+  }
+}
+
+export function setAppLockEnabled(enabled: boolean): void {
+  try {
+    if (enabled) {
+      localStorage.setItem(STORAGE_KEYS.appLockEnabled, 'true')
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.appLockEnabled)
+    }
+  } catch {
+    // fail silently
+  }
 }
 
 // --- Inactivity timeout config ---
@@ -125,6 +149,7 @@ export function removePin(): void {
     sessionStorage.removeItem(STORAGE_KEYS.unlocked)
     resetLockout()
     clearPinPermanentLock()
+    setAppLockEnabled(false)
   } catch {
     // fail silently
   }
@@ -283,4 +308,10 @@ export async function hydrateFromCloud(hash: string, salt: string): Promise<void
 export async function initPinService(): Promise<void> {
   await hydratePinCache()
   await hydrateLockoutCache()
+  // Migration: existing users with a PIN had implicit app lock — preserve that behavior.
+  try {
+    if (_pinHash && _pinSalt && localStorage.getItem(STORAGE_KEYS.appLockEnabled) === null) {
+      localStorage.setItem(STORAGE_KEYS.appLockEnabled, 'true')
+    }
+  } catch { /* ignore */ }
 }

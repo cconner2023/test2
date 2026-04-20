@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
-import { Pill, BookOpen, Brain, ClipboardList, Calculator } from 'lucide-react'
+import { Pill, BookOpen, Brain, ClipboardList, Calculator, Radio } from 'lucide-react'
 
-export type KBGroup = 'medications' | 'training' | 'screening' | 'calculators'
+export type KBGroup = 'medications' | 'training' | 'screening' | 'calculators' | 'reports'
 
 export interface KBCategory {
     id: string
@@ -76,6 +76,15 @@ export const kbCategories: KBCategory[] = [
         icon: Calculator,
         group: 'calculators',
     },
+
+    // ── Reports ───────────────────────────────────────────────
+    {
+        id: '9-line',
+        label: '9-Line MEDEVAC',
+        description: 'ATP 4-02.2 medevac request',
+        icon: Radio,
+        group: 'reports',
+    },
 ]
 
 export const kbGroupLabels: Record<KBGroup, string> = {
@@ -83,6 +92,7 @@ export const kbGroupLabels: Record<KBGroup, string> = {
     training: 'TRAINING',
     screening: 'SCREENING TOOLS',
     calculators: 'CALCULATORS',
+    reports: 'REPORTS',
 }
 
-export const kbGroupOrder: KBGroup[] = ['medications', 'training', 'screening', 'calculators']
+export const kbGroupOrder: KBGroup[] = ['medications', 'training', 'screening', 'calculators', 'reports']

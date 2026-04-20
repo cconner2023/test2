@@ -11,6 +11,7 @@ import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { VitalSignsCalculator, type VitalSignsCalculatorHandle } from './VitalSignsCalculator'
 import { BurnCalculator } from './BurnCalculator'
 import { BloodProductsReference } from './BloodProductsReference'
+import { NineLineKB } from './Reports/NineLineKB'
 import { KBOverlay } from './KBOverlay'
 import { PreviewOverlay } from './PreviewOverlay'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
@@ -38,6 +39,7 @@ type KBView =
     | 'medication-detail'
     | 'screener'
     | 'burn'
+    | 'report-9line'
 
 interface KnowledgeBaseDrawerProps {
     isVisible: boolean
@@ -150,6 +152,7 @@ export function KnowledgeBaseDrawer({
                 setView('training')
                 setSelectedTask(null)
                 break
+            case '9-line':   setView('report-9line');  break
             default:
                 if (screenerMap[category.id]) {
                     setActiveScreener(screenerMap[category.id])
@@ -186,6 +189,7 @@ export function KnowledgeBaseDrawer({
             case 'medications':
             case 'screener':
             case 'burn':
+            case 'report-9line':
                 setView('home')
                 setActiveScreener(null)
                 break
@@ -233,6 +237,8 @@ export function KnowledgeBaseDrawer({
                 return { title: activeScreener?.title || 'Screener', showBack: true, onBack: handleBack }
             case 'burn':
                 return { title: 'Burn Assessment', showBack: true, onBack: handleBack }
+            case 'report-9line':
+                return { title: '9-Line MEDEVAC', showBack: true, onBack: handleBack }
             default:
                 return { title: 'Knowledge Base' }
         }
@@ -287,6 +293,7 @@ export function KnowledgeBaseDrawer({
                 {view === 'burn' && (
                     <BurnCalculator />
                 )}
+                {view === 'report-9line' && <NineLineKB />}
             </ContentWrapper>
 
             {/* Overlay calculators/references */}
@@ -328,6 +335,7 @@ type KBSearchResult = {
 const GATED_KB_IDS: Record<string, boolean> = {
     burn: BURN_CALCULATOR_ENABLED,
     'blood-products': BLOOD_PRODUCTS_ENABLED,
+    '9-line': false,
 }
 
 function KBHome({

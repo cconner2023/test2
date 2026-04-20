@@ -66,14 +66,14 @@ export interface EventFormData {
   medevac_data?: MedevacRequest | null
 }
 
-export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: string }[] = [
-  { value: 'training', label: 'Training', color: 'bg-themeyellow/20' },
-  { value: 'duty', label: 'Duty', color: 'bg-themeredred/20' },
-  { value: 'range', label: 'Range', color: 'bg-themeblue2/20' },
-  { value: 'appointment', label: 'Appointment', color: 'bg-themeblue1/20' },
-  { value: 'mission', label: 'Mission', color: 'bg-themegreen/20' },
-  { value: 'medevac', label: 'MEDEVAC', color: 'bg-themeredred/20' },
-  { value: 'other', label: 'Other', color: 'bg-tertiary/50' },
+export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: string; solidColor: string }[] = [
+  { value: 'training',    label: 'Training',    color: 'bg-themeyellow/20',  solidColor: 'bg-themeyellow' },
+  { value: 'duty',        label: 'Duty',        color: 'bg-themeredred/20',  solidColor: 'bg-themeredred' },
+  { value: 'range',       label: 'Range',       color: 'bg-themeblue2/20',   solidColor: 'bg-themeblue2' },
+  { value: 'appointment', label: 'Appointment', color: 'bg-themeblue1/20',   solidColor: 'bg-themeblue1' },
+  { value: 'mission',     label: 'Mission',     color: 'bg-themegreen/20',   solidColor: 'bg-themegreen' },
+  { value: 'medevac',     label: 'MEDEVAC',     color: 'bg-themeredred/20',  solidColor: 'bg-themeredred' },
+  { value: 'other',       label: 'Other',       color: 'bg-tertiary/20',     solidColor: 'bg-tertiary' },
 ]
 
 export const CATEGORY_BG_MAP: Record<EventCategory, string> = {

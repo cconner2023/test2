@@ -29,7 +29,7 @@ export const PANEL = {
     TEXT_TEMPLATES: 32,
     PROVIDER_TEMPLATES: 33,
     GUIDED_TOURS: 34,
-    TC3_MODE: 35,
+    THEME_PICKER: 35,
     OVERVIEW_WIDGETS: 36,
 } as const;
 
@@ -58,6 +58,7 @@ export const PANEL_TARGET: Partial<Record<PanelId, string>> = {
     [PANEL.PROVIDER_TEMPLATES]: 'provider-templates',
     [PANEL.GUIDED_TOURS]: 'guided-tours',
     [PANEL.OVERVIEW_WIDGETS]: 'overview-widgets',
+    [PANEL.TOGGLE_THEME]: 'theme-picker',
 };
 
 export type SettingsItem =

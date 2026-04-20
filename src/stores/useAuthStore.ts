@@ -33,6 +33,7 @@ import { deriveAndCacheClinicVaultKey, ensureClinicVaultExists, processClinicVau
 import { unsubscribeFromPush, resyncPushSubscription } from '../lib/pushNotificationService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { registerSessionCleanup, updateCleanupToken, updateCleanupDeviceId, updateCleanupIsPrimary } from '../lib/sessionCleanup'
+import { attemptSilentRestore } from '../lib/sessionRestore'
 import type { User } from '@supabase/supabase-js'
 import type { UserTypes, TextExpander } from '../Data/User'
 import type { DeviceRole } from '../lib/signal/transportTypes'
@@ -69,6 +70,11 @@ interface AuthState {
   isPasswordRecovery: boolean
   /** True for newly approved accounts that haven't set a permanent password yet. */
   needsPasswordSetup: boolean
+  /**
+   * True when localSession exists but the Supabase session is dead and silent
+   * restore failed. Prompts the SessionReauthScreen overlay.
+   */
+  needsReauth: boolean
   /** Clinic-level note content (merged with user-level in consumers). */
   clinicTextExpanders: TextExpander[]
   clinicPlanOrderTags: UserTypes['planOrderTags'] | null
@@ -96,6 +102,8 @@ interface AuthActions {
   setPasswordRecovery: (value: boolean) => void
   /** Clear the first-time password setup flag (after new user sets their password). */
   setNeedsPasswordSetup: (value: boolean) => void
+  /** Clear the reauth flag (e.g. after guest continuation). */
+  clearNeedsReauth: () => void
 }
 
 // ---- Local Session helpers ----
@@ -276,9 +284,17 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     // ---- Involuntary sign-out (token expiry, iOS background kill) ----
     // Preserve local session and all local data. Only clear the Supabase
     // user object so sync pauses. The app remains usable offline.
+    // If online with a valid local session, try to silently restore; if that
+    // fails, surface the reauth overlay so the user can re-authenticate.
     if (!_userInitiatedSignOut) {
       stopHeartbeat()
+      const ls = get().localSession
       set({ user: null })
+      if (ls && navigator.onLine) {
+        attemptSilentRestore(ls).then(result => {
+          if (result === 'needs-reauth') set({ needsReauth: true })
+        })
+      }
       return
     }
 
@@ -307,6 +323,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       localSession: null,
       sessionReady: false,
       signalReady: false,
+      needsReauth: false,
     })
     clearLocalSessionStorage()
     clearProfileStorage()
@@ -556,6 +573,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
   localSession: loadLocalSessionSync(),
   sessionReady: hasLocalSession,
   signalReady: hasLocalSession,
+  needsReauth: false,
 
   init: () => {
     // Hydrate local session from encrypted storage (upgrade over sync localStorage read)
@@ -607,19 +625,44 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
         const wasPrimary = get().deviceRole === 'primary'
         handleSignedOut(wasPrimary)
       } else if (session?.user) {
-        set({ user: session.user, isGuest: false })
+        set({ user: session.user, isGuest: false, needsReauth: false })
         handleSignedIn(session.user.id, session, event)
       }
       if (event === 'INITIAL_SESSION') {
         set({ loading: false })
+        // No active session on app open — check if we can restore from localSession
+        if (!session) {
+          const ls = get().localSession
+          if (ls && navigator.onLine) {
+            attemptSilentRestore(ls).then(result => {
+              if (result === 'needs-reauth') set({ needsReauth: true })
+            })
+          }
+        }
       }
     })
 
-    return () => subscription.unsubscribe()
+    // Visibility-change safety net: if the app resumes with a dead session that
+    // didn't fire SIGNED_OUT (e.g. token expired while the tab was hidden and
+    // Supabase's internal refresh already gave up), catch it here.
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return
+      const state = get()
+      if (state.user || !state.localSession || state.needsReauth || !navigator.onLine) return
+      attemptSilentRestore(state.localSession).then(result => {
+        if (result === 'needs-reauth') set({ needsReauth: true })
+      })
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      subscription.unsubscribe()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   },
 
   continueAsGuest: () => {
-    set({ isGuest: true, user: null, sessionReady: true, signalReady: true })
+    set({ isGuest: true, user: null, sessionReady: true, signalReady: true, needsReauth: false })
   },
 
   signOut: async () => {
@@ -679,6 +722,10 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
 
   setNeedsPasswordSetup: (value) => {
     set({ needsPasswordSetup: value })
+  },
+
+  clearNeedsReauth: () => {
+    set({ needsReauth: false })
   },
 
   refreshProfile: async () => {

@@ -6,6 +6,8 @@ import { PinKeypad } from '../PinKeypad'
 import { UI_TIMING } from '../../Utilities/constants'
 import {
   isPinEnabled,
+  isAppLockEnabled,
+  setAppLockEnabled,
   savePin,
   removePin,
   verifyPin,
@@ -31,6 +33,7 @@ import {
 import { usePinLockoutTimer } from '../../Hooks/usePinLockoutTimer'
 
 type PinView = 'status' | 'set-new' | 'confirm-new' | 'verify-current' | 'change-new' | 'change-confirm'
+type PendingAction = 'change' | 'remove' | null
 
 const TIMEOUT_20_MIN = 20 * 60 * 1000
 
@@ -41,12 +44,15 @@ interface PinSetupPanelProps {
 export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
   const [view, setView] = useState<PinView>('status')
   const [pinEnabled, setPinEnabled] = useState(isPinEnabled())
+  const [appLockOn, setAppLockOn] = useState(isAppLockEnabled)
   const [timeoutMs, setTimeoutMs] = useState(getInactivityTimeoutMs)
   const { isAuthenticated } = useAuth()
   const [firstPin, setFirstPin] = useState('')
   const { lockout, setLockout, error, setError } = usePinLockoutTimer()
   const [success, setSuccess] = useState('')
-  const [pendingAction, setPendingAction] = useState<'change' | 'remove' | null>(null)
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null)
+  // When true, enabling app lock is deferred until after a new PIN is set
+  const [pendingEnableLock, setPendingEnableLock] = useState(false)
 
   // Activity tracking state
   const [activityTracking, setActivityTracking] = useState(isActivityTrackingEnabled)
@@ -72,6 +78,7 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
     setError('')
     setSuccess('')
     setPendingAction(null)
+    setPendingEnableLock(false)
   }, [setError])
 
   // Escape key to cancel PIN entry
@@ -124,6 +131,10 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
           if (stored) syncPinToCloud(stored.hash, stored.salt)
           resetLockout()
           setPinEnabled(true)
+          if (pendingEnableLock) {
+            setAppLockEnabled(true)
+            setAppLockOn(true)
+          }
           setSuccess('PIN enabled')
           setTimeout(() => { resetState(); setView('status') }, 1200)
         } else {
@@ -142,6 +153,7 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
             clearPinFromCloud()
             removeBiometric()
             setPinEnabled(false)
+            setAppLockOn(false)
             setBioEnrolled(false)
             setSuccess('PIN removed')
             setTimeout(() => { resetState(); setView('status') }, 1200)
@@ -173,7 +185,7 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
         }
         break
     }
-  }, [view, firstPin, pendingAction, resetState, setError, setLockout])
+  }, [view, firstPin, pendingAction, pendingEnableLock, resetState, setError, setLockout])
 
   const viewLabels: Record<string, string> = {
     'set-new': 'Create a 4-digit PIN',
@@ -187,12 +199,28 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
   if (view === 'status') {
     const timeoutEnabled = timeoutMs > 0
 
+    const handleAppLockToggle = () => {
+      if (appLockOn) {
+        // Disable app lock — keep the PIN
+        setAppLockEnabled(false)
+        setAppLockOn(false)
+      } else if (pinEnabled) {
+        // PIN exists — just enable app lock
+        setAppLockEnabled(true)
+        setAppLockOn(true)
+      } else {
+        // No PIN yet — collect one, then enable app lock
+        resetState()
+        setPendingEnableLock(true)  // after resetState so it isn't cleared
+        setView('set-new')
+      }
+    }
+
     return (
       <div className="h-full overflow-y-auto">
         <div className="px-5 py-4 space-y-4">
           <p className="text-xs text-tertiary leading-relaxed">
-            When enabled, a 4-digit PIN will be required each time you open the application.
-            Your PIN persists across devices and protects cached notes.
+            Set a PIN for secure re-entry. Enable App Lock to automatically lock the app when switching away or after inactivity.
           </p>
 
           {success && <ErrorDisplay type="success" message={success} />}
@@ -203,37 +231,22 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
             {/* App Lock */}
             <div
               className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
-              onClick={() => {
-                if (pinEnabled) {
-                  resetState(); setPendingAction('remove'); setView('verify-current')
-                } else {
-                  resetState(); setView('set-new')
-                }
-              }}
+              onClick={handleAppLockToggle}
               role="button"
               tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  if (pinEnabled) {
-                    resetState(); setPendingAction('remove'); setView('verify-current')
-                  } else {
-                    resetState(); setView('set-new')
-                  }
-                }
-              }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAppLockToggle() } }}
             >
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${pinEnabled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                <Lock size={18} className={pinEnabled ? 'text-themeblue2' : 'text-tertiary/50'} />
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${appLockOn ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                <Lock size={18} className={appLockOn ? 'text-themeblue2' : 'text-tertiary/50'} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${pinEnabled ? 'text-primary' : 'text-tertiary'}`}>App Lock</p>
-                <p className="text-[11px] text-tertiary/70 mt-0.5">Protect your app with a 4-digit PIN</p>
+                <p className={`text-sm font-medium ${appLockOn ? 'text-primary' : 'text-tertiary'}`}>App Lock</p>
+                <p className="text-[11px] text-tertiary/70 mt-0.5">Lock when switching away or after inactivity</p>
               </div>
-              <ToggleSwitch checked={pinEnabled} />
+              <ToggleSwitch checked={appLockOn} />
             </div>
 
-            {/* Nested options when PIN is enabled */}
+            {/* PIN management — visible whenever a PIN is set */}
             {pinEnabled && (
               <>
                 {bioAvailable && (
@@ -267,6 +280,17 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
                   <KeyRound size={16} className="text-themeblue2 shrink-0" />
                   <span className="text-sm font-medium text-themeblue2">Change PIN</span>
                 </div>
+
+                <div
+                  className="flex items-center gap-3 pl-16 pr-4 py-3 bg-tertiary/5 cursor-pointer transition-all hover:bg-themeblue2/5 active:scale-95"
+                  onClick={() => { resetState(); setPendingAction('remove'); setView('verify-current') }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); resetState(); setPendingAction('remove'); setView('verify-current') } }}
+                >
+                  <KeyRound size={16} className="text-themered shrink-0" />
+                  <span className="text-sm font-medium text-themered">Remove PIN</span>
+                </div>
               </>
             )}
 
@@ -296,7 +320,7 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-medium ${timeoutEnabled ? 'text-primary' : 'text-tertiary'}`}>Inactivity Timeout</p>
                   <p className="text-[11px] text-tertiary/70 mt-0.5">
-                    {pinEnabled
+                    {appLockOn
                       ? 'Lock to PIN screen after 20 min'
                       : 'Require password re-entry after 20 min'}
                   </p>

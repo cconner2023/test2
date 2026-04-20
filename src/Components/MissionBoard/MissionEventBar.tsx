@@ -8,6 +8,7 @@ const CATEGORY_STRIPE: Record<EventCategory, string> = {
   range: 'bg-themeblue2',
   appointment: 'bg-themeblue1',
   mission: 'bg-themegreen',
+  medevac: 'bg-themeredred',
   other: 'bg-tertiary/50',
 }
 

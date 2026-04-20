@@ -10,17 +10,19 @@ import type { OverlayFeature } from '../../Types/MapOverlayTypes'
 import type { CalendarEvent, EventStatus } from '../../Types/CalendarTypes'
 import { toDateKey, eventFallsOnDate } from '../../Types/CalendarTypes'
 import type { OverviewWidgetId } from '../../Data/User'
+import { GESTURE_THRESHOLDS } from '../../Utilities/GestureUtils'
 import { useMessagingStore } from '../../stores/useMessagingStore'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useLongPress } from '../../Hooks/useLongPress'
 import { getDisplayName } from '../../Utilities/nameUtils'
 import { UserAvatar } from '../Settings/UserAvatar'
+import { useProfileAvatar } from '../../Hooks/useProfileAvatar'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { GroupInfo } from '../../lib/signal/groupTypes'
 import { MissionMapCard } from './MissionMapCard'
 import {
   TaskRow, GanttBody, statusMenuItems,
-  formatDateLabel, offsetDate,
+  formatDateLabel, offsetDate, CATEGORY_STRIPE,
 } from './MissionGantt'
 import { DatePickerCalendar } from '../FormInputs'
 import { PreviewOverlay } from '../PreviewOverlay'
@@ -34,6 +36,7 @@ type ConvEntry = {
   key: string
   type: 'contact' | 'group'
   lastMessageTime: string
+  isSelf?: boolean
   medic?: ClinicMedic
   group?: GroupInfo
 }
@@ -47,13 +50,15 @@ function ConvRow({ entry, lastText, unread, isPinned, onTap, onContext }: {
   onContext: (x: number, y: number) => void
 }) {
   const longPress = useLongPress(onContext)
-  const name = entry.type === 'group' && entry.group
-    ? entry.group.name
-    : entry.medic ? getDisplayName(entry.medic) : '?'
+  const name = entry.isSelf
+    ? 'Notes to Self'
+    : entry.type === 'group' && entry.group
+      ? entry.group.name
+      : entry.medic ? getDisplayName(entry.medic) : '?'
 
   return (
     <div
-      className="flex items-center gap-2.5 px-3 py-2.5 active:bg-themeblue2/5 cursor-pointer select-none"
+      className="flex items-center gap-4 px-3 py-3 active:bg-themeblue2/5 cursor-pointer select-none"
       onClick={onTap}
       onContextMenu={(e) => { e.preventDefault(); onContext(e.clientX, e.clientY) }}
       {...longPress}
@@ -92,6 +97,8 @@ function MessagesWidget() {
   const openMessagesConversation = useNavigationStore(s => s.openMessagesConversation)
   const setShowMessagesDrawer = useNavigationStore(s => s.setShowMessagesDrawer)
   const { medics } = useClinicMedics()
+  const profile = useAuthStore(s => s.profile)
+  const { currentAvatar } = useProfileAvatar(localUserId ?? undefined)
   const [contextMenu, setContextMenu] = useState<{ key: string; x: number; y: number } | null>(null)
 
   const pinnedKeys = useMemo(() => new Set(pinnedKeysArr), [pinnedKeysArr])
@@ -100,12 +107,22 @@ function MessagesWidget() {
     const entries: ConvEntry[] = []
     const medicMap = new Map(medics.map(m => [m.id, m]))
     for (const [key, msgs] of Object.entries(conversations)) {
-      if (key === localUserId) continue
       if (groups[key]?.systemType) continue
       const visibleMsgs = msgs.filter(m => m.messageType !== 'request-accepted' && !m.threadId)
       if (visibleMsgs.length === 0) continue
       const lastTime = visibleMsgs.at(-1)?.createdAt ?? ''
-      if (groups[key]) {
+      if (key === localUserId) {
+        const selfMedic: ClinicMedic = {
+          id: key,
+          firstName: profile?.firstName ?? null,
+          lastName: profile?.lastName ?? null,
+          middleInitial: null,
+          rank: null,
+          credential: null,
+          avatarId: currentAvatar.id,
+        }
+        entries.push({ key, type: 'contact', lastMessageTime: lastTime, isSelf: true, medic: selfMedic })
+      } else if (groups[key]) {
         entries.push({ key, type: 'group', lastMessageTime: lastTime, group: groups[key] })
       } else {
         const medic = medicMap.get(key)
@@ -125,24 +142,24 @@ function MessagesWidget() {
   const displayed = pinned.length > 0 ? pinned.slice(0, 3) : recentEntries.slice(0, 3)
 
   const openConversation = useCallback((entry: ConvEntry) => {
-    if (entry.type === 'group' && entry.group) {
+    if (entry.isSelf && localUserId) {
+      openMessagesConversation(localUserId, null, 'Notes to Self')
+    } else if (entry.type === 'group' && entry.group) {
       openMessagesConversation(null, entry.group.groupId, entry.group.name)
     } else if (entry.medic) {
       openMessagesConversation(entry.medic.id, null, getDisplayName(entry.medic))
     }
-  }, [openMessagesConversation])
+  }, [openMessagesConversation, localUserId])
 
   if (displayed.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 px-3 py-4">
+      <div
+        className="flex flex-col items-center justify-center gap-1.5 px-3 py-4 cursor-pointer active:bg-themeblue2/5"
+        onClick={() => setShowMessagesDrawer(true)}
+      >
         <MessageSquare size={18} className="text-tertiary/30" />
         <span className="text-xs text-secondary">No conversations</span>
-        <button
-          onClick={() => setShowMessagesDrawer(true)}
-          className="text-[10px] font-medium text-themeblue1 active:opacity-60"
-        >
-          Open Messages
-        </button>
+        <span className="text-[10px] font-medium text-themeblue1">Open Messages</span>
       </div>
     )
   }
@@ -227,6 +244,12 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
 
   const dateBtnRef = useRef<HTMLButtonElement>(null)
   const ganttScrollRef = useRef<HTMLDivElement>(null)
+  const weekViewElRef = useRef<HTMLDivElement | null>(null)
+  const [weekViewMounted, setWeekViewMounted] = useState(false)
+  const weekViewRef = useCallback((el: HTMLDivElement | null) => {
+    weekViewElRef.current = el
+    setWeekViewMounted(el !== null)
+  }, [])
 
   useEffect(() => {
     const overlayIds = Array.from(
@@ -253,6 +276,45 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
     })
     return () => { cancelled = true }
   }, [events])
+
+  // Week-view swipe: attach native pointer listeners so stopPropagation fires
+  // before @use-gesture/react's listener on the parent ColumnA carousel.
+  useEffect(() => {
+    const el = weekViewElRef.current
+    if (!el) return
+    let startX = 0, startY = 0, active = false, locked: boolean | null = null
+    const onPointerDown = (e: PointerEvent) => {
+      e.stopPropagation()
+      startX = e.clientX; startY = e.clientY; active = true; locked = null
+    }
+    const onPointerMove = (e: PointerEvent) => {
+      if (!active) return
+      const dx = Math.abs(e.clientX - startX), dy = Math.abs(e.clientY - startY)
+      if (locked === null && (dx > GESTURE_THRESHOLDS.DIRECTION_LOCK || dy > GESTURE_THRESHOLDS.DIRECTION_LOCK)) {
+        locked = dx > dy
+      }
+      if (locked) e.stopPropagation()
+    }
+    const onPointerUp = (e: PointerEvent) => {
+      if (!active || !locked) { active = false; return }
+      const dx = e.clientX - startX
+      active = false
+      if (Math.abs(dx) > GESTURE_THRESHOLDS.PAGE_SWIPE_THRESHOLD) {
+        setSelectedDate(d => offsetDate(d, dx > 0 ? -7 : 7))
+      }
+    }
+    const onPointerCancel = () => { active = false }
+    el.addEventListener('pointerdown', onPointerDown)
+    el.addEventListener('pointermove', onPointerMove)
+    el.addEventListener('pointerup', onPointerUp)
+    el.addEventListener('pointercancel', onPointerCancel)
+    return () => {
+      el.removeEventListener('pointerdown', onPointerDown)
+      el.removeEventListener('pointermove', onPointerMove)
+      el.removeEventListener('pointerup', onPointerUp)
+      el.removeEventListener('pointercancel', onPointerCancel)
+    }
+  }, [weekViewMounted]) // re-run when week-view widget mounts/unmounts
 
   const dateKey = toDateKey(selectedDate)
   const isToday = dateKey === toDateKey(new Date())
@@ -301,8 +363,12 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
         return (
           <div key="task-list" className="px-2.5 py-2 flex flex-col gap-1.5 min-h-[90px]">
             {myTasks.length === 0 ? (
-              <div className="flex-1 flex items-center justify-center">
+              <div
+                className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer active:bg-themeblue2/5 rounded-lg py-2"
+                onClick={() => setShowCalendarDrawer(true)}
+              >
                 <span className="text-xs text-secondary">No tasks today</span>
+                <span className="text-[10px] font-medium text-themeblue1">Open Calendar</span>
               </div>
             ) : (
               <>
@@ -343,22 +409,17 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
       case 'gantt':
         return (
           <div key="gantt" className="overflow-hidden">
-            {allDayEvents.length === 0 ? (
-              <div className="flex items-center justify-center h-[80px]">
-                <span className="text-xs text-secondary">No events today</span>
-              </div>
-            ) : (
-              <div className="h-[100px] overflow-hidden">
-                <GanttBody
-                  scrollRef={ganttScrollRef}
-                  events={allDayEvents}
-                  userId={userId}
-                  onEventClick={handleEventClick}
-                  onEventContextMenu={(event, x, y) => setContextMenu({ event, x, y })}
-                  selectedDate={selectedDate}
-                />
-              </div>
-            )}
+            <div className="h-[100px] overflow-hidden">
+              <GanttBody
+                scrollRef={ganttScrollRef}
+                events={events}
+                userId={userId}
+                onEventClick={handleEventClick}
+                onEventContextMenu={(event, x, y) => setContextMenu({ event, x, y })}
+                selectedDate={selectedDate}
+                onDateChange={setSelectedDate}
+              />
+            </div>
           </div>
         )
 
@@ -366,9 +427,9 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
         const weekDays = getWeekDays(selectedDate)
         const todayKey = toDateKey(new Date())
         return (
-          <div key="week-view" className="px-3 pt-2.5 pb-3">
+          <div key="week-view" ref={weekViewRef} className="px-3 pt-1.5 pb-2">
             <div className="grid grid-cols-7 mb-1">
-              {['M','T','W','T','F','S','S'].map((d, i) => (
+              {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map((d, i) => (
                 <div key={i} className="flex justify-center">
                   <span className="text-[9px] font-semibold uppercase text-secondary">{d}</span>
                 </div>
@@ -378,14 +439,14 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
             <div className="grid grid-cols-7">
               {weekDays.map((day) => {
                 const key = toDateKey(day)
-                const count = events.filter(e => eventFallsOnDate(e, key)).length
+                const dayEvents = events.filter(e => eventFallsOnDate(e, key))
                 const isTodayDay = key === todayKey
-                const isSelected = key === dateKey && !isTodayDay
+                const isSelected = key === dateKey
                 return (
                   <button
                     key={key}
                     onClick={() => setSelectedDate(day)}
-                    className="flex flex-col items-center gap-0.5 py-0.5 active:opacity-60 transition-opacity"
+                    className="flex flex-col items-center gap-1 py-px active:opacity-60 transition-opacity"
                   >
                     <div className={`w-8 h-8 flex items-center justify-center rounded-full ${
                       isSelected ? 'bg-themeblue3' : isTodayDay ? 'ring-1 ring-themeblue3' : ''
@@ -396,36 +457,29 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
                         {day.getDate()}
                       </span>
                     </div>
-                    {count > 0 && (
-                      <span className="w-1 h-1 rounded-full bg-secondary" />
-                    )}
+                    <div className="flex flex-col gap-px w-full px-0.1 mt-1">
+                      {dayEvents.slice(0, 3).map(e => (
+                        <div
+                          key={e.id}
+                          className="flex items-center gap-1 w-full overflow-hidden py-0.5 px-0.5 rounded bg-themewhite2/60 active:opacity-60"
+                          onClick={(ev) => { ev.stopPropagation(); handleEventClick(e.id) }}
+                        >
+                          <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                            e.status === 'completed'   ? 'bg-themegreen' :
+                            e.status === 'in_progress' ? 'bg-themeyellow' :
+                            e.status === 'cancelled'   ? 'bg-themeredred' :
+                            'bg-secondary/50'
+                          }`} />
+                          <span className="text-[9px] leading-tight text-primary truncate">{e.title}</span>
+                        </div>
+                      ))}
+                      {dayEvents.length > 3 && (
+                        <span className="text-[10px] leading-tight text-secondary pl-1">+{dayEvents.length - 3}</span>
+                      )}
+                    </div>
                   </button>
                 )
               })}
-            </div>
-            <div className="border-t border-themeblue3/8 mt-2 pt-2 flex flex-col gap-1.5">
-              {myTasks.length === 0 ? (
-                <p className="text-xs text-secondary text-center py-1">No tasks</p>
-              ) : (
-                <>
-                  {previewTasks.map(event => (
-                    <TaskRow
-                      key={event.id}
-                      event={event}
-                      onClick={() => handleEventClick(event.id)}
-                      onContextMenu={(x, y) => setContextMenu({ event, x, y })}
-                    />
-                  ))}
-                  {extraCount > 0 && (
-                    <button
-                      onClick={() => setShowCalendarDrawer(true)}
-                      className="text-[10px] font-medium text-secondary text-left pl-2 py-0.5 active:text-themeblue1"
-                    >
-                      +{extraCount} more
-                    </button>
-                  )}
-                </>
-              )}
             </div>
           </div>
         )

@@ -9,7 +9,7 @@ import { ErrorDisplay } from './ErrorDisplay'
 interface PasswordLockScreenProps {
   onUnlock: () => void
   email: string
-  reason?: 'inactivity' | 'initial'
+  reason?: 'inactivity' | 'initial' | 'session-expired'
 }
 
 export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: PasswordLockScreenProps) => {
@@ -161,7 +161,11 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
           </div>
           <h1 className="text-xl font-bold text-primary tracking-wide">ADTMC</h1>
           <p className="text-sm text-tertiary mt-1 text-center">
-            {reason === 'initial' ? 'Enter your password to continue' : 'Session locked due to inactivity'}
+            {reason === 'initial'
+              ? 'Enter your password to continue'
+              : reason === 'session-expired'
+              ? 'Your session has expired. Re-enter your password to continue.'
+              : 'Session locked due to inactivity'}
           </p>
         </div>
 
@@ -220,13 +224,15 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
           </button>
         )}
 
-        {/* Tip banner */}
-        <div className="mt-8 flex items-start gap-2.5 p-3 rounded-lg bg-themeblue2/5 border border-themeblue2/10">
-          <Lightbulb size={16} className="text-themeblue2 shrink-0 mt-0.5" />
-          <p className="text-xs text-tertiary leading-relaxed">
-            <span className="font-medium text-primary">Tip:</span> Enable App Lock in Settings &gt; Security for quicker re-entry with a PIN.
-          </p>
-        </div>
+        {/* Tip banner — only shown for inactivity/initial lock, not session-expired */}
+        {reason !== 'session-expired' && (
+          <div className="mt-8 flex items-start gap-2.5 p-3 rounded-lg bg-themeblue2/5 border border-themeblue2/10">
+            <Lightbulb size={16} className="text-themeblue2 shrink-0 mt-0.5" />
+            <p className="text-xs text-tertiary leading-relaxed">
+              <span className="font-medium text-primary">Tip:</span> Enable App Lock in Settings &gt; Security for quicker re-entry with a PIN.
+            </p>
+          </div>
+        )}
       </div>
       </div>
     </div>

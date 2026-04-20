@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react'
-import { X, Check, List, MapIcon } from 'lucide-react'
+import { X, List, MapIcon, Pencil, Trash2 } from 'lucide-react'
+import { Section, SectionCard } from '../Section'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useShallow } from 'zustand/react/shallow'
@@ -13,6 +14,7 @@ import { useClinicName } from '../../Hooks/useClinicNameResolver'
 import type { LocalPropertyItem, LocalPropertyLocation } from '../../Types/PropertyTypes'
 import { fetchLocationTags, upsertLocationTags } from '../../lib/propertyService'
 import { PropertyItemDetail } from './PropertyItemDetail'
+import { HeaderPill, PillButton } from '../HeaderPill'
 
 export type PropertyView = 'property' | 'property-detail' | 'property-form'
 
@@ -26,7 +28,6 @@ interface PropertyPanelProps {
   onAddItem: () => void
   onBack: () => void
   isMobile?: boolean
-  editing?: boolean
   onRegisterAddLocation?: (trigger: () => void) => void
   onRegisterAddItem?: (trigger: () => void) => void
   onDrilldownChange?: (path: Array<{ id: string; name: string }>) => void
@@ -47,7 +48,6 @@ export const PropertyPanel = memo(function PropertyPanel({
   onAddItem,
   onBack,
   isMobile = true,
-  editing = false,
   onRegisterAddLocation,
   onRegisterAddItem,
   onDrilldownChange,
@@ -279,8 +279,6 @@ export const PropertyPanel = memo(function PropertyPanel({
         locations={visibleLocations}
         holders={store.holders}
         items={store.items}
-        onEdit={onEditItem}
-        onDelete={() => onDeleteItem(selectedItem)}
         onEnroll={() => onEnrollItem?.(selectedItem)}
       />
     )
@@ -321,14 +319,13 @@ export const PropertyPanel = memo(function PropertyPanel({
                 onDeleteItem={(item) => setPendingDeleteItem(item)}
                 onAddChildLocation={handleAddChildLocation}
                 onAddItemAtLocation={handleAddItemAtLocation}
-                editing={editing}
               />
             </div>
           </div>
 
           <div className="flex-1 flex flex-col min-w-0 relative">
-            <div className="flex-1 overflow-y-auto">
-              {store.items
+            {(() => {
+              const desktopItems = store.items
                 .filter((i) => !i.parent_item_id)
                 .filter((i) => !desktopLocationId || i.location_id === desktopLocationId)
                 .filter((i) => {
@@ -342,24 +339,36 @@ export const PropertyPanel = memo(function PropertyPanel({
                   )
                 })
                 .sort((a, b) => a.name.localeCompare(b.name))
-                .map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => handleSelectItem(item)}
-                    className="w-full flex items-center gap-3 px-6 py-3.5 border-b border-tertiary/10 text-left active:bg-secondary/5 transition-colors active:scale-[0.98]"
-                  >
-                    <span className="flex-1 text-[10pt] text-primary truncate">{item.name}</span>
-                    {item.serial_number && (
-                      <span className="text-[9pt] text-tertiary/60 truncate max-w-[120px]">{item.serial_number}</span>
-                    )}
-                    {item.quantity > 1 && (
-                      <span className="text-[10pt] px-2 py-0.5 rounded-full font-medium shrink-0 bg-themeblue3/10 text-themeblue3">
-                        {item.quantity}
-                      </span>
-                    )}
-                  </button>
-                ))}
-            </div>
+              return (
+                <div className="flex-1 overflow-y-auto px-4 py-3">
+                  {desktopItems.length === 0 ? (
+                    <p className="text-sm text-tertiary/40 text-center py-8">No items</p>
+                  ) : (
+                    <Section title="Items" count={desktopItems.length} className="">
+                      <SectionCard>
+                        {desktopItems.map((item) => (
+                          <button
+                            key={item.id}
+                            onClick={() => handleSelectItem(item)}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-secondary/5 transition-colors active:scale-[0.98] border-b border-tertiary/8 last:border-b-0"
+                          >
+                            <span className="flex-1 text-sm font-medium text-primary truncate">{item.name}</span>
+                            {item.serial_number && (
+                              <span className="text-xs text-secondary truncate max-w-[120px]">{item.serial_number}</span>
+                            )}
+                            {item.quantity > 1 && (
+                              <span className="text-xs font-medium px-1.5 py-0.5 rounded-full shrink-0 bg-tertiary/10 text-tertiary/60">
+                                {item.quantity}
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </SectionCard>
+                    </Section>
+                  )}
+                </div>
+              )
+            })()}
           </div>
 
           <div className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-all duration-300 relative ${
@@ -369,12 +378,11 @@ export const PropertyPanel = memo(function PropertyPanel({
               <>
                 <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
                   <p className="text-sm font-medium text-primary">Item Details</p>
-                  <button
-                    onClick={onBack}
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
-                  >
-                    <X size={16} />
-                  </button>
+                  <HeaderPill>
+                    <PillButton icon={Pencil} iconSize={16} onClick={onEditItem} label="Edit" />
+                    <PillButton icon={Trash2} iconSize={16} variant="danger" onClick={() => onDeleteItem(selectedItem!)} label="Delete" />
+                    <PillButton icon={X} iconSize={16} onClick={onBack} label="Close" />
+                  </HeaderPill>
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <PropertyItemDetail
@@ -382,8 +390,6 @@ export const PropertyPanel = memo(function PropertyPanel({
                     locations={visibleLocations}
                     holders={store.holders}
                     items={store.items}
-                    onEdit={onEditItem}
-                    onDelete={() => onDeleteItem(selectedItem)}
                     onEnroll={() => onEnrollItem?.(selectedItem)}
                   />
                 </div>
@@ -457,7 +463,6 @@ export const PropertyPanel = memo(function PropertyPanel({
             showInlineForm={showInlineForm}
             inlineEditItem={store.editingItem}
             onInlineFormClose={() => { setShowInlineForm(false); store.setEditingItem(null) }}
-            editing={editing}
           />
         </div>
 

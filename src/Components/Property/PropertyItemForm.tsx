@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import { X, Check, Square, CheckSquare, Plus } from 'lucide-react'
-import { TextInput, PickerInput } from '../FormInputs'
+import { TextInput, PickerInput, DatePickerInput } from '../FormInputs'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useShallow } from 'zustand/react/shallow'
 import type { LocalPropertyItem } from '../../Types/PropertyTypes'
@@ -300,14 +300,14 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
       )}
 
       {/* Expiry date */}
-      <div className="px-4 py-3 flex items-center gap-3">
-        <label className="text-xs text-tertiary/60 shrink-0 w-20">Expiry date</label>
-        <input
-          type="date"
-          value={expiryDate}
-          onChange={(e) => setExpiryDate(e.target.value)}
-          className="flex-1 min-w-0 px-4 py-2.5 rounded-2xl text-primary text-sm border border-themeblue3/10 shadow-xs bg-themewhite dark:bg-themewhite3 focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all duration-300"
-        />
+      <div className="px-4 py-3 flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <DatePickerInput
+            value={expiryDate}
+            onChange={setExpiryDate}
+            placeholder="Expiry date"
+          />
+        </div>
         {expiryDate && (
           <button
             type="button"

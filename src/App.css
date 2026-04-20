@@ -21,7 +21,7 @@
       --color-zone-accent: rgba(0,66,92,1);
     }
 }
-[data-theme="light"] {
+[data-theme="default-light"] {
   --color-themeredred: rgb(170, 65, 65,1);
   --color-themered: rgba(160, 105, 100, 1);
   --color-themeyellow: rgba(255,194,34,1);
@@ -40,8 +40,9 @@
   --color-secondary: rgba(70, 70, 80, 1);
   --color-tertiary: rgba(132, 139, 146, 1);
   --color-zone-accent: rgba(0,66,92,1);
+  --color-glass-tint: rgba(255, 255, 255, 0.95);
 }
-[data-theme="dark"] {
+[data-theme="default-dark"] {
   --color-themeredred: rgb(170, 65, 65, 1);
   --color-themered: rgba(160, 105, 100, 1);
   --color-themeyellow: rgba(255, 194, 34, 1);
@@ -60,6 +61,137 @@
   --color-secondary: rgba(179,186,201,1);
   --color-tertiary:rgba(132, 139, 146, 1);
   --color-zone-accent: rgba(21,142,172,1);
+  --color-glass-tint: rgba(25, 35, 45, 0.98);
+}
+[data-theme="ironclad-dark"] {
+  --color-themeredred: rgb(170, 65, 65, 1);
+  --color-themered: rgba(160, 105, 100, 1);
+  --color-themeyellow: rgba(255, 194, 34, 1);
+  --color-themeyellowlow: rgba(255, 194, 34, 0.7);
+  --color-themegreen: rgba(96, 146, 92, 1);
+  --color-themewhite: rgba(29, 32, 33, 1);
+  --color-themewhite2: rgba(40, 40, 40, 1);
+  --color-themewhite3: rgba(32, 36, 36, 1);
+  --color-themegray1: rgba(60, 56, 54, 1);
+  --color-themegray2: rgba(80, 73, 69, 1);
+  --color-themeblue1: rgba(250, 189, 47, 1);
+  --color-themeblue2: rgba(254, 128, 25, 1);
+  --color-themeblue3: rgba(214, 93, 14, 1);
+  --color-themepurple: rgba(211, 134, 155, 1);
+  --color-primary: rgba(235, 219, 178, 1);
+  --color-secondary: rgba(213, 196, 161, 1);
+  --color-tertiary: rgba(168, 153, 132, 1);
+  --color-zone-accent: rgba(254, 128, 25, 1);
+  --color-glass-tint: rgba(40, 40, 40, 0.98);
+}
+[data-theme="ironclad-light"] {
+  --color-themeredred: rgb(170, 65, 65, 1);
+  --color-themered: rgba(160, 105, 100, 1);
+  --color-themeyellow: rgba(255, 194, 34, 1);
+  --color-themeyellowlow: rgba(255, 194, 34, 0.7);
+  --color-themegreen: rgba(96, 146, 92, 1);
+  --color-themewhite: rgba(252, 249, 242, 1);
+  --color-themewhite2: rgba(246, 240, 228, 1);
+  --color-themewhite3: rgba(252, 249, 242, 1);
+  --color-themegray1: rgba(213, 196, 161, 1);
+  --color-themegray2: rgba(213, 196, 161, 1);
+  --color-themeblue1: rgba(181, 118, 20, 1);
+  --color-themeblue2: rgba(175, 58, 3, 1);
+  --color-themeblue3: rgba(146, 95, 10, 1);
+  --color-themepurple: rgba(143, 63, 113, 1);
+  --color-primary: rgba(60, 56, 54, 1);
+  --color-secondary: rgba(80, 73, 69, 1);
+  --color-tertiary: rgba(124, 111, 100, 1);
+  --color-zone-accent: rgba(146, 95, 10, 1);
+  --color-glass-tint: rgba(252, 249, 242, 0.95);
+}
+[data-theme="forest-dark"] {
+  /* Canvas is neutral dark. World-building lives in the accents: teal-aqua water glow cascading to deep pool. */
+  --color-themeredred: rgb(172, 68, 60, 1);
+  --color-themered: rgba(160, 100, 90, 1);
+  --color-themeyellow: rgba(214, 182, 72, 1);
+  --color-themeyellowlow: rgba(214, 182, 72, 0.7);
+  --color-themegreen: rgba(72, 160, 108, 1);
+  --color-themewhite: rgba(14, 15, 14, 1);       /* neutral near-black */
+  --color-themewhite2: rgba(22, 24, 22, 1);      /* neutral dark surface */
+  --color-themewhite3: rgba(14, 15, 14, 1);
+  --color-themegray1: rgba(36, 40, 36, 1);       /* neutral dark separator */
+  --color-themegray2: rgba(50, 56, 50, 1);       /* neutral raised element */
+  --color-themeblue1: rgba(94, 196, 160, 1);     /* teal water — bright highlight */
+  --color-themeblue2: rgba(52, 162, 124, 1);     /* flowing teal — primary accent */
+  --color-themeblue3: rgba(24, 98, 74, 1);       /* deep pool — depth anchor */
+  --color-themepurple: rgba(118, 168, 108, 1);   /* bioluminescent moss */
+  --color-primary: rgba(210, 218, 212, 1);       /* near-neutral light text, barely warm */
+  --color-secondary: rgba(148, 162, 152, 1);     /* mid neutral */
+  --color-tertiary: rgba(80, 94, 84, 1);         /* dim neutral */
+  --color-zone-accent: rgba(52, 162, 124, 1);
+  --color-glass-tint: rgba(20, 22, 20, 0.98);
+}
+[data-theme="forest-light"] {
+  /* Canvas is near-white paper. Teal accents are the only color in the room. */
+  --color-themeredred: rgb(168, 62, 54, 1);
+  --color-themered: rgba(158, 98, 88, 1);
+  --color-themeyellow: rgba(196, 168, 52, 1);
+  --color-themeyellowlow: rgba(196, 168, 52, 0.7);
+  --color-themegreen: rgba(52, 144, 96, 1);
+  --color-themewhite: rgba(252, 252, 250, 1);    /* neutral white, barely warm */
+  --color-themewhite2: rgba(242, 243, 240, 1);   /* neutral off-white surface */
+  --color-themewhite3: rgba(252, 252, 250, 1);
+  --color-themegray1: rgba(210, 214, 208, 1);    /* neutral light border */
+  --color-themegray2: rgba(186, 192, 184, 1);    /* neutral mid-gray */
+  --color-themeblue1: rgba(40, 146, 112, 1);     /* teal in daylight */
+  --color-themeblue2: rgba(22, 110, 82, 1);      /* deep teal — primary */
+  --color-themeblue3: rgba(10, 68, 50, 1);       /* forest floor anchor */
+  --color-themepurple: rgba(68, 104, 84, 1);     /* lichen-gray */
+  --color-primary: rgba(18, 20, 18, 1);          /* near-neutral dark text */
+  --color-secondary: rgba(58, 68, 60, 1);        /* neutral dark-mid */
+  --color-tertiary: rgba(118, 132, 120, 1);      /* neutral mid */
+  --color-zone-accent: rgba(22, 110, 82, 1);
+  --color-glass-tint: rgba(252, 252, 250, 0.96);
+}
+[data-theme="void-dark"] {
+  /* Canvas is neutral black. Electric cyan accents do the work — like monitors in a dark room. */
+  --color-themeredred: rgb(196, 58, 58, 1);
+  --color-themered: rgba(175, 88, 78, 1);
+  --color-themeyellow: rgba(236, 196, 48, 1);
+  --color-themeyellowlow: rgba(236, 196, 48, 0.7);
+  --color-themegreen: rgba(52, 186, 116, 1);
+  --color-themewhite: rgba(10, 11, 13, 1);       /* neutral near-black */
+  --color-themewhite2: rgba(16, 18, 22, 1);      /* neutral dark surface */
+  --color-themewhite3: rgba(10, 11, 13, 1);
+  --color-themegray1: rgba(28, 32, 40, 1);       /* neutral dark separator */
+  --color-themegray2: rgba(40, 46, 58, 1);       /* neutral raised element */
+  --color-themeblue1: rgba(0, 212, 232, 1);      /* electric cyan — holographic highlight */
+  --color-themeblue2: rgba(0, 164, 190, 1);      /* active display — primary accent */
+  --color-themeblue3: rgba(0, 88, 118, 1);       /* deep command anchor */
+  --color-themepurple: rgba(96, 68, 206, 1);     /* violet datastream trace */
+  --color-primary: rgba(216, 224, 232, 1);       /* neutral cool-white readout */
+  --color-secondary: rgba(130, 148, 168, 1);     /* dimmer neutral */
+  --color-tertiary: rgba(62, 78, 98, 1);         /* background neutral */
+  --color-zone-accent: rgba(0, 212, 232, 1);
+  --color-glass-tint: rgba(14, 16, 20, 0.98);
+}
+[data-theme="void-light"] {
+  /* Canvas is neutral light gray. Same cyan accents — clinical and precise. */
+  --color-themeredred: rgb(182, 52, 52, 1);
+  --color-themered: rgba(165, 82, 72, 1);
+  --color-themeyellow: rgba(196, 164, 36, 1);
+  --color-themeyellowlow: rgba(196, 164, 36, 0.7);
+  --color-themegreen: rgba(36, 164, 104, 1);
+  --color-themewhite: rgba(245, 246, 248, 1);    /* neutral light gray, barely cool */
+  --color-themewhite2: rgba(232, 234, 238, 1);   /* neutral surface */
+  --color-themewhite3: rgba(245, 246, 248, 1);
+  --color-themegray1: rgba(200, 204, 212, 1);    /* neutral light border */
+  --color-themegray2: rgba(172, 178, 190, 1);    /* neutral mid-gray */
+  --color-themeblue1: rgba(0, 152, 180, 1);      /* cyan in daylight */
+  --color-themeblue2: rgba(0, 110, 148, 1);      /* command blue — primary */
+  --color-themeblue3: rgba(0, 60, 96, 1);        /* deep command anchor */
+  --color-themepurple: rgba(72, 50, 172, 1);     /* tactical violet */
+  --color-primary: rgba(12, 14, 18, 1);          /* near-neutral dark text */
+  --color-secondary: rgba(44, 52, 68, 1);        /* neutral dark-mid */
+  --color-tertiary: rgba(100, 116, 140, 1);      /* neutral mid */
+  --color-zone-accent: rgba(0, 110, 148, 1);
+  --color-glass-tint: rgba(245, 246, 248, 0.96);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
@@ -567,26 +699,18 @@ input, select, textarea {
 }
 
 .liquid-glass-menu:has(+ div[class*="z-40"]),
-[data-theme="light"] .liquid-glass-menu {
+[data-theme$="-light"] .liquid-glass-menu {
     box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2), 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
-[data-theme="dark"] .liquid-glass-menu {
+[data-theme$="-dark"] .liquid-glass-menu {
     box-shadow: 0 2px 2px -4px rgba(0, 0, 0, 0.4), 0 0 8px rgba(0, 0, 0, 0.2);
 }
 
 /* Liquid glass tint - adapts to theme */
 .liquid-glass-tint {
-    background: var(--color-themewhite);
+    background: var(--color-glass-tint);
     transition: opacity 350ms cubic-bezier(0.32, 0.72, 0.35, 1);
-}
-
-[data-theme="light"] .liquid-glass-tint {
-    background: rgba(255, 255, 255, 0.95);
-}
-
-[data-theme="dark"] .liquid-glass-tint {
-    background: rgba(25, 35, 45, 0.98);
 }
 
 /* Liquid glass shine - theme adaptive highlights */
@@ -594,12 +718,12 @@ input, select, textarea {
     box-shadow: inset 1px 1px 1px 0 rgba(255, 255, 255, 0.2);
 }
 
-[data-theme="light"] .liquid-glass-shine {
+[data-theme$="-light"] .liquid-glass-shine {
     box-shadow: inset 2px 2px 1px 0 rgba(255, 255, 255, 0.5),
                 inset -1px -1px 1px 1px rgba(255, 255, 255, 0.5);
 }
 
-[data-theme="dark"] .liquid-glass-shine {
+[data-theme$="-dark"] .liquid-glass-shine {
     box-shadow: inset 1px 1px 1px 0 rgba(255, 255, 255, 0.08),
                 inset -1px -1px 1px 0 rgba(255, 255, 255, 0.04);
 }

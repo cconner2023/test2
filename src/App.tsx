@@ -5,7 +5,7 @@ import './App.css'
 import { NavTop } from './Components/NavTop'
 import { SideNav } from './Components/SideNav'
 import { SearchResults } from './Components/SearchResults'
-import { ThemeProvider, useTheme } from './Utilities/ThemeContext'
+import { ThemeProvider } from './Utilities/ThemeContext'
 import { AvatarProvider } from './Utilities/AvatarContext'
 import { AlgorithmPage } from './Components/AlgorithmPage'
 import type { SearchResultType } from './Types/CatTypes'
@@ -76,8 +76,6 @@ const _postUpdateNav = (() => {
 
 function AppContent() {
   const searchInputRef = useRef<HTMLInputElement>(null!)
-  const { theme, toggleTheme } = useTheme()
-
   // Auth store self-initializes at module load (no useEffect needed)
 
   const navigation = useNavigation()
@@ -665,8 +663,6 @@ case 'mapOverlay':
         <Settings
           isVisible={navigation.showSettings}
           onClose={() => { navigation.setShowSettings(false); resetSettingsPanel(); setPostUpdatePending(false) }}
-          isDarkMode={theme === 'dark'}
-          onToggleTheme={toggleTheme}
           initialPanel={settingsInitialPanel}
         />
         </ErrorBoundary>

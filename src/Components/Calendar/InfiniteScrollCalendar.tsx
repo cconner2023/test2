@@ -154,10 +154,11 @@ function EventPill({ event, eventId, onTap, onContextMenu, isDragging, dragHandl
           onContextMenu(eventId, e.clientX, e.clientY)
         }
       }}
-      className={`w-full rounded px-1.5 text-[9px] leading-tight truncate font-normal text-white transition-opacity duration-150 cursor-pointer active:scale-95 ${cat.color} ${isDragging ? 'opacity-30' : sm.opacity} ${sm.pulse ? 'animate-pulse' : ''}`}
-      style={{ height: LANE_HEIGHT - 2, display: 'flex', alignItems: 'center' }}
+      className={`w-full rounded flex items-center gap-1 overflow-hidden text-[9px] leading-tight font-normal transition-opacity duration-150 cursor-pointer active:scale-95 bg-primary/5 ${isDragging ? 'opacity-30' : sm.opacity} ${sm.pulse ? 'animate-pulse' : ''}`}
+      style={{ height: LANE_HEIGHT - 2 }}
     >
-      <span className={`truncate ${sm.strikethrough ? 'line-through' : ''}`}>{event.title}</span>
+      <div className={`w-0.5 self-stretch shrink-0 rounded-full ${cat.solidColor}`} />
+      <span className={`truncate text-primary pr-0.5 ${sm.strikethrough ? 'line-through' : ''}`}>{event.title}</span>
     </div>
   )
 }
@@ -387,7 +388,7 @@ export function InfiniteScrollCalendar({
                         onEventContextMenu(seg.event.id, e.clientX, e.clientY)
                       }
                     }}
-                    className={`absolute z-[2] flex items-center ${cat.color} text-white text-[9px] font-normal px-1.5 truncate cursor-pointer active:scale-[0.98] transition-all duration-150 ${
+                    className={`absolute z-[2] flex items-center overflow-hidden text-[9px] font-normal cursor-pointer active:scale-[0.98] transition-all duration-150 bg-primary/5 ${
                       seg.isStart ? 'rounded-l' : ''
                     } ${seg.isEnd ? 'rounded-r' : ''} ${isDrag ? 'opacity-30' : sm.opacity} ${sm.pulse ? 'animate-pulse' : ''}`}
                     style={{
@@ -397,7 +398,8 @@ export function InfiniteScrollCalendar({
                       height: LANE_HEIGHT - 2,
                     }}
                   >
-                    <span className={`truncate ${sm.strikethrough ? 'line-through' : ''}`}>{seg.event.title}</span>
+                    <div className={`w-0.5 self-stretch shrink-0 ${seg.isStart ? 'rounded-l' : ''} ${cat.solidColor}`} />
+                    <span className={`truncate text-primary px-1 ${sm.strikethrough ? 'line-through' : ''}`}>{seg.event.title}</span>
                   </div>
                 )
               })}
@@ -508,15 +510,14 @@ export function InfiniteScrollCalendar({
       {/* Drag ghost */}
       {dragState.isDragging && ghostEvent && createPortal(
         <div
-          className={`fixed pointer-events-none z-[9999] px-2 py-1 rounded shadow-lg text-[11px] font-medium text-white flex items-center gap-1 opacity-90 -translate-x-1/2 -translate-y-full`}
+          className={`fixed pointer-events-none z-[9999] px-2 py-1 rounded shadow-lg text-[11px] font-medium text-primary flex items-center gap-1.5 opacity-90 -translate-x-1/2 -translate-y-full bg-themewhite border border-primary/10`}
           style={{
             left: dragState.ghostX,
             top: dragState.ghostY - 8,
-            backgroundColor: 'var(--color-themeblue3, #1d4ed8)',
           }}
         >
           <span
-            className={`w-2 h-2 rounded-full shrink-0 ${getCategoryMeta(ghostEvent.category).color}`}
+            className={`w-2 h-2 rounded-full shrink-0 ${getCategoryMeta(ghostEvent.category).solidColor}`}
           />
           {ghostEvent.title}
         </div>,

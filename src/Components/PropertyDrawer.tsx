@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Pencil, X, List, Map as MapIcon, ScanLine, Plus } from 'lucide-react'
+import { Pencil, X, Trash2, List, Map as MapIcon, ScanLine, Plus } from 'lucide-react'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { BaseDrawer } from './BaseDrawer'
 import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
@@ -56,7 +56,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
 
     const [searchQuery, setSearchQuery] = useState('')
     const [searchFocused, setSearchFocused] = useState(false)
-    const [editing, setEditing] = useState(false)
     const [selectedItem, setSelectedItem] = useState<LocalPropertyItem | null>(null)
     const [pendingDeleteItem, setPendingDeleteItem] = useState<LocalPropertyItem | null>(null)
     const [scanMode, setScanMode] = useState(false)
@@ -66,7 +65,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const addLocationTriggerRef = useRef<(() => void) | null>(null)
     const initRef = useRef(false)
 
-    useEffect(() => { setSearchQuery(''); setSearchFocused(false); setEditing(false) }, [view])
+    useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
 
     // Keep selectedItem fresh when store items update (e.g. after edit)
     useEffect(() => {
@@ -163,7 +162,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         setSlideDirection('')
         setDrilldownPath([])
         setSearchQuery('')
-        setEditing(false)
         setMapView(false)
         setSelectedItem(null)
         setEditingItem(null)
@@ -185,17 +183,9 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
 
     const mainHeaderActions = useMemo(() => (
         <HeaderPill>
-            {!mapView && (
-                <PillButton
-                  icon={Pencil}
-                  onClick={() => setEditing((e) => !e)}
-                  label={editing ? 'Done' : 'Edit'}
-                  circleBg={editing ? 'bg-themeblue2/15 text-themeblue2' : undefined}
-                />
-            )}
             <PillButton icon={X} onClick={handleClose} label="Close" />
         </HeaderPill>
-    ), [handleClose, editing, mapView])
+    ), [handleClose])
 
     const headerConfig = useMemo(() => {
         switch (view) {
@@ -213,7 +203,17 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 return { title: 'Property Book', badge: 'BETA', rightContent: mainHeaderActions, hideDefaultClose: true }
             case 'property-detail':
                 if (!isMobile) return { title: 'Property Book', badge: 'BETA', rightContent: mainHeaderActions, hideDefaultClose: true }
-                return { title: selectedItem?.name ?? 'Item Detail', showBack: true, onBack: handleBack }
+                return {
+                    title: selectedItem?.name ?? 'Item Detail',
+                    showBack: true,
+                    onBack: handleBack,
+                    rightContent: (
+                        <HeaderPill>
+                            <PillButton icon={Pencil} iconSize={18} onClick={handleEditItem} label="Edit" />
+                            <PillButton icon={Trash2} iconSize={18} variant="danger" onClick={() => selectedItem && handleDeleteItem(selectedItem)} label="Delete" />
+                        </HeaderPill>
+                    ),
+                }
             case 'property-form':
                 if (!isMobile) return { title: 'Property Book', badge: 'BETA', rightContent: mainHeaderActions, hideDefaultClose: true }
                 return { title: selectedItem ? 'Edit Item' : 'Add Item', showBack: true, onBack: handleBack }
@@ -259,7 +259,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                                         isMobile={isMobile}
                                         view={view}
                                         searchQuery={searchQuery}
-                                        editing={editing}
                                         selectedItem={selectedItem}
                                         onSelectItem={handleSelectItem}
                                         onEditItem={handleEditItem}
@@ -280,7 +279,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                                     isMobile={false}
                                     view={view}
                                     searchQuery={searchQuery}
-                                    editing={editing}
                                     selectedItem={selectedItem}
                                     onSearchChange={setSearchQuery}
                                     onSelectItem={handleSelectItem}
@@ -301,7 +299,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                     <div className="absolute bottom-4 inset-x-0 flex items-center justify-center z-30 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
                         <div className="flex items-center gap-1.5 rounded-full bg-themewhite border border-tertiary/20 px-0.5 py-0.5 shadow-lg pointer-events-auto">
                             <button
-                                onClick={() => { setMapView(false); setEditing(false) }}
+                                onClick={() => { setMapView(false) }}
                                 className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${!mapView ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
                             >
                                 <List className="w-5 h-5" />
@@ -313,7 +311,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                                 <ScanLine className="w-5 h-5" />
                             </button>
                             <button
-                                onClick={() => { setMapView(true); setEditing(false) }}
+                                onClick={() => { setMapView(true) }}
                                 className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${mapView ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
                             >
                                 <MapIcon className="w-5 h-5" />

@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react'
-import { isPinEnabled, isSessionUnlocked, clearSessionUnlocked, initPinService } from '../lib/pinService'
+import { isPinEnabled, isAppLockEnabled, isSessionUnlocked, clearSessionUnlocked, initPinService } from '../lib/pinService'
 import { useInactivityTimer } from '../Hooks/useInactivityTimer'
 import { useAuth } from '../Hooks/useAuth'
 import { useAuthStore } from '../stores/useAuthStore'
 import { PinLockScreen } from './PinLockScreen'
 import { PasswordLockScreen } from './PasswordLockScreen'
 import { SetPasswordScreen } from './SetPasswordScreen'
+import { SessionReauthScreen } from './SessionReauthScreen'
 import { UserAcknowledgment, hasAcceptedAcknowledgment, recordAcknowledgment } from './UserAcknowledgment'
 import { LoginScreen } from './LoginScreen'
 import { PostLoginLoader } from './PostLoginLoader'
@@ -43,7 +44,8 @@ export function LockGate({ children }: { children: ReactNode }) {
   const [showPostLoginLoader, setShowPostLoginLoader] = useState(false)
   const isPasswordRecovery = useAuthStore(s => s.isPasswordRecovery)
   const needsPasswordSetup = useAuthStore(s => s.needsPasswordSetup)
-  const [isPinLocked, setIsPinLocked] = useState(() => isPinEnabled() && !isSessionUnlocked())
+  const needsReauth = useAuthStore(s => s.needsReauth)
+  const [isPinLocked, setIsPinLocked] = useState(() => isPinEnabled() && isAppLockEnabled() && !isSessionUnlocked())
   const [isInactivityLocked, setIsInactivityLocked] = useState(false)
   const [isInitialPasswordLocked, setIsInitialPasswordLocked] = useState(false)
   const [pinServiceReady, setPinServiceReady] = useState(false)
@@ -63,7 +65,7 @@ export function LockGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     initPinService().then(() => {
-      if (isPinEnabled() && !isSessionUnlocked()) {
+      if (isPinEnabled() && isAppLockEnabled() && !isSessionUnlocked()) {
         setIsPinLocked(true)
       }
       setPinServiceReady(true)
@@ -79,25 +81,13 @@ export function LockGate({ children }: { children: ReactNode }) {
   //   }
   // }, [user, isGuest, pinServiceReady])
 
-  // Re-lock when app goes to background (tab switch, app switch on mobile)
-  useEffect(() => {
-    const onVisChange = () => {
-      if (document.visibilityState === 'hidden' && isPinEnabled() && !isPinLocked) {
-        clearSessionUnlocked()
-        setIsPinLocked(true)
-      }
-    }
-    document.addEventListener('visibilitychange', onVisChange)
-    return () => document.removeEventListener('visibilitychange', onVisChange)
-  }, [isPinLocked])
-
   const handlePinUnlock = useCallback(() => {
     setIsPinLocked(false)
     setIsInactivityLocked(false)
   }, [])
 
   const handleInactivityTimeout = useCallback(() => {
-    if (isPinEnabled()) {
+    if (isPinEnabled() && isAppLockEnabled()) {
       clearSessionUnlocked()
       setIsPinLocked(true)
     } else {
@@ -126,9 +116,10 @@ export function LockGate({ children }: { children: ReactNode }) {
   // 2. post-login loader (z-9998) — first-time login: covers app until Signal + profile resolve
   // 3. user acknowledgment (z-100) — PHI disclosure (persistent for authed users, per-session for guests)
   // 4. login screen (z-90) — when not authenticated
-  // 5. PIN lock (z-100)
-  // 6. inactivity / initial password locks (z-100)
-  // 7. password recovery / setup — always on top (z-100, last in DOM)
+  // 5. session reauth (z-100) — dead Supabase session with valid localSession (iOS kill, token expiry)
+  // 6. PIN lock (z-100)
+  // 7. inactivity / initial password locks (z-100)
+  // 8. password recovery / setup — always on top (z-100, last in DOM)
   const showLogin = !shouldLoad && !user && !localSession && !isGuest
   return (
     <>
@@ -141,6 +132,9 @@ export function LockGate({ children }: { children: ReactNode }) {
         />
       )}
       {showLogin && <LoginScreen />}
+      {needsReauth && !shouldLoad && !user && localSession && (
+        <SessionReauthScreen email={localSession.email} />
+      )}
       {isPinLocked && <PinLockScreen onUnlock={handlePinUnlock} />}
       {isInitialPasswordLocked && !isPinLocked && (user?.email || localSession?.email) && (
         <PasswordLockScreen

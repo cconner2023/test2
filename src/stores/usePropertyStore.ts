@@ -79,6 +79,8 @@ interface PropertyState {
   refreshLocations: () => Promise<void>
   enrollFingerprint: (itemId: string, fingerprint: VisualFingerprint) => Promise<void>
   expendItem: (itemId: string, quantityDelta: number) => Promise<void>
+  splitItem: (itemId: string, qty: number, targetLocationId: string | null) => Promise<void>
+  mergeItems: (sourceId: string, targetId: string) => Promise<void>
 }
 
 let cleanupListeners: (() => void) | null = null
@@ -343,5 +345,65 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     }
 
     await recordExpendedEntry(itemId, quantityDelta, clinicId, user.id)
+  },
+
+  splitItem: async (itemId, qty, targetLocationId) => {
+    const user = useAuthStore.getState().user
+    if (!user) return
+
+    const { items } = get()
+    const source = items.find(i => i.id === itemId)
+    if (!source || source.is_serialized) return
+
+    const clampedQty = Math.max(1, Math.min(qty, source.quantity))
+
+    // Check if target already has a matching non-serialized item (same name + nsn)
+    const match = items.find(i =>
+      i.id !== itemId &&
+      !i.is_serialized &&
+      i.location_id === targetLocationId &&
+      i.name.toLowerCase() === source.name.toLowerCase() &&
+      (source.nsn ? i.nsn === source.nsn : !i.nsn)
+    )
+
+    if (match) {
+      await get().editItem(match.id, { quantity: match.quantity + clampedQty })
+    } else {
+      await get().addItem({
+        clinic_id: source.clinic_id,
+        name: source.name,
+        nomenclature: source.nomenclature,
+        nsn: source.nsn,
+        lin: source.lin,
+        serial_number: null,
+        quantity: clampedQty,
+        is_serialized: false,
+        condition_code: source.condition_code,
+        parent_item_id: source.parent_item_id,
+        location_id: targetLocationId,
+        current_holder_id: source.current_holder_id,
+        location_tag_id: null,
+        photo_url: source.photo_url,
+        visual_fingerprint: null,
+        expiry_date: source.expiry_date,
+        notes: source.notes,
+      })
+    }
+
+    if (clampedQty >= source.quantity) {
+      await get().removeItem(itemId)
+    } else {
+      await get().editItem(itemId, { quantity: source.quantity - clampedQty })
+    }
+  },
+
+  mergeItems: async (sourceId, targetId) => {
+    const { items } = get()
+    const source = items.find(i => i.id === sourceId)
+    const target = items.find(i => i.id === targetId)
+    if (!source || !target || source.is_serialized || target.is_serialized) return
+
+    await get().editItem(targetId, { quantity: target.quantity + source.quantity })
+    await get().removeItem(sourceId)
   },
 }))

@@ -2,97 +2,118 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { logError } from './ErrorHandler';
 
-type Theme = 'light' | 'dark';
+export type ThemeName = 'default' | 'ironclad' | 'forest' | 'void';
+export type ThemeMode = 'light' | 'dark';
+type ThemeId = `${ThemeName}-${ThemeMode}`;
 
 interface ThemeContextType {
-    theme: Theme;
+    /** Current mode — 'light' | 'dark'. Backward compat for existing consumers. */
+    theme: ThemeMode;
+    /** Current named theme palette. */
+    themeName: ThemeName;
+    /** Toggle light ↔ dark within the current theme. */
     toggleTheme: () => void;
-    setTheme: (theme: Theme) => void;
+    /** Set mode explicitly. */
+    setTheme: (mode: ThemeMode) => void;
+    /** Set named theme palette. */
+    setThemeName: (name: ThemeName) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-/** Provides light/dark theme context with localStorage persistence and system preference detection. */
+const VALID_NAMES: ThemeName[] = ['default', 'ironclad', 'forest', 'void'];
+const VALID_MODES: ThemeMode[] = ['light', 'dark'];
+
+function parseThemeId(raw: string | null): { name: ThemeName; mode: ThemeMode } | null {
+    if (!raw) return null;
+    // Migrate legacy format
+    if (raw === 'light') return { name: 'default', mode: 'light' };
+    if (raw === 'dark') return { name: 'default', mode: 'dark' };
+    const dashIdx = raw.lastIndexOf('-');
+    if (dashIdx < 0) return null;
+    const name = raw.slice(0, dashIdx) as ThemeName;
+    const mode = raw.slice(dashIdx + 1) as ThemeMode;
+    if (!VALID_NAMES.includes(name) || !VALID_MODES.includes(mode)) return null;
+    return { name, mode };
+}
+
+const META_COLORS: Record<ThemeId, string> = {
+    'default-light':    'rgb(255, 251, 251)',
+    'default-dark':     'rgb(15, 25, 35)',
+    'ironclad-light':   'rgb(251, 241, 199)',
+    'ironclad-dark':    'rgb(29, 32, 33)',
+    'forest-light':     'rgb(252, 252, 250)',
+    'forest-dark':      'rgb(14, 15, 14)',
+    'void-light':       'rgb(245, 246, 248)',
+    'void-dark':        'rgb(10, 11, 13)',
+};
+
+/** Provides multi-theme context (named palette + light/dark mode) with localStorage persistence and system preference detection. */
 export function ThemeProvider({ children }: { children: ReactNode }) {
-    // Initialize with null, then detect on mount
-    const [theme, setThemeState] = useState<Theme | null>(null);
+    const [themeName, setThemeNameState] = useState<ThemeName | null>(null);
+    const [themeMode, setThemeModeState] = useState<ThemeMode | null>(null);
 
     useEffect(() => {
-        // Only run on client side
-        if (typeof window !== 'undefined') {
-            let saved: string | null = null;
-            try {
-                saved = localStorage.getItem('theme') as Theme;
-            } catch (e) {
-                logError('ThemeContext.getItem', e);
-            }
-            const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        if (typeof window === 'undefined') return;
 
-            if (saved === 'light' || saved === 'dark') {
-                setThemeState(saved);
-            } else {
-                // Use system preference only if no saved preference
-                setThemeState(mediaQuery.matches ? 'dark' : 'light');
-            }
+        let saved: string | null = null;
+        try { saved = localStorage.getItem('theme'); } catch (e) { logError('ThemeContext.getItem', e); }
 
-            // Listen for system theme preference changes
-            const handleSystemThemeChange = (e: MediaQueryListEvent) => {
-                let currentSaved: string | null = null;
-                try {
-                    currentSaved = localStorage.getItem('theme') as Theme;
-                } catch (e) {
-                    logError('ThemeContext.getItemListener', e);
-                }
-                // Only update if user hasn't set a manual preference
-                if (currentSaved !== 'light' && currentSaved !== 'dark') {
-                    setThemeState(e.matches ? 'dark' : 'light');
-                }
-            };
+        const parsed = parseThemeId(saved);
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const systemMode: ThemeMode = mediaQuery.matches ? 'dark' : 'light';
 
-            mediaQuery.addEventListener('change', handleSystemThemeChange);
-            return () => mediaQuery.removeEventListener('change', handleSystemThemeChange);
+        if (parsed) {
+            setThemeNameState(parsed.name);
+            setThemeModeState(parsed.mode);
+        } else {
+            setThemeNameState('default');
+            setThemeModeState(systemMode);
         }
+
+        const handleSystemChange = (e: MediaQueryListEvent) => {
+            let currentSaved: string | null = null;
+            try { currentSaved = localStorage.getItem('theme'); } catch (e) { logError('ThemeContext.getItemListener', e); }
+            // Only follow system preference if user hasn't explicitly chosen a theme
+            if (!currentSaved) {
+                setThemeModeState(e.matches ? 'dark' : 'light');
+            }
+        };
+
+        mediaQuery.addEventListener('change', handleSystemChange);
+        return () => mediaQuery.removeEventListener('change', handleSystemChange);
     }, []);
 
     // Apply theme to DOM when it changes
     useEffect(() => {
-        if (theme && typeof window !== 'undefined') {
-            document.documentElement.setAttribute('data-theme', theme);
-            try {
-                localStorage.setItem('theme', theme);
-            } catch (e) {
-                logError('ThemeContext.setItem', e);
-            }
+        if (!themeName || !themeMode || typeof window === 'undefined') return;
 
-            // Update iOS/Safari theme-color meta tag to match current theme
-            const themeColor = theme === 'dark' ? 'rgb(15, 25, 35)' : 'rgb(255, 251, 251)';
-            let metaThemeColor = document.querySelector('meta[name="theme-color"]');
-            if (metaThemeColor) {
-                metaThemeColor.setAttribute('content', themeColor);
-            } else {
-                metaThemeColor = document.createElement('meta');
-                metaThemeColor.setAttribute('name', 'theme-color');
-                metaThemeColor.setAttribute('content', themeColor);
-                document.head.appendChild(metaThemeColor);
-            }
+        const id: ThemeId = `${themeName}-${themeMode}`;
+        document.documentElement.setAttribute('data-theme', id);
+
+        try { localStorage.setItem('theme', id); } catch (e) { logError('ThemeContext.setItem', e); }
+
+        const metaColor = META_COLORS[id];
+        let metaEl = document.querySelector('meta[name="theme-color"]');
+        if (metaEl) {
+            metaEl.setAttribute('content', metaColor);
+        } else {
+            metaEl = document.createElement('meta');
+            metaEl.setAttribute('name', 'theme-color');
+            metaEl.setAttribute('content', metaColor);
+            document.head.appendChild(metaEl);
         }
-    }, [theme]);
+    }, [themeName, themeMode]);
 
-    const setTheme = (newTheme: Theme) => {
-        setThemeState(newTheme);
-    };
-
-    const toggleTheme = () => {
-        setThemeState(prev => prev === 'light' ? 'dark' : 'light');
-    };
+    const setTheme = (mode: ThemeMode) => setThemeModeState(mode);
+    const setThemeName = (name: ThemeName) => setThemeNameState(name);
+    const toggleTheme = () => setThemeModeState(prev => prev === 'light' ? 'dark' : 'light');
 
     // Don't render until theme is determined (prevent flash)
-    if (theme === null) {
-        return null; // or a loading spinner
-    }
+    if (themeName === null || themeMode === null) return null;
 
     return (
-        <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
+        <ThemeContext.Provider value={{ theme: themeMode, themeName, toggleTheme, setTheme, setThemeName }}>
             {children}
         </ThemeContext.Provider>
     );

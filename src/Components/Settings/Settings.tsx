@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Moon, Sun, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Pencil, Check, Radio, Compass, Crosshair, LayoutDashboard } from 'lucide-react';
+import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Pencil, Check, Radio, Compass, LayoutDashboard } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import { useAvatar } from '../../Utilities/AvatarContext';
@@ -39,25 +39,24 @@ import { LoRaPanel } from './LoRaPanel';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { GuidedToursPanel } from './GuidedToursPanel';
 import { GUIDED_TEXT_EXPANDER } from '../../Data/GuidedTourData';
+import { ThemePickerPanel } from './ThemePickerPanel';
+import { useTheme } from '../../Utilities/ThemeContext';
 
 
 interface SettingsDrawerProps {
     isVisible: boolean;
     onClose: () => void;
-    isDarkMode: boolean;
-    onToggleTheme: () => void;
     initialPanel?: 'main' | 'release-notes' | 'user-profile' | 'feedback';
 }
 
 export const Settings = ({
     isVisible,
     onClose,
-    isDarkMode,
-    onToggleTheme,
     initialPanel,
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'guided-tours' | 'overview-widgets'>('main');
+    const { themeName } = useTheme();
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'guided-tours' | 'overview-widgets' | 'theme-picker'>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const prevVisibleRef = useRef(false);
@@ -203,9 +202,6 @@ export const Settings = ({
         if (id === PANEL.CLOSE) { closeDrawer(); return; }
         if (id === PANEL.BACK_TO_MAIN) { handleSlideAnimation('right'); setActivePanel('main'); return; }
 
-        // Toggle theme / TC3 mode have no panel navigation
-        if (id === PANEL.TOGGLE_THEME || id === PANEL.TC3_MODE) return;
-
         // Look up the target panel name from the constant map
         const target = PANEL_TARGET[id];
         if (target) {
@@ -240,7 +236,7 @@ export const Settings = ({
         // PREFERENCES section
         items.push(
             { type: 'header', label: 'Preferences' },
-            opt(PANEL.TOGGLE_THEME, isDarkMode ? <Sun size={20} /> : <Moon size={20} />, 'Toggle Theme', isDarkMode ? 'Switch to light mode' : 'Switch to dark mode', { action: onToggleTheme }),
+            opt(PANEL.TOGGLE_THEME, <Palette size={20} />, 'Appearance', themeName.charAt(0).toUpperCase() + themeName.slice(1)),
             opt(PANEL.NOTE_CONTENT, <Stethoscope size={20} />, 'Note Content', 'Exam blocks, templates, order sets'),
             opt(PANEL.OVERVIEW_WIDGETS, <LayoutDashboard size={20} />, 'Mission Overview', 'Widgets shown on the home screen'),
             opt(PANEL.PIN_SETUP, <Lock size={20} />, 'Security', 'App lock, biometrics, devices'),
@@ -260,13 +256,12 @@ export const Settings = ({
         if (isAuthenticated && isDevRole) {
             items.push(
                 { type: 'header', label: 'Utilities' },
-                opt(PANEL.TC3_MODE, <Crosshair size={20} />, profile.tc3Mode ? 'TC3 Mode — ON' : 'TC3 Mode — OFF', 'DD 1380 Casualty Card', { action: () => updateProfile({ tc3Mode: !profile.tc3Mode }) }),
                 opt(PANEL.LORA, <Radio size={20} />, 'WhisperNet', 'LoRa mesh offline messaging'),
             );
         }
 
         return items;
-    }, [isDarkMode, onToggleTheme, handleItemClick, isDevRole, isAuthenticated, isSupervisorRole, profile.clinicName, profile.tc3Mode, updateProfile]);
+    }, [themeName, handleItemClick, isDevRole, isAuthenticated, isSupervisorRole, profile.clinicName, updateProfile]);
 
     // Swipe-back for sub-panels (mobile touch only)
     const swipeHandlers = useSwipeBack(
@@ -364,6 +359,7 @@ export const Settings = ({
             case 'privacy-policy':      return { title: 'Privacy Policy', ...backTo() };
             case 'note-content':            return { title: 'Note Content', ...backTo() };
             case 'overview-widgets':        return { title: 'Mission Overview', ...backTo() };
+            case 'theme-picker':            return { title: 'Appearance', ...backTo() };
             case 'text-templates': {
                 const doTemplatesBack = () => { handleSlideAnimation('right'); setTemplatesEditing(false); setTemplatesHasPending(false); setActivePanel('note-content'); };
                 const templatesPills = (
@@ -614,6 +610,7 @@ export const Settings = ({
                                 />
                             ),
                             'overview-widgets': <OverviewWidgetsPanel />,
+                            'theme-picker':     <ThemePickerPanel />,
                             'plan-settings': (
                                 <PlanPanel
                                     editing={planEditing}
