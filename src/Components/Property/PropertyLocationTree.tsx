@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronRight, ChevronDown, Pencil, Trash2, Eye, Plus } from 'lucide-react'
+import { ChevronRight, ChevronDown, Pencil, Trash2, Eye, FolderPlus, PackagePlus } from 'lucide-react'
 import { useDrag } from '@use-gesture/react'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import type { LocalPropertyLocation, LocalPropertyItem } from '../../Types/PropertyTypes'
@@ -20,7 +20,7 @@ interface PropertyLocationTreeProps {
   onEditLocation?: (loc: LocalPropertyLocation) => void
   onDeleteLocation?: (locId: string) => void
   onDeleteItem?: (item: LocalPropertyItem) => void
-  onAddChildLocation?: (parentId: string) => void
+  onAddChildLocation?: (parentId: string | null) => void
   onAddItemAtLocation?: (locationId: string | null) => void
   editing?: boolean
 }
@@ -62,7 +62,7 @@ export function PropertyLocationTree({
   const [dropTargetId, setDropTargetId] = useState<string | null>(null)
   const dropTargetRef = useRef<string | null>(null)
   const ghostRef = useRef<HTMLDivElement>(null)
-  const [contextMenu, setContextMenu] = useState<{ type: 'location' | 'item'; id: string; x: number; y: number } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ type: 'location' | 'item' | 'root'; id: string; x: number; y: number } | null>(null)
 
   const toggleCollapse = useCallback((id: string) => {
     setCollapsed((prev) => {
@@ -281,7 +281,7 @@ export function PropertyLocationTree({
           data-drag-type="location"
           data-drag-name={node.location.name}
           data-drop-id={node.location.id}
-          onContextMenu={(e) => { e.preventDefault(); if (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation) setContextMenu({ type: 'location', id: node.location.id, x: e.clientX, y: e.clientY }) }}
+          onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation) setContextMenu({ type: 'location', id: node.location.id, x: e.clientX, y: e.clientY }) }}
         >
           {/* Chevron */}
           {hasChildren ? (
@@ -354,7 +354,7 @@ export function PropertyLocationTree({
                   style={{ paddingLeft: `${24 + (depth + 1) * 20 + 18}px` }}
                   onClick={() => onSelectItem(item)}
                   onKeyDown={(e) => { if (e.key === 'Enter') onSelectItem(item) }}
-                  onContextMenu={(e) => { e.preventDefault(); if (onDeleteItem || onAddItemAtLocation) setContextMenu({ type: 'item', id: item.id, x: e.clientX, y: e.clientY }) }}
+                  onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (onDeleteItem || onAddItemAtLocation) setContextMenu({ type: 'item', id: item.id, x: e.clientX, y: e.clientY }) }}
                   data-drag-id={item.id}
                   data-drag-type="item"
                   data-drag-name={item.name}
@@ -390,7 +390,17 @@ export function PropertyLocationTree({
   const isUnassignedDropTarget = dropTargetId === '__unassigned__'
 
   return (
-    <div {...bindDrag()} className="flex flex-col py-1" style={{ touchAction: 'none' }}>
+    <div
+      {...bindDrag()}
+      className="flex flex-col py-1"
+      style={{ touchAction: 'none' }}
+      onContextMenu={(e) => {
+        if (onAddChildLocation || onAddItemAtLocation) {
+          e.preventDefault()
+          setContextMenu({ type: 'root', id: '', x: e.clientX, y: e.clientY })
+        }
+      }}
+    >
       {/* All Locations node */}
       {onSelectAll && (
         <div
@@ -466,7 +476,7 @@ export function PropertyLocationTree({
                     style={{ paddingLeft: `${24 + 20 + 18}px` }}
                     onClick={() => onSelectItem(item)}
                     onKeyDown={(e) => { if (e.key === 'Enter') onSelectItem(item) }}
-                    onContextMenu={(e) => { e.preventDefault(); if (onDeleteItem || onAddItemAtLocation) setContextMenu({ type: 'item', id: item.id, x: e.clientX, y: e.clientY }) }}
+                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (onDeleteItem || onAddItemAtLocation) setContextMenu({ type: 'item', id: item.id, x: e.clientX, y: e.clientY }) }}
                     data-drag-id={item.id}
                     data-drag-type="item"
                     data-drag-name={item.name}
@@ -498,6 +508,19 @@ export function PropertyLocationTree({
 
       {/* Right-click context menu */}
       {contextMenu && (() => {
+        if (contextMenu.type === 'root') {
+          return (
+            <ContextMenu
+              x={contextMenu.x}
+              y={contextMenu.y}
+              onClose={() => setContextMenu(null)}
+              items={[
+                ...(onAddChildLocation ? [{ key: 'add-area', label: 'New Area', icon: FolderPlus, onAction: () => onAddChildLocation(null) }] : []),
+                ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(null) }] : []),
+              ]}
+            />
+          )
+        }
         if (contextMenu.type === 'location') {
           const loc = locations.find(l => l.id === contextMenu.id)
           if (!loc) return null
@@ -507,8 +530,8 @@ export function PropertyLocationTree({
               y={contextMenu.y}
               onClose={() => setContextMenu(null)}
               items={[
-                ...(onAddChildLocation ? [{ key: 'add-area', label: 'New Area', icon: Plus, onAction: () => onAddChildLocation(loc.id) }] : []),
-                ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: Plus, onAction: () => onAddItemAtLocation(loc.id) }] : []),
+                ...(onAddChildLocation ? [{ key: 'add-area', label: 'New Area', icon: FolderPlus, onAction: () => onAddChildLocation(loc.id) }] : []),
+                ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(loc.id) }] : []),
                 ...(onEditLocation ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditLocation(loc) }] : []),
                 ...(onDeleteLocation ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteLocation(loc.id) }] : []),
               ]}
@@ -524,7 +547,7 @@ export function PropertyLocationTree({
               onClose={() => setContextMenu(null)}
               items={[
                 { key: 'view', label: 'View', icon: Eye, onAction: () => onSelectItem(item) },
-                ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: Plus, onAction: () => onAddItemAtLocation(item.location_id ?? null) }] : []),
+                ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(item.location_id ?? null) }] : []),
                 ...(onDeleteItem ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteItem(item) }] : []),
               ]}
             />

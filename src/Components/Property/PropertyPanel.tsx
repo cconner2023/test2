@@ -151,7 +151,7 @@ export const PropertyPanel = memo(function PropertyPanel({
     setShowNewLocation(false)
   }, [newLocationName, newLocationParentId, store])
 
-  const handleAddChildLocation = useCallback((parentId: string) => {
+  const handleAddChildLocation = useCallback((parentId: string | null) => {
     setNewLocationParentId(parentId)
     setNewLocationName('')
     setShowNewLocation(true)

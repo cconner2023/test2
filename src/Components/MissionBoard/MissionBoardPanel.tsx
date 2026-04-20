@@ -70,7 +70,7 @@ function ConvRow({ entry, lastText, unread, isPinned, onTap, onContext }: {
           {isPinned && <Pin size={9} className="text-themeblue2 shrink-0" />}
           <p className="text-xs font-medium text-primary truncate">{name}</p>
         </div>
-        {lastText && <p className="text-[10px] text-tertiary/60 truncate">{lastText}</p>}
+        {lastText && <p className="text-[10px] text-secondary truncate">{lastText}</p>}
       </div>
       {unread > 0 && (
         <div className="min-w-[18px] h-[18px] px-1 rounded-full bg-themeblue2 flex items-center justify-center shrink-0">

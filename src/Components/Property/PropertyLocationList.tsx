@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, forwardRef, useImperativeHandle } from 'react'
-import { ChevronRight, Pencil, Trash2, Map as MapIcon, X, Check, Plus } from 'lucide-react'
+import { ChevronRight, Pencil, Trash2, Map as MapIcon, X, Check, FolderPlus, PackagePlus } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { Section, SectionCard } from '../Section'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
@@ -38,7 +38,7 @@ interface PropertyLocationListProps {
   onDeleteItem?: (item: LocalPropertyItem) => void
   onViewOnMap?: (locationId: string) => void
   onDrilldownChange?: (path: DrilldownSegment[]) => void
-  onAddChildLocation?: (parentId: string) => void
+  onAddChildLocation?: (parentId: string | null) => void
   onAddItemAtLocation?: (locationId: string | null) => void
   /** When true, show the inline item creation form */
   showInlineForm?: boolean
@@ -68,7 +68,7 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
   editing = false,
 }, ref) {
   const [path, setPath] = useState<DrilldownSegment[]>([])
-  const [contextMenu, setContextMenu] = useState<{ type: 'location' | 'item'; id: string; x: number; y: number } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ type: 'location' | 'item' | 'root'; id: string; x: number; y: number } | null>(null)
   const longPressRef = useRef<number | null>(null)
   const longPressPreventTap = useRef(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -292,6 +292,7 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
         onKeyDown={(e) => { if (e.key === 'Enter') drillInto(loc) }}
         onContextMenu={(e) => {
           e.preventDefault()
+          e.stopPropagation()
           if (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation) {
             setContextMenu({ type: 'location', id: loc.id, x: e.clientX, y: e.clientY })
           }
@@ -343,7 +344,7 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
       className={`flex items-center gap-3 px-4 py-3.5 ${
         !isLast ? 'border-b border-tertiary/8' : ''
       }`}
-      onContextMenu={onAddItemAtLocation ? (e) => { e.preventDefault(); setContextMenu({ type: 'item', id: item.id, x: e.clientX, y: e.clientY }) } : undefined}
+      onContextMenu={onAddItemAtLocation ? (e) => { e.preventDefault(); e.stopPropagation(); setContextMenu({ type: 'item', id: item.id, x: e.clientX, y: e.clientY }) } : undefined}
       onTouchStart={onAddItemAtLocation ? (e) => handleTouchStart('item', item.id, e) : undefined}
       onTouchEnd={onAddItemAtLocation ? handleTouchEnd : undefined}
       onTouchMove={onAddItemAtLocation ? handleTouchMove : undefined}
@@ -428,7 +429,15 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
   const inlineFormVisible = showInlineForm || !!inlineEditItem
 
   return (
-    <div className="flex flex-col min-h-0 px-4 pt-3 pb-20 space-y-5">
+    <div
+      className="flex flex-col min-h-0 px-4 pt-3 pb-20 space-y-5"
+      onContextMenu={(e) => {
+        if (onAddChildLocation || onAddItemAtLocation) {
+          e.preventDefault()
+          setContextMenu({ type: 'root', id: '', x: e.clientX, y: e.clientY })
+        }
+      }}
+    >
       {/* Inline item form — animated expand like TextExpanderManager */}
       <div className={`overflow-hidden transition-all duration-300 ease-out ${
         inlineFormVisible ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
@@ -502,6 +511,19 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
 
           {/* Context menu — long-press / right-click on location and item rows */}
           {contextMenu && (() => {
+            if (contextMenu.type === 'root') {
+              return (
+                <ContextMenu
+                  x={contextMenu.x}
+                  y={contextMenu.y}
+                  onClose={() => setContextMenu(null)}
+                  items={[
+                    ...(onAddChildLocation ? [{ key: 'add-area', label: 'New Area', icon: FolderPlus, onAction: () => onAddChildLocation(null) }] : []),
+                    ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(null) }] : []),
+                  ]}
+                />
+              )
+            }
             if (contextMenu.type === 'location') {
               const loc = locations.find((l) => l.id === contextMenu.id)
               if (!loc) return null
@@ -511,8 +533,8 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
                   y={contextMenu.y}
                   onClose={() => setContextMenu(null)}
                   items={[
-                    ...(onAddChildLocation ? [{ key: 'add-area', label: 'New Area', icon: Plus, onAction: () => onAddChildLocation(loc.id) }] : []),
-                    ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: Plus, onAction: () => onAddItemAtLocation(loc.id) }] : []),
+                    ...(onAddChildLocation ? [{ key: 'add-area', label: 'New Area', icon: FolderPlus, onAction: () => onAddChildLocation(loc.id) }] : []),
+                    ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(loc.id) }] : []),
                     ...(onEditLocation ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => startRename(loc) }] : []),
                     ...(onDeleteLocation ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteLocation(loc.id) }] : []),
                   ]}
@@ -525,7 +547,7 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
                   y={contextMenu.y}
                   onClose={() => setContextMenu(null)}
                   items={[
-                    ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: Plus, onAction: () => onAddItemAtLocation(currentParentId) }] : []),
+                    ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(currentParentId) }] : []),
                   ]}
                 />
               )

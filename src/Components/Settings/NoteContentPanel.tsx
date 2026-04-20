@@ -1,4 +1,4 @@
-import { ClipboardList, TextCursorInput, ChevronRight, LayoutTemplate, LayoutDashboard } from 'lucide-react';
+import { ClipboardList, TextCursorInput, ChevronRight, LayoutTemplate } from 'lucide-react';
 import { useAuthStore } from '../../stores/useAuthStore';
 
 interface NoteContentPanelProps {
@@ -25,12 +25,6 @@ export const NoteContentPanel = ({ onNavigate }: NoteContentPanelProps) => {
             label: 'Text Templates',
             subtitle: 'Autotext shortcuts for your notes',
             navigateTo: 'text-templates',
-        },
-        {
-            icon: LayoutDashboard,
-            label: 'Mission Overview',
-            subtitle: 'Widgets shown on the home screen',
-            navigateTo: 'overview-widgets',
         },
     ];
 

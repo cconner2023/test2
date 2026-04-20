@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Moon, Sun, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Pencil, Check, Radio, Compass, Crosshair } from 'lucide-react';
+import { Moon, Sun, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Pencil, Check, Radio, Compass, Crosshair, LayoutDashboard } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import { useAvatar } from '../../Utilities/AvatarContext';
@@ -242,6 +242,7 @@ export const Settings = ({
             { type: 'header', label: 'Preferences' },
             opt(PANEL.TOGGLE_THEME, isDarkMode ? <Sun size={20} /> : <Moon size={20} />, 'Toggle Theme', isDarkMode ? 'Switch to light mode' : 'Switch to dark mode', { action: onToggleTheme }),
             opt(PANEL.NOTE_CONTENT, <Stethoscope size={20} />, 'Note Content', 'Exam blocks, templates, order sets'),
+            opt(PANEL.OVERVIEW_WIDGETS, <LayoutDashboard size={20} />, 'Mission Overview', 'Widgets shown on the home screen'),
             opt(PANEL.PIN_SETUP, <Lock size={20} />, 'Security', 'App lock, biometrics, devices'),
             opt(PANEL.NOTIFICATION_SETTINGS, <Bell size={20} />, 'Notifications', 'Push subscriptions and alerts'),
         );
@@ -292,7 +293,7 @@ export const Settings = ({
                 return () => { handleSlideAnimation('right'); setActivePanel('main'); };
             }
             if (activePanel === 'overview-widgets') {
-                return () => { handleSlideAnimation('right'); setActivePanel('note-content'); };
+                return () => { handleSlideAnimation('right'); setActivePanel('main'); };
             }
             if (activePanel === 'plan-settings') {
                 return () => { handleSlideAnimation('right'); setPlanEditing(false); setActivePanel('note-content'); };
@@ -362,7 +363,7 @@ export const Settings = ({
             case 'feedback':            return { title: 'Feedback', ...backTo() };
             case 'privacy-policy':      return { title: 'Privacy Policy', ...backTo() };
             case 'note-content':            return { title: 'Note Content', ...backTo() };
-            case 'overview-widgets':        return { title: 'Mission Overview', ...backTo('note-content') };
+            case 'overview-widgets':        return { title: 'Mission Overview', ...backTo() };
             case 'text-templates': {
                 const doTemplatesBack = () => { handleSlideAnimation('right'); setTemplatesEditing(false); setTemplatesHasPending(false); setActivePanel('note-content'); };
                 const templatesPills = (

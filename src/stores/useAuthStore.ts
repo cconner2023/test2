@@ -212,7 +212,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   let clinicPlanOrderSets: UserTypes['planOrderSets'] | null = null
 
   // Fetch core profile + clinic name.
-  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notify_dev_alerts, text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets, needs_password_setup, favorite_medications, provider_note_templates'
+  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notify_dev_alerts, text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets, needs_password_setup, favorite_medications, provider_note_templates, overview_widgets'
   const { data, error: fetchError } = await supabase
     .from('profiles')
     .select(PROFILE_SELECT)
@@ -248,6 +248,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     if (sec.plan_order_sets != null) profile.planOrderSets = sec.plan_order_sets as UserTypes['planOrderSets']
     if (sec.favorite_medications != null) profile.favoriteMedications = sec.favorite_medications as string[]
     if (sec.provider_note_templates != null) profile.providerNoteTemplates = sec.provider_note_templates as UserTypes['providerNoteTemplates']
+    if ('overview_widgets' in sec) profile.overviewWidgets = sec.overview_widgets as UserTypes['overviewWidgets']
     if (sec.needs_password_setup === true) needsPasswordSetup = true
   }
 
