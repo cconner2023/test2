@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useSpring, animated } from '@react-spring/web';
-import { ChevronLeft, Compass, Move, MapPin, Route, Pentagon, Pencil, Trash2, Check, X, Search, RefreshCw, Ruler, Wifi, RadioTower } from 'lucide-react';
+import { ChevronLeft, Compass, Move, MapPin, Route, Pentagon, Pencil, Trash2, Check, X, Search, RefreshCw, Ruler, Wifi, RadioTower, Grid3X3, Undo2 } from 'lucide-react';
 import { LoadingSpinner } from '../LoadingSpinner';
 import { forward } from 'mgrs';
 import { BaseDrawer } from '../BaseDrawer';
@@ -11,6 +11,7 @@ import { useGeolocation } from '../../Hooks/useGeolocation';
 import { useIsMobile } from '../../Hooks/useIsMobile';
 import { useAuth } from '../../Hooks/useAuth';
 import { getOverlays, saveOverlay, deleteOverlay } from '../../lib/mapOverlayService';
+import { loadCachedClinicUsers } from '../../lib/clinicUsersCache';
 import {
   downloadTilesForOverlay,
   evictOverlayTiles,
@@ -80,7 +81,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   const [features, setFeatures] = useState<OverlayFeature[]>([]);
   const [drawMode, setDrawMode] = useState<DrawMode>('pan');
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
-  const [showGrid] = useState(false);
+  const [showGrid, setShowGrid] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Measure tool
@@ -137,6 +138,18 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   const linkedEvent = overlayId
     ? (allEvents.find(e => e.structured_location?.overlay_id === overlayId) ?? null)
     : null;
+
+  // ── User identity for presence markers ──
+  const [userLabels, setUserLabels] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    loadCachedClinicUsers().then(users => {
+      setUserLabels(new Map(users.map(u => [
+        u.id,
+        [u.rank, u.lastName].filter(Boolean).join(' ') || u.firstName || u.id.slice(0, 8),
+      ])));
+    });
+  }, []);
+
   // Derive presence markers from the event's field_positions for all participants
   const presenceMarkers: PresenceMarker[] = linkedEvent?.field_positions
     ? Object.entries(linkedEvent.field_positions).map(([userId, pos]) => ({
@@ -144,7 +157,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
         lat: pos.lat,
         lng: pos.lng,
         timestamp: pos.timestamp,
-        label: pos.mgrs || userId.slice(0, 8),
+        label: userLabels.get(userId) || pos.mgrs || userId.slice(0, 8),
       }))
     : [];
 
@@ -564,6 +577,23 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     setSelectedFeatureId(null);
   }, [selectedFeatureId]);
 
+  // ── Undo last vertex (route / area drawing) ──
+  const handleUndoVertex = useCallback(() => {
+    const ipId = inProgressFeatureId.current;
+    if (!ipId || inProgressGeometry.current.length === 0) return;
+    inProgressGeometry.current = inProgressGeometry.current.slice(0, -1);
+    if (inProgressGeometry.current.length === 0) {
+      setFeatures(prev => prev.filter(f => f.id !== ipId));
+      inProgressFeatureId.current = null;
+      setSelectedFeatureId(null);
+    } else {
+      const now = new Date().toISOString();
+      setFeatures(prev => prev.map(f =>
+        f.id === ipId ? { ...f, geometry: [...inProgressGeometry.current], updated_at: now } : f
+      ));
+    }
+  }, []);
+
   // ── Search handler ──
   const handleSearchSubmit = useCallback(async () => {
     if (!searchQuery.trim() || searchPending) return;
@@ -844,24 +874,40 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                   </button>
                 )}
 
+                {/* ── MGRS grid toggle ── */}
+                <button
+                  type="button"
+                  onClick={() => setShowGrid(prev => !prev)}
+                  className={`mt-1.5 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium
+                    shadow-sm active:scale-95 transition-all
+                    ${showGrid
+                      ? 'bg-themeblue3 text-white'
+                      : 'bg-themewhite border border-tertiary/20 text-tertiary'
+                    }`}
+                  title={showGrid ? 'Hide MGRS grid' : 'Show MGRS grid'}
+                >
+                  <Grid3X3 size={13} />
+                  Grid
+                </button>
+
                 {/* ── Naming modal — drops below FAB ── */}
                 {namingFeatureId && (() => {
                   const namingFeature = features.find(f => f.id === namingFeatureId);
                   const isWaypoint = namingFeature?.type === 'waypoint';
-                  const PICKER_TYPES: WaypointType[] = ['generic', 'hlz', 'ccp'];
+                  const PICKER_TYPES: WaypointType[] = ['generic', 'hlz', 'ccp', 'casualty', 'contact'];
                   return (
                     <div className="mt-1.5 bg-themewhite rounded-xl shadow-lg w-56 p-3 border border-primary/10">
                       <p className="text-[10pt] font-medium text-primary mb-2">
                         {isWaypoint ? 'Name this point' : namingFeature?.type === 'route' ? 'Name this route' : 'Name this area'}
                       </p>
                       {isWaypoint && (
-                        <div className="flex items-center gap-1.5 mb-2">
+                        <div className="flex flex-wrap items-center gap-1.5 mb-2">
                           {PICKER_TYPES.map((wt) => (
                             <button
                               key={wt}
                               type="button"
                               onClick={() => setPendingWaypointType(wt)}
-                              className={`flex-1 py-1.5 rounded-lg text-[9pt] font-medium active:scale-95 transition-all
+                              className={`px-2.5 py-1.5 rounded-lg text-[9pt] font-medium active:scale-95 transition-all
                                 ${pendingWaypointType === wt ? 'bg-themeblue3 text-white' : 'bg-themewhite2 text-tertiary'}`}
                             >
                               {WAYPOINT_LABELS[wt]}
@@ -931,9 +977,18 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                 <LoadingSpinner size="lg" className="text-themeblue3" />
               </animated.div>
 
-              {/* Route finish button */}
+              {/* Route/area finish + undo buttons */}
               {isDrawInProgress && (
-                <div className={`absolute left-3 z-[1000] ${isMobile ? 'top-[68px]' : 'top-3'}`}>
+                <div className={`absolute left-3 z-[1000] flex items-center gap-2 ${isMobile ? 'top-[68px]' : 'top-3'}`}>
+                  <button
+                    type="button"
+                    onClick={handleUndoVertex}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-themewhite border border-tertiary/20
+                      text-tertiary text-xs font-medium shadow-sm active:scale-95 transition-all"
+                  >
+                    <Undo2 size={12} />
+                    Undo
+                  </button>
                   <button
                     type="button"
                     onClick={finishRoute}

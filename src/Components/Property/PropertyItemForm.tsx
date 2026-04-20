@@ -21,6 +21,7 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
     defaultLocationId,
     addItem,
     editItem,
+    enrollFingerprint,
   } = usePropertyStore(
     useShallow((s) => ({
       locations: s.locations,
@@ -30,6 +31,7 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
       defaultLocationId: s.defaultLocationId,
       addItem: s.addItem,
       editItem: s.editItem,
+      enrollFingerprint: s.enrollFingerprint,
     }))
   )
 
@@ -45,9 +47,10 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
   const [holderId, setHolderId] = useState(editingItem?.current_holder_id ?? '')
   const [parentItemId, setParentItemId] = useState(editingItem?.parent_item_id ?? '')
   const [notes, setNotes] = useState(editingItem?.notes ?? '')
+  const [expiryDate, setExpiryDate] = useState(editingItem?.expiry_date ?? '')
   const [isSaving, setIsSaving] = useState(false)
   const [isSerialized, setIsSerialized] = useState(editingItem?.is_serialized ?? true)
-  const [showEnrollStep, setShowEnrollStep] = useState(false)
+  const [newItemId, setNewItemId] = useState<string | null>(null)
 
   const locationOptions = useMemo(
     () =>
@@ -93,12 +96,13 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
           location_id: locationId || null,
           current_holder_id: holderId || null,
           parent_item_id: parentItemId || null,
+          expiry_date: expiryDate || null,
           notes: notes.trim() || null,
           is_serialized: isSerialized,
         })
         onClose()
       } else {
-        await addItem({
+        const created = await addItem({
           clinic_id: clinicId,
           name: name.trim(),
           nomenclature: nomenclature.trim() || null,
@@ -112,10 +116,16 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
           current_holder_id: holderId || null,
           location_tag_id: null,
           photo_url: null,
+          expiry_date: expiryDate || null,
           notes: notes.trim() || null,
           is_serialized: isSerialized,
+          visual_fingerprint: null,
         })
-        setShowEnrollStep(true)
+        if (created) {
+          setNewItemId(created.id)
+        } else {
+          onClose()
+        }
       }
     } catch {
       // error handled by service layer
@@ -125,19 +135,22 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
   }, [
     name, nomenclature, nsn, lin, serialNumber, quantity,
     locationId, holderId, parentItemId, notes, isSerialized,
-    isEdit, editingItem, clinicId, addItem, editItem, onClose,
+    isEdit, editingItem, clinicId, addItem, editItem, enrollFingerprint, onClose,
   ])
 
   const hasLocations = locationOptions.length > 0
   const hasParentItems = parentItemOptions.length > 0
 
-  if (showEnrollStep) {
+  if (newItemId) {
     return (
       <div className="rounded-xl bg-themewhite2">
         <EnrollScanStep
-          itemId=""
+          itemId={newItemId}
           itemName={name.trim()}
-          onEnrolled={onClose}
+          onEnrolled={async (fp) => {
+            await enrollFingerprint(newItemId, fp)
+            onClose()
+          }}
           onSkip={onClose}
         />
       </div>
@@ -210,6 +223,26 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
           )}
         </div>
       )}
+
+      {/* Expiry date */}
+      <div className="px-4 py-3 flex items-center gap-3">
+        <label className="text-xs text-tertiary/60 shrink-0 w-20">Expiry date</label>
+        <input
+          type="date"
+          value={expiryDate}
+          onChange={(e) => setExpiryDate(e.target.value)}
+          className="flex-1 min-w-0 px-4 py-2.5 rounded-2xl text-primary text-sm border border-themeblue3/10 shadow-xs bg-themewhite dark:bg-themewhite3 focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all duration-300"
+        />
+        {expiryDate && (
+          <button
+            type="button"
+            onClick={() => setExpiryDate('')}
+            className="shrink-0 text-tertiary/40 hover:text-tertiary active:scale-95 transition-all"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
 
       {/* Notes */}
       <div className="px-4 py-3">

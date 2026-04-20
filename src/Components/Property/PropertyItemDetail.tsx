@@ -1,8 +1,8 @@
 import { Pencil, Trash2, ScanLine } from 'lucide-react'
 import { SectionCard } from '../Section'
 import { useIsMobile } from '../../Hooks/useIsMobile'
-import type { LocalPropertyItem, LocalPropertyLocation } from '../../Types/PropertyTypes'
-import type { HolderInfo } from '../../Types/PropertyTypes'
+import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
+import { expiryStatus } from '../../Types/PropertyTypes'
 
 interface PropertyItemDetailProps {
   item: LocalPropertyItem
@@ -31,6 +31,11 @@ const CONDITION_LABELS: Record<string, { label: string; color: string }> = {
   missing: { label: 'Missing', color: 'bg-themeredred' },
 }
 
+const EXPIRY_LABELS = {
+  expired: { label: 'EXPIRED', dot: 'bg-themeredred', text: 'text-themeredred' },
+  expiring: { label: 'EXPIRING SOON', dot: 'bg-themeyellow', text: 'text-themeyellow' },
+} as const
+
 export function PropertyItemDetail({ item, locations, holders, items, onEdit, onDelete, onEnroll }: PropertyItemDetailProps) {
   const isMobile = useIsMobile()
   const location = item.location_id ? locations.find(l => l.id === item.location_id) : null
@@ -38,6 +43,8 @@ export function PropertyItemDetail({ item, locations, holders, items, onEdit, on
   const parentItem = item.parent_item_id ? items.find(i => i.id === item.parent_item_id) : null
   const subItems = items.filter(i => i.parent_item_id === item.id)
   const condition = CONDITION_LABELS[item.condition_code] ?? CONDITION_LABELS.serviceable
+  const expiry = expiryStatus(item.expiry_date ?? null)
+  const expiryLabel = expiry ? EXPIRY_LABELS[expiry] : null
 
   return (
     <div className={`flex flex-col h-full ${isMobile ? 'px-4 py-4 space-y-4' : 'px-3 py-3 space-y-3'}`}>
@@ -67,6 +74,18 @@ export function PropertyItemDetail({ item, locations, holders, items, onEdit, on
           <DetailRow label="Location" value={location?.name} />
           <DetailRow label="Holder" value={holder?.displayName} />
           <DetailRow label="Parent" value={parentItem?.name} />
+          {item.expiry_date && (
+            <div className="flex justify-between items-baseline gap-4 py-2 border-b border-primary/5 last:border-b-0">
+              <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase shrink-0">Expires</span>
+              <div className="flex items-center gap-1.5">
+                {expiryLabel && <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${expiryLabel.dot}`} />}
+                <span className={`text-[10pt] text-right truncate ${expiryLabel ? expiryLabel.text : 'text-primary'}`}>
+                  {item.expiry_date}
+                  {expiryLabel && ` · ${expiryLabel.label}`}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </SectionCard>
 

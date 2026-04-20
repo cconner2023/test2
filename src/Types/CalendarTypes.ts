@@ -1,9 +1,10 @@
 export type EventCategory =
-  | 'training' | 'duty' | 'range' | 'appointment' | 'mission' | 'other'
+  | 'training' | 'duty' | 'range' | 'appointment' | 'mission' | 'medevac' | 'other'
 
 export type EventStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
 
 import type { ResourceAllocation, StructuredLocation } from './MissionTypes'
+import type { MedevacRequest } from './MedevacTypes'
 
 export interface CalendarEvent {
   id: string
@@ -32,6 +33,8 @@ export interface CalendarEvent {
   originId?: string
   /** Last-known field positions for mission participants — keyed by user_id. Updated via location publisher; rides the normal event edit fan-out. */
   field_positions?: Record<string, FieldPosition> | null
+  /** 9-line MEDEVAC request data — present when category is 'medevac' or when a mission event includes a MEDEVAC request. */
+  medevac_data?: MedevacRequest | null
 }
 
 /** A single user's last-known field position, stored on a CalendarEvent. */
@@ -58,6 +61,8 @@ export interface EventFormData {
   property_item_ids: string[]
   /** Overlay link set from the overlay picker — undefined means no overlay selected. */
   structured_location?: StructuredLocation | null
+  /** 9-line MEDEVAC request — populated when category is 'medevac'. */
+  medevac_data?: MedevacRequest | null
 }
 
 export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: string }[] = [
@@ -66,6 +71,7 @@ export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: str
   { value: 'range', label: 'Range', color: 'bg-themeblue2/20' },
   { value: 'appointment', label: 'Appointment', color: 'bg-themeblue1/20' },
   { value: 'mission', label: 'Mission', color: 'bg-themegreen/20' },
+  { value: 'medevac', label: 'MEDEVAC', color: 'bg-themeredred/20' },
   { value: 'other', label: 'Other', color: 'bg-tertiary/50' },
 ]
 
@@ -75,6 +81,7 @@ export const CATEGORY_BG_MAP: Record<EventCategory, string> = {
   range: 'bg-themeblue2/20 border-themeblue2/30 text-primary',
   appointment: 'bg-themeblue1/20 border-themeblue1/30 text-primary',
   mission: 'bg-themegreen/20 border-themegreen/30 text-primary',
+  medevac: 'bg-themeredred/20 border-themeredred/30 text-primary',
   other: 'bg-tertiary/20 border-tertiary/20 text-secondary',
 }
 
@@ -111,6 +118,7 @@ export function createEmptyFormData(forDateKey?: string): EventFormData {
     assigned_to: [],
     property_item_ids: [],
     structured_location: null,
+    medevac_data: null,
   }
 }
 
@@ -128,6 +136,7 @@ export function eventToFormData(event: CalendarEvent): EventFormData {
     assigned_to: event.assigned_to ?? [],
     property_item_ids: event.property_item_ids ?? [],
     structured_location: event.structured_location ?? null,
+    medevac_data: event.medevac_data ?? null,
   }
 }
 

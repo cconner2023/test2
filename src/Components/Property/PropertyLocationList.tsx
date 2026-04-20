@@ -5,6 +5,7 @@ import { Section, SectionCard } from '../Section'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { PropertyItemForm } from './PropertyItemForm'
 import type { LocalPropertyLocation, LocalPropertyItem, HolderInfo } from '../../Types/PropertyTypes'
+import { expiryStatus } from '../../Types/PropertyTypes'
 
 export type PropertySearchFilter = 'all' | 'item' | 'assigned' | 'location' | 'description'
 const SEARCH_FILTERS: { key: PropertySearchFilter; label: string }[] = [
@@ -330,7 +331,9 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
     )
   }
 
-  const renderItemRow = (item: LocalPropertyItem, isLast: boolean) => (
+  const renderItemRow = (item: LocalPropertyItem, isLast: boolean) => {
+    const expiry = expiryStatus(item.expiry_date ?? null)
+    return (
     <div
       key={item.id}
       className={`flex items-center gap-3 px-4 py-3.5 ${
@@ -341,6 +344,9 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
         onClick={() => onSelectItem(item)}
         className="flex-1 min-w-0 flex items-center gap-3 text-left active:opacity-70 transition-opacity"
       >
+        {expiry && (
+          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${expiry === 'expired' ? 'bg-themeredred' : 'bg-themeyellow'}`} />
+        )}
         <span className="flex-1 text-sm text-primary truncate">{item.name}</span>
         {item.quantity > 1 && (
           <span className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0 bg-themeblue3/10 text-themeblue3">
@@ -358,10 +364,12 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
       )}
     </div>
   )
+  }
 
   const renderSearchResultRow = (item: LocalPropertyItem, isLast: boolean) => {
     const locName = item.location_id ? locationNameMap.get(item.location_id) : null
     const holder = item.current_holder_id ? holders?.get(item.current_holder_id) : null
+    const expiry = expiryStatus(item.expiry_date ?? null)
     const subtitle = [locName, holder?.displayName].filter(Boolean).join(' · ')
 
     return (
@@ -372,6 +380,9 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
           !isLast ? 'border-b border-tertiary/8' : ''
         }`}
       >
+        {expiry && (
+          <span className={`w-1.5 h-1.5 rounded-full shrink-0 mt-1 ${expiry === 'expired' ? 'bg-themeredred' : 'bg-themeyellow'}`} />
+        )}
         <div className="flex-1 min-w-0">
           <p className="text-sm text-primary truncate">{item.name}</p>
           {subtitle && (

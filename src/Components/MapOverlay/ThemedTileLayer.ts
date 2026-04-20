@@ -19,8 +19,8 @@ export const TILE_THEME_LIGHT: TileTheme = {
 
 export const TILE_THEME_DARK: TileTheme = {
   background: [14, 22, 32],      // themewhite (dark)
-  foreground: [200, 215, 228],   // near-white — crisp text/roads
-  accent: [35, 72, 98],          // deep blue features
+  foreground: [232, 242, 250],   // bright white-blue — crisp text/roads
+  accent: [45, 90, 118],         // mid-blue features
 };
 
 const TILE_SUBDOMAINS = ['a', 'b', 'c'];
@@ -105,27 +105,26 @@ function recolorPixels(data: Uint8ClampedArray, colors: TileTheme): void {
 
     let r: number, g: number, b: number;
 
-    if (lum < 0.10) {
-      // Very dark pixels (text, outlines) → pure foreground for maximum contrast
-      r = fg[0]; g = fg[1]; b = fg[2];
-    } else if (lum < 0.38) {
-      // Anti-aliasing / dark mid-tones → blend fg → ac
-      const t = (lum - 0.10) / 0.28;
-      r = fg[0] + (ac[0] - fg[0]) * t;
-      g = fg[1] + (ac[1] - fg[1]) * t;
-      b = fg[2] + (ac[2] - fg[2]) * t;
-    } else if (lum < 0.65) {
-      // Mid-range → accent to background
-      const t = (lum - 0.38) / 0.27;
-      r = ac[0] + (bg[0] - ac[0]) * t * 0.3;
-      g = ac[1] + (bg[1] - ac[1]) * t * 0.3;
-      b = ac[2] + (bg[2] - ac[2]) * t * 0.3;
+    if (lum < 0.42) {
+      // Dark pixels (text, road outlines, labels) → foreground.
+      // OSM text is typically #333–#555 (lum 0.20–0.35), not pure black —
+      // the old 0.10 threshold was too low and mapped those to accent.
+      const t = lum / 0.42;
+      r = fg[0] + (ac[0] - fg[0]) * t * 0.20;
+      g = fg[1] + (ac[1] - fg[1]) * t * 0.20;
+      b = fg[2] + (ac[2] - fg[2]) * t * 0.20;
+    } else if (lum < 0.62) {
+      // Anti-aliasing / mid-tones → blend fg → ac
+      const t = (lum - 0.42) / 0.20;
+      r = fg[0] + (ac[0] - fg[0]) * (0.20 + t * 0.80);
+      g = fg[1] + (ac[1] - fg[1]) * (0.20 + t * 0.80);
+      b = fg[2] + (ac[2] - fg[2]) * (0.20 + t * 0.80);
     } else {
-      // Light pixels → accent to background
-      const t = (lum - 0.65) / 0.35;
-      r = ac[0] + (bg[0] - ac[0]) * (0.3 + t * 0.7);
-      g = ac[1] + (bg[1] - ac[1]) * (0.3 + t * 0.7);
-      b = ac[2] + (bg[2] - ac[2]) * (0.3 + t * 0.7);
+      // Light pixels (land, buildings, roads) → accent to background
+      const t = (lum - 0.62) / 0.38;
+      r = ac[0] + (bg[0] - ac[0]) * t;
+      g = ac[1] + (bg[1] - ac[1]) * t;
+      b = ac[2] + (bg[2] - ac[2]) * t;
     }
 
     data[i] = r;

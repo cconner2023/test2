@@ -8,6 +8,8 @@ export type WaypointType =
   | 'sp'
   | 'cp'
   | 'generic'
+  | 'casualty'
+  | 'contact'
 
 export type FeatureType = 'waypoint' | 'route' | 'area'
 
@@ -64,6 +66,8 @@ export const WAYPOINT_LABELS: Record<WaypointType, string> = {
   sp: 'SP',
   cp: 'CP',
   generic: 'WPT',
+  casualty: 'CAS',
+  contact: 'ENMY',
 }
 
 export const TACTICAL_COLORS = [

@@ -5,6 +5,9 @@ import { createEmptyFormData, EVENT_CATEGORIES } from '../../Types/CalendarTypes
 import { PickerInput, DatePickerInput } from '../FormInputs'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useIsMobile } from '../../Hooks/useIsMobile'
+import { MedevacForm } from '../Medevac/MedevacForm'
+import { emptyMedevacRequest } from '../../Types/MedevacTypes'
+import { useAuthStore } from '../../stores/useAuthStore'
 
 /** Generate 30-min military time options: "0000", "0030", … "2330" */
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
@@ -51,8 +54,11 @@ interface EventFormProps {
 export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
   function EventForm({ initialData, onSave, isEditing, medics, propertyItems, overlayOptions }, ref) {
     const isMobile = useIsMobile()
+    const isDevRole = useAuthStore(s => s.isDevRole)
     const [form, setForm] = useState<EventFormData>(initialData ?? createEmptyFormData())
     const [errors, setErrors] = useState<Record<string, string>>({})
+
+    const visibleCategories = EVENT_CATEGORIES.filter(c => c.value !== 'medevac' || isDevRole)
 
     const updateField = useCallback(<K extends keyof EventFormData>(key: K, value: EventFormData[K]) => {
       setForm(prev => ({ ...prev, [key]: value }))
@@ -156,9 +162,13 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           value={categoryLabel}
           onChange={v => {
             const cat = EVENT_CATEGORIES.find(c => c.label === v)
-            if (cat) updateField('category', cat.value as EventCategory)
+            if (!cat) return
+            updateField('category', cat.value as EventCategory)
+            if (cat.value === 'medevac' && !form.medevac_data) {
+              updateField('medevac_data', emptyMedevacRequest())
+            }
           }}
-          options={EVENT_CATEGORIES.map(c => c.label)}
+          options={visibleCategories.map(c => c.label)}
           placeholder="Category"
           required
         />
@@ -235,13 +245,15 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           {errors.end_time && <p className="text-xs text-themeredred mt-1 pl-4">{errors.end_time}</p>}
         </div>
 
-        <input
-          type="text"
-          value={form.location}
-          onChange={e => updateField('location', e.target.value)}
-          placeholder="Location"
-          className={inputCx}
-        />
+        {form.category !== 'medevac' && (
+          <input
+            type="text"
+            value={form.location}
+            onChange={e => updateField('location', e.target.value)}
+            placeholder="Location"
+            className={inputCx}
+          />
+        )}
 
         {overlayOptions && overlayOptions.length > 0 && (
           <div>
@@ -270,15 +282,25 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           </div>
         )}
 
-        <textarea
-          value={form.description}
-          onChange={e => updateField('description', e.target.value)}
-          placeholder="Description / OPORD notes"
-          rows={3}
-          className={`w-full rounded-2xl border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none bg-themewhite2 text-primary placeholder:text-tertiary/30 transition-all duration-300 resize-none ${
-            isMobile ? 'py-2.5 px-4 text-sm' : 'py-2 px-3 text-xs'
-          }`}
-        />
+        {form.category !== 'medevac' && (
+          <textarea
+            value={form.description}
+            onChange={e => updateField('description', e.target.value)}
+            placeholder="Description / OPORD notes"
+            rows={3}
+            className={`w-full rounded-2xl border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none bg-themewhite2 text-primary placeholder:text-tertiary/30 transition-all duration-300 resize-none ${
+              isMobile ? 'py-2.5 px-4 text-sm' : 'py-2 px-3 text-xs'
+            }`}
+          />
+        )}
+
+        {/* 9-line MEDEVAC — shown when category is medevac */}
+        {form.category === 'medevac' && (
+          <MedevacForm
+            value={form.medevac_data}
+            onChange={req => updateField('medevac_data', req)}
+          />
+        )}
 
         {medics && medics.length > 0 && (
           <div>

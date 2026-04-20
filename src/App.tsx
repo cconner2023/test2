@@ -447,7 +447,7 @@ case 'mapOverlay':
     <TourProvider onboardingBlocked={updateVisible || installVisible || postUpdatePending}>
     <MessagesProvider>
     <CallProvider>
-    <div className='app-h bg-themewhite md:bg-themewhite2 md:items-center flex justify-center overflow-hidden'>
+    <div className='app-h bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden'>
       <div id="app-drawer-root" className="max-w-315 shrink w-full md:rounded-md md:border md:border-[rgba(0,0,0,0.03)] md:shadow-[0px_2px_4px] md:shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-dvh relative md:bg-themewhite">
 
         {/* Viewport strip — SideNav + content side by side, pans to reveal nav or shift for messages */}

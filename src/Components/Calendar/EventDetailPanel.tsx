@@ -5,6 +5,7 @@ import { HeaderPill, PillButton } from '../HeaderPill'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { shareSingleEvent } from '../../lib/calendarExport'
 import { useIsMobile } from '../../Hooks/useIsMobile'
+import { MedevacCard } from '../Medevac/MedevacCard'
 
 interface AssignedPerson {
   id: string
@@ -141,6 +142,16 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* 9-line MEDEVAC card */}
+        {event.medevac_data && (
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">MEDEVAC Request</span>
+            </div>
+            <MedevacCard data={event.medevac_data} />
           </div>
         )}
 

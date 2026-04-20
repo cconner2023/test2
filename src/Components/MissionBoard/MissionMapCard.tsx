@@ -8,17 +8,16 @@ import type { OverlayFeature } from '../../Types/MapOverlayTypes'
 import { waypointIconSvg } from '../MapOverlay/WaypointIcon'
 import { computeOverlayBbox } from '../../lib/mapTileService'
 
-const MAP_HEIGHT = 220
 const DEFAULT_CENTER: [number, number] = [38.8977, -77.0365]
 const DEFAULT_ZOOM = 13
 
 interface MissionMapCardProps {
-  onOpenMap: () => void
+  onClick: () => void
   overlayFeatures?: OverlayFeature[]
   overlayId?: string
 }
 
-export function MissionMapCard({ onOpenMap, overlayFeatures, overlayId: _overlayId }: MissionMapCardProps) {
+export function MissionMapCard({ onClick, overlayFeatures, overlayId: _overlayId }: MissionMapCardProps) {
   const { theme } = useTheme()
   const { position, startWatching, stopWatching } = useGeolocation()
   const mapDivRef = useRef<HTMLDivElement>(null)
@@ -26,7 +25,7 @@ export function MissionMapCard({ onOpenMap, overlayFeatures, overlayId: _overlay
   const tileLayerRef = useRef<L.GridLayer | null>(null)
   const gpsMarkerRef = useRef<L.CircleMarker | null>(null)
   const featureLayerRef = useRef<L.LayerGroup>(L.layerGroup())
-  // Init map once
+
   useEffect(() => {
     if (!mapDivRef.current || mapRef.current) return
 
@@ -35,11 +34,12 @@ export function MissionMapCard({ onOpenMap, overlayFeatures, overlayId: _overlay
       zoom: DEFAULT_ZOOM,
       zoomControl: false,
       attributionControl: false,
-      dragging: true,
+      dragging: false,
       scrollWheelZoom: false,
       doubleClickZoom: false,
       boxZoom: false,
       keyboard: false,
+      touchZoom: false,
     })
     mapRef.current = map
 
@@ -57,7 +57,6 @@ export function MissionMapCard({ onOpenMap, overlayFeatures, overlayId: _overlay
     }
   }, [])
 
-  // Swap tile theme
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
@@ -67,7 +66,6 @@ export function MissionMapCard({ onOpenMap, overlayFeatures, overlayId: _overlay
     tileLayerRef.current = layer
   }, [theme])
 
-  // Sync overlay features to feature layer group
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
@@ -129,13 +127,11 @@ export function MissionMapCard({ onOpenMap, overlayFeatures, overlayId: _overlay
     }
   }, [overlayFeatures])
 
-  // GPS tracking
   useEffect(() => {
     startWatching()
     return () => stopWatching()
   }, [startWatching, stopWatching])
 
-  // Update GPS marker and center
   useEffect(() => {
     const map = mapRef.current
     if (!map || !position) return
@@ -157,32 +153,24 @@ export function MissionMapCard({ onOpenMap, overlayFeatures, overlayId: _overlay
     }
   }, [position])
 
-  // Invalidate size on mount
   useEffect(() => {
     const t = setTimeout(() => mapRef.current?.invalidateSize(), 60)
     return () => clearTimeout(t)
   }, [])
 
   return (
-    <div className="rounded-xl overflow-hidden border border-themeblue3/10 bg-themewhite2">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2.5">
-        <span className="text-xs font-medium text-primary flex-1 text-left">Map</span>
-        {position && (
-          <span className="text-[10px] text-secondary">GPS</span>
-        )}
-      </div>
-
-      {/* Map area */}
-      <div className="relative" style={{ height: MAP_HEIGHT }}>
-        <div ref={mapDivRef} className="w-full" style={{ height: MAP_HEIGHT }} />
-        <button
-          onClick={onOpenMap}
-          className="absolute bottom-2 right-2 z-[400] text-[10px] font-semibold px-2.5 py-1 rounded-full bg-themewhite/90 border border-themeblue3/15 text-themeblue1 shadow-xs active:scale-95 transition-transform"
-        >
-          Open Map
-        </button>
-      </div>
+    <div className="relative w-full h-full">
+      <div ref={mapDivRef} className="w-full h-full" />
+      {/* Transparent tap target over the map */}
+      <div
+        className="absolute inset-0 z-[500] cursor-pointer"
+        onClick={onClick}
+      />
+      {position && (
+        <span className="absolute top-1.5 left-1.5 z-[600] text-[9px] font-semibold px-1.5 py-0.5 rounded bg-themewhite/80 text-secondary pointer-events-none">
+          GPS
+        </span>
+      )}
     </div>
   )
 }

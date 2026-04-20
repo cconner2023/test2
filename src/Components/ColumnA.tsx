@@ -1,4 +1,4 @@
-import { useRef, useEffect, useLayoutEffect, memo, useState, useCallback } from 'react'
+import { useRef, useEffect, memo, useState, useCallback } from 'react'
 import { Search, X } from 'lucide-react'
 import { animated, type SpringValue } from '@react-spring/web'
 import { CategoryList } from './CategoryList'
@@ -60,7 +60,6 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
 
   // ── Search bar + Mission board: 1:1 scroll-driven height collapse (no spring) ──
   const [barHeight, setBarHeight] = useState(52)
-  const [missionBoardHeight, setMissionBoardHeight] = useState(0)
   const searchBarRef = useRef<HTMLDivElement>(null)
   const missionBoardSectionRef = useRef<HTMLDivElement>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -72,32 +71,12 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
   const hasSearchRef = useRef(hasSearch)
   hasSearchRef.current = hasSearch
 
-  // Derive combined header height (search bar + mission board)
-  const totalHeaderHeight = barHeight + missionBoardHeight
-
   useEffect(() => {
     if (searchBarRef.current) {
       const h = searchBarRef.current.offsetHeight
       if (h > 0) setBarHeight(h)
     }
   }, [hasMobileSearch])
-
-  // Measure mission board height synchronously before first paint, then track changes
-  useLayoutEffect(() => {
-    if (!isMobile || !missionBoardSectionRef.current) return
-    const h = missionBoardSectionRef.current.offsetHeight
-    if (h > 0) setMissionBoardHeight(h)
-  }, [isMobile])
-
-  useEffect(() => {
-    if (!isMobile || !missionBoardSectionRef.current) return
-    const ro = new ResizeObserver(([entry]) => {
-      const h = entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height
-      if (h > 0) setMissionBoardHeight(h)
-    })
-    ro.observe(missionBoardSectionRef.current)
-    return () => ro.disconnect()
-  }, [isMobile])
 
   useEffect(() => {
     if (!hasMobileSearch) return
@@ -112,7 +91,7 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
       if (rafId !== null) return
       rafId = requestAnimationFrame(() => {
         rafId = null
-        // During search or focus: show only the search bar, hide mission board
+        // During search or focus: show only the search bar
         if (searchFocusedRef.current || hasSearchRef.current) {
           wrapper.style.height = `${barHeight}px`
           wrapper.style.opacity = '1'
@@ -121,14 +100,14 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
         }
         const scrollTop = el.scrollTop
         if (scrollTop < 0) {
-          wrapper.style.height = `${totalHeaderHeight}px`
+          wrapper.style.height = `${barHeight}px`
           wrapper.style.opacity = '1'
           if (innerRef.current) innerRef.current.style.transform = `translateY(${scrollTop * 0.3}px)`
         } else {
-          const collapsed = Math.min(scrollTop, totalHeaderHeight)
-          wrapper.style.height = `${totalHeaderHeight - collapsed}px`
-          wrapper.style.opacity = totalHeaderHeight > 0
-            ? String(1 - (collapsed / totalHeaderHeight) * 0.6)
+          const collapsed = Math.min(scrollTop, barHeight)
+          wrapper.style.height = `${barHeight - collapsed}px`
+          wrapper.style.opacity = barHeight > 0
+            ? String(1 - (collapsed / barHeight) * 0.6)
             : '1'
           if (innerRef.current) innerRef.current.style.transform = 'translateY(0px)'
         }
@@ -140,7 +119,7 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
       el.removeEventListener('scroll', onScroll)
       if (rafId !== null) cancelAnimationFrame(rafId)
     }
-  }, [panelIndex, hasMobileSearch, barHeight, totalHeaderHeight])
+  }, [panelIndex, hasMobileSearch, barHeight])
 
   // Keep bar expanded when value is present or focused (mission board hidden during search)
   useEffect(() => {
@@ -168,14 +147,14 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
       const el = ref.current
       const wrapper = wrapperRef.current
       if (el && wrapper) {
-        const collapsed = Math.max(0, Math.min(el.scrollTop, totalHeaderHeight))
-        wrapper.style.height = `${totalHeaderHeight - collapsed}px`
-        wrapper.style.opacity = totalHeaderHeight > 0
-          ? String(1 - (collapsed / totalHeaderHeight) * 0.6)
+        const collapsed = Math.max(0, Math.min(el.scrollTop, barHeight))
+        wrapper.style.height = `${barHeight - collapsed}px`
+        wrapper.style.opacity = barHeight > 0
+          ? String(1 - (collapsed / barHeight) * 0.6)
           : '1'
       }
     }
-  }, [searchFocused, hasSearch, onSearchFocusChange, panelIndex, totalHeaderHeight])
+  }, [searchFocused, hasSearch, onSearchFocusChange, panelIndex, barHeight])
 
   const handleColumnSearchClose = useCallback(() => {
     onSearchChange?.('')
@@ -187,12 +166,12 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
     const el = ref.current
     const wrapper = wrapperRef.current
     if (!el || !wrapper) return
-    const collapsed = Math.max(0, Math.min(el.scrollTop, totalHeaderHeight))
-    wrapper.style.height = `${totalHeaderHeight - collapsed}px`
-    wrapper.style.opacity = totalHeaderHeight > 0
-      ? String(1 - (collapsed / totalHeaderHeight) * 0.6)
+    const collapsed = Math.max(0, Math.min(el.scrollTop, barHeight))
+    wrapper.style.height = `${barHeight - collapsed}px`
+    wrapper.style.opacity = barHeight > 0
+      ? String(1 - (collapsed / barHeight) * 0.6)
       : '1'
-  }, [onSearchChange, onSearchFocusChange, panelIndex, totalHeaderHeight])
+  }, [onSearchChange, onSearchFocusChange, panelIndex, barHeight])
 
   const handleColumnSearchBlur = useCallback(() => {
     if (!hasSearchRef.current) {
@@ -202,13 +181,13 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
       const el = ref.current
       const wrapper = wrapperRef.current
       if (!el || !wrapper) return
-      const collapsed = Math.max(0, Math.min(el.scrollTop, totalHeaderHeight))
-      wrapper.style.height = `${totalHeaderHeight - collapsed}px`
-      wrapper.style.opacity = totalHeaderHeight > 0
-        ? String(1 - (collapsed / totalHeaderHeight) * 0.6)
+      const collapsed = Math.max(0, Math.min(el.scrollTop, barHeight))
+      wrapper.style.height = `${barHeight - collapsed}px`
+      wrapper.style.opacity = barHeight > 0
+        ? String(1 - (collapsed / barHeight) * 0.6)
         : '1'
     }
-  }, [onSearchFocusChange, panelIndex, totalHeaderHeight])
+  }, [onSearchFocusChange, panelIndex, barHeight])
 
   const handleColumnSearchClear = useCallback(() => {
     onSearchChange?.('')
@@ -230,17 +209,16 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
     ? headerCollapse.to((c: number) => `calc(var(--sat, 0px) + 4rem * ${1 - c})`)
     : isMobile ? 'calc(var(--sat, 0px) + 4rem)' : undefined
 
-  // Panel 0 content offset — header + search bar + mission board
-  const panel0PaddingExtra = hasMobileSearch ? ` + ${totalHeaderHeight}px` : ''
+  // Panel 0 content offset — header + search bar (mission board is in-flow at top of panel 0)
+  const barExtra = hasMobileSearch ? ` + ${barHeight}px` : ''
   const panel0Padding = isMobile && headerCollapse
-    ? headerCollapse.to((c: number) => `calc(var(--sat, 0px) + 4rem * ${1 - c}${panel0PaddingExtra})`)
-    : isMobile ? `calc(var(--sat, 0px) + 4rem${panel0PaddingExtra})` : undefined
+    ? headerCollapse.to((c: number) => `calc(var(--sat, 0px) + 4rem * ${1 - c}${barExtra})`)
+    : isMobile ? `calc(var(--sat, 0px) + 4rem${barExtra})` : undefined
 
   // Other panels + search results — header + search bar only
-  const barOnlyExtra = hasMobileSearch ? ` + ${barHeight}px` : ''
   const mobilePanelPadding = isMobile && headerCollapse
-    ? headerCollapse.to((c: number) => `calc(var(--sat, 0px) + 4rem * ${1 - c}${barOnlyExtra})`)
-    : isMobile ? `calc(var(--sat, 0px) + 4rem${barOnlyExtra})` : undefined
+    ? headerCollapse.to((c: number) => `calc(var(--sat, 0px) + 4rem * ${1 - c}${barExtra})`)
+    : isMobile ? `calc(var(--sat, 0px) + 4rem${barExtra})` : undefined
 
   const panelWidth = `${100 / panelCount}%`
 
@@ -252,13 +230,13 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
       }}
       {...carousel.dragHandlers}
     >
-      {/* Mobile header zone — search bar + mission board, 1:1 scroll-driven collapse */}
+      {/* Mobile header zone — search bar only, 1:1 scroll-driven collapse */}
       {hasMobileSearch && (
         <animated.div
           ref={wrapperRef}
           className={`overflow-hidden ${isMobile ? 'absolute left-0 right-0 z-10 bg-themewhite' : 'shrink-0'}`}
           style={{
-            height: totalHeaderHeight,
+            height: barHeight,
             opacity: 1,
             ...(isMobile ? { top: mobilePaddingTop } : {}),
           }}
@@ -311,11 +289,6 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
                 </div>
               </div>
             </div>
-
-            {/* Mission board — same collapse zone as search bar; clipped by overflow-hidden during search */}
-            <div ref={missionBoardSectionRef} className="px-2 pb-2">
-              <MissionBoardPanel />
-            </div>
           </div>
         </animated.div>
       )}
@@ -340,9 +313,14 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
         className={`flex flex-1 min-h-0 ${hasSearch ? 'hidden' : ''}`}
         style={{ width: `${panelCount * 100}%` }}
       >
-        {/* Panel 0: Main categories (mission board is in the absolute header zone above) */}
+        {/* Panel 0: Mission board (scrolls naturally) + main categories */}
         <div ref={panel0ScrollRef} data-tour="category-list" className="overflow-y-auto bg-themewhite self-stretch" style={{ flex: `0 0 ${panelWidth}` }}>
           <animated.div className="px-2 md:px-0 min-h-full" style={{ paddingTop: panel0Padding }}>
+            {isMobile && (
+              <div ref={missionBoardSectionRef} className="pb-2">
+                <MissionBoardPanel />
+              </div>
+            )}
             <CategoryList mobilePanel="main" onNavigate={onNavigate} />
           </animated.div>
         </div>

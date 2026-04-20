@@ -60,9 +60,23 @@ export interface PropertyItem {
   location_tag_id: string | null
   photo_url: string | null
   visual_fingerprint: VisualFingerprint | null
+  expiry_date: string | null      // ISO date (YYYY-MM-DD) for consumable/medical supply tracking
   notes: string | null
   created_at: string
   updated_at: string
+}
+
+/** Returns the expiry urgency for an item's expiry_date. null = not expiring. */
+export function expiryStatus(expiry_date: string | null): 'expired' | 'expiring' | null {
+  if (!expiry_date) return null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const expiry = new Date(expiry_date + 'T00:00:00')
+  if (expiry < today) return 'expired'
+  const soon = new Date(today)
+  soon.setDate(soon.getDate() + 30)
+  if (expiry <= soon) return 'expiring'
+  return null
 }
 
 export interface PropertyLocation {

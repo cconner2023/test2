@@ -69,7 +69,7 @@ interface PropertyState {
   setHolderFilter: (holderId: string | null) => void
 
   init: () => Promise<void>
-  addItem: (data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at'>) => Promise<void>
+  addItem: (data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at'>) => Promise<LocalPropertyItem | null>
   editItem: (id: string, updates: Partial<PropertyItem>) => Promise<void>
   removeItem: (id: string) => Promise<void>
   addLocation: (data: Omit<PropertyLocation, 'id' | 'created_at' | 'updated_at'>) => Promise<{ success: boolean; location?: LocalPropertyLocation }>
@@ -208,12 +208,14 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
 
   addItem: async (data) => {
     const user = useAuthStore.getState().user
-    if (!user) return
+    if (!user) return null
 
     const result = await createItem(data, user.id)
     if (result.success) {
       set({ items: [result.item, ...get().items] })
+      return result.item
     }
+    return null
   },
 
   editItem: async (id, updates) => {

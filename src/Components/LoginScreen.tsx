@@ -191,14 +191,16 @@ export function LoginScreen() {
                       : 'absolute inset-x-0 top-0 opacity-0 -translate-y-2 pointer-events-none'
                     }`}>
                       {/* Pill selector */}
-                      <div className="flex gap-1 p-0.5 rounded-full bg-themewhite dark:bg-themewhite3 border border-themeblue3/10">
+                      <div className="relative flex p-0.5 rounded-full bg-themewhite dark:bg-themewhite3 border border-themeblue3/10">
+                        {/* Sliding indicator */}
+                        <div className={`absolute inset-y-0.5 left-0.5 w-[calc(50%-2px)] rounded-full bg-themeblue3 shadow-sm transition-transform duration-200 ease-out ${mode === 'qr' ? 'translate-x-full' : 'translate-x-0'}`} />
                         {(['password', 'qr'] as LoginMode[]).map(m => (
                           <button
                             key={m}
                             type="button"
                             onClick={() => switchMode(m)}
-                            className={`flex-1 py-1.5 text-[10px] font-medium rounded-full transition-all duration-200 active:scale-95 ${mode === m
-                              ? 'bg-themeblue3 text-white shadow-sm'
+                            className={`relative flex-1 py-1.5 text-[10px] font-medium rounded-full transition-colors duration-200 active:scale-95 ${mode === m
+                              ? 'text-white'
                               : 'text-tertiary/50 hover:text-tertiary/70'
                             }`}
                           >

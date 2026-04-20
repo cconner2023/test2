@@ -2,7 +2,7 @@ import { useRef, useEffect, useCallback, useState, forwardRef, useImperativeHand
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { forward } from 'mgrs';
-import { Plus, Minus, Info, Copy, ClipboardCheck } from 'lucide-react';
+import { Plus, Minus, Info, Copy, ClipboardCheck, LocateFixed } from 'lucide-react';
 import { useTheme } from '../../Utilities/ThemeContext';
 import { createThemedTileLayer, TILE_THEME_LIGHT, TILE_THEME_DARK } from './ThemedTileLayer';
 import { getTileFromCache } from '../../lib/mapTileService';
@@ -101,6 +101,15 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 
   const handleZoomIn = useCallback(() => { mapRef.current?.zoomIn(); }, []);
   const handleZoomOut = useCallback(() => { mapRef.current?.zoomOut(); }, []);
+
+  const gpsPositionRef = useRef(gpsPosition);
+  useEffect(() => { gpsPositionRef.current = gpsPosition; }, [gpsPosition]);
+
+  const handleRecenterGps = useCallback(() => {
+    const pos = gpsPositionRef.current;
+    if (!pos || !mapRef.current) return;
+    mapRef.current.flyTo([pos.lat, pos.lng], Math.max(mapRef.current.getZoom(), 15), { duration: 1.0 });
+  }, []);
 
   const toggleAttribution = useCallback(() => {
     setShowAttribution(prev => {
@@ -462,8 +471,17 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         }
       </button>
 
-      {/* Zoom controls — right side, vertically stacked */}
+      {/* Zoom + GPS controls — right side, vertically stacked */}
       <div className="absolute right-3 bottom-16 z-[1000] flex flex-col gap-1.5">
+        <button
+          type="button"
+          onClick={handleRecenterGps}
+          disabled={!gpsPosition}
+          className={`${CTRL_BTN} disabled:opacity-30`}
+          aria-label="Center on my position"
+        >
+          <LocateFixed size={16} />
+        </button>
         <button type="button" onClick={handleZoomIn} className={CTRL_BTN} aria-label="Zoom in">
           <Plus size={16} />
         </button>

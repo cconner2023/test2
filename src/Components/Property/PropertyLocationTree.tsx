@@ -4,6 +4,7 @@ import { ChevronRight, ChevronDown, Pencil, Trash2, Eye } from 'lucide-react'
 import { useDrag } from '@use-gesture/react'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import type { LocalPropertyLocation, LocalPropertyItem } from '../../Types/PropertyTypes'
+import { expiryStatus } from '../../Types/PropertyTypes'
 
 interface PropertyLocationTreeProps {
   locations: LocalPropertyLocation[]
@@ -337,6 +338,7 @@ export function PropertyLocationTree({
             {node.children.map((child) => renderNode(child, depth + 1))}
             {node.items.map((item) => {
               const isItemDragSource = dragState?.id === item.id
+              const expiry = expiryStatus(item.expiry_date ?? null)
               return (
                 <div
                   key={item.id}
@@ -353,6 +355,9 @@ export function PropertyLocationTree({
                   data-drag-type="item"
                   data-drag-name={item.name}
                 >
+                  {expiry && (
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${expiry === 'expired' ? 'bg-themeredred' : 'bg-themeyellow'}`} />
+                  )}
                   <span className="text-[10pt] text-primary truncate flex-1">{item.name}</span>
                   {item.quantity > 0 && (
                     <span className="text-[9pt] text-tertiary/60 tabular-nums shrink-0">
@@ -445,6 +450,7 @@ export function PropertyLocationTree({
             <>
               {unassignedItems.map((item) => {
                 const isItemDragSource = dragState?.id === item.id
+                const expiry = expiryStatus(item.expiry_date ?? null)
                 return (
                   <div
                     key={item.id}
@@ -461,6 +467,9 @@ export function PropertyLocationTree({
                     data-drag-type="item"
                     data-drag-name={item.name}
                   >
+                    {expiry && (
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${expiry === 'expired' ? 'bg-themeredred' : 'bg-themeyellow'}`} />
+                    )}
                     <span className="text-[10pt] text-primary truncate flex-1">{item.name}</span>
                     {item.quantity > 0 && (
                       <span className="text-[9pt] text-tertiary/60 tabular-nums shrink-0">
