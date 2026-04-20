@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import bwipjs from 'bwip-js'
 import { useLinkeeChannel } from '../Hooks/useDeviceLink'
 import { Check, X, RefreshCw, ArrowLeft } from 'lucide-react'
+import { LoadingSpinner } from './LoadingSpinner'
 import { useAuthStore } from '../stores/useAuthStore'
 import { signIn } from '../lib/authService'
 import { supabase } from '../lib/supabase'
@@ -16,7 +17,7 @@ type ForgotStep = null | 'email' | 'token'
 
 /** Rendered only when mode === 'qr'. Subscribes to Realtime and shows QR. */
 function DeviceLinkQrView() {
-  const { channelId, status, error } = useLinkeeChannel()
+  const { channelId, status, error, channelState, regenerate } = useLinkeeChannel()
 
   const qrCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
     if (!canvas || !channelId) return
@@ -32,10 +33,26 @@ function DeviceLinkQrView() {
     }
   }, [channelId])
 
+  if (channelState !== 'ready') {
+    return (
+      <div className="py-4 flex flex-col items-center justify-center gap-2">
+        <LoadingSpinner className="text-tertiary/50" />
+        {channelState === 'error' && (
+          <button
+            onClick={regenerate}
+            className="text-xs text-tertiary/50 active:opacity-70 transition-opacity"
+          >
+            Tap to retry
+          </button>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="py-2 overflow-hidden">
       <div className="float-right ml-3 mb-1 w-[38%]">
-        <canvas ref={qrCanvasRef} className="block w-full border border-gray-200 bg-white rounded-xl" />
+        <canvas ref={qrCanvasRef} className="block w-full border border-themegreen/30 bg-white rounded-xl" />
       </div>
       <p className="text-sm font-semibold text-primary mb-1.5">Link This Device</p>
       <p className="text-xs text-secondary leading-relaxed">
@@ -44,7 +61,9 @@ function DeviceLinkQrView() {
       {status === 'receiving' && (
         <p className="text-xs text-themegreen font-medium mt-1.5">Linking device…</p>
       )}
-      {error && <p className="text-xs text-themeredred mt-1.5">{error}</p>}
+      {status === 'error' && error && (
+        <p className="text-xs text-themeredred mt-1.5">{error}</p>
+      )}
     </div>
   )
 }

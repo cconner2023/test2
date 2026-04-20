@@ -1,19 +1,34 @@
 import { useState, useEffect, useCallback } from 'react'
+import { REALTIME_SUBSCRIBE_STATES } from '@supabase/realtime-js'
 import { supabase } from '../lib/supabase'
 
 export type LinkeeStatus = 'waiting' | 'receiving' | 'error'
+export type ChannelState = 'connecting' | 'ready' | 'error'
 
 /**
  * Used by the new device at the LoginScreen (QR mode).
  * Generates a one-time channelId, subscribes to Realtime, and applies
  * received session credentials automatically.
+ *
+ * channelState reflects the Realtime subscription status so the UI can
+ * show a "connected" indicator and surface errors (e.g. unauthenticated
+ * Realtime rejection, network failure).
  */
 export function useLinkeeChannel() {
-  const [channelId] = useState(() => crypto.randomUUID())
+  const [channelId, setChannelId] = useState(() => crypto.randomUUID())
   const [status, setStatus] = useState<LinkeeStatus>('waiting')
   const [error, setError] = useState<string | null>(null)
+  const [channelState, setChannelState] = useState<ChannelState>('connecting')
+
+  const regenerate = useCallback(() => {
+    setChannelId(crypto.randomUUID())
+    setStatus('waiting')
+    setError(null)
+    setChannelState('connecting')
+  }, [])
 
   useEffect(() => {
+    setChannelState('connecting')
     const channel = supabase.channel(`device-link:${channelId}`)
 
     channel
@@ -29,12 +44,23 @@ export function useLinkeeChannel() {
         }
         // On success Supabase onAuthStateChange fires → app navigates away
       })
-      .subscribe()
+      .subscribe((subStatus, err) => {
+        if (subStatus === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) {
+          setChannelState('ready')
+        } else if (
+          subStatus === REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR ||
+          subStatus === REALTIME_SUBSCRIBE_STATES.TIMED_OUT
+        ) {
+          setChannelState('error')
+          setStatus('error')
+          setError(err?.message ?? 'Connection failed — tap to try again')
+        }
+      })
 
     return () => { supabase.removeChannel(channel) }
   }, [channelId])
 
-  return { channelId, status, error }
+  return { channelId, status, error, channelState, regenerate }
 }
 
 /**
@@ -62,7 +88,7 @@ export function useLinkerBroadcast() {
       const channel = supabase.channel(`device-link:${channelId}`)
 
       channel.subscribe(async (status) => {
-        if (status !== 'SUBSCRIBED') return
+        if (status !== REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) return
 
         const sendResult = await channel.send({
           type: 'broadcast',
