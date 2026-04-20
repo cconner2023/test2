@@ -314,8 +314,8 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
         style={{ width: `${panelCount * 100}%` }}
       >
         {/* Panel 0: Mission board (scrolls naturally) + main categories */}
-        <div ref={panel0ScrollRef} data-tour="category-list" className="overflow-y-auto bg-themewhite self-stretch" style={{ flex: `0 0 ${panelWidth}` }}>
-          <animated.div className="px-2 md:px-0 min-h-full" style={{ paddingTop: panel0Padding }}>
+        <div ref={panel0ScrollRef} data-tour="category-list" className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
+          <animated.div className="px-2 md:px-0 min-h-full" style={{ paddingTop: mobilePanelPadding }}>
             {isMobile && (
               <div ref={missionBoardSectionRef} className="pb-2">
                 <MissionBoardPanel />
@@ -326,7 +326,7 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
         </div>
 
         {/* Panel 1: Subcategories */}
-        <div ref={subcategoryScrollRef} className="overflow-y-auto bg-themewhite self-stretch" style={{ flex: `0 0 ${panelWidth}` }}>
+        <div ref={subcategoryScrollRef} className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
           <animated.div className="px-2 md:px-0 min-h-full" style={{ paddingTop: mobilePanelPadding }}>
             <CategoryList mobilePanel="subcategory" onNavigate={onNavigate} />
           </animated.div>
@@ -334,7 +334,7 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
 
         {/* Panel 2: Symptom info (desktop only) */}
         {!isMobile && (
-          <div data-tour="guidelines-panel" className="overflow-y-auto bg-themewhite self-stretch" style={{ flex: `0 0 ${panelWidth}` }}>
+          <div data-tour="guidelines-panel" className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
             <div className="px-2 md:px-0 min-h-full">
               <CategoryList mobilePanel="guidelines" onNavigate={onNavigate} />
             </div>

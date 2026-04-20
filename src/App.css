@@ -164,15 +164,6 @@ html {
   overflow: hidden !important;
   overscroll-behavior: none !important;
   -webkit-overflow-scrolling: auto !important;
-  background-color: var(--color-themewhite);
-}
-
-/* iOS keyboard: root uses 100dvh (dynamic viewport height) so the layout
-   naturally shrinks when the keyboard opens — no position:fixed body needed.
-   100vh is the fallback for browsers that don't support dvh. */
-.app-h {
-  height: 100vh;
-  height: 100dvh;
 }
 
 input, select, textarea {
