@@ -5,6 +5,7 @@ import type { OverviewWidgetId } from '../../Data/User'
 import { OVERVIEW_WIDGET_META } from '../../Data/User'
 import { ToggleSwitch } from './ToggleSwitch'
 import { SettingsToggleRow } from './SettingsToggleRow'
+import { useAuthStore } from '../../stores/useAuthStore'
 
 const WIDGET_ICONS: Record<OverviewWidgetId, LucideIcon> = {
     'task-list':   ListTodo,
@@ -16,10 +17,11 @@ const WIDGET_ICONS: Record<OverviewWidgetId, LucideIcon> = {
 
 const WIDGET_ORDER: OverviewWidgetId[] = ['task-list', 'map-overlay', 'gantt', 'week-view', 'messages']
 
-const DEFAULT_WIDGETS: OverviewWidgetId[] = ['task-list', 'map-overlay']
+const DEFAULT_WIDGETS: OverviewWidgetId[] = ['gantt', 'messages']
 
 export function OverviewWidgetsPanel() {
     const { profile, updateProfile, syncProfileField } = useUserProfile()
+    const isDevRole = useAuthStore(s => s.isDevRole)
 
     const isVisible = profile.overviewWidgets !== null
     const active: OverviewWidgetId[] = profile.overviewWidgets ?? DEFAULT_WIDGETS
@@ -50,7 +52,7 @@ export function OverviewWidgetsPanel() {
                     Choose up to 3 widgets shown in the mission overview. Hiding it removes the panel from the home screen.
                 </p>
 
-                <div className="rounded-2xl border border-themeblue3/10 overflow-hidden">
+                <div className="rounded-2xl border border-themeblue3/10 overflow-hidden" data-tour="mission-overview-toggle">
                     <SettingsToggleRow
                         icon={LayoutDashboard}
                         label="Show Mission Overview"
@@ -66,8 +68,8 @@ export function OverviewWidgetsPanel() {
                             <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Widgets</p>
                             <p className="text-[9pt] text-tertiary/50">{active.length} / 3</p>
                         </div>
-                        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-                            {WIDGET_ORDER.map((id, idx) => {
+                        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden" data-tour="mission-overview-widget-list">
+                            {WIDGET_ORDER.filter(id => id !== 'map-overlay' || isDevRole).map((id, idx) => {
                                 const meta = OVERVIEW_WIDGET_META[id]
                                 const Icon = WIDGET_ICONS[id]
                                 const isOn = active.includes(id)

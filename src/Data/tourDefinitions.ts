@@ -89,6 +89,7 @@ export interface TourDefinition {
 //   'planorderset:select-tags'    — select all staged tags in compose mode
 //   'planorderset:save-compose'   — save the composed order set
 //   'planorderset:cleanup'        — cancel edit (discards staging), return to guided tours
+//   'navigate:settings:overview-widgets' — open Settings → Mission Overview panel
 //   'open:tc3'                    — enable TC3 mode (sets tc3Mode = true in authStore)
 //   'tc3:advance-page'            — advance mobile wizard to MARCH page (mobile only)
 //   'tc3:cleanup'                 — exit TC3 mode, reset wizard step, return to guided tours
@@ -890,6 +891,39 @@ const settingsTour: TourDefinition = {
   ],
 }
 
+const missionOverviewTour: TourDefinition = {
+  id: 'mission-overview',
+  name: 'Mission Overview',
+  tier: 'medic',
+  description: 'Your home screen dashboard — widgets, visibility, and customization.',
+  steps: [
+    {
+      target: 'settings-mission-overview',
+      text: 'Mission Overview is your home screen dashboard — a quick view of your daily schedule, messages, and map.',
+      placement: 'bottom',
+      beforeStep: 'open:settings',
+      delay: 400,
+      duration: 5000,
+    },
+    {
+      target: 'mission-overview-toggle',
+      text: 'Toggle to show or hide the overview panel on your home screen.',
+      placement: 'bottom',
+      beforeStep: 'navigate:settings:overview-widgets',
+      delay: 350,
+      duration: 4000,
+    },
+    {
+      target: 'mission-overview-widget-list',
+      text: 'Choose up to 3 widgets. Gantt shows your day timeline, Messages surfaces recent conversations, Map shows your mission area.',
+      placement: 'bottom',
+      duration: 5000,
+      pausePoint: true,
+      afterStep: 'return:guided-tours',
+    },
+  ],
+}
+
 // ─── Tier 2: Supervisor Tours ────────────────────────────────────────────────
 
 const supervisorTour: TourDefinition = {
@@ -1094,6 +1128,7 @@ export const allTours: TourDefinition[] = [
   knowledgeBaseTour,
   messagingTour,
   calendarTour,
+  missionOverviewTour,
   settingsTour,
   // Tier 2: Supervisor
   supervisorTour,

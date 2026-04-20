@@ -1320,34 +1320,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
           }
           return (
             <div className="py-1">
-              {newMsgMode === 'contacts' ? (
-                <>
-                  <button
-                    onClick={() => { setNewMsgMode('group'); setGroupName(''); setGroupSelectedIds(new Set()) }}
-                    className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
-                      <Users size={16} className="text-themeblue3" />
-                    </div>
-                    <span className="flex-1 text-sm font-medium text-themeblue3">New Group</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setQrScanOpen(true)
-                      setQrLookupError(null)
-                      requestAnimationFrame(() => {
-                        if (qrVideoRef.current) qrStartScanning(qrVideoRef.current)
-                      })
-                    }}
-                    className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all"
-                  >
-                    <div className="w-9 h-9 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
-                      <QrCode size={18} className="text-themeblue2" />
-                    </div>
-                    <span className="text-sm font-medium text-primary">Scan QR</span>
-                  </button>
-                </>
-              ) : (
+              {newMsgMode === 'group' && (
                 <div className="px-4 pb-2 pt-1">
                   <input
                     type="text"
@@ -1391,14 +1364,38 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
             </div>
           )
         }}
-        actions={newMsgMode === 'group' ? [{
-          key: 'create-group',
-          label: 'Create Group',
-          icon: Check,
-          onAction: handleCreateGroup,
-          closesOnAction: false,
-          variant: (!groupName.trim() || groupSelectedIds.size === 0 || groupCreating) ? 'disabled' : 'default',
-        }] : []}
+        actions={
+          newMsgMode === 'group' ? [{
+            key: 'create-group',
+            label: 'Create Group',
+            icon: Check,
+            onAction: handleCreateGroup,
+            closesOnAction: false,
+            variant: (!groupName.trim() || groupSelectedIds.size === 0 || groupCreating) ? 'disabled' : 'default',
+          }] :
+          newMsgMode === 'contacts' && !qrScanOpen ? [
+            {
+              key: 'new-group',
+              label: 'New Group',
+              icon: Users,
+              closesOnAction: false,
+              onAction: () => { setNewMsgMode('group'); setGroupName(''); setGroupSelectedIds(new Set()) },
+            },
+            {
+              key: 'scan-qr',
+              label: 'Scan QR',
+              icon: QrCode,
+              closesOnAction: false,
+              onAction: () => {
+                setQrScanOpen(true)
+                setQrLookupError(null)
+                requestAnimationFrame(() => {
+                  if (qrVideoRef.current) qrStartScanning(qrVideoRef.current)
+                })
+              },
+            },
+          ] : []
+        }
       />
       <ProvisionalDeviceModal />
     </animated.div>

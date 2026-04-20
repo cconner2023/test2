@@ -31,6 +31,7 @@ export const MainSettingsPanel = ({
         [PANEL.PIN_SETUP]: 'settings-pin',
         [PANEL.NOTIFICATION_SETTINGS]: 'settings-notifications',
         [PANEL.NOTE_CONTENT]: 'settings-note-content',
+        [PANEL.OVERVIEW_WIDGETS]: 'settings-mission-overview',
         [PANEL.CLINIC]: 'settings-clinic',
         [PANEL.GUIDED_TOURS]: 'settings-guided-tours',
         [PANEL.PROVIDER_TEMPLATES]: 'settings-provider-templates',

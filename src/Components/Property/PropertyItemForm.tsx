@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
-import { X, Check, Square, CheckSquare } from 'lucide-react'
+import { X, Check, Square, CheckSquare, Plus } from 'lucide-react'
 import { TextInput, PickerInput } from '../FormInputs'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useShallow } from 'zustand/react/shallow'
@@ -41,7 +41,10 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
   const [nomenclature, setNomenclature] = useState(editingItem?.nomenclature ?? '')
   const [nsn, setNsn] = useState(editingItem?.nsn ?? '')
   const [lin, setLin] = useState(editingItem?.lin ?? '')
-  const [serialNumber, setSerialNumber] = useState(editingItem?.serial_number ?? '')
+  // Serialized: one entry per physical item. Starts with one empty row (single-item path = today's behavior).
+  const [serialNumbers, setSerialNumbers] = useState<string[]>(
+    editingItem ? [editingItem.serial_number ?? ''] : ['']
+  )
   const [quantity, setQuantity] = useState(String(editingItem?.quantity ?? 1))
   const [locationId, setLocationId] = useState(editingItem?.location_id ?? (isEdit ? '' : defaultLocationId ?? ''))
   const [holderId, setHolderId] = useState(editingItem?.current_holder_id ?? '')
@@ -51,6 +54,22 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
   const [isSaving, setIsSaving] = useState(false)
   const [isSerialized, setIsSerialized] = useState(editingItem?.is_serialized ?? true)
   const [newItemId, setNewItemId] = useState<string | null>(null)
+
+  const updateSerial = useCallback((idx: number, value: string) => {
+    setSerialNumbers(prev => {
+      const next = [...prev]
+      next[idx] = value
+      return next
+    })
+  }, [])
+
+  const addSerial = useCallback(() => {
+    setSerialNumbers(prev => [...prev, ''])
+  }, [])
+
+  const removeSerial = useCallback((idx: number) => {
+    setSerialNumbers(prev => prev.filter((_, i) => i !== idx))
+  }, [])
 
   const locationOptions = useMemo(
     () =>
@@ -83,47 +102,69 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
     if (!name.trim() || !clinicId) return
     setIsSaving(true)
 
+    const sharedPayload = {
+      name: name.trim(),
+      nomenclature: nomenclature.trim() || null,
+      nsn: nsn.trim() || null,
+      lin: lin.trim() || null,
+      condition_code: 'serviceable' as const,
+      location_id: locationId || null,
+      current_holder_id: holderId || null,
+      parent_item_id: parentItemId || null,
+      expiry_date: expiryDate || null,
+      notes: notes.trim() || null,
+      is_serialized: isSerialized,
+    }
+
     try {
       if (isEdit && editingItem) {
         await editItem(editingItem.id, {
-          name: name.trim(),
-          nomenclature: nomenclature.trim() || null,
-          nsn: nsn.trim() || null,
-          lin: lin.trim() || null,
-          serial_number: serialNumber.trim() || null,
-          quantity: Math.max(1, parseInt(quantity) || 1),
-          condition_code: 'serviceable',
-          location_id: locationId || null,
-          current_holder_id: holderId || null,
-          parent_item_id: parentItemId || null,
-          expiry_date: expiryDate || null,
-          notes: notes.trim() || null,
-          is_serialized: isSerialized,
+          ...sharedPayload,
+          serial_number: isSerialized ? (serialNumbers[0]?.trim() || null) : null,
+          quantity: isSerialized ? 1 : Math.max(1, parseInt(quantity) || 1),
         })
         onClose()
-      } else {
+      } else if (!isSerialized) {
         const created = await addItem({
           clinic_id: clinicId,
-          name: name.trim(),
-          nomenclature: nomenclature.trim() || null,
-          nsn: nsn.trim() || null,
-          lin: lin.trim() || null,
-          serial_number: serialNumber.trim() || null,
+          ...sharedPayload,
+          serial_number: null,
           quantity: Math.max(1, parseInt(quantity) || 1),
-          condition_code: 'serviceable',
-          parent_item_id: parentItemId || null,
-          location_id: locationId || null,
-          current_holder_id: holderId || null,
           location_tag_id: null,
           photo_url: null,
-          expiry_date: expiryDate || null,
-          notes: notes.trim() || null,
-          is_serialized: isSerialized,
           visual_fingerprint: null,
         })
-        if (created) {
-          setNewItemId(created.id)
+        if (created) setNewItemId(created.id)
+        else onClose()
+      } else {
+        const validSerials = serialNumbers.map(s => s.trim()).filter(Boolean)
+
+        if (validSerials.length <= 1) {
+          // Single item — preserve enrollment flow
+          const created = await addItem({
+            clinic_id: clinicId,
+            ...sharedPayload,
+            serial_number: validSerials[0] ?? null,
+            quantity: 1,
+            location_tag_id: null,
+            photo_url: null,
+            visual_fingerprint: null,
+          })
+          if (created) setNewItemId(created.id)
+          else onClose()
         } else {
+          // Batch — create one item per serial, skip enrollment
+          for (const serial of validSerials) {
+            await addItem({
+              clinic_id: clinicId,
+              ...sharedPayload,
+              serial_number: serial,
+              quantity: 1,
+              location_tag_id: null,
+              photo_url: null,
+              visual_fingerprint: null,
+            })
+          }
           onClose()
         }
       }
@@ -133,13 +174,14 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
       setIsSaving(false)
     }
   }, [
-    name, nomenclature, nsn, lin, serialNumber, quantity,
-    locationId, holderId, parentItemId, notes, isSerialized,
-    isEdit, editingItem, clinicId, addItem, editItem, enrollFingerprint, onClose,
+    name, nomenclature, nsn, lin, serialNumbers, quantity,
+    locationId, holderId, parentItemId, notes, expiryDate, isSerialized,
+    isEdit, editingItem, clinicId, addItem, editItem, onClose,
   ])
 
   const hasLocations = locationOptions.length > 0
   const hasParentItems = parentItemOptions.length > 0
+  const filledSerialCount = serialNumbers.filter(s => s.trim()).length
 
   if (newItemId) {
     return (
@@ -171,6 +213,7 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
             <TextInput value={lin} onChange={setLin} placeholder="LIN" />
           </div>
         </div>
+
         <button
           type="button"
           onClick={() => setIsSerialized((v) => !v)}
@@ -179,16 +222,48 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
           {isSerialized ? <CheckSquare size={14} /> : <Square size={14} />}
           Track individually (serialized)
         </button>
-        <div className="flex gap-2">
-          {isSerialized && (
-            <div className="flex-1 min-w-0">
-              <TextInput value={serialNumber} onChange={setSerialNumber} placeholder="Serial number" />
-            </div>
-          )}
-          <div className="w-24 shrink-0">
+
+        {isSerialized ? (
+          <div className="space-y-1.5">
+            {serialNumbers.map((sn, idx) => (
+              <div key={idx} className="flex items-center gap-1.5">
+                <div className="flex-1 min-w-0">
+                  <TextInput
+                    value={sn}
+                    onChange={(v) => updateSerial(idx, v)}
+                    placeholder={serialNumbers.length > 1 ? `Serial ${idx + 1}` : 'Serial number'}
+                  />
+                </div>
+                {!isEdit && idx === serialNumbers.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={addSerial}
+                    className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-themeblue3 text-white active:scale-95 transition-all"
+                  >
+                    <Plus size={14} />
+                  </button>
+                ) : serialNumbers.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => removeSerial(idx)}
+                    className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-tertiary/40 hover:text-tertiary hover:bg-tertiary/10 active:scale-95 transition-all"
+                  >
+                    <X size={13} />
+                  </button>
+                ) : null}
+              </div>
+            ))}
+            {filledSerialCount > 1 && (
+              <p className="text-[10px] text-tertiary/50 pl-0.5">
+                {filledSerialCount} items will be created
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="w-24">
             <TextInput type="number" value={quantity} onChange={setQuantity} placeholder="Qty" />
           </div>
-        </div>
+        )}
       </div>
 
       {/* Assignment fields */}

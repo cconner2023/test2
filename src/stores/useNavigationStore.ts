@@ -51,6 +51,7 @@ const CLOSE_ALL_DRAWERS = {
     showMapOverlayDrawer: false,
     mapOverlayDrawerOverlayId: null as string | null,
     showCalendarDrawer: false,
+    calendarDrawerEventId: null as string | null,
     showAdminDrawer: false,
     showSupervisorDrawer: false,
     showProviderDrawer: false,
@@ -87,6 +88,7 @@ interface NavigationState {
     showMapOverlayDrawer: boolean
     mapOverlayDrawerOverlayId: string | null
     showCalendarDrawer: boolean
+    calendarDrawerEventId: string | null
     showAdminDrawer: boolean
     showSupervisorDrawer: boolean
     showProviderDrawer: boolean
@@ -121,6 +123,8 @@ interface NavigationActions {
     setShowLoRaDrawer: (show: boolean) => void
     setShowMapOverlayDrawer: (show: boolean, overlayId?: string | null) => void
     setShowCalendarDrawer: (show: boolean) => void
+    openCalendarEvent: (eventId: string) => void
+    clearCalendarDrawerEventId: () => void
     setShowAdminDrawer: (show: boolean) => void
     setShowSupervisorDrawer: (show: boolean) => void
     setShowProviderDrawer: (show: boolean) => void
@@ -157,6 +161,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     showMapOverlayDrawer: false,
     mapOverlayDrawerOverlayId: null,
     showCalendarDrawer: false,
+    calendarDrawerEventId: null,
     showAdminDrawer: false,
     showSupervisorDrawer: false,
     showProviderDrawer: false,
@@ -364,6 +369,15 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         ...PRESERVED_FIELDS(s),
         showCalendarDrawer: show,
     })),
+
+    openCalendarEvent: (eventId) => set((s) => ({
+        ...CLOSE_ALL_DRAWERS,
+        ...PRESERVED_FIELDS(s),
+        showCalendarDrawer: true,
+        calendarDrawerEventId: eventId,
+    })),
+
+    clearCalendarDrawerEventId: () => set({ calendarDrawerEventId: null }),
 
     setShowAdminDrawer: (show) => set((s) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),

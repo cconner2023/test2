@@ -13,6 +13,7 @@ import { ConfirmDialog } from '../ConfirmDialog'
 import { BaseDrawer } from '../BaseDrawer'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { useCalendarStore } from '../../stores/useCalendarStore'
+import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { usePropertyStore } from '../../stores/usePropertyStore'
@@ -44,6 +45,9 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const isMobile = useIsMobile()
   const [panelView, setPanelView] = useState<PanelView>('calendar')
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
+
+  const calendarDrawerEventId = useNavigationStore(s => s.calendarDrawerEventId)
+  const clearCalendarDrawerEventId = useNavigationStore(s => s.clearCalendarDrawerEventId)
 
   useEffect(() => {
     onPanelStateChange?.(panelView !== 'calendar')
@@ -156,6 +160,20 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     hydrationError: s.hydrationError,
     clearHydrationError: s.clearHydrationError,
   })))
+
+  // Deep-link from external sources (e.g. Mission Board) — open specific event in detail view
+  useEffect(() => {
+    if (!calendarDrawerEventId) return
+    selectEvent(calendarDrawerEventId)
+    if (isMobile) {
+      setDayDrawerEventId(calendarDrawerEventId)
+      setDayDrawerView('detail')
+      setShowDayDrawer(true)
+    } else {
+      setPanelView('detail')
+    }
+    clearCalendarDrawerEventId()
+  }, [calendarDrawerEventId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedDate = useMemo(() => new Date(selectedDateStr + 'T00:00:00'), [selectedDateStr])
   const setSelectedDate = useCallback((d: Date) => storeSetSelectedDate(toDateKey(d)), [storeSetSelectedDate])

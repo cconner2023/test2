@@ -207,13 +207,14 @@ interface MissionBoardPanelProps {
 }
 
 export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps) {
-  const { isAuthenticated, isDevRole } = useAuth()
+  const { isAuthenticated } = useAuth()
   const setShowCalendarDrawer = useNavigationStore(s => s.setShowCalendarDrawer)
+  const openCalendarEvent = useNavigationStore(s => s.openCalendarEvent)
   const setShowMapOverlayDrawer = useNavigationStore(s => s.setShowMapOverlayDrawer)
-  const selectEvent = useCalendarStore(s => s.selectEvent)
   const events = useCalendarStore(s => s.events)
   const updateEvent = useCalendarStore(s => s.updateEvent)
   const userId = useAuthStore(s => s.user?.id)
+  const isDevRole = useAuthStore(s => s.isDevRole)
   const overviewWidgets = useAuthStore(s => s.profile?.overviewWidgets)
   const { sendEvent: vaultSendEvent, deleteEvents: vaultDeleteEvents } = useCalendarVault()
 
@@ -271,9 +272,8 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   }
 
   const handleEventClick = useCallback((eventId: string) => {
-    selectEvent(eventId)
-    setShowCalendarDrawer(true)
-  }, [selectEvent, setShowCalendarDrawer])
+    openCalendarEvent(eventId)
+  }, [openCalendarEvent])
 
   const handleStatusChange = useCallback((eventId: string, status: EventStatus) => {
     const event = events.find((e: CalendarEvent) => e.id === eventId)
@@ -287,11 +287,13 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
     updateEvent(eventId, { status })
   }, [events, updateEvent, vaultSendEvent, vaultDeleteEvents])
 
-  if (!isAuthenticated || !isDevRole) return null
+  if (!isAuthenticated) return null
   if (overviewWidgets === null) return null
 
-  // undefined = user hasn't customized → default side-by-side layout
-  const widgets: OverviewWidgetId[] | undefined = overviewWidgets
+  const DEFAULT_WIDGETS: OverviewWidgetId[] = ['gantt', 'messages']
+  const widgets: OverviewWidgetId[] = (overviewWidgets ?? DEFAULT_WIDGETS).filter(
+    id => id !== 'map-overlay' || isDevRole
+  )
 
   const renderWidget = (id: OverviewWidgetId) => {
     switch (id) {
@@ -442,7 +444,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   }
 
   return (
-    <div className="rounded-xl overflow-hidden border border-themeblue3/10 bg-themewhite2">
+    <div className="rounded-xl overflow-hidden border border-themeblue3/10 bg-themewhite2" data-tour="mission-overview-panel">
 
       {/* Header */}
       <div className="flex items-center px-2 py-1.5 border-b border-themeblue3/8">
@@ -463,53 +465,12 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
         </div>
       </div>
 
-      {widgets === undefined ? (
-        /* Default layout — side-by-side tasks + map */
-        <div className="flex min-h-[110px]">
-          <div className="flex-1 min-w-0 px-2.5 py-2 flex flex-col gap-1.5">
-            {myTasks.length === 0 ? (
-              <div className="flex-1 flex items-center justify-center">
-                <span className="text-xs text-secondary">No tasks today</span>
-              </div>
-            ) : (
-              <>
-                {previewTasks.map(event => (
-                  <TaskRow
-                    key={event.id}
-                    event={event}
-                    onClick={() => handleEventClick(event.id)}
-                    onContextMenu={(x, y) => setContextMenu({ event, x, y })}
-                  />
-                ))}
-                {extraCount > 0 && (
-                  <button
-                    onClick={() => setShowCalendarDrawer(true)}
-                    className="text-[10px] font-medium text-secondary text-left pl-2 py-0.5 active:text-themeblue1"
-                  >
-                    +{extraCount} more
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-
-          <div className="w-[128px] shrink-0 border-l border-themeblue3/10 p-1.5 bg-white dark:bg-themewhite2">
-            <div className="w-full h-full rounded-lg overflow-hidden">
-              <MissionMapCard
-                overlayFeatures={missionOverlayFeatures}
-                overlayId={missionOverlayId}
-                onClick={() => setShowMapOverlayDrawer(true, missionOverlayId)}
-              />
-            </div>
-          </div>
-        </div>
-      ) : widgets.length === 0 ? (
+      {widgets.length === 0 ? (
         <div className="flex items-center justify-center h-[80px]">
           <span className="text-xs text-secondary">No widgets selected</span>
         </div>
       ) : (
-        /* Custom widget stack */
-        <div className="divide-y divide-themeblue3/8">
+        <div className="divide-y divide-themeblue3/8" data-tour="mission-overview-widgets">
           {widgets.map(id => renderWidget(id))}
         </div>
       )}

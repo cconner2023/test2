@@ -1,8 +1,9 @@
 import { useState, useMemo, useCallback, useRef, forwardRef, useImperativeHandle } from 'react'
-import { ChevronRight, Pencil, Trash2, Map as MapIcon, X, Check, FolderPlus, PackagePlus } from 'lucide-react'
+import { ChevronRight, Pencil, Trash2, Map as MapIcon, X, Check, FolderPlus, PackagePlus, FolderClosed } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { Section, SectionCard } from '../Section'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
+import { ListItemRow } from '../ListItemRow'
 import { PropertyItemForm } from './PropertyItemForm'
 import type { LocalPropertyLocation, LocalPropertyItem, HolderInfo } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
@@ -247,6 +248,35 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
   const hasItems = locationItems.length > 0
   const hasUnassigned = currentParentId === null && unassignedItems.length > 0
 
+  const itemInitials = (name: string) => {
+    const words = name.trim().split(/\s+/)
+    return words.length >= 2
+      ? (words[0][0] + words[1][0]).toUpperCase()
+      : name.slice(0, 2).toUpperCase()
+  }
+
+  const renderItemIcon = (item: LocalPropertyItem) => {
+    if (item.photo_url) {
+      return <img src={item.photo_url} alt="" className="w-10 h-10 rounded-xl object-cover shrink-0" />
+    }
+    return (
+      <div className="w-10 h-10 rounded-xl bg-themeblue3/10 flex items-center justify-center shrink-0">
+        <span className="text-xs font-semibold text-themeblue3">{itemInitials(item.name)}</span>
+      </div>
+    )
+  }
+
+  const renderExpiryChip = (expiry: 'expired' | 'expiring' | null) => {
+    if (!expiry) return null
+    return (
+      <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${
+        expiry === 'expired' ? 'bg-themeredred/10 text-themeredred' : 'bg-themeyellow/15 text-themeyellow'
+      }`}>
+        {expiry === 'expired' ? 'Expired' : 'Expiring'}
+      </span>
+    )
+  }
+
   const renderLocationRow = (loc: LocalPropertyLocation, isLast: boolean) => {
     const isRenaming = renamingId === loc.id
     const count = totalDescendantItems(loc.id)
@@ -300,16 +330,19 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
         onTouchStart={(e) => handleTouchStart('location', loc.id, e)}
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchMove}
-        className={`flex items-center gap-3 px-4 py-3.5 active:bg-secondary/5 transition-colors cursor-pointer ${
+        className={`flex items-center gap-3 px-4 py-3 active:bg-secondary/5 transition-colors cursor-pointer ${
           !isLast ? 'border-b border-tertiary/8' : ''
         }`}
       >
-        <span className="flex-1 text-sm font-medium text-primary truncate">{loc.name}</span>
-        {count > 0 && (
-          <span className="text-xs px-2 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium shrink-0">
-            {count}
-          </span>
-        )}
+        <div className="w-10 h-10 rounded-xl bg-tertiary/8 flex items-center justify-center shrink-0">
+          <FolderClosed size={18} className="text-tertiary/50" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-primary truncate">{loc.name}</p>
+          {count > 0 && (
+            <p className="text-xs text-tertiary/50 mt-0.5">{count} item{count !== 1 ? 's' : ''}</p>
+          )}
+        </div>
         {editing ? (
           <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
             {onEditLocation && (
@@ -338,48 +371,59 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
 
   const renderItemRow = (item: LocalPropertyItem, isLast: boolean) => {
     const expiry = expiryStatus(item.expiry_date ?? null)
+    const holder = item.current_holder_id ? holders?.get(item.current_holder_id) : null
+    const subtitle = item.is_serialized && item.serial_number
+      ? item.serial_number
+      : !item.is_serialized && item.quantity > 1
+        ? `Qty ${item.quantity}`
+        : holder?.displayName ?? null
+    const subtitleWithHolder = subtitle && holder?.displayName && subtitle !== holder.displayName
+      ? `${subtitle} · ${holder.displayName}`
+      : subtitle
+
     return (
-    <div
-      key={item.id}
-      className={`flex items-center gap-3 px-4 py-3.5 ${
-        !isLast ? 'border-b border-tertiary/8' : ''
-      }`}
-      onContextMenu={onAddItemAtLocation ? (e) => { e.preventDefault(); e.stopPropagation(); setContextMenu({ type: 'item', id: item.id, x: e.clientX, y: e.clientY }) } : undefined}
-      onTouchStart={onAddItemAtLocation ? (e) => handleTouchStart('item', item.id, e) : undefined}
-      onTouchEnd={onAddItemAtLocation ? handleTouchEnd : undefined}
-      onTouchMove={onAddItemAtLocation ? handleTouchMove : undefined}
-    >
-      <button
-        onClick={() => onSelectItem(item)}
-        className="flex-1 min-w-0 flex items-center gap-3 text-left active:opacity-70 transition-opacity"
+      <div
+        key={item.id}
+        className={`flex items-center gap-3 px-4 py-3 ${!isLast ? 'border-b border-tertiary/8' : ''}`}
+        onContextMenu={onAddItemAtLocation ? (e) => { e.preventDefault(); e.stopPropagation(); setContextMenu({ type: 'item', id: item.id, x: e.clientX, y: e.clientY }) } : undefined}
+        onTouchStart={onAddItemAtLocation ? (e) => handleTouchStart('item', item.id, e) : undefined}
+        onTouchEnd={onAddItemAtLocation ? handleTouchEnd : undefined}
+        onTouchMove={onAddItemAtLocation ? handleTouchMove : undefined}
       >
-        {expiry && (
-          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${expiry === 'expired' ? 'bg-themeredred' : 'bg-themeyellow'}`} />
-        )}
-        <span className="flex-1 text-sm text-primary truncate">{item.name}</span>
-        {item.quantity > 1 && (
-          <span className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0 bg-themeblue3/10 text-themeblue3">
-            {item.quantity}
-          </span>
-        )}
-      </button>
-      {editing && onDeleteItem && (
         <button
-          onClick={() => onDeleteItem(item)}
-          className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all shrink-0"
+          onClick={() => onSelectItem(item)}
+          className="flex-1 min-w-0 flex items-center gap-3 text-left active:opacity-70 transition-opacity"
         >
-          <Trash2 size={14} />
+          {renderItemIcon(item)}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-primary truncate">{item.name}</p>
+            {subtitleWithHolder && (
+              <p className="text-xs text-secondary truncate mt-0.5">{subtitleWithHolder}</p>
+            )}
+          </div>
+          {renderExpiryChip(expiry)}
         </button>
-      )}
-    </div>
-  )
+        {editing && onDeleteItem && (
+          <button
+            onClick={() => onDeleteItem(item)}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all shrink-0"
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
+      </div>
+    )
   }
 
   const renderSearchResultRow = (item: LocalPropertyItem, isLast: boolean) => {
     const locName = item.location_id ? locationNameMap.get(item.location_id) : null
     const holder = item.current_holder_id ? holders?.get(item.current_holder_id) : null
     const expiry = expiryStatus(item.expiry_date ?? null)
-    const subtitle = [locName, holder?.displayName].filter(Boolean).join(' · ')
+    const subtitle = [
+      item.is_serialized && item.serial_number ? item.serial_number : (!item.is_serialized && item.quantity > 1 ? `Qty ${item.quantity}` : null),
+      locName,
+      holder?.displayName,
+    ].filter(Boolean).join(' · ')
 
     return (
       <button
@@ -389,20 +433,14 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
           !isLast ? 'border-b border-tertiary/8' : ''
         }`}
       >
-        {expiry && (
-          <span className={`w-1.5 h-1.5 rounded-full shrink-0 mt-1 ${expiry === 'expired' ? 'bg-themeredred' : 'bg-themeyellow'}`} />
-        )}
+        {renderItemIcon(item)}
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-primary truncate">{item.name}</p>
+          <p className="text-sm font-medium text-primary truncate">{item.name}</p>
           {subtitle && (
-            <p className="text-xs text-tertiary/60 truncate mt-0.5">{subtitle}</p>
+            <p className="text-xs text-secondary truncate mt-0.5">{subtitle}</p>
           )}
         </div>
-        {item.quantity > 1 && (
-          <span className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0 bg-themeblue3/10 text-themeblue3">
-            {item.quantity}
-          </span>
-        )}
+        {renderExpiryChip(expiry)}
       </button>
     )
   }
