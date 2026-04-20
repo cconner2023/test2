@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, useCallback, useEffect } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
-import { CATEGORY_BG_MAP, DAY_START_HOUR, DAY_END_HOUR, HOUR_HEIGHT_PX, toLocalISOString, toDateKey } from '../../Types/CalendarTypes'
+import { CATEGORY_BG_MAP, STATUS_META, DAY_START_HOUR, DAY_END_HOUR, HOUR_HEIGHT_PX, toLocalISOString, toDateKey } from '../../Types/CalendarTypes'
 
 interface DayViewProps {
   date: Date
@@ -291,7 +291,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
                       onEventContextMenu(e.id, ev.clientX, ev.clientY)
                     }
                   }}
-                  className={`w-full text-left text-xs font-normal px-2 py-1 rounded border ${CATEGORY_BG_MAP[e.category]} active:scale-95 transition-all duration-200 truncate`}
+                  className={`w-full text-left text-xs font-normal px-2 py-1 rounded border ${CATEGORY_BG_MAP[e.category]} ${STATUS_META[e.status].opacity} active:scale-95 transition-all duration-200 truncate ${STATUS_META[e.status].strikethrough ? 'line-through' : ''}`}
                 >
                   {e.title}
                 </button>
@@ -359,6 +359,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
             const isBeingDragged = isDragging && dragEventId === event.id
             const isDimmed = isDragging && dragEventId !== event.id
             const resolvedTop = isBeingDragged ? minutesToTop(snappedMinutes) : top
+            const sm = STATUS_META[event.status]
 
             return (
               <div
@@ -382,7 +383,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
                     ? 'shadow-xl z-30 scale-[1.02]'
                     : 'transition-all duration-200 active:scale-[0.98]'
                   }
-                  ${isDimmed ? 'opacity-50' : 'opacity-100'}
+                  ${isDimmed ? 'opacity-50' : sm.opacity}
                 `}
                 style={{
                   top: resolvedTop,
@@ -393,7 +394,10 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
                   transition: isBeingDragged ? 'none' : undefined,
                 }}
               >
-                <p className="text-xs font-normal truncate leading-tight">{event.title}</p>
+                {sm.pulse && (
+                  <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-themeblue1 animate-pulse shrink-0" />
+                )}
+                <p className={`text-xs font-normal truncate leading-tight ${sm.strikethrough ? 'line-through opacity-70' : ''}`}>{event.title}</p>
                 {height > 36 && (
                   <p className="text-[10px] opacity-70 truncate">
                     {new Date(event.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', '')}

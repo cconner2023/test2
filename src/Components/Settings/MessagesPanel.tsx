@@ -168,7 +168,9 @@ function ConversationPane({
   const { currentAvatar } = useAvatar()
   const { ownClinicMedics, nearbyByClinic, nearbyClinicNames } = useClinicGroupedMedics(medics)
   const isMobile = useIsMobile()
-  const [pinnedKeys, setPinnedKeys] = useState<Set<string>>(new Set())
+  const pinnedKeysArr = useMessagingStore(s => s.pinnedConversationKeys)
+  const pinnedKeys = useMemo(() => new Set(pinnedKeysArr), [pinnedKeysArr])
+  const togglePinConversation = useMessagingStore(s => s.togglePinConversation)
   const [contextMenu, setContextMenu] = useState<{ conversationKey: string; x: number; y: number } | null>(null)
   const [openSwipeId, setOpenSwipeId] = useState<string | null>(null)
   const [previewTarget, setPreviewTarget] = useState<PreviewTarget | null>(null)
@@ -482,14 +484,7 @@ function ConversationPane({
                       icon: Pin,
                       iconBg: 'bg-themeblue2/15',
                       iconColor: 'text-themeblue2',
-                      onAction: () => {
-                        setPinnedKeys(prev => {
-                          const next = new Set(prev)
-                          if (next.has(entry.key)) next.delete(entry.key)
-                          else next.add(entry.key)
-                          return next
-                        })
-                      },
+                      onAction: () => togglePinConversation(entry.key),
                     },
                     {
                       key: 'delete',
@@ -671,15 +666,7 @@ function ConversationPane({
               key: 'pin',
               label: pinnedKeys.has(contextMenu.conversationKey) ? 'Unpin' : 'Pin',
               icon: Pin,
-              onAction: () => {
-                const key = contextMenu.conversationKey
-                setPinnedKeys(prev => {
-                  const next = new Set(prev)
-                  if (next.has(key)) next.delete(key)
-                  else next.add(key)
-                  return next
-                })
-              },
+              onAction: () => togglePinConversation(contextMenu.conversationKey),
             },
             {
               key: 'delete',
@@ -716,14 +703,7 @@ function ConversationPane({
               if (previewTarget.type === 'group' && previewTarget.group) onSelectGroup(previewTarget.group)
               else if (previewTarget.type === 'contact' && previewTarget.medic) onSelectPeer(previewTarget.medic)
             },
-            onTogglePin: () => {
-              setPinnedKeys(prev => {
-                const next = new Set(prev)
-                if (next.has(previewTarget.key)) next.delete(previewTarget.key)
-                else next.add(previewTarget.key)
-                return next
-              })
-            },
+            onTogglePin: () => togglePinConversation(previewTarget.key),
             onDelete: () => deleteConversation(previewTarget.key),
           }) : []}
         />

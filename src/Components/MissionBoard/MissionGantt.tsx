@@ -37,21 +37,12 @@ export function timeToHour(iso: string): number {
 }
 
 function formatHour(h: number): string {
-  const hour = h % 24
-  if (hour === 0) return '12AM'
-  if (hour === 12) return '12PM'
-  return hour > 12 ? `${hour - 12}PM` : `${hour}AM`
+  return `${String(h % 24).padStart(2, '0')}00`
 }
 
 export function formatTimeRange(start: string, end: string): string {
-  const fmt = (iso: string) => {
-    const [h, m] = iso.slice(11, 16).split(':').map(Number)
-    const hour = h % 24
-    const suffix = hour >= 12 ? 'PM' : 'AM'
-    const h12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
-    return m === 0 ? `${h12}${suffix}` : `${h12}:${String(m).padStart(2, '0')}${suffix}`
-  }
-  return `${fmt(start)} – ${fmt(end)}`
+  const fmt = (iso: string) => iso.slice(11, 13) + iso.slice(14, 16)
+  return `${fmt(start)}–${fmt(end)}`
 }
 
 export function offsetDate(base: Date, days: number): Date {
@@ -120,7 +111,7 @@ export function TaskRow({ event, onClick, onContextMenu }: { event: CalendarEven
     >
       <div className={`w-1 shrink-0 ${stripe} ${isActive ? 'animate-pulse' : ''}`} />
       <div className="flex-1 min-w-0 px-2 py-1.5 bg-themewhite2 flex items-center gap-2">
-        <span className="text-[10px] text-tertiary tabular-nums shrink-0">
+        <span className="text-[10px] text-secondary tabular-nums shrink-0">
           {formatTimeRange(event.start_time, event.end_time)}
         </span>
         <span className="flex-1 text-xs font-medium text-primary truncate">

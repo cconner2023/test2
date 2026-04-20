@@ -111,17 +111,12 @@ function AppContent() {
   })
   const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes' | 'user-profile' | 'feedback'>('main')
   const [initialTrainingTaskId, setInitialTrainingTaskId] = useState<string | null>(null)
-  const [initialPeerId, setInitialPeerId] = useState<string | null>(null)
-  const [initialGroupId, setInitialGroupId] = useState<string | null>(null)
-  const [initialPeerName, setInitialPeerName] = useState<string | null>(null)
 
   // ── Messages slide (mobile only — mirrors menuSlide from the right) ──
   const handleMessagesClose = useCallback(() => {
     navigation.setShowMessagesDrawer(false)
-    setInitialPeerId(null)
-    setInitialGroupId(null)
-    setInitialPeerName(null)
-  }, [navigation.setShowMessagesDrawer])
+    navigation.clearMessagesConversation()
+  }, [navigation.setShowMessagesDrawer, navigation.clearMessagesConversation])
 
   const handleMessagesOpen = useCallback(() => {
     navigation.setShowMessagesDrawer(true)
@@ -204,11 +199,9 @@ function AppContent() {
   }, [navigation.setShowKnowledgeBase])
 
   const handleMessagesClick = useCallback(() => {
-    setInitialPeerId(null)
-    setInitialGroupId(null)
-    setInitialPeerName(null)
+    navigation.clearMessagesConversation()
     navigation.setShowMessagesDrawer(true)
-  }, [navigation.setShowMessagesDrawer])
+  }, [navigation.setShowMessagesDrawer, navigation.clearMessagesConversation])
 
   const handlePropertyClick = useCallback(() => {
     navigation.setShowPropertyDrawer(true)
@@ -286,16 +279,11 @@ case 'mapOverlay':
   // Callback for notification toast tap — opens MessagesDrawer to the target conversation
   const handleNotificationTap = useCallback((n: MessageNotification) => {
     if (n.isGroup && n.groupId) {
-      setInitialGroupId(n.groupId)
-      setInitialPeerId(null)
-      setInitialPeerName(n.groupName ?? 'Group')
+      navigation.openMessagesConversation(null, n.groupId, n.groupName ?? 'Group')
     } else {
-      setInitialPeerId(n.peerId)
-      setInitialGroupId(null)
-      setInitialPeerName(n.senderName)
+      navigation.openMessagesConversation(n.peerId, null, n.senderName ?? null)
     }
-    navigation.setShowMessagesDrawer(true)
-  }, [navigation.setShowMessagesDrawer])
+  }, [navigation.openMessagesConversation])
 
   // Cross-column swipe: swipe back from Column B (algorithm) to Column A,
   // or swipe left from right edge to open messages
@@ -648,9 +636,9 @@ case 'mapOverlay':
             <MessagesDrawer
               isVisible={navigation.showMessagesDrawer}
               onClose={handleMessagesClose}
-              initialPeerId={initialPeerId}
-              initialGroupId={initialGroupId}
-              initialPeerName={initialPeerName}
+              initialPeerId={navigation.messagesInitialPeerId}
+              initialGroupId={navigation.messagesInitialGroupId}
+              initialPeerName={navigation.messagesInitialPeerName}
             />
             </ErrorBoundary>
           </div>
@@ -714,9 +702,9 @@ case 'mapOverlay':
           <MessagesDrawer
             isVisible={navigation.showMessagesDrawer}
             onClose={handleMessagesClose}
-            initialPeerId={initialPeerId}
-            initialGroupId={initialGroupId}
-            initialPeerName={initialPeerName}
+            initialPeerId={navigation.messagesInitialPeerId}
+            initialGroupId={navigation.messagesInitialGroupId}
+            initialPeerName={navigation.messagesInitialPeerName}
           />
           </ErrorBoundary>
         )}

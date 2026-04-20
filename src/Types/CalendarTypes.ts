@@ -51,6 +51,7 @@ export interface EventFormData {
   title: string
   description: string
   category: EventCategory
+  status: EventStatus
   start_time: string
   end_time: string
   all_day: boolean
@@ -109,6 +110,7 @@ export function createEmptyFormData(forDateKey?: string): EventFormData {
     title: '',
     description: '',
     category: 'other',
+    status: 'pending',
     start_time: toLocalISOString(start),
     end_time: toLocalISOString(end),
     all_day: false,
@@ -127,6 +129,7 @@ export function eventToFormData(event: CalendarEvent): EventFormData {
     title: event.title,
     description: event.description ?? '',
     category: event.category,
+    status: event.status,
     start_time: event.start_time.slice(0, 16),
     end_time: event.end_time.slice(0, 16),
     all_day: event.all_day,
@@ -157,6 +160,13 @@ export function eventFallsOnDate(event: CalendarEvent, dateKey: string): boolean
 
 export function generateId(): string {
   return `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+export const STATUS_META: Record<EventStatus, { opacity: string; pulse: boolean; strikethrough: boolean }> = {
+  pending:     { opacity: '',            pulse: false, strikethrough: false },
+  in_progress: { opacity: '',            pulse: true,  strikethrough: false },
+  completed:   { opacity: 'opacity-50',  pulse: false, strikethrough: true  },
+  cancelled:   { opacity: 'opacity-40',  pulse: false, strikethrough: true  },
 }
 
 export const DAY_START_HOUR = 0

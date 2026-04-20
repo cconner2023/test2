@@ -134,6 +134,18 @@ export interface UserTypes {
     favoriteMedications?: string[];
     /** Provider note templates — composable skeletons from expanders + plan blocks */
     providerNoteTemplates?: ProviderNoteTemplate[];
+    /** Mission overview widget selection — null hides the panel entirely */
+    overviewWidgets?: OverviewWidgetId[] | null
+}
+
+export type OverviewWidgetId = 'task-list' | 'map-overlay' | 'gantt' | 'week-view' | 'messages'
+
+export const OVERVIEW_WIDGET_META: Record<OverviewWidgetId, { label: string; subtitle: string; disabled?: boolean }> = {
+  'task-list':   { label: 'Task List',    subtitle: 'Your assigned tasks for the day' },
+  'map-overlay': { label: 'Map',          subtitle: 'Mission area map thumbnail' },
+  'gantt':       { label: 'Gantt',        subtitle: 'Horizontal timeline of all events' },
+  'week-view':   { label: 'Week View',    subtitle: '7-day event summary strip' },
+  'messages':    { label: 'Messages',     subtitle: 'Recent encrypted messages' },
 }
 
 export const credentials: Credential[] = ['EMT-B', 'EMT-A', 'EMT-P', 'PA-C', 'NP', 'MD', 'DO'];

@@ -122,12 +122,13 @@ export function LockGate({ children }: { children: ReactNode }) {
 
   // Gate ordering (later = on top):
   // 1. children (app) — deferred until auth settles AND session ready
+  //    └─ CallOverlay (z-100) lives here — covered by auth screens via DOM order, not z-index
   // 2. post-login loader (z-9998) — first-time login: covers app until Signal + profile resolve
   // 3. user acknowledgment (z-100) — PHI disclosure (persistent for authed users, per-session for guests)
   // 4. login screen (z-90) — when not authenticated
   // 5. PIN lock (z-100)
   // 6. inactivity / initial password locks (z-100)
-  // 7. password recovery / setup — always on top
+  // 7. password recovery / setup — always on top (z-100, last in DOM)
   const showLogin = !shouldLoad && !user && !localSession && !isGuest
   return (
     <>

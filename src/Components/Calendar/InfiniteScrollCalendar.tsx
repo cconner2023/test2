@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
-import { getCategoryMeta, toDateKey } from '../../Types/CalendarTypes'
+import { getCategoryMeta, STATUS_META, toDateKey } from '../../Types/CalendarTypes'
 import { useLongPressDrag } from '../../Hooks/useLongPressDrag'
 
 interface InfiniteScrollCalendarProps {
@@ -139,6 +139,7 @@ interface EventPillProps {
 
 function EventPill({ event, eventId, onTap, onContextMenu, isDragging, dragHandlers }: EventPillProps) {
   const cat = getCategoryMeta(event.category)
+  const sm = STATUS_META[event.status]
   return (
     <div
       {...dragHandlers}
@@ -153,10 +154,10 @@ function EventPill({ event, eventId, onTap, onContextMenu, isDragging, dragHandl
           onContextMenu(eventId, e.clientX, e.clientY)
         }
       }}
-      className={`w-full rounded px-1.5 text-[9px] leading-tight truncate font-normal text-white transition-opacity duration-150 cursor-pointer active:scale-95 ${cat.color} ${isDragging ? 'opacity-30' : ''}`}
+      className={`w-full rounded px-1.5 text-[9px] leading-tight truncate font-normal text-white transition-opacity duration-150 cursor-pointer active:scale-95 ${cat.color} ${isDragging ? 'opacity-30' : sm.opacity} ${sm.pulse ? 'animate-pulse' : ''}`}
       style={{ height: LANE_HEIGHT - 2, display: 'flex', alignItems: 'center' }}
     >
-      <span className="truncate">{event.title}</span>
+      <span className={`truncate ${sm.strikethrough ? 'line-through' : ''}`}>{event.title}</span>
     </div>
   )
 }
@@ -370,6 +371,7 @@ export function InfiniteScrollCalendar({
               {weekMultiDay.map(seg => {
                 const cat = getCategoryMeta(seg.event.category)
                 const isDrag = dragState.draggedEventId === seg.event.id
+                const sm = STATUS_META[seg.event.status]
                 return (
                   <div
                     key={seg.event.id}
@@ -387,7 +389,7 @@ export function InfiniteScrollCalendar({
                     }}
                     className={`absolute z-[2] flex items-center ${cat.color} text-white text-[9px] font-normal px-1.5 truncate cursor-pointer active:scale-[0.98] transition-all duration-150 ${
                       seg.isStart ? 'rounded-l' : ''
-                    } ${seg.isEnd ? 'rounded-r' : ''} ${isDrag ? 'opacity-30' : ''}`}
+                    } ${seg.isEnd ? 'rounded-r' : ''} ${isDrag ? 'opacity-30' : sm.opacity} ${sm.pulse ? 'animate-pulse' : ''}`}
                     style={{
                       top: DAY_NUM_HEIGHT + seg.lane * LANE_HEIGHT + 1,
                       left: `${(seg.startCol / 7) * 100}%`,
@@ -395,7 +397,7 @@ export function InfiniteScrollCalendar({
                       height: LANE_HEIGHT - 2,
                     }}
                   >
-                    <span className="truncate">{seg.event.title}</span>
+                    <span className={`truncate ${sm.strikethrough ? 'line-through' : ''}`}>{seg.event.title}</span>
                   </div>
                 )
               })}

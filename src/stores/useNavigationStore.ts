@@ -43,6 +43,9 @@ const CLOSE_ALL_DRAWERS = {
     showTrainingDrawer: false,
     trainingDrawerTaskId: null as string | null,
     showMessagesDrawer: false,
+    messagesInitialPeerId: null as string | null,
+    messagesInitialGroupId: null as string | null,
+    messagesInitialPeerName: null as string | null,
     showPropertyDrawer: false,
     showLoRaDrawer: false,
     showMapOverlayDrawer: false,
@@ -76,6 +79,9 @@ interface NavigationState {
     showTrainingDrawer: boolean
     trainingDrawerTaskId: string | null
     showMessagesDrawer: boolean
+    messagesInitialPeerId: string | null
+    messagesInitialGroupId: string | null
+    messagesInitialPeerName: string | null
     showPropertyDrawer: boolean
     showLoRaDrawer: boolean
     showMapOverlayDrawer: boolean
@@ -109,6 +115,8 @@ interface NavigationActions {
     setShowKnowledgeBase: (show: boolean, initialView?: string | null, initialMedication?: medListTypes | null, initialScreenerId?: string | null) => void
     setShowTrainingDrawer: (taskId: string | null) => void
     setShowMessagesDrawer: (show: boolean) => void
+    openMessagesConversation: (peerId: string | null, groupId: string | null, peerName: string | null) => void
+    clearMessagesConversation: () => void
     setShowPropertyDrawer: (show: boolean) => void
     setShowLoRaDrawer: (show: boolean) => void
     setShowMapOverlayDrawer: (show: boolean, overlayId?: string | null) => void
@@ -316,6 +324,21 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         ...PRESERVED_FIELDS(s),
         showMessagesDrawer: show,
     })),
+
+    openMessagesConversation: (peerId, groupId, peerName) => set((s) => ({
+        ...CLOSE_ALL_DRAWERS,
+        ...PRESERVED_FIELDS(s),
+        showMessagesDrawer: true,
+        messagesInitialPeerId: peerId,
+        messagesInitialGroupId: groupId,
+        messagesInitialPeerName: peerName,
+    })),
+
+    clearMessagesConversation: () => set({
+        messagesInitialPeerId: null,
+        messagesInitialGroupId: null,
+        messagesInitialPeerName: null,
+    }),
 
     setShowPropertyDrawer: (show) => set((s) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),

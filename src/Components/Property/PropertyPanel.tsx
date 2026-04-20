@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react'
-import { Plus, X, Check, List, MapIcon } from 'lucide-react'
+import { X, Check, List, MapIcon } from 'lucide-react'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useShallow } from 'zustand/react/shallow'
@@ -11,7 +11,7 @@ import { LoadingSpinner } from '../LoadingSpinner'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useClinicName } from '../../Hooks/useClinicNameResolver'
 import type { LocalPropertyItem, LocalPropertyLocation } from '../../Types/PropertyTypes'
-import { ActionSheet } from '../ActionSheet'
+import { fetchLocationTags, upsertLocationTags } from '../../lib/propertyService'
 import { PropertyItemDetail } from './PropertyItemDetail'
 
 export type PropertyView = 'property' | 'property-detail' | 'property-form'
@@ -28,6 +28,7 @@ interface PropertyPanelProps {
   isMobile?: boolean
   editing?: boolean
   onRegisterAddLocation?: (trigger: () => void) => void
+  onRegisterAddItem?: (trigger: () => void) => void
   onDrilldownChange?: (path: Array<{ id: string; name: string }>) => void
   locationListRef?: React.Ref<unknown>
   onSearchChange?: (query: string) => void
@@ -48,6 +49,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   isMobile = true,
   editing = false,
   onRegisterAddLocation,
+  onRegisterAddItem,
   onDrilldownChange,
   locationListRef,
   onSearchChange,
@@ -70,6 +72,8 @@ export const PropertyPanel = memo(function PropertyPanel({
       editItem: s.editItem,
       removeItem: s.removeItem,
       holders: s.holders,
+      rootLocationId: s.rootLocationId,
+      bumpTagVersion: s.bumpTagVersion,
     })),
   )
 
@@ -80,8 +84,8 @@ export const PropertyPanel = memo(function PropertyPanel({
   const [desktopLocationId, setDesktopLocationId] = useState<string | null>(null)
   const [showNewLocation, setShowNewLocation] = useState(false)
   const [newLocationName, setNewLocationName] = useState('')
+  const [newLocationParentId, setNewLocationParentId] = useState<string | null>(null)
   const [renamingLocation, setRenamingLocation] = useState<{ id: string; name: string } | null>(null)
-  const [showAddSheet, setShowAddSheet] = useState(false)
   const [showInlineForm, setShowInlineForm] = useState(false)
   const [pendingDeleteItem, setPendingDeleteItem] = useState<LocalPropertyItem | null>(null)
   const [pendingDeleteLocId, setPendingDeleteLocId] = useState<string | null>(null)
@@ -89,9 +93,19 @@ export const PropertyPanel = memo(function PropertyPanel({
   useEffect(() => {
     onRegisterAddLocation?.(() => {
       setNewLocationName('')
+      setNewLocationParentId(null)
       setShowNewLocation(true)
     })
   }, [onRegisterAddLocation])
+
+  useEffect(() => {
+    onRegisterAddItem?.(() => {
+      store.setDefaultLocationId(null)
+      store.setEditingItem(null)
+      if (isMobile) setShowInlineForm(true)
+      else onAddItem()
+    })
+  }, [onRegisterAddItem])
 
   const handleSelectItem = useCallback((item: LocalPropertyItem) => {
     onSelectItem(item)
@@ -100,16 +114,58 @@ export const PropertyPanel = memo(function PropertyPanel({
   const handleCreateLocation = useCallback(async () => {
     const trimmed = newLocationName.trim()
     if (!trimmed || !store.clinicId) return
-    await store.addLocation({
+    const parentId = newLocationParentId
+    const result = await store.addLocation({
       clinic_id: store.clinicId,
-      parent_id: null,
+      parent_id: parentId,
       name: trimmed,
       photo_data: null,
       created_by: '',
     })
+    if (result?.success && result.location) {
+      const canvasId = parentId ?? store.rootLocationId
+      if (canvasId) {
+        const existingTags = await fetchLocationTags(canvasId)
+        const zoneCount = existingTags.filter(t => t.target_type === 'location').length
+        const col = zoneCount % 4
+        const row = Math.floor(zoneCount / 4)
+        await upsertLocationTags(canvasId, [
+          ...existingTags,
+          {
+            id: crypto.randomUUID(),
+            location_id: canvasId,
+            target_type: 'location' as const,
+            target_id: result.location.id,
+            x: 0.05 + col * 0.23,
+            y: 0.05 + row * 0.18,
+            width: 0.2,
+            height: 0.14,
+            label: trimmed,
+          },
+        ])
+        store.bumpTagVersion()
+      }
+    }
+    setNewLocationParentId(null)
     setNewLocationName('')
     setShowNewLocation(false)
-  }, [newLocationName, store])
+  }, [newLocationName, newLocationParentId, store])
+
+  const handleAddChildLocation = useCallback((parentId: string) => {
+    setNewLocationParentId(parentId)
+    setNewLocationName('')
+    setShowNewLocation(true)
+  }, [])
+
+  const handleAddItemAtLocation = useCallback((locationId: string | null) => {
+    store.setDefaultLocationId(locationId)
+    store.setEditingItem(null)
+    if (isMobile) {
+      setShowInlineForm(true)
+    } else {
+      onAddItem()
+    }
+  }, [store, isMobile, onAddItem])
 
   const handleMoveLocation = useCallback(async (locationId: string, newParentId: string | null) => {
     await store.editLocation(locationId, { parent_id: newParentId })
@@ -141,6 +197,8 @@ export const PropertyPanel = memo(function PropertyPanel({
 
   const renderNewLocationForm = () => {
     if (!showNewLocation) return null
+    const cancelForm = () => { setShowNewLocation(false); setNewLocationParentId(null) }
+    const parentName = newLocationParentId ? visibleLocations.find(l => l.id === newLocationParentId)?.name : null
     return (
       <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-primary/10">
         <input
@@ -149,14 +207,14 @@ export const PropertyPanel = memo(function PropertyPanel({
           onChange={(e) => setNewLocationName(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') handleCreateLocation()
-            if (e.key === 'Escape') setShowNewLocation(false)
+            if (e.key === 'Escape') cancelForm()
           }}
-          placeholder="Location name"
+          placeholder={parentName ? `New area in ${parentName}…` : 'Location name'}
           autoFocus
           className="flex-1 min-w-0 rounded-full py-2.5 px-4 border border-themeblue1/30 shadow-xs bg-themewhite2 focus:outline-none text-base text-primary placeholder:text-tertiary/30 transition-all duration-300"
         />
         <button
-          onClick={() => setShowNewLocation(false)}
+          onClick={cancelForm}
           className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary active:scale-95 transition-all duration-300"
         >
           <X size={20} />
@@ -213,17 +271,6 @@ export const PropertyPanel = memo(function PropertyPanel({
     )
   }
 
-  const renderBottomIsland = (fixed?: boolean) => (
-    <div className={`${fixed ? 'fixed' : 'absolute'} bottom-4 right-4 z-20 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg`}>
-      <button
-        onClick={() => setShowAddSheet(true)}
-        className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
-      >
-        <Plus className="w-5 h-5" />
-      </button>
-    </div>
-  )
-
   // Mobile: detail view
   if (view === 'property-detail' && isMobile && selectedItem) {
     return (
@@ -272,6 +319,8 @@ export const PropertyPanel = memo(function PropertyPanel({
                 onEditLocation={(loc) => setRenamingLocation({ id: loc.id, name: loc.name })}
                 onDeleteLocation={(locId) => setPendingDeleteLocId(locId)}
                 onDeleteItem={(item) => setPendingDeleteItem(item)}
+                onAddChildLocation={handleAddChildLocation}
+                onAddItemAtLocation={handleAddItemAtLocation}
                 editing={editing}
               />
             </div>
@@ -311,7 +360,6 @@ export const PropertyPanel = memo(function PropertyPanel({
                   </button>
                 ))}
             </div>
-            {renderBottomIsland()}
           </div>
 
           <div className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-all duration-300 relative ${
@@ -365,15 +413,6 @@ export const PropertyPanel = memo(function PropertyPanel({
           </div>
         </div>
 
-        <ActionSheet
-          visible={showAddSheet}
-          title="Add to Property Book"
-          options={[
-            { key: 'item', label: 'New Item', onAction: () => { store.setDefaultLocationId(null); store.setEditingItem(null); onAddItem() } },
-            { key: 'location', label: 'New Location', onAction: () => { setNewLocationName(''); setShowNewLocation(true) } },
-          ]}
-          onClose={() => setShowAddSheet(false)}
-        />
         <ConfirmDialog
           visible={!!pendingDeleteItem}
           title="Delete this item? This cannot be undone."
@@ -412,6 +451,8 @@ export const PropertyPanel = memo(function PropertyPanel({
             onEditLocation={(loc) => setRenamingLocation({ id: loc.id, name: loc.name })}
             onDeleteLocation={(locId) => setPendingDeleteLocId(locId)}
             onDeleteItem={(item) => setPendingDeleteItem(item)}
+            onAddChildLocation={handleAddChildLocation}
+            onAddItemAtLocation={handleAddItemAtLocation}
             onDrilldownChange={onDrilldownChange}
             showInlineForm={showInlineForm}
             inlineEditItem={store.editingItem}
@@ -420,17 +461,6 @@ export const PropertyPanel = memo(function PropertyPanel({
           />
         </div>
 
-        {!showInlineForm && !store.editingItem && renderBottomIsland(true)}
-
-        <ActionSheet
-          visible={showAddSheet}
-          title="Add to Property Book"
-          options={[
-            { key: 'item', label: 'New Item', onAction: () => { store.setDefaultLocationId(null); store.setEditingItem(null); setShowInlineForm(true) } },
-            { key: 'location', label: 'New Location', onAction: () => { setNewLocationName(''); setShowNewLocation(true) } },
-          ]}
-          onClose={() => setShowAddSheet(false)}
-        />
       </div>
 
       <ConfirmDialog

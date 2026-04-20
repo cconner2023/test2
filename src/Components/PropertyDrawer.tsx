@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Pencil, X, List, Map as MapIcon, ScanLine } from 'lucide-react'
+import { Pencil, X, List, Map as MapIcon, ScanLine, Plus } from 'lucide-react'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { BaseDrawer } from './BaseDrawer'
 import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
@@ -14,6 +14,7 @@ import { useIsMobile } from '../Hooks/useIsMobile'
 import { useClinicName } from '../Hooks/useClinicNameResolver'
 import type { LocalPropertyItem } from '../Types/PropertyTypes'
 import type { PropertyLocationListHandle, DrilldownSegment } from './Property/PropertyLocationList'
+import { ActionSheet } from './ActionSheet'
 import { UI_TIMING } from '../Utilities/constants'
 import { usePropertyStore } from '../stores/usePropertyStore'
 import { useShallow } from 'zustand/react/shallow'
@@ -60,6 +61,9 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const [pendingDeleteItem, setPendingDeleteItem] = useState<LocalPropertyItem | null>(null)
     const [scanMode, setScanMode] = useState(false)
     const [enrollingItem, setEnrollingItem] = useState<LocalPropertyItem | null>(null)
+    const [showAddSheet, setShowAddSheet] = useState(false)
+    const addItemTriggerRef = useRef<(() => void) | null>(null)
+    const addLocationTriggerRef = useRef<(() => void) | null>(null)
     const initRef = useRef(false)
 
     useEffect(() => { setSearchQuery(''); setSearchFocused(false); setEditing(false) }, [view])
@@ -265,6 +269,8 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                                         onDrilldownChange={setDrilldownPath}
                                         locationListRef={locationListRef}
                                         onEnrollItem={(item) => setEnrollingItem(item)}
+                                        onRegisterAddItem={(t) => { addItemTriggerRef.current = t }}
+                                        onRegisterAddLocation={(t) => { addLocationTriggerRef.current = t }}
                                     />
                                 </div>
                             </MobileSearchBar>
@@ -283,6 +289,8 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                                     onAddItem={handleAddItem}
                                     onBack={handleBack}
                                     onEnrollItem={(item) => setEnrollingItem(item)}
+                                    onRegisterAddItem={(t) => { addItemTriggerRef.current = t }}
+                                    onRegisterAddLocation={(t) => { addLocationTriggerRef.current = t }}
                                 />
                             </div>
                         )}
@@ -313,7 +321,28 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         </div>
                     </div>
                 )}
+
+                {view === 'property' && !mapView && (
+                    <div className="absolute bottom-4 right-4 z-30 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pb-[max(0.25rem,calc(var(--sab,0px)+0.25rem))]">
+                        <button
+                            onClick={() => setShowAddSheet(true)}
+                            className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
+                        >
+                            <Plus className="w-5 h-5" />
+                        </button>
+                    </div>
+                )}
             </div>
+
+            <ActionSheet
+                visible={showAddSheet}
+                title="Add to Property Book"
+                options={[
+                    { key: 'item', label: 'New Item', onAction: () => { setShowAddSheet(false); addItemTriggerRef.current?.() } },
+                    { key: 'location', label: 'New Location', onAction: () => { setShowAddSheet(false); addLocationTriggerRef.current?.() } },
+                ]}
+                onClose={() => setShowAddSheet(false)}
+            />
 
             <ConfirmDialog
                 visible={!!pendingDeleteItem}

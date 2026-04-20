@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, forwardRef, useImperativeHandle } from 'react'
-import { ChevronRight, Pencil, Trash2, Map as MapIcon, X, Check } from 'lucide-react'
+import { ChevronRight, Pencil, Trash2, Map as MapIcon, X, Check, Plus } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { Section, SectionCard } from '../Section'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
@@ -38,6 +38,8 @@ interface PropertyLocationListProps {
   onDeleteItem?: (item: LocalPropertyItem) => void
   onViewOnMap?: (locationId: string) => void
   onDrilldownChange?: (path: DrilldownSegment[]) => void
+  onAddChildLocation?: (parentId: string) => void
+  onAddItemAtLocation?: (locationId: string | null) => void
   /** When true, show the inline item creation form */
   showInlineForm?: boolean
   /** Editing an existing item inline */
@@ -58,13 +60,15 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
   onDeleteItem,
   onViewOnMap,
   onDrilldownChange,
+  onAddChildLocation,
+  onAddItemAtLocation,
   showInlineForm = false,
   inlineEditItem = null,
   onInlineFormClose,
   editing = false,
 }, ref) {
   const [path, setPath] = useState<DrilldownSegment[]>([])
-  const [contextMenu, setContextMenu] = useState<{ locId: string; x: number; y: number } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ type: 'location' | 'item'; id: string; x: number; y: number } | null>(null)
   const longPressRef = useRef<number | null>(null)
   const longPressPreventTap = useRef(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -175,14 +179,14 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
   }, [path, onDrilldownChange])
 
   // Long-press to open context menu (mobile equivalent of right-click)
-  const handleTouchStart = useCallback((locId: string, e: React.TouchEvent) => {
+  const handleTouchStart = useCallback((type: 'location' | 'item', id: string, e: React.TouchEvent) => {
     const touch = e.touches[0]
     const x = touch.clientX
     const y = touch.clientY
     longPressPreventTap.current = false
     longPressRef.current = window.setTimeout(() => {
       longPressPreventTap.current = true
-      setContextMenu({ locId, x, y })
+      setContextMenu({ type, id, x, y })
     }, 500)
   }, [])
 
@@ -288,11 +292,11 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
         onKeyDown={(e) => { if (e.key === 'Enter') drillInto(loc) }}
         onContextMenu={(e) => {
           e.preventDefault()
-          if (onEditLocation || onDeleteLocation) {
-            setContextMenu({ locId: loc.id, x: e.clientX, y: e.clientY })
+          if (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation) {
+            setContextMenu({ type: 'location', id: loc.id, x: e.clientX, y: e.clientY })
           }
         }}
-        onTouchStart={(e) => handleTouchStart(loc.id, e)}
+        onTouchStart={(e) => handleTouchStart('location', loc.id, e)}
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchMove}
         className={`flex items-center gap-3 px-4 py-3.5 active:bg-secondary/5 transition-colors cursor-pointer ${
@@ -339,6 +343,10 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
       className={`flex items-center gap-3 px-4 py-3.5 ${
         !isLast ? 'border-b border-tertiary/8' : ''
       }`}
+      onContextMenu={onAddItemAtLocation ? (e) => { e.preventDefault(); setContextMenu({ type: 'item', id: item.id, x: e.clientX, y: e.clientY }) } : undefined}
+      onTouchStart={onAddItemAtLocation ? (e) => handleTouchStart('item', item.id, e) : undefined}
+      onTouchEnd={onAddItemAtLocation ? handleTouchEnd : undefined}
+      onTouchMove={onAddItemAtLocation ? handleTouchMove : undefined}
     >
       <button
         onClick={() => onSelectItem(item)}
@@ -492,21 +500,36 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
             </>
           )}
 
-          {/* Context menu — long-press / right-click on location rows */}
+          {/* Context menu — long-press / right-click on location and item rows */}
           {contextMenu && (() => {
-            const loc = locations.find((l) => l.id === contextMenu.locId)
-            if (!loc) return null
-            return (
-              <ContextMenu
-                x={contextMenu.x}
-                y={contextMenu.y}
-                onClose={() => setContextMenu(null)}
-                items={[
-                  ...(onEditLocation ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => startRename(loc) }] : []),
-                  ...(onDeleteLocation ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteLocation(loc.id) }] : []),
-                ]}
-              />
-            )
+            if (contextMenu.type === 'location') {
+              const loc = locations.find((l) => l.id === contextMenu.id)
+              if (!loc) return null
+              return (
+                <ContextMenu
+                  x={contextMenu.x}
+                  y={contextMenu.y}
+                  onClose={() => setContextMenu(null)}
+                  items={[
+                    ...(onAddChildLocation ? [{ key: 'add-area', label: 'New Area', icon: Plus, onAction: () => onAddChildLocation(loc.id) }] : []),
+                    ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: Plus, onAction: () => onAddItemAtLocation(loc.id) }] : []),
+                    ...(onEditLocation ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => startRename(loc) }] : []),
+                    ...(onDeleteLocation ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteLocation(loc.id) }] : []),
+                  ]}
+                />
+              )
+            } else {
+              return (
+                <ContextMenu
+                  x={contextMenu.x}
+                  y={contextMenu.y}
+                  onClose={() => setContextMenu(null)}
+                  items={[
+                    ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: Plus, onAction: () => onAddItemAtLocation(currentParentId) }] : []),
+                  ]}
+                />
+              )
+            }
           })()}
         </>
       )}

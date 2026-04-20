@@ -1,6 +1,6 @@
 import { useState, useCallback, useImperativeHandle, forwardRef } from 'react'
 import { Package } from 'lucide-react'
-import type { EventFormData, EventCategory } from '../../Types/CalendarTypes'
+import type { EventFormData, EventCategory, EventStatus } from '../../Types/CalendarTypes'
 import { createEmptyFormData, EVENT_CATEGORIES } from '../../Types/CalendarTypes'
 import { PickerInput, DatePickerInput } from '../FormInputs'
 import { UserAvatar } from '../Settings/UserAvatar'
@@ -8,6 +8,13 @@ import { useIsMobile } from '../../Hooks/useIsMobile'
 import { MedevacForm } from '../Medevac/MedevacForm'
 import { emptyMedevacRequest } from '../../Types/MedevacTypes'
 import { useAuthStore } from '../../stores/useAuthStore'
+
+const STATUS_OPTIONS: { value: EventStatus; label: string; activeClass: string }[] = [
+  { value: 'pending',     label: 'Pending',   activeClass: 'bg-tertiary/15 text-primary' },
+  { value: 'in_progress', label: 'Active',    activeClass: 'bg-themeblue1/15 text-themeblue1' },
+  { value: 'completed',   label: 'Done',      activeClass: 'bg-themegreen/15 text-themegreen' },
+  { value: 'cancelled',   label: 'Cancelled', activeClass: 'bg-themeredred/15 text-themeredred' },
+]
 
 /** Generate 30-min military time options: "0000", "0030", … "2330" */
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
@@ -172,6 +179,31 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           placeholder="Category"
           required
         />
+
+        {isEditing && (
+          <div>
+            <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1.5 block">Status</span>
+            <div className="grid grid-cols-4 gap-1">
+              {STATUS_OPTIONS.map(opt => {
+                const isActive = form.status === opt.value
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => updateField('status', opt.value)}
+                    className={`rounded-full py-1.5 text-[10px] font-semibold tracking-wide transition-all duration-150 active:scale-95 border ${
+                      isActive
+                        ? `${opt.activeClass} border-transparent`
+                        : 'border-themeblue3/10 bg-themewhite2 text-tertiary/50'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Start date + time */}
         <div>

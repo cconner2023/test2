@@ -52,6 +52,8 @@ interface MessagingState {
   systemGroupIds: Set<string>
   /** True once the initial IDB hydration is complete. */
   hydrated: boolean
+  /** Conversation keys pinned by the user — persisted to localStorage. */
+  pinnedConversationKeys: string[]
 }
 
 // ── Actions ────────────────────────────────────────────────────────────────
@@ -130,6 +132,8 @@ interface MessagingActions {
    */
   hydrateFromIdb: (userId: string) => Promise<void>
 
+  /** Toggle pin state for a conversation key — persists to localStorage. */
+  togglePinConversation: (key: string) => void
   /** Full reset — called on sign-out. */
   clearAll: () => void
 }
@@ -150,6 +154,12 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
   localUserId: null,
   systemGroupIds: new Set(),
   hydrated: false,
+  pinnedConversationKeys: (() => {
+    try {
+      const raw = localStorage.getItem('beacon:pinnedConversations')
+      return raw ? (JSON.parse(raw) as string[]) : []
+    } catch { return [] }
+  })(),
 
   // ── Actions ──
 
@@ -462,18 +472,31 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
     }
   },
 
-  clearAll: () => set({
-    conversations: {},
-    unreadCounts: {},
-    groups: {},
-    sendingMap: {},
-    deletedConversations: {},
-    localDeviceId: null,
-    clinicDeviceId: null,
-    localUserId: null,
-    systemGroupIds: new Set(),
-    hydrated: false,
-  }),
+  togglePinConversation: (key) => {
+    const current = get().pinnedConversationKeys
+    const next = current.includes(key)
+      ? current.filter(k => k !== key)
+      : [...current, key]
+    set({ pinnedConversationKeys: next })
+    try { localStorage.setItem('beacon:pinnedConversations', JSON.stringify(next)) } catch {}
+  },
+
+  clearAll: () => {
+    try { localStorage.removeItem('beacon:pinnedConversations') } catch {}
+    set({
+      conversations: {},
+      unreadCounts: {},
+      groups: {},
+      sendingMap: {},
+      deletedConversations: {},
+      localDeviceId: null,
+      clinicDeviceId: null,
+      localUserId: null,
+      systemGroupIds: new Set(),
+      hydrated: false,
+      pinnedConversationKeys: [],
+    })
+  },
 }))
 
 // ── Selectors (exported as hooks) ─────────────────────────────────────────
