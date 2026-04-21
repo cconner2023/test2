@@ -9,7 +9,7 @@ import { laceToText, copyToClipboard, downloadAsText, printReport } from '../../
 const rowCx = 'flex items-center justify-between border-b border-primary/6 last:border-0 px-4 py-3'
 
 const inputInlineCx =
-  'flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none text-sm'
+  'flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm'
 
 const numberInputCx =
   'w-14 text-center rounded-full border border-themeblue3/10 bg-themewhite3 text-primary focus:border-themeblue1/30 focus:outline-none transition-all py-1.5 text-sm'
@@ -33,7 +33,7 @@ function PillToggle({
         className={`px-3 py-1 rounded-full text-xs font-medium transition-all active:scale-95 ${
           on
             ? 'bg-themegreen/15 text-themegreen'
-            : 'bg-themewhite2 text-tertiary/50'
+            : 'bg-themewhite2 text-tertiary'
         }`}
       >
         {onLabel}
@@ -44,7 +44,7 @@ function PillToggle({
         className={`px-3 py-1 rounded-full text-xs font-medium transition-all active:scale-95 ${
           !on
             ? 'bg-themeredred/15 text-themeredred'
-            : 'bg-themewhite2 text-tertiary/50'
+            : 'bg-themewhite2 text-tertiary'
         }`}
       >
         {offLabel}
@@ -66,7 +66,7 @@ function StatusPill({ status, selected, onSelect }: { status: EquipStatus; selec
       type="button"
       onClick={onSelect}
       className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all active:scale-95 ${
-        selected ? selectedCx[status] : 'bg-themewhite2 text-tertiary/50'
+        selected ? selectedCx[status] : 'bg-themewhite2 text-tertiary'
       }`}
     >
       {status}
@@ -120,7 +120,7 @@ export function LaceReport() {
       {/* Header — Unit + DTG */}
       <SectionCard>
         <div className={rowCx}>
-          <span className="text-[10px] font-semibold text-tertiary/40 uppercase tracking-widest w-16 shrink-0">Unit</span>
+          <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-16 shrink-0">Unit</span>
           <input
             type="text"
             value={report.unit}
@@ -130,7 +130,7 @@ export function LaceReport() {
           />
         </div>
         <div className={rowCx}>
-          <span className="text-[10px] font-semibold text-tertiary/40 uppercase tracking-widest w-16 shrink-0">DTG</span>
+          <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-16 shrink-0">DTG</span>
           <input
             type="text"
             value={report.dtg}
@@ -155,7 +155,7 @@ export function LaceReport() {
                 onChange={e => update({ waterLiters: Math.max(0, parseInt(e.target.value) || 0) })}
                 className={numberInputCx}
               />
-              <span className="text-xs text-tertiary/50">L</span>
+              <span className="text-xs text-tertiary">L</span>
             </div>
           </div>
           <div className={rowCx}>
@@ -169,7 +169,7 @@ export function LaceReport() {
                 onChange={e => update({ waterHours: Math.max(0, parseInt(e.target.value) || 0) })}
                 className={numberInputCx}
               />
-              <span className="text-xs text-tertiary/50">hrs</span>
+              <span className="text-xs text-tertiary">hrs</span>
             </div>
           </div>
           <div className={rowCx}>
@@ -194,7 +194,7 @@ export function LaceReport() {
                   onChange={e => updateAmmo(i, 'onHand', Math.max(0, parseInt(e.target.value) || 0))}
                   className={numberInputCx}
                 />
-                <span className="text-xs text-tertiary/40">rds</span>
+                <span className="text-xs text-tertiary">rds</span>
                 <input
                   type="number"
                   min={0}
@@ -204,7 +204,7 @@ export function LaceReport() {
                   onChange={e => updateAmmo(i, 'pct', Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
                   className={numberInputCx}
                 />
-                <span className="text-xs text-tertiary/40">%</span>
+                <span className="text-xs text-tertiary">%</span>
               </div>
             </div>
           ))}
@@ -269,7 +269,7 @@ export function LaceReport() {
       <Section title="E — Equipment" className="mb-0">
         <SectionCard>
           {report.equipment.length === 0 && (
-            <div className="px-4 py-3 text-xs text-tertiary/40">No equipment added</div>
+            <div className="px-4 py-3 text-xs text-tertiary">No equipment added</div>
           )}
           {report.equipment.map((eq, i) => (
             <div key={i} className="border-b border-primary/6 last:border-0 px-4 py-2.5 space-y-1.5">
@@ -279,7 +279,7 @@ export function LaceReport() {
                   value={eq.item}
                   onChange={e => updateEquipment(i, { item: e.target.value })}
                   placeholder="Item name"
-                  className="flex-1 bg-transparent text-sm text-primary placeholder:text-tertiary/30 focus:outline-none"
+                  className="flex-1 bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none"
                 />
                 <div className="flex gap-1">
                   {(['FMC', 'PMC', 'NMC'] as EquipStatus[]).map(s => (
@@ -294,7 +294,7 @@ export function LaceReport() {
                 <button
                   type="button"
                   onClick={() => removeEquipment(i)}
-                  className="w-6 h-6 flex items-center justify-center text-tertiary/30 hover:text-themeredred active:scale-95 transition-all shrink-0"
+                  className="w-6 h-6 flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all shrink-0"
                 >
                   <X size={13} />
                 </button>
@@ -304,7 +304,7 @@ export function LaceReport() {
                 value={eq.notes ?? ''}
                 onChange={e => updateEquipment(i, { notes: e.target.value })}
                 placeholder="Notes (optional)"
-                className="w-full bg-transparent text-xs text-tertiary/60 placeholder:text-tertiary/25 focus:outline-none pl-0"
+                className="w-full bg-transparent text-xs text-tertiary placeholder:text-tertiary focus:outline-none pl-0"
               />
             </div>
           ))}
@@ -327,7 +327,7 @@ export function LaceReport() {
               onChange={e => update({ notes: e.target.value })}
               placeholder="Additional notes…"
               rows={3}
-              className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary/30 focus:outline-none resize-none"
+              className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
             />
           </div>
         </SectionCard>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { UserPlus, Pencil, KeyRound, Trash2, LogOut, Eye, Check, X } from 'lucide-react'
+import { UserPlus, Pencil, KeyRound, Trash2, LogOut, Eye, Check, X, Mail } from 'lucide-react'
 import { UserRow } from '../UserRow'
 import { EmptyState } from '../EmptyState'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
@@ -8,15 +8,14 @@ import { LoadingSpinner } from '../LoadingSpinner'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useLongPress } from '../../Hooks/useLongPress'
-import { formatLastActive } from './adminUtils'
+import { formatLastActive, RoleBadge } from './adminUtils'
 import {
   listAllUsers,
-  listClinics,
   deleteUser,
   resetUserPassword,
   forceLogoutUser,
 } from '../../lib/adminService'
-import type { AdminUser, AdminClinic } from '../../lib/adminService'
+import type { AdminUser } from '../../lib/adminService'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useInvalidation } from '../../stores/useInvalidationStore'
 import { UI_TIMING } from '../../Utilities/constants'
@@ -72,12 +71,11 @@ export function AdminUsersList({
   bare,
 }: AdminUsersListProps) {
   const searchQuery = searchQueryProp ?? ''
-  const gen = useInvalidation('users', 'clinics')
+  const gen = useInvalidation('users')
   const currentUser = useAuthStore(s => s.user)
 
   // Data
   const [users, setUsers] = useState<AdminUser[]>([])
-  const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [loading, setLoading] = useState(true)
   const showLoading = useMinLoadTime(loading)
 
@@ -117,12 +115,8 @@ export function AdminUsersList({
 
   const loadUsers = useCallback(async () => {
     setLoading(true)
-    const [userData, clinicData] = await Promise.all([
-      listAllUsers(),
-      listClinics(),
-    ])
+    const userData = await listAllUsers()
     setUsers(userData)
-    setClinics(clinicData)
     setLoading(false)
   }, [])
 
@@ -131,13 +125,6 @@ export function AdminUsersList({
   }, [loadUsers, gen])
 
   // ─── Derived Data ──────────────────────────────────────────────────────
-
-  /** Clinic lookup by ID */
-  const clinicById = useMemo(() => {
-    const map = new Map<string, AdminClinic>()
-    for (const c of clinics) map.set(c.id, c)
-    return map
-  }, [clinics])
 
   /** Filtered user list based on search query and optional tree filter */
   const filteredUsers = useMemo(() => {
@@ -238,6 +225,12 @@ export function AdminUsersList({
           icon: Pencil,
           onAction: () => onEditUser(user),
         },
+        ...(user.email ? [{
+          key: 'email',
+          label: 'Email User',
+          icon: Mail,
+          onAction: () => { window.location.href = `mailto:${user.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(`${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n`)}` },
+        }] : []),
         {
           key: 'changepw',
           label: 'Change Password',
@@ -273,10 +266,7 @@ export function AdminUsersList({
     : null
 
   // ── Shared: render user row items ──────────────────────
-  const renderUserItems = () => filteredUsers.map((user) => {
-    const clinicName = user.clinic_id ? clinicById.get(user.clinic_id)?.name : undefined
-
-    return (
+  const renderUserItems = () => filteredUsers.map((user) => (
       <UserCard
         key={user.id}
         user={user}
@@ -290,7 +280,13 @@ export function AdminUsersList({
           middleInitial={user.middle_initial}
           rank={user.rank}
           lastActiveAt={user.last_active_at}
-          subtitle={[user.credential, user.roles?.join(' · '), clinicName, formatLastActive(user.last_active_at)].filter(Boolean).join(' · ') || user.email || ''}
+          subtitle={[user.credential, user.uic, user.clinic_name, user.email].filter(Boolean).join(' · ')}
+          meta={user.roles?.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {user.roles.map(r => <RoleBadge key={r} role={r} />)}
+            </div>
+          )}
+          right={<span className="text-[9pt] text-tertiary/50 shrink-0">{formatLastActive(user.last_active_at)}</span>}
         />
 
         {resetPwUserId === user.id && (
@@ -326,7 +322,7 @@ export function AdminUsersList({
         )}
       </UserCard>
     )
-  })
+  )
 
   // ── Shared: overlays (context menu + confirm dialog) ──
   const renderOverlays = () => (

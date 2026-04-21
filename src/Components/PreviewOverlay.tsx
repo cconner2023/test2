@@ -23,7 +23,7 @@ export function PopoverHeader({ title, onClose, onBack }: { title: string; onClo
         {onBack && (
           <button
             onClick={onBack}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary/50 hover:text-tertiary active:scale-95 transition-all -ml-1"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-tertiary active:scale-95 transition-all -ml-1"
             aria-label="Back"
           >
             <ChevronLeft size={16} />
@@ -33,7 +33,7 @@ export function PopoverHeader({ title, onClose, onBack }: { title: string; onClo
       </div>
       <button
         onClick={onClose}
-        className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary/50 hover:text-tertiary active:scale-95 transition-all"
+        className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-tertiary active:scale-95 transition-all"
         aria-label="Close"
       >
         <X size={16} />
@@ -230,7 +230,7 @@ export function PreviewOverlay({
                             onChange={(e) => setAddValue(e.target.value)}
                             onKeyDown={(e) => { if (e.key === 'Enter') handleAddConfirm() }}
                             placeholder={addPlaceholder}
-                            className="w-full text-[10pt] pl-3 pr-3 py-2 rounded-full border border-tertiary/15 bg-themewhite text-primary outline-none focus:border-themeblue1/30 placeholder:text-tertiary/30 transition-all duration-200"
+                            className="w-full text-[10pt] pl-3 pr-3 py-2 rounded-full border border-tertiary/15 bg-themewhite text-primary outline-none focus:border-themeblue1/30 placeholder:text-tertiary transition-all duration-200"
                           />
                         </div>
                         <button
@@ -238,7 +238,7 @@ export function PreviewOverlay({
                           onClick={() => { setAddValue(''); setAddOpen(false) }}
                           className="w-8 h-8 rounded-full bg-tertiary/8 flex items-center justify-center active:scale-95 transition-all shrink-0"
                         >
-                          <X size={14} className="text-tertiary/50" />
+                          <X size={14} className="text-tertiary" />
                         </button>
                         <button
                           type="button"
@@ -248,7 +248,7 @@ export function PreviewOverlay({
                             addValue.trim() ? 'bg-themegreen/15' : 'bg-tertiary/8'
                           }`}
                         >
-                          <Check size={14} className={addValue.trim() ? 'text-themegreen' : 'text-tertiary/20'} />
+                          <Check size={14} className={addValue.trim() ? 'text-themegreen' : 'text-tertiary'} />
                         </button>
                       </div>
                     </div>
@@ -282,7 +282,7 @@ export function PreviewOverlay({
                   {!title && (
                     <button
                       onClick={onClose}
-                      className="w-9 h-9 rounded-full flex items-center justify-center bg-themewhite text-tertiary/50 hover:text-tertiary active:scale-95 transition-all"
+                      className="w-9 h-9 rounded-full flex items-center justify-center bg-themewhite text-tertiary hover:text-tertiary active:scale-95 transition-all"
                       aria-label="Close"
                     >
                       <X size={16} />

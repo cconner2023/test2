@@ -203,7 +203,7 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
                 <span className="text-sm font-medium text-primary">
                   {requestStatus.first_name} {requestStatus.middle_initial}{' '}{requestStatus.last_name}
                 </span>
-                <span className="text-xs text-secondary/60">
+                <span className="text-xs text-secondary">
                   {new Date(requestStatus.requested_at).toLocaleDateString()}
                 </span>
               </div>
@@ -247,11 +247,11 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
 
             {statusCheckToken && (
               <div className="pt-2 border-t border-tertiary/10 space-y-1.5">
-                <p className="text-xs text-secondary/70">Status check token</p>
+                <p className="text-xs text-secondary">Status check token</p>
                 <code className="block p-2 rounded-lg border border-tertiary/10 text-xs font-mono text-primary break-all select-all">
                   {statusCheckToken}
                 </code>
-                <p className="text-[10px] text-secondary/60">
+                <p className="text-[9pt] text-secondary">
                   Save this token — you'll need it with your email to check status.
                 </p>
               </div>
@@ -303,7 +303,7 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
 
       <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
         <form onSubmit={handleSubmit} className="space-y-3">
-          <p className="text-[10px] font-semibold text-secondary/70 tracking-widest uppercase">New Account</p>
+          <p className="text-[9pt] font-semibold text-secondary tracking-widest uppercase">New Account</p>
 
           <TextInput
             value={email}
@@ -347,7 +347,7 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
           )}
 
           <div>
-            <span className="text-[10px] font-semibold text-secondary/70 tracking-widest uppercase mb-1.5 block">UIC</span>
+            <span className="text-[9pt] font-semibold text-secondary tracking-widest uppercase mb-1.5 block">UIC</span>
             <UicPinInput value={uic} onChange={setUic} spread />
           </div>
 
@@ -368,7 +368,7 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
             }`}>
               {contactConsent && <Check size={14} className="absolute inset-0 m-auto text-white" />}
             </div>
-            <span className="text-[11px] text-secondary/70 leading-tight">
+            <span className="text-[9pt] text-secondary leading-tight">
               I agree to be contacted by the developer at the email provided if my UIC cannot be verified.
             </span>
           </label>

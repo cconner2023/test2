@@ -154,7 +154,7 @@ function EventPill({ event, eventId, onTap, onContextMenu, isDragging, dragHandl
           onContextMenu(eventId, e.clientX, e.clientY)
         }
       }}
-      className={`w-full rounded flex items-center gap-1 overflow-hidden text-[9px] leading-tight font-normal transition-opacity duration-150 cursor-pointer active:scale-95 bg-primary/5 ${isDragging ? 'opacity-30' : sm.opacity} ${sm.pulse ? 'animate-pulse' : ''}`}
+      className={`w-full rounded flex items-center gap-1 overflow-hidden text-[9pt] md:text-[9pt] leading-tight font-normal transition-opacity duration-150 cursor-pointer active:scale-95 bg-primary/5 ${isDragging ? 'opacity-30' : sm.opacity} ${sm.pulse ? 'animate-pulse' : ''}`}
       style={{ height: LANE_HEIGHT - 2 }}
     >
       <div className={`w-0.5 self-stretch shrink-0 rounded-full ${cat.solidColor}`} />
@@ -388,7 +388,7 @@ export function InfiniteScrollCalendar({
                         onEventContextMenu(seg.event.id, e.clientX, e.clientY)
                       }
                     }}
-                    className={`absolute z-[2] flex items-center overflow-hidden text-[9px] font-normal cursor-pointer active:scale-[0.98] transition-all duration-150 bg-primary/5 ${
+                    className={`absolute z-[2] flex items-center overflow-hidden text-[9pt] md:text-[9pt] font-normal cursor-pointer active:scale-[0.98] transition-all duration-150 bg-primary/5 ${
                       seg.isStart ? 'rounded-l' : ''
                     } ${seg.isEnd ? 'rounded-r' : ''} ${isDrag ? 'opacity-30' : sm.opacity} ${sm.pulse ? 'animate-pulse' : ''}`}
                     style={{
@@ -473,7 +473,7 @@ export function InfiniteScrollCalendar({
                             ? 'text-primary font-bold'
                             : day.month === selectedDate.getMonth()
                               ? 'text-primary'
-                              : 'text-tertiary/30'
+                              : 'text-tertiary'
                         }`}>
                           {day.day}
                         </span>
@@ -495,7 +495,7 @@ export function InfiniteScrollCalendar({
                           />
                         ))}
                         {dayEvents.length > 3 && (
-                          <span className="text-[8px] text-tertiary/50 pl-1">+{dayEvents.length - 3}</span>
+                          <span className="text-[9pt] md:text-[9pt] text-tertiary pl-1">+{dayEvents.length - 3}</span>
                         )}
                       </div>
                     </div>
@@ -510,7 +510,7 @@ export function InfiniteScrollCalendar({
       {/* Drag ghost */}
       {dragState.isDragging && ghostEvent && createPortal(
         <div
-          className={`fixed pointer-events-none z-[9999] px-2 py-1 rounded shadow-lg text-[11px] font-medium text-primary flex items-center gap-1.5 opacity-90 -translate-x-1/2 -translate-y-full bg-themewhite border border-primary/10`}
+          className={`fixed pointer-events-none z-[9999] px-2 py-1 rounded shadow-lg text-[9pt] font-medium text-primary flex items-center gap-1.5 opacity-90 -translate-x-1/2 -translate-y-full bg-themewhite border border-primary/10`}
           style={{
             left: dragState.ghostX,
             top: dragState.ghostY - 8,

@@ -18,7 +18,7 @@ function DetailRow({ label, value }: { label: string; value: string | null | und
   if (!value) return null
   return (
     <div className="flex justify-between items-baseline gap-4 py-2 border-b border-primary/5 last:border-b-0">
-      <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase shrink-0">{label}</span>
+      <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase shrink-0">{label}</span>
       <span className="text-[10pt] text-primary text-right truncate">{value}</span>
     </div>
   )
@@ -94,7 +94,7 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
         <div className={isMobile ? 'p-4 space-y-1' : 'p-3 space-y-1'}>
           <div className="flex items-center gap-2 mb-2">
             <span className={`h-2 w-2 rounded-full ${condition.color}`} />
-            <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">{condition.label}</span>
+            <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">{condition.label}</span>
           </div>
 
           <h2 className={`font-bold text-primary ${isMobile ? 'text-lg' : 'text-sm'}`}>{item.name}</h2>
@@ -117,7 +117,7 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
           <DetailRow label="Parent" value={parentItem?.name} />
           {item.expiry_date && (
             <div className="flex justify-between items-baseline gap-4 py-2 border-b border-primary/5 last:border-b-0">
-              <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase shrink-0">Expires</span>
+              <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase shrink-0">Expires</span>
               <div className="flex items-center gap-1.5">
                 {expiryLabel && <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${expiryLabel.dot}`} />}
                 <span className={`text-[10pt] text-right truncate ${expiryLabel ? expiryLabel.text : 'text-primary'}`}>
@@ -134,7 +134,7 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
       {item.notes && (
         <SectionCard>
           <div className={isMobile ? 'px-4 py-3' : 'px-3 py-2'}>
-            <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Notes</span>
+            <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Notes</span>
             <p className={`mt-1 text-secondary whitespace-pre-wrap ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.notes}</p>
           </div>
         </SectionCard>
@@ -144,8 +144,8 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
       {subItems.length > 0 && (
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Components</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
+            <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Components</span>
+            <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
               {subItems.length}
             </span>
           </div>
@@ -154,7 +154,7 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
               <div key={sub.id} className={`flex items-center justify-between ${isMobile ? 'px-4 py-3' : 'px-3 py-2'} border-b border-primary/5 last:border-b-0`}>
                 <span className={`text-primary truncate ${isMobile ? 'text-sm' : 'text-xs'}`}>{sub.name}</span>
                 {sub.serial_number && (
-                  <span className="text-[10px] text-tertiary/60 shrink-0 ml-2">{sub.serial_number}</span>
+                  <span className="text-[9pt] text-tertiary shrink-0 ml-2">{sub.serial_number}</span>
                 )}
               </div>
             ))}
@@ -216,7 +216,7 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
 
             {item.quantity > 1 && (
               <div className="shrink-0">
-                <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-2">Quantity to move</p>
+                <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">Quantity to move</p>
                 <div className="flex items-center gap-4">
                   <button
                     onClick={() => setSplitQty(q => Math.max(1, q - 1))}
@@ -231,13 +231,13 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
                   >
                     <Plus size={16} />
                   </button>
-                  <span className="text-xs text-tertiary/50">of {item.quantity}</span>
+                  <span className="text-xs text-tertiary">of {item.quantity}</span>
                 </div>
               </div>
             )}
 
             <div className="flex-1 overflow-y-auto min-h-0">
-              <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-2">Destination</p>
+              <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">Destination</p>
               <SectionCard>
                 {locations
                   .filter(l => l.id !== item.location_id)
@@ -255,7 +255,7 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
                   ))
                 }
                 {locations.filter(l => l.id !== item.location_id).length === 0 && (
-                  <p className="text-sm text-tertiary/40 px-4 py-3">No other locations</p>
+                  <p className="text-sm text-tertiary px-4 py-3">No other locations</p>
                 )}
               </SectionCard>
             </div>
@@ -305,9 +305,9 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
                     >
                       <div>
                         <p className="text-sm text-primary">{candidate.name}</p>
-                        {candidateLoc && <p className="text-xs text-tertiary/60">{candidateLoc.name}</p>}
+                        {candidateLoc && <p className="text-xs text-tertiary">{candidateLoc.name}</p>}
                       </div>
-                      <span className="text-sm font-medium px-2 py-1 rounded-full bg-tertiary/10 text-tertiary/70 shrink-0 ml-2">
+                      <span className="text-sm font-medium px-2 py-1 rounded-full bg-tertiary/10 text-tertiary shrink-0 ml-2">
                         ×{candidate.quantity}
                       </span>
                     </button>

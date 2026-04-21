@@ -49,7 +49,7 @@ export const FeedbackPanel = () => {
               <CheckCircle size={32} className="text-themegreen" />
             </div>
             <h2 className="text-xl font-semibold text-primary mb-2">Thank You!</h2>
-            <p className="text-primary/70">
+            <p className="text-primary">
               Your feedback has been submitted. We appreciate your input!
             </p>
           </div>
@@ -72,7 +72,7 @@ export const FeedbackPanel = () => {
 
           {/* Rating card */}
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden px-4 py-3">
-            <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">
+            <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">
               How would you rate your experience?
             </span>
             <div className="flex gap-1.5 mt-1.5">
@@ -118,8 +118,8 @@ export const FeedbackPanel = () => {
               {/* Comments */}
               <div>
                 <div className="flex items-center gap-1.5 mb-1">
-                  <MessageSquareText size={14} className="text-tertiary/40" />
-                  <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">
+                  <MessageSquareText size={14} className="text-tertiary" />
+                  <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">
                     Additional comments
                   </span>
                 </div>
@@ -130,7 +130,7 @@ export const FeedbackPanel = () => {
                   rows={3}
                   className="w-full px-4 py-2.5 rounded-2xl text-sm bg-themewhite dark:bg-themewhite3 text-primary
                            border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2
-                           focus:outline-none transition-all duration-300 placeholder:text-tertiary/30 resize-none"
+                           focus:outline-none transition-all duration-300 placeholder:text-tertiary resize-none"
                 />
               </div>
 
@@ -147,7 +147,7 @@ export const FeedbackPanel = () => {
                 }`}>
                   {contactConsent && <Check size={14} className="absolute inset-0 m-auto text-white" />}
                 </div>
-                <span className="text-[11px] text-primary leading-tight">
+                <span className="text-[9pt] text-primary leading-tight">
                   The developer can contact me regarding this feedback.
                 </span>
               </label>

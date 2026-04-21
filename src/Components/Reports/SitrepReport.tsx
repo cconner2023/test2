@@ -10,7 +10,7 @@ const rowCx = 'flex items-center justify-between border-b border-primary/6 last:
 function InlineRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className={rowCx}>
-      <span className="text-[10px] font-semibold text-tertiary/40 uppercase tracking-widest w-24 shrink-0">{label}</span>
+      <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-24 shrink-0">{label}</span>
       {children}
     </div>
   )
@@ -51,7 +51,7 @@ export function SitrepReport() {
             value={report.unit}
             onChange={e => update({ unit: e.target.value })}
             placeholder="Unit or callsign"
-            className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none text-sm"
+            className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm"
           />
         </InlineRow>
         <InlineRow label="DTG">
@@ -60,7 +60,7 @@ export function SitrepReport() {
             value={report.dtg}
             onChange={e => update({ dtg: e.target.value })}
             placeholder="DDHHMMZMmmYY"
-            className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none text-sm"
+            className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm"
           />
         </InlineRow>
         <InlineRow label="MGRS">
@@ -69,7 +69,7 @@ export function SitrepReport() {
             value={report.mgrs}
             onChange={e => update({ mgrs: e.target.value.toUpperCase() })}
             placeholder="MGRS"
-            className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none text-sm font-mono"
+            className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm font-mono"
           />
         </InlineRow>
       </SectionCard>
@@ -83,7 +83,7 @@ export function SitrepReport() {
               onChange={e => update({ situation: e.target.value })}
               placeholder="Current situation..."
               rows={4}
-              className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary/30 focus:outline-none resize-none"
+              className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
             />
           </div>
         </SectionCard>
@@ -94,7 +94,7 @@ export function SitrepReport() {
         <SectionCard>
           {/* Contact toggle */}
           <div className={rowCx}>
-            <span className="text-[10px] font-semibold text-tertiary/40 uppercase tracking-widest w-24 shrink-0">Contact</span>
+            <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-24 shrink-0">Contact</span>
             <div className="flex gap-1">
               {(['Yes', 'No'] as const).map(opt => (
                 <button
@@ -103,7 +103,7 @@ export function SitrepReport() {
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-all active:scale-95 ${
                     report.enemyContact === (opt === 'Yes')
                       ? 'bg-themeblue3/15 text-themeblue3'
-                      : 'bg-themewhite2 text-tertiary/50'
+                      : 'bg-themewhite2 text-tertiary'
                   }`}
                 >
                   {opt}
@@ -116,7 +116,7 @@ export function SitrepReport() {
             <>
               {/* Type */}
               <div className={rowCx}>
-                <span className="text-[10px] font-semibold text-tertiary/40 uppercase tracking-widest w-24 shrink-0">Type</span>
+                <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-24 shrink-0">Type</span>
                 <div className="flex flex-wrap gap-1 justify-end">
                   {ENEMY_TYPES.map(({ label, value }) => (
                     <button
@@ -125,7 +125,7 @@ export function SitrepReport() {
                       className={`px-3 py-1 rounded-full text-xs font-medium transition-all active:scale-95 ${
                         report.enemyType === value
                           ? 'bg-themeblue3/15 text-themeblue3'
-                          : 'bg-themewhite2 text-tertiary/50'
+                          : 'bg-themewhite2 text-tertiary'
                       }`}
                     >
                       {label}
@@ -136,7 +136,7 @@ export function SitrepReport() {
 
               {/* Direction */}
               <div className={rowCx}>
-                <span className="text-[10px] font-semibold text-tertiary/40 uppercase tracking-widest w-24 shrink-0">Direction</span>
+                <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-24 shrink-0">Direction</span>
                 <div className="grid grid-cols-4 gap-1">
                   {DIRECTIONS.map(dir => (
                     <button
@@ -145,7 +145,7 @@ export function SitrepReport() {
                       className={`px-2 py-1 rounded-full text-xs font-medium transition-all active:scale-95 text-center ${
                         report.enemyDirection === dir
                           ? 'bg-themeblue3/15 text-themeblue3'
-                          : 'bg-themewhite2 text-tertiary/50'
+                          : 'bg-themewhite2 text-tertiary'
                       }`}
                     >
                       {dir}
@@ -156,14 +156,14 @@ export function SitrepReport() {
 
               {/* Distance */}
               <div className={rowCx}>
-                <span className="text-[10px] font-semibold text-tertiary/40 uppercase tracking-widest w-24 shrink-0">Distance (m)</span>
+                <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-24 shrink-0">Distance (m)</span>
                 <input
                   type="number"
                   value={report.enemyDistanceM ?? ''}
                   onChange={e => update({ enemyDistanceM: e.target.value ? Number(e.target.value) : undefined })}
                   placeholder="0"
                   min={0}
-                  className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none text-sm"
+                  className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm"
                 />
               </div>
 
@@ -174,7 +174,7 @@ export function SitrepReport() {
                   onChange={e => update({ actionsTaken: e.target.value })}
                   placeholder="Actions taken..."
                   rows={2}
-                  className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary/30 focus:outline-none resize-none"
+                  className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
                 />
               </div>
             </>
@@ -187,7 +187,7 @@ export function SitrepReport() {
         <SectionCard>
           {/* Strength */}
           <div className={rowCx}>
-            <span className="text-[10px] font-semibold text-tertiary/40 uppercase tracking-widest w-24 shrink-0">Strength</span>
+            <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-24 shrink-0">Strength</span>
             <div className="flex items-center gap-1">
               <input
                 type="number"
@@ -203,14 +203,14 @@ export function SitrepReport() {
 
           {/* Morale */}
           <div className={rowCx}>
-            <span className="text-[10px] font-semibold text-tertiary/40 uppercase tracking-widest w-24 shrink-0">Morale</span>
+            <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-24 shrink-0">Morale</span>
             <div className="flex gap-1">
               <button
                 onClick={() => update({ morale: 'good' })}
                 className={`px-3 py-1 rounded-full text-xs font-medium transition-all active:scale-95 ${
                   report.morale === 'good'
                     ? 'bg-themegreen/15 text-themegreen'
-                    : 'bg-themewhite2 text-tertiary/50'
+                    : 'bg-themewhite2 text-tertiary'
                 }`}
               >
                 Good
@@ -220,7 +220,7 @@ export function SitrepReport() {
                 className={`px-3 py-1 rounded-full text-xs font-medium transition-all active:scale-95 ${
                   report.morale === 'fair'
                     ? 'bg-themeyellow/15 text-themeyellow'
-                    : 'bg-themewhite2 text-tertiary/50'
+                    : 'bg-themewhite2 text-tertiary'
                 }`}
               >
                 Fair
@@ -230,7 +230,7 @@ export function SitrepReport() {
                 className={`px-3 py-1 rounded-full text-xs font-medium transition-all active:scale-95 ${
                   report.morale === 'poor'
                     ? 'bg-themeredred/15 text-themeredred'
-                    : 'bg-themewhite2 text-tertiary/50'
+                    : 'bg-themewhite2 text-tertiary'
                 }`}
               >
                 Poor
@@ -249,7 +249,7 @@ export function SitrepReport() {
               onChange={e => update({ assessment: e.target.value })}
               placeholder="Commander's assessment..."
               rows={3}
-              className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary/30 focus:outline-none resize-none"
+              className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
             />
           </div>
         </SectionCard>
@@ -264,7 +264,7 @@ export function SitrepReport() {
               onChange={e => update({ nextAction: e.target.value })}
               placeholder="Planned next action..."
               rows={2}
-              className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary/30 focus:outline-none resize-none"
+              className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
             />
           </div>
           <InlineRow label="ETA">
@@ -287,7 +287,7 @@ export function SitrepReport() {
               onChange={e => update({ notes: e.target.value })}
               placeholder="Additional notes..."
               rows={2}
-              className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary/30 focus:outline-none resize-none"
+              className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
             />
           </div>
         </SectionCard>

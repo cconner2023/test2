@@ -9,33 +9,33 @@ import { useNavItems } from '../Hooks/useNavItems'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 
 const iconMapMobile: Record<string, React.ReactNode> = {
-  'import': <Upload size={20} className="text-primary/70" />,
-  'knowledgebase': <BookOpen size={20} className="text-primary/70" />,
-  'messages': <Mail size={20} className="text-primary/70" />,
-  'property': <Package size={20} className="text-primary/70" />,
-  'provider': <Stethoscope size={20} className="text-primary/70" />,
-  'supervisor': <ClipboardCheck size={20} className="text-primary/70" />,
-  'settings': <Settings size={20} className="text-primary/70" />,
-  'admin': <UserCog size={20} className="text-primary/70" />,
-  'lora': <Radio size={20} className="text-primary/70" />,
-  'mapOverlay': <MapIcon size={20} className="text-primary/70" />,
-  'calendar': <CalendarDays size={20} className="text-primary/70" />,
-  'tc3': <Crosshair size={20} className="text-primary/70" />,
+  'import': <Upload size={20} className="text-primary" />,
+  'knowledgebase': <BookOpen size={20} className="text-primary" />,
+  'messages': <Mail size={20} className="text-primary" />,
+  'property': <Package size={20} className="text-primary" />,
+  'provider': <Stethoscope size={20} className="text-primary" />,
+  'supervisor': <ClipboardCheck size={20} className="text-primary" />,
+  'settings': <Settings size={20} className="text-primary" />,
+  'admin': <UserCog size={20} className="text-primary" />,
+  'lora': <Radio size={20} className="text-primary" />,
+  'mapOverlay': <MapIcon size={20} className="text-primary" />,
+  'calendar': <CalendarDays size={20} className="text-primary" />,
+  'tc3': <Crosshair size={20} className="text-primary" />,
 }
 
 const iconMapDesktop: Record<string, React.ReactNode> = {
-  'import': <Upload size={16} className="text-primary/70" />,
-  'knowledgebase': <BookOpen size={16} className="text-primary/70" />,
-  'messages': <Mail size={16} className="text-primary/70" />,
-  'property': <Package size={16} className="text-primary/70" />,
-  'provider': <Stethoscope size={16} className="text-primary/70" />,
-  'supervisor': <ClipboardCheck size={16} className="text-primary/70" />,
-  'settings': <Settings size={16} className="text-primary/70" />,
-  'admin': <UserCog size={16} className="text-primary/70" />,
-  'lora': <Radio size={16} className="text-primary/70" />,
-  'mapOverlay': <MapIcon size={16} className="text-primary/70" />,
-  'calendar': <CalendarDays size={16} className="text-primary/70" />,
-  'tc3': <Crosshair size={16} className="text-primary/70" />,
+  'import': <Upload size={16} className="text-primary" />,
+  'knowledgebase': <BookOpen size={16} className="text-primary" />,
+  'messages': <Mail size={16} className="text-primary" />,
+  'property': <Package size={16} className="text-primary" />,
+  'provider': <Stethoscope size={16} className="text-primary" />,
+  'supervisor': <ClipboardCheck size={16} className="text-primary" />,
+  'settings': <Settings size={16} className="text-primary" />,
+  'admin': <UserCog size={16} className="text-primary" />,
+  'lora': <Radio size={16} className="text-primary" />,
+  'mapOverlay': <MapIcon size={16} className="text-primary" />,
+  'calendar': <CalendarDays size={16} className="text-primary" />,
+  'tc3': <Crosshair size={16} className="text-primary" />,
 }
 
 const BETA_ACTIONS = new Set(['lora', 'mapOverlay', 'property', 'tc3'])
@@ -185,17 +185,17 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
                   className={`w-full text-left flex items-center ${isMobile ? 'pl-7 pr-4 py-3.5' : 'pl-5 pr-3 py-2.5'} rounded-xl cursor-pointer hover:bg-themewhite2/60 bg-transparent active:scale-95 transform-gpu transition-colors`}
                 >
                   <div className="mr-4 relative">
-                    {iconMap[item.action] || <HelpCircle size={20} className="text-primary/70" />}
+                    {iconMap[item.action] || <HelpCircle size={20} className="text-primary" />}
                     {item.badge && totalUnread > 0 && (
-                      <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-themeredred text-white text-[10px] font-bold leading-none">
+                      <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-themeredred text-white text-[9pt] font-bold leading-none">
                         {totalUnread > 99 ? '99+' : totalUnread}
                       </span>
                     )}
                   </div>
-                  <span className={`tracking-wide ${isMobile ? 'text-[15px]' : 'text-[13px]'} text-primary/80 font-medium flex-1`}>
+                  <span className={`tracking-wide ${isMobile ? 'text-[11pt]' : 'text-[10pt]'} text-primary font-medium flex-1`}>
                     {item.action === 'tc3' ? (tc3Mode ? 'ADTMC' : 'TC3') : item.text}
                     {BETA_ACTIONS.has(item.action) && (
-                      <span className="ml-2 text-[11px] font-semibold text-themeyellow bg-themeyellow/15 px-2 py-0.5 rounded-full align-middle tracking-wide">
+                      <span className="ml-2 text-[9pt] font-semibold text-themeyellow bg-themeyellow/15 px-2 py-0.5 rounded-full align-middle tracking-wide">
                         BETA
                       </span>
                     )}
@@ -211,7 +211,7 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
             onClick={() => {
               hidden.forEach(a => toggleHide(a))
             }}
-            className="flex items-center justify-center gap-1.5 w-full py-2.5 mt-2 text-xs text-tertiary/50 hover:text-tertiary/70 active:scale-95 transform-gpu transition-colors"
+            className="flex items-center justify-center gap-1.5 w-full py-2.5 mt-2 text-xs text-tertiary hover:text-tertiary active:scale-95 transform-gpu transition-colors"
           >
             <Eye size={12} />
             <span>{hiddenCount} hidden — tap to restore</span>
@@ -228,15 +228,15 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
               className={`w-full text-left flex items-center ${isMobile ? 'pl-7 pr-3 py-3.5' : 'pl-5 pr-2 py-2.5'} rounded-xl hover:bg-themewhite2/60 bg-transparent active:scale-95 transform-gpu transition-colors`}
             >
               <div className="mr-4">
-                <MessageSquare size={isMobile ? 20 : 16} className="text-primary/70" />
+                <MessageSquare size={isMobile ? 20 : 16} className="text-primary" />
               </div>
-              <span className={`tracking-wide ${isMobile ? 'text-[15px]' : 'text-[13px]'} text-primary/80 font-medium flex-1`}>
+              <span className={`tracking-wide ${isMobile ? 'text-[11pt]' : 'text-[10pt]'} text-primary font-medium flex-1`}>
                 Share Feedback
               </span>
               <div
                 role="button"
                 onClick={(e) => { e.stopPropagation(); dismissFeedback() }}
-                className="p-1.5 rounded-full hover:bg-tertiary/10 text-tertiary/30 hover:text-tertiary transition-colors"
+                className="p-1.5 rounded-full hover:bg-tertiary/10 text-tertiary hover:text-tertiary transition-colors"
               >
                 <X size={14} />
               </div>
@@ -244,10 +244,10 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
           </div>
         )}
         <div className="px-4 py-3 text-center">
-          <p className="text-xs text-tertiary/40">Version {__APP_VERSION__}</p>
+          <p className="text-xs text-tertiary">Version {__APP_VERSION__}</p>
           <div className="flex items-center justify-center gap-1.5 mt-2">
             <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-themegreen' : 'bg-tertiary/40'}`} />
-            <span className={`text-[11px] font-medium ${isConnected ? 'text-themegreen' : 'text-tertiary/60'}`}>
+            <span className={`text-[9pt] font-medium ${isConnected ? 'text-themegreen' : 'text-tertiary'}`}>
               {isConnected ? 'Connected' : 'Offline'}
             </span>
           </div>

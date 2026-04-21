@@ -18,7 +18,7 @@ import { AdminRequestsList } from './Admin/AdminRequestsList'
 import { AdminUsersList } from './Admin/AdminUsersList'
 import { AdminUserDetail } from './Admin/AdminUserDetail'
 import { AdminClinicsList } from './Admin/AdminClinicsList'
-import AdminClinicDetail from './Admin/AdminClinicDetail'
+import { AdminClinicDetail } from './Admin/AdminClinicDetail'
 import { AdminSummary } from './Admin/AdminSummary'
 import type { AdminUser, AdminClinic } from '../lib/adminService'
 import type { AccountRequest } from '../lib/accountRequestService'
@@ -76,10 +76,14 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // FAB action sheet
     const [showAddSheet, setShowAddSheet] = useState(false)
 
+    // Discard pending changes confirmation
+    const [confirmDiscard, setConfirmDiscard] = useState(false)
+
     // Clear search when navigating between views (e.g., clicking a search result)
     useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
 
     const isMobile = useIsMobile()
+    const currentUserId = useAuthStore(s => s.user?.id ?? null)
 
     const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
         setSlideDirection(direction)
@@ -136,6 +140,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             uic: request.uic ?? null,
             roles: configured.roles,
             clinic_id: configured.clinicId,
+            clinic_name: null,
             created_at: new Date().toISOString(),
             last_active_at: null,
             avatar_id: null,
@@ -160,11 +165,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setView('admin-clinic-detail')
     }, [handleSlideAnimation])
 
-    const handleBack = useCallback(() => {
-        // Reset editing state
+    const navigateBack = useCallback(() => {
         setClinicEditing(false); setClinicSaveRequested(false); setClinicHasPending(false)
         setUserEditing(false); setUserSaveRequested(false); setUserHasPending(false)
-
         if (view !== 'admin') {
             handleSlideAnimation('right')
             setView('admin')
@@ -172,6 +175,19 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             setSelectedClinic(null)
         }
     }, [view, handleSlideAnimation])
+
+    const handleBack = useCallback(() => {
+        if (userHasPending || clinicHasPending) {
+            setConfirmDiscard(true)
+            return
+        }
+        navigateBack()
+    }, [userHasPending, clinicHasPending, navigateBack])
+
+    const handleDiscardConfirmed = useCallback(() => {
+        setConfirmDiscard(false)
+        navigateBack()
+    }, [navigateBack])
 
     const handleClose = useCallback(() => {
         setView('admin')
@@ -196,9 +212,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setConfirmDeleteClinic(false)
         if (result.success) {
             invalidate('clinics', 'users')
-            handleBack()
+            navigateBack()
         }
-    }, [selectedClinic, handleBack])
+    }, [selectedClinic, navigateBack])
 
     const handleDeleteUser = useCallback(async () => {
         if (!selectedUser) return
@@ -208,9 +224,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setConfirmDeleteUser(false)
         if (result.success) {
             invalidate('users', 'clinics', 'requests')
-            handleBack()
+            navigateBack()
         }
-    }, [selectedUser, handleBack])
+    }, [selectedUser, navigateBack])
 
     // Swipe back for mobile
     const swipeHandlers = useSwipeBack(
@@ -222,10 +238,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     )
 
     // Sidebar summary handlers
-    const handleSummarySelectClinic = useCallback((clinic: AdminClinic) => {
-        handleSelectClinic(clinic)
-    }, [handleSelectClinic])
-
     const handleSummarySwitchTab = useCallback((tab: 'requests' | 'users' | 'clinics') => {
         setActiveTab(tab)
         if (view !== 'admin') {
@@ -255,7 +267,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // Header actions for detail views (handles both view/edit and create modes)
     const detailHeaderActions = useMemo(() => {
         if (view === 'admin-user-detail') {
-            const currentUserId = useAuthStore.getState().user?.id ?? null
             return (
                 <HeaderPill>
                     {/* Cancel — visible when editing (in create mode, back button handles cancel) */}
@@ -362,7 +373,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         }
 
         return undefined
-    }, [view, selectedUser, selectedClinic, userEditing, clinicEditing, isUserCreateMode, isClinicCreateMode, handleClose])
+    }, [view, selectedUser, selectedClinic, userEditing, clinicEditing, isUserCreateMode, isClinicCreateMode, handleClose, currentUserId])
 
     // Header config per view
     const headerConfig = useMemo(() => {
@@ -429,9 +440,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     <ScrollPane>
                         <AdminUserDetail
                             user={selectedUser}
-                            onBack={handleBack}
                             onUserUpdated={(u) => setSelectedUser(u)}
                             onCreated={handleUserCreated}
+                            onSelectClinic={handleSelectClinic}
                             editing={userEditing}
                             onEditingChange={setUserEditing}
                             saveRequested={userSaveRequested}
@@ -493,7 +504,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                             className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors active:scale-95 ${
                                 activeTab === tab
                                     ? 'bg-themeblue2 text-white shadow-sm'
-                                    : 'text-tertiary/70 hover:text-primary'
+                                    : 'text-tertiary hover:text-primary'
                             }`}
                         >
                             <TabIcon size={18} />
@@ -571,28 +582,23 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     )
 
     const renderMainView = () => (
-        <div className="relative h-full">
-            {/* List content */}
-            <div className="h-full min-h-0">
-                {isMobile ? (
-                    // Mobile: MobileSearchBar wraps content, island absolute over it
-                    <div className="relative h-full">
-                        <MobileSearchBar variant="admin" value={searchQuery} onChange={setSearchQuery} onFocusChange={setSearchFocused}>
-                            {searchQuery.trim() ? renderSearchResults() : renderTabLists()}
-                        </MobileSearchBar>
-                        {bottomIsland}
-                    </div>
-                ) : (
-                    // Desktop: scrollable content + absolute-positioned island (like Property)
-                    <div className="relative h-full">
-                        <div className="h-full overflow-y-auto">
-                            {searchQuery.trim() ? renderSearchResults() : renderTabLists()}
-                        </div>
-                        {bottomIsland}
-                    </div>
-                )}
+        isMobile ? (
+            // Mobile: MobileSearchBar wraps content, island absolute over it
+            <div className="relative h-full">
+                <MobileSearchBar variant="admin" value={searchQuery} onChange={setSearchQuery} onFocusChange={setSearchFocused}>
+                    {searchQuery.trim() ? renderSearchResults() : renderTabLists()}
+                </MobileSearchBar>
+                {bottomIsland}
             </div>
-        </div>
+        ) : (
+            // Desktop: scrollable content + absolute-positioned island (like Property)
+            <div className="relative h-full">
+                <div className="h-full overflow-y-auto">
+                    {searchQuery.trim() ? renderSearchResults() : renderTabLists()}
+                </div>
+                {bottomIsland}
+            </div>
+        )
     )
 
     return (
@@ -621,7 +627,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                     onFocusChange={setSearchFocused}
                                 >
                                     <AdminSummary
-                                        onSelectClinic={handleSummarySelectClinic}
+                                        onSelectClinic={handleSelectClinic}
                                         onSelectUser={handleSelectUser}
                                         onSelectAll={() => { setView('admin'); setSelectedUser(null); setSelectedClinic(null) }}
                                         onSwitchTab={handleSummarySwitchTab}
@@ -649,6 +655,17 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 onClose={() => setShowAddSheet(false)}
             />
         </BaseDrawer>
+
+        {/* Discard unsaved changes confirmation */}
+        <ConfirmDialog
+            visible={confirmDiscard}
+            title="Discard changes?"
+            subtitle="Your unsaved changes will be lost."
+            confirmLabel="Discard"
+            variant="danger"
+            onConfirm={handleDiscardConfirmed}
+            onCancel={() => setConfirmDiscard(false)}
+        />
 
         {/* Clinic delete confirmation — triggered from header pill */}
         <ConfirmDialog

@@ -50,7 +50,7 @@ interface ResultBadgeProps {
 function ResultBadge({ result }: ResultBadgeProps) {
     const { label, className } = getBadgeInfo(result)
     return (
-        <div className={`text-[8pt] px-2 py-1 rounded-md ${className} shrink-0`}>
+        <div className={`text-[9pt] px-2 py-1 rounded-md ${className} shrink-0`}>
             {label}
         </div>
     )
@@ -111,28 +111,28 @@ export function SearchResults({
                             {/* Content */}
                             <div className="flex-1 min-w-0">
                                 {/* Main text */}
-                                <div className="font-normal text-primary/90 truncate">
+                                <div className="font-normal text-primary truncate">
                                     {result.text}
                                 </div>
 
                                 {/* Breadcrumb for symptoms, guidelines, and training tasks */}
                                 {(result.type === 'CC' || result.type === 'DDX') && result.data?.categoryRef && (
-                                    <div className="text-[10px] text-themeblue1/70 mt-1">
+                                    <div className="text-[9pt] text-themeblue1/70 mt-1">
                                         {result.data.categoryRef.text}
                                     </div>
                                 )}
                                 {result.type === 'training' && result.data?.guidelineType === 'stp-task' && result.data.skillLevel && (
-                                    <div className="text-[10px] text-themeblue1/70 mt-1">
+                                    <div className="text-[9pt] text-themeblue1/70 mt-1">
                                         {result.data.skillLevel} &gt; {result.data.subjectArea}
                                     </div>
                                 )}
                                 {result.type === 'training' && result.data?.guidelineType === 'medcom' && result.data?.categoryRef && (
-                                    <div className="text-[10px] text-themeblue1/70 mt-1">
+                                    <div className="text-[9pt] text-themeblue1/70 mt-1">
                                         {result.data.categoryRef.text}
                                     </div>
                                 )}
                                 {(result.type === 'screener' || result.type === 'calculator') && result.data?.kbCategoryId && (
-                                    <div className="text-[10px] text-themeblue1/70 mt-1">
+                                    <div className="text-[9pt] text-themeblue1/70 mt-1">
                                         {kbCategories.find(c => c.id === result.data!.kbCategoryId)?.description}
                                     </div>
                                 )}

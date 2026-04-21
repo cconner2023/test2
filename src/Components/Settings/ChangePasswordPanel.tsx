@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../Hooks/useAuth';
 import { ErrorDisplay } from '../ErrorDisplay';
 
-const pillInput = 'w-full rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300';
+const pillInput = 'w-full rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary transition-all duration-300';
 
 export const ChangePasswordPanel = () => {
     const { user } = useAuth();
@@ -92,7 +92,7 @@ export const ChangePasswordPanel = () => {
                                     <button
                                         type="button"
                                         onClick={() => setShowCurrent(v => !v)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-tertiary/50 hover:text-tertiary transition-colors"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-tertiary hover:text-tertiary transition-colors"
                                     >
                                         {showCurrent ? <EyeOff size={16} /> : <Eye size={16} />}
                                     </button>
@@ -113,7 +113,7 @@ export const ChangePasswordPanel = () => {
                                     <button
                                         type="button"
                                         onClick={() => setShowNew(v => !v)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-tertiary/50 hover:text-tertiary transition-colors"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-tertiary hover:text-tertiary transition-colors"
                                     >
                                         {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
                                     </button>
@@ -137,7 +137,7 @@ export const ChangePasswordPanel = () => {
                                     <button
                                         type="button"
                                         onClick={() => setShowConfirm(v => !v)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-tertiary/50 hover:text-tertiary transition-colors"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-tertiary hover:text-tertiary transition-colors"
                                     >
                                         {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
                                     </button>

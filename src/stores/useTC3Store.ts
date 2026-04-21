@@ -19,6 +19,7 @@ import type {
   TC3Medication,
   TC3VitalSet,
   TC3InjuryTreatmentLink,
+  TC3QueueEntry,
   MechanismType,
   AVPU,
   EvacPriority,
@@ -26,6 +27,15 @@ import type {
   MedRoute,
 } from '../Types/TC3Types'
 import { getBodyRegion, getRegionLabel } from '../Utilities/bodyRegionMap'
+import {
+  saveActiveCard,
+  loadActiveCard,
+  clearActiveCard,
+  saveQueueEntry,
+  loadQueue,
+  removeQueueEntry,
+  clearQueue as clearQueueIdb,
+} from '../lib/tc3Db'
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -225,6 +235,7 @@ function createEmptyCard(): TC3Card {
       last4: '',
       unit: '',
       sex: '',
+      bloodType: '',
       service: '',
       allergies: '',
       dateTimeOfInjury: '',
@@ -293,6 +304,7 @@ interface TC3State {
   selectedSection: TC3Section
   wizardStep: number
   showExport: boolean
+  casualtyQueue: TC3QueueEntry[]
 }
 
 interface TC3Actions {
@@ -387,17 +399,27 @@ interface TC3Actions {
 
   // Notes
   setNotes: (notes: string) => void
+
+  // Casualty queue (MASCAL)
+  pushToQueue: () => void
+  restoreFromQueue: (cardId: string) => void
+  discardFromQueue: (cardId: string) => void
+  discardActive: () => void
+  clearQueue: () => void
+  hydrateFromIDB: () => Promise<void>
+  hydrateQueueFromIDB: () => Promise<void>
 }
 
 export type TC3Store = TC3State & TC3Actions
 
 const WIZARD_PAGE_COUNT = 2
 
-export const useTC3Store = create<TC3Store>()((set) => ({
+export const useTC3Store = create<TC3Store>()((set, get) => ({
   card: createEmptyCard(),
   selectedSection: 'casualty',
   wizardStep: 0,
   showExport: false,
+  casualtyQueue: [],
 
   // Section navigation
   setSelectedSection: (section) => set({ selectedSection: section }),
@@ -412,286 +434,434 @@ export const useTC3Store = create<TC3Store>()((set) => ({
   closeExport: () => set({ showExport: false }),
 
   // Card lifecycle
-  resetCard: () => set({ card: createEmptyCard(), selectedSection: 'casualty', wizardStep: 0 }),
+  resetCard: () => {
+    const fresh = createEmptyCard()
+    set({ card: fresh, selectedSection: 'casualty', wizardStep: 0 })
+    clearActiveCard()
+  },
 
   // Casualty info
-  updateCasualty: (fields) => set((s) => ({
-    card: { ...s.card, casualty: { ...s.card.casualty, ...fields } },
-  })),
+  updateCasualty: (fields) => {
+    set((s) => ({ card: { ...s.card, casualty: { ...s.card.casualty, ...fields } } }))
+    saveActiveCard(get().card)
+  },
 
   // Mechanism of injury
-  toggleMechanism: (type) => set((s) => {
-    const types = s.card.mechanism.types.includes(type)
-      ? s.card.mechanism.types.filter(t => t !== type)
-      : [...s.card.mechanism.types, type]
-    return { card: { ...s.card, mechanism: { ...s.card.mechanism, types } } }
-  }),
-  setMechanismOther: (description) => set((s) => ({
-    card: { ...s.card, mechanism: { ...s.card.mechanism, otherDescription: description } },
-  })),
+  toggleMechanism: (type) => {
+    set((s) => {
+      const types = s.card.mechanism.types.includes(type)
+        ? s.card.mechanism.types.filter(t => t !== type)
+        : [...s.card.mechanism.types, type]
+      return { card: { ...s.card, mechanism: { ...s.card.mechanism, types } } }
+    })
+    saveActiveCard(get().card)
+  },
+  setMechanismOther: (description) => {
+    set((s) => ({ card: { ...s.card, mechanism: { ...s.card.mechanism, otherDescription: description } } }))
+    saveActiveCard(get().card)
+  },
 
   // ── Unified markers ──────────────────────────────────────────────────
 
-  addMarker: (marker) => set((s) => {
-    const fullMarker: TC3Marker = {
-      ...marker,
-      bodyRegion: marker.bodyRegion ?? getBodyRegion(marker.x, marker.y),
-    }
-    const regionLabel = fullMarker.bodyRegion
-      ? getRegionLabel(fullMarker.bodyRegion)
-      : `(${Math.round(fullMarker.x)}%, ${Math.round(fullMarker.y)}%)`
-    const march = syncMarkerToMarch(fullMarker, s.card.march, regionLabel)
-    // Also set dateTimeOfTreatment if not yet set
-    const casualty = !s.card.casualty.dateTimeOfTreatment
-      ? { ...s.card.casualty, dateTimeOfTreatment: fullMarker.dateTime }
-      : s.card.casualty
-    return {
-      card: { ...s.card, markers: [...s.card.markers, fullMarker], march, casualty },
-    }
-  }),
+  addMarker: (marker) => {
+    set((s) => {
+      const fullMarker: TC3Marker = {
+        ...marker,
+        bodyRegion: marker.bodyRegion ?? getBodyRegion(marker.x, marker.y),
+      }
+      const regionLabel = fullMarker.bodyRegion
+        ? getRegionLabel(fullMarker.bodyRegion)
+        : `(${Math.round(fullMarker.x)}%, ${Math.round(fullMarker.y)}%)`
+      const march = syncMarkerToMarch(fullMarker, s.card.march, regionLabel)
+      const casualty = !s.card.casualty.dateTimeOfTreatment
+        ? { ...s.card.casualty, dateTimeOfTreatment: fullMarker.dateTime }
+        : s.card.casualty
+      return {
+        card: { ...s.card, markers: [...s.card.markers, fullMarker], march, casualty },
+      }
+    })
+    saveActiveCard(get().card)
+  },
 
-  updateMarker: (id, fields) => set((s) => {
-    const markers = s.card.markers.map(m => m.id === id ? { ...m, ...fields } : m)
-    const updated = markers.find(m => m.id === id)
-    if (!updated) return { card: { ...s.card, markers } }
-    const regionLabel = updated.bodyRegion
-      ? getRegionLabel(updated.bodyRegion)
-      : `(${Math.round(updated.x)}%, ${Math.round(updated.y)}%)`
-    const march = syncMarkerToMarch(updated, s.card.march, regionLabel)
-    return { card: { ...s.card, markers, march } }
-  }),
+  updateMarker: (id, fields) => {
+    set((s) => {
+      const markers = s.card.markers.map(m => m.id === id ? { ...m, ...fields } : m)
+      const updated = markers.find(m => m.id === id)
+      if (!updated) return { card: { ...s.card, markers } }
+      const regionLabel = updated.bodyRegion
+        ? getRegionLabel(updated.bodyRegion)
+        : `(${Math.round(updated.x)}%, ${Math.round(updated.y)}%)`
+      const march = syncMarkerToMarch(updated, s.card.march, regionLabel)
+      return { card: { ...s.card, markers, march } }
+    })
+    saveActiveCard(get().card)
+  },
 
-  removeMarker: (id) => set((s) => ({
-    card: {
-      ...s.card,
-      markers: s.card.markers.filter(m => m.id !== id),
-      march: removeMarkerFromMarch(id, s.card.march),
-    },
-  })),
+  removeMarker: (id) => {
+    set((s) => ({
+      card: {
+        ...s.card,
+        markers: s.card.markers.filter(m => m.id !== id),
+        march: removeMarkerFromMarch(id, s.card.march),
+      },
+    }))
+    saveActiveCard(get().card)
+  },
 
   // ── Legacy injury actions (preserved for codec/MARCHForm compat) ─────
 
-  addInjury: (injury) => set((s) => {
-    const fullInjury: TC3Injury = {
-      ...injury,
-      bodyRegion: injury.bodyRegion ?? getBodyRegion(injury.x, injury.y),
-      treatmentLinks: injury.treatmentLinks ?? [],
-    }
-    return { card: { ...s.card, injuries: [...s.card.injuries, fullInjury] } }
-  }),
-  updateInjury: (id, fields) => set((s) => ({
-    card: {
-      ...s.card,
-      injuries: s.card.injuries.map(inj => inj.id === id ? { ...inj, ...fields } : inj),
-    },
-  })),
-  removeInjury: (id) => set((s) => {
-    const tourniquets = s.card.march.massiveHemorrhage.tourniquets.map(tq =>
-      tq.injuryId === id ? { ...tq, injuryId: undefined } : tq
-    )
-    const hemostatics = s.card.march.massiveHemorrhage.hemostatics.map(h =>
-      h.injuryId === id ? { ...h, injuryId: undefined } : h
-    )
-    return {
+  addInjury: (injury) => {
+    set((s) => {
+      const fullInjury: TC3Injury = {
+        ...injury,
+        bodyRegion: injury.bodyRegion ?? getBodyRegion(injury.x, injury.y),
+        treatmentLinks: injury.treatmentLinks ?? [],
+      }
+      return { card: { ...s.card, injuries: [...s.card.injuries, fullInjury] } }
+    })
+    saveActiveCard(get().card)
+  },
+  updateInjury: (id, fields) => {
+    set((s) => ({
       card: {
         ...s.card,
-        injuries: s.card.injuries.filter(inj => inj.id !== id),
-        march: {
-          ...s.card.march,
-          massiveHemorrhage: { ...s.card.march.massiveHemorrhage, tourniquets, hemostatics },
-        },
+        injuries: s.card.injuries.map(inj => inj.id === id ? { ...inj, ...fields } : inj),
       },
-    }
-  }),
+    }))
+    saveActiveCard(get().card)
+  },
+  removeInjury: (id) => {
+    set((s) => {
+      const tourniquets = s.card.march.massiveHemorrhage.tourniquets.map(tq =>
+        tq.injuryId === id ? { ...tq, injuryId: undefined } : tq
+      )
+      const hemostatics = s.card.march.massiveHemorrhage.hemostatics.map(h =>
+        h.injuryId === id ? { ...h, injuryId: undefined } : h
+      )
+      return {
+        card: {
+          ...s.card,
+          injuries: s.card.injuries.filter(inj => inj.id !== id),
+          march: {
+            ...s.card.march,
+            massiveHemorrhage: { ...s.card.march.massiveHemorrhage, tourniquets, hemostatics },
+          },
+        },
+      }
+    })
+    saveActiveCard(get().card)
+  },
 
   // Legacy procedures
-  addProcedure: (proc) => set((s) => {
-    const fullProc: TC3Procedure = {
-      ...proc,
-      bodyRegion: proc.bodyRegion ?? getBodyRegion(proc.x, proc.y),
-    }
-    const regionLabel = fullProc.bodyRegion
-      ? getRegionLabel(fullProc.bodyRegion)
-      : `(${Math.round(fullProc.x)}%, ${Math.round(fullProc.y)}%)`
-    const ivEntry: TC3IVAccess = {
-      id: fullProc.id,
-      type: fullProc.type,
-      site: regionLabel,
-      gauge: fullProc.gauge,
-      time: fullProc.time,
-    }
-    return {
+  addProcedure: (proc) => {
+    set((s) => {
+      const fullProc: TC3Procedure = {
+        ...proc,
+        bodyRegion: proc.bodyRegion ?? getBodyRegion(proc.x, proc.y),
+      }
+      const regionLabel = fullProc.bodyRegion
+        ? getRegionLabel(fullProc.bodyRegion)
+        : `(${Math.round(fullProc.x)}%, ${Math.round(fullProc.y)}%)`
+      const ivEntry: TC3IVAccess = {
+        id: fullProc.id,
+        type: fullProc.type,
+        site: regionLabel,
+        gauge: fullProc.gauge,
+        time: fullProc.time,
+      }
+      return {
+        card: {
+          ...s.card,
+          procedures: [...s.card.procedures, fullProc],
+          march: {
+            ...s.card.march,
+            circulation: {
+              ...s.card.march.circulation,
+              ivAccess: [...s.card.march.circulation.ivAccess, ivEntry],
+            },
+          },
+        },
+      }
+    })
+    saveActiveCard(get().card)
+  },
+  updateProcedure: (id, fields) => {
+    set((s) => {
+      const procedures = s.card.procedures.map(p => p.id === id ? { ...p, ...fields } : p)
+      const updated = procedures.find(p => p.id === id)
+      const ivAccess = s.card.march.circulation.ivAccess.map(iv => {
+        if (iv.id !== id) return iv
+        const patch: Partial<TC3IVAccess> = {}
+        if (fields.type) patch.type = fields.type
+        if (fields.gauge !== undefined) patch.gauge = fields.gauge
+        if (fields.time !== undefined) patch.time = fields.time
+        if (updated && fields.bodyRegion !== undefined) {
+          patch.site = fields.bodyRegion ? getRegionLabel(fields.bodyRegion) : iv.site
+        }
+        return { ...iv, ...patch }
+      })
+      return {
+        card: {
+          ...s.card,
+          procedures,
+          march: { ...s.card.march, circulation: { ...s.card.march.circulation, ivAccess } },
+        },
+      }
+    })
+    saveActiveCard(get().card)
+  },
+  removeProcedure: (id) => {
+    set((s) => ({
       card: {
         ...s.card,
-        procedures: [...s.card.procedures, fullProc],
+        procedures: s.card.procedures.filter(p => p.id !== id),
         march: {
           ...s.card.march,
           circulation: {
             ...s.card.march.circulation,
-            ivAccess: [...s.card.march.circulation.ivAccess, ivEntry],
+            ivAccess: s.card.march.circulation.ivAccess.filter(iv => iv.id !== id),
           },
         },
       },
-    }
-  }),
-  updateProcedure: (id, fields) => set((s) => {
-    const procedures = s.card.procedures.map(p => p.id === id ? { ...p, ...fields } : p)
-    const updated = procedures.find(p => p.id === id)
-    const ivAccess = s.card.march.circulation.ivAccess.map(iv => {
-      if (iv.id !== id) return iv
-      const patch: Partial<TC3IVAccess> = {}
-      if (fields.type) patch.type = fields.type
-      if (fields.gauge !== undefined) patch.gauge = fields.gauge
-      if (fields.time !== undefined) patch.time = fields.time
-      if (updated && fields.bodyRegion !== undefined) {
-        patch.site = fields.bodyRegion ? getRegionLabel(fields.bodyRegion) : iv.site
-      }
-      return { ...iv, ...patch }
-    })
-    return {
-      card: {
-        ...s.card,
-        procedures,
-        march: { ...s.card.march, circulation: { ...s.card.march.circulation, ivAccess } },
-      },
-    }
-  }),
-  removeProcedure: (id) => set((s) => ({
-    card: {
-      ...s.card,
-      procedures: s.card.procedures.filter(p => p.id !== id),
-      march: {
-        ...s.card.march,
-        circulation: {
-          ...s.card.march.circulation,
-          ivAccess: s.card.march.circulation.ivAccess.filter(iv => iv.id !== id),
-        },
-      },
-    },
-  })),
+    }))
+    saveActiveCard(get().card)
+  },
 
   // Injury-treatment linking (legacy)
-  linkTreatmentToInjury: (injuryId, link) => set((s) => ({
-    card: {
-      ...s.card,
-      injuries: s.card.injuries.map(inj =>
-        inj.id === injuryId
-          ? { ...inj, treatmentLinks: [...inj.treatmentLinks, link] }
-          : inj
-      ),
-    },
-  })),
-  unlinkTreatmentFromInjury: (injuryId, treatmentId) => set((s) => ({
-    card: {
-      ...s.card,
-      injuries: s.card.injuries.map(inj =>
-        inj.id === injuryId
-          ? { ...inj, treatmentLinks: inj.treatmentLinks.filter(l => l.treatmentId !== treatmentId) }
-          : inj
-      ),
-    },
-  })),
+  linkTreatmentToInjury: (injuryId, link) => {
+    set((s) => ({
+      card: {
+        ...s.card,
+        injuries: s.card.injuries.map(inj =>
+          inj.id === injuryId
+            ? { ...inj, treatmentLinks: [...inj.treatmentLinks, link] }
+            : inj
+        ),
+      },
+    }))
+    saveActiveCard(get().card)
+  },
+  unlinkTreatmentFromInjury: (injuryId, treatmentId) => {
+    set((s) => ({
+      card: {
+        ...s.card,
+        injuries: s.card.injuries.map(inj =>
+          inj.id === injuryId
+            ? { ...inj, treatmentLinks: inj.treatmentLinks.filter(l => l.treatmentId !== treatmentId) }
+            : inj
+        ),
+      },
+    }))
+    saveActiveCard(get().card)
+  },
 
   // Treatments — Massive Hemorrhage
-  addTourniquet: (tq) => set((s) => ({
-    card: { ...s.card, march: { ...s.card.march, massiveHemorrhage: { ...s.card.march.massiveHemorrhage, tourniquets: [...s.card.march.massiveHemorrhage.tourniquets, tq] } } },
-  })),
-  updateTourniquet: (id, fields) => set((s) => ({
-    card: { ...s.card, march: { ...s.card.march, massiveHemorrhage: { ...s.card.march.massiveHemorrhage, tourniquets: s.card.march.massiveHemorrhage.tourniquets.map(tq => tq.id === id ? { ...tq, ...fields } : tq) } } },
-  })),
-  removeTourniquet: (id) => set((s) => ({
-    card: { ...s.card, march: { ...s.card.march, massiveHemorrhage: { ...s.card.march.massiveHemorrhage, tourniquets: s.card.march.massiveHemorrhage.tourniquets.filter(tq => tq.id !== id) } } },
-  })),
-  addHemostatic: (h) => set((s) => ({
-    card: { ...s.card, march: { ...s.card.march, massiveHemorrhage: { ...s.card.march.massiveHemorrhage, hemostatics: [...s.card.march.massiveHemorrhage.hemostatics, h] } } },
-  })),
-  updateHemostatic: (id, fields) => set((s) => ({
-    card: { ...s.card, march: { ...s.card.march, massiveHemorrhage: { ...s.card.march.massiveHemorrhage, hemostatics: s.card.march.massiveHemorrhage.hemostatics.map(h => h.id === id ? { ...h, ...fields } : h) } } },
-  })),
-  removeHemostatic: (id) => set((s) => ({
-    card: { ...s.card, march: { ...s.card.march, massiveHemorrhage: { ...s.card.march.massiveHemorrhage, hemostatics: s.card.march.massiveHemorrhage.hemostatics.filter(h => h.id !== id) } } },
-  })),
+  addTourniquet: (tq) => {
+    set((s) => ({ card: { ...s.card, march: { ...s.card.march, massiveHemorrhage: { ...s.card.march.massiveHemorrhage, tourniquets: [...s.card.march.massiveHemorrhage.tourniquets, tq] } } } }))
+    saveActiveCard(get().card)
+  },
+  updateTourniquet: (id, fields) => {
+    set((s) => ({ card: { ...s.card, march: { ...s.card.march, massiveHemorrhage: { ...s.card.march.massiveHemorrhage, tourniquets: s.card.march.massiveHemorrhage.tourniquets.map(tq => tq.id === id ? { ...tq, ...fields } : tq) } } } }))
+    saveActiveCard(get().card)
+  },
+  removeTourniquet: (id) => {
+    set((s) => ({ card: { ...s.card, march: { ...s.card.march, massiveHemorrhage: { ...s.card.march.massiveHemorrhage, tourniquets: s.card.march.massiveHemorrhage.tourniquets.filter(tq => tq.id !== id) } } } }))
+    saveActiveCard(get().card)
+  },
+  addHemostatic: (h) => {
+    set((s) => ({ card: { ...s.card, march: { ...s.card.march, massiveHemorrhage: { ...s.card.march.massiveHemorrhage, hemostatics: [...s.card.march.massiveHemorrhage.hemostatics, h] } } } }))
+    saveActiveCard(get().card)
+  },
+  updateHemostatic: (id, fields) => {
+    set((s) => ({ card: { ...s.card, march: { ...s.card.march, massiveHemorrhage: { ...s.card.march.massiveHemorrhage, hemostatics: s.card.march.massiveHemorrhage.hemostatics.map(h => h.id === id ? { ...h, ...fields } : h) } } } }))
+    saveActiveCard(get().card)
+  },
+  removeHemostatic: (id) => {
+    set((s) => ({ card: { ...s.card, march: { ...s.card.march, massiveHemorrhage: { ...s.card.march.massiveHemorrhage, hemostatics: s.card.march.massiveHemorrhage.hemostatics.filter(h => h.id !== id) } } } }))
+    saveActiveCard(get().card)
+  },
 
   // Treatments — Airway
-  updateAirway: (fields) => set((s) => ({
-    card: { ...s.card, march: { ...s.card.march, airway: { ...s.card.march.airway, ...fields } } },
-  })),
+  updateAirway: (fields) => {
+    set((s) => ({ card: { ...s.card, march: { ...s.card.march, airway: { ...s.card.march.airway, ...fields } } } }))
+    saveActiveCard(get().card)
+  },
 
   // Treatments — Respiration
-  updateNeedleDecomp: (fields) => set((s) => ({
-    card: { ...s.card, march: { ...s.card.march, respiration: { ...s.card.march.respiration, needleDecomp: { ...s.card.march.respiration.needleDecomp, ...fields } } } },
-  })),
-  updateChestSeal: (fields) => set((s) => ({
-    card: { ...s.card, march: { ...s.card.march, respiration: { ...s.card.march.respiration, chestSeal: { ...s.card.march.respiration.chestSeal, ...fields } } } },
-  })),
-  updateChestTube: (v) => set((s) => ({
-    card: { ...s.card, march: { ...s.card.march, respiration: { ...s.card.march.respiration, chestTube: v } } },
-  })),
-  updateRespirationO2: (o2, method) => set((s) => ({
-    card: { ...s.card, march: { ...s.card.march, respiration: { ...s.card.march.respiration, o2, ...(method !== undefined ? { o2Method: method } : {}) } } },
-  })),
+  updateNeedleDecomp: (fields) => {
+    set((s) => ({ card: { ...s.card, march: { ...s.card.march, respiration: { ...s.card.march.respiration, needleDecomp: { ...s.card.march.respiration.needleDecomp, ...fields } } } } }))
+    saveActiveCard(get().card)
+  },
+  updateChestSeal: (fields) => {
+    set((s) => ({ card: { ...s.card, march: { ...s.card.march, respiration: { ...s.card.march.respiration, chestSeal: { ...s.card.march.respiration.chestSeal, ...fields } } } } }))
+    saveActiveCard(get().card)
+  },
+  updateChestTube: (v) => {
+    set((s) => ({ card: { ...s.card, march: { ...s.card.march, respiration: { ...s.card.march.respiration, chestTube: v } } } }))
+    saveActiveCard(get().card)
+  },
+  updateRespirationO2: (o2, method) => {
+    set((s) => ({ card: { ...s.card, march: { ...s.card.march, respiration: { ...s.card.march.respiration, o2, ...(method !== undefined ? { o2Method: method } : {}) } } } }))
+    saveActiveCard(get().card)
+  },
 
   // Treatments — Circulation
-  addIVAccess: (iv) => set((s) => ({
-    card: { ...s.card, march: { ...s.card.march, circulation: { ...s.card.march.circulation, ivAccess: [...s.card.march.circulation.ivAccess, iv] } } },
-  })),
-  removeIVAccess: (id) => set((s) => ({
-    card: { ...s.card, march: { ...s.card.march, circulation: { ...s.card.march.circulation, ivAccess: s.card.march.circulation.ivAccess.filter(iv => iv.id !== id) } } },
-  })),
-  addFluid: (fluid) => set((s) => ({
-    card: { ...s.card, march: { ...s.card.march, circulation: { ...s.card.march.circulation, fluids: [...s.card.march.circulation.fluids, fluid] } } },
-  })),
-  removeFluid: (index) => set((s) => ({
-    card: { ...s.card, march: { ...s.card.march, circulation: { ...s.card.march.circulation, fluids: s.card.march.circulation.fluids.filter((_, i) => i !== index) } } },
-  })),
-  addBloodProduct: (product) => set((s) => ({
-    card: { ...s.card, march: { ...s.card.march, circulation: { ...s.card.march.circulation, bloodProducts: [...s.card.march.circulation.bloodProducts, product] } } },
-  })),
-  removeBloodProduct: (index) => set((s) => ({
-    card: { ...s.card, march: { ...s.card.march, circulation: { ...s.card.march.circulation, bloodProducts: s.card.march.circulation.bloodProducts.filter((_, i) => i !== index) } } },
-  })),
+  addIVAccess: (iv) => {
+    set((s) => ({ card: { ...s.card, march: { ...s.card.march, circulation: { ...s.card.march.circulation, ivAccess: [...s.card.march.circulation.ivAccess, iv] } } } }))
+    saveActiveCard(get().card)
+  },
+  removeIVAccess: (id) => {
+    set((s) => ({ card: { ...s.card, march: { ...s.card.march, circulation: { ...s.card.march.circulation, ivAccess: s.card.march.circulation.ivAccess.filter(iv => iv.id !== id) } } } }))
+    saveActiveCard(get().card)
+  },
+  addFluid: (fluid) => {
+    set((s) => ({ card: { ...s.card, march: { ...s.card.march, circulation: { ...s.card.march.circulation, fluids: [...s.card.march.circulation.fluids, fluid] } } } }))
+    saveActiveCard(get().card)
+  },
+  removeFluid: (index) => {
+    set((s) => ({ card: { ...s.card, march: { ...s.card.march, circulation: { ...s.card.march.circulation, fluids: s.card.march.circulation.fluids.filter((_, i) => i !== index) } } } }))
+    saveActiveCard(get().card)
+  },
+  addBloodProduct: (product) => {
+    set((s) => ({ card: { ...s.card, march: { ...s.card.march, circulation: { ...s.card.march.circulation, bloodProducts: [...s.card.march.circulation.bloodProducts, product] } } } }))
+    saveActiveCard(get().card)
+  },
+  removeBloodProduct: (index) => {
+    set((s) => ({ card: { ...s.card, march: { ...s.card.march, circulation: { ...s.card.march.circulation, bloodProducts: s.card.march.circulation.bloodProducts.filter((_, i) => i !== index) } } } }))
+    saveActiveCard(get().card)
+  },
 
   // Medications
-  addMedication: (med) => set((s) => ({
-    card: { ...s.card, medications: [...s.card.medications, med] },
-  })),
-  updateMedication: (id, fields) => set((s) => ({
-    card: { ...s.card, medications: s.card.medications.map(m => m.id === id ? { ...m, ...fields } : m) },
-  })),
-  removeMedication: (id) => set((s) => ({
-    card: { ...s.card, medications: s.card.medications.filter(m => m.id !== id) },
-  })),
+  addMedication: (med) => {
+    set((s) => ({ card: { ...s.card, medications: [...s.card.medications, med] } }))
+    saveActiveCard(get().card)
+  },
+  updateMedication: (id, fields) => {
+    set((s) => ({ card: { ...s.card, medications: s.card.medications.map(m => m.id === id ? { ...m, ...fields } : m) } }))
+    saveActiveCard(get().card)
+  },
+  removeMedication: (id) => {
+    set((s) => ({ card: { ...s.card, medications: s.card.medications.filter(m => m.id !== id) } }))
+    saveActiveCard(get().card)
+  },
 
   // Vitals
-  addVitalSet: (vitals) => set((s) => ({
-    card: { ...s.card, vitals: [...s.card.vitals, vitals] },
-  })),
-  updateVitalSet: (id, fields) => set((s) => ({
-    card: { ...s.card, vitals: s.card.vitals.map(v => v.id === id ? { ...v, ...fields } : v) },
-  })),
-  removeVitalSet: (id) => set((s) => ({
-    card: { ...s.card, vitals: s.card.vitals.filter(v => v.id !== id) },
-  })),
+  addVitalSet: (vitals) => {
+    set((s) => ({ card: { ...s.card, vitals: [...s.card.vitals, vitals] } }))
+    saveActiveCard(get().card)
+  },
+  updateVitalSet: (id, fields) => {
+    set((s) => ({ card: { ...s.card, vitals: s.card.vitals.map(v => v.id === id ? { ...v, ...fields } : v) } }))
+    saveActiveCard(get().card)
+  },
+  removeVitalSet: (id) => {
+    set((s) => ({ card: { ...s.card, vitals: s.card.vitals.filter(v => v.id !== id) } }))
+    saveActiveCard(get().card)
+  },
 
   // Mental Status
-  setAVPU: (avpu) => set((s) => ({ card: { ...s.card, avpu } })),
-  setGCS: (gcs) => set((s) => ({ card: { ...s.card, gcs } })),
+  setAVPU: (avpu) => {
+    set((s) => ({ card: { ...s.card, avpu } }))
+    saveActiveCard(get().card)
+  },
+  setGCS: (gcs) => {
+    set((s) => ({ card: { ...s.card, gcs } }))
+    saveActiveCard(get().card)
+  },
 
   // Evacuation
-  updateEvacuation: (fields) => set((s) => ({
-    card: { ...s.card, evacuation: { ...s.card.evacuation, ...fields } },
-  })),
+  updateEvacuation: (fields) => {
+    set((s) => ({ card: { ...s.card, evacuation: { ...s.card.evacuation, ...fields } } }))
+    saveActiveCard(get().card)
+  },
 
   // OTHER section
-  updateOther: (fields) => set((s) => ({
-    card: { ...s.card, other: { ...s.card.other, ...fields } },
-  })),
+  updateOther: (fields) => {
+    set((s) => ({ card: { ...s.card, other: { ...s.card.other, ...fields } } }))
+    saveActiveCard(get().card)
+  },
 
   // First Responder
-  updateFirstResponder: (fields) => set((s) => ({
-    card: { ...s.card, firstResponder: { ...s.card.firstResponder, ...fields } },
-  })),
+  updateFirstResponder: (fields) => {
+    set((s) => ({ card: { ...s.card, firstResponder: { ...s.card.firstResponder, ...fields } } }))
+    saveActiveCard(get().card)
+  },
 
   // Notes
-  setNotes: (notes) => set((s) => ({ card: { ...s.card, notes } })),
+  setNotes: (notes) => {
+    set((s) => ({ card: { ...s.card, notes } }))
+    saveActiveCard(get().card)
+  },
+
+  // Casualty queue (MASCAL)
+  pushToQueue: () => {
+    const currentCard = get().card
+    const entry: TC3QueueEntry = { card: currentCard, queuedAt: new Date().toISOString() }
+    const fresh = createEmptyCard()
+    set((s) => ({
+      card: fresh,
+      casualtyQueue: [entry, ...s.casualtyQueue],
+      selectedSection: 'casualty',
+      wizardStep: 0,
+    }))
+    saveQueueEntry(entry)
+    saveActiveCard(fresh)
+  },
+
+  restoreFromQueue: (cardId) => {
+    const s = get()
+    const target = s.casualtyQueue.find(e => e.card.id === cardId)
+    if (!target) return
+    const displaced = s.card
+    const displacedEntry: TC3QueueEntry = { card: displaced, queuedAt: new Date().toISOString() }
+    const newQueue = s.casualtyQueue
+      .filter(e => e.card.id !== cardId)
+      .concat(displacedEntry)
+    set({ card: target.card, casualtyQueue: newQueue })
+    saveActiveCard(target.card)
+    saveQueueEntry(displacedEntry)
+    removeQueueEntry(cardId)
+  },
+
+  discardFromQueue: (cardId) => {
+    set((s) => ({ casualtyQueue: s.casualtyQueue.filter(e => e.card.id !== cardId) }))
+    removeQueueEntry(cardId)
+  },
+
+  discardActive: () => {
+    const s = get()
+    if (s.casualtyQueue.length > 0) {
+      const [next, ...rest] = s.casualtyQueue
+      set({ card: next.card, casualtyQueue: rest, selectedSection: 'casualty', wizardStep: 0 })
+      removeQueueEntry(next.card.id)
+      saveActiveCard(next.card)
+    } else {
+      const fresh = createEmptyCard()
+      set({ card: fresh, selectedSection: 'casualty', wizardStep: 0 })
+      clearActiveCard()
+      saveActiveCard(fresh)
+    }
+  },
+
+  clearQueue: () => {
+    set({ casualtyQueue: [] })
+    clearQueueIdb()
+  },
+
+  hydrateFromIDB: async () => {
+    const card = await loadActiveCard()
+    if (card) set({ card })
+    const queue = await loadQueue()
+    if (queue.length > 0) set({ casualtyQueue: queue })
+  },
+
+  hydrateQueueFromIDB: async () => {
+    const queue = await loadQueue()
+    if (queue.length > 0) set({ casualtyQueue: queue })
+  },
+
 }))
+
+export function hydrateTC3Store(): Promise<void> {
+  return useTC3Store.getState().hydrateFromIDB()
+}

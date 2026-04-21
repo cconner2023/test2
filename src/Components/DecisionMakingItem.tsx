@@ -23,7 +23,7 @@ function Pill({
 }) {
     return (
         <button
-            className={`px-2 py-0.5 text-[9pt] rounded-full bg-tertiary/5 text-tertiary/60 transition-colors active:scale-95 ${onClick ? 'cursor-pointer' : ''} ${className}`}
+            className={`px-2 py-0.5 text-[9pt] rounded-full bg-tertiary/5 text-tertiary transition-colors active:scale-95 ${onClick ? 'cursor-pointer' : ''} ${className}`}
             onClick={onClick}
             type={onClick ? 'button' : undefined}
             title={title}
@@ -46,7 +46,7 @@ function TypeBadge({ item }: {
     if (!typeText) return null;
 
     return (
-        <div className="text-[9pt] font-semibold text-tertiary/70 uppercase tracking-wide mb-1.5">
+        <div className="text-[9pt] font-semibold text-tertiary uppercase tracking-wide mb-1.5">
             {typeText}
         </div>
     );
@@ -103,7 +103,7 @@ function ContentSection({
                 <div className="space-y-2">
                     {Object.entries(groupedAncillaryFind).map(([type, items]) => (
                         <div key={type}>
-                            <div className="text-[9pt] font-semibold text-tertiary/70 uppercase tracking-wide mb-1">{getAncillaryLabel(type)}</div>
+                            <div className="text-[9pt] font-semibold text-tertiary uppercase tracking-wide mb-1">{getAncillaryLabel(type)}</div>
                             <div className="text-[9pt] text-primary">
                                 {items.map(anc => anc.modifier).filter(Boolean).join('; ')}
                             </div>
@@ -115,7 +115,7 @@ function ContentSection({
             {/* Medications */}
             {item.medFind && item.medFind.length > 0 && (
                 <div>
-                    <div className="text-[9pt] font-semibold text-tertiary/70 uppercase tracking-wide mb-1">Medications</div>
+                    <div className="text-[9pt] font-semibold text-tertiary uppercase tracking-wide mb-1">Medications</div>
                     <div className="flex flex-wrap gap-1">
                         {item.medFind.map((med, medIndex) => (
                             <Pill
@@ -133,7 +133,7 @@ function ContentSection({
             {/* Special Limitations */}
             {item.specLim && item.specLim.length > 0 && (
                 <div>
-                    <div className="text-[9pt] font-semibold text-tertiary/70 uppercase tracking-wide mb-1">Limitations</div>
+                    <div className="text-[9pt] font-semibold text-tertiary uppercase tracking-wide mb-1">Limitations</div>
                     <div className="text-[9pt] text-primary">
                         {item.specLim.join('; ')}
                     </div>

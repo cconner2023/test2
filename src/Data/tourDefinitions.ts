@@ -93,6 +93,8 @@ export interface TourDefinition {
 //   'open:tc3'                    — enable TC3 mode (sets tc3Mode = true in authStore)
 //   'tc3:advance-page'            — advance mobile wizard to MARCH page (mobile only)
 //   'tc3:cleanup'                 — exit TC3 mode, reset wizard step, return to guided tours
+//   'open:property'               — open the Property Book drawer
+//   'property:cleanup'            — close property drawer, return to guided tours
 
 // ─── Tier 1: Medic Tours ─────────────────────────────────────────────────────
 
@@ -1115,6 +1117,44 @@ const providerTour: TourDefinition = {
   ],
 }
 
+const propertyTour: TourDefinition = {
+  id: 'property-book',
+  name: 'Property Book',
+  tier: 'medic',
+  description: 'Track clinic equipment, supplies, and serialized gear by location.',
+  steps: [
+    {
+      target: 'sidenav-property',
+      text: 'Property Book tracks your clinic\'s equipment — serialized gear, medications, and consumables.',
+      placement: 'bottom',
+      beforeStep: 'open:sidenav',
+      delay: 350,
+      pausePoint: true,
+    },
+    {
+      target: 'property-locations',
+      text: 'Inventory is organized by location. Tap a location to drill in and see its items.',
+      placement: 'bottom',
+      beforeStep: 'open:property',
+      delay: 300,
+      duration: 5000,
+    },
+    {
+      target: 'property-view-toggle',
+      text: 'Switch between list, barcode scanner, and map view. The scanner lets you expend consumables by scanning their barcode.',
+      placement: 'top',
+      duration: 5000,
+    },
+    {
+      target: 'property-add-fab',
+      text: 'Add items or create locations. Each item tracks NSN, serial number, quantity, and expiration date.',
+      placement: 'top',
+      pausePoint: true,
+      afterStep: 'property:cleanup',
+    },
+  ],
+}
+
 // ─── Exports ─────────────────────────────────────────────────────────────────
 
 export const allTours: TourDefinition[] = [
@@ -1128,6 +1168,7 @@ export const allTours: TourDefinition[] = [
   knowledgeBaseTour,
   messagingTour,
   calendarTour,
+  propertyTour,
   missionOverviewTour,
   settingsTour,
   // Tier 2: Supervisor

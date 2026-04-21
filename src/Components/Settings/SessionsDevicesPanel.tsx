@@ -228,7 +228,7 @@ export function SessionsDevicesPanel() {
         {addPhase === 'scanning' && (
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
             <div className="px-4 py-3 space-y-2">
-              <p className="text-xs text-tertiary/70">
+              <p className="text-xs text-tertiary">
                 Scan the QR code shown on the new device's login screen.
               </p>
               <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black/5 border border-tertiary/10">
@@ -262,7 +262,7 @@ export function SessionsDevicesPanel() {
             <Camera size={24} className="text-themeblue2" />
             <div className="text-center">
               <p className="text-sm font-semibold text-primary">Link this device?</p>
-              <p className="text-xs text-tertiary/70 mt-1">
+              <p className="text-xs text-tertiary mt-1">
                 Device code: <span className="font-mono">{pendingChannelId.slice(0, 8).toUpperCase()}</span>
               </p>
             </div>
@@ -327,11 +327,11 @@ export function SessionsDevicesPanel() {
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
                     {isVault ? (
-                      <Shield size={18} className="text-tertiary/50" />
+                      <Shield size={18} className="text-tertiary" />
                     ) : /Mac|Windows|Linux/i.test(device.deviceLabel || '') ? (
-                      <Monitor size={18} className="text-tertiary/50" />
+                      <Monitor size={18} className="text-tertiary" />
                     ) : (
-                      <Smartphone size={18} className="text-tertiary/50" />
+                      <Smartphone size={18} className="text-tertiary" />
                     )}
                   </div>
 
@@ -346,22 +346,22 @@ export function SessionsDevicesPanel() {
                         </span>
                       )}
                       {isVault && (
-                        <span className="text-[9pt] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-tertiary/10 text-tertiary/60">
+                        <span className="text-[9pt] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-tertiary/10 text-tertiary">
                           Vault
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className={`inline-block w-1.5 h-1.5 rounded-full ${activity.color}`} />
-                      <span className="text-[11px] text-tertiary/70">{activity.label}</span>
+                      <span className="text-[9pt] text-tertiary">{activity.label}</span>
                       {device.isPrimary && (
                         <>
-                          <span className="text-[11px] text-tertiary/30">&middot;</span>
-                          <span className="text-[11px] text-tertiary/70">Primary</span>
+                          <span className="text-[9pt] text-tertiary">&middot;</span>
+                          <span className="text-[9pt] text-tertiary">Primary</span>
                         </>
                       )}
-                      <span className="text-[11px] text-tertiary/30">&middot;</span>
-                      <span className="text-[11px] text-tertiary/30 font-mono">{shortId}</span>
+                      <span className="text-[9pt] text-tertiary">&middot;</span>
+                      <span className="text-[9pt] text-tertiary font-mono">{shortId}</span>
                     </div>
                   </div>
                 </div>
@@ -394,8 +394,8 @@ export function SessionsDevicesPanel() {
         {/* Info note for non-primary devices */}
         {!isPrimary && (
           <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-tertiary/5">
-            <Info size={14} className="text-tertiary/60 shrink-0 mt-0.5" />
-            <p className="text-[11px] text-tertiary/70 leading-relaxed">
+            <Info size={14} className="text-tertiary shrink-0 mt-0.5" />
+            <p className="text-[9pt] text-tertiary leading-relaxed">
               Only the primary device can sign out all other sessions. Tap individual
               devices to remove them.
             </p>

@@ -13,7 +13,7 @@ export function GroupListItem({ group, lastMessage, unreadCount, onClick }: Grou
   return (
     <ListItemRow
       onClick={onClick}
-      className="px-4 py-3 transition-all duration-150 hover:bg-primary/3 active:scale-[0.98] cursor-pointer"
+      className="px-4 py-4 transition-all duration-150 hover:bg-primary/3 active:scale-[0.98] cursor-pointer"
       left={
         <div className="w-10 h-10 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
           <Users size={18} className="text-themeblue2" />
@@ -22,9 +22,9 @@ export function GroupListItem({ group, lastMessage, unreadCount, onClick }: Grou
       center={
         <>
           <p className="text-sm font-medium text-primary truncate">{group.name}</p>
-          <p className="text-[10px] text-tertiary/50">{group.memberCount} members</p>
+          <p className="text-[9pt] text-tertiary">{group.memberCount} members</p>
           {lastMessage && (
-            <p className="text-xs text-tertiary/60 truncate mt-0.5">{lastMessage}</p>
+            <p className="text-xs text-tertiary truncate mt-0.5">{lastMessage}</p>
           )}
         </>
       }

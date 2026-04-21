@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
  */
 export function SectionHeader({ children }: { children: ReactNode }) {
     return (
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-1.5">
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-1.5">
             {children}
         </p>
     )
@@ -30,7 +30,7 @@ export function Section({ title, count, children, className = 'mb-5' }: SectionP
             <div className="flex items-center gap-2 mb-2">
                 <SectionHeader>{title}</SectionHeader>
                 {count != null && (
-                    <span className="text-[10px] text-tertiary/40">{count}</span>
+                    <span className="text-[9pt] text-tertiary">{count}</span>
                 )}
             </div>
             {children}

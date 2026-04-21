@@ -597,12 +597,12 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
             <g key={p}>
               <line
                 x1={`${p * 100}%`} y1="0" x2={`${p * 100}%`} y2="100%"
-                stroke="currentColor" strokeWidth="1" className="text-tertiary/10"
+                stroke="currentColor" strokeWidth="1" className="text-tertiary"
                 strokeDasharray="4 4"
               />
               <line
                 x1="0" y1={`${p * 100}%`} x2="100%" y2={`${p * 100}%`}
-                stroke="currentColor" strokeWidth="1" className="text-tertiary/10"
+                stroke="currentColor" strokeWidth="1" className="text-tertiary"
                 strokeDasharray="4 4"
               />
             </g>

@@ -146,12 +146,12 @@ export const PlanTagManager = ({
     return (
         <section data-tour="plan-tag-section">
             <div className="pb-2 flex items-center gap-2">
-                <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Plan Tags</p>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
+                <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Plan Tags</p>
+                <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
                     {totalCount}
                 </span>
                 {selectMode && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-themeblue2/15 text-themeblue2 font-medium">
+                    <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-themeblue2/15 text-themeblue2 font-medium">
                         Selecting for order set
                     </span>
                 )}
@@ -176,7 +176,7 @@ export const PlanTagManager = ({
                                 >
                                     <activeMeta.icon size={14} />
                                     <span className="hidden sm:inline">{activeMeta.label}</span>
-                                    <ChevronDown size={12} className="text-tertiary/40" />
+                                    <ChevronDown size={12} className="text-tertiary" />
                                 </button>
 
                                 {showCategoryPicker && (
@@ -207,7 +207,7 @@ export const PlanTagManager = ({
                                 <button
                                     type="button"
                                     onClick={() => onScopeChange?.(scope === 'personal' ? 'clinic' : 'personal')}
-                                    className={`shrink-0 px-2.5 py-2.5 rounded-full text-[10px] font-semibold tracking-wide transition-all active:scale-95 ${
+                                    className={`shrink-0 px-2.5 py-2.5 rounded-full text-[9pt] font-semibold tracking-wide transition-all active:scale-95 ${
                                         scope === 'clinic'
                                             ? 'bg-tertiary/10 text-tertiary border border-tertiary/20'
                                             : 'bg-themeblue2/10 text-themeblue2/70 border border-themeblue2/15'
@@ -225,7 +225,7 @@ export const PlanTagManager = ({
                                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
                                     onFocus={() => setShowCategoryPicker(false)}
                                     placeholder="Add tag..."
-                                    className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary/30"
+                                    className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary"
                                 />
                             </div>
 
@@ -262,7 +262,7 @@ export const PlanTagManager = ({
 
                                 return (
                                     <div key={key} data-tour={`plan-tag-${key}`}>
-                                        <p className="text-[10px] font-semibold text-tertiary/40 tracking-widest uppercase mb-0.5 px-2">
+                                        <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-0.5 px-2">
                                             {meta.label}
                                         </p>
                                         <div className="space-y-0.5">
@@ -314,7 +314,7 @@ export const PlanTagManager = ({
                                                                     if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(); }
                                                                     else if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); }
                                                                 }}
-                                                                className="flex-1 min-w-0 bg-transparent outline-none text-sm text-primary placeholder:text-tertiary/30"
+                                                                className="flex-1 min-w-0 bg-transparent outline-none text-sm text-primary placeholder:text-tertiary"
                                                             />
                                                             <button
                                                                 type="button"
@@ -339,7 +339,7 @@ export const PlanTagManager = ({
                                                             </button>
                                                             {editError && (
                                                                 <div className="absolute left-0 right-0 top-full mt-1 z-10">
-                                                                    <p className="text-[11px] font-medium text-themeredred bg-themeredred/5 rounded-full px-3 py-1 text-center">
+                                                                    <p className="text-[9pt] font-medium text-themeredred bg-themeredred/5 rounded-full px-3 py-1 text-center">
                                                                         {editError}
                                                                     </p>
                                                                 </div>
@@ -376,12 +376,12 @@ export const PlanTagManager = ({
                                                         }`}>
                                                             {displayValue}
                                                             {isClinicTag && (
-                                                                <span className="text-[9px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/60 ml-1.5">
+                                                                <span className="text-[9pt] md:text-[9pt] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary ml-1.5">
                                                                     Clinic
                                                                 </span>
                                                             )}
                                                             {isMarkedEdit && !isMarkedDelete && (
-                                                                <span className="text-[9px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-themeblue2/15 text-themeblue2 ml-1.5">
+                                                                <span className="text-[9pt] md:text-[9pt] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-themeblue2/15 text-themeblue2 ml-1.5">
                                                                     Edited
                                                                 </span>
                                                             )}
@@ -430,7 +430,7 @@ export const PlanTagManager = ({
                             })}
                         </div>
                     ) : (
-                        <p className="text-sm text-tertiary/50 py-2 text-center">
+                        <p className="text-sm text-tertiary py-2 text-center">
                             {editing ? 'Add your first tag' : 'No tags configured'}
                         </p>
                     )}

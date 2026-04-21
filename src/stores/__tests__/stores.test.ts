@@ -84,7 +84,6 @@ import {
 const mockItem = (overrides?: Partial<PropertyItem>): PropertyItem =>
   ({ id: 'item-1', name: 'Test Item', ...overrides }) as PropertyItem
 
-const mockItemA = mockItem({ id: 'item-a', name: 'Item A' })
 const mockItemB = mockItem({ id: 'item-b', name: 'Item B' })
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -100,13 +99,10 @@ describe('usePropertyStore', () => {
   beforeEach(() => {
     // Reset to initial state between tests
     setState({
-      selectedItem: null,
       editingItem: null,
       selectedZoneId: null,
-      canvasStack: [],
       rootLocationId: null,
       defaultLocationId: null,
-      holderFilter: null,
     })
   })
 
@@ -114,26 +110,10 @@ describe('usePropertyStore', () => {
 
   it('has correct initial state', () => {
     const s = getState()
-    expect(s.selectedItem).toBeNull()
     expect(s.editingItem).toBeNull()
     expect(s.selectedZoneId).toBeNull()
-    expect(s.canvasStack).toEqual([])
     expect(s.rootLocationId).toBeNull()
     expect(s.defaultLocationId).toBeNull()
-    expect(s.holderFilter).toBeNull()
-  })
-
-  // ── selectItem ──────────────────────────────────────────────────────
-
-  it('selectItem sets selectedItem', () => {
-    getState().selectItem(mockItemA)
-    expect(getState().selectedItem).toBe(mockItemA)
-  })
-
-  it('selectItem clears selectedItem with null', () => {
-    getState().selectItem(mockItemA)
-    getState().selectItem(null)
-    expect(getState().selectedItem).toBeNull()
   })
 
   // ── setEditingItem ──────────────────────────────────────────────────
@@ -162,72 +142,19 @@ describe('usePropertyStore', () => {
     expect(getState().selectedZoneId).toBeNull()
   })
 
-  // ── navigateInto ────────────────────────────────────────────────────
-
-  it('navigateInto pushes zoneId onto canvasStack and sets selectedZoneId', () => {
-    getState().navigateInto('zone-a')
-
-    const s = getState()
-    expect(s.canvasStack).toEqual(['zone-a'])
-    expect(s.selectedZoneId).toBe('zone-a')
-  })
-
-  it('navigateInto multiple times builds up the stack', () => {
-    getState().navigateInto('zone-a')
-    getState().navigateInto('zone-b')
-    getState().navigateInto('zone-c')
-
-    const s = getState()
-    expect(s.canvasStack).toEqual(['zone-a', 'zone-b', 'zone-c'])
-    expect(s.selectedZoneId).toBe('zone-c')
-  })
-
-  // ── navigateBack ────────────────────────────────────────────────────
-
-  it('navigateBack pops last entry and sets selectedZoneId to new top', () => {
-    getState().navigateInto('zone-a')
-    getState().navigateInto('zone-b')
-    getState().navigateBack()
-
-    const s = getState()
-    expect(s.canvasStack).toEqual(['zone-a'])
-    expect(s.selectedZoneId).toBe('zone-a')
-  })
-
-  it('navigateBack from single-entry stack results in empty stack and null selectedZoneId', () => {
-    getState().navigateInto('zone-a')
-    getState().navigateBack()
-
-    const s = getState()
-    expect(s.canvasStack).toEqual([])
-    expect(s.selectedZoneId).toBeNull()
-  })
-
-  it('navigateBack from empty stack stays empty with null selectedZoneId', () => {
-    getState().navigateBack()
-
-    const s = getState()
-    expect(s.canvasStack).toEqual([])
-    expect(s.selectedZoneId).toBeNull()
-  })
-
   // ── navigateToPath ──────────────────────────────────────────────────
 
-  it('navigateToPath replaces entire stack and sets selectedZoneId to last entry', () => {
-    getState().navigateInto('old-zone')
+  it('navigateToPath sets selectedZoneId to last entry', () => {
     getState().navigateToPath(['zone-x', 'zone-y', 'zone-z'])
 
     const s = getState()
-    expect(s.canvasStack).toEqual(['zone-x', 'zone-y', 'zone-z'])
     expect(s.selectedZoneId).toBe('zone-z')
   })
 
-  it('navigateToPath with empty array clears stack and sets selectedZoneId to null', () => {
-    getState().navigateInto('zone-a')
+  it('navigateToPath with empty array sets selectedZoneId to null', () => {
     getState().navigateToPath([])
 
     const s = getState()
-    expect(s.canvasStack).toEqual([])
     expect(s.selectedZoneId).toBeNull()
   })
 
@@ -255,16 +182,6 @@ describe('usePropertyStore', () => {
     expect(getState().defaultLocationId).toBeNull()
   })
 
-  it('setHolderFilter sets holderFilter', () => {
-    getState().setHolderFilter('holder-1')
-    expect(getState().holderFilter).toBe('holder-1')
-  })
-
-  it('setHolderFilter clears with null', () => {
-    getState().setHolderFilter('holder-1')
-    getState().setHolderFilter(null)
-    expect(getState().holderFilter).toBeNull()
-  })
 })
 
 // ═════════════════════════════════════════════════════════════════════════

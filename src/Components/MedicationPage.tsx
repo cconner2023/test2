@@ -20,7 +20,7 @@ function IconList({ items }: { items: Array<{ icon: string; text: string }> }) {
                     <span className="inline-flex items-center justify-center py-0.5 px-2 rounded-md bg-themeblue3/10 text-themeblue3 text-[8.5pt] font-medium shrink-0">
                         {item.icon}
                     </span>
-                    <span className="flex-1 text-sm text-primary/80">{item.text}</span>
+                    <span className="flex-1 text-sm text-primary">{item.text}</span>
                 </div>
             ))}
         </>
@@ -47,14 +47,14 @@ export function MedicationPage({ medication, isFavorite, onToggleFavorite }: Med
                 <div className="flex justify-end px-4 pt-2">
                     <button
                         onClick={onToggleFavorite}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-medium active:scale-95 transition-all border border-tertiary/10"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9pt] font-medium active:scale-95 transition-all border border-tertiary/10"
                         aria-label={isFavorite ? 'Unpin' : 'Pin'}
                     >
                         <Pin
                             size={14}
                             className={isFavorite
                                 ? 'fill-themeblue2 text-themeblue2'
-                                : 'text-tertiary/40'
+                                : 'text-tertiary'
                             }
                         />
                         {isFavorite ? 'Pinned' : 'Pin'}
@@ -68,7 +68,7 @@ export function MedicationPage({ medication, isFavorite, onToggleFavorite }: Med
                     return (
                         <Section key={key} title={title}>
                             <SectionCard>
-                                <p className="px-4 py-3 text-sm text-primary/80 leading-relaxed">
+                                <p className="px-4 py-3 text-sm text-primary leading-relaxed">
                                     {content}
                                 </p>
                             </SectionCard>

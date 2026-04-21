@@ -8,7 +8,7 @@ import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { UI_TIMING } from '../Utilities/constants'
 import { useTrainingCompletions } from '../Hooks/useTrainingCompletions'
-import { useCalendarVault } from '../Hooks/useCalendarVault'
+import { useCalendarWrite } from '../Hooks/useCalendarWrite'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { updateAssignmentCalendarOriginId } from '../lib/trainingService'
 import { useAuthStore } from '../stores/useAuthStore'
@@ -24,6 +24,7 @@ import { LoadingSpinner } from './LoadingSpinner'
 import { useMinLoadTime } from '../Hooks/useMinLoadTime'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 import type { StepResult } from '../Types/SupervisorTestTypes'
+import type { CalendarEvent } from '../Types/CalendarTypes'
 
 // ─── State Machine ───────────────────────────────────────────────────────────
 
@@ -68,9 +69,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   // ── Data ───────────────────────────────────────────────────────────────────
 
   const { submitTestEvaluation, assignTask } = useTrainingCompletions()
-  const { sendEvent: vaultSendEvent } = useCalendarVault()
-  const addCalendarEvent = useCalendarStore(s => s.addEvent)
-  const updateCalendarEvent = useCalendarStore(s => s.updateEvent)
+  const { writeEvent } = useCalendarWrite()
   const user = useAuthStore(s => s.user)
 
   const {
@@ -179,16 +178,12 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         updated_at: now,
       }
 
-      addCalendarEvent(calendarEvent)
-      vaultSendEvent('c', calendarEvent).then(originId => {
-        if (originId) {
-          updateCalendarEvent(calendarEvent.id, { originId })
-          // Link the calendar event back to the assignment
-          if (saved) {
-            updateAssignmentCalendarOriginId(saved.id, user.id, originId).catch(() => {})
-          }
-        }
-      }).catch(() => {})
+      await writeEvent(calendarEvent as CalendarEvent)
+      // Link vault originId back to the assignment after write completes
+      const storedEvent = useCalendarStore.getState().events.find(e => e.id === calendarEvent.id)
+      if (saved && storedEvent?.originId) {
+        updateAssignmentCalendarOriginId(saved.id, user.id, storedEvent.originId).catch(() => {})
+      }
     }
 
     if (saved) {
@@ -197,7 +192,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     refreshData()
     setView({ screen: 'main' })
     setTreeSelection({ type: 'soldier', soldierId: view.soldier.id })
-  }, [view, assignTask, addAssignment, refreshData, vaultSendEvent, user, addCalendarEvent, updateCalendarEvent])
+  }, [view, assignTask, addAssignment, refreshData, writeEvent, user])
 
   const handleModifyCerts = useCallback((soldier: ClinicMedic) => {
 
@@ -485,9 +480,9 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       return (
         <div className="h-full flex items-center justify-center px-4">
           <div className="text-center">
-            <Ban size={28} className="mx-auto mb-3 text-tertiary/30" />
+            <Ban size={28} className="mx-auto mb-3 text-tertiary" />
             <h3 className="text-base font-semibold text-primary mb-1">Access Denied</h3>
-            <p className="text-sm text-tertiary/60">You need the supervisor role to access this panel.</p>
+            <p className="text-sm text-tertiary">You need the supervisor role to access this panel.</p>
           </div>
         </div>
       )

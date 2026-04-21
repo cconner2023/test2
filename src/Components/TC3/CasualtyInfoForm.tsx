@@ -3,7 +3,7 @@ import { Plus, Check, RotateCcw, User, ChevronRight } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { TextInput, DatePickerInput, PickerInput } from '../FormInputs'
-import type { EvacPriority } from '../../Types/TC3Types'
+import type { EvacPriority, BloodType } from '../../Types/TC3Types'
 
 /** 30-min military time options: "0000", "0030", … "2330" */
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
@@ -31,9 +31,11 @@ const SEX_OPTIONS = [
   { value: 'F' as const, label: 'F' },
 ]
 
+const BLOOD_TYPE_OPTIONS: BloodType[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Unk']
+
 const EMPTY_CASUALTY = {
   battleRosterNo: '', lastName: '', firstName: '',
-  unit: '', sex: '' as '' | 'M' | 'F', service: '', allergies: '',
+  unit: '', sex: '' as '' | 'M' | 'F', bloodType: '' as BloodType, service: '', allergies: '',
   dateTimeOfInjury: '', dateTimeOfTreatment: '',
 }
 
@@ -65,8 +67,8 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
   const [draftEvac, setDraftEvac] = useState<EvacPriority>('')
 
   const openPopover = useCallback((ref: React.RefObject<HTMLElement | null>) => {
-    const { battleRosterNo, lastName, firstName, unit, sex, service, allergies, dateTimeOfInjury, dateTimeOfTreatment } = casualty
-    setDraft({ battleRosterNo, lastName, firstName, unit, sex, service, allergies, dateTimeOfInjury, dateTimeOfTreatment })
+    const { battleRosterNo, lastName, firstName, unit, sex, bloodType, service, allergies, dateTimeOfInjury, dateTimeOfTreatment } = casualty
+    setDraft({ battleRosterNo, lastName, firstName, unit, sex, bloodType, service, allergies, dateTimeOfInjury, dateTimeOfTreatment })
     setDraftEvac(evacuation.priority)
     setAnchorRect(ref.current?.getBoundingClientRect() ?? null)
     setPopoverVisible(true)
@@ -94,7 +96,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
     <div data-tour="tc3-casualty-info">
       {/* ── Section header ── */}
       <div className="mb-2">
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
           Casualty Information
         </p>
       </div>
@@ -110,13 +112,13 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
           <div className="flex items-start gap-3 px-4 py-3.5">
             {evacuation.priority ? (
               <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-tertiary/10`}>
-                <span className="text-[18px] font-medium text-tertiary/50">
+                <span className="text-[14pt] font-medium text-tertiary">
                   {evacuation.priority === 'Urgent' ? 'U' : evacuation.priority === 'Priority' ? 'P' : 'R'}
                 </span>
               </div>
             ) : (
               <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10 mt-0.5">
-                <User size={18} className="text-tertiary/50" />
+                <User size={18} className="text-tertiary" />
               </div>
             )}
             <div className="flex-1 min-w-0">
@@ -125,27 +127,27 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
                 <p className="flex-1 min-w-0 text-sm font-medium text-primary truncate">
                   {[casualty.lastName, casualty.firstName].filter(Boolean).join(', ') || '—'}
                 </p>
-                <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+                <ChevronRight size={16} className="text-tertiary shrink-0" />
               </div>
               {/* Detail grid */}
               <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1">
-                <p className="text-[11px] text-secondary flex flex-wrap items-center gap-x-2">
+                <p className="text-[9pt] text-secondary flex flex-wrap items-center gap-x-2">
                   {casualty.battleRosterNo && <span className="font-medium uppercase">{casualty.battleRosterNo}</span>}
                   {casualty.sex && <span>{casualty.sex}</span>}
                   {casualty.service && <span>{casualty.service}</span>}
                   {casualty.unit && <span>{casualty.unit}</span>}
                 </p>
-                <p className="text-[11px] text-secondary truncate">
+                <p className="text-[9pt] text-secondary truncate">
                   {casualty.allergies
                     ? <><span className="font-medium">Allergies:</span> {casualty.allergies}</>
                     : null}
                 </p>
-                <p className="text-[11px] text-secondary">
+                <p className="text-[9pt] text-secondary">
                   {casualty.dateTimeOfInjury
                     ? <><span className="font-medium">Inj</span> {formatDT(casualty.dateTimeOfInjury)}</>
                     : null}
                 </p>
-                <p className="text-[11px] text-secondary">
+                <p className="text-[9pt] text-secondary">
                   {casualty.dateTimeOfTreatment ? formatDT(casualty.dateTimeOfTreatment) : null}
                 </p>
               </div>
@@ -159,11 +161,11 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
             ref={btnRef}
             type="button"
             onClick={() => openPopover(btnRef)}
-            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
+            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary"
           >
             <Plus size={14} />
           </button>
-          <p className="text-[10px] text-tertiary/40">Add casualty details</p>
+          <p className="text-[9pt] text-tertiary">Add casualty details</p>
         </div>
       )}
 
@@ -177,7 +179,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
           <div className="px-4 py-3 space-y-3">
             {/* EVAC Priority */}
             <div>
-              <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">EVAC Priority</span>
+              <span className="text-xs font-medium text-tertiary uppercase tracking-wide">EVAC Priority</span>
               <div className="flex gap-1.5 mt-1.5">
                 {EVAC_OPTIONS.map((opt) => (
                   <button
@@ -222,7 +224,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
 
             {/* Sex */}
             <div>
-              <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Sex</span>
+              <span className="text-xs font-medium text-tertiary uppercase tracking-wide">Sex</span>
               <div className="flex gap-1.5 mt-1.5">
                 {SEX_OPTIONS.map((opt) => (
                   <button
@@ -236,6 +238,27 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
                     }`}
                   >
                     {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Blood Type */}
+            <div>
+              <span className="text-xs font-medium text-tertiary uppercase tracking-wide">Blood Type</span>
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {BLOOD_TYPE_OPTIONS.map((bt) => (
+                  <button
+                    key={bt}
+                    type="button"
+                    onClick={() => updateDraft({ bloodType: draft.bloodType === bt ? '' : bt })}
+                    className={`min-w-[2.25rem] h-9 px-2 rounded-full text-xs font-bold transition-all border active:scale-95 ${
+                      draft.bloodType === bt
+                        ? 'bg-themeblue3 text-white border-transparent'
+                        : 'border-tertiary/15 text-tertiary hover:bg-tertiary/5'
+                    }`}
+                  >
+                    {bt}
                   </button>
                 ))}
               </div>
@@ -267,7 +290,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
 
             {/* DTG Injury */}
             <div>
-              <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">DTG Injury</span>
+              <span className="text-xs font-medium text-tertiary uppercase tracking-wide">DTG Injury</span>
               <div className="grid grid-cols-2 gap-2 mt-1">
                 <DatePickerInput
                   value={draft.dateTimeOfInjury.slice(0, 10)}
@@ -291,7 +314,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
 
             {/* DTG Treatment */}
             <div>
-              <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">DTG Treatment</span>
+              <span className="text-xs font-medium text-tertiary uppercase tracking-wide">DTG Treatment</span>
               <div className="grid grid-cols-2 gap-2 mt-1">
                 <DatePickerInput
                   value={draft.dateTimeOfTreatment.slice(0, 10)}

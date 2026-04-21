@@ -18,7 +18,8 @@ import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useCalendarSync } from '../../Hooks/useCalendarSync'
-import { useCalendarVault } from '../../Hooks/useCalendarVault'
+import { useCalendarWrite } from '../../Hooks/useCalendarWrite'
+import { LoadingSpinner } from '../LoadingSpinner'
 import { useAuth } from '../../Hooks/useAuth'
 import { getOverlays } from '../../lib/mapOverlayService'
 import type { OverlayOption } from './EventForm'
@@ -29,7 +30,6 @@ import type { CalendarEvent, EventFormData, EventStatus } from '../../Types/Cale
 import {
   eventToFormData, toDateKey, eventFallsOnDate, generateId, createEmptyFormData,
 } from '../../Types/CalendarTypes'
-import { getTombstones } from '../../lib/calendarRouting'
 
 type PanelView = 'calendar' | 'detail' | 'form'
 type DayDrawerView = 'detail' | 'edit'
@@ -55,7 +55,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const eventFormRef = useRef<EventFormHandle>(null)
 
   const { clinicId, user } = useAuth()
-  const { sendEvent: vaultSendEvent, deleteEvents: vaultDeleteEvents } = useCalendarVault()
+  const { writeEvent, vaultUpdate, deleteEvent: calendarDeleteEvent, isWriting } = useCalendarWrite()
+  const [isFormPending, setIsFormPending] = useState(false)
 
   // Kick off IDB hydration + vault subscription
   useCalendarSync()
@@ -133,7 +134,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
   const {
     viewMode, setViewMode,
-    events, addEvent, updateEvent, removeEvent,
+    events,
     selectedEventId, selectEvent,
     assignPersonnel, unassignPersonnel,
     personnelFilter,
@@ -145,9 +146,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     viewMode: s.currentView,
     setViewMode: s.setView,
     events: s.events,
-    addEvent: s.addEvent,
-    updateEvent: s.updateEvent,
-    removeEvent: s.removeEvent,
     selectedEventId: s.selectedEventId,
     selectEvent: s.selectEvent,
     assignPersonnel: s.assignPersonnel,
@@ -248,67 +246,62 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     }
   }, [events])
 
-  const handleSaveEvent = useCallback((data: EventFormData) => {
+  const handleSaveEvent = useCallback(async (data: EventFormData) => {
     const now = new Date().toISOString()
-    if (editingEvent) {
-      // Edit = delete old broadcast + send fresh replacement (Signal-safe pattern)
-      const updatedEvent: CalendarEvent = {
-        ...editingEvent,
-        title: data.title,
-        description: data.description || null,
-        category: data.category,
-        status: data.status,
-        start_time: data.start_time,
-        end_time: data.end_time,
-        all_day: data.all_day,
-        location: data.location || null,
-        uniform: data.uniform || null,
-        report_time: data.report_time || null,
-        assigned_to: data.assigned_to,
-        property_item_ids: data.property_item_ids,
-        structured_location: data.structured_location ?? null,
-        updated_at: now,
+    setIsFormPending(true)
+    try {
+      if (editingEvent) {
+        const updatedEvent: CalendarEvent = {
+          ...editingEvent,
+          title: data.title,
+          description: data.description || null,
+          category: data.category,
+          status: data.status,
+          start_time: data.start_time,
+          end_time: data.end_time,
+          all_day: data.all_day,
+          location: data.location || null,
+          uniform: data.uniform || null,
+          report_time: data.report_time || null,
+          assigned_to: data.assigned_to,
+          property_item_ids: data.property_item_ids,
+          structured_location: data.structured_location ?? null,
+          updated_at: now,
+        }
+        await writeEvent(updatedEvent)
+      } else {
+        const newEvent: CalendarEvent = {
+          id: generateId(),
+          clinic_id: clinicId ?? '',
+          title: data.title,
+          description: data.description || null,
+          category: data.category,
+          status: 'pending',
+          start_time: data.start_time,
+          end_time: data.end_time,
+          all_day: data.all_day,
+          location: data.location || null,
+          opord_notes: null,
+          uniform: data.uniform || null,
+          report_time: data.report_time || null,
+          assigned_to: data.assigned_to,
+          property_item_ids: data.property_item_ids,
+          structured_location: data.structured_location ?? null,
+          created_by: user?.id ?? '',
+          created_at: now,
+          updated_at: now,
+        }
+        await writeEvent(newEvent)
       }
-      // Hard-delete old vault message, then send replacement
-      const oldOriginIds = editingEvent.originId ? [editingEvent.originId] : []
-      if (oldOriginIds.length > 0) vaultDeleteEvents(oldOriginIds).catch(() => {})
-      vaultSendEvent('c', updatedEvent).then(newOriginId => {
-        if (newOriginId) updateEvent(editingEvent.id, { ...updatedEvent, originId: newOriginId })
-      }).catch(() => {})
-      // Update local state immediately (originId will be patched async above)
-      updateEvent(editingEvent.id, updatedEvent)
-    } else {
-      const newEvent: CalendarEvent = {
-        id: generateId(),
-        clinic_id: clinicId ?? '',
-        title: data.title,
-        description: data.description || null,
-        category: data.category,
-        status: 'pending',
-        start_time: data.start_time,
-        end_time: data.end_time,
-        all_day: data.all_day,
-        location: data.location || null,
-        opord_notes: null,
-        uniform: data.uniform || null,
-        report_time: data.report_time || null,
-        assigned_to: data.assigned_to,
-        property_item_ids: data.property_item_ids,
-        structured_location: data.structured_location ?? null,
-        created_by: user?.id ?? '',
-        created_at: now,
-        updated_at: now,
-      }
-      addEvent(newEvent)
-      vaultSendEvent('c', newEvent).then(originId => {
-        if (originId) updateEvent(newEvent.id, { originId })
-      }).catch(() => {})
+    } finally {
+      setIsFormPending(false)
     }
     setEditingEvent(null)
     setPanelView('calendar')
-  }, [editingEvent, addEvent, updateEvent, vaultSendEvent, vaultDeleteEvents, clinicId, user])
+  }, [editingEvent, writeEvent, clinicId, user])
 
   const handleMoveEvent = useCallback((eventId: string, newStartTime: string) => {
+    const events = useCalendarStore.getState().events
     const event = events.find(e => e.id === eventId)
     if (!event) return
     const originalStart = new Date(event.start_time)
@@ -322,16 +315,12 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       end_time: newEnd.toISOString().slice(0, 16),
       updated_at: new Date().toISOString(),
     }
-    updateEvent(eventId, movedEvent)
-    // Delete old vault message, send replacement with full state
-    const oldOriginIds = event.originId ? [event.originId] : []
-    if (oldOriginIds.length > 0) vaultDeleteEvents(oldOriginIds).catch(() => {})
-    vaultSendEvent('c', movedEvent).then(newOriginId => {
-      if (newOriginId) updateEvent(eventId, { originId: newOriginId })
-    }).catch(() => {})
-  }, [events, updateEvent, vaultSendEvent, vaultDeleteEvents])
+    useCalendarStore.getState().updateEvent(eventId, movedEvent)
+    vaultUpdate(movedEvent)
+  }, [vaultUpdate])
 
   const handleMoveEventToDate = useCallback((eventId: string, targetDateKey: string) => {
+    const events = useCalendarStore.getState().events
     const event = events.find(e => e.id === eventId)
     if (!event) return
     const originalStart = new Date(event.start_time)
@@ -349,27 +338,14 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       end_time: toISO(newEnd),
       updated_at: new Date().toISOString(),
     }
-    updateEvent(eventId, movedEvent)
-    const moveOldOriginIds = event.originId ? [event.originId] : []
-    if (moveOldOriginIds.length > 0) vaultDeleteEvents(moveOldOriginIds).catch(() => {})
-    vaultSendEvent('c', movedEvent).then(newOriginId => {
-      if (newOriginId) updateEvent(eventId, { originId: newOriginId })
-    }).catch(() => {})
-  }, [events, updateEvent, vaultSendEvent, vaultDeleteEvents])
+    useCalendarStore.getState().updateEvent(eventId, movedEvent)
+    vaultUpdate(movedEvent)
+  }, [vaultUpdate])
 
   const handleDeleteEvent = useCallback((id: string) => {
-    const event = events.find(e => e.id === id)
-    // Tombstone the event in-memory immediately so no realtime or vault replay can resurrect it.
-    // IDB tombstone is written by removeEvent → persistDelete.
-    getTombstones().add(id)
-    removeEvent(id)
-    selectEvent(null)
+    calendarDeleteEvent(id)
     setPanelView('calendar')
-    // Hard-delete old vault message + broadcast the delete action
-    const originIds = event?.originId ? [event.originId] : []
-    if (originIds.length > 0) vaultDeleteEvents(originIds).catch(() => {})
-    vaultSendEvent('d', { id }).catch(() => {})
-  }, [events, removeEvent, selectEvent, vaultSendEvent, vaultDeleteEvents])
+  }, [calendarDeleteEvent])
 
   const handleFormCancel = useCallback(() => {
     setEditingEvent(null)
@@ -392,34 +368,26 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
   const handleSaveMissionBoard = useCallback((allocations: ResourceAllocation[]) => {
     if (!missionBoardEventId) return
-    const event = events.find(e => e.id === missionBoardEventId)
+    const event = useCalendarStore.getState().events.find(e => e.id === missionBoardEventId)
     if (!event) return
     const updatedEvent: CalendarEvent = {
       ...event,
       resource_allocations: allocations,
       updated_at: new Date().toISOString(),
     }
-    const oldOriginIds = event.originId ? [event.originId] : []
-    if (oldOriginIds.length > 0) vaultDeleteEvents(oldOriginIds).catch(() => {})
-    vaultSendEvent('c', updatedEvent).then(newOriginId => {
-      if (newOriginId) updateEvent(missionBoardEventId, { ...updatedEvent, originId: newOriginId })
-    }).catch(() => {})
-    updateEvent(missionBoardEventId, updatedEvent)
+    useCalendarStore.getState().updateEvent(missionBoardEventId, updatedEvent)
+    vaultUpdate(updatedEvent)
     setMissionBoardEventId(null)
-  }, [missionBoardEventId, events, updateEvent, vaultSendEvent, vaultDeleteEvents])
+  }, [missionBoardEventId, vaultUpdate])
 
   const handleStatusChange = useCallback((eventId: string, status: EventStatus) => {
-    const event = events.find(e => e.id === eventId)
+    const event = useCalendarStore.getState().events.find(e => e.id === eventId)
     if (!event) return
     const updatedEvent: CalendarEvent = { ...event, status, updated_at: new Date().toISOString() }
-    const oldOriginIds = event.originId ? [event.originId] : []
-    if (oldOriginIds.length > 0) vaultDeleteEvents(oldOriginIds).catch(() => {})
-    vaultSendEvent('c', updatedEvent).then(newOriginId => {
-      if (newOriginId) updateEvent(eventId, { originId: newOriginId })
-    }).catch(() => {})
-    updateEvent(eventId, { status })
+    useCalendarStore.getState().updateEvent(eventId, updatedEvent)
+    vaultUpdate(updatedEvent)
     setContextMenu(null)
-  }, [events, updateEvent, vaultSendEvent, vaultDeleteEvents])
+  }, [vaultUpdate])
 
   const handleEventContextMenu = useCallback((eventId: string, x: number, y: number) => {
     if (isMobile) return
@@ -446,36 +414,35 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     }
   }, [events])
 
-  const handleDayDrawerSave = useCallback((data: EventFormData) => {
-    if (editingEvent) {
-      const now = new Date().toISOString()
-      const updatedEvent: CalendarEvent = {
-        ...editingEvent,
-        title: data.title,
-        description: data.description || null,
-        category: data.category,
-        status: data.status,
-        start_time: data.start_time,
-        end_time: data.end_time,
-        all_day: data.all_day,
-        location: data.location || null,
-        uniform: data.uniform || null,
-        report_time: data.report_time || null,
-        assigned_to: data.assigned_to,
-        property_item_ids: data.property_item_ids,
-        structured_location: data.structured_location ?? null,
-        updated_at: now,
-      }
-      const oldOriginIds = editingEvent.originId ? [editingEvent.originId] : []
-      if (oldOriginIds.length > 0) vaultDeleteEvents(oldOriginIds).catch(() => {})
-      vaultSendEvent('c', updatedEvent).then(newOriginId => {
-        if (newOriginId) updateEvent(editingEvent.id, { ...updatedEvent, originId: newOriginId })
-      }).catch(() => {})
-      updateEvent(editingEvent.id, updatedEvent)
+  const handleDayDrawerSave = useCallback(async (data: EventFormData) => {
+    if (!editingEvent) return
+    const now = new Date().toISOString()
+    const updatedEvent: CalendarEvent = {
+      ...editingEvent,
+      title: data.title,
+      description: data.description || null,
+      category: data.category,
+      status: data.status,
+      start_time: data.start_time,
+      end_time: data.end_time,
+      all_day: data.all_day,
+      location: data.location || null,
+      uniform: data.uniform || null,
+      report_time: data.report_time || null,
+      assigned_to: data.assigned_to,
+      property_item_ids: data.property_item_ids,
+      structured_location: data.structured_location ?? null,
+      updated_at: now,
+    }
+    setIsFormPending(true)
+    try {
+      await writeEvent(updatedEvent)
+    } finally {
+      setIsFormPending(false)
     }
     setEditingEvent(null)
     setDayDrawerView('detail')
-  }, [editingEvent, updateEvent, vaultSendEvent, vaultDeleteEvents])
+  }, [editingEvent, writeEvent])
 
   const handleDayDrawerEditCancel = useCallback(() => {
     setEditingEvent(null)
@@ -660,15 +627,22 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               hideDefaultClose: true,
             }}
           >
-            <EventForm
-              ref={eventFormRef}
-              initialData={editingEvent ? eventToFormData(editingEvent) : createEmptyFormData(newEventDateKey)}
-              onSave={handleSaveEvent}
-              isEditing={!!editingEvent}
-              medics={medicList}
-              propertyItems={propertyItems}
-              overlayOptions={overlayOptions}
-            />
+            <div className="relative h-full">
+              <EventForm
+                ref={eventFormRef}
+                initialData={editingEvent ? eventToFormData(editingEvent) : createEmptyFormData(newEventDateKey)}
+                onSave={handleSaveEvent}
+                isEditing={!!editingEvent}
+                medics={medicList}
+                propertyItems={propertyItems}
+                overlayOptions={overlayOptions}
+              />
+              {(isFormPending || isWriting) && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-xl">
+                  <LoadingSpinner size="md" />
+                </div>
+              )}
+            </div>
           </BaseDrawer>
 
           {/* Mobile event drawer — tap an event to view/edit */}
@@ -707,34 +681,42 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               hideDefaultClose: true,
             }}
           >
-            {dayDrawerView === 'detail' && dayDrawerEvent && (
-              <EventDetailPanel
-                event={dayDrawerEvent}
-                onClose={handleDayDrawerDetailBack}
-                onEdit={handleDayDrawerEdit}
-                onDelete={(id) => {
-                  handleDeleteEvent(id)
-                  handleDayDrawerClose()
-                }}
-                onOpenMissionBoard={() => {
-                  handleDayDrawerClose()
-                  handleOpenMissionBoard(dayDrawerEvent.id)
-                }}
-                assignedNames={resolveAssigned(dayDrawerEvent.assigned_to)}
-                linkedPropertyItems={resolvePropertyItems(dayDrawerEvent.property_item_ids ?? [])}
-                hideHeader
-              />
-            )}
+            <div className="relative h-full">
+              {dayDrawerView === 'detail' && dayDrawerEvent && (
+                <EventDetailPanel
+                  event={dayDrawerEvent}
+                  onClose={handleDayDrawerDetailBack}
+                  onEdit={handleDayDrawerEdit}
+                  onDelete={(id) => {
+                    handleDeleteEvent(id)
+                    handleDayDrawerClose()
+                  }}
+                  onOpenMissionBoard={() => {
+                    handleDayDrawerClose()
+                    handleOpenMissionBoard(dayDrawerEvent.id)
+                  }}
+                  assignedNames={resolveAssigned(dayDrawerEvent.assigned_to)}
+                  linkedPropertyItems={resolvePropertyItems(dayDrawerEvent.property_item_ids ?? [])}
+                  hideHeader
+                />
+              )}
 
-            {dayDrawerView === 'edit' && editingEvent && (
-              <EventForm
-                ref={eventFormRef}
-                initialData={eventToFormData(editingEvent)}
-                onSave={handleDayDrawerSave}
-                isEditing
-                medics={medicList}
-              />
-            )}
+              {dayDrawerView === 'edit' && editingEvent && (
+                <EventForm
+                  ref={eventFormRef}
+                  initialData={eventToFormData(editingEvent)}
+                  onSave={handleDayDrawerSave}
+                  isEditing
+                  medics={medicList}
+                />
+              )}
+
+              {(isFormPending || isWriting) && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-xl">
+                  <LoadingSpinner size="md" />
+                </div>
+              )}
+            </div>
           </BaseDrawer>
 
           {/* Mobile Mission Board drawer */}
@@ -770,7 +752,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           }`}>
             {showDesktopPanel && (
               panelView === 'form' ? (
-                <>
+                <div className="relative flex flex-col flex-1 min-h-0">
                   <div className="flex items-center justify-between px-3 py-2 border-b border-tertiary/10">
                     <h2 className="text-sm font-semibold text-primary whitespace-nowrap">
                       {editingEvent ? 'Edit Event' : 'New Event'}
@@ -799,7 +781,12 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                       propertyItems={propertyItems}
                     />
                   </div>
-                </>
+                  {(isFormPending || isWriting) && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-xl">
+                      <LoadingSpinner size="md" />
+                    </div>
+                  )}
+                </div>
               ) : panelView === 'detail' && selectedEvent && !missionBoardEventId ? (
                 <EventDetailPanel
                   event={selectedEvent}

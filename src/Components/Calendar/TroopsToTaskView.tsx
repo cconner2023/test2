@@ -342,7 +342,7 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
             <button onClick={prevDay} className="w-6 h-6 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95">
               <ChevronLeft className="w-3.5 h-3.5" />
             </button>
-            <button onClick={jumpToToday} className="text-[10px] font-semibold text-primary hover:text-themeblue3 transition-colors active:scale-95 truncate" title="Jump to today">
+            <button onClick={jumpToToday} className="text-[9pt] font-semibold text-primary hover:text-themeblue3 transition-colors active:scale-95 truncate" title="Jump to today">
               {dateNavLabel}
             </button>
             <button onClick={nextDay} className="w-6 h-6 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95">
@@ -362,9 +362,9 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
                   style={{ width: HOUR_COL_WIDTH }}
                 >
                   {h === 0 ? (
-                    <span className="text-[10px] font-semibold text-primary/60">{day.label}</span>
+                    <span className="text-[9pt] font-semibold text-primary">{day.label}</span>
                   ) : (
-                    <span className="text-[10px] font-mono text-tertiary/40">{String(h).padStart(2, '0')}00</span>
+                    <span className="text-[9pt] font-mono text-tertiary">{String(h).padStart(2, '0')}00</span>
                   )}
                 </div>
               ))}
@@ -384,7 +384,7 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
                 <div className="min-w-0">
                   <p className={`font-medium text-primary truncate ${isMobile ? 'text-sm' : 'text-xs'}`}>{formatName(medic)}</p>
                   {medic.credential && (
-                    <p className="text-[10px] text-tertiary/50 truncate">{medic.credential}</p>
+                    <p className="text-[9pt] text-tertiary truncate">{medic.credential}</p>
                   )}
                 </div>
               </div>
@@ -417,7 +417,7 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
                     }}
                   >
                     <p
-                      className="absolute inset-y-0 right-0 text-[10px] font-normal truncate px-1.5"
+                      className="absolute inset-y-0 right-0 text-[9pt] font-normal truncate px-1.5"
                       style={{
                         left: `clamp(0px, calc(var(--sl, 0) * 1px - ${left}px), ${Math.max(0, width - 40)}px)`,
                         lineHeight: `${LANE_HEIGHT}px`,
@@ -425,7 +425,7 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
                     >
                       {event.title}
                       {width > 80 && (
-                        <span className="text-[9px] opacity-60 ml-1.5">
+                        <span className="text-[9pt] md:text-[9pt] opacity-60 ml-1.5">
                           {new Date(event.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
                         </span>
                       )}
@@ -444,7 +444,7 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
           return (
             <div className="relative flex border-b border-primary/5 bg-themeredred/3" style={{ height: rowHeight }}>
               <div className={`sticky left-0 z-[5] shrink-0 flex items-center gap-2 border-r border-primary/10 bg-themeredred/5 ${isMobile ? 'px-3' : 'px-2'}`} style={{ width: NAME_COL_WIDTH }}>
-                <span className="text-[10px] font-semibold text-themeredred">UNASSIGNED</span>
+                <span className="text-[9pt] font-semibold text-themeredred">UNASSIGNED</span>
               </div>
               <div className="flex-1 relative">
                 {days.map((day, dayIdx) => (
@@ -472,7 +472,7 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
                     }}
                   >
                     <p
-                      className="absolute inset-y-0 right-0 text-[10px] font-normal truncate px-1.5"
+                      className="absolute inset-y-0 right-0 text-[9pt] font-normal truncate px-1.5"
                       style={{
                         left: `clamp(0px, calc(var(--sl, 0) * 1px - ${left}px), ${Math.max(0, width - 40)}px)`,
                         lineHeight: `${LANE_HEIGHT}px`,

@@ -100,10 +100,10 @@ function AssignmentsSection({
     return (
         <div className="px-5 pt-4 pb-1">
             <div className="flex items-center gap-2 mb-2">
-                <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
+                <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
                     Assignments
                 </p>
-                <span className="text-[10px] text-tertiary/40">{assignments.length}</span>
+                <span className="text-[9pt] text-tertiary">{assignments.length}</span>
             </div>
             <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
                 {assignments.map((a, idx) => {
@@ -136,14 +136,14 @@ function AssignmentsSection({
                             <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-primary truncate">{title}</p>
                                 <div className="flex items-center gap-2 mt-0.5">
-                                    <span className="text-[11px] text-tertiary/60">
+                                    <span className="text-[9pt] text-tertiary">
                                         {resolveName(a.supervisorId)}
                                     </span>
                                     {a.dueDate && (
                                         <>
-                                            <span className="text-tertiary/20">·</span>
-                                            <span className={`text-[11px] font-medium ${
-                                                isOverdue ? 'text-themeredred' : 'text-tertiary/60'
+                                            <span className="text-tertiary">·</span>
+                                            <span className={`text-[9pt] font-medium ${
+                                                isOverdue ? 'text-themeredred' : 'text-tertiary'
                                             }`}>
                                                 {isOverdue ? 'Overdue' : 'Due'} {formatDueDate(a.dueDate)}
                                             </span>
@@ -213,21 +213,21 @@ function TaskRow({
                 }`}
         >
             <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium truncate ${hasData ? 'text-primary' : 'text-tertiary/40'}`}>
+                <p className={`text-sm font-medium truncate ${hasData ? 'text-primary' : 'text-tertiary'}`}>
                     {task.title}
                 </p>
                 <div className="flex items-center gap-2 mt-0.5">
-                    <p className="text-[11px] text-tertiary/70 font-mono">
+                    <p className="text-[9pt] text-tertiary font-mono">
                         {task.taskId}
                     </p>
                     {isAssigned && assignment.dueDate && (
-                        <span className={`text-[10px] font-medium ${isOverdue ? 'text-themeredred' : 'text-themeblue3'}`}>
+                        <span className={`text-[9pt] font-medium ${isOverdue ? 'text-themeredred' : 'text-themeblue3'}`}>
                             {isOverdue ? 'Overdue' : 'Due'}: {formatDueDate(assignment.dueDate)}
                         </span>
                     )}
                 </div>
                 {!hasData && (
-                    <p className="text-[9px] text-tertiary/40 flex items-center gap-1 mt-0.5">
+                    <p className="text-[9pt] md:text-[9pt] text-tertiary flex items-center gap-1 mt-0.5">
                         <Lock size={9} /> Coming soon
                     </p>
                 )}
@@ -236,7 +236,7 @@ function TaskRow({
                 {isPinned && (
                     <Pin size={12} className="text-themeblue2/40" />
                 )}
-                <span className="px-1.5 py-0.5 rounded text-[8pt] font-semibold bg-tertiary/10 text-tertiary/60">
+                <span className="px-1.5 py-0.5 rounded text-[9pt] font-semibold bg-tertiary/10 text-tertiary">
                     {badge}
                 </span>
                 {completed ? (
@@ -246,7 +246,7 @@ function TaskRow({
                 ) : viewed ? (
                     <div className="w-2 h-2 rounded-full bg-themeyellow" />
                 ) : hasData ? (
-                    <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+                    <ChevronRight size={16} className="text-tertiary shrink-0" />
                 ) : null}
             </div>
         </button>
@@ -345,12 +345,12 @@ function TrainingList({
             />
         )}
         <div className="px-5 py-4 space-y-5">
-            <p className="text-xs text-tertiary/60">
+            <p className="text-xs text-tertiary">
                 Select a task to begin studying.
             </p>
 
             {isSearching && (
-                <p className="text-[10px] text-tertiary/50">
+                <p className="text-[9pt] text-tertiary">
                     {totalResults} result{totalResults !== 1 ? 's' : ''}
                 </p>
             )}
@@ -361,10 +361,10 @@ function TrainingList({
                 Array.from(displayCategories).map(([categoryName, tasks]) => (
                     <div key={categoryName}>
                         <div className="flex items-center gap-2 mb-2">
-                            <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
+                            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
                                 {categoryName}
                             </p>
-                            <span className="text-[10px] text-tertiary/40">{tasks.length}</span>
+                            <span className="text-[9pt] text-tertiary">{tasks.length}</span>
                         </div>
                         <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
                             {tasks.map((task, idx) => (
@@ -479,7 +479,7 @@ function TaskDetail({
         <div className="px-4 py-3 md:p-5 pb-12">
             {/* Header */}
             <div className="mb-4">
-                <p className="text-[8pt] text-tertiary/50 font-mono">{taskData.taskNumber}</p>
+                <p className="text-[9pt] text-tertiary font-mono">{taskData.taskNumber}</p>
                 <h3 className="text-lg font-semibold text-primary">{taskData.title}</h3>
                 {completed && (
                     <span className="inline-flex items-center gap-1 text-[9pt] text-themegreen mt-1">
@@ -500,7 +500,7 @@ function TaskDetail({
                         {isOverdue ? 'Overdue' : 'Due'}: {formatDueDate(assignment.dueDate)}
                     </span>
                     {assignment.supervisorNotes && (
-                        <span className="text-xs text-tertiary/60 ml-auto truncate max-w-[50%]">
+                        <span className="text-xs text-tertiary ml-auto truncate max-w-[50%]">
                             {assignment.supervisorNotes}
                         </span>
                     )}
@@ -510,13 +510,13 @@ function TaskDetail({
             {/* Conditions */}
             <div className="mb-5">
                 <SectionHeader>Conditions</SectionHeader>
-                <p className="text-sm text-primary/80 leading-relaxed">{taskData.conditions}</p>
+                <p className="text-sm text-primary leading-relaxed">{taskData.conditions}</p>
             </div>
 
             {/* Standards */}
             <div className="mb-5">
                 <SectionHeader>Standards</SectionHeader>
-                <p className="text-sm text-primary/80 leading-relaxed">{taskData.standards}</p>
+                <p className="text-sm text-primary leading-relaxed">{taskData.standards}</p>
             </div>
 
             {/* Audio Training Aids */}

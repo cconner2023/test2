@@ -6,6 +6,7 @@ import { create } from 'zustand'
 import type { catDataTypes, subCatDataTypes, SearchResultType, GuidelineType } from '../Types/CatTypes'
 import { catData } from '../Data/CatData'
 import type { medListTypes } from '../Data/MedData'
+import type { MedevacRequest } from '../Types/MedevacTypes'
 import type { AlgorithmOptions, dispositionType } from '../Types/AlgorithmTypes'
 import type { CardState } from '../Hooks/useAlgorithm'
 
@@ -39,6 +40,7 @@ const CLOSE_ALL_DRAWERS = {
     kbInitialView: null as string | null,
     kbInitialMedication: null as medListTypes | null,
     kbInitialScreenerId: null as string | null,
+    kbInitialMedevacReq: null as MedevacRequest | null,
     showSymptomInfo: false,
     showTrainingDrawer: false,
     trainingDrawerTaskId: null as string | null,
@@ -75,6 +77,7 @@ interface NavigationState {
     kbInitialView: string | null
     kbInitialMedication: medListTypes | null
     kbInitialScreenerId: string | null
+    kbInitialMedevacReq: MedevacRequest | null
     isWriteNoteVisible: boolean
     writeNoteData: WriteNoteData | null
     showTrainingDrawer: boolean
@@ -114,7 +117,7 @@ interface NavigationActions {
     expandSearchOnMobile: () => void
     toggleSymptomInfo: () => void
     setShowSymptomInfo: (show: boolean) => void
-    setShowKnowledgeBase: (show: boolean, initialView?: string | null, initialMedication?: medListTypes | null, initialScreenerId?: string | null) => void
+    setShowKnowledgeBase: (show: boolean, initialView?: string | null, initialMedication?: medListTypes | null, initialScreenerId?: string | null, initialMedevacReq?: MedevacRequest | null) => void
     setShowTrainingDrawer: (taskId: string | null) => void
     setShowMessagesDrawer: (show: boolean) => void
     openMessagesConversation: (peerId: string | null, groupId: string | null, peerName: string | null) => void
@@ -151,6 +154,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     kbInitialView: null,
     kbInitialMedication: null,
     kbInitialScreenerId: null,
+    kbInitialMedevacReq: null,
     isWriteNoteVisible: false,
     writeNoteData: null,
     showTrainingDrawer: false,
@@ -308,13 +312,14 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         showSymptomInfo: show,
     })),
 
-    setShowKnowledgeBase: (show, initialView, initialMedication, initialScreenerId) => set((s) => ({
+    setShowKnowledgeBase: (show, initialView, initialMedication, initialScreenerId, initialMedevacReq) => set((s) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),
         ...PRESERVED_FIELDS(s),
         showKnowledgeBase: show,
         kbInitialView: show ? (initialView ?? null) : null,
         kbInitialMedication: show ? (initialMedication ?? null) : null,
         kbInitialScreenerId: show ? (initialScreenerId ?? null) : null,
+        kbInitialMedevacReq: show ? (initialMedevacReq ?? null) : null,
     })),
 
     setShowTrainingDrawer: (taskId) => set((s) => ({

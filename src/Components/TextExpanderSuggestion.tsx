@@ -31,7 +31,7 @@ export const TextExpanderSuggestion = ({ suggestions, selectedIndex, onDismiss, 
                         onClick={() => onAccept?.(s)}
                         className={`flex items-center gap-2 px-3 py-2 cursor-pointer active:bg-themeblue2/12 ${isSelected ? 'bg-themeblue2/8' : ''} ${i > 0 ? 'border-t border-tertiary/8' : ''}`}
                     >
-                        <code className="shrink-0 text-[11px] font-mono font-semibold bg-themeblue2/10 text-themeblue2 px-1.5 py-0.5 rounded self-start mt-0.5">
+                        <code className="shrink-0 text-[9pt] font-mono font-semibold bg-themeblue2/10 text-themeblue2 px-1.5 py-0.5 rounded self-start mt-0.5">
                             {s.abbr}
                         </code>
                         {hasTemplate && (
@@ -39,10 +39,10 @@ export const TextExpanderSuggestion = ({ suggestions, selectedIndex, onDismiss, 
                                 <Layers size={11} className="text-themepurple/70" />
                             </span>
                         )}
-                        <span className="text-tertiary/50 text-xs shrink-0 self-start mt-0.5">&rarr;</span>
+                        <span className="text-tertiary text-xs shrink-0 self-start mt-0.5">&rarr;</span>
                         <span className="text-sm text-tertiary truncate flex-1 min-w-0">{preview}</span>
                         {isSelected && (
-                            <kbd className="shrink-0 text-[10px] text-tertiary/50 border border-tertiary/15 rounded px-1.5 py-0.5 font-mono self-start mt-0.5">
+                            <kbd className="shrink-0 text-[9pt] text-tertiary border border-tertiary/15 rounded px-1.5 py-0.5 font-mono self-start mt-0.5">
                                 Enter &crarr;
                             </kbd>
                         )}
@@ -55,7 +55,7 @@ export const TextExpanderSuggestion = ({ suggestions, selectedIndex, onDismiss, 
                 aria-label="Dismiss suggestions"
                 tabIndex={-1}
             >
-                <X size={14} className="text-tertiary/40" />
+                <X size={14} className="text-tertiary" />
             </button>
         </div>
     );

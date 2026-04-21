@@ -85,6 +85,7 @@ export interface PropertyLocation {
   parent_id: string | null  // self-FK for nesting
   name: string
   photo_data: string | null   // base64 data URL
+  holder_user_id: string | null  // set on member-locations; null for physical locations
   created_by: string
   created_at: string
   updated_at: string

@@ -102,13 +102,13 @@ export default function GettingStartedScene({ currentStep, isMobile }: GettingSt
                   >
                     <Icon
                       size={isMobile ? 20 : 16}
-                      className="mr-4 text-primary/60"
+                      className="mr-4 text-primary"
                     />
                     <span
                       className={`tracking-wide font-medium ${
                         isMobile
-                          ? 'text-[15px] text-primary/80'
-                          : 'text-[13px] text-primary/80'
+                          ? 'text-[11pt] text-primary'
+                          : 'text-[10pt] text-primary'
                       }`}
                     >
                       {label}
@@ -124,7 +124,7 @@ export default function GettingStartedScene({ currentStep, isMobile }: GettingSt
               >
                 <div className="flex items-center justify-center gap-1.5 mt-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-themegreen" />
-                  <span className="text-[11px] font-medium text-themegreen">Connected</span>
+                  <span className="text-[9pt] font-medium text-themegreen">Connected</span>
                 </div>
               </div>
             </div>
@@ -142,10 +142,10 @@ export default function GettingStartedScene({ currentStep, isMobile }: GettingSt
                       <User size={20} className="text-themeblue3/40" />
                     </button>
                   </div>
-                  <span className="text-sm font-bold text-primary/70 tracking-wider">ADTMC</span>
+                  <span className="text-sm font-bold text-primary tracking-wider">ADTMC</span>
                   <div className="rounded-full bg-themewhite border border-tertiary/20 p-0.5 aspect-square">
                     <button className="w-[2.6875rem] h-[2.6875rem] rounded-full flex items-center justify-center">
-                      <Mail size={20} className="text-primary/70" />
+                      <Mail size={20} className="text-primary" />
                     </button>
                   </div>
                 </div>
@@ -193,7 +193,7 @@ export default function GettingStartedScene({ currentStep, isMobile }: GettingSt
                     <div className="px-3 py-2 flex text-[10pt] font-bold items-center justify-center shrink-0 bg-themeblue3 text-white rounded-md">
                       {letter}
                     </div>
-                    <div className="h-full flex-1 min-w-0 p-[4px_10px_4px_10px] text-tertiary/30 text-[10pt] flex items-center">
+                    <div className="h-full flex-1 min-w-0 p-[4px_10px_4px_10px] text-tertiary text-[10pt] flex items-center">
                       Category {letter}
                     </div>
                   </div>

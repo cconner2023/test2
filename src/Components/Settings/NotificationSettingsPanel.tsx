@@ -77,8 +77,8 @@ export const NotificationSettingsPanel = () => {
         {/* Not supported */}
         {!isSupported && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-tertiary/5">
-            <Info size={16} className="text-tertiary/60" />
-            <span className="text-sm text-tertiary/70">
+            <Info size={16} className="text-tertiary" />
+            <span className="text-sm text-tertiary">
               Push notifications are not supported in this browser.
             </span>
           </div>
@@ -93,14 +93,14 @@ export const NotificationSettingsPanel = () => {
               <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${isSubscribed ? 'bg-themegreen/15' : 'bg-tertiary/10'}`}>
                 {isSubscribed
                   ? <Wifi size={18} className="text-themegreen" />
-                  : <WifiOff size={18} className="text-tertiary/50" />
+                  : <WifiOff size={18} className="text-tertiary" />
                 }
               </div>
               <div className="flex-1 min-w-0">
                 <p className={`text-sm font-medium ${isSubscribed ? 'text-primary' : 'text-tertiary'}`}>
                   {isSubscribed ? 'Active Subscription' : 'No Subscription'}
                 </p>
-                <p className="text-[11px] text-tertiary/70 mt-0.5 truncate">
+                <p className="text-[9pt] text-tertiary mt-0.5 truncate">
                   {isSubscribed && subscriptionInfo
                     ? subscriptionInfo.provider
                     : 'This device is not receiving push notifications'
@@ -150,11 +150,11 @@ export const NotificationSettingsPanel = () => {
                   }}
                 >
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${soundsEnabled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                    <Volume2 size={18} className={soundsEnabled ? 'text-themeblue2' : 'text-tertiary/50'} />
+                    <Volume2 size={18} className={soundsEnabled ? 'text-themeblue2' : 'text-tertiary'} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium ${soundsEnabled ? 'text-primary' : 'text-tertiary'}`}>Message Sounds</p>
-                    <p className="text-[11px] text-tertiary/70 mt-0.5">Play sounds when sending and receiving messages</p>
+                    <p className="text-[9pt] text-tertiary mt-0.5">Play sounds when sending and receiving messages</p>
                   </div>
                   <ToggleSwitch checked={soundsEnabled} />
                 </div>
@@ -169,11 +169,11 @@ export const NotificationSettingsPanel = () => {
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleDevAlertToggle(!devAlerts); } }}
                   >
                     <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${devAlerts ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                      <Code size={18} className={devAlerts ? 'text-themeblue2' : 'text-tertiary/50'} />
+                      <Code size={18} className={devAlerts ? 'text-themeblue2' : 'text-tertiary'} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-medium ${devAlerts ? 'text-primary' : 'text-tertiary'}`}>Dev Alerts</p>
-                      <p className="text-[11px] text-tertiary/70 mt-0.5">Login alerts, account requests, and feedback</p>
+                      <p className="text-[9pt] text-tertiary mt-0.5">Login alerts, account requests, and feedback</p>
                     </div>
                     <ToggleSwitch checked={devAlerts} />
                   </div>

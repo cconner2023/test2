@@ -48,9 +48,9 @@ export function SupervisorTree({
     <div className="h-full flex flex-col py-1">
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="shrink-0 px-4 py-3 border-b border-primary/10 flex items-center justify-between">
-          <p className="text-xs font-medium text-tertiary/70 uppercase tracking-wide">Personnel</p>
+          <p className="text-xs font-medium text-tertiary uppercase tracking-wide">Personnel</p>
           {medics.length > 0 && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-tertiary/10 text-tertiary/70 font-medium">
+            <span className="text-xs px-2 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
               {medics.length}
             </span>
           )}
@@ -89,7 +89,7 @@ export function SupervisorTree({
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-primary truncate">{formatMedicName(medic)}</p>
                 {medic.credential && (
-                  <p className="text-[10px] text-tertiary/50 truncate">{medic.credential}</p>
+                  <p className="text-[9pt] text-tertiary truncate">{medic.credential}</p>
                 )}
               </div>
               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${readinessColor(pct)}`} />

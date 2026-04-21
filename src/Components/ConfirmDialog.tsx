@@ -88,14 +88,14 @@ export function ConfirmDialog({
               <button
                 onClick={onConfirm}
                 disabled={processing}
-                className={`w-full py-3 rounded-lg text-[15px] font-medium text-white active:scale-95 transition-all ${styles.confirmBtn} ${processing ? 'opacity-60' : ''}`}
+                className={`w-full py-3 rounded-lg text-[11pt] font-medium text-white active:scale-95 transition-all ${styles.confirmBtn} ${processing ? 'opacity-60' : ''}`}
               >
                 {processing ? 'Processing...' : confirmLabel}
               </button>
               <button
                 onClick={close}
                 disabled={processing}
-                className={`w-full py-3 rounded-lg text-[15px] font-medium active:scale-95 transition-all ${styles.cancelText} border ${styles.cancelBorder}`}
+                className={`w-full py-3 rounded-lg text-[11pt] font-medium active:scale-95 transition-all ${styles.cancelText} border ${styles.cancelBorder}`}
               >
                 {cancelLabel}
               </button>
@@ -140,14 +140,14 @@ export function ConfirmDialog({
             <button
               onClick={onConfirm}
               disabled={processing}
-              className={`w-full py-2 rounded-lg text-[15px] font-medium text-white active:scale-95 transition-all ${styles.confirmBtn} ${processing ? 'opacity-60' : ''}`}
+              className={`w-full py-2 rounded-lg text-[11pt] font-medium text-white active:scale-95 transition-all ${styles.confirmBtn} ${processing ? 'opacity-60' : ''}`}
             >
               {processing ? 'Processing...' : confirmLabel}
             </button>
             <button
               onClick={close}
               disabled={processing}
-              className={`w-full py-2 rounded-lg text-[15px] font-medium active:scale-95 transition-all ${styles.cancelText} border ${styles.cancelBorder}`}
+              className={`w-full py-2 rounded-lg text-[11pt] font-medium active:scale-95 transition-all ${styles.cancelText} border ${styles.cancelBorder}`}
             >
               {cancelLabel}
             </button>

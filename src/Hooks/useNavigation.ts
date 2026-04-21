@@ -41,6 +41,7 @@ export function useNavigation() {
         kbInitialView: s.kbInitialView,
         kbInitialMedication: s.kbInitialMedication,
         kbInitialScreenerId: s.kbInitialScreenerId,
+        kbInitialMedevacReq: s.kbInitialMedevacReq,
         isWriteNoteVisible: s.isWriteNoteVisible,
         writeNoteData: s.writeNoteData,
         showTrainingDrawer: s.showTrainingDrawer,

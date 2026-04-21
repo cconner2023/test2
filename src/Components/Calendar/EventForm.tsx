@@ -7,7 +7,7 @@ import { UserAvatar } from '../Settings/UserAvatar'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { MedevacForm } from '../Medevac/MedevacForm'
 import { emptyMedevacRequest } from '../../Types/MedevacTypes'
-import { useAuthStore } from '../../stores/useAuthStore'
+
 
 const STATUS_OPTIONS: { value: EventStatus; label: string; activeClass: string }[] = [
   { value: 'pending',     label: 'Pending',   activeClass: 'bg-tertiary/15 text-primary' },
@@ -61,11 +61,8 @@ interface EventFormProps {
 export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
   function EventForm({ initialData, onSave, isEditing, medics, propertyItems, overlayOptions }, ref) {
     const isMobile = useIsMobile()
-    const isDevRole = useAuthStore(s => s.isDevRole)
     const [form, setForm] = useState<EventFormData>(initialData ?? createEmptyFormData())
     const [errors, setErrors] = useState<Record<string, string>>({})
-
-    const visibleCategories = EVENT_CATEGORIES.filter(c => c.value !== 'medevac' || isDevRole)
 
     const updateField = useCallback(<K extends keyof EventFormData>(key: K, value: EventFormData[K]) => {
       setForm(prev => ({ ...prev, [key]: value }))
@@ -114,7 +111,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
       }))
     }, [])
 
-    const inputCx = `w-full rounded-full border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none bg-themewhite2 text-primary placeholder:text-tertiary/30 transition-all duration-300 ${
+    const inputCx = `w-full rounded-full border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none bg-themewhite2 text-primary placeholder:text-tertiary transition-all duration-300 ${
       isMobile ? 'py-2.5 px-4 text-sm' : 'py-2 px-3 text-xs'
     }`
 
@@ -175,14 +172,14 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
               updateField('medevac_data', emptyMedevacRequest())
             }
           }}
-          options={visibleCategories.map(c => c.label)}
+          options={EVENT_CATEGORIES.map(c => c.label)}
           placeholder="Category"
           required
         />
 
         {isEditing && (
           <div>
-            <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1.5 block">Status</span>
+            <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-1.5 block">Status</span>
             <div className="grid grid-cols-4 gap-1">
               {STATUS_OPTIONS.map(opt => {
                 const isActive = form.status === opt.value
@@ -191,10 +188,10 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                     key={opt.value}
                     type="button"
                     onClick={() => updateField('status', opt.value)}
-                    className={`rounded-full py-1.5 text-[10px] font-semibold tracking-wide transition-all duration-150 active:scale-95 border ${
+                    className={`rounded-full py-1.5 text-[9pt] font-semibold tracking-wide transition-all duration-150 active:scale-95 border ${
                       isActive
                         ? `${opt.activeClass} border-transparent`
-                        : 'border-themeblue3/10 bg-themewhite2 text-tertiary/50'
+                        : 'border-themeblue3/10 bg-themewhite2 text-tertiary'
                     }`}
                   >
                     {opt.label}
@@ -208,7 +205,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
         {/* Start date + time */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Start</span>
+            <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Start</span>
             <label
               className="flex items-center gap-2 cursor-pointer"
               onClick={() => {
@@ -223,7 +220,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                 }
               }}
             >
-              <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">All day</span>
+              <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">All day</span>
               <div
                 className={`relative w-9 h-5 shrink-0 rounded-full transition-colors duration-200 ${
                   form.all_day ? 'bg-themeblue3' : 'bg-tertiary/20'
@@ -256,7 +253,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
 
         {/* End date + time */}
         <div>
-          <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1.5 block">End</span>
+          <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-1.5 block">End</span>
           <div className="grid grid-cols-2 gap-2">
             <DatePickerInput
               value={endDate}
@@ -289,7 +286,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
 
         {overlayOptions && overlayOptions.length > 0 && (
           <div>
-            <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1.5 block">Map Overlay</span>
+            <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-1.5 block">Map Overlay</span>
             <select
               value={form.structured_location?.overlay_id ?? ''}
               onChange={e => {
@@ -304,7 +301,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
               }}
               className={`w-full rounded-full border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none bg-themewhite2 text-primary transition-all duration-300 appearance-none ${
                 isMobile ? 'py-2.5 px-4 text-sm' : 'py-2 px-3 text-xs'
-              } ${!form.structured_location?.overlay_id ? 'text-tertiary/30' : ''}`}
+              } ${!form.structured_location?.overlay_id ? 'text-tertiary' : ''}`}
             >
               <option value="">No overlay</option>
               {overlayOptions.map(o => (
@@ -320,7 +317,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
             onChange={e => updateField('description', e.target.value)}
             placeholder="Description / OPORD notes"
             rows={3}
-            className={`w-full rounded-2xl border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none bg-themewhite2 text-primary placeholder:text-tertiary/30 transition-all duration-300 resize-none ${
+            className={`w-full rounded-2xl border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none bg-themewhite2 text-primary placeholder:text-tertiary transition-all duration-300 resize-none ${
               isMobile ? 'py-2.5 px-4 text-sm' : 'py-2 px-3 text-xs'
             }`}
           />
@@ -337,8 +334,8 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
         {medics && medics.length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Personnel</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
+              <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Personnel</span>
+              <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
                 {form.assigned_to.length}
               </span>
             </div>
@@ -363,7 +360,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                     <div className="flex-1 min-w-0">
                       <p className={`font-medium text-primary truncate ${isMobile ? 'text-sm' : 'text-xs'}`}>{medic.name}</p>
                       {medic.credential && (
-                        <p className="text-[10px] text-tertiary/50 truncate">{medic.credential}</p>
+                        <p className="text-[9pt] text-tertiary truncate">{medic.credential}</p>
                       )}
                     </div>
                     {isSelected && (
@@ -379,8 +376,8 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
         {propertyItems && propertyItems.length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Equipment</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
+              <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Equipment</span>
+              <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
                 {form.property_item_ids.length}
               </span>
             </div>
@@ -399,10 +396,10 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                     <Package size={isMobile ? 16 : 14} className={isSelected ? 'text-themeblue3 shrink-0' : 'text-tertiary shrink-0'} />
                     <div className="flex-1 min-w-0">
                       <p className={`font-medium text-primary truncate ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.name}</p>
-                      {item.nsn && <p className="text-[10px] text-tertiary truncate">{item.nsn}</p>}
+                      {item.nsn && <p className="text-[9pt] text-tertiary truncate">{item.nsn}</p>}
                     </div>
                     {item.serial_number && (
-                      <span className="text-[10px] text-tertiary shrink-0">S/N {item.serial_number}</span>
+                      <span className="text-[9pt] text-tertiary shrink-0">S/N {item.serial_number}</span>
                     )}
                   </button>
                 )

@@ -39,7 +39,7 @@ export function CategoryPicker({ value, categories, onChange }: {
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="shrink-0 px-2.5 py-2 text-[10pt] font-medium text-tertiary/60 bg-tertiary/5 rounded-full border border-tertiary/15 transition-colors active:scale-95"
+        className="shrink-0 px-2.5 py-2 text-[10pt] font-medium text-tertiary bg-tertiary/5 rounded-full border border-tertiary/15 transition-colors active:scale-95"
       >
         {label}
       </button>
@@ -47,12 +47,12 @@ export function CategoryPicker({ value, categories, onChange }: {
         <>
           <div className="fixed inset-0 z-[100]" onClick={() => setOpen(false)} />
           <div className="absolute bottom-full left-0 mb-2 z-[101] w-[min(280px,80vw)] bg-themewhite rounded-2xl shadow-xl border border-tertiary/10 py-2 overflow-y-auto" style={{ maxHeight: '40dvh' }}>
-            <p className="px-3 pb-1.5 text-[9px] font-semibold text-tertiary/40 uppercase tracking-wider">Category</p>
+            <p className="px-3 pb-1.5 text-[9pt] md:text-[9pt] font-semibold text-tertiary uppercase tracking-wider">Category</p>
             <button
               type="button"
               onClick={() => { onChange(null); setOpen(false); }}
               className={`w-full text-left px-4 py-2.5 text-xs transition-colors active:scale-[0.98] ${
-                value === null ? 'text-primary font-medium bg-tertiary/6' : 'text-tertiary/60'
+                value === null ? 'text-primary font-medium bg-tertiary/6' : 'text-tertiary'
               }`}
             >
               All
@@ -63,7 +63,7 @@ export function CategoryPicker({ value, categories, onChange }: {
                 type="button"
                 onClick={() => { onChange(cat.key); setOpen(false); }}
                 className={`w-full text-left px-4 py-2.5 text-xs transition-colors active:scale-[0.98] ${
-                  value === cat.key ? 'text-primary font-medium bg-tertiary/6' : 'text-tertiary/60'
+                  value === cat.key ? 'text-primary font-medium bg-tertiary/6' : 'text-tertiary'
                 }`}
               >
                 {cat.label}
@@ -107,7 +107,7 @@ export const PlanAllBlocksPreview: React.FC<PlanAllBlocksPreviewProps> = ({
   }, [categories, activeTab, lc]);
 
   if (!hasAnyTags) {
-    return <p className="px-4 py-4 text-[10pt] text-tertiary/40 italic">No plan items configured</p>;
+    return <p className="px-4 py-4 text-[10pt] text-tertiary italic">No plan items configured</p>;
   }
 
   return (
@@ -133,7 +133,7 @@ export const PlanAllBlocksPreview: React.FC<PlanAllBlocksPreviewProps> = ({
           })}
         </div>
       ) : (
-        <p className="px-4 py-4 text-[10pt] text-tertiary/40 italic">
+        <p className="px-4 py-4 text-[10pt] text-tertiary italic">
           {filter ? 'No matches' : 'No items available'}
         </p>
       )}

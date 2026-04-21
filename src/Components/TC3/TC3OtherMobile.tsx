@@ -27,7 +27,7 @@ export const OtherSectionMobile = memo(function OtherSectionMobile() {
     <div className="space-y-3">
       <div>
         <h3 className="text-sm font-semibold text-primary mb-1">Other</h3>
-        <p className="text-[11px] text-tertiary/70">DD 1380 — Additional treatments</p>
+        <p className="text-[9pt] text-tertiary">DD 1380 — Additional treatments</p>
       </div>
 
       <CheckBox label="Combat Pill Pack" checked={other.combatPillPack} onChange={(v) => updateOther({ combatPillPack: v })} />
@@ -89,11 +89,11 @@ export const FirstResponderMobile = memo(function FirstResponderMobile() {
     <div className="space-y-3">
       <div>
         <h3 className="text-sm font-semibold text-primary mb-1">First Responder</h3>
-        <p className="text-[11px] text-tertiary/70">DD 1380 — Signature block</p>
+        <p className="text-[9pt] text-tertiary">DD 1380 — Signature block</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <label className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Last Name</label>
+          <label className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Last Name</label>
           <input
             type="text"
             value={firstResponder.lastName}
@@ -103,7 +103,7 @@ export const FirstResponderMobile = memo(function FirstResponderMobile() {
           />
         </div>
         <div className="space-y-1">
-          <label className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">First Name</label>
+          <label className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">First Name</label>
           <input
             type="text"
             value={firstResponder.firstName}
@@ -114,7 +114,7 @@ export const FirstResponderMobile = memo(function FirstResponderMobile() {
         </div>
       </div>
       <div className="space-y-1">
-        <label className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Last 4</label>
+        <label className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Last 4</label>
         <input
           type="text"
           value={firstResponder.last4}

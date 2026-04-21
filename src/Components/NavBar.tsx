@@ -55,15 +55,15 @@ export function NavBar({ onKnowledgeBaseClick, onMessagesClick, onPropertyClick,
                     <Mail className="w-4 h-4 stroke-themeblue1" />
                     <span className="hidden lg:inline text-[10pt] text-tertiary">Messages</span>
                     {totalUnread > 0 && (
-                        <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-themeredred text-white text-[10px] font-bold leading-none">
+                        <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-themeredred text-white text-[9pt] font-bold leading-none">
                             {totalUnread > 99 ? '99+' : totalUnread}
                         </span>
                     )}
                 </button>
             )}
 
-            {/* Property — beta, auth required */}
-            {isAuthenticated && isDevRole && (
+            {/* Property — auth required */}
+            {isAuthenticated && (
                 <button onClick={onPropertyClick} className={BTN} aria-label="Property Book" title="Property Book">
                     <Package className="w-4 h-4 stroke-themeblue1" />
                     <span className="hidden lg:inline text-[10pt] text-tertiary">Property</span>

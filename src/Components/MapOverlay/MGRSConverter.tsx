@@ -117,7 +117,7 @@ export function MGRSConverter({ onCoordinateSelect }: MGRSConverterProps) {
   return (
     <div className="flex flex-col gap-4 p-4 rounded-xl bg-themewhite dark:bg-themewhite3 border border-tertiary/10">
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">MGRS</span>
+        <span className="text-xs font-medium text-tertiary uppercase tracking-wide">MGRS</span>
         <div className="relative">
           <input
             type="text"
@@ -127,13 +127,13 @@ export function MGRSConverter({ onCoordinateSelect }: MGRSConverterProps) {
             className="w-full px-3 py-2.5 pr-10 rounded-lg text-primary text-base
                        border border-tertiary/10 bg-themewhite dark:bg-themewhite3
                        focus:border-themeblue2 focus:outline-none
-                       transition-all placeholder:text-tertiary/30"
+                       transition-all placeholder:text-tertiary"
           />
           <button
             type="button"
             onClick={() => copyToClipboard(mgrsInput, 'mgrs')}
             className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded
-                       text-tertiary/40 hover:text-tertiary/70 transition-colors active:scale-95"
+                       text-tertiary hover:text-tertiary transition-colors active:scale-95"
             aria-label="Copy MGRS"
           >
             {copiedField === 'mgrs' ? <ClipboardCheck size={16} /> : <Copy size={16} />}
@@ -146,7 +146,7 @@ export function MGRSConverter({ onCoordinateSelect }: MGRSConverterProps) {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Lat / Lng</span>
+        <span className="text-xs font-medium text-tertiary uppercase tracking-wide">Lat / Lng</span>
         <div className="relative">
           <input
             type="text"
@@ -156,13 +156,13 @@ export function MGRSConverter({ onCoordinateSelect }: MGRSConverterProps) {
             className="w-full px-3 py-2.5 pr-10 rounded-lg text-primary text-base
                        border border-tertiary/10 bg-themewhite dark:bg-themewhite3
                        focus:border-themeblue2 focus:outline-none
-                       transition-all placeholder:text-tertiary/30"
+                       transition-all placeholder:text-tertiary"
           />
           <button
             type="button"
             onClick={() => copyToClipboard(latLngInput, 'latlng')}
             className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded
-                       text-tertiary/40 hover:text-tertiary/70 transition-colors active:scale-95"
+                       text-tertiary hover:text-tertiary transition-colors active:scale-95"
             aria-label="Copy coordinates"
           >
             {copiedField === 'latlng' ? <ClipboardCheck size={16} /> : <Copy size={16} />}

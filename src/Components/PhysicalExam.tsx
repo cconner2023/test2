@@ -415,7 +415,7 @@ function ExamItemRow({ block, state, onTap, index, isDragging, dragOffset, onDra
                 className="py-2.5 active:scale-[0.98] transition-all cursor-pointer"
                 left={
                     <div
-                        className="shrink-0 text-tertiary/30 touch-none cursor-grab active:cursor-grabbing"
+                        className="shrink-0 text-tertiary touch-none cursor-grab active:cursor-grabbing"
                         onPointerDown={onDragStart ? (e) => onDragStart(index, e) : undefined}
                     >
                         <GripVertical size={16} />
@@ -425,9 +425,9 @@ function ExamItemRow({ block, state, onTap, index, isDragging, dragOffset, onDra
                     <>
                         <p className="text-sm font-medium text-primary truncate">{block.label}</p>
                         {hasSummary && (
-                            <p className="text-[11px] mt-0.5 truncate">
-                                {normals.length > 0 && <span className="text-tertiary/70">{normals.join(', ')}</span>}
-                                {normals.length > 0 && abnormals.length > 0 && <span className="text-tertiary/70"> · </span>}
+                            <p className="text-[9pt] mt-0.5 truncate">
+                                {normals.length > 0 && <span className="text-tertiary">{normals.join(', ')}</span>}
+                                {normals.length > 0 && abnormals.length > 0 && <span className="text-tertiary"> · </span>}
                                 {abnormals.length > 0 && <span className="text-primary font-medium">{abnormals.join(', ')}</span>}
                             </p>
                         )}
@@ -1044,11 +1044,11 @@ export function PhysicalExam({
                     <button
                         type="button"
                         onClick={openBlockPicker}
-                        className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
+                        className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary"
                     >
                         <Plus size={14} />
                     </button>
-                    <p className="text-[10px] text-tertiary/40">Add exam systems</p>
+                    <p className="text-[9pt] text-tertiary">Add exam systems</p>
                 </div>
             ) : (
                 <div className="rounded-xl bg-themewhite2 overflow-hidden">
@@ -1062,7 +1062,7 @@ export function PhysicalExam({
                                     ? 'bg-themeredred text-white'
                                     : examStatus === 'has-abnormal'
                                     ? 'bg-themeredred/20 text-themeredred'
-                                    : 'bg-tertiary/10 text-tertiary/40'
+                                    : 'bg-tertiary/10 text-tertiary'
                             }`}
                         >
                             {examStatus === 'all-normal'
@@ -1169,7 +1169,7 @@ export function PhysicalExam({
                     searchPlaceholder="Search systems..."
                     headerCard={
                         <div className="w-full rounded-2xl bg-themewhite shadow-xl border border-tertiary/10 overflow-hidden shrink-0 px-3 py-2.5">
-                            <p className="text-[9px] font-semibold text-tertiary/40 uppercase tracking-wider mb-1.5">Vital Signs</p>
+                            <p className="text-[9pt] md:text-[9pt] font-semibold text-tertiary uppercase tracking-wider mb-1.5">Vital Signs</p>
                             <div className="grid grid-cols-3 gap-1.5">
                                 {VITAL_SIGNS.map(v => {
                                     if (v.key === 'bpDia') return null;
@@ -1180,15 +1180,15 @@ export function PhysicalExam({
                                                 value={vitals['bpSys'] || ''}
                                                 onChange={(e) => setVitalValue('bpSys', e.target.value)}
                                                 placeholder="BP sys"
-                                                className="w-1/2 text-xs px-2.5 py-2 rounded-lg border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
+                                                className="w-1/2 text-xs px-2.5 py-2 rounded-lg border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary transition-all duration-300"
                                             />
-                                            <span className="text-xs text-tertiary/40">/</span>
+                                            <span className="text-xs text-tertiary">/</span>
                                             <input
                                                 type="text"
                                                 value={vitals['bpDia'] || ''}
                                                 onChange={(e) => setVitalValue('bpDia', e.target.value)}
                                                 placeholder="dia"
-                                                className="w-1/2 text-xs px-2.5 py-2 rounded-lg border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
+                                                className="w-1/2 text-xs px-2.5 py-2 rounded-lg border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary transition-all duration-300"
                                             />
                                         </div>
                                     );
@@ -1199,13 +1199,13 @@ export function PhysicalExam({
                                                 value={vitals[v.key] || ''}
                                                 onChange={(e) => setVitalValue(v.key, e.target.value)}
                                                 placeholder={`${v.shortLabel} (${v.unit})`}
-                                                className="w-full text-xs px-2.5 py-2 rounded-lg border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
+                                                className="w-full text-xs px-2.5 py-2 rounded-lg border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary transition-all duration-300"
                                             />
                                             {v.key === 'ht' && vitals[v.key]?.trim() && !isNaN(parseFloat(vitals[v.key])) && (
-                                                <span className="text-xs text-secondary/50 mt-0.5 block">{(parseFloat(vitals[v.key]) * 2.54).toFixed(1)} cm</span>
+                                                <span className="text-xs text-secondary mt-0.5 block">{(parseFloat(vitals[v.key]) * 2.54).toFixed(1)} cm</span>
                                             )}
                                             {v.key === 'wt' && vitals[v.key]?.trim() && !isNaN(parseFloat(vitals[v.key])) && (
-                                                <span className="text-xs text-secondary/50 mt-0.5 block">{(parseFloat(vitals[v.key]) * 0.453592).toFixed(1)} kg</span>
+                                                <span className="text-xs text-secondary mt-0.5 block">{(parseFloat(vitals[v.key]) * 0.453592).toFixed(1)} kg</span>
                                             )}
                                         </div>
                                     );
@@ -1222,7 +1222,7 @@ export function PhysicalExam({
                                     }`}>
                                         {bmiInfo.display}
                                     </span>
-                                    <span className="text-xs text-secondary/50">
+                                    <span className="text-xs text-secondary">
                                         {bmiInfo.value < 18.5 ? 'Underweight'
                                         : bmiInfo.value < 25 ? 'Normal'
                                         : bmiInfo.value < 30 ? 'Overweight'
@@ -1240,7 +1240,7 @@ export function PhysicalExam({
                         const blocks = showMsk && !tl.some(b => b.key === 'msk') ? [...tl, MASTER_BLOCK_LIBRARY['msk']!] : tl;
                         return (
                             <div>
-                                <p className="text-[9px] font-semibold text-tertiary/40 uppercase tracking-wider px-3 pt-2 pb-1">Systems</p>
+                                <p className="text-[9pt] md:text-[9pt] font-semibold text-tertiary uppercase tracking-wider px-3 pt-2 pb-1">Systems</p>
                                 {blocks.map(block => {
                                     if (!block) return null;
                                     const selected = (templateBlockKeys ?? []).includes(block.key);
@@ -1280,7 +1280,7 @@ export function PhysicalExam({
                                                             }`}>
                                                                 {childSel && <Check size={10} strokeWidth={2.5} />}
                                                             </span>
-                                                            <span className="text-[11px] font-medium text-secondary">{child.label}</span>
+                                                            <span className="text-[9pt] font-medium text-secondary">{child.label}</span>
                                                         </button>
                                                     );
                                                 })}
@@ -1330,7 +1330,7 @@ export function PhysicalExam({
                             : availableToAdd;
                         return (
                             <div>
-                                <p className="text-[9px] font-semibold text-tertiary/40 uppercase tracking-wider px-3 pt-2 pb-1">Add System</p>
+                                <p className="text-[9pt] md:text-[9pt] font-semibold text-tertiary uppercase tracking-wider px-3 pt-2 pb-1">Add System</p>
                                 {filtered.map(block => (
                                     <button
                                         key={block.key}
@@ -1338,14 +1338,14 @@ export function PhysicalExam({
                                         onClick={() => addMasterBlock(block.key)}
                                         className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-all active:scale-[0.98] hover:bg-tertiary/5"
                                     >
-                                        <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10 text-tertiary/50">
+                                        <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10 text-tertiary">
                                             <Plus size={10} />
                                         </span>
                                         <span className="text-xs font-medium text-primary">{block.label}</span>
                                     </button>
                                 ))}
                                 {filtered.length === 0 && (
-                                    <p className="text-xs text-tertiary/40 px-3 py-3">No additional systems available</p>
+                                    <p className="text-xs text-tertiary px-3 py-3">No additional systems available</p>
                                 )}
                             </div>
                         );
@@ -1360,7 +1360,7 @@ export function PhysicalExam({
                     <button
                         type="button"
                         onClick={openBlockPicker}
-                        className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
+                        className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary"
                     >
                         <Plus size={14} />
                     </button>
@@ -1370,7 +1370,7 @@ export function PhysicalExam({
                     <button
                         type="button"
                         onClick={openAddPicker}
-                        className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
+                        className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary"
                     >
                         <Plus size={14} />
                     </button>

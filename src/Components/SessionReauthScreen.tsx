@@ -217,7 +217,7 @@ export function SessionReauthScreen({ email }: SessionReauthScreenProps) {
 
         {/* Email */}
         <div className="mb-4 w-full max-w-[270px]">
-          <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Account</span>
+          <span className="text-xs font-medium text-tertiary uppercase tracking-wide">Account</span>
           <p className="text-sm text-primary mt-0.5 truncate">{email}</p>
         </div>
 

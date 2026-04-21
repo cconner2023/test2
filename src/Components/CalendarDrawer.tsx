@@ -212,9 +212,9 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
     const personnelFilterPanel = (
         <div data-tour="calendar-personnel-filter" className="flex flex-col min-h-0">
             <div className="shrink-0 px-4 py-3 border-t border-primary/10 flex items-center justify-between">
-                <p className="text-xs font-medium text-tertiary/70 uppercase tracking-wide">Filter Personnel</p>
+                <p className="text-xs font-medium text-tertiary uppercase tracking-wide">Filter Personnel</p>
                 {ownClinicMedics.length > 0 && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-tertiary/10 text-tertiary/70 font-medium">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
                         {personnelFilter.length > 0 ? `${personnelFilter.length}/${ownClinicMedics.length}` : ownClinicMedics.length}
                     </span>
                 )}
@@ -252,7 +252,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                                     {formatMedicName(medic)}
                                 </p>
                                 {medic.credential && (
-                                    <p className="text-[10px] text-tertiary/50 truncate">{medic.credential}</p>
+                                    <p className="text-[9pt] text-tertiary truncate">{medic.credential}</p>
                                 )}
                             </div>
                             {isSelected && (
@@ -294,7 +294,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                 extraRow: isMobile && viewMode === 'month' ? (
                     <div className="grid grid-cols-7">
                         {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((label, i) => (
-                            <div key={i} className="text-center text-[10px] font-semibold text-tertiary/50 py-1 uppercase">
+                            <div key={i} className="text-center text-[9pt] font-semibold text-tertiary py-1 uppercase">
                                 {label}
                             </div>
                         ))}

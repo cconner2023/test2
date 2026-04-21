@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { writeFileSync, mkdirSync } from 'fs'
 import { resolve } from 'path'
-const APP_VERSION = '2.6.5'
+const APP_VERSION = '2.6.6'
 
 export default defineConfig({
   base: '/test2/',
@@ -127,7 +127,7 @@ export default defineConfig({
         ]
       },
       injectManifest: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,mp3}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,mp3,pdf}'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024, // 8 MiB
       },
       devOptions: {

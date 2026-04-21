@@ -39,6 +39,7 @@ export interface AdminUser {
   uic: string | null
   roles: string[]
   clinic_id: string | null
+  clinic_name: string | null
   created_at: string
   last_active_at: string | null
   avatar_id: string | null

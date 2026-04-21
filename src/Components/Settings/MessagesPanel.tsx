@@ -345,16 +345,16 @@ function ConversationPane({
           <span className="text-xs text-themeblue3 font-medium">Setting up encryption…</span>
         </div>
       )}
-      <div className="py-1">
+      <div className="pt-1 pb-10">
         {/* Search results */}
         {searchResults ? (
           <div>
             {searchResults.groups.length === 0 && searchResults.medics.length === 0 && searchResults.messages.length === 0 && globalResults !== null && !globalSearchLoading && globalResults.length === 0 && (
-              <p className="text-xs text-tertiary/30 px-3 py-4 text-center">No results for &ldquo;{searchQuery}&rdquo;</p>
+              <p className="text-xs text-tertiary px-3 py-4 text-center">No results for &ldquo;{searchQuery}&rdquo;</p>
             )}
             {searchResults.groups.length > 0 && (
               <>
-                <p className="text-xs text-tertiary/50 px-3 mb-1 uppercase tracking-wider font-semibold">Groups</p>
+                <p className="text-xs text-tertiary px-3 mb-1 uppercase tracking-wider font-semibold">Groups</p>
                 {searchResults.groups.map(group => (
                   <GroupListItem
                     key={group.groupId}
@@ -368,7 +368,7 @@ function ConversationPane({
             )}
             {searchResults.medics.length > 0 && (
               <>
-                <p className="text-xs text-tertiary/50 px-3 mb-1 mt-2 uppercase tracking-wider font-semibold">Contacts</p>
+                <p className="text-xs text-tertiary px-3 mb-1 mt-2 uppercase tracking-wider font-semibold">Contacts</p>
                 {searchResults.medics.map(medic => (
                   <ContactListItem
                     key={medic.id}
@@ -384,7 +384,7 @@ function ConversationPane({
             )}
             {searchResults.messages.length > 0 && (
               <>
-                <p className="text-xs text-tertiary/50 px-3 mb-1 mt-2 uppercase tracking-wider font-semibold">Messages</p>
+                <p className="text-xs text-tertiary px-3 mb-1 mt-2 uppercase tracking-wider font-semibold">Messages</p>
                 {searchResults.messages.map(match => {
                   if (match.type === 'group' && match.group) {
                     return (
@@ -421,7 +421,7 @@ function ConversationPane({
               ) : globalResults !== null ? (
                 globalResults.length > 0 ? (
                   <>
-                    <p className="text-xs text-tertiary/50 px-3 mb-1 mt-2 uppercase tracking-wider font-semibold">All Users</p>
+                    <p className="text-xs text-tertiary px-3 mb-1 mt-2 uppercase tracking-wider font-semibold">All Users</p>
                     {globalResults.map(result => (
                       <ContactListItem
                         key={result.id}
@@ -438,8 +438,8 @@ function ConversationPane({
                   className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-primary/5 active:bg-primary/10 transition-colors"
                   onClick={handleGlobalSearchClick}
                 >
-                  <Search className="w-4 h-4 text-tertiary/40 shrink-0" />
-                  <span className="text-xs text-tertiary/50">Search all users for &ldquo;{searchQuery}&rdquo;</span>
+                  <Search className="w-4 h-4 text-tertiary shrink-0" />
+                  <span className="text-xs text-tertiary">Search all users for &ldquo;{searchQuery}&rdquo;</span>
                 </button>
               )
             )}
@@ -471,7 +471,7 @@ function ConversationPane({
             )}
             {recentEntries.length > 0 && (
               <>
-                <p className="text-xs text-tertiary/50 px-3 mb-1 mt-1 uppercase tracking-wider font-semibold">Recent</p>
+                <p className="text-xs text-tertiary px-3 mb-1 mt-1 uppercase tracking-wider font-semibold">Recent</p>
                 {recentEntries.map(entry => {
                   const msgs = conversations[entry.key]
                   const lastMsg = msgs?.filter(m => m.messageType !== 'request-accepted' && !m.threadId).at(-1)
@@ -556,7 +556,7 @@ function ConversationPane({
                 return filtered.length > 0 ? (
                   <>
                     <div className="flex items-center gap-1.5 px-3 py-1.5">
-                      <p className="text-xs text-tertiary/50 uppercase tracking-wider font-semibold">My Clinic</p>
+                      <p className="text-xs text-tertiary uppercase tracking-wider font-semibold">My Clinic</p>
                     </div>
                     {filtered.map(medic => isMobile ? (
                       <LongPressRow
@@ -590,7 +590,7 @@ function ConversationPane({
                 return (
                   <div key={clinicName}>
                     <div className="flex items-center gap-1.5 px-3 py-1.5">
-                      <p className="text-xs text-tertiary/50 uppercase tracking-wider font-semibold">{clinicName}</p>
+                      <p className="text-xs text-tertiary uppercase tracking-wider font-semibold">{clinicName}</p>
                     </div>
                     {filtered.map(medic => isMobile ? (
                       <LongPressRow
@@ -628,7 +628,7 @@ function ConversationPane({
               return filtered.length > 0 ? (
                 <>
                   <div className="mx-3 my-2 border-b border-primary/10" />
-                  <p className="text-xs text-tertiary/50 px-3 mb-1 uppercase tracking-wider font-semibold">Groups</p>
+                  <p className="text-xs text-tertiary px-3 mb-1 uppercase tracking-wider font-semibold">Groups</p>
                   {filtered.map(group => isMobile ? (
                     <LongPressRow
                       key={group.groupId}
@@ -946,7 +946,7 @@ function GroupChatDetail({
       </div>
       <div className="flex-1 min-w-0 text-center mx-3">
         <p className="text-sm font-medium text-primary truncate">{group.name}</p>
-        <p className="text-[10px] text-tertiary/40">{group.memberCount} members</p>
+        <p className="text-[9pt] text-tertiary">{group.memberCount} members</p>
       </div>
       <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
         <button onClick={() => onShowGroupInfo(true)} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
@@ -1124,7 +1124,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   if (!messagesCtx) {
     return (
       <div className="flex items-center justify-center py-12">
-        <p className="text-sm text-tertiary/50">Sign in to use messages.</p>
+        <p className="text-sm text-tertiary">Sign in to use messages.</p>
       </div>
     )
   }
@@ -1209,8 +1209,8 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     mainContent = (
       <div className="hidden md:flex items-center justify-center h-full">
         <div className="text-center">
-          <MessageSquare className="w-10 h-10 text-tertiary/20 mx-auto mb-3" />
-          <p className="text-sm text-tertiary/40">Select a conversation to start chatting</p>
+          <MessageSquare className="w-10 h-10 text-tertiary mx-auto mb-3" />
+          <p className="text-sm text-tertiary">Select a conversation to start chatting</p>
         </div>
       </div>
     )
@@ -1290,7 +1290,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
           if (qrScanOpen) {
             return (
               <div className="px-4 py-3 space-y-2">
-                <p className="text-xs text-tertiary/70">
+                <p className="text-xs text-tertiary">
                   Scan another user's QR code to open a conversation.
                 </p>
                 <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black/5 border border-tertiary/10">
@@ -1329,7 +1329,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
                     placeholder="Group name"
                     autoFocus
                     className="w-full px-4 py-2 rounded-full bg-themewhite2 text-sm text-primary
-                               placeholder:text-tertiary/40 outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
+                               placeholder:text-tertiary outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
                   />
                 </div>
               )}
@@ -1359,7 +1359,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
                 )
               ))}
               {filtered.length === 0 && (
-                <p className="text-xs text-tertiary/40 text-center py-6">No contacts found</p>
+                <p className="text-xs text-tertiary text-center py-6">No contacts found</p>
               )}
             </div>
           )

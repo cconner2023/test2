@@ -23,7 +23,7 @@ export function EvaluationStep({
   const [notes, setNotes] = useState('')
 
   if (!taskData) {
-    return <div className="text-center py-12 text-tertiary/60">Task data not available</div>
+    return <div className="text-center py-12 text-tertiary">Task data not available</div>
   }
 
   const gradedSet = new Set(taskData.gradedSteps ?? [])
@@ -63,9 +63,9 @@ export function EvaluationStep({
       <div className="flex-1 overflow-y-auto pb-36">
         {/* Header */}
         <div className="mb-5">
-          <p className="text-[8pt] text-tertiary/50 font-mono">{taskNumber}</p>
-          <h3 className="text-lg font-semibold text-primary/90">{taskTitle}</h3>
-          <p className="text-xs text-tertiary/60 mt-1">Evaluating: <span className="font-medium text-primary/90">{medicName}</span></p>
+          <p className="text-[9pt] text-tertiary font-mono">{taskNumber}</p>
+          <h3 className="text-lg font-semibold text-primary">{taskTitle}</h3>
+          <p className="text-xs text-tertiary mt-1">Evaluating: <span className="font-medium text-primary">{medicName}</span></p>
         </div>
 
         {/* Task-level caution */}
@@ -78,7 +78,7 @@ export function EvaluationStep({
         {/* Standards */}
         <div className="mb-5">
           <SectionHeader>Standards</SectionHeader>
-          <p className="text-sm text-primary/80 leading-relaxed">{taskData.standards}</p>
+          <p className="text-sm text-primary leading-relaxed">{taskData.standards}</p>
         </div>
 
         {/* Performance Steps with inline GO/NO GO */}
@@ -119,10 +119,10 @@ export function EvaluationStep({
                     })()
                     return (
                       <div key={step.number} className={`flex items-center gap-2 py-2 ${step.isSubStep ? 'ml-6' : ''} ${parentIsGraded && !isGraded ? 'pr-[4.5rem]' : ''}`}>
-                        <span className="text-[9pt] text-tertiary/50 font-mono w-6 shrink-0 text-right">
+                        <span className="text-[9pt] text-tertiary font-mono w-6 shrink-0 text-right">
                           {step.number}
                         </span>
-                        <p className={`text-sm flex-1 min-w-0 ${isGraded ? 'text-primary/90' : 'text-tertiary/50'}`}>{step.text}</p>
+                        <p className={`text-sm flex-1 min-w-0 ${isGraded ? 'text-primary' : 'text-tertiary'}`}>{step.text}</p>
                         {isGraded && (
                           <div className="flex items-center gap-1 shrink-0">
                             <button
@@ -130,7 +130,7 @@ export function EvaluationStep({
                               className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90
                                 ${currentResult === 'NO_GO'
                                   ? 'bg-themeredred text-white'
-                                  : 'bg-themewhite3 text-tertiary/25 hover:text-themeredred hover:bg-themeredred/10'
+                                  : 'bg-themewhite3 text-tertiary hover:text-themeredred hover:bg-themeredred/10'
                                 }`}
                               aria-label={`NO GO step ${step.number}`}
                             >
@@ -141,7 +141,7 @@ export function EvaluationStep({
                               className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90
                                 ${currentResult === 'GO'
                                   ? 'bg-themegreen text-white'
-                                  : 'bg-themewhite3 text-tertiary/25 hover:text-themegreen hover:bg-themegreen/10'
+                                  : 'bg-themewhite3 text-tertiary hover:text-themegreen hover:bg-themegreen/10'
                                 }`}
                               aria-label={`GO step ${step.number}`}
                             >
@@ -173,7 +173,7 @@ export function EvaluationStep({
             rows={3}
             className="w-full px-3 py-2.5 rounded-lg bg-themewhite2 text-primary text-sm
                        border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                       transition-colors placeholder:text-tertiary/30 resize-none"
+                       transition-colors placeholder:text-tertiary resize-none"
           />
         </div>
       </div>
@@ -181,7 +181,7 @@ export function EvaluationStep({
       {/* Sticky bottom bar */}
       <div className="sticky bottom-0 left-0 right-0 bg-themewhite border-t border-tertiary/10 px-4 py-3 space-y-2">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-tertiary/60">
+          <span className="text-tertiary">
             {evaluatedCount}/{totalSteps} steps evaluated
           </span>
           {overallPreview && (

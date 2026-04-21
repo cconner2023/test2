@@ -6,10 +6,9 @@
  * Merged zones (those with `rects`) render as a single SVG composite shape
  * using clipPath for uniform fill + traced outline for the border.
  *
- * Item pins float at their x/y positions over the canvas and are draggable.
+ * Item pins float at their x/y positions over the canvas (tap-only in view mode; drag is handled by EditItemPin in edit mode).
  */
-import { memo, useState, useRef, useCallback } from 'react'
-import { MoreHorizontal } from 'lucide-react'
+import { memo } from 'react'
 import { traceCompositeOutline } from '../../lib/tagIndex'
 import type { LocationTag, LocalPropertyItem, ZoneRect } from '../../Types/PropertyTypes'
 
@@ -24,10 +23,6 @@ interface LocationTagPhotoProps {
   items?: LocalPropertyItem[]
   /** Called when an item pin is tapped */
   onItemTap?: (item: LocalPropertyItem) => void
-  /** Called when ellipsis menu button is tapped — provides targetId and tap coords */
-  onZoneMenu?: (targetId: string, x: number, y: number) => void
-  /** Called when an item pin is dragged to a new position */
-  onItemPinMove?: (targetId: string, canvasId: string, newX: number, newY: number) => void
 }
 
 /** SVG composite shape — uniform fill + outer contour, no overlap darkening */
@@ -83,101 +78,27 @@ function CompositeZoneSVG({ rects, selected, id, photo }: { rects: ZoneRect[]; s
   )
 }
 
-interface ItemPinProps {
+/** Item badge in view mode — tap-only, no drag. Dragging is handled by EditItemPin in edit mode. */
+function ItemPin({ pin, item, onTap }: {
   pin: LocationTag
   item: LocalPropertyItem
   onTap: (item: LocalPropertyItem) => void
-  onPinMove?: (targetId: string, canvasId: string, newX: number, newY: number) => void
-  canvasRef: React.RefObject<HTMLDivElement | null>
-}
-
-function ItemPin({ pin, item, onTap, onPinMove, canvasRef }: ItemPinProps) {
-  const [dragOffset, setDragOffset] = useState<{ dx: number; dy: number } | null>(null)
-  const dragState = useRef<{
-    startClientX: number
-    startClientY: number
-    moved: boolean
-    pointerId: number
-  } | null>(null)
-
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    e.stopPropagation()
-    e.preventDefault()
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    dragState.current = {
-      startClientX: e.clientX,
-      startClientY: e.clientY,
-      moved: false,
-      pointerId: e.pointerId,
-    }
-    setDragOffset({ dx: 0, dy: 0 })
-  }, [])
-
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!dragState.current) return
-    e.stopPropagation()
-    const dx = e.clientX - dragState.current.startClientX
-    const dy = e.clientY - dragState.current.startClientY
-    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
-      dragState.current.moved = true
-    }
-    setDragOffset({ dx, dy })
-  }, [])
-
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    if (!dragState.current) return
-    e.stopPropagation()
-    const wasMoved = dragState.current.moved
-    dragState.current = null
-
-    if (!wasMoved) {
-      setDragOffset(null)
-      onTap(item)
-      return
-    }
-
-    // Compute new normalised position relative to the canvas container
-    const canvas = canvasRef.current
-    if (!canvas || !onPinMove) {
-      setDragOffset(null)
-      return
-    }
-
-    const rect = canvas.getBoundingClientRect()
-    const newX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-    const newY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height))
-    setDragOffset(null)
-    onPinMove(pin.target_id, pin.location_id, newX, newY)
-  }, [item, onTap, onPinMove, pin.target_id, pin.location_id, canvasRef])
-
-  const isDragging = dragOffset !== null && (dragState.current?.moved ?? false)
-
+}) {
   return (
     <div
-      className={[
-        'absolute z-20 select-none touch-none',
-        isDragging ? 'cursor-grabbing' : 'cursor-pointer',
-      ].join(' ')}
+      className="absolute z-20 select-none cursor-pointer"
       style={{
         left: `${pin.x * 100}%`,
         top: `${pin.y * 100}%`,
-        transform: dragOffset
-          ? `translate(calc(-50% + ${dragOffset.dx}px), calc(-50% + ${dragOffset.dy}px))`
-          : 'translate(-50%, -50%)',
+        transform: 'translate(-50%, -50%)',
       }}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
+      onClick={(e) => { e.stopPropagation(); onTap(item) }}
     >
-      <div
-        className={[
-          'px-2 py-1 rounded-full text-[8pt] font-medium whitespace-nowrap max-w-[100px] truncate',
-          'bg-themewhite3/90 text-primary border border-themeblue3/30 shadow-sm backdrop-blur-sm',
-          'min-h-[32px] flex items-center active:scale-95 transition-transform',
-          isDragging ? 'shadow-md scale-105' : '',
-        ].join(' ')}
-      >
-        {item.name}
+      <div className="px-2 py-1 rounded-full text-[9pt] font-medium bg-themewhite3/90 text-primary border border-themeblue3/30 shadow-sm backdrop-blur-sm min-h-[28px] flex items-center gap-1 active:scale-95 transition-transform">
+        <span className="whitespace-nowrap max-w-[90px] truncate">{item.name}</span>
+        {item.quantity > 1 && (
+          <span className="shrink-0 text-[8pt] font-semibold text-themeblue1 bg-themeblue3/15 px-1 rounded-full leading-tight">×{item.quantity}</span>
+        )}
       </div>
     </div>
   )
@@ -191,12 +112,9 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
   photoMap,
   items,
   onItemTap,
-  onZoneMenu,
-  onItemPinMove,
 }: LocationTagPhotoProps) {
   const zones = tags.filter((t) => (t.width ?? 0) > 0 && (t.height ?? 0) > 0)
   const itemPins = tags.filter((t) => t.target_type === 'item')
-  const canvasRef = useRef<HTMLDivElement>(null)
 
   // Build item lookup by id
   const itemById = new Map<string, LocalPropertyItem>()
@@ -206,7 +124,6 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
 
   return (
     <div
-      ref={canvasRef}
       className="relative origin-top-left"
       style={{
         width: `${scale * 100}%`,
@@ -277,40 +194,29 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
               <div className="absolute inset-0 bg-themeyellow/20 pointer-events-none" />
             )}
             <div className="absolute inset-0 flex flex-col items-center justify-center p-1 gap-0.5 overflow-hidden">
-              <span className={[
-                'text-[10pt] font-medium text-center leading-tight line-clamp-2 pointer-events-none',
-                photo ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : 'text-themeblue1 drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]',
-              ].join(' ')}>
+              <span
+                className="text-[10pt] font-medium text-center leading-tight line-clamp-2 pointer-events-none"
+                style={photo
+                  ? { color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6)' }
+                  : undefined}
+              >
                 {tag.label}
               </span>
               {zoneItemCount > 0 && (
-                <span className="text-[8pt] px-1.5 py-0.5 rounded-full bg-black/10 text-themeblue1 pointer-events-none">
+                <span className={[
+                  'text-[9pt] px-1.5 py-0.5 rounded-full pointer-events-none',
+                  photo ? 'bg-black/40 text-white' : 'bg-black/10 text-themeblue1',
+                ].join(' ')}>
                   {zoneItemCount} {zoneItemCount === 1 ? 'item' : 'items'}
                 </span>
               )}
             </div>
 
-            {/* Ellipsis menu button — visible on selected (mobile) or hover (desktop) */}
-            {onZoneMenu && (
-              <button
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onZoneMenu(tag.target_id, e.clientX, e.clientY)
-                }}
-                className={[
-                  'absolute top-1 right-1 w-7 h-7 rounded-full bg-black/20 backdrop-blur-sm flex items-center justify-center active:scale-95 transition-all',
-                  isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
-                ].join(' ')}
-              >
-                <MoreHorizontal size={14} className="text-white" />
-              </button>
-            )}
           </div>
         )
       })}
 
-      {/* Item pins — spatially positioned, draggable */}
+      {/* Item pins — spatially positioned, tap-only in view mode */}
       {itemPins.map((pin) => {
         const item = itemById.get(pin.target_id)
         if (!item) return null
@@ -320,8 +226,6 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
             pin={pin}
             item={item}
             onTap={onItemTap ?? (() => {})}
-            onPinMove={onItemPinMove}
-            canvasRef={canvasRef}
           />
         )
       })}

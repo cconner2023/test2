@@ -29,7 +29,7 @@ function statusLabel(s: string) {
     case 'valid': return { text: 'Valid', cls: 'text-themegreen bg-themegreen/10' }
     case 'expiring': return { text: 'Expiring', cls: 'text-themeyellow bg-themeyellow/10' }
     case 'expired': return { text: 'Expired', cls: 'text-themeredred bg-themeredred/10' }
-    default: return { text: 'No Date', cls: 'text-tertiary/50 bg-tertiary/5' }
+    default: return { text: 'No Date', cls: 'text-tertiary bg-tertiary/5' }
   }
 }
 
@@ -54,7 +54,7 @@ function toIsoDate(display: string): string {
   return ''
 }
 
-const pillInput = 'w-full rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300'
+const pillInput = 'w-full rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary transition-all duration-300'
 
 const emptyForm = { title: '', cert_number: '', issue_date: '', exp_date: '', is_primary: false }
 
@@ -261,7 +261,7 @@ export const AdminCertsSection = ({
 
   if (certs.length === 0 && !editing) {
     return (
-      <p className="text-sm text-tertiary/50 py-2">No certifications</p>
+      <p className="text-sm text-tertiary py-2">No certifications</p>
     )
   }
 
@@ -294,30 +294,30 @@ export const AdminCertsSection = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                      <Award size={18} className="text-tertiary/50" />
+                      <Award size={18} className="text-tertiary" />
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-primary truncate">{cert.title}</p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[11px] text-tertiary/70">
+                        <span className="text-[9pt] text-tertiary">
                           {cert.cert_number ? `#${cert.cert_number}` : 'No cert number'}
                         </span>
                         {cert.is_primary && (
                           <>
-                            <span className="text-[11px] text-tertiary/30">&middot;</span>
-                            <span className="text-[11px] text-tertiary/70">Primary</span>
+                            <span className="text-[9pt] text-tertiary">&middot;</span>
+                            <span className="text-[9pt] text-tertiary">Primary</span>
                           </>
                         )}
                         {cert.exp_date && (
                           <>
-                            <span className="text-[11px] text-tertiary/30">&middot;</span>
-                            <span className="text-[11px] text-tertiary/70">{formatDate(cert.exp_date)}</span>
+                            <span className="text-[9pt] text-tertiary">&middot;</span>
+                            <span className="text-[9pt] text-tertiary">{formatDate(cert.exp_date)}</span>
                           </>
                         )}
                       </div>
                     </div>
                   </div>
-                  <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{badge.text}</span>
+                  <span className={`text-[9pt] md:text-[9pt] font-medium px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{badge.text}</span>
                 </div>
               </div>
             )
@@ -328,7 +328,7 @@ export const AdminCertsSection = ({
       {editing && mode === 'view' && (
         <button
           onClick={() => { setMode('adding'); setForm(emptyForm) }}
-          className="w-full flex items-center justify-center gap-1.5 py-2.5 mt-2 rounded-lg border border-dashed border-tertiary/20 text-xs text-tertiary/50 hover:border-themeblue2 hover:text-themeblue2 transition-colors active:scale-95"
+          className="w-full flex items-center justify-center gap-1.5 py-2.5 mt-2 rounded-lg border border-dashed border-tertiary/20 text-xs text-tertiary hover:border-themeblue2 hover:text-themeblue2 transition-colors active:scale-95"
         >
           <Plus size={14} />
           Add Certification

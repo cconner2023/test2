@@ -50,8 +50,8 @@ export const OrderSetManager = ({
     return (
         <section data-tour="plan-orderset-section">
             <div className="pb-2 flex items-center gap-2">
-                <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Order Sets</p>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
+                <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Order Sets</p>
+                <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
                     {orderSets.length + stagedAdds.length - stagedDeletes.size}
                 </span>
             </div>
@@ -69,7 +69,7 @@ export const OrderSetManager = ({
                                 <button
                                     type="button"
                                     onClick={() => onScopeChange?.(scope === 'personal' ? 'clinic' : 'personal')}
-                                    className={`shrink-0 px-2.5 py-2.5 rounded-full text-[10px] font-semibold tracking-wide transition-all active:scale-95 ${
+                                    className={`shrink-0 px-2.5 py-2.5 rounded-full text-[9pt] font-semibold tracking-wide transition-all active:scale-95 ${
                                         scope === 'clinic'
                                             ? 'bg-tertiary/10 text-tertiary border border-tertiary/20'
                                             : 'bg-themeblue2/10 text-themeblue2/70 border border-themeblue2/15'
@@ -85,7 +85,7 @@ export const OrderSetManager = ({
                                     onChange={(e) => setInputName(e.target.value)}
                                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSubmitNew(); } }}
                                     placeholder="New order set name..."
-                                    className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary/30"
+                                    className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary"
                                 />
                             </div>
                             {inputName.trim() && (
@@ -119,7 +119,7 @@ export const OrderSetManager = ({
                                 value={composing?.name ?? ''}
                                 onChange={(e) => onComposingNameChange(e.target.value)}
                                 placeholder="Order set name..."
-                                className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary/30"
+                                className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary"
                             />
                         </div>
                     </div>
@@ -164,14 +164,14 @@ export const OrderSetManager = ({
                                                 isMarkedDelete ? 'text-themeredred/60 line-through' : 'text-primary'
                                             }`}>{display.name}</p>
                                             {isClinic && (
-                                                <span className="text-[9px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/60 shrink-0 ml-1.5">
+                                                <span className="text-[9pt] md:text-[9pt] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary shrink-0 ml-1.5">
                                                     Clinic
                                                 </span>
                                             )}
                                         </div>
                                         {tags.length > 0 && (
-                                            <p className={`text-[11px] mt-0.5 pl-0.5 line-clamp-2 ${
-                                                isMarkedDelete ? 'text-themeredred/30' : 'text-tertiary/50'
+                                            <p className={`text-[9pt] mt-0.5 pl-0.5 line-clamp-2 ${
+                                                isMarkedDelete ? 'text-themeredred/30' : 'text-tertiary'
                                             }`}>
                                                 {tags.join(', ')}
                                             </p>
@@ -192,7 +192,7 @@ export const OrderSetManager = ({
                                     >
                                         <p className="text-sm font-medium text-primary truncate">{os.name}</p>
                                         {tags.length > 0 && (
-                                            <p className="text-[11px] text-tertiary/50 mt-0.5 pl-0.5 line-clamp-2">
+                                            <p className="text-[9pt] text-tertiary mt-0.5 pl-0.5 line-clamp-2">
                                                 {tags.join(', ')}
                                             </p>
                                         )}
@@ -201,7 +201,7 @@ export const OrderSetManager = ({
                             })}
                         </div>
                     ) : !composing ? (
-                        <p className="text-sm text-tertiary/50 py-2 text-center">
+                        <p className="text-sm text-tertiary py-2 text-center">
                             {editing ? 'Name your first order set above' : 'No order sets configured'}
                         </p>
                     ) : null}

@@ -1,6 +1,5 @@
-import { memo, useState } from 'react'
-import { ChevronRight, RotateCcw, FileText, Trash2 } from 'lucide-react'
-import { PreviewOverlay } from '../PreviewOverlay'
+import { memo } from 'react'
+import { ChevronRight, FileText } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import type { TC3Card } from '../../Types/TC3Types'
 import { MARCHForm } from './MARCHForm'
@@ -20,16 +19,9 @@ function isPopulated(card: TC3Card): boolean {
 }
 
 export const TC3BackColumn = memo(function TC3BackColumn() {
-  const resetCard = useTC3Store((s) => s.resetCard)
   const openExport = useTC3Store((s) => s.openExport)
   const card = useTC3Store((s) => s.card)
   const hasData = isPopulated(card)
-  const [showConfirmReset, setShowConfirmReset] = useState(false)
-
-  const handleReset = () => {
-    resetCard()
-    setShowConfirmReset(false)
-  }
 
   return (
     <div className="h-full flex flex-col bg-themewhite">
@@ -43,7 +35,7 @@ export const TC3BackColumn = memo(function TC3BackColumn() {
 
       {/* Footer */}
       {hasData && (
-        <div className="shrink-0 px-3 py-3 border-t border-tertiary/10 space-y-2">
+        <div className="shrink-0 px-3 py-3 border-t border-tertiary/10">
           <button
             data-tour="tc3-export"
             type="button"
@@ -52,37 +44,17 @@ export const TC3BackColumn = memo(function TC3BackColumn() {
           >
             <div className="flex items-center gap-3 px-4 py-3.5">
               <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                <FileText size={18} className="text-tertiary/50" />
+                <FileText size={18} className="text-tertiary" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-primary">Export Note & Barcode</p>
-                <p className="text-[11px] text-secondary mt-0.5">Generate encoded card for transfer</p>
+                <p className="text-[9pt] text-secondary mt-0.5">Generate encoded card for transfer</p>
               </div>
-              <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+              <ChevronRight size={16} className="text-tertiary shrink-0" />
             </div>
-          </button>
-
-          <button
-            onClick={() => setShowConfirmReset(true)}
-            className="flex items-center gap-1.5 text-[11px] text-secondary hover:text-themeredred transition-colors px-1 py-1"
-          >
-            <RotateCcw size={14} /> <span>New Card</span>
           </button>
         </div>
       )}
-
-      <PreviewOverlay
-        isOpen={showConfirmReset}
-        onClose={() => setShowConfirmReset(false)}
-        anchorRect={null}
-        maxWidth={280}
-        title="Clear card?"
-        actions={[
-          { key: 'clear', label: 'Clear card', icon: Trash2, onAction: handleReset, variant: 'danger' },
-        ]}
-      >
-        <p className="px-4 pb-4 text-xs text-secondary">Current entries will be lost.</p>
-      </PreviewOverlay>
     </div>
   )
 })

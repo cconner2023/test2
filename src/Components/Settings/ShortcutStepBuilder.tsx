@@ -16,7 +16,7 @@ const NODE_CONFIG = {
         bg: 'bg-tertiary/8',
         border: 'border-tertiary/15',
         iconBg: 'bg-tertiary/15',
-        iconColor: 'text-tertiary/60',
+        iconColor: 'text-tertiary',
         label: 'Text',
     },
     step: {
@@ -66,7 +66,7 @@ const nodePreview = (node: TemplateNode): string => {
 };
 
 const INPUT_CLASS =
-    'w-full text-sm px-3 py-2 rounded-lg border border-tertiary/10 bg-themewhite outline-none focus:border-themeblue2/30 text-primary placeholder:text-tertiary/30';
+    'w-full text-sm px-3 py-2 rounded-lg border border-tertiary/10 bg-themewhite outline-none focus:border-themeblue2/30 text-primary placeholder:text-tertiary';
 
 // ── Add Step (+) with type picker popover ──
 // Branch option only shows when Choice nodes exist. Tapping Branch
@@ -107,7 +107,7 @@ const AddStepButton = ({ onAdd, onAddBranch, topNodes }: AddStepButtonProps) => 
                 {pickingBranchField ? (
                     /* Branch field picker */
                     <div className="rounded-xl bg-themewhite2 border border-tertiary/15 shadow-lg px-2 py-2 min-w-[140px]">
-                        <p className="text-[9px] text-tertiary/40 uppercase tracking-wider px-1 mb-1">Branch on…</p>
+                        <p className="text-[9pt] md:text-[9pt] text-tertiary uppercase tracking-wider px-1 mb-1">Branch on…</p>
                         {choiceLabels.map(label => (
                             <button
                                 key={label}
@@ -122,7 +122,7 @@ const AddStepButton = ({ onAdd, onAddBranch, topNodes }: AddStepButtonProps) => 
                         <button
                             type="button"
                             onClick={() => setPickingBranchField(false)}
-                            className="w-full text-[10px] text-tertiary/40 mt-1 px-2 py-1 hover:text-tertiary transition-colors"
+                            className="w-full text-[9pt] text-tertiary mt-1 px-2 py-1 hover:text-tertiary transition-colors"
                         >
                             Back
                         </button>
@@ -141,7 +141,7 @@ const AddStepButton = ({ onAdd, onAddBranch, topNodes }: AddStepButtonProps) => 
                                     className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg ${config.bg} active:scale-95 transition-all`}
                                 >
                                     <Icon size={14} className={config.iconColor} />
-                                    <span className={`text-[9px] font-medium ${config.iconColor}`}>{config.label}</span>
+                                    <span className={`text-[9pt] md:text-[9pt] font-medium ${config.iconColor}`}>{config.label}</span>
                                 </button>
                             );
                         })}
@@ -152,7 +152,7 @@ const AddStepButton = ({ onAdd, onAddBranch, topNodes }: AddStepButtonProps) => 
                                 className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg ${NODE_CONFIG.branch.bg} active:scale-95 transition-all`}
                             >
                                 <GitBranch size={14} className={NODE_CONFIG.branch.iconColor} />
-                                <span className={`text-[9px] font-medium ${NODE_CONFIG.branch.iconColor}`}>Branch</span>
+                                <span className={`text-[9pt] md:text-[9pt] font-medium ${NODE_CONFIG.branch.iconColor}`}>Branch</span>
                             </button>
                         )}
                     </div>
@@ -165,7 +165,7 @@ const AddStepButton = ({ onAdd, onAddBranch, topNodes }: AddStepButtonProps) => 
                 className={`w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all ${
                     open
                         ? 'bg-tertiary/15 text-tertiary rotate-45'
-                        : 'bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40'
+                        : 'bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary'
                 }`}
             >
                 <Plus size={14} />
@@ -286,7 +286,7 @@ export const ShortcutStepBuilder = ({ nodes, onChange, rootNodes }: ShortcutStep
         <div>
             <div ref={containerRef} className="space-y-2">
                 {nodes.length === 0 && (
-                    <p className="text-[11px] text-tertiary/40 text-center py-4">
+                    <p className="text-[9pt] text-tertiary text-center py-4">
                         No steps yet — add blocks below
                     </p>
                 )}
@@ -334,7 +334,7 @@ export const ShortcutStepBuilder = ({ nodes, onChange, rootNodes }: ShortcutStep
                                         className="cursor-grab touch-none select-none shrink-0"
                                         onPointerDown={(e) => handleDragStart(e, i)}
                                     >
-                                        <GripVertical size={14} className="text-tertiary/30" />
+                                        <GripVertical size={14} className="text-tertiary" />
                                     </div>
 
                                     <div className={`w-6 h-6 rounded-lg ${config.iconBg} flex items-center justify-center shrink-0`}>
@@ -349,7 +349,7 @@ export const ShortcutStepBuilder = ({ nodes, onChange, rootNodes }: ShortcutStep
                                         <p className="text-sm font-medium text-primary truncate">
                                             {nodePreview(node)}
                                         </p>
-                                        <p className="text-[10px] text-tertiary/40 uppercase tracking-wider">
+                                        <p className="text-[9pt] text-tertiary uppercase tracking-wider">
                                             {config.label}
                                         </p>
                                     </button>
@@ -359,7 +359,7 @@ export const ShortcutStepBuilder = ({ nodes, onChange, rootNodes }: ShortcutStep
                                         onClick={() => handleDelete(i)}
                                         className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center hover:bg-themeredred/10 active:scale-95 transition-all"
                                     >
-                                        <X size={14} className="text-tertiary/40" />
+                                        <X size={14} className="text-tertiary" />
                                     </button>
                                 </div>
 
@@ -411,7 +411,7 @@ export const ShortcutStepBuilder = ({ nodes, onChange, rootNodes }: ShortcutStep
                                                                 key={key}
                                                                 type="button"
                                                                 onClick={() => updateNode(i, { ...node, label: node.label || key, options: vals })}
-                                                                className="text-[10px] px-2 py-0.5 rounded-full bg-tertiary/8 text-tertiary/70 hover:bg-tertiary/15 transition-colors active:scale-95"
+                                                                className="text-[9pt] px-2 py-0.5 rounded-full bg-tertiary/8 text-tertiary hover:bg-tertiary/15 transition-colors active:scale-95"
                                                             >
                                                                 {key}: {vals.join(' | ')}
                                                             </button>
@@ -514,10 +514,10 @@ const BranchFlow = ({ node, topNodes, onChange, onDelete, onDragStart }: BranchF
                                     <div className="w-9 h-9 rounded-lg bg-themepurple/10 border border-themepurple/15 flex items-center justify-center">
                                         <GitBranch size={13} className="text-themepurple/40 group-hover:text-themepurple/70 transition-colors" />
                                     </div>
-                                    <p className="text-[8px] text-themepurple/40 font-medium mt-0.5 max-w-[40px] truncate text-center group-hover:text-themepurple/70 transition-colors">
+                                    <p className="text-[9pt] md:text-[9pt] text-themepurple/40 font-medium mt-0.5 max-w-[40px] truncate text-center group-hover:text-themepurple/70 transition-colors">
                                         {caseKey}
                                     </p>
-                                    <p className="text-[7px] text-tertiary/30">
+                                    <p className="text-[9pt] md:text-[9pt] text-tertiary">
                                         {caseNodes.length} step{caseNodes.length !== 1 ? 's' : ''}
                                     </p>
                                 </button>
@@ -541,7 +541,7 @@ const BranchFlow = ({ node, topNodes, onChange, onDelete, onDragStart }: BranchF
                                     className="cursor-grab touch-none select-none shrink-0"
                                     onPointerDown={onDragStart}
                                 >
-                                    <GripVertical size={14} className="text-tertiary/30" />
+                                    <GripVertical size={14} className="text-tertiary" />
                                 </div>
                                 <div className="w-6 h-6 rounded-lg bg-themepurple/15 flex items-center justify-center shrink-0">
                                     <GitBranch size={12} className="text-themepurple" />
@@ -550,7 +550,7 @@ const BranchFlow = ({ node, topNodes, onChange, onDelete, onDragStart }: BranchF
                                     <p className="text-sm font-medium text-primary truncate">
                                         {node.triggerField}: {activeCase}
                                     </p>
-                                    <p className="text-[10px] text-themepurple/50 uppercase tracking-wider">
+                                    <p className="text-[9pt] text-themepurple/50 uppercase tracking-wider">
                                         if "{activeCase}"
                                     </p>
                                 </div>
@@ -559,7 +559,7 @@ const BranchFlow = ({ node, topNodes, onChange, onDelete, onDragStart }: BranchF
                                     onClick={() => removeCase(activeCase)}
                                     className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center hover:bg-themeredred/10 active:scale-95 transition-all"
                                 >
-                                    <X size={14} className="text-tertiary/40" />
+                                    <X size={14} className="text-tertiary" />
                                 </button>
                             </div>
 
@@ -577,7 +577,7 @@ const BranchFlow = ({ node, topNodes, onChange, onDelete, onDragStart }: BranchF
                             />
                         </>
                     ) : (
-                        <p className="text-[11px] text-tertiary/40 text-center py-3">
+                        <p className="text-[9pt] text-tertiary text-center py-3">
                             All cases removed
                         </p>
                     )}
@@ -605,7 +605,7 @@ const BranchFlow = ({ node, topNodes, onChange, onDelete, onDragStart }: BranchF
                                 showAddMenu ? 'max-h-60 opacity-100 scale-100' : 'max-h-0 opacity-0 scale-95 pointer-events-none'
                             }`}>
                                 <div className="rounded-xl bg-themewhite2 border border-tertiary/15 shadow-lg px-2 py-2 min-w-[100px]">
-                                    <p className="text-[9px] text-tertiary/40 uppercase tracking-wider px-1 mb-1">Add case</p>
+                                    <p className="text-[9pt] md:text-[9pt] text-tertiary uppercase tracking-wider px-1 mb-1">Add case</p>
                                     {unusedOptions.map(opt => (
                                         <button
                                             key={opt}
@@ -639,7 +639,7 @@ const BranchFlow = ({ node, topNodes, onChange, onDelete, onDragStart }: BranchF
             {/* ── End Branch marker ── */}
             <div className="flex items-center gap-2 px-2 pt-1">
                 <div className="flex-1 h-px bg-themepurple/15" />
-                <p className="text-[10px] text-themepurple/30 font-medium uppercase tracking-wider shrink-0">
+                <p className="text-[9pt] text-themepurple/30 font-medium uppercase tracking-wider shrink-0">
                     end {node.triggerField || 'branch'}
                 </p>
                 <div className="flex-1 h-px bg-themepurple/15" />

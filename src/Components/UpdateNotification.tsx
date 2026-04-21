@@ -78,7 +78,7 @@ const UpdateNotification: React.FC<{ onVisibilityChange?: (visible: boolean) => 
                     </div>
                     <div>
                         <p className="text-sm font-medium text-primary">Offline Ready</p>
-                        <p className="text-xs text-tertiary/60">All data cached locally.</p>
+                        <p className="text-xs text-tertiary">All data cached locally.</p>
                     </div>
                 </div>
             </div>

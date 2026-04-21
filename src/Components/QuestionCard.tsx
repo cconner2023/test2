@@ -80,7 +80,7 @@ export const QuestionCard = memo(function QuestionCard({
                                     <div className="text-[9pt] font-semibold mb-1 uppercase tracking-wider text-themeblue2">
                                         Screening Tool
                                     </div>
-                                    <div className="text-[10pt] font-normal text-primary/80">
+                                    <div className="text-[10pt] font-normal text-primary">
                                         {question.text}
                                     </div>
                                 </div>
@@ -136,7 +136,7 @@ export const QuestionCard = memo(function QuestionCard({
                                     <div className={`text-[9pt] font-semibold mb-1 uppercase tracking-wider ${isDeferred ? 'text-themered' : 'text-themeblue2'}`}>
                                         Action Required
                                     </div>
-                                    <div className="text-[10pt] font-normal text-primary/80">
+                                    <div className="text-[10pt] font-normal text-primary">
                                         {question.text}
                                     </div>
                                 </div>
@@ -214,7 +214,7 @@ export const QuestionCard = memo(function QuestionCard({
             `}
                         >
                             {/* Question Header */}
-                            <div className={`px-4 py-3 ${isRF ? 'text-center text-themeredred' : 'text-primary/80'}`}>
+                            <div className={`px-4 py-3 ${isRF ? 'text-center text-themeredred' : 'text-primary'}`}>
                                 {/* Title for RF cards */}
                                 {isRF && (
                                     <div className="text-[9pt] font-semibold mb-1 uppercase tracking-wider">

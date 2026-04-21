@@ -40,25 +40,25 @@ export function SelectTaskStep({
 
   return (
     <div>
-      <p className="text-xs text-tertiary/60 mb-3">
+      <p className="text-xs text-tertiary mb-3">
         Testing <span className="font-medium text-primary">{medicName}</span> &mdash; select a task:
       </p>
 
       {isSearching && (
-        <p className="text-[10px] text-tertiary/50 mb-2">
+        <p className="text-[9pt] text-tertiary mb-2">
           {totalResults} result{totalResults !== 1 ? 's' : ''}
         </p>
       )}
 
       {totalResults === 0 && isSearching ? (
-        <p className="text-sm text-tertiary/40 text-center py-8">No tasks match your search.</p>
+        <p className="text-sm text-tertiary text-center py-8">No tasks match your search.</p>
       ) : (
         <div data-tour="supervisor-task-list" className="space-y-5">
           {Array.from(displayCategories).map(([categoryName, tasks]) => (
             <div key={categoryName}>
               {/* Section header */}
-              <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
-                {categoryName} <span className="font-normal text-tertiary/50">({tasks.length})</span>
+              <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
+                {categoryName} <span className="font-normal text-tertiary">({tasks.length})</span>
               </p>
 
               {/* Card container */}
@@ -83,21 +83,21 @@ export function SelectTaskStep({
                         <p className={`text-sm font-medium truncate ${testable ? 'text-primary' : 'text-tertiary'}`}>
                           {task.title}
                         </p>
-                        <p className="text-[8pt] text-tertiary/50 font-mono">
+                        <p className="text-[9pt] text-tertiary font-mono">
                           {task.taskId}
                         </p>
                         {!testable && (
-                          <p className="text-[8pt] text-tertiary/40 flex items-center gap-1 mt-0.5">
+                          <p className="text-[9pt] text-tertiary flex items-center gap-1 mt-0.5">
                             <Lock size={9} /> Not testable
                           </p>
                         )}
                       </div>
                       <div className="shrink-0 ml-2 flex items-center gap-2">
-                        <span className="px-1.5 py-0.5 rounded text-[8pt] font-semibold bg-themeblue3/10 text-tertiary/60">
+                        <span className="px-1.5 py-0.5 rounded text-[9pt] font-semibold bg-themeblue3/10 text-tertiary">
                           {badge}
                         </span>
                         {testable && (
-                          <ChevronRight size={16} className="text-tertiary/30" />
+                          <ChevronRight size={16} className="text-tertiary" />
                         )}
                       </div>
                     </button>

@@ -10,6 +10,8 @@ import { formatTC3Note } from '../Utilities/TC3Formatter';
 import type { ParsedNote } from '../Utilities/NoteCodec';
 import type { TC3Card } from '../Types/TC3Types';
 import { assembleNote, formatSignature } from '../Utilities/NoteFormatter';
+import { medevacFromCompact, medevacToText } from '../lib/reportExport';
+import type { MedevacRequest } from '../Types/MedevacTypes';
 
 export interface ImportPreview {
     fullNote: string;
@@ -23,11 +25,32 @@ export interface ImportPreview {
     encodedText: string;
     isTC3?: boolean;
     tc3Card?: TC3Card;
+    isMedevac?: boolean;
+    medevacReq?: MedevacRequest;
 }
 
 /** Provides importFromBarcode: decodes a barcode string, reconstructs algorithm state, and returns an ImportPreview. */
 export const useNoteImport = () => {
     const importFromBarcode = useCallback((barcodeString: string): ImportPreview => {
+        // ── 9-Line MEDEVAC path ───────────────────────────────
+        if (barcodeString.startsWith('9L:')) {
+            const req = medevacFromCompact(barcodeString)
+            if (!req) throw new Error('Could not parse 9-line barcode')
+            return {
+                fullNote: medevacToText(req),
+                parsed: null,
+                symptomText: '9-Line MEDEVAC',
+                symptomIcon: 'MEDEVAC',
+                dispositionType: '',
+                dispositionText: '',
+                authorLabel: '',
+                userId: null,
+                encodedText: barcodeString,
+                isMedevac: true,
+                medevacReq: req,
+            }
+        }
+
         // ── TC3 path ──────────────────────────────────────────
         if (isTC3Encoding(barcodeString)) {
             const result = parseTC3Encoding(barcodeString);

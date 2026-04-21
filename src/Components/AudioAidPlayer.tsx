@@ -31,7 +31,7 @@ function AudioAidItem({ aid, isPlaying, onPlay, onStop }: {
                     {aid.label}
                 </p>
                 {aid.description && (
-                    <p className="text-[9pt] text-tertiary/60 leading-snug mt-0.5">{aid.description}</p>
+                    <p className="text-[9pt] text-tertiary leading-snug mt-0.5">{aid.description}</p>
                 )}
             </div>
         </button>
@@ -72,7 +72,7 @@ export function AudioAidPlayer({ audioAids }: { audioAids: AudioAid[] }) {
 
     return (
         <div className="mb-4">
-            <p className="text-[9pt] font-semibold text-tertiary/60 uppercase tracking-wider mb-1.5">Audio Training Aids</p>
+            <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider mb-1.5">Audio Training Aids</p>
             <div className="space-y-1.5">
                 {audioAids.map((aid, i) => (
                     <AudioAidItem

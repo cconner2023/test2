@@ -233,10 +233,7 @@ interface ClinicCardProps {
 }
 
 function ClinicCard({ clinic, assignedUserCount, onTap, onContextMenu }: ClinicCardProps) {
-  const longPressHandlers = useLongPress(() => {
-    // Long-press opens context menu centered on the element; use a fallback position
-    onContextMenu(window.innerWidth / 2, window.innerHeight / 2)
-  })
+  const longPressHandlers = useLongPress((x, y) => onContextMenu(x, y))
 
   return (
     <div
@@ -252,20 +249,20 @@ function ClinicCard({ clinic, assignedUserCount, onTap, onContextMenu }: ClinicC
       className="flex items-center gap-3 px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5 cursor-pointer select-none"
     >
       <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-        <Building2 size={16} className="text-tertiary/50" />
+        <Building2 size={16} className="text-tertiary" />
       </div>
 
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-primary truncate">{clinic.name}</p>
-        <p className="text-[11px] text-tertiary/70 mt-0.5 truncate">
-          {[clinic.location, clinic.uics.length > 0 ? clinic.uics.join(' · ') : null].filter(Boolean).join(' — ') || 'No location'}
+        <p className="text-[9pt] text-tertiary mt-0.5 truncate">
+          {[clinic.location, clinic.uics.length > 0 ? clinic.uics.join(' · ') : null].filter(Boolean).join(' — ')}
         </p>
       </div>
 
-      <span className="text-[11px] text-tertiary/50 shrink-0">
+      <span className="text-[9pt] text-tertiary shrink-0">
         {assignedUserCount} user{assignedUserCount !== 1 ? 's' : ''}
       </span>
-      <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+      <ChevronRight size={16} className="text-tertiary shrink-0" />
     </div>
   )
 }

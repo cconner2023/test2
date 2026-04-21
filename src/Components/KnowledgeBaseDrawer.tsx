@@ -11,7 +11,7 @@ import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { VitalSignsCalculator, type VitalSignsCalculatorHandle } from './VitalSignsCalculator'
 import { BurnCalculator } from './BurnCalculator'
 import { BloodProductsReference } from './BloodProductsReference'
-import { NineLineKB } from './Reports/NineLineKB'
+import { NineLineKB, NineLineExport } from './Reports/NineLineKB'
 import { KBOverlay } from './KBOverlay'
 import { PreviewOverlay } from './PreviewOverlay'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
@@ -30,6 +30,8 @@ import type { subjectAreaArrayOptions } from '../Types/CatTypes'
 import { medList, type medListTypes } from '../Data/MedData'
 import { tc3MedList } from '../Data/TC3MedData'
 import type { ScreenerConfig, ScreenerWordList } from '../Types/AlgorithmTypes'
+import type { MedevacRequest } from '../Types/MedevacTypes'
+import { useMedevacStore } from '../stores/useMedevacStore'
 
 type KBView =
     | 'home'
@@ -40,6 +42,7 @@ type KBView =
     | 'screener'
     | 'burn'
     | 'report-9line'
+    | 'report-9line-review'
 
 interface KnowledgeBaseDrawerProps {
     isVisible: boolean
@@ -48,6 +51,7 @@ interface KnowledgeBaseDrawerProps {
     initialTaskId?: string | null
     initialMedication?: medListTypes | null
     initialScreenerId?: string | null
+    initialMedevacReq?: MedevacRequest | null
 }
 
 const screenerMap: Record<string, ScreenerConfig> = {
@@ -64,6 +68,7 @@ export function KnowledgeBaseDrawer({
     initialTaskId,
     initialMedication,
     initialScreenerId,
+    initialMedevacReq,
 }: KnowledgeBaseDrawerProps) {
     const tc3Mode = useAuthStore((s) => s.profile.tc3Mode) ?? false
     const [view, setView] = useState<KBView>('home')
@@ -76,6 +81,9 @@ export function KnowledgeBaseDrawer({
     const vsRef = useRef<VitalSignsCalculatorHandle>(null)
     const [searchQuery, setSearchQuery] = useState('')
     const [searchFocused, setSearchFocused] = useState(false)
+    const medevacReq = useMedevacStore(s => s.req)
+    const setMedevacReq = useMedevacStore(s => s.setReq)
+    const resetMedevacReq = useMedevacStore(s => s.resetReq)
 
     // Clear search when navigating between views (e.g., clicking a search result)
     useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
@@ -112,6 +120,10 @@ export function KnowledgeBaseDrawer({
             setSlideDirection('')
         } else if (initialView === 'calculator' && initialScreenerId === 'vital-signs') {
             setCalculatorOpen(true)
+            setSlideDirection('')
+        } else if (initialView === 'report-9line' && initialMedevacReq) {
+            setMedevacReq(initialMedevacReq)
+            setView('report-9line')
             setSlideDirection('')
         } else {
             setView('home')
@@ -185,6 +197,9 @@ export function KnowledgeBaseDrawer({
                 setView('training')
                 setSelectedTask(null)
                 break
+            case 'report-9line-review':
+                setView('report-9line')
+                break
             case 'training':
             case 'medications':
             case 'screener':
@@ -192,6 +207,7 @@ export function KnowledgeBaseDrawer({
             case 'report-9line':
                 setView('home')
                 setActiveScreener(null)
+                if (view === 'report-9line') resetMedevacReq()
                 break
             case 'medication-detail':
                 setView('medications')
@@ -211,6 +227,7 @@ export function KnowledgeBaseDrawer({
         setSelectedTask(null)
         setSelectedMedication(null)
         setActiveScreener(null)
+        resetMedevacReq()
         setSlideDirection('')
         onClose()
     }, [onClose])
@@ -239,6 +256,8 @@ export function KnowledgeBaseDrawer({
                 return { title: 'Burn Assessment', showBack: true, onBack: handleBack }
             case 'report-9line':
                 return { title: '9-Line MEDEVAC', showBack: true, onBack: handleBack }
+            case 'report-9line-review':
+                return { title: 'Export', showBack: true, onBack: handleBack }
             default:
                 return { title: 'Knowledge Base' }
         }
@@ -293,7 +312,19 @@ export function KnowledgeBaseDrawer({
                 {view === 'burn' && (
                     <BurnCalculator />
                 )}
-                {view === 'report-9line' && <NineLineKB />}
+                {view === 'report-9line' && (
+                    <NineLineKB
+                        req={medevacReq}
+                        onChange={setMedevacReq}
+                        onReview={() => { handleSlideAnimation('left'); setView('report-9line-review') }}
+                    />
+                )}
+                {view === 'report-9line-review' && (
+                    <NineLineExport
+                        req={medevacReq}
+                        onClear={() => { resetMedevacReq(); handleSlideAnimation('right'); setView('report-9line') }}
+                    />
+                )}
             </ContentWrapper>
 
             {/* Overlay calculators/references */}
@@ -335,7 +366,6 @@ type KBSearchResult = {
 const GATED_KB_IDS: Record<string, boolean> = {
     burn: BURN_CALCULATOR_ENABLED,
     'blood-products': BLOOD_PRODUCTS_ENABLED,
-    '9-line': false,
 }
 
 function KBHome({
@@ -525,12 +555,12 @@ function KBHome({
                         className="flex items-start gap-3 w-full px-4 py-3 text-left border-b border-themewhite2/50 hover:bg-themewhite2 active:scale-95 transition-all cursor-pointer"
                         onClick={() => handleResultClick(result)}
                     >
-                        <span className={`text-[8pt] px-2 py-1 rounded-md shrink-0 ${result.badgeClass}`}>
+                        <span className={`text-[9pt] px-2 py-1 rounded-md shrink-0 ${result.badgeClass}`}>
                             {result.badge}
                         </span>
                         <div className="flex-1 min-w-0">
                             <p className="text-sm text-primary truncate">{result.label}</p>
-                            <p className="text-[10px] text-themeblue1/70 mt-0.5">{result.subtitle}</p>
+                            <p className="text-[9pt] text-themeblue1/70 mt-0.5">{result.subtitle}</p>
                         </div>
                     </button>
                 ))}
@@ -588,12 +618,12 @@ function KBHome({
                 ${idx > 0 ? 'border-t border-tertiary/8' : ''}
             `}
         >
-            <cat.icon size={18} className={cat.comingSoon ? 'text-tertiary/40' : 'text-primary/70'} />
+            <cat.icon size={18} className={cat.comingSoon ? 'text-tertiary' : 'text-primary'} />
             <div className="flex-1 min-w-0 ml-3">
                 <p className={`text-sm font-medium ${cat.comingSoon ? 'text-tertiary' : 'text-primary'}`}>
                     {cat.label}
                 </p>
-                <p className="text-[10px] text-tertiary/60">
+                <p className="text-[9pt] text-tertiary">
                     {cat.description}
                 </p>
             </div>
@@ -601,7 +631,7 @@ function KBHome({
                 <Pin size={12} className="text-themeblue2/40 shrink-0 mr-1" />
             )}
             {!cat.comingSoon && (
-                <ChevronRight size={16} className="text-tertiary/30 shrink-0" />
+                <ChevronRight size={16} className="text-tertiary shrink-0" />
             )}
         </button>
     )
@@ -611,7 +641,7 @@ function KBHome({
             {/* Pinned section */}
             {hasPinnedItems && (
                 <div className="mb-4" data-tour="kb-pinned">
-                    <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider px-2 mb-2">
+                    <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider px-2 mb-2">
                         PINNED
                     </p>
                     <div className="rounded-xl bg-themewhite2/50 overflow-hidden">
@@ -628,13 +658,13 @@ function KBHome({
                                     hover:bg-themewhite2 active:scale-95 cursor-pointer
                                     ${(pinnedCategories.length + idx) > 0 ? 'border-t border-tertiary/8' : ''}`}
                             >
-                                <Pill size={18} className="text-primary/70" />
+                                <Pill size={18} className="text-primary" />
                                 <div className="flex-1 min-w-0 ml-3">
                                     <p className="text-sm font-medium text-primary">{med.icon}</p>
-                                    <p className="text-[10px] text-tertiary/60">{med.text}</p>
+                                    <p className="text-[9pt] text-tertiary">{med.text}</p>
                                 </div>
                                 <Pin size={12} className="text-themeblue2/40 shrink-0 mr-1" />
-                                <ChevronRight size={16} className="text-tertiary/30 shrink-0" />
+                                <ChevronRight size={16} className="text-tertiary shrink-0" />
                             </button>
                         ))}
                         {pinnedTasks.map((task, idx) => (
@@ -652,13 +682,13 @@ function KBHome({
                                     hover:bg-themewhite2 active:scale-95 cursor-pointer
                                     ${(pinnedCategories.length + pinnedMeds.length + idx) > 0 ? 'border-t border-tertiary/8' : ''}`}
                             >
-                                <BookOpen size={18} className="text-primary/70" />
+                                <BookOpen size={18} className="text-primary" />
                                 <div className="flex-1 min-w-0 ml-3">
                                     <p className="text-sm font-medium text-primary">{task.text}</p>
-                                    <p className="text-[10px] text-tertiary/60 font-mono">{task.icon}</p>
+                                    <p className="text-[9pt] text-tertiary font-mono">{task.icon}</p>
                                 </div>
                                 <Pin size={12} className="text-themeblue2/40 shrink-0 mr-1" />
-                                <ChevronRight size={16} className="text-tertiary/30 shrink-0" />
+                                <ChevronRight size={16} className="text-tertiary shrink-0" />
                             </button>
                         ))}
                     </div>
@@ -673,7 +703,7 @@ function KBHome({
                     if (!items.length) return null
                     return (
                         <div key={group} className="mb-4">
-                            <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider px-2 mb-2">
+                            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider px-2 mb-2">
                                 {kbGroupLabels[group]}
                             </p>
                             <div className="rounded-xl bg-themewhite2/50 overflow-hidden">
@@ -826,7 +856,7 @@ function StandaloneScreener({ screenerConfig }: { screenerConfig: ScreenerConfig
                             {q.sectionHeader && (
                                 <div className="flex items-center gap-2 mt-4 mb-2 px-1">
                                     <div className="h-px flex-1 bg-tertiary/15" />
-                                    <span className="text-[10px] font-semibold text-secondary uppercase tracking-wider">
+                                    <span className="text-[9pt] font-semibold text-secondary uppercase tracking-wider">
                                         {q.sectionHeader}
                                     </span>
                                     <div className="h-px flex-1 bg-tertiary/15" />
@@ -835,7 +865,7 @@ function StandaloneScreener({ screenerConfig }: { screenerConfig: ScreenerConfig
 
                             {q.type === 'info' && (
                                 <div className="px-1 py-2">
-                                    <p className="text-[11px] text-secondary/80 leading-relaxed">
+                                    <p className="text-[9pt] text-secondary leading-relaxed">
                                         {q.text}
                                     </p>
                                     {q.dynamicContent && selectedList && (
@@ -854,7 +884,7 @@ function StandaloneScreener({ screenerConfig }: { screenerConfig: ScreenerConfig
                                                 <button
                                                     key={optIdx}
                                                     onClick={() => handleCheckToggle(qIdx, optIdx)}
-                                                    className={`px-2.5 py-1.5 rounded-full text-[10px] transition-all ${
+                                                    className={`px-2.5 py-1.5 rounded-full text-[9pt] transition-all ${
                                                         isSelected
                                                             ? 'bg-themeblue2/15 text-themeblue2 font-semibold ring-1 ring-themeblue2/30'
                                                             : 'bg-themewhite2 text-tertiary hover:bg-themewhite'
@@ -898,7 +928,7 @@ function StandaloneScreener({ screenerConfig }: { screenerConfig: ScreenerConfig
                 <div className="mt-4 animate-cardAppearIn">
                     <div className="flex items-center gap-2 mb-2 px-1">
                         <div className="h-px flex-1 bg-themeyellow/30" />
-                        <span className="text-[10px] font-semibold text-secondary uppercase tracking-wider">
+                        <span className="text-[9pt] font-semibold text-secondary uppercase tracking-wider">
                             Extended to {extendedScreener.title}
                         </span>
                         <div className="h-px flex-1 bg-themeyellow/30" />
@@ -929,7 +959,7 @@ function StandaloneScreener({ screenerConfig }: { screenerConfig: ScreenerConfig
                             <button
                                 key={idx}
                                 onClick={() => setFollowUpIdx(idx)}
-                                className={`flex-1 py-1.5 rounded text-[10px] leading-tight text-center transition-all ${
+                                className={`flex-1 py-1.5 rounded text-[9pt] leading-tight text-center transition-all ${
                                     followUpIdx === idx
                                         ? 'bg-themeblue2/15 text-themeblue2 font-semibold ring-1 ring-themeblue2/30'
                                         : 'bg-themewhite2 text-tertiary hover:bg-themewhite'
@@ -956,7 +986,7 @@ function StandaloneScreener({ screenerConfig }: { screenerConfig: ScreenerConfig
                                     : 'bg-themegreen/10 border-themegreen/20'
                             }`}>
                                 <div className="flex items-center justify-between mb-2">
-                                    <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Result</p>
+                                    <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Result</p>
                                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                                         aboveThreshold
                                             ? 'bg-themeyellow/20 text-secondary'

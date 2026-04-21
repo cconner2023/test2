@@ -83,11 +83,11 @@ function DrawerHeader({
                                     <PillButton icon={ChevronLeft} onClick={onBack!} label="Go back" compact={!isMobile} />
                                 </HeaderPill>
                             </div>
-                            <h2 className={`truncate ${isMobile ? 'text-[17px] font-semibold text-primary' : 'text-[15px] font-medium text-primary'}`}>
+                            <h2 className={`truncate ${isMobile ? 'text-[13pt] font-semibold text-primary' : 'text-[11pt] font-medium text-primary'}`}>
                                 {title}
                             </h2>
                             {badge && (
-                                <span className="text-[11px] font-semibold text-themeyellow bg-themeyellow/15 px-2 py-0.5 rounded-full shrink-0 tracking-wide">
+                                <span className="text-[9pt] font-semibold text-themeyellow bg-themeyellow/15 px-2 py-0.5 rounded-full shrink-0 tracking-wide">
                                     {badge}
                                 </span>
                             )}
@@ -350,7 +350,7 @@ export function BaseDrawer({
                     : `absolute ${desktopAlignClass} top-0 ${desktopWidthClass} ${zIndex}
                         flex flex-col rounded-md border border-tertiary/20
                         shadow-lg shadow-black/8 backdrop-blur-xl bg-themewhite3/95
-                        transform-gpu overflow-hidden text-primary/80 text-sm`
+                        transform-gpu overflow-hidden text-primary text-sm`
                 }
                 style={useMobileLayout ? {
                     height: mobileHeight,

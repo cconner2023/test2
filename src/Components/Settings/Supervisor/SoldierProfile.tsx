@@ -112,25 +112,25 @@ export function SoldierProfile({
       <div data-tour="supervisor-soldier-card" className="rounded-xl bg-themewhite2 px-4 py-3">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-            <Building2 size={16} className="text-tertiary/50" />
+            <Building2 size={16} className="text-tertiary" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-primary truncate">{formatMedicName(soldier)}</p>
-            <p className="text-[9pt] text-tertiary/50">
+            <p className="text-[9pt] text-tertiary">
               {soldier.credential ?? 'No credential'} · {validCertCount}/{certs.length} certs valid
             </p>
           </div>
         </div>
         <div className="flex flex-col gap-1.5 mt-2 ml-11">
           <div className="flex items-center gap-2">
-            <span className="text-[9pt] text-tertiary/50 w-18 shrink-0">Readiness</span>
+            <span className="text-[9pt] text-tertiary w-18 shrink-0">Readiness</span>
             <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
               <div className={`h-full rounded-full ${readinessColor(readinessPercent)}`} style={{ width: `${readinessPercent}%` }} />
             </div>
             <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(readinessPercent)}`}>{readinessPercent}%</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[9pt] text-tertiary/50 w-18 shrink-0">Compliance</span>
+            <span className="text-[9pt] text-tertiary w-18 shrink-0">Compliance</span>
             <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
               <div className={`h-full rounded-full ${readinessColor(compliancePercent)}`} style={{ width: `${compliancePercent}%` }} />
             </div>
@@ -142,7 +142,7 @@ export function SoldierProfile({
       {/* Assignments */}
       {assignments.length > 0 && (
         <div>
-          <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
+          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
             Assignments
           </p>
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
@@ -167,14 +167,14 @@ export function SoldierProfile({
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-primary truncate">{taskTitle}</p>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[11px] text-tertiary/60">
+                      <span className="text-[9pt] text-tertiary">
                         {resolveName(a.supervisorId)}
                       </span>
                       {a.dueDate && (
                         <>
-                          <span className="text-tertiary/20">·</span>
-                          <span className={`text-[11px] font-medium ${
-                            isCompleted ? 'text-themegreen' : isOverdue ? 'text-themeredred' : 'text-tertiary/60'
+                          <span className="text-tertiary">·</span>
+                          <span className={`text-[9pt] font-medium ${
+                            isCompleted ? 'text-themegreen' : isOverdue ? 'text-themeredred' : 'text-tertiary'
                           }`}>
                             {isCompleted ? 'Done' : isOverdue ? 'Overdue' : 'Due'} {formatDate(a.dueDate)}
                           </span>
@@ -182,7 +182,7 @@ export function SoldierProfile({
                       )}
                     </div>
                   </div>
-                  <span className={`text-[10px] font-medium shrink-0 ${
+                  <span className={`text-[9pt] font-medium shrink-0 ${
                     isCompleted ? 'text-themegreen' : isOverdue ? 'text-themeredred' : 'text-themeblue3'
                   }`}>
                     {isCompleted ? 'Complete' : isOverdue ? 'Overdue' : 'Pending'}
@@ -196,12 +196,12 @@ export function SoldierProfile({
 
       {/* Certifications */}
       <div>
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Certifications
         </p>
         {certs.length === 0 ? (
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden px-4 py-4">
-            <p className="text-sm text-tertiary/40">No certifications on file</p>
+            <p className="text-sm text-tertiary">No certifications on file</p>
           </div>
         ) : (
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
@@ -217,16 +217,16 @@ export function SoldierProfile({
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium text-primary truncate">{cert.title}</p>
                       {cert.is_primary && (
-                        <span className="text-[9px] font-medium text-themeblue2 bg-themeblue2/10 px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0">Primary</span>
+                        <span className="text-[9pt] md:text-[9pt] font-medium text-themeblue2 bg-themeblue2/10 px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0">Primary</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 mt-0.5 text-xs text-tertiary/50">
+                    <div className="flex items-center gap-3 mt-0.5 text-xs text-tertiary">
                       {cert.cert_number && <span>#{cert.cert_number}</span>}
                       {cert.exp_date && <span>Exp: {new Date(cert.exp_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>}
                     </div>
                   </div>
-                  <span className={`text-[10px] font-medium shrink-0 ${
-                    status === 'valid' ? 'text-themegreen' : status === 'expiring' ? 'text-themeyellow' : status === 'expired' ? 'text-themeredred' : 'text-tertiary/40'
+                  <span className={`text-[9pt] font-medium shrink-0 ${
+                    status === 'valid' ? 'text-themegreen' : status === 'expiring' ? 'text-themeyellow' : status === 'expired' ? 'text-themeredred' : 'text-tertiary'
                   }`}>
                     {status === 'valid' ? 'Valid' : status === 'expiring' ? 'Expiring' : status === 'expired' ? 'Expired' : 'No Date'}
                   </span>
@@ -239,12 +239,12 @@ export function SoldierProfile({
 
       {/* Training Competency by Category */}
       <div data-tour="supervisor-competency">
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Training Competency
         </p>
         {categoryCompetency.length === 0 ? (
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden px-4 py-4">
-            <p className="text-sm text-tertiary/40">No testable tasks available</p>
+            <p className="text-sm text-tertiary">No testable tasks available</p>
           </div>
         ) : (
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
@@ -268,7 +268,7 @@ export function SoldierProfile({
                 <span className={`text-[9pt] font-medium w-12 text-right ${readinessTextColor(cat.pct)}`}>
                   {cat.passed}/{cat.total}
                 </span>
-                <ChevronRight size={14} className="text-tertiary/30 shrink-0" />
+                <ChevronRight size={14} className="text-tertiary shrink-0" />
               </button>
             ))}
           </div>
@@ -277,12 +277,12 @@ export function SoldierProfile({
 
       {/* Training History */}
       <div>
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Training History
         </p>
         {tests.length === 0 ? (
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden px-4 py-4">
-            <p className="text-sm text-tertiary/40">No test records yet</p>
+            <p className="text-sm text-tertiary">No test records yet</p>
           </div>
         ) : (
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
@@ -299,7 +299,7 @@ export function SoldierProfile({
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-primary truncate">{taskTitle}</p>
-                      <p className="text-[9pt] text-tertiary/40 mt-0.5">
+                      <p className="text-[9pt] text-tertiary mt-0.5">
                         {new Date(record.updatedAt).toLocaleDateString()}
                       </p>
                     </div>
@@ -313,8 +313,8 @@ export function SoldierProfile({
                   {isExpanded && (
                     <div className="px-4 pb-3 border-t border-tertiary/10">
                       <div className="mt-3 mb-2">
-                        <p className="text-[8pt] text-tertiary/50 font-mono">{record.trainingItemId}</p>
-                        <p className="text-xs text-tertiary/60 mt-1">
+                        <p className="text-[9pt] text-tertiary font-mono">{record.trainingItemId}</p>
+                        <p className="text-xs text-tertiary mt-1">
                           Supervisor: {resolveName(record.supervisorId)} &middot; {new Date(record.updatedAt).toLocaleString()}
                         </p>
                       </div>
@@ -329,13 +329,13 @@ export function SoldierProfile({
                           <div className="space-y-1">
                             {displayResults.map((sr) => (
                               <div key={sr.stepNumber} className="flex items-center gap-2 py-1">
-                                <span className="text-[9pt] text-tertiary/50 font-mono w-6 text-right">{sr.stepNumber}</span>
+                                <span className="text-[9pt] text-tertiary font-mono w-6 text-right">{sr.stepNumber}</span>
                                 {sr.result === 'GO' ? (
                                   <span className="px-2 py-0.5 rounded text-[9pt] font-bold bg-themegreen/15 text-themegreen">GO</span>
                                 ) : sr.result === 'NO_GO' ? (
                                   <span className="px-2 py-0.5 rounded text-[9pt] font-bold bg-themeredred/15 text-themeredred">NO GO</span>
                                 ) : (
-                                  <span className="px-2 py-0.5 rounded text-[9pt] bg-tertiary/10 text-tertiary/50">--</span>
+                                  <span className="px-2 py-0.5 rounded text-[9pt] bg-tertiary/10 text-tertiary">--</span>
                                 )}
                               </div>
                             ))}
@@ -345,7 +345,7 @@ export function SoldierProfile({
 
                       {record.supervisorNotes && (
                         <div className="mt-3 p-2 bg-themewhite rounded text-sm">
-                          <span className="text-tertiary/60">Notes:</span> <span className="text-primary">{record.supervisorNotes}</span>
+                          <span className="text-tertiary">Notes:</span> <span className="text-primary">{record.supervisorNotes}</span>
                         </div>
                       )}
 

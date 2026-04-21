@@ -268,7 +268,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                     title="Go back"
                                 >
                                     <ChevronLeft className="w-4 h-4 stroke-themeblue1" />
-                                    <span className="hidden lg:inline text-[10pt] text-primary/60 ml-2">
+                                    <span className="hidden lg:inline text-[10pt] text-primary ml-2">
                                         Back
                                     </span>
                                 </button>
@@ -337,7 +337,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                         >
                                             <Mail style={{ width: 26, height: 26 }} />
                                             {totalUnread > 0 && (
-                                                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-themeredred text-white text-[10px] font-bold leading-none">
+                                                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-themeredred text-white text-[9pt] font-bold leading-none">
                                                     {totalUnread > 99 ? '99+' : totalUnread}
                                                 </span>
                                             )}
@@ -420,7 +420,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                         >
                             <Mail className="w-4 h-4 stroke-themeblue1" />
                             {totalUnread > 0 && (
-                                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-themeredred text-white text-[10px] font-bold leading-none">
+                                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-themeredred text-white text-[9pt] font-bold leading-none">
                                     {totalUnread > 99 ? '99+' : totalUnread}
                                 </span>
                             )}

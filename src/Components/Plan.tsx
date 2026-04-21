@@ -142,7 +142,7 @@ function PlanBlockRow({ label, state, onTap, index, isDragging, dragOffset, onDr
                 className="py-2.5 active:scale-[0.98] transition-all cursor-pointer"
                 left={
                     <div
-                        className="shrink-0 text-tertiary/30 touch-none cursor-grab active:cursor-grabbing"
+                        className="shrink-0 text-tertiary touch-none cursor-grab active:cursor-grabbing"
                         onPointerDown={onDragStart ? (e) => { e.stopPropagation(); onDragStart(index, e); } : undefined}
                     >
                         <GripVertical size={16} />
@@ -152,7 +152,7 @@ function PlanBlockRow({ label, state, onTap, index, isDragging, dragOffset, onDr
                     <>
                         <p className="text-sm font-medium text-primary truncate">{label}</p>
                         {hasSummary && (
-                            <p className="text-[11px] text-primary mt-0.5 truncate">
+                            <p className="text-[9pt] text-primary mt-0.5 truncate">
                                 {[...state.selectedTags, ...(state.freeText.trim() ? [state.freeText.trim()] : [])].join('; ')}
                             </p>
                         )}
@@ -238,17 +238,17 @@ function ActiveItemsCard({ items, onToggle, onReorder }: {
                             className={`flex items-center gap-2 px-3 py-2.5 bg-tertiary/4 ${i > 0 ? 'border-t border-tertiary/10' : ''} ${isDragging ? 'opacity-80 shadow-lg rounded-lg bg-themewhite2' : ''}`}
                         >
                             <div
-                                className="shrink-0 text-tertiary/30 touch-none cursor-grab active:cursor-grabbing"
+                                className="shrink-0 text-tertiary touch-none cursor-grab active:cursor-grabbing"
                                 onPointerDown={(e) => { e.stopPropagation(); handleDragStart(i, e); }}
                             >
                                 <GripVertical size={16} />
                             </div>
                             <span className="flex-1 text-[11pt] text-primary min-w-0 truncate">{tag}</span>
-                            <span className="text-[9px] text-tertiary/30 shrink-0">{catLabel}</span>
+                            <span className="text-[9pt] md:text-[9pt] text-tertiary shrink-0">{catLabel}</span>
                             <button
                                 type="button"
                                 onClick={() => onToggle(catKey, tag)}
-                                className="shrink-0 p-1 text-tertiary/30 active:text-themeredred transition-colors"
+                                className="shrink-0 p-1 text-tertiary active:text-themeredred transition-colors"
                             >
                                 <X size={12} />
                             </button>
@@ -511,12 +511,12 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                         <button
                             type="button"
                             onClick={openFab}
-                            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
+                            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary"
                         >
                             <Plus size={14} />
                         </button>
                     </div>
-                    <p className="text-[10px] text-tertiary/40">Add plan blocks</p>
+                    <p className="text-[9pt] text-tertiary">Add plan blocks</p>
                 </div>
             ) : (
                 <>
@@ -546,7 +546,7 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                         <button
                             type="button"
                             onClick={openFab}
-                            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
+                            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary"
                         >
                             <Plus size={14} />
                         </button>
@@ -566,7 +566,7 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                         {orderSets.length > 0 && (
                             <div className="w-full rounded-2xl bg-themewhite shadow-xl border border-tertiary/10 overflow-hidden shrink-0">
                                 <div className="py-2 px-3">
-                                    <p className="text-[9px] font-semibold text-tertiary/40 uppercase tracking-wider mb-2">Order Sets</p>
+                                    <p className="text-[9pt] md:text-[9pt] font-semibold text-tertiary uppercase tracking-wider mb-2">Order Sets</p>
                                     <div className="flex overflow-x-auto gap-1.5 pb-1" style={{ scrollbarWidth: 'none' }}>
                                         {orderSets.map(os => {
                                             const isActive = activeSetIds.has(os.id);
@@ -578,7 +578,7 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                                                     className={`shrink-0 px-3 py-1.5 text-[10pt] rounded-full transition-colors active:scale-95 ${
                                                         isActive
                                                             ? 'bg-tertiary/8 text-primary font-medium'
-                                                            : 'bg-tertiary/5 text-tertiary/40'
+                                                            : 'bg-tertiary/5 text-tertiary'
                                                     }`}
                                                 >
                                                     {os.name}
@@ -622,7 +622,7 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                             onChange={(e) => setInputValue(e.target.value)}
                             onKeyDown={(e) => { if (e.key === 'Enter') handleInputSubmit(); }}
                             placeholder="Search or add item..."
-                            className="flex-1 min-w-0 text-[10pt] pl-3 pr-3 py-2 rounded-full border border-tertiary/15 bg-transparent text-primary outline-none focus:border-themeblue1/30 placeholder:text-tertiary/30 transition-all duration-200"
+                            className="flex-1 min-w-0 text-[10pt] pl-3 pr-3 py-2 rounded-full border border-tertiary/15 bg-transparent text-primary outline-none focus:border-themeblue1/30 placeholder:text-tertiary transition-all duration-200"
                         />
                         {inputValue && (
                             <button
@@ -630,7 +630,7 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                                 onClick={() => setInputValue('')}
                                 className="shrink-0 w-7 h-7 rounded-full bg-tertiary/8 flex items-center justify-center active:scale-95 transition-all"
                             >
-                                <X size={13} className="text-tertiary/50" />
+                                <X size={13} className="text-tertiary" />
                             </button>
                         )}
                         {inputValue.trim() && (

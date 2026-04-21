@@ -8,6 +8,7 @@ import { ContentWrapper } from './ContentWrapper'
 import { MobileSearchBar } from './MobileSearchBar'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ItemScanner } from './Property/ItemScanner'
+import { PropertyItemForm } from './Property/PropertyItemForm'
 import { EnrollScanStep } from './Property/EnrollScanStep'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
@@ -17,6 +18,7 @@ import type { PropertyLocationListHandle, DrilldownSegment } from './Property/Pr
 import { ActionSheet } from './ActionSheet'
 import { UI_TIMING } from '../Utilities/constants'
 import { usePropertyStore } from '../stores/usePropertyStore'
+import { useAuthStore } from '../stores/useAuthStore'
 import { useShallow } from 'zustand/react/shallow'
 
 interface PropertyDrawerProps {
@@ -44,6 +46,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         }))
     )
     const { navigateToPath, init, setEditingItem, removeItem, items } = store
+    const isSupervisorRole = useAuthStore(s => s.isSupervisorRole)
     const clinicName = useClinicName(store.clinicId) || 'Clinic'
 
     const [view, setView] = useState<PropertyView>('property')
@@ -134,6 +137,11 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         }
     }, [handleSlideAnimation, isMobile])
 
+    const handleCreateItemFromMap = useCallback(() => {
+        setEditingItem(null)
+        setView('property-form')
+    }, [setEditingItem])
+
     const handleScanMatch = useCallback(async (itemId: string, qty: number) => {
         await store.expendItem(itemId, qty)
         setScanMode(false)
@@ -210,7 +218,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                     rightContent: (
                         <HeaderPill>
                             <PillButton icon={Pencil} iconSize={18} onClick={handleEditItem} label="Edit" />
-                            <PillButton icon={Trash2} iconSize={18} variant="danger" onClick={() => selectedItem && handleDeleteItem(selectedItem)} label="Delete" />
+                            {isSupervisorRole && <PillButton icon={Trash2} iconSize={18} variant="danger" onClick={() => selectedItem && handleDeleteItem(selectedItem)} label="Delete" />}
                         </HeaderPill>
                     ),
                 }
@@ -233,18 +241,37 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         >
             <div className="h-full relative">
                 {mapView && store.clinicId ? (
-                    <PropertyLocationMap
-                        ref={mapRef}
-                        clinicId={store.clinicId}
-                        clinicName={clinicName}
-                        locations={store.visibleLocations()}
-                        items={items}
-                        onCreateLocation={handleCreateLocation}
-                        onDeleteLocation={store.removeLocation}
-                        onEditItem={(id, updates) => store.editItem(id, updates)}
-                        onUpdateLocation={(id, updates) => store.editLocation(id, updates)}
-                        onSelectItem={handleSelectItem}
-                    />
+                    <div className="h-full flex">
+                        <div className="flex-1 min-w-0">
+                            <PropertyLocationMap
+                                ref={mapRef}
+                                clinicId={store.clinicId}
+                                clinicName={clinicName}
+                                locations={store.visibleLocations()}
+                                items={items}
+                                onCreateLocation={handleCreateLocation}
+                                onDeleteLocation={store.removeLocation}
+                                onEditItem={(id, updates) => store.editItem(id, updates)}
+                                onUpdateLocation={(id, updates) => store.editLocation(id, updates)}
+                                onSelectItem={handleSelectItem}
+                                onCreateItem={handleCreateItemFromMap}
+                            />
+                        </div>
+                        {isMobile && view === 'property-form' && (
+                            <div className="absolute inset-0 z-40 bg-themewhite overflow-y-auto">
+                                <PropertyItemForm editingItem={null} onClose={() => setView('property')} />
+                            </div>
+                        )}
+                        {!isMobile && (
+                            <div className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite overflow-y-auto transition-all duration-300 ${
+                                view === 'property-form' ? 'w-80 opacity-100' : 'w-0 opacity-0 overflow-hidden border-l-0'
+                            }`}>
+                                {view === 'property-form' && (
+                                    <PropertyItemForm editingItem={null} onClose={() => setView('property')} />
+                                )}
+                            </div>
+                        )}
+                    </div>
                 ) : (
                     <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && view !== 'property' ? swipeHandlers : undefined}>
                         {isMobile ? (
@@ -262,7 +289,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                                         selectedItem={selectedItem}
                                         onSelectItem={handleSelectItem}
                                         onEditItem={handleEditItem}
-                                        onDeleteItem={handleDeleteItem}
+                                        onDeleteItem={isSupervisorRole ? handleDeleteItem : undefined}
                                         onAddItem={handleAddItem}
                                         onBack={handleBack}
                                         onDrilldownChange={setDrilldownPath}
@@ -297,7 +324,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
 
                 {(view === 'property' || mapView) && (
                     <div className="absolute bottom-4 inset-x-0 flex items-center justify-center z-30 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
-                        <div className="flex items-center gap-1.5 rounded-full bg-themewhite border border-tertiary/20 px-0.5 py-0.5 shadow-lg pointer-events-auto">
+                        <div data-tour="property-view-toggle" className="flex items-center gap-1.5 rounded-full bg-themewhite border border-tertiary/20 px-0.5 py-0.5 shadow-lg pointer-events-auto">
                             <button
                                 onClick={() => { setMapView(false) }}
                                 className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${!mapView ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
@@ -323,6 +350,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 {view === 'property' && !mapView && (
                     <div className="absolute bottom-4 right-4 z-30 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pb-[max(0.25rem,calc(var(--sab,0px)+0.25rem))]">
                         <button
+                            data-tour="property-add-fab"
                             onClick={() => setShowAddSheet(true)}
                             className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
                         >

@@ -2,7 +2,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { logError } from './ErrorHandler';
 
-export type ThemeName = 'default' | 'ironclad' | 'forest' | 'void';
+export type ThemeName = 'default' | 'ironclad' | 'forest' | 'void' | 'slipstream' | 'urban';
 export type ThemeMode = 'light' | 'dark';
 type ThemeId = `${ThemeName}-${ThemeMode}`;
 
@@ -21,7 +21,7 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const VALID_NAMES: ThemeName[] = ['default', 'ironclad', 'forest', 'void'];
+const VALID_NAMES: ThemeName[] = ['default', 'ironclad', 'forest', 'void', 'slipstream', 'urban'];
 const VALID_MODES: ThemeMode[] = ['light', 'dark'];
 
 function parseThemeId(raw: string | null): { name: ThemeName; mode: ThemeMode } | null {
@@ -38,14 +38,18 @@ function parseThemeId(raw: string | null): { name: ThemeName; mode: ThemeMode } 
 }
 
 const META_COLORS: Record<ThemeId, string> = {
-    'default-light':    'rgb(255, 251, 251)',
-    'default-dark':     'rgb(15, 25, 35)',
-    'ironclad-light':   'rgb(251, 241, 199)',
-    'ironclad-dark':    'rgb(29, 32, 33)',
-    'forest-light':     'rgb(252, 252, 250)',
-    'forest-dark':      'rgb(14, 15, 14)',
-    'void-light':       'rgb(245, 246, 248)',
-    'void-dark':        'rgb(10, 11, 13)',
+    'default-light':      'rgb(255, 251, 251)',
+    'default-dark':       'rgb(15, 25, 35)',
+    'ironclad-light':     'rgb(251, 241, 199)',
+    'ironclad-dark':      'rgb(29, 32, 33)',
+    'forest-light':       'rgb(252, 252, 250)',
+    'forest-dark':        'rgb(14, 15, 14)',
+    'void-light':         'rgb(245, 246, 248)',
+    'void-dark':          'rgb(10, 11, 13)',
+    'slipstream-light':   'rgb(248, 246, 240)',
+    'slipstream-dark':    'rgb(12, 15, 18)',
+    'urban-light':        'rgb(240, 236, 228)',
+    'urban-dark':         'rgb(14, 13, 12)',
 };
 
 /** Provides multi-theme context (named palette + light/dark mode) with localStorage persistence and system preference detection. */

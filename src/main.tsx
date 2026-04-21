@@ -4,6 +4,11 @@ import './index.css'
 import App from './App.tsx'
 import { checkSupabaseConnection } from './lib/supabase.ts'
 import { createLogger } from './Utilities/Logger.ts'
+import { initSW } from './lib/swService.ts'
+
+// Register service worker immediately — before React mounts so update detection
+// works even when the user is on the login screen.
+initSW()
 
 const logger = createLogger('App')
 

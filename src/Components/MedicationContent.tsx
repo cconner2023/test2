@@ -132,7 +132,7 @@ export function MedicationContent({
             {pinnedMeds.length > 0 && (
                 <>
                     <div className="flex items-center gap-2 mt-1 mb-1 px-1">
-                        <span className="text-[10px] font-semibold text-tertiary uppercase tracking-wider">
+                        <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider">
                             Pinned
                         </span>
                         <div className="h-px flex-1 bg-tertiary/10" />
@@ -153,7 +153,7 @@ export function MedicationContent({
 
             {pinnedMeds.length > 0 && otherMeds.length > 0 && (
                 <div className="flex items-center gap-2 mt-3 mb-1 px-1">
-                    <span className="text-[10px] font-semibold text-tertiary uppercase tracking-wider">
+                    <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider">
                         All Medications
                     </span>
                     <div className="h-px flex-1 bg-tertiary/10" />

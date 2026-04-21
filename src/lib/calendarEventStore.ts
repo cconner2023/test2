@@ -30,6 +30,12 @@ interface PendingVaultSend {
   queuedAt: number
 }
 
+interface PendingVaultDelete {
+  id: string        // calendar event ID (key)
+  originIds: string[]
+  queuedAt: number
+}
+
 interface CalendarEventsDB extends DBSchema {
   events: {
     key: string
@@ -43,10 +49,14 @@ interface CalendarEventsDB extends DBSchema {
     key: string
     value: PendingVaultSend
   }
+  pendingVaultDeletes: {
+    key: string
+    value: PendingVaultDelete
+  }
 }
 
 const DB_NAME = 'adtmc-calendar-events'
-const DB_VERSION = 3
+const DB_VERSION = 4
 
 const { getDb, destroy: destroyDb } = createIdbSingleton<CalendarEventsDB>(
   DB_NAME,
@@ -61,6 +71,9 @@ const { getDb, destroy: destroyDb } = createIdbSingleton<CalendarEventsDB>(
       }
       if (oldVersion < 3) {
         db.createObjectStore('pendingVaultSends', { keyPath: 'id' })
+      }
+      if (oldVersion < 4) {
+        db.createObjectStore('pendingVaultDeletes', { keyPath: 'id' })
       }
     },
   },
@@ -228,5 +241,48 @@ export async function clearExpiredTombstones(maxAgeDays = 30): Promise<void> {
     await tx.done
   } catch (e) {
     logger.warn('Failed to clear expired tombstones:', e)
+  }
+}
+
+// ---- Pending Vault Delete Queue ----
+
+/** Queue a vault hard-delete for retry when connectivity returns. */
+export async function queuePendingVaultDelete(eventId: string, originIds: string[]): Promise<void> {
+  try {
+    const db = await getDb()
+    await db.put('pendingVaultDeletes', { id: eventId, originIds, queuedAt: Date.now() })
+  } catch (e) {
+    logger.warn('Failed to queue pending vault delete:', e)
+  }
+}
+
+/** Load all queued vault deletes pending retry. */
+export async function loadPendingVaultDeletes(): Promise<PendingVaultDelete[]> {
+  try {
+    const db = await getDb()
+    return db.getAll('pendingVaultDeletes')
+  } catch (e) {
+    logger.warn('Failed to load pending vault deletes:', e)
+    return []
+  }
+}
+
+/** Remove a successfully deleted entry from the retry queue. */
+export async function clearPendingVaultDelete(eventId: string): Promise<void> {
+  try {
+    const db = await getDb()
+    await db.delete('pendingVaultDeletes', eventId)
+  } catch (e) {
+    logger.warn('Failed to clear pending vault delete:', e)
+  }
+}
+
+/** Clear all pending vault deletes — called on logout. */
+export async function clearAllPendingVaultDeletes(): Promise<void> {
+  try {
+    const db = await getDb()
+    await db.clear('pendingVaultDeletes')
+  } catch (e) {
+    logger.warn('Failed to clear pending vault deletes:', e)
   }
 }

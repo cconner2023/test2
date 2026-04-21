@@ -3,7 +3,7 @@ import { Check, CalendarDays } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { getTaskData } from '../Data/TrainingData'
 import { useTrainingCompletions } from '../Hooks/useTrainingCompletions'
-import { useCalendarVault } from '../Hooks/useCalendarVault'
+import { useCalendarWrite } from '../Hooks/useCalendarWrite'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { AudioAidPlayer } from './AudioAidPlayer'
 import { StepCallout, PerformanceStepItem } from './TrainingStepComponents'
@@ -24,9 +24,8 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
     const isAssigned = assignment && !assignment.completedAt
     const isOverdue = isAssigned && assignment.dueDate && new Date(assignment.dueDate) < new Date()
 
-    const { sendEvent: vaultSendEvent, deleteEvents: vaultDeleteEvents } = useCalendarVault()
+    const { vaultUpdate } = useCalendarWrite()
     const calendarEvents = useCalendarStore(s => s.events)
-    const updateCalendarEvent = useCalendarStore(s => s.updateEvent)
 
     const formatDueDate = (iso: string) => {
         const d = new Date(iso + 'T00:00:00')
@@ -35,22 +34,13 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
 
     const updateCalendarOnCompletion = useCallback(() => {
         if (!isAssigned || !assignment.calendarOriginId) return
-        // Find the calendar event by matching originId
         const calEvent = calendarEvents.find(e => e.originId === assignment.calendarOriginId)
         if (!calEvent) return
-
         const updatedEvent = { ...calEvent, status: 'completed' as const, updated_at: new Date().toISOString() }
-        updateCalendarEvent(calEvent.id, { status: 'completed', updated_at: updatedEvent.updated_at })
-
-        // Delete old broadcast, send replacement
-        const oldOriginIds = calEvent.originId ? [calEvent.originId] : []
-        if (oldOriginIds.length > 0) {
-            vaultDeleteEvents(oldOriginIds).catch(() => {})
-        }
-        vaultSendEvent('c', updatedEvent).then(newOriginId => {
-            if (newOriginId) updateCalendarEvent(calEvent.id, { originId: newOriginId })
-        }).catch(() => {})
-    }, [isAssigned, assignment, vaultSendEvent, vaultDeleteEvents, calendarEvents, updateCalendarEvent])
+        // Optimistic local update then vault sync
+        useCalendarStore.getState().updateEvent(calEvent.id, updatedEvent)
+        vaultUpdate(updatedEvent)
+    }, [isAssigned, assignment, calendarEvents, vaultUpdate])
 
     // Mark as viewed on mount
     useEffect(() => {
@@ -81,7 +71,7 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
 
     if (!taskData) {
         return (
-            <div className="h-full flex items-center justify-center text-tertiary/60 text-sm">
+            <div className="h-full flex items-center justify-center text-tertiary text-sm">
                 Task data not available
             </div>
         )
@@ -91,7 +81,7 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
         <>
                 {/* Header */}
                 <div className="mb-5">
-                    <p className="text-[8pt] text-tertiary/50 font-mono">{taskData.taskNumber}</p>
+                    <p className="text-[9pt] text-tertiary font-mono">{taskData.taskNumber}</p>
                     <h3 className="text-lg font-semibold text-primary">{taskData.title}</h3>
                     {completed && (
                         <span className="inline-flex items-center gap-1 text-[9pt] text-themegreen mt-1">
@@ -112,7 +102,7 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
                             {isOverdue ? 'Overdue' : 'Due'}: {formatDueDate(assignment.dueDate)}
                         </span>
                         {assignment.supervisorNotes && (
-                            <span className="text-xs text-tertiary/60 ml-auto truncate max-w-[50%]">
+                            <span className="text-xs text-tertiary ml-auto truncate max-w-[50%]">
                                 {assignment.supervisorNotes}
                             </span>
                         )}
@@ -136,13 +126,13 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
                 {/* Conditions */}
                 <div className="mb-5">
                     <SectionHeader>Conditions</SectionHeader>
-                    <p className="text-sm text-primary/80 leading-relaxed">{taskData.conditions}</p>
+                    <p className="text-sm text-primary leading-relaxed">{taskData.conditions}</p>
                 </div>
 
                 {/* Standards */}
                 <div className="mb-5">
                     <SectionHeader>Standards</SectionHeader>
-                    <p className="text-sm text-primary/80 leading-relaxed">{taskData.standards}</p>
+                    <p className="text-sm text-primary leading-relaxed">{taskData.standards}</p>
                 </div>
 
                 {/* Audio Training Aids */}
@@ -194,7 +184,7 @@ export function TrainingDrawer({ isVisible, onClose, taskId }: TrainingDrawerPro
             {taskId ? (
                 <TrainingDrawerContent taskId={taskId} />
             ) : (
-                <div className="h-full flex items-center justify-center text-tertiary/60 text-sm">
+                <div className="h-full flex items-center justify-center text-tertiary text-sm">
                     No task selected
                 </div>
             )}

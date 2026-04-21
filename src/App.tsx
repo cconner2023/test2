@@ -21,10 +21,12 @@ import { ColumnA } from './Components/ColumnA'
 import { TC3DesktopLayout } from './Components/TC3/TC3DesktopLayout'
 import { TC3MobileWizard } from './Components/TC3/TC3MobileWizard'
 import { TC3WriteNote } from './Components/TC3/TC3WriteNote'
-import { useTC3Store } from './stores/useTC3Store'
+import { useTC3Store, hydrateTC3Store } from './stores/useTC3Store'
+import { hydrateMedevacStore } from './stores/useMedevacStore'
 
 import { useNoteImport } from './Hooks/useNoteImport'
 import type { ImportPreview } from './Hooks/useNoteImport'
+import type { MedevacRequest } from './Types/MedevacTypes'
 import { useBarcodeImport } from './Hooks/useBarcodeImport'
 import { ImportResultPopover } from './Components/ImportResultPopover'
 import { useProfileAvatar } from './Hooks/useProfileAvatar'
@@ -144,6 +146,19 @@ function AppContent() {
   }, [importFromBarcode, navigation.setImportExpanded])
 
   const barcodeImport = useBarcodeImport({ onDecoded: handleImportDecoded })
+
+  const handleOpenMedevac = useCallback((req: MedevacRequest) => {
+    setImportPreview(null)
+    barcodeImport.reset()
+    navigation.setShowKnowledgeBase(true, 'report-9line', null, null, req)
+  }, [barcodeImport, navigation.setShowKnowledgeBase])
+
+  // Hydrate TC3 store from IDB on mount (crash safety + MASCAL queue persistence)
+  useEffect(() => {
+    hydrateTC3Store()
+    hydrateMedevacStore()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // PWA App Shortcut / Post-update: open the appropriate view on mount
   useEffect(() => {
@@ -655,6 +670,7 @@ case 'mapOverlay':
           onDismissImage={() => { barcodeImport.clearStagedImage(); }}
           onStopScan={barcodeImport.handleStopScan}
           onClose={() => { setImportPreview(null); barcodeImport.reset(); }}
+          onOpenMedevac={handleOpenMedevac}
           isMobile={navigation.isMobile}
         />
 
@@ -674,6 +690,7 @@ case 'mapOverlay':
           initialTaskId={initialTrainingTaskId}
           initialMedication={navigation.kbInitialMedication}
           initialScreenerId={navigation.kbInitialScreenerId}
+          initialMedevacReq={navigation.kbInitialMedevacReq}
         />
         </ErrorBoundary>
         <ErrorBoundary>

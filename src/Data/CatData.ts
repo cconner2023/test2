@@ -58,7 +58,6 @@ export const menuData: sideMenuDataType[] = [
         action: 'property',
         group: 'modules',
         access: 'authenticated',
-        stage: 'beta',
     },
     {
         text: "Map Overlay",

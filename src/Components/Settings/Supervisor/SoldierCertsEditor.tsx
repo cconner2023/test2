@@ -31,7 +31,7 @@ function statusLabel(s: string) {
     case 'valid': return { text: 'Valid', cls: 'text-themegreen bg-themegreen/10' }
     case 'expiring': return { text: 'Expiring', cls: 'text-themeyellow bg-themeyellow/10' }
     case 'expired': return { text: 'Expired', cls: 'text-themeredred bg-themeredred/10' }
-    default: return { text: 'No Date', cls: 'text-tertiary/50 bg-tertiary/5' }
+    default: return { text: 'No Date', cls: 'text-tertiary bg-tertiary/5' }
   }
 }
 
@@ -41,7 +41,7 @@ function formatDate(dateStr: string): string {
   })
 }
 
-const inputClasses = 'w-full px-3 py-2.5 rounded-lg text-primary text-base border border-tertiary/10 focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none transition-all placeholder:text-tertiary/30'
+const inputClasses = 'w-full px-3 py-2.5 rounded-lg text-primary text-base border border-tertiary/10 focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none transition-all placeholder:text-tertiary'
 
 export function SoldierCertsEditor({
   soldier,
@@ -181,13 +181,13 @@ export function SoldierCertsEditor({
           <input type="checkbox" checked={form.is_primary}
             onChange={(e) => setForm(f => ({ ...f, is_primary: e.target.checked }))}
             className="rounded border-tertiary/20 text-themeblue2 focus:ring-themeblue2" />
-          <span className="text-[10px] text-tertiary/50">Primary</span>
+          <span className="text-[9pt] text-tertiary">Primary</span>
         </label>
       </div>
 
       <div className="grid grid-cols-3 gap-2 mt-3">
         <div>
-          <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Cert Number</span>
+          <span className="text-xs font-medium text-tertiary uppercase tracking-wide">Cert Number</span>
           <div className="mt-1">
             <TextInput
               value={form.cert_number}
@@ -197,13 +197,13 @@ export function SoldierCertsEditor({
           </div>
         </div>
         <div>
-          <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Issue Date</span>
+          <span className="text-xs font-medium text-tertiary uppercase tracking-wide">Issue Date</span>
           <input type="date" value={form.issue_date}
             onChange={(e) => setForm(f => ({ ...f, issue_date: e.target.value }))}
             className={`mt-1 ${inputClasses}`} />
         </div>
         <div>
-          <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Expiry Date</span>
+          <span className="text-xs font-medium text-tertiary uppercase tracking-wide">Expiry Date</span>
           <input type="date" value={form.exp_date}
             onChange={(e) => setForm(f => ({ ...f, exp_date: e.target.value }))}
             className={`mt-1 ${inputClasses}`} />
@@ -234,7 +234,7 @@ export function SoldierCertsEditor({
       {/* Header */}
       <div className="mb-4">
         <p className="text-lg font-semibold text-primary">{formatMedicName(soldier)}</p>
-        <p className="text-xs text-tertiary/50 mt-0.5">Certification Management</p>
+        <p className="text-xs text-tertiary mt-0.5">Certification Management</p>
       </div>
 
       {/* Add form at top */}
@@ -242,7 +242,7 @@ export function SoldierCertsEditor({
 
       {certs.length === 0 && mode !== 'adding' ? (
         <div className="text-center py-12">
-          <p className="text-sm text-tertiary/60">No certifications on file</p>
+          <p className="text-sm text-tertiary">No certifications on file</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -270,13 +270,13 @@ export function SoldierCertsEditor({
                     <div className="flex items-center gap-2 min-w-0">
                       <p className="text-sm font-medium text-primary truncate">{cert.title}</p>
                       {cert.is_primary && (
-                        <span className="text-[9px] font-medium text-themeblue2 bg-themeblue2/10 px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0">Primary</span>
+                        <span className="text-[9pt] md:text-[9pt] font-medium text-themeblue2 bg-themeblue2/10 px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0">Primary</span>
                       )}
                     </div>
-                    <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{badge.text}</span>
+                    <span className={`text-[9pt] md:text-[9pt] font-medium px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{badge.text}</span>
                   </div>
 
-                  <div className="flex items-center justify-between mt-1.5 text-xs text-tertiary/50">
+                  <div className="flex items-center justify-between mt-1.5 text-xs text-tertiary">
                     <span>{cert.cert_number ? `#${cert.cert_number}` : 'No cert number'}</span>
                     <span>{cert.exp_date ? `Exp: ${formatDate(cert.exp_date)}` : 'No expiry'}</span>
                   </div>
@@ -291,7 +291,7 @@ export function SoldierCertsEditor({
       {mode === 'view' && (
         <button
           onClick={() => { setMode('adding'); setForm(emptyForm) }}
-          className="w-full flex items-center justify-center gap-1.5 py-2.5 mt-3 rounded-lg border border-dashed border-tertiary/20 text-xs text-tertiary/50 hover:border-themeblue2 hover:text-themeblue2 transition-colors active:scale-95"
+          className="w-full flex items-center justify-center gap-1.5 py-2.5 mt-3 rounded-lg border border-dashed border-tertiary/20 text-xs text-tertiary hover:border-themeblue2 hover:text-themeblue2 transition-colors active:scale-95"
         >
           <Plus size={14} />
           Add Certification

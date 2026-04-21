@@ -29,15 +29,15 @@ export const SettingsListItem = ({
         >
             {editing
                 ? expanded
-                    ? <ChevronDown size={13} className="text-tertiary/50 shrink-0" />
-                    : <ChevronRight size={13} className="text-tertiary/50 shrink-0" />
+                    ? <ChevronDown size={13} className="text-tertiary shrink-0" />
+                    : <ChevronRight size={13} className="text-tertiary shrink-0" />
                 : null
             }
             <span className="text-xs font-medium text-primary truncate flex-1 min-w-0">
                 {label}
             </span>
             {badge && (
-                <span className="text-[10px] text-tertiary/50 shrink-0">{badge}</span>
+                <span className="text-[9pt] text-tertiary shrink-0">{badge}</span>
             )}
             <div className={`flex items-center gap-0 overflow-hidden transition-all duration-200 ease-out ${editing ? 'max-w-20 opacity-100' : 'max-w-0 opacity-0'}`}>
                 <button
@@ -45,7 +45,7 @@ export const SettingsListItem = ({
                     className="shrink-0 p-1 rounded hover:bg-tertiary/10 transition-colors active:scale-95"
                     aria-label={`Edit ${label}`}
                 >
-                    <Pencil size={13} className="text-tertiary/50" />
+                    <Pencil size={13} className="text-tertiary" />
                 </button>
                 <button
                     onClick={(e) => { e.stopPropagation(); onDelete(); }}

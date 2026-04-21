@@ -248,8 +248,8 @@ export function TC3BodyDiagramSvg({ markers = [], editingMarker = null, onAddMar
 
             {/* Labels outside SVG canvas */}
             <div className="flex mt-1" style={{ width: w }}>
-                <p className="flex-1 text-center text-[9px] font-semibold text-tertiary/50 uppercase tracking-widest">Anterior</p>
-                <p className="flex-1 text-center text-[9px] font-semibold text-tertiary/50 uppercase tracking-widest">Posterior</p>
+                <p className="flex-1 text-center text-[9pt] md:text-[9pt] font-semibold text-tertiary uppercase tracking-widest">Anterior</p>
+                <p className="flex-1 text-center text-[9pt] md:text-[9pt] font-semibold text-tertiary uppercase tracking-widest">Posterior</p>
             </div>
         </div>
     )

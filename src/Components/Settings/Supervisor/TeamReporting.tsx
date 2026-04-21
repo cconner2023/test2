@@ -48,8 +48,8 @@ export function TeamReporting({
   if (metrics.totalMedics === 0) {
     return (
       <div className="text-center py-12">
-        <AlertTriangle size={28} className="mx-auto mb-3 text-tertiary/30" />
-        <p className="text-sm text-tertiary/60">No personnel assigned to your clinic.</p>
+        <AlertTriangle size={28} className="mx-auto mb-3 text-tertiary" />
+        <p className="text-sm text-tertiary">No personnel assigned to your clinic.</p>
       </div>
     )
   }
@@ -60,23 +60,23 @@ export function TeamReporting({
       <div data-tour="supervisor-clinic-stats" className="rounded-xl bg-themewhite2 px-4 py-3 mb-5">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-            <Building2 size={16} className="text-tertiary/50" />
+            <Building2 size={16} className="text-tertiary" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-primary truncate">{clinicName ?? 'My Clinic'}</p>
-            <p className="text-[9pt] text-tertiary/50">{medics.length} personnel</p>
+            <p className="text-[9pt] text-tertiary">{medics.length} personnel</p>
           </div>
         </div>
         <div className="flex flex-col gap-1.5 mt-2 ml-11">
           <div className="flex items-center gap-2">
-            <span className="text-[9pt] text-tertiary/50 w-18 shrink-0">Readiness</span>
+            <span className="text-[9pt] text-tertiary w-18 shrink-0">Readiness</span>
             <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
               <div className={`h-full rounded-full ${readinessColor(metrics.teamReadinessPercent)}`} style={{ width: `${metrics.teamReadinessPercent}%` }} />
             </div>
             <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(metrics.teamReadinessPercent)}`}>{metrics.teamReadinessPercent}%</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[9pt] text-tertiary/50 w-18 shrink-0">Compliance</span>
+            <span className="text-[9pt] text-tertiary w-18 shrink-0">Compliance</span>
             <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
               <div className={`h-full rounded-full ${readinessColor(metrics.certCompliancePercent)}`} style={{ width: `${metrics.certCompliancePercent}%` }} />
             </div>
@@ -87,7 +87,7 @@ export function TeamReporting({
 
       {/* Soldier Readiness */}
       <div data-tour="supervisor-soldier-readiness">
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Soldier Readiness
         </p>
         <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
@@ -106,7 +106,7 @@ export function TeamReporting({
                 </span>
                 <div className="flex-1 min-w-0 flex flex-col gap-1.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-[9pt] text-tertiary/50 w-18 shrink-0">Readiness</span>
+                    <span className="text-[9pt] text-tertiary w-18 shrink-0">Readiness</span>
                     <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${readinessColor(entry.readinessPercent)}`}
@@ -118,7 +118,7 @@ export function TeamReporting({
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[9pt] text-tertiary/50 w-18 shrink-0">Compliance</span>
+                    <span className="text-[9pt] text-tertiary w-18 shrink-0">Compliance</span>
                     <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${readinessColor(entry.compliancePercent)}`}
@@ -131,7 +131,7 @@ export function TeamReporting({
                   </div>
                 </div>
                 {entry.overdueCount > 0 && (
-                  <span className="text-[10px] font-medium text-themeredred bg-themeredred/10 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                  <span className="text-[9pt] font-medium text-themeredred bg-themeredred/10 px-1.5 py-0.5 rounded-full flex-shrink-0">
                     {entry.overdueCount}
                   </span>
                 )}
@@ -143,7 +143,7 @@ export function TeamReporting({
 
       {/* Coverage Gaps */}
       <div data-tour="supervisor-coverage-gaps">
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Coverage Gaps
         </p>
         <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">

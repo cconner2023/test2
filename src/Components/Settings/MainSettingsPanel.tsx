@@ -81,9 +81,9 @@ export const MainSettingsPanel = ({
                         </button>
                         <div className="flex-1 min-w-0 text-left">
                             <p className="text-sm font-semibold text-primary">{displayName}</p>
-                            <p className="text-[11px] text-tertiary/70 mt-0.5">{displaySub}</p>
+                            <p className="text-[9pt] text-tertiary mt-0.5">{displaySub}</p>
                         </div>
-                        <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+                        <ChevronRight size={16} className="text-tertiary shrink-0" />
                     </div>
                 </div>
 
@@ -106,15 +106,15 @@ export const MainSettingsPanel = ({
                                 <div className="flex-1 min-w-0 text-left">
                                     <p className="text-sm font-medium text-primary">{item.label}</p>
                                     {item.subtitle && (
-                                        <p className="text-[11px] text-tertiary/70 mt-0.5">{item.subtitle}</p>
+                                        <p className="text-[9pt] text-tertiary mt-0.5">{item.subtitle}</p>
                                     )}
                                 </div>
                                 {item.badge != null && item.badge > 0 && (
-                                    <span className="min-w-5 h-5 px-1.5 rounded-full bg-themeblue2 text-white text-[11px] font-semibold flex items-center justify-center">
+                                    <span className="min-w-5 h-5 px-1.5 rounded-full bg-themeblue2 text-white text-[9pt] font-semibold flex items-center justify-center">
                                         {item.badge > 99 ? '99+' : item.badge}
                                     </span>
                                 )}
-                                <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+                                <ChevronRight size={16} className="text-tertiary shrink-0" />
                             </button>
                         ))}
                     </div>
@@ -124,7 +124,7 @@ export const MainSettingsPanel = ({
                 {cardSections.map((section) => (
                     <div key={section.label}>
                         <div className="flex items-center gap-2 mb-2">
-                            <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">{section.label}</p>
+                            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">{section.label}</p>
                         </div>
                         <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
                             {section.items.map((item, idx) => (
@@ -143,27 +143,27 @@ export const MainSettingsPanel = ({
                                         }`}
                                 >
                                     <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                                        <div className={`${item.disabled ? 'text-tertiary/40' : item.color}`}>
+                                        <div className={`${item.disabled ? 'text-tertiary' : item.color}`}>
                                             {item.icon}
                                         </div>
                                     </div>
                                     <div className="flex-1 min-w-0 text-left">
-                                        <p className={`text-sm font-medium ${item.disabled ? 'text-tertiary/40' : 'text-primary'}`}>
+                                        <p className={`text-sm font-medium ${item.disabled ? 'text-tertiary' : 'text-primary'}`}>
                                             {item.label}
                                         </p>
                                         {item.subtitle && (
-                                            <p className="text-[11px] text-tertiary/70 mt-0.5">{item.subtitle}</p>
+                                            <p className="text-[9pt] text-tertiary mt-0.5">{item.subtitle}</p>
                                         )}
                                     </div>
                                     {item.badge != null && item.badge > 0 && (
-                                        <span className="min-w-5 h-5 px-1.5 rounded-full bg-themeblue2 text-white text-[11px] font-semibold flex items-center justify-center">
+                                        <span className="min-w-5 h-5 px-1.5 rounded-full bg-themeblue2 text-white text-[9pt] font-semibold flex items-center justify-center">
                                             {item.badge > 99 ? '99+' : item.badge}
                                         </span>
                                     )}
                                     {item.disabled ? (
-                                        <span className="text-[9px] text-tertiary/40 font-semibold uppercase tracking-wide">Soon</span>
+                                        <span className="text-[9pt] md:text-[9pt] text-tertiary font-semibold uppercase tracking-wide">Soon</span>
                                     ) : (
-                                        <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+                                        <ChevronRight size={16} className="text-tertiary shrink-0" />
                                     )}
                                 </button>
                             ))}
@@ -173,10 +173,10 @@ export const MainSettingsPanel = ({
 
                 <div className="pt-4 border-t border-tertiary/10">
                     <div className="text-center">
-                        <p className="text-xs text-tertiary/40 mt-1">Version {__APP_VERSION__}</p>
+                        <p className="text-xs text-tertiary mt-1">Version {__APP_VERSION__}</p>
                         <div className="flex items-center justify-center gap-1.5 mt-2">
                             <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-themegreen' : 'bg-tertiary/40'}`} />
-                            <span className={`text-[11px] font-medium ${isConnected ? 'text-themegreen' : 'text-tertiary/60'}`}>
+                            <span className={`text-[9pt] font-medium ${isConnected ? 'text-themegreen' : 'text-tertiary'}`}>
                                 {isConnected ? 'Connected' : 'Offline'}
                             </span>
                         </div>

@@ -94,7 +94,7 @@ export const TextTemplateDetailPanel = ({
 
                 {/* ── Shortcut abbreviation ── */}
                 <div>
-                    <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-2">
+                    <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">
                         Shortcut
                     </p>
                     <div className="rounded-xl bg-themewhite2 px-4 py-3">
@@ -103,7 +103,7 @@ export const TextTemplateDetailPanel = ({
                             value={abbr}
                             onChange={(e) => { setAbbr(e.target.value); setAbbrError(''); }}
                             placeholder="e.g. htn, sob, cva"
-                            className="w-full bg-transparent outline-none text-lg font-semibold text-primary placeholder:text-tertiary/30 font-mono"
+                            className="w-full bg-transparent outline-none text-lg font-semibold text-primary placeholder:text-tertiary font-mono"
                             autoFocus={isNew}
                         />
                         {abbrError && (
@@ -114,7 +114,7 @@ export const TextTemplateDetailPanel = ({
 
                 {/* ── Type toggle ── */}
                 <div>
-                    <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-2">
+                    <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">
                         Type
                     </p>
                     <div className="flex rounded-xl overflow-hidden border border-themeblue3/10 shadow-xs">
@@ -143,7 +143,7 @@ export const TextTemplateDetailPanel = ({
 
                 {/* ── Content editor ── */}
                 <div>
-                    <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-2">
+                    <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">
                         {mode === 'simple' ? 'Expansion' : 'Template Blocks'}
                     </p>
                     <div className="rounded-xl bg-themewhite2 px-4 py-3">

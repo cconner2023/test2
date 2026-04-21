@@ -22,7 +22,7 @@ export function ContactListItem({ medic, lastMessage, unreadCount, onClick, unav
   return (
     <ListItemRow
       onClick={onClick}
-      className={`px-4 py-3 transition-all duration-150 hover:bg-primary/3 active:scale-[0.98] cursor-pointer${unavailable ? ' opacity-50' : ''}`}
+      className={`px-4 py-4 transition-all duration-150 hover:bg-primary/3 active:scale-[0.98] cursor-pointer${unavailable ? ' opacity-50' : ''}`}
       left={
         <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-10 h-10" />
       }
@@ -30,14 +30,14 @@ export function ContactListItem({ medic, lastMessage, unreadCount, onClick, unav
         <>
           <p className="text-sm font-medium text-primary truncate">{getDisplayName(medic)}</p>
           {unavailable ? (
-            <p className="text-[10px] text-thememuted">{UNAVAILABLE_LABELS[unavailableReason ?? 'no_device']}</p>
+            <p className="text-[9pt] text-thememuted">{UNAVAILABLE_LABELS[unavailableReason ?? 'no_device']}</p>
           ) : (
             <>
               {medic.credential && (
-                <p className="text-[10px] text-tertiary/50">{medic.credential}</p>
+                <p className="text-[9pt] text-tertiary">{medic.credential}</p>
               )}
               {lastMessage && (
-                <p className="text-xs text-tertiary/60 truncate mt-0.5">{lastMessage}</p>
+                <p className="text-xs text-tertiary truncate mt-0.5">{lastMessage}</p>
               )}
             </>
           )}

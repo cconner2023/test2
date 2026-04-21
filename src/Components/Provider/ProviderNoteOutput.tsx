@@ -38,7 +38,6 @@ export function ProviderNoteOutput({
     const isMobile = useIsMobile();
     const { shareNote, shareStatus } = useNoteShare();
     const { exportSF600, sf600ExportStatus, sf600Preview, downloadSF600, clearSF600Preview } = useSF600Export();
-    const isDevRole = useAuthStore(s => s.isDevRole);
     const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null);
 
     const signature = useMemo(
@@ -180,7 +179,7 @@ export function ProviderNoteOutput({
             {/* Note Preview */}
             <div>
                 <div className="pb-2 flex items-center justify-between">
-                    <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Note Preview</p>
+                    <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Note Preview</p>
                     <div className="flex items-center gap-0.5">
                         <ActionIconButton
                             onClick={() => handleCopy(previewNote, 'preview')}
@@ -188,18 +187,16 @@ export function ProviderNoteOutput({
                             variant="copy"
                             title="Copy note text"
                         />
-                        {isDevRole && (
-                            <ActionIconButton
-                                onClick={handleExportSF600}
-                                status={exportStatusToIconStatus(sf600ExportStatus)}
-                                variant="pdf"
-                                title="Export SF600 PDF"
-                            />
-                        )}
+                        <ActionIconButton
+                            onClick={handleExportSF600}
+                            status={exportStatusToIconStatus(sf600ExportStatus)}
+                            variant="pdf"
+                            title="Export SF600 PDF"
+                        />
                     </div>
                 </div>
                 <div className="rounded-xl bg-themewhite2 overflow-hidden">
-                    <div className="px-4 py-3 text-tertiary text-[8pt] whitespace-pre-wrap max-h-48 md:max-h-80 overflow-y-auto">
+                    <div className="px-4 py-3 text-tertiary text-[9pt] whitespace-pre-wrap max-h-48 md:max-h-80 overflow-y-auto">
                         {previewNote
                             ? previewNote.split('\n').filter(l => !l.startsWith('Signed:')).join('\n').trim()
                             : 'No content available'}
@@ -210,7 +207,7 @@ export function ProviderNoteOutput({
             {/* Encoded Note */}
             <div>
                 <div className="pb-2 flex items-center justify-between">
-                    <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Encoded Note</p>
+                    <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Encoded Note</p>
                     <div className="flex items-center gap-0.5">
                         <ActionIconButton
                             onClick={handleShare}

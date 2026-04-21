@@ -46,7 +46,7 @@ export function KBOverlay({ title, isOpen, onClose, children }: KBOverlayProps) 
             >
                 {title ? (
                     <div className="flex-none flex items-center justify-between px-5 py-3 border-b border-tertiary/10">
-                        <h3 className="text-[15px] font-semibold text-primary">{title}</h3>
+                        <h3 className="text-[11pt] font-semibold text-primary">{title}</h3>
                         <button
                             onClick={handleClose}
                             className="text-tertiary hover:text-secondary active:scale-95 transition-all"

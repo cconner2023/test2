@@ -57,11 +57,11 @@ export function SymptomGuidelines({
         <div className="space-y-5">
             {/* Symptom Header Card */}
             <SectionCard>
-                <div className="px-4 py-3.5 text-primary/80">
+                <div className="px-4 py-3.5 text-primary">
                     <div className="text-[10pt] font-semibold">
                         {symptom.text}
                     </div>
-                    <div className="text-[8pt] text-secondary mt-0.5">
+                    <div className="text-[9pt] text-secondary mt-0.5">
                         {category.text}
                     </div>
                     {symptom.description && (
@@ -110,7 +110,7 @@ export function SymptomGuidelines({
                                     className={`flex items-center px-4 py-3.5 text-xs text-tertiary transition-all ${isDDX ? '' : 'cursor-pointer active:scale-95 hover:bg-themeblue2/5'}`}
                                 >
                                     {isTraining && item.icon && (
-                                        <span className="text-tertiary mr-1.5 text-[8pt]">{item.icon}</span>
+                                        <span className="text-tertiary mr-1.5 text-[9pt]">{item.icon}</span>
                                     )}
                                     {item.text}
                                 </div>

@@ -43,17 +43,17 @@ export function DisambiguationCard({ candidates, items, onSelect, onManual }: Di
 
               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 {item?.nsn && (
-                  <span className="text-[10px] text-tertiary/60 font-medium">
+                  <span className="text-[9pt] text-tertiary font-medium">
                     NSN {item.nsn}
                   </span>
                 )}
                 {(item?.quantity ?? 1) > 1 && (
-                  <span className="text-[10px] bg-themewhite2 border border-tertiary/20 rounded-full px-2 py-0.5 text-secondary font-semibold">
+                  <span className="text-[9pt] bg-themewhite2 border border-tertiary/20 rounded-full px-2 py-0.5 text-secondary font-semibold">
                     ×{item!.quantity}
                   </span>
                 )}
                 {candidate.matchedBarcode && (
-                  <span className="text-[10px] bg-themeblue3/10 text-themeblue3 border border-themeblue3/20 rounded-full px-2 py-0.5 font-semibold">
+                  <span className="text-[9pt] bg-themeblue3/10 text-themeblue3 border border-themeblue3/20 rounded-full px-2 py-0.5 font-semibold">
                     barcode
                   </span>
                 )}

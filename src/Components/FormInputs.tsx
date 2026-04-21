@@ -28,12 +28,12 @@ export const TextInput = ({
 }) => (
   <label className="block">
     {label && (
-      <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
+      <span className="text-xs font-medium text-tertiary uppercase tracking-wide">
         {label} {required && <span className="text-themeredred">*</span>}
       </span>
     )}
     {currentValue && (
-      <div className="text-xs text-tertiary/50 mb-1">
+      <div className="text-xs text-tertiary mb-1">
         Current: <span className="font-medium">{currentValue}</span>
       </div>
     )}
@@ -47,7 +47,7 @@ export const TextInput = ({
       required={required}
       className={`${label ? 'mt-1' : ''} w-full px-4 py-2.5 rounded-full text-primary text-sm
                  border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none
-                 transition-all duration-300 placeholder:text-tertiary/30`}
+                 transition-all duration-300 placeholder:text-tertiary`}
     />
     {hint && (
       <span className="mt-1 block text-xs text-themeredred">{hint}</span>
@@ -73,11 +73,11 @@ export const SelectInput = ({
   currentValue?: string | null
 }) => (
   <label className="block">
-    <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
+    <span className="text-xs font-medium text-tertiary uppercase tracking-wide">
       {label} {required && <span className="text-themeredred">*</span>}
     </span>
     {currentValue && (
-      <div className="text-xs text-tertiary/50 mb-1">
+      <div className="text-xs text-tertiary mb-1">
         Current: <span className="font-medium">{currentValue}</span>
       </div>
     )}
@@ -145,7 +145,7 @@ export const PickerInput = ({
   return (
     <div>
       {label && (
-        <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
+        <span className="text-xs font-medium text-tertiary uppercase tracking-wide">
           {label} {required && <span className="text-themeredred">*</span>}
         </span>
       )}
@@ -156,11 +156,11 @@ export const PickerInput = ({
           className={`w-full px-4 py-2.5 rounded-full text-left text-sm
                      border border-themeblue3/10 shadow-xs bg-themewhite2
                      transition-all duration-200 flex items-center justify-between active:scale-[0.98] ${
-                       value ? 'text-primary' : 'text-tertiary/30'
+                       value ? 'text-primary' : 'text-tertiary'
                      }`}
         >
           <span className="truncate">{displayLabel || placeholder || 'Select...'}</span>
-          <ChevronDown size={16} className="shrink-0 ml-2 text-tertiary/40" />
+          <ChevronDown size={16} className="shrink-0 ml-2 text-tertiary" />
         </button>
         {required && !value && (
           <input tabIndex={-1} className="absolute inset-0 opacity-0 pointer-events-none" required value="" onChange={() => {}} />
@@ -300,7 +300,7 @@ export function DatePickerCalendar({
           <button
             type="button"
             onClick={() => setViewYear(y => y - 1)}
-            className="p-1.5 rounded-full text-tertiary/60 active:scale-95 transition-all"
+            className="p-1.5 rounded-full text-tertiary active:scale-95 transition-all"
           >
             <ChevronLeft size={18} />
           </button>
@@ -308,7 +308,7 @@ export function DatePickerCalendar({
           <button
             type="button"
             onClick={() => setViewYear(y => y + 1)}
-            className="p-1.5 rounded-full text-tertiary/60 active:scale-95 transition-all"
+            className="p-1.5 rounded-full text-tertiary active:scale-95 transition-all"
           >
             <ChevronRight size={18} />
           </button>
@@ -341,7 +341,7 @@ export function DatePickerCalendar({
         <button
           type="button"
           onClick={prevMonth}
-          className="p-1.5 rounded-full text-tertiary/60 active:scale-95 transition-all"
+          className="p-1.5 rounded-full text-tertiary active:scale-95 transition-all"
         >
           <ChevronLeft size={18} />
         </button>
@@ -355,14 +355,14 @@ export function DatePickerCalendar({
         <button
           type="button"
           onClick={nextMonth}
-          className="p-1.5 rounded-full text-tertiary/60 active:scale-95 transition-all"
+          className="p-1.5 rounded-full text-tertiary active:scale-95 transition-all"
         >
           <ChevronRight size={18} />
         </button>
       </div>
       <div className="grid grid-cols-7 mb-1">
         {DAYS.map((d, i) => (
-          <div key={i} className="h-8 flex items-center justify-center text-[11px] font-medium text-tertiary/40">
+          <div key={i} className="h-8 flex items-center justify-center text-[9pt] font-medium text-tertiary">
             {d}
           </div>
         ))}
@@ -420,11 +420,11 @@ export const DatePickerInput = ({
         className={`w-full px-4 py-2.5 rounded-full text-left text-sm
                    border border-themeblue3/10 shadow-xs bg-themewhite2
                    transition-all duration-200 flex items-center justify-between active:scale-[0.98] ${
-                     display ? 'text-primary' : 'text-tertiary/30'
+                     display ? 'text-primary' : 'text-tertiary'
                    }`}
       >
         <span className="truncate">{display || placeholder || 'Select date...'}</span>
-        <ChevronDown size={16} className="shrink-0 ml-2 text-tertiary/40" />
+        <ChevronDown size={16} className="shrink-0 ml-2 text-tertiary" />
       </button>
 
       <PreviewOverlay
@@ -486,9 +486,9 @@ export function UicPinInput({ value, onChange, spread, label }: { value: string;
 
   return (
     <div>
-      {label && <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">{label}</span>}
+      {label && <span className="text-xs font-medium text-tertiary uppercase tracking-wide">{label}</span>}
       <div className={`${label ? 'mt-1 ' : ''}${spread ? 'grid grid-cols-6 gap-2' : 'flex items-center gap-1.5'}`}>
-        {!spread && !label && <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mr-1">UIC</span>}
+        {!spread && !label && <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mr-1">UIC</span>}
         {chars.map((c, i) => (
         <input
           key={i}
@@ -587,7 +587,7 @@ export function PinCodeInput({ onSubmit, error, disabled, label, length = 4 }: {
 
   return (
     <div className="flex flex-col items-center gap-2">
-      {label && <p className={`text-xs ${error && shaking ? 'text-themeredred' : 'text-tertiary/60'}`}>{error && shaking ? error : label}</p>}
+      {label && <p className={`text-xs ${error && shaking ? 'text-themeredred' : 'text-tertiary'}`}>{error && shaking ? error : label}</p>}
       <div className={`flex items-center gap-2 ${shaking ? 'animate-shake' : ''}`} onPaste={handlePaste}>
         {digits.map((d, i) => (
           <input
@@ -636,7 +636,7 @@ export const PasswordInput = ({
 
   return (
     <label className="block">
-      {label && <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">{label}</span>}
+      {label && <span className="text-xs font-medium text-tertiary uppercase tracking-wide">{label}</span>}
       <div className={`relative ${label ? 'mt-1' : ''}`}>
         <input
           ref={inputRef}
@@ -647,12 +647,12 @@ export const PasswordInput = ({
           autoComplete={autoComplete}
           disabled={disabled}
           className="w-full px-4 py-2.5 pr-10 rounded-full bg-themewhite dark:bg-themewhite3 text-primary text-sm
-                     border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all duration-300 placeholder:text-tertiary/30 disabled:opacity-50"
+                     border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all duration-300 placeholder:text-tertiary disabled:opacity-50"
         />
         <button
           type="button"
           onClick={() => setShow(!show)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-tertiary/40 hover:text-tertiary/70 transition-colors"
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-tertiary hover:text-tertiary transition-colors"
         >
           {show ? <EyeOff size={18} /> : <Eye size={18} />}
         </button>
@@ -701,7 +701,7 @@ export const MultiPickerInput = ({
   return (
     <div>
       {label && (
-        <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
+        <span className="text-xs font-medium text-tertiary uppercase tracking-wide">
           {label} {required && <span className="text-themeredred">*</span>}
         </span>
       )}
@@ -712,11 +712,11 @@ export const MultiPickerInput = ({
           className={`w-full px-4 py-2.5 rounded-full text-left text-sm
                      border border-themeblue3/10 shadow-xs bg-themewhite2
                      transition-all duration-200 flex items-center justify-between active:scale-[0.98] ${
-                       value.length > 0 ? 'text-primary' : 'text-tertiary/30'
+                       value.length > 0 ? 'text-primary' : 'text-tertiary'
                      }`}
         >
           <span className="truncate">{displayLabel || placeholder || 'Select...'}</span>
-          <ChevronDown size={16} className="shrink-0 ml-2 text-tertiary/40" />
+          <ChevronDown size={16} className="shrink-0 ml-2 text-tertiary" />
         </button>
         {required && value.length === 0 && (
           <input tabIndex={-1} className="absolute inset-0 opacity-0 pointer-events-none" required value="" onChange={() => {}} />

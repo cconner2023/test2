@@ -11,12 +11,15 @@ import {
   MEDEVAC_NATIONALITY_LABELS,
   MEDEVAC_NBC_LABELS,
   medevacPatientTotal,
+  emptyMedevacRequest,
+  type MedevacNationality,
 } from '../Types/MedevacTypes'
 
 // ── 9-Line MEDEVAC ────────────────────────────────────────────────────────────
 
 export function medevacToText(req: MedevacRequest): string {
-  const lines: string[] = ['9-LINE MEDEVAC REQUEST', '']
+  const isWartime = req.mode !== 'peacetime'
+  const lines: string[] = [`9-LINE MEDEVAC REQUEST (${isWartime ? 'WARTIME' : 'PEACETIME'})`, '']
   lines.push(`LINE 1 — PICKUP SITE: ${req.l1 || '—'}${req.l1d ? ` (${req.l1d})` : ''}`)
   lines.push(`LINE 2 — RADIO: ${req.l2f || '—'} / ${req.l2c || '—'}${req.l2s ? `-${req.l2s}` : ''}`)
   const breakdown = (Object.entries(req.l3) as [string, number][])
@@ -26,13 +29,31 @@ export function medevacToText(req: MedevacRequest): string {
   lines.push(`LINE 3 — PATIENTS: ${medevacPatientTotal(req)} total (${breakdown || 'none'})`)
   lines.push(`LINE 4 — EQUIPMENT: ${req.l4.map(e => MEDEVAC_EQUIPMENT_LABELS[e]).join(', ')}`)
   lines.push(`LINE 5 — PATIENT TYPE: ${req.l5l} Litter / ${req.l5a} Ambulatory`)
-  lines.push(`LINE 6 — SECURITY: ${MEDEVAC_SECURITY_LABELS[req.l6]}`)
+  if (isWartime) {
+    lines.push(`LINE 6 — SECURITY: ${MEDEVAC_SECURITY_LABELS[req.l6]}`)
+  } else {
+    const wounds = req.l6wounds ?? []
+    if (wounds.length === 0) {
+      lines.push('LINE 6 — WOUNDS/INJURIES: —')
+    } else {
+      lines.push(`LINE 6 — WOUNDS/INJURIES (${wounds.length}):`)
+      wounds.forEach((w, i) => lines.push(`  ${i + 1}. ${w.text}`))
+    }
+  }
   let l7 = MEDEVAC_MARKING_LABELS[req.l7]
   if (req.l7 === 'C' && req.l7c) l7 += ` — ${req.l7c}`
   if (req.l7 === 'E' && req.l7o) l7 += ` — ${req.l7o}`
   lines.push(`LINE 7 — MARKING: ${l7}`)
-  lines.push(`LINE 8 — NATIONALITY: ${req.l8.map(n => MEDEVAC_NATIONALITY_LABELS[n]).join(', ')}`)
-  lines.push(`LINE 9 — NBC: ${MEDEVAC_NBC_LABELS[req.l9]}`)
+  const l8text = (['A','B','C','D','E'] as MedevacNationality[])
+    .filter(n => (req.l8[n] ?? 0) > 0)
+    .map(n => `${req.l8[n]} ${MEDEVAC_NATIONALITY_LABELS[n]}`)
+    .join(', ')
+  lines.push(`LINE 8 — NATIONALITY: ${l8text || '—'}`)
+  if (isWartime) {
+    lines.push(`LINE 9 — NBC: ${MEDEVAC_NBC_LABELS[req.l9]}`)
+  } else {
+    lines.push(`LINE 9 — TERRAIN: ${req.l9p || '—'}`)
+  }
   if (req.notes) lines.push(`\nNOTES: ${req.notes}`)
   return lines.join('\n')
 }
@@ -171,6 +192,47 @@ export function opordToText(r: Opord): string {
   lines.push(`     PACE Plan:          ${r.pacePlan || '—'}`)
   if (r.notes) lines.push(`\nNOTES: ${r.notes}`)
   return lines.join('\n')
+}
+
+// ── 9-Line compact encoding (for data matrix / import) ───────────────────────
+
+const MEDEVAC_COMPACT_PREFIX = '9L:'
+
+function _utf8ToB64(str: string): string {
+  return btoa(
+    encodeURIComponent(str).replace(/%([0-9A-F]{2})/gi, (_, hex) =>
+      String.fromCharCode(parseInt(hex, 16))
+    )
+  )
+}
+
+function _b64ToUtf8(b64: string): string {
+  return decodeURIComponent(
+    Array.from(atob(b64))
+      .map(c => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
+      .join('')
+  )
+}
+
+/** Compact base64 encoding of a MedevacRequest — used for data matrix barcodes. */
+export function medevacToCompact(req: MedevacRequest): string {
+  // Strip cross-domain link fields that are meaningless out of context
+  const { tc3CardId: _a, featureId: _b, overlayId: _c, ...rest } = req
+  return MEDEVAC_COMPACT_PREFIX + _utf8ToB64(JSON.stringify(rest))
+}
+
+/** Decode a compact-encoded string back to a MedevacRequest. Returns null on failure. */
+export function medevacFromCompact(str: string): MedevacRequest | null {
+  try {
+    const trimmed = str.trim()
+    if (!trimmed.startsWith(MEDEVAC_COMPACT_PREFIX)) return null
+    const parsed = JSON.parse(_b64ToUtf8(trimmed.slice(MEDEVAC_COMPACT_PREFIX.length)))
+    if (typeof parsed !== 'object' || !parsed) return null
+    if (typeof parsed.mode !== 'string') return null
+    return { ...emptyMedevacRequest(), ...parsed } as MedevacRequest
+  } catch {
+    return null
+  }
 }
 
 // ── Shared export utilities ───────────────────────────────────────────────────

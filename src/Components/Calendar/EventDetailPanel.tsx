@@ -1,11 +1,13 @@
-import { Pencil, X, CalendarPlus, Map } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Pencil, X, CalendarPlus, Map, Copy, Check, Printer, Image } from 'lucide-react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
 import { getCategoryMeta } from '../../Types/CalendarTypes'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { shareSingleEvent } from '../../lib/calendarExport'
 import { useIsMobile } from '../../Hooks/useIsMobile'
-import { MedevacCard } from '../Medevac/MedevacCard'
+import { medevacToText, medevacToCompact, copyToClipboard, printReport } from '../../lib/reportExport'
+import { BarcodeDisplay } from '../Barcode'
 
 interface AssignedPerson {
   id: string
@@ -45,6 +47,41 @@ function formatDateTime(iso: string, allDay: boolean): string {
 export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, onOpenMissionBoard, assignedNames = [], linkedPropertyItems = [], hideHeader }: EventDetailPanelProps) {
   const isMobile = useIsMobile()
   const cat = getCategoryMeta(event.category)
+  const [copied, setCopied] = useState(false)
+  const [copiedDm, setCopiedDm] = useState<'image' | 'code' | null>(null)
+  const barcodeRef = useRef<HTMLDivElement>(null)
+
+  function handleMedevacCopy() {
+    if (!event.medevac_data) return
+    copyToClipboard(medevacToText(event.medevac_data)).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  function handleMedevacPrint() {
+    if (!event.medevac_data) return
+    printReport('9-Line MEDEVAC', medevacToText(event.medevac_data))
+  }
+
+  function handleCopyCode() {
+    if (!event.medevac_data) return
+    copyToClipboard(medevacToCompact(event.medevac_data)).then(() => {
+      setCopiedDm('code')
+      setTimeout(() => setCopiedDm(null), 2000)
+    })
+  }
+
+  function handleCopyImage() {
+    const canvas = barcodeRef.current?.querySelector('canvas')
+    if (!canvas) return
+    canvas.toBlob(blob => {
+      if (!blob) return
+      navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+        .then(() => { setCopiedDm('image'); setTimeout(() => setCopiedDm(null), 2000) })
+        .catch(() => {})
+    }, 'image/png')
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -63,7 +100,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
         <div className={`rounded-2xl border border-themeblue3/10 bg-themewhite2 space-y-3 ${isMobile ? 'p-4' : 'p-3'}`}>
           <div className="flex items-center gap-2">
             <span className={`h-2 w-2 rounded-full ${cat.color}`} />
-            <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">{cat.label}</span>
+            <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">{cat.label}</span>
           </div>
 
           <h2 className={`font-bold text-primary ${isMobile ? 'text-lg' : 'text-sm'}`}>{event.title}</h2>
@@ -99,8 +136,8 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
         {/* Personnel card */}
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Personnel</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
+            <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Personnel</span>
+            <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
               {assignedNames.length}
             </span>
           </div>
@@ -127,8 +164,8 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
         {linkedPropertyItems.length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Equipment</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
+              <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Equipment</span>
+              <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
                 {linkedPropertyItems.length}
               </span>
             </div>
@@ -137,7 +174,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
                 <div key={item.id} className={`flex items-center ${isMobile ? 'gap-3 px-4 py-3' : 'gap-2 px-3 py-2'}`}>
                   <div className="min-w-0">
                     <p className={`font-medium text-primary truncate ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.name}</p>
-                    {item.nsn && <p className="text-[10px] text-tertiary">{item.nsn}</p>}
+                    {item.nsn && <p className="text-[9pt] text-tertiary">{item.nsn}</p>}
                   </div>
                 </div>
               ))}
@@ -145,13 +182,63 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
           </div>
         )}
 
-        {/* 9-line MEDEVAC card */}
+        {/* 9-line MEDEVAC */}
         {event.medevac_data && (
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">MEDEVAC Request</span>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">MEDEVAC Request</span>
+              <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={handleMedevacCopy}
+                  title="Copy"
+                  className={`p-1.5 rounded-full transition-all active:scale-95 ${copied ? 'text-themegreen' : 'text-tertiary hover:text-primary hover:bg-themewhite3'}`}
+                >
+                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleMedevacPrint}
+                  title="Print"
+                  className="p-1.5 rounded-full text-tertiary hover:text-primary hover:bg-themewhite3 active:scale-95 transition-all"
+                >
+                  <Printer className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-            <MedevacCard data={event.medevac_data} />
+            <div className="rounded-xl bg-themewhite2 overflow-hidden">
+              <div className="px-4 py-3 text-tertiary text-[9pt] whitespace-pre-wrap leading-relaxed">
+                {medevacToText(event.medevac_data)}
+              </div>
+            </div>
+
+            {/* Data Matrix */}
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Data Matrix</span>
+                <div className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={handleCopyImage}
+                    title="Copy image"
+                    className={`p-1.5 rounded-full transition-all active:scale-95 ${copiedDm === 'image' ? 'text-themegreen' : 'text-tertiary hover:text-primary hover:bg-themewhite3'}`}
+                  >
+                    {copiedDm === 'image' ? <Check className="w-4 h-4" /> : <Image className="w-4 h-4" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCopyCode}
+                    title="Copy code"
+                    className={`p-1.5 rounded-full transition-all active:scale-95 ${copiedDm === 'code' ? 'text-themegreen' : 'text-tertiary hover:text-primary hover:bg-themewhite3'}`}
+                  >
+                    {copiedDm === 'code' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <div ref={barcodeRef} className="rounded-xl overflow-hidden">
+                <BarcodeDisplay encodedText={medevacToCompact(event.medevac_data)} layout="col" />
+              </div>
+            </div>
           </div>
         )}
 

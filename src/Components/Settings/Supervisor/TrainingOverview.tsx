@@ -40,7 +40,7 @@ export function TrainingOverview({
           >
             {/* Header: icon + area name */}
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-tertiary/60">{subjectAreaIcons[gap.areaName]}</span>
+              <span className="text-tertiary">{subjectAreaIcons[gap.areaName]}</span>
               <span className="text-sm font-medium text-primary truncate">{gap.areaName}</span>
             </div>
 
@@ -54,7 +54,7 @@ export function TrainingOverview({
 
             {/* Stats row */}
             <div className="flex items-center justify-between">
-              <span className="text-[11px] text-tertiary/60">
+              <span className="text-[9pt] text-tertiary">
                 {taskCount} task{taskCount !== 1 ? 's' : ''}
                 {deficientCount > 0 && (
                   <> · <span className="text-themeredred">{deficientCount} deficient</span></>

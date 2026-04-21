@@ -237,11 +237,11 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAppLockToggle() } }}
             >
               <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${appLockOn ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                <Lock size={18} className={appLockOn ? 'text-themeblue2' : 'text-tertiary/50'} />
+                <Lock size={18} className={appLockOn ? 'text-themeblue2' : 'text-tertiary'} />
               </div>
               <div className="flex-1 min-w-0">
                 <p className={`text-sm font-medium ${appLockOn ? 'text-primary' : 'text-tertiary'}`}>App Lock</p>
-                <p className="text-[11px] text-tertiary/70 mt-0.5">Lock when switching away or after inactivity</p>
+                <p className="text-[9pt] text-tertiary mt-0.5">Lock when switching away or after inactivity</p>
               </div>
               <ToggleSwitch checked={appLockOn} />
             </div>
@@ -258,13 +258,13 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
                     onKeyDown={(e) => { if (!bioLoading && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleBiometricToggle() } }}
                   >
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${bioEnrolled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                      <ScanFace size={16} className={bioEnrolled ? 'text-themeblue2' : 'text-tertiary/50'} />
+                      <ScanFace size={16} className={bioEnrolled ? 'text-themeblue2' : 'text-tertiary'} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-medium ${bioEnrolled ? 'text-primary' : 'text-tertiary'}`}>
                         {bioLoading ? 'Setting up...' : 'Face ID / Touch ID'}
                       </p>
-                      <p className="text-[11px] text-tertiary/70 mt-0.5">Use biometrics instead of PIN</p>
+                      <p className="text-[9pt] text-tertiary mt-0.5">Use biometrics instead of PIN</p>
                     </div>
                     <ToggleSwitch checked={bioEnrolled} />
                   </div>
@@ -315,11 +315,11 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
                 }}
               >
                 <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${timeoutEnabled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                  <Timer size={18} className={timeoutEnabled ? 'text-themeblue2' : 'text-tertiary/50'} />
+                  <Timer size={18} className={timeoutEnabled ? 'text-themeblue2' : 'text-tertiary'} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-medium ${timeoutEnabled ? 'text-primary' : 'text-tertiary'}`}>Inactivity Timeout</p>
-                  <p className="text-[11px] text-tertiary/70 mt-0.5">
+                  <p className="text-[9pt] text-tertiary mt-0.5">
                     {appLockOn
                       ? 'Lock to PIN screen after 20 min'
                       : 'Require password re-entry after 20 min'}
@@ -350,11 +350,11 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
                 }}
               >
                 <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${activityTracking ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                  <Activity size={18} className={activityTracking ? 'text-themeblue2' : 'text-tertiary/50'} />
+                  <Activity size={18} className={activityTracking ? 'text-themeblue2' : 'text-tertiary'} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-medium ${activityTracking ? 'text-primary' : 'text-tertiary'}`}>Activity Tracking</p>
-                  <p className="text-[11px] text-tertiary/70 mt-0.5">Background heartbeat keeps your account active and powers session tracking. Disabling may lead to account hibernation after 90 days.</p>
+                  <p className="text-[9pt] text-tertiary mt-0.5">Background heartbeat keeps your account active and powers session tracking. Disabling may lead to account hibernation after 90 days.</p>
                 </div>
                 <ToggleSwitch checked={activityTracking} />
               </div>
@@ -370,13 +370,13 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigateToDevices() } }}
               >
                 <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                  <Smartphone size={18} className="text-tertiary/50" />
+                  <Smartphone size={18} className="text-tertiary" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-primary">Sessions & Devices</p>
-                  <p className="text-[11px] text-tertiary/70 mt-0.5">View and manage registered devices</p>
+                  <p className="text-[9pt] text-tertiary mt-0.5">View and manage registered devices</p>
                 </div>
-                <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+                <ChevronRight size={16} className="text-tertiary shrink-0" />
               </div>
             )}
 

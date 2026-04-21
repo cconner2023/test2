@@ -27,7 +27,7 @@ import type { CalendarEventContent, CalendarEventPayload } from '../lib/signal/m
 import type { PeerDevice, FanOutMessageInput, PeerBundleRpcResult } from '../lib/signal/transportTypes'
 import type { PublicKeyBundle } from '../lib/signal/types'
 import type { CalendarEvent } from '../Types/CalendarTypes'
-import { loadPendingVaultSends, clearPendingVaultSend } from '../lib/calendarEventStore'
+import { loadPendingVaultSends, clearPendingVaultSend, loadPendingVaultDeletes, clearPendingVaultDelete } from '../lib/calendarEventStore'
 import { useCalendarStore } from '../stores/useCalendarStore'
 
 const logger = createLogger('CalendarVault')
@@ -177,14 +177,24 @@ export function useCalendarVault(): UseCalendarVaultResult {
   useEffect(() => {
     if (!clinicId || !userId) return
     const drain = async () => {
-      const pending = await loadPendingVaultSends()
-      if (pending.length === 0) return
-      logger.info(`Draining ${pending.length} pending vault sends`)
-      for (const item of pending) {
+      // Drain pending sends
+      const pendingSends = await loadPendingVaultSends()
+      for (const item of pendingSends) {
         const originId = await sendEvent('c', item.event)
         if (originId) {
           await clearPendingVaultSend(item.id)
           useCalendarStore.getState().updateEvent(item.id, { originId })
+        }
+      }
+
+      // Drain pending deletes
+      const pendingDeletes = await loadPendingVaultDeletes()
+      for (const item of pendingDeletes) {
+        try {
+          await deleteEvents(item.originIds)
+          await clearPendingVaultDelete(item.id)
+        } catch {
+          // Will retry on next drain
         }
       }
     }
@@ -192,7 +202,7 @@ export function useCalendarVault(): UseCalendarVaultResult {
     drain()
     window.addEventListener('online', drain)
     return () => window.removeEventListener('online', drain)
-  }, [sendEvent, clinicId, userId])
+  }, [sendEvent, deleteEvents, clinicId, userId])
 
   return {
     ready: !!clinicId && !!userId,

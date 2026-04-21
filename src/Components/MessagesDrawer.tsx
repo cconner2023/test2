@@ -197,7 +197,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                         <HeaderPill>
                             <PillButton icon={ChevronLeft} onClick={handleClose} label="Back" />
                         </HeaderPill>
-                        <h2 className="text-[17px] font-semibold text-primary flex-1 truncate">Messages</h2>
+                        <h2 className="text-[13pt] font-semibold text-primary flex-1 truncate">Messages</h2>
                         <HeaderPill>
                             <PillButton icon={Plus} onClick={() => panelRef.current?.openNew()} label="New" />
                         </HeaderPill>

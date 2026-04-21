@@ -86,7 +86,7 @@ export function RosterPane({ onAssignToEvent, assignableEventId, compact }: Rost
                       {formatName(medic)}
                     </p>
                     {medic.credential && (
-                      <p className="text-[10px] text-tertiary/50 truncate">{medic.credential}</p>
+                      <p className="text-[9pt] text-tertiary truncate">{medic.credential}</p>
                     )}
                   </div>
                   {isAssigned && (

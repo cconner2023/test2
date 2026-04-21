@@ -75,7 +75,7 @@ export const InsertFieldButton = ({ onInsert }: InsertFieldButtonProps) => {
     };
 
     const INPUT =
-        'w-full text-sm px-3 py-2 rounded-lg border border-tertiary/10 bg-themewhite outline-none focus:border-themeblue2/30 text-primary placeholder:text-tertiary/30';
+        'w-full text-sm px-3 py-2 rounded-lg border border-tertiary/10 bg-themewhite outline-none focus:border-themeblue2/30 text-primary placeholder:text-tertiary';
 
     const popover = open && createPortal(
         <div
@@ -86,7 +86,7 @@ export const InsertFieldButton = ({ onInsert }: InsertFieldButtonProps) => {
             <div className="rounded-xl bg-themewhite2 border border-tertiary/15 shadow-lg min-w-[220px] overflow-hidden">
                 {mode === 'pick' && (
                     <div className="p-2 space-y-1">
-                        <p className="text-[9px] text-tertiary/40 uppercase tracking-wider px-2 py-1">
+                        <p className="text-[9pt] md:text-[9pt] text-tertiary uppercase tracking-wider px-2 py-1">
                             Insert field
                         </p>
                         <button
@@ -99,7 +99,7 @@ export const InsertFieldButton = ({ onInsert }: InsertFieldButtonProps) => {
                             </div>
                             <div>
                                 <p className="text-sm font-medium text-primary">Variable</p>
-                                <p className="text-[10px] text-tertiary/50">Free text input at runtime</p>
+                                <p className="text-[9pt] text-tertiary">Free text input at runtime</p>
                             </div>
                         </button>
                         <button
@@ -112,7 +112,7 @@ export const InsertFieldButton = ({ onInsert }: InsertFieldButtonProps) => {
                             </div>
                             <div>
                                 <p className="text-sm font-medium text-primary">Dropdown</p>
-                                <p className="text-[10px] text-tertiary/50">Pick from preset options</p>
+                                <p className="text-[9pt] text-tertiary">Pick from preset options</p>
                             </div>
                         </button>
                     </div>
@@ -120,7 +120,7 @@ export const InsertFieldButton = ({ onInsert }: InsertFieldButtonProps) => {
 
                 {mode === 'variable' && (
                     <div className="p-3 space-y-2.5">
-                        <p className="text-[10px] font-semibold text-themeblue2 uppercase tracking-wider">
+                        <p className="text-[9pt] font-semibold text-themeblue2 uppercase tracking-wider">
                             Variable
                         </p>
                         <input
@@ -157,7 +157,7 @@ export const InsertFieldButton = ({ onInsert }: InsertFieldButtonProps) => {
 
                 {mode === 'dropdown' && (
                     <div className="p-3 space-y-2.5">
-                        <p className="text-[10px] font-semibold text-themeblue2 uppercase tracking-wider">
+                        <p className="text-[9pt] font-semibold text-themeblue2 uppercase tracking-wider">
                             Dropdown
                         </p>
                         <input
@@ -187,7 +187,7 @@ export const InsertFieldButton = ({ onInsert }: InsertFieldButtonProps) => {
                             const def = defaultValue || opts[0];
                             return (
                                 <div className="space-y-1">
-                                    <p className="text-[9px] text-tertiary/40 uppercase tracking-wider">
+                                    <p className="text-[9pt] md:text-[9pt] text-tertiary uppercase tracking-wider">
                                         Default
                                     </p>
                                     <div className="flex flex-wrap gap-1">
@@ -196,10 +196,10 @@ export const InsertFieldButton = ({ onInsert }: InsertFieldButtonProps) => {
                                                 key={opt}
                                                 type="button"
                                                 onClick={() => setDefaultValue(opt)}
-                                                className={`text-[11px] px-2 py-1 rounded-full transition-all active:scale-95 ${
+                                                className={`text-[9pt] px-2 py-1 rounded-full transition-all active:scale-95 ${
                                                     opt === def
                                                         ? 'bg-themeblue3 text-white'
-                                                        : 'bg-tertiary/8 text-tertiary/60 hover:bg-tertiary/12'
+                                                        : 'bg-tertiary/8 text-tertiary hover:bg-tertiary/12'
                                                 }`}
                                             >
                                                 {opt}
@@ -241,10 +241,10 @@ export const InsertFieldButton = ({ onInsert }: InsertFieldButtonProps) => {
                 data-tour="expander-insert-field"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => { setOpen(!open); setMode('pick'); }}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold tracking-wide transition-all active:scale-95 ${
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9pt] font-semibold tracking-wide transition-all active:scale-95 ${
                     open
                         ? 'bg-themeblue2/15 text-themeblue2'
-                        : 'bg-tertiary/8 text-tertiary/50 hover:bg-tertiary/12'
+                        : 'bg-tertiary/8 text-tertiary hover:bg-tertiary/12'
                 }`}
                 title="Insert field"
             >

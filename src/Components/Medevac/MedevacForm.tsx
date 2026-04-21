@@ -1,9 +1,15 @@
-import { useEffect, useCallback } from 'react'
-import { Plus, MapPin, Check, RefreshCw } from 'lucide-react'
-import { Section, SectionCard } from '../Section'
+import { useEffect, useCallback, useState, useRef } from 'react'
+import { MapPin, Check, ChevronRight, ChevronLeft, Trash2, Loader, X, Plus } from 'lucide-react'
+import { forward } from 'mgrs'
+import { SectionCard } from '../Section'
+import { TextInput } from '../FormInputs'
+import { PreviewOverlay } from '../PreviewOverlay'
+import type { ContextMenuAction } from '../PreviewOverlay'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type {
   MedevacRequest,
+  MedevacMode,
+  MedevacWoundEntry,
   MedevacPrecedence,
   MedevacEquipment,
   MedevacNationality,
@@ -18,6 +24,7 @@ import {
   MEDEVAC_NBC_LABELS,
   SMOKE_COLORS,
   medevacPatientTotal,
+  medevacNationalityTotal,
 } from '../../Types/MedevacTypes'
 
 interface MedevacFormProps {
@@ -25,32 +32,102 @@ interface MedevacFormProps {
   onChange: (req: MedevacRequest) => void
 }
 
+// ── Line metadata ──────────────────────────────────────────────────────────
+const LINE_TITLES_BASE = [
+  '',
+  'Pickup Site',
+  'Radio',
+  'Patients by Precedence',
+  'Special Equipment',
+  'Patients by Type',
+  '', // 6 — dynamic
+  'Method of Marking',
+  'Patient Nationality',
+  '', // 9 — dynamic
+]
+
+function getLineTitle(line: number, mode: 'wartime' | 'peacetime'): string {
+  if (line === 6) return mode === 'wartime' ? 'Security at Pickup' : 'Wound / Injury Info'
+  if (line === 9) return mode === 'wartime' ? 'NBC Contamination' : 'Terrain Description'
+  return LINE_TITLES_BASE[line]
+}
+
+// ── Summary helpers ────────────────────────────────────────────────────────
+function lineSummary(line: number, req: MedevacRequest): { text: string; blank: boolean } {
+  switch (line) {
+    case 1:
+      if (!req.l1) return { text: '—', blank: true }
+      return { text: req.l1 + (req.l1d ? ` · ${req.l1d}` : ''), blank: false }
+    case 2: {
+      const parts = [req.l2f, req.l2c, req.l2s].filter(Boolean)
+      return parts.length === 0
+        ? { text: '—', blank: true }
+        : { text: parts.join(' / '), blank: false }
+    }
+    case 3: {
+      const total = medevacPatientTotal(req)
+      if (total === 0) return { text: '—', blank: true }
+      const s = (['A','B','C','D','E'] as MedevacPrecedence[])
+        .filter(p => (req.l3[p] ?? 0) > 0)
+        .map(p => `${req.l3[p]}${p}`).join(', ')
+      return { text: `${total} · ${s}`, blank: false }
+    }
+    case 4:
+      if (req.l4.length === 1 && req.l4[0] === 'A') return { text: 'None', blank: true }
+      return { text: req.l4.join(', '), blank: false }
+    case 5:
+      if (req.l5l === 0 && req.l5a === 0) return { text: '—', blank: true }
+      return {
+        text: [req.l5l > 0 && `${req.l5l}L`, req.l5a > 0 && `${req.l5a}A`].filter(Boolean).join(' / '),
+        blank: false,
+      }
+    case 6:
+      if (req.mode === 'peacetime') {
+        const w = req.l6wounds ?? []
+        if (w.length === 0) return { text: '—', blank: true }
+        const first = w[0].text
+        return { text: w.length > 1 ? `${first} +${w.length - 1}` : first, blank: false }
+      }
+      return req.l6 === 'N'
+        ? { text: 'No Enemy', blank: true }
+        : { text: MEDEVAC_SECURITY_LABELS[req.l6], blank: false }
+    case 7: {
+      const label = MEDEVAC_MARKING_LABELS[req.l7]
+      const extra = req.l7 === 'C' && req.l7c ? ` · ${req.l7c}`
+        : req.l7 === 'E' && req.l7o ? ` · ${req.l7o}` : ''
+      const blank = req.l7 === 'C' && !req.l7c
+      return { text: label + extra, blank }
+    }
+    case 8: {
+      const l8total = medevacNationalityTotal(req)
+      if (l8total === 0) return { text: '—', blank: true }
+      const s = (['A','B','C','D','E'] as MedevacNationality[])
+        .filter(n => (req.l8[n] ?? 0) > 0)
+        .map(n => `${req.l8[n]}${n}`).join(', ')
+      return { text: s, blank: false }
+    }
+    case 9:
+      if (req.mode === 'peacetime') {
+        return req.l9p ? { text: req.l9p, blank: false } : { text: '—', blank: true }
+      }
+      return req.l9 === 'N'
+        ? { text: 'None', blank: true }
+        : { text: MEDEVAC_NBC_LABELS[req.l9], blank: false }
+    default:
+      return { text: '—', blank: true }
+  }
+}
+
+// ── Public component ───────────────────────────────────────────────────────
 export function MedevacForm({ value, onChange }: MedevacFormProps) {
   const isMobile = useIsMobile()
-
-  // ── Empty state ────────────────────────────────────────────────────────
-  if (!value) {
-    return (
-      <div className="flex flex-col items-center gap-2 py-6">
-        <button
-          type="button"
-          onClick={() => onChange(emptyMedevacRequest())}
-          className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
-        >
-          <Plus size={14} />
-        </button>
-        <p className="text-[10px] text-tertiary/40">Start 9-line</p>
-      </div>
-    )
-  }
-
-  const req = value
+  const req = value ?? emptyMedevacRequest()
   const update = (patch: Partial<MedevacRequest>) => onChange({ ...req, ...patch })
 
   return <MedevacFormInner req={req} update={update} isMobile={isMobile} onChange={onChange} />
 }
 
-// ── Inner form (populated) ─────────────────────────────────────────────────
+// ── Master list view ───────────────────────────────────────────────────────
 function MedevacFormInner({
   req,
   update,
@@ -62,27 +139,264 @@ function MedevacFormInner({
   isMobile: boolean
   onChange: (req: MedevacRequest) => void
 }) {
-  // ── L5 auto-sync from L3 ───────────────────────────────────────────────
-  const l3total = medevacPatientTotal(req)
-  const l5IsAutoSynced = req.l5l === l3total && req.l5a === 0
+  const [activeLine, setActiveLine] = useState<number | null>(null)
+  const anchorRef = useRef<DOMRect | null>(null)
 
+  // L5 + L8 must always sum to L3 total
+  const l3total = medevacPatientTotal(req)
   useEffect(() => {
-    // Auto-fill L5 from L3 only when L5 is at zero (not yet manually set)
-    if (req.l5l === 0 && req.l5a === 0 && l3total > 0) {
-      onChange({ ...req, l5l: l3total })
+    const patch: Partial<MedevacRequest> = {}
+
+    if (l3total > 0 && req.l5l + req.l5a !== l3total) {
+      const newL = Math.min(req.l5l, l3total)
+      patch.l5l = newL
+      patch.l5a = l3total - newL
     }
+
+    if (l3total > 0 && medevacNationalityTotal(req) !== l3total) {
+      const nonA = (['B','C','D','E'] as MedevacNationality[])
+        .reduce((s, n) => s + (req.l8[n] ?? 0), 0)
+      patch.l8 = { ...req.l8, A: Math.max(0, l3total - nonA) }
+    }
+
+    if (Object.keys(patch).length > 0) onChange({ ...req, ...patch })
   }, [l3total]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Shared classes ─────────────────────────────────────────────────────
-  const inputCx = `w-full rounded-full border border-themeblue3/10 bg-themewhite2 text-primary placeholder:text-tertiary/30 focus:border-themeblue1/30 focus:outline-none transition-all duration-200 ${
+  const handleRowTap = useCallback((line: number, e: React.MouseEvent<HTMLButtonElement>) => {
+    anchorRef.current = e.currentTarget.getBoundingClientRect()
+    setActiveLine(line)
+  }, [])
+
+  const closeAll = useCallback(() => {
+    setActiveLine(null)
+  }, [])
+
+  const clearLine = useCallback((line: number) => {
+    switch (line) {
+      case 1: update({ l1: '', l1d: undefined }); break
+      case 2: update({ l2f: '', l2c: '', l2s: undefined }); break
+      case 3: update({ l3: {} }); break
+      case 4: update({ l4: ['A'] }); break
+      case 5: update({ l5l: 0, l5a: 0 }); break
+      case 6: update(req.mode === 'peacetime' ? { l6wounds: [] } : { l6: 'N' }); break
+      case 7: update({ l7: 'C', l7c: undefined, l7o: undefined }); break
+      case 8: update({ l8: {} }); break
+      case 9: update(req.mode === 'peacetime' ? { l9p: undefined } : { l9: 'N' }); break
+    }
+  }, [update])
+
+  const rowCx = `w-full flex items-center gap-3 text-left border-b border-primary/6 last:border-0 transition-all active:scale-[0.98] hover:bg-themeblue2/5 ${
+    isMobile ? 'px-4 py-3.5' : 'px-3 py-3'
+  }`
+
+  return (
+    <div className="space-y-3">
+
+      {/* Mode toggle */}
+      <div className="flex items-center justify-between">
+        <span className={`font-semibold text-tertiary uppercase tracking-wider ${isMobile ? 'text-xs' : 'text-[9pt]'}`}>Context</span>
+        <div className="flex items-center rounded-full border border-primary/10 overflow-hidden">
+          {(['wartime', 'peacetime'] as MedevacMode[]).map(m => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => update({ mode: m })}
+              className={`px-3 py-1 transition-all ${isMobile ? 'text-sm' : 'text-xs'} font-medium ${
+                req.mode === m
+                  ? 'bg-themeblue3 text-white'
+                  : 'text-secondary hover:text-primary'
+              }`}
+            >
+              {m === 'wartime' ? 'Wartime' : 'Peacetime'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 9-row master list */}
+      <SectionCard>
+        {([1,2,3,4,5,6,7,8,9] as const).map(line => {
+          const { text, blank } = lineSummary(line, req)
+          return (
+            <button
+              key={line}
+              type="button"
+              onClick={e => handleRowTap(line, e)}
+              className={rowCx}
+            >
+              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                <span className="text-xs font-bold text-tertiary">{line}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`${isMobile ? 'text-sm' : 'text-xs'} font-medium text-secondary`}>
+                  {getLineTitle(line, req.mode)}
+                </p>
+              </div>
+              <p className={`${isMobile ? 'text-sm' : 'text-xs'} text-right max-w-[45%] truncate ${
+                blank ? 'text-tertiary' : 'text-primary font-medium'
+              }`}>
+                {text}
+              </p>
+              <ChevronRight size={14} className="text-tertiary shrink-0" />
+            </button>
+          )
+        })}
+      </SectionCard>
+
+      {/* Per-line editor */}
+      <PreviewOverlay
+        isOpen={activeLine !== null}
+        onClose={closeAll}
+        anchorRect={anchorRef.current}
+        title={activeLine !== null ? `L${activeLine} — ${getLineTitle(activeLine, req.mode)}` : ''}
+        preview={
+          activeLine !== null ? (
+            <LineEditor
+              line={activeLine}
+              req={req}
+              update={update}
+              isMobile={isMobile}
+            />
+          ) : null
+        }
+        actions={activeLine !== null ? ((): ContextMenuAction[] => {
+          const isBlank = lineSummary(activeLine, req).blank
+          return [
+            {
+              key: 'prev',
+              label: 'Previous line',
+              icon: ChevronLeft,
+              variant: activeLine > 1 ? 'default' : 'disabled',
+              closesOnAction: false,
+              onAction: () => setActiveLine(a => (a ?? 1) > 1 ? (a ?? 1) - 1 : a),
+            },
+            {
+              key: 'next',
+              label: 'Next line',
+              icon: ChevronRight,
+              variant: activeLine < 9 ? 'default' : 'disabled',
+              closesOnAction: false,
+              onAction: () => setActiveLine(a => (a ?? 9) < 9 ? (a ?? 9) + 1 : a),
+            },
+            ...(!isBlank ? [
+              {
+                key: 'clear',
+                label: 'Clear line',
+                icon: Trash2,
+                variant: 'danger' as const,
+                closesOnAction: false,
+                onAction: () => clearLine(activeLine),
+              },
+              {
+                key: 'accept',
+                label: 'Accept',
+                icon: Check,
+                onAction: () => {},
+              },
+            ] : []),
+          ]
+        })() : []}
+      />
+    </div>
+  )
+}
+
+// ── Wound list editor (L6 peacetime) ──────────────────────────────────────
+function WoundListEditor({ req, update }: {
+  req: MedevacRequest
+  update: (patch: Partial<MedevacRequest>) => void
+  isMobile: boolean
+}) {
+  const [rows, setRows] = useState<string[]>(() => [
+    ...(req.l6wounds ?? []).map(w => w.text),
+    '',
+  ])
+
+  function syncUp(next: string[]) {
+    setRows(next)
+    update({ l6wounds: next.filter(Boolean).map(text => ({ id: crypto.randomUUID(), text })) })
+  }
+
+  function updateRow(idx: number, val: string) {
+    const next = [...rows]
+    next[idx] = val
+    syncUp(next)
+  }
+
+  function addRow() {
+    setRows(prev => [...prev, ''])
+  }
+
+  function removeRow(idx: number) {
+    syncUp(rows.filter((_, i) => i !== idx))
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {rows.map((val, idx) => (
+        <div key={idx} className="flex items-center gap-1.5">
+          <div className="flex-1 min-w-0">
+            <TextInput
+              value={val}
+              onChange={v => updateRow(idx, v)}
+              placeholder="Wound / injury"
+            />
+          </div>
+          {idx === rows.length - 1 ? (
+            <button
+              type="button"
+              onClick={addRow}
+              className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-themeblue3 text-white active:scale-95 transition-all"
+            >
+              <Plus size={14} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => removeRow(idx)}
+              className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-tertiary hover:bg-tertiary/10 active:scale-95 transition-all"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Per-line editor ────────────────────────────────────────────────────────
+function LineEditor({
+  line, req, update, isMobile,
+}: {
+  line: number
+  req: MedevacRequest
+  update: (patch: Partial<MedevacRequest>) => void
+  isMobile: boolean
+}) {
+  const [locating, setLocating] = useState(false)
+
+  function handleLocate() {
+    if (!('geolocation' in navigator)) return
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const mgrs = forward([coords.longitude, coords.latitude], 5)
+        update({ l1: mgrs })
+        setLocating(false)
+      },
+      () => setLocating(false),
+      { enableHighAccuracy: true, timeout: 10_000 },
+    )
+  }
+
+  const inputCx = `w-full rounded-full border border-themeblue3/10 bg-themewhite2 text-primary placeholder:text-tertiary focus:border-themeblue1/30 focus:outline-none transition-all duration-200 ${
     isMobile ? 'py-2.5 px-4 text-sm' : 'py-2 px-3 text-xs'
   }`
 
   const rowCx = `flex items-center justify-between border-b border-primary/6 last:border-0 ${
     isMobile ? 'px-4 py-3' : 'px-3 py-2.5'
   }`
-
-  // ── Primitives ─────────────────────────────────────────────────────────
 
   function SelectRow({ code, label, selected, onSelect, danger, multi }: {
     code: string; label: string; selected: boolean
@@ -97,16 +411,16 @@ function MedevacFormInner({
         }`}
       >
         <div>
-          <span className="text-[10px] font-bold text-tertiary/40 mr-2">{code}</span>
+          <span className="text-[9pt] font-bold text-tertiary mr-2">{code}</span>
           <span className={`${isMobile ? 'text-sm' : 'text-xs'} ${
             selected
-              ? danger ? 'text-themeredred font-medium' : 'text-themeblue3 font-medium'
+              ? danger ? 'text-themeredred font-medium' : 'text-primary font-medium'
               : 'text-secondary'
           }`}>{label}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          {multi && selected && <span className="text-[10px] text-tertiary/40">✓</span>}
-          {!multi && selected && <Check size={13} className={danger ? 'text-themeredred' : 'text-themeblue3'} />}
+          {multi && selected && <span className="text-[9pt] text-tertiary">✓</span>}
+          {!multi && selected && <Check size={13} className={danger ? 'text-themeredred' : 'text-primary'} />}
         </div>
       </button>
     )
@@ -118,9 +432,9 @@ function MedevacFormInner({
     return (
       <div className={rowCx}>
         <div>
-          {code && <span className="text-[10px] font-bold text-tertiary/40 mr-2">{code}</span>}
+          {code && <span className="text-[9pt] font-bold text-tertiary mr-2">{code}</span>}
           <span className={`text-secondary ${isMobile ? 'text-sm' : 'text-xs'}`}>{label}</span>
-          {hint && <span className="text-[10px] text-tertiary/30 ml-2">{hint}</span>}
+          {hint && <span className="text-[9pt] text-tertiary ml-2">{hint}</span>}
         </div>
         <input
           type="number"
@@ -139,33 +453,37 @@ function MedevacFormInner({
   function InlineRow({ label, children }: { label: string; children: React.ReactNode }) {
     return (
       <div className={rowCx}>
-        <span className="text-[10px] font-semibold text-tertiary/40 uppercase tracking-widest w-20 shrink-0">{label}</span>
+        <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">{label}</span>
         {children}
       </div>
     )
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────
-  return (
-    <div className="space-y-4">
+  const l3total = medevacPatientTotal(req)
 
-      {/* LINE 1 */}
-      <Section title="Line 1 — Pickup Site" className="mb-0">
-        <SectionCard>
+  switch (line) {
+    case 1:
+      return (
+        <div>
           <div className={rowCx}>
             <input
               type="text"
               value={req.l1}
               onChange={e => update({ l1: e.target.value.toUpperCase() })}
               placeholder="MGRS grid"
-              className="flex-1 bg-transparent font-mono tracking-wider text-primary placeholder:text-tertiary/30 focus:outline-none text-sm"
+              className="flex-1 bg-transparent font-mono tracking-wider text-primary placeholder:text-tertiary focus:outline-none text-sm"
             />
             <button
               type="button"
-              title="Select from map"
-              className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-tertiary/40 active:scale-95 transition-all hover:text-themeblue3"
+              title="Use current location"
+              onClick={handleLocate}
+              disabled={locating}
+              className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all hover:text-primary disabled:opacity-40"
             >
-              <MapPin size={15} />
+              {locating
+                ? <Loader size={15} className="animate-spin" />
+                : <MapPin size={15} />
+              }
             </button>
           </div>
           <div className={rowCx}>
@@ -174,22 +492,22 @@ function MedevacFormInner({
               value={req.l1d ?? ''}
               onChange={e => update({ l1d: e.target.value })}
               placeholder="Description (optional)"
-              className={`flex-1 bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none ${isMobile ? 'text-sm' : 'text-xs'}`}
+              className={`flex-1 bg-transparent text-primary placeholder:text-tertiary focus:outline-none ${isMobile ? 'text-sm' : 'text-xs'}`}
             />
           </div>
-        </SectionCard>
-      </Section>
+        </div>
+      )
 
-      {/* LINE 2 */}
-      <Section title="Line 2 — Radio" className="mb-0">
-        <SectionCard>
+    case 2:
+      return (
+        <div>
           <InlineRow label="Freq">
             <input
               type="text"
               value={req.l2f}
               onChange={e => update({ l2f: e.target.value })}
               placeholder="46.50"
-              className={`flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none ${isMobile ? 'text-sm' : 'text-xs'}`}
+              className={`flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none ${isMobile ? 'text-sm' : 'text-xs'}`}
             />
           </InlineRow>
           <InlineRow label="Call Sign">
@@ -198,7 +516,7 @@ function MedevacFormInner({
               value={req.l2c}
               onChange={e => update({ l2c: e.target.value.toUpperCase() })}
               placeholder="DUSTOFF 6"
-              className={`flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none ${isMobile ? 'text-sm' : 'text-xs'}`}
+              className={`flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none ${isMobile ? 'text-sm' : 'text-xs'}`}
             />
           </InlineRow>
           <InlineRow label="Suffix">
@@ -207,15 +525,15 @@ function MedevacFormInner({
               value={req.l2s ?? ''}
               onChange={e => update({ l2s: e.target.value.toUpperCase() })}
               placeholder="Alpha"
-              className={`flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none ${isMobile ? 'text-sm' : 'text-xs'}`}
+              className={`flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none ${isMobile ? 'text-sm' : 'text-xs'}`}
             />
           </InlineRow>
-        </SectionCard>
-      </Section>
+        </div>
+      )
 
-      {/* LINE 3 */}
-      <Section title="Line 3 — Patients by Precedence" className="mb-0">
-        <SectionCard>
+    case 3:
+      return (
+        <div>
           {(['A','B','C','D','E'] as MedevacPrecedence[]).map(p => (
             <CountRow
               key={p}
@@ -225,69 +543,67 @@ function MedevacFormInner({
               onChg={n => update({ l3: { ...req.l3, [p]: n || undefined } })}
             />
           ))}
-        </SectionCard>
-      </Section>
+        </div>
+      )
 
-      {/* LINE 4 */}
-      <Section title="Line 4 — Special Equipment" className="mb-0">
-        <SectionCard>
+    case 4:
+      return (
+        <div>
           {(['A','B','C','D'] as MedevacEquipment[]).map(eq => (
             <SelectRow
               key={eq}
               code={eq}
               label={MEDEVAC_EQUIPMENT_LABELS[eq]}
               selected={req.l4.includes(eq)}
+              multi={eq !== 'A'}
               onSelect={() => {
                 if (eq === 'A') { update({ l4: ['A'] }); return }
                 const cur = req.l4.filter(e => e !== 'A')
                 const next = cur.includes(eq) ? cur.filter(e => e !== eq) : [...cur, eq]
                 update({ l4: next.length === 0 ? ['A'] : next })
               }}
-              multi={eq !== 'A'}
             />
           ))}
-        </SectionCard>
-      </Section>
+        </div>
+      )
 
-      {/* LINE 5 */}
-      <Section title="Line 5 — Patients by Type" className="mb-0">
-        <SectionCard>
+    case 5:
+      return (
+        <div>
           <CountRow
-            code="L"
-            label="Litter"
-            val={req.l5l}
-            onChg={n => update({ l5l: n })}
+            code="L" label="Litter" val={req.l5l}
+            onChg={n => {
+              const newL = Math.min(n, l3total)
+              update({ l5l: newL, l5a: Math.max(0, l3total - newL) })
+            }}
           />
           <CountRow
-            code="A"
-            label="Ambulatory"
-            val={req.l5a}
-            onChg={n => update({ l5a: n })}
+            code="A" label="Ambulatory" val={req.l5a}
+            onChg={n => {
+              const newA = Math.min(n, l3total)
+              update({ l5l: Math.max(0, l3total - newA), l5a: newA })
+            }}
           />
-        </SectionCard>
-        {/* Sync hint */}
-        {l3total > 0 && (
-          <div className="flex items-center justify-between mt-1 px-1">
-            <span className="text-[10px] text-tertiary/40">
-              L3 total: {l3total} patient{l3total !== 1 ? 's' : ''}
-            </span>
-            {!l5IsAutoSynced && (
-              <button
-                type="button"
-                onClick={() => update({ l5l: l3total, l5a: 0 })}
-                className="flex items-center gap-1 text-[10px] text-themeblue3/60 active:scale-95 transition-all hover:text-themeblue3"
-              >
-                <RefreshCw size={10} />
-                Sync from L3
-              </button>
-            )}
+          {l3total > 0 && (
+            <div className="px-4 py-2">
+              <span className="text-[9pt] text-tertiary">
+                Total from L3: {l3total} patient{l3total !== 1 ? 's' : ''}
+              </span>
+            </div>
+          )}
+        </div>
+      )
+
+    case 6:
+      if (req.mode === 'peacetime') {
+        return (
+          <div className={isMobile ? 'px-4 py-3' : 'px-3 py-2.5'}>
+            <WoundListEditor req={req} update={update} isMobile={isMobile} />
           </div>
-        )}
-      </Section>
-
-      {/* LINE 6 */}
-      <Section title="Line 6 — Security at Pickup Site" className="mb-0">
-        <SectionCard>
+        )
+      }
+      return (
+        <div>
           {(['N','P','E','X'] as const).map(s => (
             <SelectRow
               key={s}
@@ -298,12 +614,12 @@ function MedevacFormInner({
               onSelect={() => update({ l6: s })}
             />
           ))}
-        </SectionCard>
-      </Section>
+        </div>
+      )
 
-      {/* LINE 7 */}
-      <Section title="Line 7 — Method of Marking" className="mb-0">
-        <SectionCard>
+    case 7:
+      return (
+        <div>
           {(['A','B','C','D','E'] as const).map(m => (
             <SelectRow
               key={m}
@@ -313,60 +629,87 @@ function MedevacFormInner({
               onSelect={() => update({ l7: m, l7c: undefined, l7o: undefined })}
             />
           ))}
-        </SectionCard>
-        {req.l7 === 'C' && (
-          <div className="flex flex-wrap gap-1.5 mt-2 px-1">
-            {SMOKE_COLORS.map(color => (
-              <button
-                key={color}
-                type="button"
-                onClick={() => update({ l7c: color })}
-                className={`px-2.5 py-1 rounded-full border text-xs font-medium transition-all active:scale-95 ${
-                  req.l7c === color
-                    ? 'bg-themeblue3/10 border-themeblue3/30 text-themeblue3'
-                    : 'bg-themewhite2 border-themeblue3/10 text-secondary'
-                }`}
-              >
-                {color}
-              </button>
-            ))}
-          </div>
-        )}
-        {req.l7 === 'E' && (
-          <input
-            type="text"
-            value={req.l7o ?? ''}
-            onChange={e => update({ l7o: e.target.value })}
-            placeholder="Describe marking method"
-            className={inputCx + ' mt-2'}
-          />
-        )}
-      </Section>
+          {req.l7 === 'C' && (
+            <div className="flex flex-wrap gap-1.5 px-4 py-3">
+              {SMOKE_COLORS.map(color => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => update({ l7c: color })}
+                  className={`px-2.5 py-1 rounded-full border text-xs font-medium transition-all active:scale-95 ${
+                    req.l7c === color
+                      ? 'bg-tertiary/10 border-tertiary/20 text-primary'
+                      : 'bg-themewhite2 border-themeblue3/10 text-secondary'
+                  }`}
+                >
+                  {color}
+                </button>
+              ))}
+            </div>
+          )}
+          {req.l7 === 'E' && (
+            <div className="px-4 py-3">
+              <input
+                type="text"
+                value={req.l7o ?? ''}
+                onChange={e => update({ l7o: e.target.value })}
+                placeholder="Describe marking method"
+                className={inputCx}
+              />
+            </div>
+          )}
+        </div>
+      )
 
-      {/* LINE 8 */}
-      <Section title="Line 8 — Patient Nationality / Status" className="mb-0">
-        <SectionCard>
+    case 8:
+      return (
+        <div>
           {(['A','B','C','D','E'] as MedevacNationality[]).map(nat => (
-            <SelectRow
+            <CountRow
               key={nat}
               code={nat}
               label={MEDEVAC_NATIONALITY_LABELS[nat]}
-              selected={req.l8.includes(nat)}
-              multi
-              onSelect={() => {
-                const next = req.l8.includes(nat)
-                  ? req.l8.filter(n => n !== nat)
-                  : [...req.l8, nat]
-                update({ l8: next.length === 0 ? ['A'] : next })
+              val={req.l8[nat] ?? 0}
+              onChg={n => {
+                const capped = Math.min(n, l3total)
+                if (nat === 'A') {
+                  update({ l8: { ...req.l8, A: capped || undefined } })
+                } else {
+                  const otherNonA = (['B','C','D','E'] as MedevacNationality[])
+                    .filter(k => k !== nat)
+                    .reduce((s, k) => s + (req.l8[k] ?? 0), 0)
+                  const newA = Math.max(0, l3total - capped - otherNonA)
+                  update({ l8: { ...req.l8, [nat]: capped || undefined, A: newA || undefined } })
+                }
               }}
             />
           ))}
-        </SectionCard>
-      </Section>
+          {l3total > 0 && (
+            <div className="px-4 py-2">
+              <span className="text-[9pt] text-tertiary">
+                Total from L3: {l3total} patient{l3total !== 1 ? 's' : ''}
+              </span>
+            </div>
+          )}
+        </div>
+      )
 
-      {/* LINE 9 */}
-      <Section title="Line 9 — NBC Contamination" className="mb-0">
-        <SectionCard>
+    case 9:
+      if (req.mode === 'peacetime') {
+        return (
+          <div className="px-4 py-3">
+            <textarea
+              value={req.l9p ?? ''}
+              onChange={e => update({ l9p: e.target.value })}
+              placeholder="Detailed terrain feature description at pickup site"
+              rows={4}
+              className={`w-full rounded-xl border border-themeblue3/10 bg-themewhite2 text-primary placeholder:text-tertiary focus:border-themeblue1/30 focus:outline-none transition-all duration-200 resize-none px-3 py-2 ${isMobile ? 'text-sm' : 'text-xs'}`}
+            />
+          </div>
+        )
+      }
+      return (
+        <div>
           {(['N','B','C','R'] as const).map(n => (
             <SelectRow
               key={n}
@@ -377,9 +720,10 @@ function MedevacFormInner({
               onSelect={() => update({ l9: n })}
             />
           ))}
-        </SectionCard>
-      </Section>
+        </div>
+      )
 
-    </div>
-  )
+    default:
+      return null
+  }
 }

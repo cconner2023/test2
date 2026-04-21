@@ -172,7 +172,7 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-primary">User Found</p>
-              <p className="text-xs text-tertiary/60 truncate">
+              <p className="text-xs text-tertiary truncate">
                 {lookupResult.rank && `${lookupResult.rank} `}
                 {lookupResult.last_name}, {lookupResult.first_name}
                 {lookupResult.credential && ` · ${lookupResult.credential}`}
@@ -202,7 +202,7 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
         <div className="space-y-4">
           <div className="rounded-xl bg-themewhite2 p-4">
             <p className="text-sm font-medium text-primary mb-1">No account found</p>
-            <p className="text-xs text-tertiary/60">Create a new user and assign them to your clinic.</p>
+            <p className="text-xs text-tertiary">Create a new user and assign them to your clinic.</p>
           </div>
 
           <PasswordInput
@@ -211,7 +211,7 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
             onChange={setTempPassword}
             placeholder="Min 12 characters"
             hint={
-              <p className="mt-1 text-[10px] text-tertiary/40">
+              <p className="mt-1 text-[9pt] text-tertiary">
                 Must contain uppercase, lowercase, and a digit.
               </p>
             }
@@ -237,7 +237,7 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
 
           {/* ── Role Toggles ──────────────────────────────────────── */}
           <div className="space-y-2">
-            <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Roles</p>
+            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Roles</p>
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
@@ -262,7 +262,7 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
                 Provider
               </button>
             </div>
-            <p className="text-[10px] text-tertiary/40">All users receive the Medic role by default.</p>
+            <p className="text-[9pt] text-tertiary">All users receive the Medic role by default.</p>
           </div>
 
           <button

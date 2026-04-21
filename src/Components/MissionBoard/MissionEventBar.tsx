@@ -41,11 +41,11 @@ export function MissionEventBar({ event, isAssigned, width, left, top, height, o
     >
       <div className={`w-1 shrink-0 ${stripe} ${isActive ? 'animate-pulse' : ''}`} />
       <div className={`flex-1 min-w-0 px-1.5 flex flex-col justify-center gap-px border-y border-r border-themeblue3/10 ${isAssigned ? 'bg-themeblue1/8' : 'bg-themewhite2'}`}>
-        <span className="text-[11px] font-medium text-primary truncate leading-none">
+        <span className="text-[9pt] font-medium text-primary truncate leading-none">
           {event.title}
         </span>
         {(event.location || event.property_item_ids.length > 0) && (
-          <span className="flex items-center gap-1 text-[9px] text-secondary truncate leading-none">
+          <span className="flex items-center gap-1 text-[9pt] md:text-[9pt] text-secondary truncate leading-none">
             {event.location && (
               <span className="truncate">{event.location}</span>
             )}

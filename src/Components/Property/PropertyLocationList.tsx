@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, forwardRef, useImperativeHandle } from 'react'
-import { ChevronRight, Pencil, Trash2, Map as MapIcon, X, Check, FolderPlus, PackagePlus, FolderClosed } from 'lucide-react'
+import { ChevronRight, Pencil, Trash2, Map as MapIcon, X, Check, FolderPlus, PackagePlus, FolderClosed, User } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { Section, SectionCard } from '../Section'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
@@ -81,6 +81,14 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
   const currentParentId = path.length > 0 ? path[path.length - 1].id : null
   const isSearching = searchQuery.trim().length > 0
 
+  const currentLocationNode = useMemo(() => {
+    if (path.length === 0) return null
+    const currentId = path[path.length - 1].id
+    return locations.find(l => l.id === currentId) ?? null
+  }, [path, locations])
+
+  const isHolderView = !!currentLocationNode?.holder_user_id
+
   // Lookup maps for search result subtitles
   const locationNameMap = useMemo(() => {
     const map = new Map<string, string>()
@@ -138,10 +146,22 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [items, isSearching, searchQuery, matchesSearch])
 
+  // Child locations at the current drill level.
+  // Member-locations have no sub-locations.
   const childLocations = useMemo(() => {
     if (isSearching) return []
+    if (isHolderView) return []
     return locations
-      .filter((l) => (l.parent_id ?? null) === currentParentId)
+      .filter(l => !l.holder_user_id && (l.parent_id ?? null) === currentParentId)
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [locations, currentParentId, isSearching, isHolderView])
+
+  // Member-location nodes — only shown at root level.
+  const memberLocations = useMemo(() => {
+    if (isSearching) return []
+    if (currentParentId !== null) return []
+    return locations
+      .filter(l => !!l.holder_user_id)
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [locations, currentParentId, isSearching])
 
@@ -152,11 +172,12 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [items, currentParentId, isSearching])
 
+  // Unassigned = no location at all. Only shown at root.
   const unassignedItems = useMemo(() => {
     if (isSearching) return []
     if (currentParentId !== null) return []
     return items
-      .filter((i) => !i.parent_item_id && (i.location_id ?? null) === null)
+      .filter((i) => !i.parent_item_id && !i.location_id)
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [items, currentParentId, isSearching])
 
@@ -180,14 +201,14 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
   }, [path, onDrilldownChange])
 
   // Long-press to open context menu (mobile equivalent of right-click)
-  const handleTouchStart = useCallback((type: 'location' | 'item', id: string, e: React.TouchEvent) => {
+  const handleTouchStart = useCallback((type: 'location' | 'item', id: string, e: React.TouchEvent, isVirtual?: boolean) => {
     const touch = e.touches[0]
     const x = touch.clientX
     const y = touch.clientY
     longPressPreventTap.current = false
     longPressRef.current = window.setTimeout(() => {
       longPressPreventTap.current = true
-      setContextMenu({ type, id, x, y })
+      if (!isVirtual) setContextMenu({ type, id, x, y })
     }, 500)
   }, [])
 
@@ -236,7 +257,7 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
       const directItems = items.filter(
         (i) => !i.parent_item_id && i.location_id === locId,
       ).length
-      const childLocs = locations.filter((l) => l.parent_id === locId)
+      const childLocs = locations.filter((l) => l.parent_id === locId && !l.holder_user_id)
       return directItems + childLocs.reduce((sum, c) => sum + totalDescendantItems(c.id), 0)
     },
     [items, locations],
@@ -247,6 +268,7 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
   const hasLocations = childLocations.length > 0
   const hasItems = locationItems.length > 0
   const hasUnassigned = currentParentId === null && unassignedItems.length > 0
+  const hasMembers = memberLocations.length > 0
 
   const itemInitials = (name: string) => {
     const words = name.trim().split(/\s+/)
@@ -269,7 +291,7 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
   const renderExpiryChip = (expiry: 'expired' | 'expiring' | null) => {
     if (!expiry) return null
     return (
-      <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${
+      <span className={`text-[9pt] md:text-[9pt] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${
         expiry === 'expired' ? 'bg-themeredred/10 text-themeredred' : 'bg-themeyellow/15 text-themeyellow'
       }`}>
         {expiry === 'expired' ? 'Expired' : 'Expiring'}
@@ -278,7 +300,8 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
   }
 
   const renderLocationRow = (loc: LocalPropertyLocation, isLast: boolean) => {
-    const isRenaming = renamingId === loc.id
+    const isMember = !!loc.holder_user_id
+    const isRenaming = !isMember && renamingId === loc.id
     const count = totalDescendantItems(loc.id)
 
     if (isRenaming) {
@@ -294,7 +317,7 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
               if (e.key === 'Escape') cancelRename()
             }}
             placeholder="Rename location"
-            className="flex-1 min-w-0 rounded-full py-2.5 px-4 border border-themeblue1/30 shadow-xs bg-themewhite2 focus:outline-none text-base text-primary placeholder:text-tertiary/30 transition-all duration-300"
+            className="flex-1 min-w-0 rounded-full py-2.5 px-4 border border-themeblue1/30 shadow-xs bg-themewhite2 focus:outline-none text-base text-primary placeholder:text-tertiary transition-all duration-300"
           />
           <button
             onClick={cancelRename}
@@ -323,27 +346,30 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
         onContextMenu={(e) => {
           e.preventDefault()
           e.stopPropagation()
-          if (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation) {
+          if (!isMember && (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation)) {
             setContextMenu({ type: 'location', id: loc.id, x: e.clientX, y: e.clientY })
           }
         }}
-        onTouchStart={(e) => handleTouchStart('location', loc.id, e)}
+        onTouchStart={(e) => handleTouchStart('location', loc.id, e, isMember)}
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchMove}
         className={`flex items-center gap-3 px-4 py-3 active:bg-secondary/5 transition-colors cursor-pointer ${
           !isLast ? 'border-b border-tertiary/8' : ''
         }`}
       >
-        <div className="w-10 h-10 rounded-xl bg-tertiary/8 flex items-center justify-center shrink-0">
-          <FolderClosed size={18} className="text-tertiary/50" />
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isMember ? 'bg-themeblue3/10' : 'bg-tertiary/8'}`}>
+          {isMember
+            ? <User size={18} className="text-themeblue3" />
+            : <FolderClosed size={18} className="text-tertiary" />
+          }
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-primary truncate">{loc.name}</p>
           {count > 0 && (
-            <p className="text-xs text-tertiary/50 mt-0.5">{count} item{count !== 1 ? 's' : ''}</p>
+            <p className="text-xs text-tertiary mt-0.5">{count} item{count !== 1 ? 's' : ''}</p>
           )}
         </div>
-        {editing ? (
+        {!isMember && editing ? (
           <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
             {onEditLocation && (
               <button
@@ -363,7 +389,7 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
             )}
           </div>
         ) : (
-          <ChevronRight size={16} className="text-tertiary/30 shrink-0" />
+          <ChevronRight size={16} className="text-tertiary shrink-0" />
         )}
       </div>
     )
@@ -452,10 +478,10 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
           key={f.key}
           type="button"
           onClick={() => setSearchFilter(f.key)}
-          className={`flex-1 py-1.5 text-[10px] font-medium rounded-full transition-all duration-200 active:scale-95 ${
+          className={`flex-1 py-1.5 text-[9pt] font-medium rounded-full transition-all duration-200 active:scale-95 ${
             searchFilter === f.key
               ? 'bg-themeblue3 text-white shadow-sm'
-              : 'text-tertiary/50 hover:text-tertiary/70'
+              : 'text-tertiary hover:text-tertiary'
           }`}
         >
           {f.label}
@@ -514,11 +540,19 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
             </button>
           )}
 
-          {isEmpty && !hasUnassigned ? (
-            <EmptyState title="No items at this location" />
-          ) : (
+          {currentParentId === null ? (
+            /* ── Root level ── */
             <>
-              {/* Locations section */}
+              {/* Personnel — always present when clinic has members */}
+              {hasMembers && (
+                <Section title="Personnel" count={memberLocations.length}>
+                  <SectionCard>
+                    {memberLocations.map((loc, i) => renderLocationRow(loc, i === memberLocations.length - 1))}
+                  </SectionCard>
+                </Section>
+              )}
+
+              {/* Physical locations */}
               {hasLocations && (
                 <Section title="Locations" count={childLocations.length}>
                   <SectionCard>
@@ -527,22 +561,41 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
                 </Section>
               )}
 
-              {/* Items section */}
-              {hasItems && (
-                <Section title="Items" count={locationItems.length}>
-                  <SectionCard>
-                    {locationItems.map((item, i) => renderItemRow(item, i === locationItems.length - 1))}
-                  </SectionCard>
-                </Section>
-              )}
-
-              {/* Unassigned section — root level only */}
+              {/* Unassigned — no physical location and no holder */}
               {hasUnassigned && (
                 <Section title="Unassigned" count={unassignedItems.length}>
                   <SectionCard>
                     {unassignedItems.map((item, i) => renderItemRow(item, i === unassignedItems.length - 1))}
                   </SectionCard>
                 </Section>
+              )}
+
+              {!hasMembers && !hasLocations && !hasUnassigned && (
+                <EmptyState title="No locations or items yet" />
+              )}
+            </>
+          ) : (
+            /* ── Drilled into a location or member ── */
+            <>
+              {isEmpty ? (
+                <EmptyState title={isHolderView ? 'No items assigned' : 'No items at this location'} />
+              ) : (
+                <>
+                  {hasLocations && (
+                    <Section title="Locations" count={childLocations.length}>
+                      <SectionCard>
+                        {childLocations.map((loc, i) => renderLocationRow(loc, i === childLocations.length - 1))}
+                      </SectionCard>
+                    </Section>
+                  )}
+                  {hasItems && (
+                    <Section title="Items" count={locationItems.length}>
+                      <SectionCard>
+                        {locationItems.map((item, i) => renderItemRow(item, i === locationItems.length - 1))}
+                      </SectionCard>
+                    </Section>
+                  )}
+                </>
               )}
             </>
           )}

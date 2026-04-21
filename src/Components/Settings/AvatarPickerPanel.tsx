@@ -85,7 +85,7 @@ export const AvatarPickerPanel = ({
                                    hover:border-tertiary/50 hover:bg-themewhite2/50"
                         aria-label="Upload photo"
                     >
-                        <Camera size={22} className="text-tertiary/50" />
+                        <Camera size={22} className="text-tertiary" />
                     </button>
                 </div>
 

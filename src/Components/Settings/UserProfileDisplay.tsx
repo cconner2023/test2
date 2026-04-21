@@ -31,9 +31,9 @@ export const UserProfileDisplay = ({ onRequestChange }: UserProfileDisplayProps)
           {fields.map(({ label, value }) => (
             <div key={label} className="px-4 py-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-tertiary/70">{label}</span>
+                <span className="text-sm text-tertiary">{label}</span>
                 <span className="text-sm font-medium text-primary">
-                  {value || <span className="text-tertiary/30 italic">Not set</span>}
+                  {value || <span className="text-tertiary italic">Not set</span>}
                 </span>
               </div>
             </div>
@@ -44,7 +44,7 @@ export const UserProfileDisplay = ({ onRequestChange }: UserProfileDisplayProps)
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
             <div className="px-4 py-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-tertiary/70">Signature Preview</span>
+                <span className="text-sm text-tertiary">Signature Preview</span>
                 <span className="text-sm font-medium text-primary">
                   {profile.lastName} {profile.firstName} {profile.middleInitial}{' '}
                   {profile.credential}
@@ -63,13 +63,13 @@ export const UserProfileDisplay = ({ onRequestChange }: UserProfileDisplayProps)
             className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5"
           >
             <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-              <Pencil size={18} className="text-tertiary/50" />
+              <Pencil size={18} className="text-tertiary" />
             </div>
             <div className="flex-1 text-left">
               <span className="text-sm font-medium text-primary">Request Profile Changes</span>
-              <p className="text-[11px] text-tertiary/70 mt-0.5">Requires administrator approval</p>
+              <p className="text-[9pt] text-tertiary mt-0.5">Requires administrator approval</p>
             </div>
-            <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+            <ChevronRight size={16} className="text-tertiary shrink-0" />
           </button>
         </div>
       </div>

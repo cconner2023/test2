@@ -7,15 +7,17 @@ export interface ReleaseNoteTypes {
 }
 
 export const ReleaseNotes: ReleaseNoteTypes[] = [
-    { version: '2.6.5', type: 'added', text: 'TC3 — digital DD Form 1380 casualty card with MARCH interventions, body diagram markers, and barcode export' },
-    { version: '2.6.5', type: 'added', text: 'TC3 guided tour' },
+    { version: '2.6.6', type: 'added', text: 'MASCAL queue — manage multiple casualties simultaneously, toggle between patients to update vitals and interventions' },
+    { version: '2.6.6', type: 'added', text: '9-line MEDEVAC request builder with export / import' },
+    { version: '2.6.6', type: 'added', text: 'extend messaging to all users, find by user email or share your id to another user' },
+    { version: '2.6.6', type: 'added', text: 'change your visual theme in settings' },
+    { version: '2.6.6', type: 'added', text: 'property management — track, locate, and manage equipment across locations with map view' },
+    { version: '2.6.5', type: 'added', text: 'TC3 — digital casualty card with MARCH interventions, body diagram markers, and barcode export' },
     { version: '2.6.4', type: 'added', text: 'burn assessment calculator — Rule of Nines TBSA with Parkland formula fluid resuscitation' },
     { version: '2.6.4', type: 'added', text: 'pin Knowledge Base categories for quick access' },
     { version: '2.6.4', type: 'added', text: 'encrypted calendar events with troops to task view' },
     { version: '2.6.4', type: 'added', text: 'training assignment from supervisor panel' },
     { version: '2.6.4', type: 'changed', text: 'provider view. append medic notes' },
-    { version: '2.6.4', type: 'changed', text: 'text-expander update' },
-    { version: '2.6.4', type: 'bug', text: 'iOS model viewport adjustment' },
     { version: '2.6.3', type: 'changed', text: 'WhisperNet — offline mesh messaging and guardian node relay' },
     { version: '2.6.3', type: 'added', text: 'manage users in your clinic, and associate your clinic with others via QR' },
     { version: '2.6.3', type: 'added', text: 'extend comms to outside units and parent clinics' },

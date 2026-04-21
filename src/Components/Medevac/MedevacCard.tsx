@@ -12,6 +12,7 @@ import {
   MEDEVAC_STATUS_LABELS,
   medevacPatientTotal,
   medevacHighestPrecedence,
+  type MedevacNationality,
 } from '../../Types/MedevacTypes'
 
 interface MedevacCardProps {
@@ -20,13 +21,13 @@ interface MedevacCardProps {
 
 export function MedevacCard({ data }: MedevacCardProps) {
   const isMobile = useIsMobile()
-  const isHot = data.l6 === 'E' || data.l6 === 'X'
-  const hasNBC = data.l9 !== 'N'
+  const isHot = data.mode !== 'peacetime' && (data.l6 === 'E' || data.l6 === 'X')
+  const hasNBC = data.mode !== 'peacetime' && data.l9 !== 'N'
   const highest = medevacHighestPrecedence(data)
   const total = medevacPatientTotal(data)
 
   const rowCx = `flex items-start justify-between gap-4 ${isMobile ? 'px-4 py-2.5' : 'px-3 py-2'} border-b border-primary/6 last:border-0`
-  const labelCx = 'text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase shrink-0'
+  const labelCx = 'text-[9pt] font-semibold text-tertiary tracking-widest uppercase shrink-0'
   const valueCx = `font-medium text-primary text-right ${isMobile ? 'text-sm' : 'text-xs'}`
 
   // "1A, 2C" precedence summary
@@ -43,11 +44,11 @@ export function MedevacCard({ data }: MedevacCardProps) {
       }`}>
         <div className="flex items-center gap-1.5">
           {(isHot || hasNBC) && <AlertTriangle size={12} className="text-themeredred" />}
-          <span className="text-[10px] font-bold tracking-widest uppercase text-themeblue3">9-Line MEDEVAC</span>
+          <span className="text-[9pt] font-bold tracking-widest uppercase text-themeblue3">9-Line MEDEVAC</span>
         </div>
         <div className="flex items-center gap-2">
           {highest && (
-            <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+            <span className={`text-[9pt] px-2 py-0.5 rounded-full font-semibold ${
               highest === 'A' || highest === 'B'
                 ? 'bg-themeredred/15 text-themeredred'
                 : highest === 'C'
@@ -57,7 +58,8 @@ export function MedevacCard({ data }: MedevacCardProps) {
               {highest} — {MEDEVAC_PRECEDENCE_LABELS[highest]}
             </span>
           )}
-          <span className="text-[10px] text-tertiary/50">{MEDEVAC_STATUS_LABELS[data.status]}</span>
+          <span className="text-[9pt] text-tertiary capitalize">{data.mode}</span>
+          <span className="text-[9pt] text-tertiary">{MEDEVAC_STATUS_LABELS[data.status]}</span>
         </div>
       </div>
 
@@ -66,7 +68,7 @@ export function MedevacCard({ data }: MedevacCardProps) {
         <span className={labelCx}>L1 Pickup</span>
         <div className="text-right">
           <p className={`${valueCx} font-mono tracking-wider`}>{data.l1 || '—'}</p>
-          {data.l1d && <p className={`text-tertiary ${isMobile ? 'text-xs' : 'text-[10px]'}`}>{data.l1d}</p>}
+          {data.l1d && <p className={`text-tertiary ${isMobile ? 'text-xs' : 'text-[9pt]'}`}>{data.l1d}</p>}
         </div>
       </div>
 
@@ -99,12 +101,24 @@ export function MedevacCard({ data }: MedevacCardProps) {
       </div>
 
       {/* Line 6 */}
-      <div className={rowCx}>
-        <span className={labelCx}>L6 Security</span>
-        <p className={`${valueCx} ${isHot ? 'text-themeredred' : ''}`}>
-          {data.l6} — {MEDEVAC_SECURITY_LABELS[data.l6]}
-        </p>
-      </div>
+      {data.mode === 'peacetime' ? (
+        <div className={rowCx}>
+          <span className={labelCx}>L6 Wounds</span>
+          <div className="text-right max-w-[55%]">
+            {(data.l6wounds ?? []).length === 0
+              ? <p className={valueCx}>—</p>
+              : (data.l6wounds ?? []).map((w, i) => (
+                  <p key={i} className={`${valueCx} leading-tight`}>{w.text}</p>
+                ))
+            }
+          </div>
+        </div>
+      ) : (
+        <div className={rowCx}>
+          <span className={labelCx}>L6 Security</span>
+          <p className={`${valueCx} ${isHot ? 'text-themeredred' : ''}`}>{data.l6} — {MEDEVAC_SECURITY_LABELS[data.l6]}</p>
+        </div>
+      )}
 
       {/* Line 7 */}
       <div className={rowCx}>
@@ -112,10 +126,10 @@ export function MedevacCard({ data }: MedevacCardProps) {
         <div className="text-right">
           <p className={valueCx}>{data.l7} — {MEDEVAC_MARKING_LABELS[data.l7]}</p>
           {data.l7 === 'C' && data.l7c && (
-            <p className={`text-tertiary ${isMobile ? 'text-xs' : 'text-[10px]'}`}>{data.l7c}</p>
+            <p className={`text-tertiary ${isMobile ? 'text-xs' : 'text-[9pt]'}`}>{data.l7c}</p>
           )}
           {data.l7 === 'E' && data.l7o && (
-            <p className={`text-tertiary ${isMobile ? 'text-xs' : 'text-[10px]'}`}>{data.l7o}</p>
+            <p className={`text-tertiary ${isMobile ? 'text-xs' : 'text-[9pt]'}`}>{data.l7o}</p>
           )}
         </div>
       </div>
@@ -124,16 +138,20 @@ export function MedevacCard({ data }: MedevacCardProps) {
       <div className={rowCx}>
         <span className={labelCx}>L8 Nationality</span>
         <p className={`${valueCx} max-w-[55%]`}>
-          {data.l8.map(n => `${n} — ${MEDEVAC_NATIONALITY_LABELS[n]}`).join(', ')}
+          {(['A','B','C','D','E'] as MedevacNationality[])
+            .filter(n => (data.l8[n] ?? 0) > 0)
+            .map(n => `${data.l8[n]} ${MEDEVAC_NATIONALITY_LABELS[n]}`)
+            .join(', ') || '—'}
         </p>
       </div>
 
       {/* Line 9 */}
       <div className={rowCx}>
-        <span className={labelCx}>L9 NBC</span>
-        <p className={`${valueCx} ${hasNBC ? 'text-themeredred' : ''}`}>
-          {data.l9} — {MEDEVAC_NBC_LABELS[data.l9]}
-        </p>
+        <span className={labelCx}>{data.mode === 'peacetime' ? 'L9 Terrain' : 'L9 NBC'}</span>
+        {data.mode === 'peacetime'
+          ? <p className={`${valueCx} max-w-[55%] whitespace-pre-wrap text-right`}>{data.l9p || '—'}</p>
+          : <p className={`${valueCx} ${hasNBC ? 'text-themeredred' : ''}`}>{data.l9} — {MEDEVAC_NBC_LABELS[data.l9]}</p>
+        }
       </div>
 
       {data.notes && (

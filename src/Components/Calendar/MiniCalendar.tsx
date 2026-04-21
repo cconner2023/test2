@@ -138,7 +138,7 @@ export function MiniCalendar({ selectedDate, onSelectDate, events, hideHeader, d
       {/* Day-of-week header */}
       <div className="grid grid-cols-7">
         {DOW_LABELS.map((label, i) => (
-          <div key={i} className="text-center text-[9px] font-medium text-tertiary/50 uppercase py-0.5">
+          <div key={i} className="text-center text-[9pt] md:text-[9pt] font-medium text-tertiary uppercase py-0.5">
             {label}
           </div>
         ))}
@@ -162,14 +162,14 @@ export function MiniCalendar({ selectedDate, onSelectDate, events, hideHeader, d
             >
               <button
                 onClick={() => handleDayClick(date)}
-                className={`w-6 h-6 flex items-center justify-center text-[11px] transition-transform active:scale-95 ${
+                className={`w-6 h-6 flex items-center justify-center text-[9pt] transition-transform active:scale-95 ${
                   isSelected
                     ? 'text-white font-semibold'
                     : isToday
                       ? 'text-white font-semibold'
                       : isCurrentMonth
                         ? 'text-primary hover:bg-primary/8 rounded'
-                        : 'text-tertiary/30 hover:bg-primary/5 rounded'
+                        : 'text-tertiary hover:bg-primary/5 rounded'
                 }`}
               >
                 {date.getDate()}

@@ -138,12 +138,12 @@ export interface UserTypes {
     overviewWidgets?: OverviewWidgetId[] | null
 }
 
-export type OverviewWidgetId = 'task-list' | 'map-overlay' | 'gantt' | 'week-view' | 'messages'
+export type OverviewWidgetId = 'task-list' | 'map-overlay' | 'kanban' | 'week-view' | 'messages'
 
 export const OVERVIEW_WIDGET_META: Record<OverviewWidgetId, { label: string; subtitle: string; disabled?: boolean }> = {
   'task-list':   { label: 'Task List',    subtitle: 'Your assigned tasks for the day' },
   'map-overlay': { label: 'Map',          subtitle: 'Mission area map thumbnail' },
-  'gantt':       { label: 'Gantt',        subtitle: 'Horizontal timeline of all events' },
+  'kanban':      { label: 'Kanban',       subtitle: 'Events grouped by status' },
   'week-view':   { label: 'Week View',    subtitle: '7-day event summary strip' },
   'messages':    { label: 'Messages',     subtitle: 'Recent encrypted messages' },
 }

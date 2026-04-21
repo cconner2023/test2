@@ -24,6 +24,8 @@ interface UserRowProps {
   size?: 'sm' | 'md'
   /** Custom content rendered to the right of the name/subtitle block */
   right?: React.ReactNode
+  /** Extra content rendered below the subtitle, inside the text block (e.g. role badges) */
+  meta?: React.ReactNode
 
   onClick?: () => void
   className?: string
@@ -59,6 +61,7 @@ export function UserRow({
   showChevron = true,
   size = 'sm',
   right,
+  meta,
   onClick,
   className,
 }: UserRowProps) {
@@ -87,10 +90,11 @@ export function UserRow({
           {name || '\u00A0'}
         </p>
         {subtitle && (
-          <p className="text-[11px] text-tertiary/70 mt-0.5 truncate">
+          <p className="text-[9pt] text-tertiary mt-0.5 line-clamp-2">
             {subtitle}
           </p>
         )}
+        {meta && <div className="mt-1">{meta}</div>}
       </div>
 
       {/* Right slot */}
@@ -98,7 +102,7 @@ export function UserRow({
 
       {/* Chevron */}
       {showChevron && (
-        <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+        <ChevronRight size={16} className="text-tertiary shrink-0" />
       )}
     </>
   )

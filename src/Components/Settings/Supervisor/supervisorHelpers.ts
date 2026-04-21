@@ -37,7 +37,7 @@ export const certBadgeColors = {
   valid:    'bg-themegreen/10 text-themegreen border-themegreen/30',
   expiring: 'bg-themeyellow/10 text-themeyellow border-themeyellow/30',
   expired:  'bg-themeredred/10 text-themeredred border-themeredred/30',
-  none:     'bg-tertiary/5 text-tertiary/50 border-tertiary/20',
+  none:     'bg-tertiary/5 text-tertiary border-tertiary/20',
 } as const
 
 // ─── Testable Tasks ──────────────────────────────────────────────────────────

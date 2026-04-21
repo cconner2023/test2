@@ -16,12 +16,12 @@ export const EvacuationForm = memo(function EvacuationForm() {
     <div className="space-y-5">
       <div>
         <h3 className="text-sm font-semibold text-primary mb-1">Evacuation</h3>
-        <p className="text-[11px] text-tertiary/70">DD 1380 — Evacuation priority</p>
+        <p className="text-[9pt] text-tertiary">DD 1380 — Evacuation priority</p>
       </div>
 
       {/* Evacuation Priority */}
       <div className="space-y-2">
-        <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Evacuation Priority</p>
+        <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Evacuation Priority</p>
         {EVAC_PRIORITIES.map((opt) => {
           const isSelected = evacuation.priority === opt.value
           return (
@@ -41,7 +41,7 @@ export const EvacuationForm = memo(function EvacuationForm() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className={`text-sm font-medium ${isSelected ? 'text-primary' : 'text-tertiary'}`}>{opt.label}</p>
-                <p className="text-[10px] text-tertiary/60 mt-0.5">{opt.description}</p>
+                <p className="text-[9pt] text-tertiary mt-0.5">{opt.description}</p>
               </div>
             </button>
           )

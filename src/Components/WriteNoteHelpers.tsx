@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { Check, Copy, Share2, FileDown, ChevronRight } from 'lucide-react';
+import { Check, Copy, Share2, FileDown, ChevronRight, CalendarCheck } from 'lucide-react';
 import type { getColorClasses } from '../Utilities/ColorUtilities';
 import type { TextExpander } from '../Data/User';
 import type { useTemplateSession } from '../Hooks/useTemplateSession';
@@ -148,7 +148,7 @@ export const ActionIconButton = ({
 }: {
     onClick: () => void;
     status: 'idle' | 'busy' | 'done';
-    variant: 'copy' | 'share' | 'pdf';
+    variant: 'copy' | 'share' | 'pdf' | 'calendar';
     title: string;
 }) => {
     const colorClass = status === 'done' ? 'text-themegreen'
@@ -176,6 +176,8 @@ export const ActionIconButton = ({
                 <Copy className="w-4 h-4" />
             ) : variant === 'share' ? (
                 <Share2 className="w-4 h-4" />
+            ) : variant === 'calendar' ? (
+                <CalendarCheck className="w-4 h-4" />
             ) : (
                 <FileDown className="w-4 h-4" />
             )}
@@ -207,11 +209,11 @@ export const ToggleOption: React.FC<{
         }}
     >
         <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${checked ? `${colors.sliderClass}/15` : 'bg-tertiary/10'}`}>
-            <span className={checked ? colors.symptomCheck : 'text-tertiary/50'}>{icon}</span>
+            <span className={checked ? colors.symptomCheck : 'text-tertiary'}>{icon}</span>
         </div>
         <div className="flex-1 min-w-0">
             <p className={`text-sm font-medium ${checked ? 'text-primary' : 'text-tertiary'}`}>{label}</p>
-            <p className="text-[11px] text-tertiary/70 mt-0.5">{checked ? onDescription : offDescription}</p>
+            <p className="text-[9pt] text-tertiary mt-0.5">{checked ? onDescription : offDescription}</p>
         </div>
         <div className={`w-10 h-6 rounded-full relative transition-colors ${checked ? colors.sliderClass : 'bg-tertiary/25'}`}>
             <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
@@ -296,7 +298,7 @@ export const NoteHPIEditor = ({
             onBlur={() => { if (templateSession.isActive) endSession(); }}
             onKeyDown={hpiKeyDownHandler}
             placeholder="History of present illness, clinical observations, assessment..."
-            className="w-full text-tertiary bg-themewhite outline-none text-[16px] md:text-[10pt] px-4 py-3 rounded-md border border-themegray1/20 min-w-0 resize-none min-h-[12rem] leading-6 focus:border-themeblue1/30 transition-colors"
+            className="w-full text-tertiary bg-themewhite outline-none text-[12pt] md:text-[10pt] px-4 py-3 rounded-md border border-themegray1/20 min-w-0 resize-none min-h-[12rem] leading-6 focus:border-themeblue1/30 transition-colors"
         />
         {hasExpanderSuggestion && !templateSession.isActive && (
             <TextExpanderSuggestion

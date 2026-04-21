@@ -296,7 +296,7 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
                             }`}>
                                 <Search
                                     size={16}
-                                    className="ml-3 shrink-0 text-tertiary/50"
+                                    className="ml-3 shrink-0 text-tertiary"
                                 />
                                 <input
                                     ref={inputRef}
@@ -307,7 +307,7 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
                                     onFocus={handleFocus}
                                     onBlur={handleBlur}
                                     onKeyDown={handleKeyDown}
-                                    className="text-tertiary bg-transparent outline-none text-[16px] w-full px-3 py-2 min-w-0 placeholder:text-tertiary/30 [&::-webkit-search-cancel-button]:hidden"
+                                    className="text-tertiary bg-transparent outline-none text-[12pt] w-full px-3 py-2 min-w-0 placeholder:text-tertiary [&::-webkit-search-cancel-button]:hidden"
                                 />
                                 {hasValue && (
                                     <div

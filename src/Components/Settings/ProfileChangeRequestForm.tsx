@@ -12,7 +12,7 @@ import { ErrorDisplay } from '../ErrorDisplay'
 const logger = createLogger('ProfileChangeRequest')
 
 const pillClass =
-  'w-full rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300'
+  'w-full rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary transition-all duration-300'
 
 const selectClass = `${pillClass} appearance-none`
 
@@ -136,7 +136,7 @@ export const ProfileChangeRequestForm = () => {
           <div className="text-center py-8">
             <CheckCircle size={32} className="text-themegreen mx-auto mb-3" />
             <h2 className="text-base font-semibold text-primary mb-1">Change Request Submitted</h2>
-            <p className="text-sm text-tertiary/70">
+            <p className="text-sm text-tertiary">
               An administrator will review your changes and update your profile accordingly.
             </p>
           </div>
@@ -197,7 +197,7 @@ export const ProfileChangeRequestForm = () => {
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
-                <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-tertiary/40 pointer-events-none" />
+                <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-tertiary pointer-events-none" />
               </div>
 
               {/* Component */}
@@ -212,7 +212,7 @@ export const ProfileChangeRequestForm = () => {
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
-                <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-tertiary/40 pointer-events-none" />
+                <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-tertiary pointer-events-none" />
               </div>
 
               {/* Rank (conditional) */}
@@ -228,7 +228,7 @@ export const ProfileChangeRequestForm = () => {
                       <option key={r} value={r}>{r}</option>
                     ))}
                   </select>
-                  <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-tertiary/40 pointer-events-none" />
+                  <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-tertiary pointer-events-none" />
                 </div>
               )}
 
@@ -241,7 +241,7 @@ export const ProfileChangeRequestForm = () => {
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Reason for changes..."
                 rows={3}
-                className="w-full rounded-2xl py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300 resize-none"
+                className="w-full rounded-2xl py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary transition-all duration-300 resize-none"
               />
 
               {/* Submit */}

@@ -31,7 +31,7 @@ interface ProviderNoteProps {
 
 const TEXTAREA_CLASS =
   'w-full rounded-xl border border-themeblue3/10 shadow-xs bg-themewhite p-3 text-sm text-primary ' +
-  'placeholder:text-tertiary/30 focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none resize-none transition-all duration-300 overflow-hidden';
+  'placeholder:text-tertiary focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none resize-none transition-all duration-300 overflow-hidden';
 
 export function ProviderNote({
   hpiNote,
@@ -71,10 +71,10 @@ export function ProviderNote({
       {piiWarnings.length > 0 && <PIIWarningBanner warnings={piiWarnings} />}
 
       <div className="space-y-3 md:space-y-2" data-tour="provider-hpi">
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">History of Present Illness</p>
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">History of Present Illness</p>
         {importedMedicNote?.medicHpi && (
           <div className="rounded-xl bg-themewhite2 px-4 py-3" data-tour="provider-medic-context">
-            <p className="text-[10pt] text-tertiary/50 mb-1">{importedMedicNote.medicName}</p>
+            <p className="text-[10pt] text-tertiary mb-1">{importedMedicNote.medicName}</p>
             <div className="text-sm text-primary whitespace-pre-wrap">{importedMedicNote.medicHpi}</div>
           </div>
         )}
@@ -89,11 +89,11 @@ export function ProviderNote({
       </div>
 
       <div className="space-y-3 md:space-y-2" data-tour="provider-pe">
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Physical Exam</p>
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Physical Exam</p>
         {/* Block selection is handled inside PhysicalExam via popover */}
         {importedMedicNote?.medicPe && (
           <div className="rounded-xl bg-themewhite2 px-4 py-3">
-            <p className="text-[10pt] text-tertiary/50 mb-1">{importedMedicNote.medicName}</p>
+            <p className="text-[10pt] text-tertiary mb-1">{importedMedicNote.medicName}</p>
             <div className="text-sm text-primary whitespace-pre-wrap">{importedMedicNote.medicPe}</div>
           </div>
         )}
@@ -113,10 +113,10 @@ export function ProviderNote({
       </div>
 
       <div className="space-y-3 md:space-y-2" data-tour="provider-assessment">
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Assessment</p>
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Assessment</p>
         {importedMedicNote?.medicAssessment && (
           <div className="rounded-xl bg-themewhite2 px-4 py-3">
-            <p className="text-[10pt] text-tertiary/50 mb-1">{importedMedicNote.medicName}</p>
+            <p className="text-[10pt] text-tertiary mb-1">{importedMedicNote.medicName}</p>
             <div className="text-sm text-primary whitespace-pre-wrap">{importedMedicNote.medicAssessment}</div>
           </div>
         )}
@@ -131,10 +131,10 @@ export function ProviderNote({
       </div>
 
       <div className="space-y-3 md:space-y-2" data-tour="provider-plan">
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Plan</p>
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Plan</p>
         {importedMedicNote?.medicPlan && (
           <div className="rounded-xl bg-themewhite2 px-4 py-3">
-            <p className="text-[10pt] text-tertiary/50 mb-1">{importedMedicNote.medicName}</p>
+            <p className="text-[10pt] text-tertiary mb-1">{importedMedicNote.medicName}</p>
             <div className="text-sm text-primary whitespace-pre-wrap">{importedMedicNote.medicPlan}</div>
           </div>
         )}

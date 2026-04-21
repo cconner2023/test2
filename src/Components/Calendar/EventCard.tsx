@@ -48,22 +48,22 @@ export function EventCard({ event, onSelect, onContextMenu }: EventCardProps) {
             )}
           </div>
           {event.status === 'in_progress' && (
-            <span className="inline-block mt-1 text-[10px] font-semibold text-themeblue1 bg-themeblue1/10 rounded px-1.5 py-0.5 uppercase tracking-wide">
+            <span className="inline-block mt-1 text-[9pt] font-semibold text-themeblue1 bg-themeblue1/10 rounded px-1.5 py-0.5 uppercase tracking-wide">
               Active
             </span>
           )}
           {event.status === 'completed' && (
-            <span className="inline-block mt-1 text-[10px] font-semibold text-themegreen bg-themegreen/10 rounded px-1.5 py-0.5 uppercase tracking-wide">
+            <span className="inline-block mt-1 text-[9pt] font-semibold text-themegreen bg-themegreen/10 rounded px-1.5 py-0.5 uppercase tracking-wide">
               Done
             </span>
           )}
           {event.status === 'cancelled' && (
-            <span className="inline-block mt-1 text-[10px] font-semibold text-themeredred bg-themeredred/10 rounded px-1.5 py-0.5 uppercase tracking-wide">
+            <span className="inline-block mt-1 text-[9pt] font-semibold text-themeredred bg-themeredred/10 rounded px-1.5 py-0.5 uppercase tracking-wide">
               Cancelled
             </span>
           )}
         </div>
-        <span className="text-[10px] font-medium text-tertiary/60 uppercase shrink-0">
+        <span className="text-[9pt] font-medium text-tertiary uppercase shrink-0">
           {cat.label}
         </span>
       </div>

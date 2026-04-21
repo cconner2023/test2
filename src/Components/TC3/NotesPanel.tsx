@@ -12,7 +12,7 @@ export const NotesPanel = memo(function NotesPanel() {
     <div className="space-y-2" data-tour="tc3-notes">
       <div>
         <h3 className="text-sm font-semibold text-primary mb-1">Notes</h3>
-        <p className="text-[11px] text-tertiary/70">Additional documentation and handoff notes</p>
+        <p className="text-[9pt] text-tertiary">Additional documentation and handoff notes</p>
       </div>
       <ExpandableInput
         value={notes}
@@ -20,7 +20,7 @@ export const NotesPanel = memo(function NotesPanel() {
         expanders={expanders}
         multiline
         placeholder="Any additional documentation, handoff notes, mechanism details..."
-        className="w-full rounded-2xl border border-themeblue3/10 bg-themewhite2 px-4 py-3 text-sm text-primary placeholder:text-tertiary/30 focus:border-themeblue1/30 focus:outline-none resize-none transition-colors leading-6"
+        className="w-full rounded-2xl border border-themeblue3/10 bg-themewhite2 px-4 py-3 text-sm text-primary placeholder:text-tertiary focus:border-themeblue1/30 focus:outline-none resize-none transition-colors leading-6"
       />
     </div>
   )

@@ -22,6 +22,7 @@ import {
   fetchSubItems,
   syncLocationNameToTags,
   ensureRootLocation,
+  ensureMemberLocations,
   updateFingerprint,
   recordExpendedEntry,
 } from '../lib/propertyService'
@@ -44,29 +45,22 @@ interface PropertyState {
   isSyncing: boolean
   clinicId: string | null
 
-  selectedItem: LocalPropertyItem | null
   editingItem: LocalPropertyItem | null
   selectedZoneId: string | null
-  canvasStack: string[]
   rootLocationId: string | null
   defaultLocationId: string | null
   tagVersion: number
   transitionState: 'idle' | 'zooming-in' | 'zooming-out'
-  holderFilter: string | null
 
   visibleLocations: () => LocalPropertyLocation[]
 
-  selectItem: (item: LocalPropertyItem | null) => void
   setEditingItem: (item: LocalPropertyItem | null) => void
   selectZone: (zoneId: string | null) => void
-  navigateInto: (zoneId: string) => void
-  navigateBack: () => void
   navigateToPath: (path: string[]) => void
   setRootLocationId: (id: string | null) => void
   setDefaultLocationId: (id: string | null) => void
   bumpTagVersion: () => void
   setTransitionState: (state: 'idle' | 'zooming-in' | 'zooming-out') => void
-  setHolderFilter: (holderId: string | null) => void
 
   init: () => Promise<void>
   addItem: (data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at'>) => Promise<LocalPropertyItem | null>
@@ -94,32 +88,21 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
   isSyncing: false,
   clinicId: null,
 
-  selectedItem: null,
   editingItem: null,
   selectedZoneId: null,
-  canvasStack: [],
   rootLocationId: null,
   defaultLocationId: null,
   tagVersion: 0,
   transitionState: 'idle',
-  holderFilter: null,
 
-  visibleLocations: () => get().locations.filter(l => l.name !== ROOT_LOCATION_NAME),
+  visibleLocations: () => {
+    return get().locations.filter(l => l.name !== ROOT_LOCATION_NAME)
+  },
 
-  selectItem: (item) => set({ selectedItem: item }),
   setEditingItem: (item) => set({ editingItem: item }),
   selectZone: (zoneId) => set({ selectedZoneId: zoneId }),
 
-  navigateInto: (zoneId) => set((state) => ({
-    canvasStack: [...state.canvasStack, zoneId],
-    selectedZoneId: zoneId,
-  })),
-  navigateBack: () => set((state) => {
-    const next = state.canvasStack.slice(0, -1)
-    return { canvasStack: next, selectedZoneId: next[next.length - 1] ?? null }
-  }),
   navigateToPath: (path) => set({
-    canvasStack: path,
     selectedZoneId: path[path.length - 1] ?? null,
   }),
 
@@ -127,7 +110,6 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
   setDefaultLocationId: (id) => set({ defaultLocationId: id }),
   bumpTagVersion: () => set((state) => ({ tagVersion: state.tagVersion + 1 })),
   setTransitionState: (state) => set({ transitionState: state }),
-  setHolderFilter: (holderId) => set({ holderFilter: holderId }),
 
   init: async () => {
     const user = useAuthStore.getState().user
@@ -188,6 +170,11 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
         rootLocationId: rootLoc.id,
         isLoading: false,
       })
+
+      // Eagerly ensure every clinic member has a persisted location record
+      await ensureMemberLocations(clinicId, user.id, memberList, rootLoc.id)
+      const freshLocations = await fetchClinicLocations(clinicId)
+      set({ locations: freshLocations })
 
       if (cleanupListeners) {
         cleanupListeners()

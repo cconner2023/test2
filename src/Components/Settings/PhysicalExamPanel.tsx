@@ -76,8 +76,8 @@ export const PhysicalExamPanel = () => {
                 {/* Template list */}
                 <section className="space-y-3">
                     <div className="flex items-center gap-2">
-                        <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Templates</p>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
+                        <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Templates</p>
+                        <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
                             {templates.length}
                         </span>
                     </div>
@@ -91,13 +91,13 @@ export const PhysicalExamPanel = () => {
                                     value={editName}
                                     onChange={(e) => setEditName(e.target.value)}
                                     placeholder="Template name"
-                                    className="w-full bg-transparent outline-none text-base font-semibold text-primary placeholder:text-tertiary/30"
+                                    className="w-full bg-transparent outline-none text-base font-semibold text-primary placeholder:text-tertiary"
                                     autoFocus
                                 />
                             </div>
 
                             <div className="px-4 py-3.5">
-                                <p className="text-[9pt] text-tertiary/50 uppercase tracking-wider mb-1.5">Exam Blocks</p>
+                                <p className="text-[9pt] text-tertiary uppercase tracking-wider mb-1.5">Exam Blocks</p>
                                 <div className="flex flex-wrap gap-1.5">
                                     {MASTER_BLOCKS_TOP_LEVEL.map(block => {
                                         const selected = editBlockKeys.includes(block.key);
@@ -126,10 +126,10 @@ export const PhysicalExamPanel = () => {
                                                 key={childKey}
                                                 type="button"
                                                 onClick={() => toggleBlock(childKey)}
-                                                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all active:scale-95 ${
+                                                className={`px-2.5 py-1 rounded-full text-[9pt] font-medium transition-all active:scale-95 ${
                                                     selected
                                                         ? 'bg-themeblue3/15 text-themeblue3 ring-1 ring-inset ring-themeblue3/20'
-                                                        : 'bg-tertiary/5 text-tertiary/60 hover:bg-tertiary/10'
+                                                        : 'bg-tertiary/5 text-tertiary hover:bg-tertiary/10'
                                                 }`}
                                             >
                                                 {child.label}
@@ -138,7 +138,7 @@ export const PhysicalExamPanel = () => {
                                     })}
                                 </div>
                                 {editBlockKeys.length > 0 && (
-                                    <p className="text-[11px] text-tertiary/50 mt-2">
+                                    <p className="text-[9pt] text-tertiary mt-2">
                                         {editBlockKeys.length} block{editBlockKeys.length !== 1 ? 's' : ''} selected
                                     </p>
                                 )}
@@ -172,7 +172,7 @@ export const PhysicalExamPanel = () => {
                                     <div key={t.id} className="flex items-center py-2.5 px-2 gap-2">
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-medium text-primary truncate">{t.name}</p>
-                                            <p className="text-[11px] text-tertiary/50 mt-0.5 truncate">
+                                            <p className="text-[9pt] text-tertiary mt-0.5 truncate">
                                                 {t.blockIds.length > 0
                                                     ? t.blockIds.map(blockLabel).join(', ')
                                                     : 'No blocks selected'}
@@ -215,7 +215,7 @@ export const PhysicalExamPanel = () => {
                                 ))}
                             </div>
                         ) : !editingId ? (
-                            <p className="text-sm text-tertiary/50 py-4 text-center">
+                            <p className="text-sm text-tertiary py-4 text-center">
                                 No exam templates configured
                             </p>
                         ) : null}

@@ -33,7 +33,7 @@ function makePill(label: string, field: FieldInfo | undefined): HTMLSpanElement 
     pill.contentEditable = 'false';
 
     // Base pill styling
-    const base = 'inline-flex items-center gap-0.5 px-2 py-0.5 mx-0.5 rounded-full text-[11px] font-medium cursor-pointer select-none align-baseline';
+    const base = 'inline-flex items-center gap-0.5 px-2 py-0.5 mx-0.5 rounded-full text-[9pt] font-medium cursor-pointer select-none align-baseline';
 
     if (field?.type === 'dropdown') {
         pill.className = `${base} bg-themeblue2/15 text-themeblue2`;
@@ -41,7 +41,7 @@ function makePill(label: string, field: FieldInfo | undefined): HTMLSpanElement 
         lbl.textContent = field.defaultValue ?? field.options?.[0] ?? label;
         pill.appendChild(lbl);
         const arrow = document.createElement('span');
-        arrow.className = 'text-[9px] text-themeblue2/50 ml-0.5';
+        arrow.className = 'text-[9pt] md:text-[9pt] text-themeblue2/50 ml-0.5';
         arrow.textContent = '▾';
         pill.appendChild(arrow);
     } else {
@@ -427,7 +427,7 @@ export const FieldTextEditor = ({
                     className="w-full min-h-[100px] bg-transparent outline-none text-sm text-primary leading-relaxed whitespace-pre-wrap break-words"
                 />
                 {showPlaceholder && placeholder && (
-                    <div className="absolute inset-0 text-sm text-tertiary/30 pointer-events-none leading-relaxed">
+                    <div className="absolute inset-0 text-sm text-tertiary pointer-events-none leading-relaxed">
                         {placeholder}
                     </div>
                 )}
@@ -486,7 +486,7 @@ const FieldEditPopover = ({ label, field, rect, onDelete, onSetDefault, onClose 
 
                 {field.type === 'dropdown' && field.options && field.options.length > 0 && (
                     <div className="space-y-1">
-                        <p className="text-[9px] text-tertiary/40 uppercase tracking-wider">Default</p>
+                        <p className="text-[9pt] md:text-[9pt] text-tertiary uppercase tracking-wider">Default</p>
                         <div className="flex flex-wrap gap-1">
                             {field.options.map(opt => {
                                 const isDefault = opt === (field.defaultValue ?? field.options![0]);
@@ -495,10 +495,10 @@ const FieldEditPopover = ({ label, field, rect, onDelete, onSetDefault, onClose 
                                         key={opt}
                                         type="button"
                                         onClick={() => onSetDefault(opt)}
-                                        className={`text-[11px] px-2 py-1 rounded-full transition-all active:scale-95 ${
+                                        className={`text-[9pt] px-2 py-1 rounded-full transition-all active:scale-95 ${
                                             isDefault
                                                 ? 'bg-themeblue3 text-white'
-                                                : 'bg-tertiary/8 text-tertiary/60 hover:bg-tertiary/12'
+                                                : 'bg-tertiary/8 text-tertiary hover:bg-tertiary/12'
                                         }`}
                                     >
                                         {opt}

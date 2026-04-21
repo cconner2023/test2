@@ -22,7 +22,7 @@ export const LoadingSpinner = memo(function LoadingSpinner({ size = 'md', label,
           <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="currentColor" transform="rotate(120)" />
         </g>
       </svg>
-      {label && <p className="mt-2 text-sm text-tertiary/60">{label}</p>}
+      {label && <p className="mt-2 text-sm text-tertiary">{label}</p>}
     </div>
   )
 })

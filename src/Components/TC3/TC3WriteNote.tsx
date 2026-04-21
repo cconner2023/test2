@@ -4,7 +4,7 @@ import { BarcodeDisplay } from '../Barcode'
 import { ActionIconButton } from '../WriteNoteHelpers'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { useAuthStore, selectIsAuthenticated } from '../../stores/useAuthStore'
-import { formatTC3Note } from '../../Utilities/TC3Formatter'
+import { formatTC3Note, formatMISTReport } from '../../Utilities/TC3Formatter'
 import { getRegionLabel } from '../../Utilities/bodyRegionMap'
 import { encodeTC3Card } from '../../Utilities/tc3Codec'
 import { encryptBarcode } from '../../Utilities/barcodeCodec'
@@ -33,6 +33,7 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
   const isAuthenticated = useAuthStore(selectIsAuthenticated)
 
   const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null)
+  const [copiedMist, setCopiedMist] = useState(false)
   const [shareStatus, setShareStatus] = useState<'idle' | 'sharing' | 'shared'>('idle')
   const [encodedText, setEncodedText] = useState('')
 
@@ -93,7 +94,7 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
         {/* Body diagram with markers */}
         {hasMarkers && (
           <div className="rounded-xl border border-tertiary/15 bg-themewhite p-3">
-            <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-2">Injury Diagram</p>
+            <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">Injury Diagram</p>
             <TC3BodyDiagramSvg
               markers={card.markers}
               readOnly
@@ -109,7 +110,7 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
                 return (
                   <div key={m.id} className="flex items-center gap-1">
                     <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                    <span className="text-[9px] text-tertiary">{i + 1}. {label} ({region})</span>
+                    <span className="text-[9pt] md:text-[9pt] text-tertiary">{i + 1}. {label} ({region})</span>
                   </div>
                 )
               })}
@@ -119,7 +120,27 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
 
         {/* Note Preview */}
         <div className="rounded-xl bg-themewhite2 overflow-hidden">
-          <div className="flex items-center justify-end px-3 pt-3">
+          <div className="flex items-center justify-end gap-1 px-3 pt-3">
+            <ActionIconButton
+              onClick={async () => {
+                const mistText = formatMISTReport(card)
+                try {
+                  await navigator.clipboard.writeText(mistText)
+                } catch {
+                  const ta = document.createElement('textarea')
+                  ta.value = mistText
+                  document.body.appendChild(ta)
+                  ta.select()
+                  document.execCommand('copy')
+                  document.body.removeChild(ta)
+                }
+                setCopiedMist(true)
+                setTimeout(() => setCopiedMist(false), 2000)
+              }}
+              status={copiedMist ? 'done' : 'idle'}
+              variant="pdf"
+              title="Copy MIST Handoff"
+            />
             <ActionIconButton
               onClick={() => handleCopy(noteText, 'preview')}
               status={copiedTarget === 'preview' ? 'done' : 'idle'}
@@ -127,7 +148,7 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
               title="Copy note text"
             />
           </div>
-          <pre className="px-4 pb-4 text-tertiary text-[8pt] whitespace-pre-wrap">
+          <pre className="px-4 pb-4 text-tertiary text-[9pt] whitespace-pre-wrap">
             {noteText || 'No content'}
           </pre>
         </div>

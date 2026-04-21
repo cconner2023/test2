@@ -60,9 +60,9 @@ export const NoteContentPanel = ({ onNavigate }: NoteContentPanelProps) => {
                                     <p className="text-sm font-medium text-primary">
                                         {section.label}
                                     </p>
-                                    <p className="text-[11px] text-tertiary/70 mt-0.5">{section.subtitle}</p>
+                                    <p className="text-[9pt] text-tertiary mt-0.5">{section.subtitle}</p>
                                 </div>
-                                <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+                                <ChevronRight size={16} className="text-tertiary shrink-0" />
                             </div>
                         );
                     })}
@@ -85,9 +85,9 @@ export const NoteContentPanel = ({ onNavigate }: NoteContentPanelProps) => {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-primary">Provider Templates</p>
-                                <p className="text-[11px] text-tertiary/70 mt-0.5">Note skeletons from your shortcuts</p>
+                                <p className="text-[9pt] text-tertiary mt-0.5">Note skeletons from your shortcuts</p>
                             </div>
-                            <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+                            <ChevronRight size={16} className="text-tertiary shrink-0" />
                         </div>
                     )}
                 </div>

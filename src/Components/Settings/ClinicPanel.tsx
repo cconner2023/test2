@@ -897,22 +897,22 @@ export function ClinicPanel({
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-primary truncate">
                   {profile.clinicName || (
-                    <span className="text-tertiary/30 italic">No facility</span>
+                    <span className="text-tertiary italic">No facility</span>
                   )}
                 </p>
-                <p className="text-[9pt] text-tertiary/50">
+                <p className="text-[9pt] text-tertiary">
                   {isSupervisorRole
                     ? `${memberCount} personnel`
                     : (profile.uic || 'No UIC')}
                 </p>
                 {(clinicUics.length > 0 || clinicLocation) && (
-                  <p className="text-[9pt] text-tertiary/40 mt-0.5 truncate">
+                  <p className="text-[9pt] text-tertiary mt-0.5 truncate">
                     {[clinicUics.join(', '), clinicLocation].filter(Boolean).join(' · ')}
                   </p>
                 )}
                 {activeCode && (
                   <div className="flex items-center gap-2 mt-2">
-                    <span className="text-[11px] font-mono tracking-[0.2em] text-tertiary/60 select-all">
+                    <span className="text-[9pt] font-mono tracking-[0.2em] text-tertiary select-all">
                       {activeCode}
                     </span>
                     <ActionIconButton
@@ -952,8 +952,8 @@ export function ClinicPanel({
         {/* ── Associated Clinics ────────────────────────────────────── */}
         <section data-tour="clinic-associated">
           <div className="pb-2 flex items-center gap-2">
-            <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Associated Clinics</p>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
+            <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Associated Clinics</p>
+            <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
               {nearbyClinicMap.length + stagedClinics.length}
             </span>
           </div>
@@ -969,7 +969,7 @@ export function ClinicPanel({
                       <button
                         type="button"
                         onClick={handleToggleScan}
-                        className="p-1.5 text-tertiary/50 hover:text-themeblue3 active:scale-95 transition-colors"
+                        className="p-1.5 text-tertiary hover:text-themeblue3 active:scale-95 transition-colors"
                         title="Scan QR code"
                       >
                         <Camera size={18} />
@@ -977,7 +977,7 @@ export function ClinicPanel({
                       <button
                         type="button"
                         onClick={handlePhotoUpload}
-                        className="p-1.5 text-tertiary/50 hover:text-themeblue3 active:scale-95 transition-colors"
+                        className="p-1.5 text-tertiary hover:text-themeblue3 active:scale-95 transition-colors"
                         title="Upload QR photo"
                       >
                         <ImagePlus size={18} />
@@ -1000,7 +1000,7 @@ export function ClinicPanel({
                       }}
                       placeholder="Enter invite code"
                       maxLength={8}
-                      className="w-full bg-transparent outline-none text-sm text-primary px-2.5 py-2.5 rounded-full min-w-0 font-mono tracking-[0.15em] placeholder:font-sans placeholder:tracking-normal placeholder:text-tertiary/30"
+                      className="w-full bg-transparent outline-none text-sm text-primary px-2.5 py-2.5 rounded-full min-w-0 font-mono tracking-[0.15em] placeholder:font-sans placeholder:tracking-normal placeholder:text-tertiary"
                     />
                   </div>
                   {joinCode && (
@@ -1057,7 +1057,7 @@ export function ClinicPanel({
 
               {/* Clinic list */}
               {nearbyClinicMap.length === 0 && inboundPending.length === 0 && stagedClinics.length === 0 ? (
-                <p className="text-sm text-tertiary/50 py-4 text-center">No associated clinics</p>
+                <p className="text-sm text-tertiary py-4 text-center">No associated clinics</p>
               ) : (
                 <div className="space-y-1">
                   {/* Inbound requests — inline at top */}
@@ -1067,16 +1067,16 @@ export function ClinicPanel({
                       className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-secondary/5 transition-colors"
                     >
                       <div className="w-8 h-8 rounded-full flex items-center justify-center bg-tertiary/10 shrink-0">
-                        <Building2 size={14} className="text-tertiary/50" />
+                        <Building2 size={14} className="text-tertiary" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-primary truncate">
                           {invite.peer_clinic_name ?? 'Unknown clinic'}
                         </p>
-                        <p className="text-[10px] text-themeyellow font-medium">Wants to connect</p>
+                        <p className="text-[9pt] text-themeyellow font-medium">Wants to connect</p>
                       </div>
                       {processingInviteId === invite.id ? (
-                        <RefreshCw className="w-4 h-4 text-tertiary/40 animate-spin shrink-0" />
+                        <RefreshCw className="w-4 h-4 text-tertiary animate-spin shrink-0" />
                       ) : (
                         <div className="flex items-center gap-1 shrink-0">
                           <button
@@ -1087,7 +1087,7 @@ export function ClinicPanel({
                           </button>
                           <button
                             onClick={() => handleReject(invite.id)}
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary/40 hover:text-themeredred active:scale-95 transition-all"
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
                           >
                             <X size={16} />
                           </button>
@@ -1127,16 +1127,16 @@ export function ClinicPanel({
                           </div>
                         ) : (
                           <div className="w-8 h-8 rounded-full flex items-center justify-center bg-tertiary/10 shrink-0">
-                            <Building2 size={14} className="text-tertiary/50" />
+                            <Building2 size={14} className="text-tertiary" />
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-primary truncate">
                             {clinic.clinicName}
-                            <span className="text-tertiary/50 font-normal"> · {clinic.count} personnel</span>
+                            <span className="text-tertiary font-normal"> · {clinic.count} personnel</span>
                           </p>
                           {(clinic.uics.length > 0 || clinic.location) && (
-                            <p className="text-[10px] text-tertiary/50 truncate">
+                            <p className="text-[9pt] text-tertiary truncate">
                               {[clinic.uics.join(', '), clinic.location].filter(Boolean).join(' · ')}
                             </p>
                           )}
@@ -1156,7 +1156,7 @@ export function ClinicPanel({
             <Stethoscope size={18} className="text-themeblue2 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-primary">Clinic Note Templates</p>
-              <p className="text-[11px] text-tertiary/60 mt-0.5">
+              <p className="text-[9pt] text-tertiary mt-0.5">
                 Manage shared text shortcuts and order sets in Note Content
               </p>
             </div>
@@ -1167,8 +1167,8 @@ export function ClinicPanel({
         {isSupervisorRole && clinicId && (
           <section data-tour="clinic-personnel">
             <div className="pb-2 flex items-center gap-2">
-              <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Personnel</p>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
+              <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Personnel</p>
+              <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
                 {memberCount + stagedMembers.length}
               </span>
             </div>
@@ -1178,7 +1178,7 @@ export function ClinicPanel({
               clinicEditing && addMode === 'create' ? 'max-h-[600px] opacity-100 mb-3' : 'max-h-0 opacity-0'
             }`}>
               <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3 space-y-3">
-                <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">New User</p>
+                <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">New User</p>
 
                 <div className="flex items-center gap-1.5">
                   <div className="relative flex flex-1 items-center rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
@@ -1188,7 +1188,7 @@ export function ClinicPanel({
                       onChange={(e) => { setAddEmail(e.target.value); if (addMode !== 'lookup') { setAddMode('lookup'); setAddLookupResult(null) } }}
                       placeholder="Email"
                       disabled
-                      className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary/30 disabled:opacity-60"
+                      className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary disabled:opacity-60"
                     />
                   </div>
                 </div>
@@ -1263,7 +1263,7 @@ export function ClinicPanel({
                           }}
                           ref={addEmailRef}
                           placeholder="Add member by email"
-                          className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary/30"
+                          className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary"
                         />
                       </div>
                       {addEmail.trim() && (
@@ -1321,7 +1321,7 @@ export function ClinicPanel({
                             {staged.lastName}, {staged.firstName}
                           </p>
                           {staged.credential && (
-                            <p className="text-[10px] text-tertiary/50">{staged.credential}</p>
+                            <p className="text-[9pt] text-tertiary">{staged.credential}</p>
                           )}
                         </div>
                       </div>
@@ -1370,7 +1370,7 @@ export function ClinicPanel({
                                 {member.lastName}, {member.firstName}
                                 {member.middleInitial ? ` ${member.middleInitial}.` : ''}
                               </p>
-                              <p className="text-[10px] text-tertiary/50 truncate">
+                              <p className="text-[9pt] text-tertiary truncate">
                                 {member.credential || ''}
                               </p>
                             </div>
@@ -1382,7 +1382,7 @@ export function ClinicPanel({
                     })}
                   </div>
                 ) : (
-                  <p className="text-sm text-tertiary/50 py-4 text-center">No members assigned</p>
+                  <p className="text-sm text-tertiary py-4 text-center">No members assigned</p>
                 )}
 
               </div>
@@ -1437,14 +1437,14 @@ function AddMemberCreateForm(props: CreateFormProps) {
 
   return (
     <div className="space-y-3">
-      <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">No account found — create new user</p>
+      <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">No account found — create new user</p>
 
       <input
         type="password"
         value={props.tempPassword}
         onChange={(e) => props.onTempPassword(e.target.value)}
         placeholder="Temporary password (min 12 chars)"
-        className="w-full rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300"
+        className="w-full rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary transition-all duration-300"
       />
 
       <div className="grid grid-cols-2 gap-2">
@@ -1453,14 +1453,14 @@ function AddMemberCreateForm(props: CreateFormProps) {
           value={props.firstName}
           onChange={(e) => props.onFirstName(e.target.value)}
           placeholder="First name *"
-          className="rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300"
+          className="rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary transition-all duration-300"
         />
         <input
           type="text"
           value={props.lastName}
           onChange={(e) => props.onLastName(e.target.value)}
           placeholder="Last name *"
-          className="rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300"
+          className="rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary transition-all duration-300"
         />
       </div>
 
@@ -1471,7 +1471,7 @@ function AddMemberCreateForm(props: CreateFormProps) {
           onChange={(e) => props.onMiddleInitial(e.target.value)}
           placeholder="MI"
           maxLength={1}
-          className="w-11 shrink-0 text-center rounded-full py-2.5 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300"
+          className="w-11 shrink-0 text-center rounded-full py-2.5 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary transition-all duration-300"
         />
         <div className="flex-1 min-w-0">
           <PickerInput
@@ -1492,7 +1492,7 @@ function AddMemberCreateForm(props: CreateFormProps) {
       </div>
 
       <div>
-        <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1.5 block">UIC</span>
+        <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-1.5 block">UIC</span>
         <UicPinInput value={props.uic} onChange={props.onUic} spread />
       </div>
 
@@ -1610,7 +1610,7 @@ function MemberEditForm(props: MemberEditFormProps) {
 
   return (
     <div ref={formRef} className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3 space-y-3">
-      <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">
+      <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">
         Editing — {props.memberName}
       </p>
 
@@ -1620,14 +1620,14 @@ function MemberEditForm(props: MemberEditFormProps) {
           value={props.firstName}
           onChange={(e) => props.onFirstName(e.target.value)}
           placeholder="First name *"
-          className="rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300"
+          className="rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary transition-all duration-300"
         />
         <input
           type="text"
           value={props.lastName}
           onChange={(e) => props.onLastName(e.target.value)}
           placeholder="Last name *"
-          className="rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300"
+          className="rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary transition-all duration-300"
         />
       </div>
 
@@ -1638,7 +1638,7 @@ function MemberEditForm(props: MemberEditFormProps) {
           onChange={(e) => props.onMiddleInitial(e.target.value)}
           placeholder="MI"
           maxLength={1}
-          className="w-11 shrink-0 text-center rounded-full py-2.5 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300"
+          className="w-11 shrink-0 text-center rounded-full py-2.5 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary transition-all duration-300"
         />
         <div className="flex-1 min-w-0">
           <PickerInput
@@ -1668,7 +1668,7 @@ function MemberEditForm(props: MemberEditFormProps) {
       )}
 
       <div>
-        <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1.5 block">UIC</span>
+        <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-1.5 block">UIC</span>
         <UicPinInput value={props.uic} onChange={props.onUic} spread />
       </div>
 

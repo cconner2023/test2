@@ -44,24 +44,24 @@ function SelectTaskForAssignment({
 
   return (
     <div>
-      <p className="text-xs text-tertiary/60 mb-3">
+      <p className="text-xs text-tertiary mb-3">
         Assigning to <span className="font-medium text-primary">{medicName}</span> &mdash; select a task:
       </p>
 
       {isSearching && (
-        <p className="text-[10px] text-tertiary/50 mb-2">
+        <p className="text-[9pt] text-tertiary mb-2">
           {totalResults} result{totalResults !== 1 ? 's' : ''}
         </p>
       )}
 
       {totalResults === 0 && isSearching ? (
-        <p className="text-sm text-tertiary/40 text-center py-8">No tasks match your search.</p>
+        <p className="text-sm text-tertiary text-center py-8">No tasks match your search.</p>
       ) : (
         <div className="space-y-5">
           {Array.from(displayCategories).map(([categoryName, tasks]) => (
             <div key={categoryName}>
-              <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
-                {categoryName} <span className="font-normal text-tertiary/50">({tasks.length})</span>
+              <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
+                {categoryName} <span className="font-normal text-tertiary">({tasks.length})</span>
               </p>
 
               <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
@@ -85,21 +85,21 @@ function SelectTaskForAssignment({
                         <p className={`text-sm font-medium truncate ${hasData ? 'text-primary' : 'text-tertiary'}`}>
                           {task.title}
                         </p>
-                        <p className="text-[8pt] text-tertiary/50 font-mono">
+                        <p className="text-[9pt] text-tertiary font-mono">
                           {task.taskId}
                         </p>
                         {!hasData && (
-                          <p className="text-[8pt] text-tertiary/40 flex items-center gap-1 mt-0.5">
+                          <p className="text-[9pt] text-tertiary flex items-center gap-1 mt-0.5">
                             <Lock size={9} /> Coming soon
                           </p>
                         )}
                       </div>
                       <div className="shrink-0 flex items-center gap-2">
-                        <span className="px-1.5 py-0.5 rounded text-[8pt] font-semibold bg-themeblue3/10 text-tertiary/60">
+                        <span className="px-1.5 py-0.5 rounded text-[9pt] font-semibold bg-themeblue3/10 text-tertiary">
                           {badge}
                         </span>
                         {hasData && (
-                          <ChevronRight size={16} className="text-tertiary/30" />
+                          <ChevronRight size={16} className="text-tertiary" />
                         )}
                       </div>
                     </button>
@@ -138,15 +138,15 @@ function AssignmentDetails({
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-[8pt] text-tertiary/50 font-mono">{taskNumber}</p>
+        <p className="text-[9pt] text-tertiary font-mono">{taskNumber}</p>
         <h3 className="text-base font-semibold text-primary">{taskTitle}</h3>
-        <p className="text-xs text-tertiary/60 mt-1">
+        <p className="text-xs text-tertiary mt-1">
           Assigning to <span className="font-medium text-primary">{medicName}</span>
         </p>
       </div>
 
       <div>
-        <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
+        <span className="text-xs font-medium text-tertiary uppercase tracking-wide">
           Due Date <span className="text-themeredred">*</span>
         </span>
         <div className="mt-1">

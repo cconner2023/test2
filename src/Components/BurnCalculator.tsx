@@ -105,12 +105,12 @@ export function BurnCalculator() {
                                     value={weight}
                                     onChange={e => setWeight(e.target.value)}
                                     placeholder="170"
-                                    className="w-full bg-transparent outline-none text-sm text-primary px-3 py-1.5 rounded-full text-center placeholder:text-tertiary/30"
+                                    className="w-full bg-transparent outline-none text-sm text-primary px-3 py-1.5 rounded-full text-center placeholder:text-tertiary"
                                 />
                             </div>
                             <span className="text-xs text-tertiary">lbs</span>
                             {wtKgDisplay && (
-                                <span className="text-[10px] text-secondary/50">= {wtKgDisplay} kg</span>
+                                <span className="text-[9pt] text-secondary">= {wtKgDisplay} kg</span>
                             )}
                         </div>
                     </div>
@@ -149,7 +149,7 @@ export function BurnCalculator() {
                                 </div>
                                 <div className="text-right">
                                     <p className="text-sm font-bold text-primary">{parkland.first8hrTotal.toLocaleString()} mL</p>
-                                    <p className="text-[10px] text-themeblue2 font-medium">{parkland.first8hrRate} mL/hr</p>
+                                    <p className="text-[9pt] text-themeblue2 font-medium">{parkland.first8hrRate} mL/hr</p>
                                 </div>
                             </div>
 
@@ -160,7 +160,7 @@ export function BurnCalculator() {
                                 </div>
                                 <div className="text-right">
                                     <p className="text-sm font-bold text-primary">{parkland.next16hrTotal.toLocaleString()} mL</p>
-                                    <p className="text-[10px] text-themeblue2 font-medium">{parkland.next16hrRate} mL/hr</p>
+                                    <p className="text-[9pt] text-themeblue2 font-medium">{parkland.next16hrRate} mL/hr</p>
                                 </div>
                             </div>
                         </SectionCard>

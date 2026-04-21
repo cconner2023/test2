@@ -12,7 +12,7 @@ import { PROVIDER_TOUR_TEMPLATE_PREFIX } from '../../Data/GuidedTourData';
 
 const INPUT_CLASS =
     'w-full rounded-xl border border-themeblue3/10 shadow-xs bg-themewhite p-3 text-sm text-primary ' +
-    'placeholder:text-tertiary/30 focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none resize-none transition-all duration-300 overflow-hidden';
+    'placeholder:text-tertiary focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none resize-none transition-all duration-300 overflow-hidden';
 
 interface EditCardState {
     id: string;
@@ -81,7 +81,7 @@ function Section({
 }) {
     return (
         <div className="px-4 py-3.5 space-y-2">
-            <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">{label}</p>
+            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">{label}</p>
             <ExpandableInput
                 value={value}
                 onChange={onChange}
@@ -279,8 +279,8 @@ export const ProviderTemplatesPanel = ({
 
                 <section className="space-y-3">
                     <div className="flex items-center gap-2">
-                        <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Templates</p>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
+                        <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Templates</p>
+                        <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
                             {totalCount}
                         </span>
                     </div>
@@ -298,7 +298,7 @@ export const ProviderTemplatesPanel = ({
                                         value={editCard.name}
                                         onChange={(e) => setEditCard({ ...editCard, name: e.target.value })}
                                         placeholder="Template name"
-                                        className="w-full bg-transparent outline-none text-base font-semibold text-primary placeholder:text-tertiary/30"
+                                        className="w-full bg-transparent outline-none text-base font-semibold text-primary placeholder:text-tertiary"
                                         autoFocus
                                     />
                                 </div>
@@ -314,7 +314,7 @@ export const ProviderTemplatesPanel = ({
 
                                 {/* PE — real PhysicalExam component in template mode */}
                                 <div className="px-4 py-3.5 space-y-2">
-                                    <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Physical Exam</p>
+                                    <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Physical Exam</p>
                                     <PhysicalExam
                                         key={`pe-${editCard.id}`}
                                         initialText=""
@@ -342,7 +342,7 @@ export const ProviderTemplatesPanel = ({
 
                                 {/* Plan — real Plan component */}
                                 <div className="px-4 py-3.5 space-y-2">
-                                    <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Plan</p>
+                                    <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Plan</p>
                                     <Plan
                                         key={`plan-${editCard.id}`}
                                         orderTags={orderTags}
@@ -402,7 +402,7 @@ export const ProviderTemplatesPanel = ({
                                             onChange={(e) => { setInputName(e.target.value); setInputError(''); }}
                                             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleInputSubmit(); } }}
                                             placeholder="New template name…"
-                                            className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary/30"
+                                            className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary"
                                         />
                                     </div>
                                     {inputName.trim() && (
@@ -445,7 +445,7 @@ export const ProviderTemplatesPanel = ({
                                     >
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-medium text-primary truncate">{t.name}</p>
-                                            <p className="text-[11px] text-tertiary/50 mt-0.5">{fieldPreview(t)}</p>
+                                            <p className="text-[9pt] text-tertiary mt-0.5">{fieldPreview(t)}</p>
                                         </div>
                                     </div>
                                 ))}
@@ -485,13 +485,13 @@ export const ProviderTemplatesPanel = ({
                                                         isMarkedDelete ? 'text-themeredred/60 line-through' : 'text-primary'
                                                     }`}>{t.name}</p>
                                                     {isMarkedEdit && !isMarkedDelete && (
-                                                        <span className="text-[9px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-themeblue2/15 text-themeblue2 shrink-0">
+                                                        <span className="text-[9pt] md:text-[9pt] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-themeblue2/15 text-themeblue2 shrink-0">
                                                             Edited
                                                         </span>
                                                     )}
                                                 </div>
-                                                <p className={`text-[11px] mt-0.5 ${
-                                                    isMarkedDelete ? 'text-themeredred/30' : 'text-tertiary/50'
+                                                <p className={`text-[9pt] mt-0.5 ${
+                                                    isMarkedDelete ? 'text-themeredred/30' : 'text-tertiary'
                                                 }`}>
                                                     {fieldPreview(t)}
                                                 </p>
@@ -501,7 +501,7 @@ export const ProviderTemplatesPanel = ({
                                 })}
                             </div>
                         ) : (
-                            <p className="text-sm text-tertiary/50 py-4 text-center">
+                            <p className="text-sm text-tertiary py-4 text-center">
                                 No templates configured
                             </p>
                         )}

@@ -210,7 +210,7 @@ export function ScreenerDrawer({
                                 {q.sectionHeader && (
                                     <div className="flex items-center gap-2 mt-4 mb-2 px-1">
                                         <div className="h-px flex-1 bg-tertiary/15" />
-                                        <span className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
+                                        <span className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
                                             {q.sectionHeader}
                                         </span>
                                         <div className="h-px flex-1 bg-tertiary/15" />
@@ -220,7 +220,7 @@ export function ScreenerDrawer({
                                 {/* Info type — instructional text + optional dynamic content */}
                                 {q.type === 'info' && (
                                     <div className="px-1 py-2">
-                                        <p className="text-[11px] text-secondary/80 leading-relaxed">
+                                        <p className="text-[9pt] text-secondary leading-relaxed">
                                             {q.text}
                                         </p>
                                         {q.dynamicContent && selectedList && (
@@ -240,7 +240,7 @@ export function ScreenerDrawer({
                                                     <button
                                                         key={optIdx}
                                                         onClick={() => handleCheckToggle(qIdx, optIdx)}
-                                                        className={`px-2.5 py-1.5 rounded-full text-[10px] transition-all ${
+                                                        className={`px-2.5 py-1.5 rounded-full text-[9pt] transition-all ${
                                                             isSelected
                                                                 ? 'bg-themeblue2/15 text-themeblue2 font-semibold ring-1 ring-themeblue2/30'
                                                                 : 'bg-themewhite2 text-tertiary hover:bg-themewhite'
@@ -286,7 +286,7 @@ export function ScreenerDrawer({
                     <div className="mt-4 animate-cardAppearIn">
                         <div className="flex items-center gap-2 mb-2 px-1">
                             <div className="h-px flex-1 bg-themeyellow/30" />
-                            <span className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
+                            <span className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
                                 Extended to {extendedScreener.title}
                             </span>
                             <div className="h-px flex-1 bg-themeyellow/30" />
@@ -376,7 +376,7 @@ export function QuestionRow({
                     <button
                         key={opt.value}
                         onClick={() => onChange(opt.value)}
-                        className={`flex-1 py-1.5 rounded text-[10px] leading-tight text-center transition-all ${
+                        className={`flex-1 py-1.5 rounded text-[9pt] leading-tight text-center transition-all ${
                             value === opt.value
                                 ? 'bg-themeblue2/15 text-themeblue2 font-semibold ring-1 ring-themeblue2/30'
                                 : 'bg-themewhite2 text-tertiary hover:bg-themewhite'
@@ -400,17 +400,17 @@ export function WordListContent({ type, wordList }: { type: string; wordList: Sc
     if (type === 'wordList') {
         return (
             <div className="mt-2 px-2.5 py-2 bg-themewhite2 rounded-md border border-tertiary/10">
-                <p className="text-[11px] font-semibold text-primary mb-1.5">
+                <p className="text-[9pt] font-semibold text-primary mb-1.5">
                     List {wordList.name}
                 </p>
                 <div className="flex flex-wrap gap-1.5 mb-2">
                     {wordList.words.map((w, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-themeblue2/10 text-themeblue2 text-[11px] font-medium rounded">
+                        <span key={i} className="px-2 py-0.5 bg-themeblue2/10 text-themeblue2 text-[9pt] font-medium rounded">
                             {w}
                         </span>
                     ))}
                 </div>
-                <div className="space-y-1.5 text-[10px] text-tertiary">
+                <div className="space-y-1.5 text-[9pt] text-tertiary">
                     <p>
                         <span className="font-semibold text-secondary">Trial 1:</span>{' '}
                         "I am going to test your memory. I will read you a list of words and when I am done, repeat back as many words as you can remember, in any order."
@@ -426,22 +426,22 @@ export function WordListContent({ type, wordList }: { type: string; wordList: Sc
     if (type === 'digitStrings') {
         return (
             <div className="mt-2 px-2.5 py-2 bg-themewhite2 rounded-md border border-tertiary/10">
-                <p className="text-[11px] font-semibold text-primary mb-1">
+                <p className="text-[9pt] font-semibold text-primary mb-1">
                     List {wordList.name} — Reverse Digits
                 </p>
-                <p className="text-[10px] text-tertiary mb-2">
+                <p className="text-[9pt] text-tertiary mb-2">
                     "I am going to read you a string of numbers. When I am finished, repeat them back to me backward, in reverse order."
                 </p>
                 <div className="space-y-1">
                     {wordList.digits.trial1.map((d, i) => (
-                        <div key={i} className="flex items-center gap-2 text-[10px]">
+                        <div key={i} className="flex items-center gap-2 text-[9pt]">
                             <span className="text-tertiary w-14 shrink-0">{d.split('-').length} digits:</span>
                             <span className="text-primary font-mono font-medium">T1: {d}</span>
                             <span className="text-secondary font-mono">T2: {wordList.digits.trial2[i]}</span>
                         </div>
                     ))}
                 </div>
-                <p className="text-[10px] text-tertiary mt-2">
+                <p className="text-[9pt] text-tertiary mt-2">
                     If correct on Trial 1, proceed to next length. If incorrect, try Trial 2 at same length. If both incorrect, stop and record score.
                 </p>
             </div>
@@ -450,17 +450,17 @@ export function WordListContent({ type, wordList }: { type: string; wordList: Sc
     if (type === 'recallWords') {
         return (
             <div className="mt-2 px-2.5 py-2 bg-themewhite2 rounded-md border border-tertiary/10">
-                <p className="text-[11px] font-semibold text-primary mb-1.5">
+                <p className="text-[9pt] font-semibold text-primary mb-1.5">
                     List {wordList.name}
                 </p>
                 <div className="flex flex-wrap gap-1.5 mb-2">
                     {wordList.words.map((w, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-themeblue2/10 text-themeblue2 text-[11px] font-medium rounded">
+                        <span key={i} className="px-2 py-0.5 bg-themeblue2/10 text-themeblue2 text-[9pt] font-medium rounded">
                             {w}
                         </span>
                     ))}
                 </div>
-                <p className="text-[10px] text-tertiary">
+                <p className="text-[9pt] text-tertiary">
                     "Do you remember that list of words I read a few minutes earlier? Tell me as many words from that list as you can remember, in any order."
                 </p>
             </div>

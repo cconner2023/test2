@@ -50,7 +50,7 @@ export const RoleBadge = ({ role }: { role: string }) => {
   return (
     <span
       title={role}
-      className={`w-5 h-5 flex items-center justify-center rounded text-[9px] font-bold border shrink-0 ${colors[role] || 'bg-tertiary/10 text-tertiary border-tertiary/30'}`}
+      className={`w-5 h-5 flex items-center justify-center rounded text-[9pt] md:text-[9pt] font-bold border shrink-0 ${colors[role] || 'bg-tertiary/10 text-tertiary border-tertiary/30'}`}
     >
       {label}
     </span>
@@ -71,7 +71,7 @@ export const certBadgeColors = {
   valid:    'bg-themegreen/10 text-themegreen border-themegreen/30',
   expiring: 'bg-themeyellow/10 text-themeyellow border-themeyellow/30',
   expired:  'bg-themeredred/10 text-themeredred border-themeredred/30',
-  none:     'bg-tertiary/5 text-tertiary/50 border-tertiary/20',
+  none:     'bg-tertiary/5 text-tertiary border-tertiary/20',
 } as const
 
 /** Inline cert badges for user cards */
@@ -85,7 +85,7 @@ export function CertBadges({ certs }: { certs: Certification[] }) {
         return (
           <span
             key={cert.id}
-            className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium border ${color}`}
+            className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9pt] md:text-[9pt] font-medium border ${color}`}
           >
             {cert.title}
             {cert.is_primary && <Star size={8} className="fill-current" />}

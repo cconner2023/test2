@@ -1,5 +1,5 @@
 import { memo, useState } from 'react'
-import { Plus, X, Check, ChevronRight, Activity } from 'lucide-react'
+import { Plus, X, Check, ChevronRight, Activity, TrendingUp } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { TextInput } from '../FormInputs'
@@ -16,7 +16,7 @@ const AVPU_LABELS: Record<AVPU, string> = {
 const PULSE_LOCATION_OPTIONS = ['C', 'R', 'F'] as const
 type PulseLocation = typeof PULSE_LOCATION_OPTIONS[number]
 
-const BP_INPUT_CLASS = 'w-full px-4 py-2.5 rounded-full text-primary text-sm border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none transition-all duration-300 placeholder:text-tertiary/30'
+const BP_INPUT_CLASS = 'w-full px-4 py-2.5 rounded-full text-primary text-sm border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none transition-all duration-300 placeholder:text-tertiary'
 
 /** Estimated minimum systolic by palpable pulse site (TCCC) */
 const BP_LOCATION_DEFAULTS: Record<PulseLocation, string> = {
@@ -42,6 +42,120 @@ function gcsToAVPU(total: number): AVPU {
   return 'U'
 }
 
+/* ── Parse systolic from bp field ── */
+function parseSystolic(bp: string): number | null {
+  if (!bp) return null
+  const sys = bp.split('/')[0]?.trim() ?? ''
+  const n = parseInt(sys)
+  return isNaN(n) ? null : n
+}
+
+/* ── Vitals Trend / Shock Index table ── */
+function VitalsTrend({ sets }: { sets: TC3VitalSet[] }) {
+  if (sets.length < 2) return null
+
+  type RowKey = 'HR' | 'SBP' | 'SpO2' | 'SI' | 'GCS' | 'Temp' | 'Pain'
+
+  function getVal(vs: TC3VitalSet, key: RowKey): number | null {
+    if (key === 'HR') { const n = parseInt(vs.pulse); return isNaN(n) ? null : n }
+    if (key === 'SBP') return parseSystolic(vs.bp)
+    if (key === 'SpO2') { const n = parseInt(vs.spo2); return isNaN(n) ? null : n }
+    if (key === 'SI') {
+      const hr = parseInt(vs.pulse)
+      const sbp = parseSystolic(vs.bp)
+      if (!isNaN(hr) && hr > 0 && sbp !== null && sbp > 0) return hr / sbp
+      return null
+    }
+    if (key === 'GCS') return vs.gcsTotal ?? null
+    if (key === 'Temp') { const n = parseFloat(vs.temp ?? ''); return isNaN(n) ? null : n }
+    if (key === 'Pain') { const n = parseInt(vs.painScale); return isNaN(n) ? null : n }
+    return null
+  }
+
+  function siColor(si: number | null): string {
+    if (si === null) return 'text-tertiary'
+    if (si > 1.0) return 'text-themeredred'
+    if (si >= 0.9) return 'text-amber-500'
+    return 'text-themegreen'
+  }
+
+  function delta(key: RowKey, curr: number | null, prev: number | null): { arrow: string; color: string } {
+    if (curr === null || prev === null) return { arrow: '', color: '' }
+    const diff = curr - prev
+    const threshold = key === 'SI' ? 0.01 : key === 'Temp' ? 0.1 : 1
+    if (Math.abs(diff) < threshold) return { arrow: '→', color: 'text-tertiary' }
+    const up = diff > 0
+    if (key === 'HR' || key === 'SI' || key === 'Pain') {
+      return up ? { arrow: '↑', color: 'text-themeredred' } : { arrow: '↓', color: 'text-themegreen' }
+    }
+    if (key === 'SpO2' || key === 'GCS') {
+      return up ? { arrow: '↑', color: 'text-themegreen' } : { arrow: '↓', color: 'text-themeredred' }
+    }
+    // SBP, Temp — neutral
+    return up ? { arrow: '↑', color: 'text-secondary' } : { arrow: '↓', color: 'text-secondary' }
+  }
+
+  const rows: { key: RowKey; label: string }[] = [
+    { key: 'HR',   label: 'HR' },
+    { key: 'SBP',  label: 'SBP' },
+    { key: 'SpO2', label: 'SpO₂' },
+    { key: 'SI',   label: 'SI' },
+    { key: 'GCS',  label: 'GCS' },
+    { key: 'Temp', label: 'Temp' },
+    { key: 'Pain', label: 'Pain' },
+  ]
+
+  const cols = `4rem repeat(${sets.length}, 1fr)`
+
+  return (
+    <div className="mt-2 rounded-xl border border-tertiary/8 overflow-x-auto">
+      {/* Header */}
+      <div className="grid text-[9pt] font-medium text-tertiary uppercase tracking-wide bg-tertiary/4 min-w-max w-full"
+        style={{ gridTemplateColumns: cols }}
+      >
+        <div className="py-1.5 px-2 flex items-center gap-1">
+          <TrendingUp size={10} className="shrink-0" />
+          Trend
+        </div>
+        {sets.map((vs) => (
+          <div key={vs.id} className="py-1.5 px-2 text-center border-l border-tertiary/8">
+            {vs.time || '—'}
+          </div>
+        ))}
+      </div>
+
+      {/* Data rows */}
+      {rows.map((row, ri) => (
+        <div
+          key={row.key}
+          className={`grid text-[9pt] min-w-max w-full ${ri > 0 ? 'border-t border-tertiary/8' : ''}`}
+          style={{ gridTemplateColumns: cols }}
+        >
+          <div className="py-1.5 px-2 text-tertiary font-medium">{row.label}</div>
+          {sets.map((vs, ci) => {
+            const curr = getVal(vs, row.key)
+            const prev = ci > 0 ? getVal(sets[ci - 1], row.key) : null
+            const d = delta(row.key, curr, prev)
+            const valColor = row.key === 'SI' ? siColor(curr) : 'text-primary'
+            const displayVal = curr === null
+              ? '—'
+              : row.key === 'SI' ? curr.toFixed(2)
+              : row.key === 'Temp' ? curr.toFixed(1)
+              : String(Math.round(curr))
+
+            return (
+              <div key={vs.id} className="py-1.5 px-2 text-center border-l border-tertiary/8 flex items-center justify-center gap-0.5">
+                <span className={valColor}>{displayVal}</span>
+                {d.arrow && <span className={d.color}>{d.arrow}</span>}
+              </div>
+            )
+          })}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /* ── Popover preview — AVPU + GCS (linked) + vital fields ── */
 function VitalSetPreviewContent({ id }: { id: string }) {
   const vs = useTC3Store((s) => s.card.vitals.find((v) => v.id === id))
@@ -57,7 +171,7 @@ function VitalSetPreviewContent({ id }: { id: string }) {
     updateVitalSet(id, { [field]: value })
   }
 
-  // AVPU → auto-fill GCS defaults
+  // AVPU → auto-fill GCS defaults, snapshot into set
   const handleAVPU = (opt: AVPU) => {
     if (avpu === opt) {
       setAVPU('')
@@ -65,9 +179,11 @@ function VitalSetPreviewContent({ id }: { id: string }) {
     }
     setAVPU(opt)
     setGCS(AVPU_GCS_DEFAULTS[opt])
+    const defaults = AVPU_GCS_DEFAULTS[opt]
+    updateVitalSet(id, { gcsTotal: defaults.eye + defaults.verbal + defaults.motor })
   }
 
-  // GCS change → auto-update AVPU from total
+  // GCS change → auto-update AVPU from total, snapshot into set
   const handleGCS = (field: 'eye' | 'verbal' | 'motor', raw: string) => {
     const v = parseInt(raw) || 0
     const next = {
@@ -77,7 +193,10 @@ function VitalSetPreviewContent({ id }: { id: string }) {
     }
     setGCS(next)
     const total = next.eye + next.verbal + next.motor
-    if (total > 0) setAVPU(gcsToAVPU(total))
+    if (total > 0) {
+      setAVPU(gcsToAVPU(total))
+      updateVitalSet(id, { gcsTotal: total })
+    }
   }
 
   const gcsTotal = gcs ? gcs.eye + gcs.verbal + gcs.motor : null
@@ -113,7 +232,7 @@ function VitalSetPreviewContent({ id }: { id: string }) {
           <TextInput label="Motor (1-6)" value={String(gcs?.motor ?? '')} onChange={(v) => handleGCS('motor', v)} type="number" />
         </div>
         {gcsTotal !== null && gcsTotal > 0 && (
-          <p className="text-xs font-medium text-tertiary/60 uppercase tracking-wide pl-1">GCS — {gcsTotal}</p>
+          <p className="text-xs font-medium text-tertiary uppercase tracking-wide pl-1">GCS — {gcsTotal}</p>
         )}
       </div>
 
@@ -127,7 +246,7 @@ function VitalSetPreviewContent({ id }: { id: string }) {
       <div className="grid grid-cols-2 gap-2">
         <TextInput label="Pulse" value={vs.pulse} onChange={(v) => handleChange('pulse', v)} placeholder="HR" />
         <div>
-          <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Location</span>
+          <span className="text-xs font-medium text-tertiary uppercase tracking-wide">Location</span>
           <div className="flex gap-1.5 mt-1.5">
             {PULSE_LOCATION_OPTIONS.map((opt) => (
               <button
@@ -159,7 +278,7 @@ function VitalSetPreviewContent({ id }: { id: string }) {
 
       {/* BP — side-by-side with / separator (VS calculator pattern) */}
       <div>
-        <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">BP (mmHg)</span>
+        <span className="text-xs font-medium text-tertiary uppercase tracking-wide">BP (mmHg)</span>
         <div className="flex items-center gap-1.5 mt-1">
           <input
             type="text" inputMode="numeric"
@@ -183,6 +302,7 @@ function VitalSetPreviewContent({ id }: { id: string }) {
       <div className="grid grid-cols-2 gap-2">
         <TextInput label="RR" value={vs.rr} onChange={(v) => handleChange('rr', v)} placeholder="/min" />
         <TextInput label="SpO2" value={vs.spo2} onChange={(v) => handleChange('spo2', v)} placeholder="%" />
+        <TextInput label="Temp" value={vs.temp ?? ''} onChange={(v) => handleChange('temp', v)} placeholder="°F" />
         <TextInput label="Pain" value={vs.painScale} onChange={(v) => handleChange('painScale', v)} placeholder="0-10" />
       </div>
     </div>
@@ -218,6 +338,7 @@ export const VitalsForm = memo(function VitalsForm() {
   const hasData = populatedSets.length > 0 || !!avpu || !!gcs
 
   const handleAddVitals = () => {
+    const currentGcsTotal = gcs ? gcs.eye + gcs.verbal + gcs.motor : undefined
     const newSet: TC3VitalSet = {
       id: crypto.randomUUID(),
       time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
@@ -228,6 +349,8 @@ export const VitalsForm = memo(function VitalsForm() {
       spo2: '',
       avpu: 'A',
       painScale: '',
+      temp: '',
+      gcsTotal: currentGcsTotal,
     }
     addVitalSet(newSet)
     setEditingId(newSet.id)
@@ -263,7 +386,7 @@ export const VitalsForm = memo(function VitalsForm() {
     <div data-tour="tc3-vitals">
       {/* Section header */}
       <div className="mb-2">
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
           Signs & Symptoms
         </p>
       </div>
@@ -272,10 +395,10 @@ export const VitalsForm = memo(function VitalsForm() {
       {!hasData && (
         <div className="flex flex-col items-center gap-2 py-6">
           <button type="button" onClick={handleAddVitals}
-            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40">
+            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary">
             <Plus size={14} />
           </button>
-          <p className="text-[10px] text-tertiary/40">Add vital signs</p>
+          <p className="text-[9pt] text-tertiary">Add vital signs</p>
         </div>
       )}
 
@@ -290,7 +413,7 @@ export const VitalsForm = memo(function VitalsForm() {
                 onClick={() => setEditingId(vs.id)}
                 className={`w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-themeblue2/5 active:scale-95 transition-colors ${idx > 0 ? 'border-t border-tertiary/6' : ''}`}
               >
-                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10 font-bold text-sm text-tertiary/50">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10 font-bold text-sm text-tertiary">
                   {avpu || <Activity size={18} />}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -299,12 +422,12 @@ export const VitalsForm = memo(function VitalsForm() {
                       GCS {gcsTotal} (E{gcs!.eye} V{gcs!.verbal} M{gcs!.motor})
                     </p>
                   )}
-                  <p className={`text-[11px] text-secondary truncate ${gcsTotal && idx === 0 ? 'mt-0.5' : ''}`}>
+                  <p className={`text-[9pt] text-secondary truncate ${gcsTotal && idx === 0 ? 'mt-0.5' : ''}`}>
                     {buildChipSummary(vs)}
                   </p>
                 </div>
-                <span className="text-[11px] text-secondary shrink-0">{vs.time}</span>
-                <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+                <span className="text-[9pt] text-secondary shrink-0">{vs.time}</span>
+                <ChevronRight size={16} className="text-tertiary shrink-0" />
               </button>
             )) : (
               /* AVPU/GCS only — no vital sets yet */
@@ -313,7 +436,7 @@ export const VitalsForm = memo(function VitalsForm() {
                 onClick={handleAddVitals}
                 className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-themeblue2/5 active:scale-95 transition-colors"
               >
-                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10 font-bold text-sm text-tertiary/50">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10 font-bold text-sm text-tertiary">
                   {avpu || <Activity size={18} />}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -323,17 +446,22 @@ export const VitalsForm = memo(function VitalsForm() {
                     </p>
                   )}
                 </div>
-                <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+                <ChevronRight size={16} className="text-tertiary shrink-0" />
               </button>
             )}
           </div>
+
+          {/* Vitals trend table — shown when 2+ populated sets */}
+          {populatedSets.length >= 2 && (
+            <VitalsTrend sets={populatedSets} />
+          )}
 
           {/* Standalone add FAB */}
           <div className="flex justify-end mt-2">
             <button
               type="button"
               onClick={handleAddVitals}
-              className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40 hover:text-primary hover:bg-themeblue2/5"
+              className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary hover:text-primary hover:bg-themeblue2/5"
             >
               <Plus size={14} />
             </button>

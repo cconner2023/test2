@@ -23,7 +23,7 @@ export const UserProfilePanel = ({ profile, onUpdate }: UserProfilePanelProps) =
     return (
         <div className="h-full overflow-y-auto">
             <div className="px-4 py-3 md:p-5">
-                <p className="text-sm text-tertiary/60 mb-5 md:text-base">
+                <p className="text-sm text-tertiary mb-5 md:text-base">
                     Set up your profile for documentation signatures.
                 </p>
 
@@ -85,7 +85,7 @@ export const UserProfilePanel = ({ profile, onUpdate }: UserProfilePanelProps) =
 
                 {profile.lastName && profile.credential && (
                     <div className="mt-6 pt-4 border-t border-tertiary/10">
-                        <p className="text-xs text-tertiary/60 uppercase tracking-wide mb-1">Signature Preview</p>
+                        <p className="text-xs text-tertiary uppercase tracking-wide mb-1">Signature Preview</p>
                         <p className="text-sm text-primary font-medium">
                             Signed: {profile.lastName} {profile.firstName} {profile.middleInitial}{' '}
                             {profile.credential}

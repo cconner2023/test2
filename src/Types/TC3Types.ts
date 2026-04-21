@@ -14,6 +14,7 @@ export type AVPU = 'A' | 'V' | 'P' | 'U'
 export type NeedleDecompSide = 'left' | 'right' | 'bilateral' | 'none'
 export type EvacPriority = '' | 'Urgent' | 'Priority' | 'Routine'
 export type TriagePriority = 'U' | 'P' | 'R' | 'E' | ''
+export type BloodType = 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-' | 'Unk' | ''
 
 export type BodyRegion =
   | 'head-front' | 'head-back'
@@ -132,6 +133,8 @@ export interface TC3VitalSet {
   spo2: string
   avpu: AVPU
   painScale: string
+  temp: string        // temperature as entered (°F or °C)
+  gcsTotal?: number   // snapshot of GCS total at this assessment
 }
 
 export interface TC3Card {
@@ -146,6 +149,7 @@ export interface TC3Card {
     last4: string       // last 4 of SSN/DoD ID
     unit: string
     sex: 'M' | 'F' | ''
+    bloodType: BloodType
     service: string
     allergies: string
     dateTimeOfInjury: string
@@ -226,6 +230,11 @@ export interface TC3Card {
 
   // Free-text notes
   notes: string
+}
+
+export interface TC3QueueEntry {
+  card: TC3Card
+  queuedAt: string  // ISO timestamp
 }
 
 /** TC3 card section identifiers for navigation */

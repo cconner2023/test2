@@ -175,6 +175,11 @@ export async function updateItem(
     const existing = await db.get('propertyItems', id)
     if (!existing) return fail('Item not found')
 
+    // If location changed, remove item's pin from the old zone's canvas
+    if (updates.location_id !== undefined && updates.location_id !== existing.location_id) {
+      await purgeItemPins(id)
+    }
+
     const now = new Date().toISOString()
     const updated: LocalPropertyItem = {
       ...existing,
@@ -206,6 +211,7 @@ export async function deleteItem(
 ): Promise<ServiceResult> {
   try {
     await deleteLocalPropertyItem(id)
+    await purgeItemPins(id)
 
     await addToSyncQueue({
       user_id: userId,
@@ -442,6 +448,74 @@ export async function cascadeDeleteLocation(
   }
 }
 
+// ── Member Locations ─────────────────────────────────────────
+
+/**
+ * Eagerly ensure every clinic member has a real persisted location record.
+ * Called on drawer open. Creates missing member-locations, renames stale ones,
+ * and places a default zone on the root canvas for any newly created record.
+ */
+export async function ensureMemberLocations(
+  clinicId: string,
+  userId: string,
+  members: import('../Types/PropertyTypes').HolderInfo[],
+  rootLocationId: string,
+): Promise<void> {
+  const allLocs = await getLocalPropertyLocations(clinicId)
+  const memberLocMap = new Map<string, LocalPropertyLocation>()
+  for (const loc of allLocs) {
+    if (loc.holder_user_id) memberLocMap.set(loc.holder_user_id, loc)
+  }
+
+  // locId → display name for newly created member-locations needing canvas zones
+  const newLocations = new Map<string, string>()
+
+  for (const member of members) {
+    const existing = memberLocMap.get(member.id)
+    if (!existing) {
+      const result = await createLocation(
+        {
+          clinic_id: clinicId,
+          parent_id: rootLocationId,
+          name: member.displayName,
+          photo_data: null,
+          holder_user_id: member.id,
+          created_by: userId,
+        },
+        userId,
+      )
+      if (result.success) {
+        newLocations.set(result.location.id, member.displayName)
+      }
+    } else if (existing.name !== member.displayName) {
+      await updateLocation(existing.id, { name: member.displayName }, userId)
+    }
+  }
+
+  if (newLocations.size === 0) return
+
+  // Place default zones on root canvas for newly created member-locations
+  const existingTags = await fetchLocationTags(rootLocationId)
+  const zoneCount = existingTags.filter(t => t.target_type === 'location').length
+  const additionalTags = Array.from(newLocations.entries()).map(([locId, name], i) => {
+    const idx = zoneCount + i
+    const col = idx % 4
+    const row = Math.floor(idx / 4)
+    return {
+      id: crypto.randomUUID(),
+      location_id: rootLocationId,
+      target_type: 'location' as const,
+      target_id: locId,
+      x: 0.05 + col * 0.23,
+      y: 0.05 + row * 0.18,
+      width: 0.2,
+      height: 0.14,
+      label: name,
+    }
+  })
+  await upsertLocationTags(rootLocationId, [...existingTags, ...additionalTags])
+}
+
 // ── Root Location (invisible canvas host) ────────────────────
 
 import { ROOT_LOCATION_NAME } from '../Types/PropertyTypes'
@@ -483,7 +557,7 @@ export async function ensureRootLocation(
   // Create the root location — retry once if IDB write fails on cold start
   for (let attempt = 0; attempt < 2; attempt++) {
     const result = await createLocation(
-      { clinic_id: clinicId, parent_id: null, name: ROOT_LOCATION_NAME, photo_data: null, created_by: userId },
+      { clinic_id: clinicId, parent_id: null, name: ROOT_LOCATION_NAME, photo_data: null, holder_user_id: null, created_by: userId },
       userId,
     )
     if (result.success) return result.location
@@ -526,6 +600,34 @@ export async function fetchLocationTags(locationId: string): Promise<LocationTag
   }
 
   return localTags
+}
+
+/**
+ * Remove item pins for a given item from all canvas tags.
+ * Scans IDB for canvases that contain a pin for this item, then re-saves
+ * each canvas without the pin. upsertLocationTags handles offline queuing.
+ */
+async function purgeItemPins(itemId: string): Promise<void> {
+  const db = await getDb()
+  const tx = db.transaction('locationTags', 'readonly')
+  const store = tx.objectStore('locationTags')
+  const affectedCanvases = new Set<string>()
+  let cursor = await store.openCursor()
+  while (cursor) {
+    if (cursor.value.target_id === itemId && cursor.value.target_type === 'item') {
+      affectedCanvases.add(cursor.value.location_id)
+    }
+    cursor = await cursor.continue()
+  }
+  await tx.done
+
+  for (const canvasId of affectedCanvases) {
+    const tags = await getLocalLocationTags(canvasId)
+    const withoutPin = tags.filter(t => !(t.target_id === itemId && t.target_type === 'item'))
+    if (withoutPin.length !== tags.length) {
+      await upsertLocationTags(canvasId, withoutPin)
+    }
+  }
 }
 
 /** Batch-fetch tags for multiple canvas locations (IndexedDB only, no network fallback). */

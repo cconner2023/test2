@@ -26,6 +26,7 @@ function formatCasualty(card: TC3Card): string {
   if (c.lastName || c.firstName) lines.push(`Name: ${[c.lastName, c.firstName].filter(Boolean).join(', ')}`)
   if (c.last4) lines.push(`Last 4: ${c.last4}`)
   if (c.sex) lines.push(`Sex: ${c.sex}`)
+  if (c.bloodType) lines.push(`Blood Type: ${c.bloodType}`)
   if (c.service) lines.push(`Service: ${c.service}`)
   if (c.unit) lines.push(`Unit: ${c.unit}`)
   if (c.allergies) lines.push(`Allergies: ${c.allergies}`)
@@ -206,6 +207,95 @@ function formatFirstResponder(card: TC3Card): string {
   const lines: string[] = ['FIRST RESPONDER']
   if (fr.lastName || fr.firstName) lines.push(`Name: ${[fr.lastName, fr.firstName].filter(Boolean).join(', ')}`)
   if (fr.last4) lines.push(`Last 4: ${fr.last4}`)
+  return lines.join('\n')
+}
+
+/** Format a MIST handoff report for verbal/radio pre-hospital transfer. */
+export function formatMISTReport(card: TC3Card): string {
+  const lines: string[] = ['MIST REPORT', '-----------']
+
+  // M — Mechanism
+  const mTypes = card.mechanism.types.length > 0 ? [...card.mechanism.types] : []
+  let mLine = mTypes.length > 0 ? mTypes.join(', ') : 'Unknown'
+  if (card.mechanism.types.includes('Other') && card.mechanism.otherDescription) {
+    mLine += ` (${card.mechanism.otherDescription})`
+  }
+  lines.push(`M - MECHANISM: ${mLine}`)
+
+  // I — Injuries
+  const injuryLines: string[] = []
+  if (card.markers.length > 0) {
+    card.markers.forEach((m, i) => {
+      if (m.injuries.length === 0) return
+      const region = m.bodyRegion ? getRegionLabel(m.bodyRegion) : `(${Math.round(m.x)}%, ${Math.round(m.y)}%)`
+      injuryLines.push(`${i + 1}. ${m.injuries.join(', ')} (${region})`)
+    })
+  } else if (card.injuries.length > 0) {
+    card.injuries.forEach((inj, i) => {
+      const region = inj.bodyRegion ? getRegionLabel(inj.bodyRegion) : `(${Math.round(inj.x)}%, ${Math.round(inj.y)}%)`
+      injuryLines.push(`${i + 1}. ${inj.type} (${region})`)
+    })
+  }
+  if (injuryLines.length > 0) {
+    lines.push(`I - INJURIES: ${injuryLines[0]}`)
+    injuryLines.slice(1).forEach(l => lines.push(`              ${l}`))
+  } else {
+    lines.push('I - INJURIES: None documented')
+  }
+
+  // S — Signs & Symptoms
+  const vs = card.vitals.length > 0 ? card.vitals[card.vitals.length - 1] : null
+  if (vs || card.avpu || card.gcs) {
+    const sParts: string[] = []
+    if (card.avpu) sParts.push(`AVPU: ${card.avpu}`)
+    if (vs) {
+      if (vs.pulse) sParts.push(`HR: ${vs.pulse}`)
+      if (vs.bp) sParts.push(`BP: ${vs.bp}`)
+      if (vs.spo2) sParts.push(`SpO2: ${vs.spo2}`)
+      if (vs.rr) sParts.push(`RR: ${vs.rr}`)
+    }
+    lines.push(`S - SIGNS: ${sParts.join('  ')}`)
+    const s2Parts: string[] = []
+    if (vs?.painScale) s2Parts.push(`Pain: ${vs.painScale}/10`)
+    if (card.gcs) {
+      const total = card.gcs.eye + card.gcs.verbal + card.gcs.motor
+      s2Parts.push(`GCS: ${total}`)
+    }
+    if (s2Parts.length > 0) lines.push(`    ${s2Parts.join('  ')}`)
+  } else {
+    lines.push('S - SIGNS: Not assessed')
+  }
+
+  // T — Treatment
+  const tLines: string[] = []
+  const mh = card.march.massiveHemorrhage
+  mh.tourniquets.forEach(tq => {
+    const timePart = tq.time ? ` ${tq.time}` : ''
+    tLines.push(`TQ (${tq.type}) @ ${tq.location}${timePart}`)
+  })
+  mh.hemostatics.forEach(h => {
+    const locPart = h.location ? ` @ ${h.location}` : ''
+    tLines.push(`${h.type} (${h.dressingType})${locPart}`)
+  })
+  card.medications.forEach(med => {
+    const timePart = med.time ? ` ${med.time}` : ''
+    tLines.push(`${med.name} ${med.dose} ${med.route}${timePart}`)
+  })
+  const circ = card.march.circulation
+  circ.ivAccess.forEach(iv => tLines.push(`${iv.type} access ${iv.gauge} @ ${iv.site}`))
+  circ.fluids.forEach(f => tLines.push(`${f.volume} ${f.type} given`))
+  circ.bloodProducts.forEach(b => tLines.push(`${b.volume} ${b.type} given`))
+
+  if (tLines.length > 0) {
+    lines.push(`T - TREATMENT: ${tLines[0]}`)
+    tLines.slice(1).forEach(l => lines.push(`               ${l}`))
+  } else {
+    lines.push('T - TREATMENT: None')
+  }
+
+  // Evac priority
+  lines.push(`EVAC PRIORITY: ${card.evacuation.priority || 'Not assigned'}`)
+
   return lines.join('\n')
 }
 

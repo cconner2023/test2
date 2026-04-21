@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import type { dispositionType, AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 import { useNoteEditor } from '../Hooks/useNoteEditor';
@@ -16,7 +16,7 @@ import {
     shareStatusToIconStatus, exportStatusToIconStatus,
 } from './WriteNoteHelpers';
 import { ExpandableInput } from './ExpandableInput';
-import { useAuthStore } from '../stores/useAuthStore';
+import { useAlgorithmMetrics } from '../Hooks/useAlgorithmMetrics';
 import { useMergedNoteContent } from '../Hooks/useMergedNoteContent';
 import { X, Plus, Check } from 'lucide-react';
 import { PreviewOverlay } from './PreviewOverlay';
@@ -34,7 +34,7 @@ interface SectionToggleProps {
 
 const SectionToggle = ({ label, enabled, onToggle, colors }: SectionToggleProps) => (
     <div className="flex items-center justify-between py-1">
-        <p className="text-[10pt] font-semibold text-primary/80 uppercase tracking-wider">{label}</p>
+        <p className="text-[10pt] font-semibold text-primary uppercase tracking-wider">{label}</p>
         <button
             type="button"
             onClick={onToggle}
@@ -76,7 +76,9 @@ export const WriteNotePage = ({
     initialPage = 0,
 }: WriteNoteProps) => {
     const { profile } = useUserProfile();
-    const isDevRole = useAuthStore(s => s.isDevRole);
+    const { logNow } = useAlgorithmMetrics();
+    const [logStatus, setLogStatus] = useState<'idle' | 'done'>('idle');
+    const loggedRef = useRef(false);
     const { expanders, orderTags, instructionTags, orderSets } = useMergedNoteContent();
     const colors = getColorClasses(disposition.type);
     const [includeDecisionMaking, setIncludeDecisionMaking] = useState(true);
@@ -176,6 +178,13 @@ export const WriteNotePage = ({
         }
     }, [selectedDdx, customDdx, setCustomDdx]);
 
+    const handleLog = useCallback(async () => {
+        if (loggedRef.current) return;
+        loggedRef.current = true;
+        await logNow(selectedSymptom.icon, selectedSymptom.text);
+        setLogStatus('done');
+    }, [logNow, selectedSymptom.icon, selectedSymptom.text]);
+
     // ── Tour injection listeners ────────────────────────────────────────────
     useEffect(() => {
         const onInjectHPI = () => { setNote(GUIDED_HPI_EXPANDED); };
@@ -229,20 +238,20 @@ export const WriteNotePage = ({
                                 <>
                                 {/* Subjective section */}
                                 <section className="space-y-2">
-                                    <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Subjective</p>
+                                    <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Subjective</p>
                                     <ExpandableInput
                                         value={note}
                                         onChange={setNote}
                                         expanders={expanders}
                                         multiline
-                                        className="w-full rounded-xl border border-themegray1/20 bg-themewhite p-3 text-sm text-primary placeholder:text-tertiary/30 focus:border-themeblue1/30 focus:outline-none resize-none transition-colors leading-6"
+                                        className="w-full rounded-xl border border-themegray1/20 bg-themewhite p-3 text-sm text-primary placeholder:text-tertiary focus:border-themeblue1/30 focus:outline-none resize-none transition-colors leading-6"
                                         placeholder="History of present illness..."
                                     />
                                 </section>
 
                                 {/* PE section */}
                                 <section data-tour="writenote-pe" className="space-y-2">
-                                    <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Physical Exam</p>
+                                    <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Physical Exam</p>
                                     <PhysicalExam
                                         initialText={peNote}
                                         onChange={setPeNote}
@@ -284,7 +293,7 @@ export const WriteNotePage = ({
                                             onClick={openDdxPopover}
                                         >
                                             <div className="px-4 py-3">
-                                                <p className="text-[11px] text-primary truncate">
+                                                <p className="text-[9pt] text-primary truncate">
                                                     {[...selectedDdx, ...customDdx].map((d, i) => `${i + 1}. ${d}`).join('; ')}
                                                 </p>
                                             </div>
@@ -294,7 +303,7 @@ export const WriteNotePage = ({
                                             <button
                                                 type="button"
                                                 onClick={openDdxPopover}
-                                                className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40"
+                                                className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary"
                                             >
                                                 <Plus size={14} />
                                             </button>
@@ -320,12 +329,12 @@ export const WriteNotePage = ({
                                                                     key={dx}
                                                                     className={`flex items-center gap-2 px-3 py-2.5 bg-tertiary/4 ${i > 0 ? 'border-t border-tertiary/10' : ''}`}
                                                                 >
-                                                                    <span className="text-[10px] text-tertiary/40 w-4 text-right shrink-0">{i + 1}.</span>
+                                                                    <span className="text-[9pt] text-tertiary w-4 text-right shrink-0">{i + 1}.</span>
                                                                     <span className="flex-1 text-[11pt] text-primary min-w-0 truncate">{dx}</span>
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => toggleDdx(dx)}
-                                                                        className="shrink-0 p-1 text-tertiary/30 active:text-themeredred transition-colors"
+                                                                        className="shrink-0 p-1 text-tertiary active:text-themeredred transition-colors"
                                                                     >
                                                                         <X size={12} />
                                                                     </button>
@@ -337,7 +346,7 @@ export const WriteNotePage = ({
 
                                                 {unselected.length > 0 && (
                                                     <div className="px-4 pb-2">
-                                                        <p className="text-[9px] font-semibold text-tertiary/40 uppercase tracking-wider mb-1.5">Suggested</p>
+                                                        <p className="text-[9pt] md:text-[9pt] font-semibold text-tertiary uppercase tracking-wider mb-1.5">Suggested</p>
                                                         <div className="border border-tertiary/10 rounded-xl overflow-hidden">
                                                             {unselected.map((dx, i) => (
                                                                 <button
@@ -347,7 +356,7 @@ export const WriteNotePage = ({
                                                                     className={`flex items-center gap-3 w-full text-left px-4 py-2.5 transition-colors active:scale-[0.98] ${i > 0 ? 'border-t border-tertiary/10' : ''}`}
                                                                 >
                                                                     <span className="w-4 h-4 rounded-full shrink-0 ring-[1.5px] ring-inset ring-tertiary/25 bg-transparent" />
-                                                                    <span className="text-[11pt] text-tertiary/60">{dx}</span>
+                                                                    <span className="text-[11pt] text-tertiary">{dx}</span>
                                                                 </button>
                                                             ))}
                                                         </div>
@@ -355,7 +364,7 @@ export const WriteNotePage = ({
                                                 )}
 
                                                 {combined.length === 0 && unselected.length === 0 && (
-                                                    <p className="px-4 py-4 text-[10pt] text-tertiary/40 italic">No differentials — use + to add</p>
+                                                    <p className="px-4 py-4 text-[10pt] text-tertiary italic">No differentials — use + to add</p>
                                                 )}
                                             </div>
                                         );
@@ -372,7 +381,7 @@ export const WriteNotePage = ({
 
                                 {/* Plan */}
                                 <section data-tour="writenote-plan" className="space-y-2">
-                                    <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Plan</p>
+                                    <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Plan</p>
                                     <Plan
                                         orderTags={orderTags}
                                         instructionTags={instructionTags}
@@ -399,26 +408,30 @@ export const WriteNotePage = ({
                                     {/* Note Preview */}
                                     <section data-tour="writenote-preview">
                                         <div className="pb-2 flex items-center justify-between">
-                                            <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Note Preview</p>
+                                            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Note Preview</p>
                                             <div className="flex items-center gap-0.5">
+                                                <ActionIconButton
+                                                    onClick={handleLog}
+                                                    status={logStatus}
+                                                    variant="calendar"
+                                                    title="Log to calendar"
+                                                />
                                                 <ActionIconButton
                                                     onClick={() => handleCopy(previewNote, 'preview')}
                                                     status={copiedTarget === 'preview' ? 'done' : 'idle'}
                                                     variant="copy"
                                                     title="Copy note text"
                                                 />
-                                                {isDevRole && (
-                                                    <ActionIconButton
-                                                        onClick={handleExportSF600}
-                                                        status={exportStatusToIconStatus(sf600ExportStatus)}
-                                                        variant="pdf"
-                                                        title="Export SF600 PDF"
-                                                    />
-                                                )}
+                                                <ActionIconButton
+                                                    onClick={handleExportSF600}
+                                                    status={exportStatusToIconStatus(sf600ExportStatus)}
+                                                    variant="pdf"
+                                                    title="Export SF600 PDF"
+                                                />
                                             </div>
                                         </div>
                                         <div className="rounded-xl bg-themewhite2 overflow-hidden">
-                                            <div className="px-4 py-3 text-tertiary text-[8pt] whitespace-pre-wrap max-h-48 overflow-y-auto">
+                                            <div className="px-4 py-3 text-tertiary text-[9pt] whitespace-pre-wrap max-h-48 overflow-y-auto">
                                                 {previewNote || "No content selected"}
                                             </div>
                                         </div>
@@ -427,7 +440,7 @@ export const WriteNotePage = ({
                                     {/* Encoded Note / Barcode */}
                                     <section data-tour="writenote-encoded">
                                         <div className="pb-2 flex items-center justify-between">
-                                            <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Encoded Note</p>
+                                            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Encoded Note</p>
                                             <div className="flex items-center gap-0.5">
                                                 <ActionIconButton
                                                     onClick={() => handleCopy(encodedValue, 'encoded')}

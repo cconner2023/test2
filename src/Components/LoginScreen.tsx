@@ -36,11 +36,11 @@ function DeviceLinkQrView() {
   if (channelState !== 'ready') {
     return (
       <div className="py-4 flex flex-col items-center justify-center gap-2">
-        <LoadingSpinner className="text-tertiary/50" />
+        <LoadingSpinner className="text-tertiary" />
         {channelState === 'error' && (
           <button
             onClick={regenerate}
-            className="text-xs text-tertiary/50 active:opacity-70 transition-opacity"
+            className="text-xs text-tertiary active:opacity-70 transition-opacity"
           >
             Tap to retry
           </button>
@@ -198,7 +198,7 @@ export function LoginScreen() {
               : 'absolute inset-x-0 top-0 opacity-0 -translate-x-3 pointer-events-none'
             }`}>
               <div className="pb-2">
-                <p className="text-[10px] font-semibold text-secondary/70 tracking-widest uppercase">Sign In</p>
+                <p className="text-[9pt] font-semibold text-secondary tracking-widest uppercase">Sign In</p>
               </div>
               <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
                 <form onSubmit={handleSignIn}>
@@ -218,9 +218,9 @@ export function LoginScreen() {
                             key={m}
                             type="button"
                             onClick={() => switchMode(m)}
-                            className={`relative flex-1 py-1.5 text-[10px] font-medium rounded-full transition-colors duration-200 active:scale-95 ${mode === m
+                            className={`relative flex-1 py-1.5 text-[9pt] font-medium rounded-full transition-colors duration-200 active:scale-95 ${mode === m
                               ? 'text-white'
-                              : 'text-tertiary/50 hover:text-tertiary/70'
+                              : 'text-tertiary hover:text-tertiary'
                             }`}
                           >
                             {m === 'password' ? 'Password' : 'Link Device'}
@@ -369,7 +369,7 @@ export function LoginScreen() {
                   <div className="w-full border-t border-themeblue3/10" />
                 </div>
                 <div className="relative flex justify-center text-xs">
-                  <span className="px-3 bg-themewhite dark:bg-themewhite3 text-secondary/60">or</span>
+                  <span className="px-3 bg-themewhite dark:bg-themewhite3 text-secondary">or</span>
                 </div>
               </div>
 
@@ -397,7 +397,7 @@ export function LoginScreen() {
                 Need help? Contact support
               </button>
 
-              <p className="mt-6 text-xs text-center text-secondary/70 leading-relaxed max-w-xs mx-auto">
+              <p className="mt-6 text-xs text-center text-secondary leading-relaxed max-w-xs mx-auto">
                 Not affiliated with or endorsed by the Department of Defense. Clinical references derived from publicly available U.S. Army doctrine.
               </p>
             </div>
@@ -442,7 +442,7 @@ export function LoginScreen() {
                       rows={3}
                       className="w-full px-4 py-2.5 rounded-2xl bg-themewhite dark:bg-themewhite3 text-primary text-sm
                              border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2
-                             focus:outline-none transition-all duration-300 placeholder:text-tertiary/30 resize-none"
+                             focus:outline-none transition-all duration-300 placeholder:text-tertiary resize-none"
                     />
                     <div className="flex items-center justify-end gap-2 pt-1">
                       <button

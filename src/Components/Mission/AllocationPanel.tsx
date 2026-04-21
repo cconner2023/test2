@@ -59,7 +59,7 @@ function AddAllocationForm({
 
   return (
     <div className="rounded-2xl border border-themeblue3/10 bg-themewhite dark:bg-themewhite3 p-3 space-y-2">
-      <p className="text-[10px] font-semibold text-tertiary/50 uppercase tracking-widest">
+      <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">
         Add Allocation
       </p>
 
@@ -169,18 +169,18 @@ export function AllocationPanel({
           {/* Section header */}
           <div className="flex items-center gap-1.5 mb-1.5 px-1">
             <MapPin size={11} className="text-themeblue3 shrink-0" />
-            <span className="text-[10px] font-semibold text-tertiary/60 uppercase tracking-widest truncate">
+            <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest truncate">
               {summary.waypoint.label ?? summary.waypoint.id}
             </span>
             {summary.waypoint.mgrs && (
-              <span className="text-[10px] text-tertiary/40 font-mono ml-1 shrink-0">
+              <span className="text-[9pt] text-tertiary font-mono ml-1 shrink-0">
                 {summary.waypoint.mgrs}
               </span>
             )}
           </div>
 
           {summary.items.length === 0 ? (
-            <p className="text-[10px] text-tertiary/30 italic px-2">No items assigned</p>
+            <p className="text-[9pt] text-tertiary italic px-2">No items assigned</p>
           ) : (
             <div className="flex flex-col gap-1">
               {summary.items.map(alloc => (
@@ -206,7 +206,7 @@ export function AllocationPanel({
       {unpositioned.length > 0 && (
         <div>
           <div className="flex items-center gap-1.5 mb-1.5 px-1">
-            <span className="text-[10px] font-semibold text-tertiary/40 uppercase tracking-widest">
+            <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">
               Unpositioned
             </span>
           </div>
@@ -228,7 +228,7 @@ export function AllocationPanel({
 
       {/* Empty state */}
       {!hasContent && !showForm && (
-        <p className="text-xs text-tertiary/30 italic text-center py-2">
+        <p className="text-xs text-tertiary italic text-center py-2">
           No items allocated yet.
         </p>
       )}

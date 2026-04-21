@@ -25,7 +25,7 @@ import { useCallStore } from './useCallStore'
 import { unregisterDevice, deleteKeyBundle, primaryLogoutAll, initLoRaMesh } from '../lib/signal/signalService'
 import { secureSet, secureGet, secureRemove, persistSupabaseAuth, destroySecureStore } from '../lib/secureStorage'
 import { clearOutboundQueue, destroyOutboundQueue } from '../lib/signal/outboundQueue'
-import { clearCalendarEvents, clearAllPendingVaultSends } from '../lib/calendarEventStore'
+import { clearCalendarEvents, clearAllPendingVaultSends, clearAllPendingVaultDeletes } from '../lib/calendarEventStore'
 import { useCalendarStore } from './useCalendarStore'
 import { clearBackupKey, createBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
 import { processVaultMessages, clearVaultKey } from '../lib/signal/vaultDevice'
@@ -350,6 +350,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     // events — destroying the DB wipes them, creating a resurrection vector.
     clearCalendarEvents().catch(() => {})
     clearAllPendingVaultSends().catch(() => {})
+    clearAllPendingVaultDeletes().catch(() => {})
 
     if (wasPrimary) {
       // Primary logout: destroy entire IDB databases (nuke containers + encryption key).
@@ -401,9 +402,16 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     useCallStore.getState().reset()
     useCalendarStore.setState({ events: [], hydrated: false, vaultReplayDone: false })
 
-    // Aggressively wipe browser storage
+    // Aggressively wipe browser storage, but preserve the FCM token so push
+    // subscriptions survive involuntary SIGNED_OUT events (e.g. iOS PWA kills).
+    // On explicit signOut() the token is removed via unsubscribeFromPush() before
+    // this runs, so preserving it here is safe — it will already be gone.
+    const fcmToken = localStorage.getItem('adtmc_fcm_token')
     try { localStorage.clear() } catch { /* ignore */ }
     try { sessionStorage.clear() } catch { /* ignore */ }
+    if (fcmToken) {
+      try { localStorage.setItem('adtmc_fcm_token', fcmToken) } catch { /* ignore */ }
+    }
   }
 
   const handleSignedIn = (userId: string, session: { access_token: string }, event: string) => {
@@ -536,8 +544,10 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       })
 
       // Progressive unlock: first login gates UI on profile only (not Signal).
-      // Returning users (localSession exists) skip this — sessionReady is already true.
-      if (isFirstSession) {
+      // Guard on sessionReady directly rather than isFirstSession — localSession can
+      // be pre-populated by the async secureGet in init() before INITIAL_SESSION fires,
+      // causing isFirstSession to incorrectly evaluate false and leaving the loader stuck.
+      if (!get().sessionReady) {
         profileP.finally(() => {
           if (!get().sessionReady) set({ sessionReady: true })
         })

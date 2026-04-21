@@ -435,7 +435,7 @@ export function MessageBubble({
             })}
           </div>
 
-          <span className={`text-[10px] tabular-nums shrink-0 ${isOwn ? 'text-white/70' : 'text-tertiary/50'}`}>
+          <span className={`text-[9pt] tabular-nums shrink-0 ${isOwn ? 'text-white/70' : 'text-tertiary'}`}>
             {formatDuration(isPlaying && audioRef.current ? audioRef.current.currentTime : voiceContent.duration)}
           </span>
         </div>
@@ -496,13 +496,13 @@ export function MessageBubble({
             >
               {/* Sender name label (group chats) */}
               {senderName && !isOwn && (
-                <p className="text-[10px] font-semibold text-themeblue2 mb-0.5">{senderName}</p>
+                <p className="text-[9pt] font-semibold text-themeblue2 mb-0.5">{senderName}</p>
               )}
               {renderContent()}
-              <div className={`flex items-center gap-1 mt-0.5 ${isImage && !isVoice ? 'px-1.5' : ''} ${isOwn ? 'text-white/60' : 'text-tertiary/40'}`}>
-                <p className="text-[9px]">{formatTime(message.createdAt)}</p>
+              <div className={`flex items-center gap-1 mt-0.5 ${isImage && !isVoice ? 'px-1.5' : ''} ${isOwn ? 'text-white/60' : 'text-tertiary'}`}>
+                <p className="text-[9pt] md:text-[9pt]">{formatTime(message.createdAt)}</p>
                 {isOwn && message.messageType === 'request' && (
-                  <span className="text-[9px] italic">Pending</span>
+                  <span className="text-[9pt] md:text-[9pt] italic">Pending</span>
                 )}
                 {isOwn && message.messageType !== 'request' && message.status === 'sending' && (
                   <Clock size={10} className="opacity-60" />
@@ -518,7 +518,7 @@ export function MessageBubble({
               <button
                 data-tour="messages-thread-badge"
                 onClick={e => { e.stopPropagation(); onOpenThread?.(message.originId ?? message.id) }}
-                className={`flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium
+                className={`flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-full text-[9pt] font-medium
                            text-themeblue2 hover:bg-themeblue2/10 active:scale-95 transition-all
                            ${isOwn ? 'ml-auto' : ''}`}
               >

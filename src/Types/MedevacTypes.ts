@@ -23,8 +23,16 @@ export type MedevacNationality = 'A' | 'B' | 'C' | 'D' | 'E'
 // Line 9 — NBC: N=None, B=Biological, C=Chemical, R=Radiological/Nuclear
 export type MedevacNBC = 'N' | 'B' | 'C' | 'R'
 
+export type MedevacMode = 'wartime' | 'peacetime'
+
+export interface MedevacWoundEntry {
+  id: string
+  text: string        // free-text wound/injury description
+}
+
 export interface MedevacRequest {
   status: MedevacStatus
+  mode: MedevacMode
 
   // Line 1 — Pickup site
   l1: string       // MGRS grid
@@ -45,19 +53,21 @@ export interface MedevacRequest {
   l5l: number      // litter
   l5a: number      // ambulatory
 
-  // Line 6 — Security
-  l6: MedevacSecurity
+  // Line 6 — Wartime: security at pickup; Peacetime: wound/injury entries
+  l6: MedevacSecurity      // wartime
+  l6wounds?: MedevacWoundEntry[]  // peacetime
 
   // Line 7 — Marking method
   l7: MedevacMarking
   l7c?: string     // smoke color (l7 = 'C')
   l7o?: string     // other description (l7 = 'E')
 
-  // Line 8 — Nationality / status
-  l8: MedevacNationality[]
+  // Line 8 — Nationality / status (counts per category, must sum to L3 total; A absorbs remainder)
+  l8: Partial<Record<MedevacNationality, number>>
 
-  // Line 9 — NBC contamination
-  l9: MedevacNBC
+  // Line 9 — Wartime: NBC contamination; Peacetime: terrain description
+  l9: MedevacNBC   // wartime
+  l9p?: string     // peacetime free text
 
   // Cross-domain links
   tc3CardId?: string
@@ -131,6 +141,10 @@ export function medevacPatientTotal(req: MedevacRequest): number {
   return Object.values(req.l3).reduce((s, n) => s + (n ?? 0), 0)
 }
 
+export function medevacNationalityTotal(req: MedevacRequest): number {
+  return Object.values(req.l8).reduce((s, n) => s + (n ?? 0), 0)
+}
+
 export function medevacHighestPrecedence(req: MedevacRequest): MedevacPrecedence | null {
   for (const p of ['A', 'B', 'C', 'D', 'E'] as MedevacPrecedence[]) {
     if ((req.l3[p] ?? 0) > 0) return p
@@ -141,13 +155,14 @@ export function medevacHighestPrecedence(req: MedevacRequest): MedevacPrecedence
 export function emptyMedevacRequest(overrides?: Partial<MedevacRequest>): MedevacRequest {
   return {
     status: 'draft',
+    mode: 'wartime',
     l1: '', l2f: '', l2c: '',
     l3: {},
     l4: ['A'],
     l5l: 0, l5a: 0,
     l6: 'N',
     l7: 'C',
-    l8: ['A'],
+    l8: {},
     l9: 'N',
     ...overrides,
   }

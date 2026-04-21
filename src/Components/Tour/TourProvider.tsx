@@ -797,7 +797,11 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
         case 'provider': store.setShowProviderDrawer(true); break
         case 'import': store.toggleImportExpanded(); break
         case 'admin': store.setShowAdminDrawer(true); break
-        case 'property': store.setShowPropertyDrawer(true); break
+        case 'property':
+          store.setShowPropertyDrawer(true)
+          await waitForTarget('property-locations', 5000)
+          await new Promise(r => setTimeout(r, 300))
+          break
         case 'tc3': {
           const { useAuthStore } = await import('../../stores/useAuthStore')
           useAuthStore.getState().patchProfile({ tc3Mode: true })
@@ -812,6 +816,22 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       const { useTC3Store } = await import('../../stores/useTC3Store')
       useTC3Store.getState().setWizardStep(1)
       await waitForTarget('tc3-march', 2000)
+      return
+    }
+
+    // ── property:cleanup — close property drawer, return to guided tours ──
+    if (action === 'property:cleanup') {
+      setTooltipHidden(true)
+      await new Promise(r => setTimeout(r, 250))
+      setCurtainVisible(true)
+      await new Promise(r => setTimeout(r, 350))
+      closeAllDrawers()
+      store.closeMenu()
+      store.setShowSettings(true)
+      await new Promise(r => setTimeout(r, 350))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'guided-tours' }))
+      setCurtainVisible(false)
+      await new Promise(r => setTimeout(r, 350))
       return
     }
 

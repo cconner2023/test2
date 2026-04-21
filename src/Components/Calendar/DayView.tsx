@@ -261,7 +261,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
               </button>
               <button
                 onClick={onDateTap}
-                className="text-xs font-medium text-tertiary/50 uppercase tracking-wider hover:text-primary transition-colors active:scale-95"
+                className="text-xs font-medium text-tertiary uppercase tracking-wider hover:text-primary transition-colors active:scale-95"
               >
                 {dateLabel}
               </button>
@@ -274,7 +274,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
               </button>
             </div>
           ) : (
-            <p className="px-3 py-2 text-xs font-medium text-tertiary/50 uppercase tracking-wider border-b border-primary/10">
+            <p className="px-3 py-2 text-xs font-medium text-tertiary uppercase tracking-wider border-b border-primary/10">
               {dateLabel}
             </p>
           )}
@@ -338,7 +338,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
               className="absolute left-0 right-0 border-t border-primary/5"
               style={{ top: i * HOUR_HEIGHT_PX }}
             >
-              <span className="absolute -top-2.5 left-2 text-[10px] font-mono text-tertiary/40 bg-themewhite3 px-0.5">
+              <span className="absolute -top-2.5 left-2 text-[9pt] font-mono text-tertiary bg-themewhite3 px-0.5">
                 {formatHour(h)}
               </span>
             </div>
@@ -399,12 +399,12 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
                 )}
                 <p className={`text-xs font-normal truncate leading-tight ${sm.strikethrough ? 'line-through opacity-70' : ''}`}>{event.title}</p>
                 {height > 36 && (
-                  <p className="text-[10px] opacity-70 truncate">
+                  <p className="text-[9pt] opacity-70 truncate">
                     {new Date(event.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', '')}
                   </p>
                 )}
                 {height > 52 && event.location && (
-                  <p className="text-[10px] opacity-60 truncate">{event.location}</p>
+                  <p className="text-[9pt] opacity-60 truncate">{event.location}</p>
                 )}
               </div>
             )
@@ -412,7 +412,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
 
           {isDragging && dragEventId !== null && (
             <div
-              className="absolute left-2 bg-themeblue3 text-white text-[10px] font-mono px-1.5 py-0.5 rounded shadow-lg z-30 pointer-events-none"
+              className="absolute left-2 bg-themeblue3 text-white text-[9pt] font-mono px-1.5 py-0.5 rounded shadow-lg z-30 pointer-events-none"
               style={{ top: minutesToTop(snappedMinutes) - 20 }}
             >
               {formatSnappedTime(snappedMinutes)}

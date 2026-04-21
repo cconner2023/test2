@@ -13,7 +13,7 @@ export interface ActionButtonProps {
 const STYLES: Record<ActionButtonVariant, string> = {
   default:  'bg-themeblue2/8 text-primary active:scale-95',
   danger:   'bg-themeredred/8 text-themeredred active:scale-95',
-  disabled: 'bg-tertiary/4 text-tertiary/20 cursor-default',
+  disabled: 'bg-tertiary/4 text-tertiary cursor-default',
 }
 
 export function ActionButton({ icon: Icon, label, onClick, variant = 'default', iconSize = 16 }: ActionButtonProps) {

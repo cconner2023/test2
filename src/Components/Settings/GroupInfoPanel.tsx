@@ -119,7 +119,7 @@ export function GroupInfoPanel({
         {/* Members list */}
         <div className="px-4">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-xs text-tertiary/60">{members.length} members</p>
+            <p className="text-xs text-tertiary">{members.length} members</p>
             {isAdmin && (
               <button
                 onClick={() => setShowAddPicker(!showAddPicker)}
@@ -162,7 +162,7 @@ export function GroupInfoPanel({
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-primary truncate">{getMemberName(member)}</p>
                 {member.role === 'admin' && (
-                  <span className="text-[10px] text-themeblue2 font-medium">Admin</span>
+                  <span className="text-[9pt] text-themeblue2 font-medium">Admin</span>
                 )}
               </div>
               {isAdmin && member.userId !== userId && (

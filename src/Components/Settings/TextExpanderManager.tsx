@@ -91,8 +91,8 @@ export const TextExpanderManager = ({
         <section className="space-y-3">
             {/* ── Section header ── */}
             <div className="flex items-center gap-2">
-                <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Templates</p>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
+                <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Templates</p>
+                <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
                     {totalCount}
                 </span>
             </div>
@@ -108,7 +108,7 @@ export const TextExpanderManager = ({
                             <p className="text-base font-semibold text-primary font-mono flex-1 min-w-0 truncate">
                                 {editCard.abbr}
                             </p>
-                            <span className="text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-full bg-themeblue2/15 text-themeblue2">
+                            <span className="text-[9pt] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-full bg-themeblue2/15 text-themeblue2">
                                 simple
                             </span>
                         </div>
@@ -157,7 +157,7 @@ export const TextExpanderManager = ({
                             <p className="text-base font-semibold text-primary font-mono flex-1 min-w-0 truncate">
                                 {editCard.abbr}
                             </p>
-                            <span className="text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-full bg-themepurple/15 text-themepurple">
+                            <span className="text-[9pt] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-full bg-themepurple/15 text-themepurple">
                                 template
                             </span>
                         </div>
@@ -210,7 +210,7 @@ export const TextExpanderManager = ({
                                 type="button"
                                 data-tour="expander-type-hint"
                                 onClick={() => onTypeChange(selectedType === 'simple' ? 'template' : 'simple')}
-                                className={`shrink-0 px-3 py-2.5 rounded-full text-[11px] font-semibold tracking-wide uppercase transition-all active:scale-95 ${
+                                className={`shrink-0 px-3 py-2.5 rounded-full text-[9pt] font-semibold tracking-wide uppercase transition-all active:scale-95 ${
                                     selectedType === 'template'
                                         ? 'bg-themepurple/15 text-themepurple border border-themepurple/20'
                                         : 'bg-themeblue2/15 text-themeblue2 border border-themeblue2/20'
@@ -224,7 +224,7 @@ export const TextExpanderManager = ({
                                 <button
                                     type="button"
                                     onClick={() => onScopeChange?.(scope === 'personal' ? 'clinic' : 'personal')}
-                                    className={`shrink-0 px-2.5 py-2.5 rounded-full text-[10px] font-semibold tracking-wide transition-all active:scale-95 ${
+                                    className={`shrink-0 px-2.5 py-2.5 rounded-full text-[9pt] font-semibold tracking-wide transition-all active:scale-95 ${
                                         scope === 'clinic'
                                             ? 'bg-tertiary/10 text-tertiary border border-tertiary/20'
                                             : 'bg-themeblue2/10 text-themeblue2/70 border border-themeblue2/15'
@@ -242,7 +242,7 @@ export const TextExpanderManager = ({
                                     onChange={(e) => onInputAbbrChange(e.target.value)}
                                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onInputAbbrSubmit(); } }}
                                     placeholder="New shortcut…"
-                                    className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary/30"
+                                    className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary"
                                 />
                             </div>
 
@@ -296,7 +296,7 @@ export const TextExpanderManager = ({
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium text-primary truncate">{e.abbr}</p>
-                                        <p className="text-[11px] text-tertiary/50 mt-0.5 leading-relaxed">
+                                        <p className="text-[9pt] text-tertiary mt-0.5 leading-relaxed">
                                             {expansionPreview(e)}
                                         </p>
                                     </div>
@@ -357,18 +357,18 @@ export const TextExpanderManager = ({
                                                 isMarkedDelete ? 'text-themeredred/60 line-through' : 'text-primary'
                                             }`}>{orig.abbr}</p>
                                             {isClinic && (
-                                                <span className="text-[9px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/60 shrink-0">
+                                                <span className="text-[9pt] md:text-[9pt] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary shrink-0">
                                                     Clinic
                                                 </span>
                                             )}
                                             {isMarkedEdit && !isMarkedDelete && (
-                                                <span className="text-[9px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-themeblue2/15 text-themeblue2 shrink-0">
+                                                <span className="text-[9pt] md:text-[9pt] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-themeblue2/15 text-themeblue2 shrink-0">
                                                     Edited
                                                 </span>
                                             )}
                                         </div>
-                                        <p className={`text-[11px] mt-0.5 leading-relaxed ${
-                                            isMarkedDelete ? 'text-themeredred/30' : 'text-tertiary/50'
+                                        <p className={`text-[9pt] mt-0.5 leading-relaxed ${
+                                            isMarkedDelete ? 'text-themeredred/30' : 'text-tertiary'
                                         }`}>
                                             {expansionPreview(e)}
                                         </p>
@@ -378,7 +378,7 @@ export const TextExpanderManager = ({
                         })}
                     </div>
                 ) : (
-                    <p className="text-sm text-tertiary/50 py-4 text-center">
+                    <p className="text-sm text-tertiary py-4 text-center">
                         No templates configured
                     </p>
                 )}

@@ -101,7 +101,7 @@ export const InjuryPopover = memo(function InjuryPopover({ injury, onClose, onRe
     >
       {/* Body region label */}
       {regionLabel && (
-        <p className="text-[9px] font-semibold text-themeredred/70 tracking-wider uppercase mb-1.5">
+        <p className="text-[9pt] md:text-[9pt] font-semibold text-themeredred/70 tracking-wider uppercase mb-1.5">
           {regionLabel}
         </p>
       )}
@@ -112,7 +112,7 @@ export const InjuryPopover = memo(function InjuryPopover({ injury, onClose, onRe
           <button
             key={t.value}
             onClick={() => updateInjury(injury.id, { type: t.value })}
-            className={`px-1.5 py-0.5 text-[9px] font-bold rounded-full border transition-all
+            className={`px-1.5 py-0.5 text-[9pt] md:text-[9pt] font-bold rounded-full border transition-all
               ${injury.type === t.value
                 ? 'text-white border-transparent'
                 : 'text-tertiary border-tertiary/20 hover:bg-tertiary/5'
@@ -137,13 +137,13 @@ export const InjuryPopover = memo(function InjuryPopover({ injury, onClose, onRe
       {/* Section 3: Treatment quick-add */}
       {suggested.length > 0 && (
         <div className="mb-2">
-          <p className="text-[8px] font-semibold text-tertiary/40 tracking-wider uppercase mb-1">Quick Add Treatment</p>
+          <p className="text-[9pt] md:text-[9pt] font-semibold text-tertiary tracking-wider uppercase mb-1">Quick Add Treatment</p>
           <div className="flex flex-wrap gap-1">
             {suggested.map((cat) => (
               <button
                 key={cat}
                 onClick={() => handleAddTreatment(cat)}
-                className="flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-medium rounded-md border border-themeredred/20 text-themeredred bg-themeredred/5 hover:bg-themeredred/10 transition-all"
+                className="flex items-center gap-0.5 px-1.5 py-0.5 text-[9pt] md:text-[9pt] font-medium rounded-md border border-themeredred/20 text-themeredred bg-themeredred/5 hover:bg-themeredred/10 transition-all"
               >
                 <Plus size={8} /> {TREATMENT_LABELS[cat]}
               </button>
@@ -155,14 +155,14 @@ export const InjuryPopover = memo(function InjuryPopover({ injury, onClose, onRe
       {/* Section 4: Linked treatments list */}
       {injury.treatmentLinks.length > 0 && (
         <div className="mb-2">
-          <p className="text-[8px] font-semibold text-tertiary/40 tracking-wider uppercase mb-1">Linked Treatments</p>
+          <p className="text-[9pt] md:text-[9pt] font-semibold text-tertiary tracking-wider uppercase mb-1">Linked Treatments</p>
           <div className="space-y-0.5">
             {injury.treatmentLinks.map((link) => (
-              <div key={link.treatmentId} className="flex items-center gap-1 text-[9px] text-tertiary">
+              <div key={link.treatmentId} className="flex items-center gap-1 text-[9pt] md:text-[9pt] text-tertiary">
                 <span className="px-1 py-0.5 rounded bg-green-500/10 text-green-700 font-medium">
                   {TREATMENT_LABELS[link.treatmentCategory]}
                 </span>
-                <span className="truncate flex-1 text-tertiary/60">{link.description}</span>
+                <span className="truncate flex-1 text-tertiary">{link.description}</span>
                 <button
                   onClick={() => unlinkTreatmentFromInjury(injury.id, link.treatmentId)}
                   className="p-0.5 hover:bg-themeredred/10 rounded transition-colors shrink-0"
@@ -177,10 +177,10 @@ export const InjuryPopover = memo(function InjuryPopover({ injury, onClose, onRe
 
       {/* Actions */}
       <div className="flex justify-between pt-1 border-t border-tertiary/10">
-        <button onClick={onRemove} className="text-[10px] text-themeredred flex items-center gap-0.5">
+        <button onClick={onRemove} className="text-[9pt] text-themeredred flex items-center gap-0.5">
           <X size={10} /> Remove
         </button>
-        <button onClick={onClose} className="text-[10px] text-themeblue2">Done</button>
+        <button onClick={onClose} className="text-[9pt] text-themeblue2">Done</button>
       </div>
     </div>
   )

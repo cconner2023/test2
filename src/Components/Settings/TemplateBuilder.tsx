@@ -23,7 +23,7 @@ interface TemplateBuilderProps {
 
 const nodeTypeIcon = (type: TemplateNode['type']) => {
     switch (type) {
-        case 'text':   return <Type size={12} className="text-tertiary/60" />;
+        case 'text':   return <Type size={12} className="text-tertiary" />;
         case 'step':   return <TextCursor size={12} className="text-themeblue2/70" />;
         case 'choice': return <ChevronDown size={12} className="text-themeblue2/70" />;
         case 'branch': return <GitBranch size={12} className="text-themepurple/70" />;
@@ -61,7 +61,7 @@ const nodePreview = (node: TemplateNode): string => {
 };
 
 const INPUT_CLASS =
-    'w-full text-sm px-3 py-2 rounded-lg border border-tertiary/10 bg-themewhite outline-none focus:border-themeblue2/30 text-primary placeholder:text-tertiary/30';
+    'w-full text-sm px-3 py-2 rounded-lg border border-tertiary/10 bg-themewhite outline-none focus:border-themeblue2/30 text-primary placeholder:text-tertiary';
 
 // ─── Main TemplateBuilder (recursive, tap-to-expand) ──────────────────
 
@@ -114,7 +114,7 @@ export const TemplateBuilder = ({ nodes, onChange, depth = 0, rootNodes }: Templ
 
             <div className="space-y-0.5">
                 {nodes.length === 0 && depth === 0 && (
-                    <p className="text-[10px] text-tertiary/50 text-center py-3">
+                    <p className="text-[9pt] text-tertiary text-center py-3">
                         No template nodes yet. Add blocks below.
                     </p>
                 )}
@@ -233,7 +233,7 @@ export const TemplateBuilder = ({ nodes, onChange, depth = 0, rootNodes }: Templ
                                         {Object.entries(node.branches).map(([optVal, optNodes]) => (
                                             <div key={optVal}>
                                                 <div className="flex items-center gap-2 mb-1">
-                                                    <span className="text-[10px] font-semibold text-themepurple">
+                                                    <span className="text-[9pt] font-semibold text-themepurple">
                                                         {optVal}
                                                     </span>
                                                     <div className="flex-1" />
@@ -276,7 +276,7 @@ export const TemplateBuilder = ({ nodes, onChange, depth = 0, rootNodes }: Templ
                                     <span className="absolute left-[-21px] top-[8px] w-2 h-2 rounded-full bg-themepurple/40 -translate-x-1/2 z-10" />
                                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-themepurple/10 bg-themepurple/3">
                                         <GitMerge size={10} className="text-themepurple/40" />
-                                        <span className="text-[10px] text-themepurple/40">
+                                        <span className="text-[9pt] text-themepurple/40">
                                             End branch{branchCount > 0 ? ` · ${branchCount} path${branchCount !== 1 ? 's' : ''}` : ''}
                                         </span>
                                     </div>
@@ -306,7 +306,7 @@ export const TemplateBuilder = ({ nodes, onChange, depth = 0, rootNodes }: Templ
                                     className="w-full flex items-center gap-2 text-left active:scale-95 transition-transform"
                                 >
                                     <span className="shrink-0">{nodeTypeIcon(node.type)}</span>
-                                    <span className="text-xs text-tertiary/70 flex-1 min-w-0 truncate">
+                                    <span className="text-xs text-tertiary flex-1 min-w-0 truncate">
                                         {nodePreview(node)}
                                     </span>
                                 </button>
@@ -378,7 +378,7 @@ export const TemplateBuilder = ({ nodes, onChange, depth = 0, rootNodes }: Templ
                                                                         options: vals,
                                                                     })
                                                                 }
-                                                                className="text-[10px] px-2 py-0.5 rounded-full bg-tertiary/8 text-tertiary/70 hover:bg-tertiary/15 transition-colors active:scale-95"
+                                                                className="text-[9pt] px-2 py-0.5 rounded-full bg-tertiary/8 text-tertiary hover:bg-tertiary/15 transition-colors active:scale-95"
                                                             >
                                                                 {key}: {vals.join(' | ')}
                                                             </button>
@@ -400,28 +400,28 @@ export const TemplateBuilder = ({ nodes, onChange, depth = 0, rootNodes }: Templ
                 <button
                     type="button"
                     onClick={() => handleAdd('text')}
-                    className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-md bg-tertiary/8 text-tertiary/70 hover:bg-tertiary/15 transition-colors active:scale-95"
+                    className="flex items-center gap-1 text-[9pt] px-2.5 py-1 rounded-md bg-tertiary/8 text-tertiary hover:bg-tertiary/15 transition-colors active:scale-95"
                 >
                     <Plus size={11} />Text
                 </button>
                 <button
                     type="button"
                     onClick={() => handleAdd('step')}
-                    className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-md bg-themeblue2/8 text-themeblue2/70 hover:bg-themeblue2/15 transition-colors active:scale-95"
+                    className="flex items-center gap-1 text-[9pt] px-2.5 py-1 rounded-md bg-themeblue2/8 text-themeblue2/70 hover:bg-themeblue2/15 transition-colors active:scale-95"
                 >
                     <Plus size={11} />Step
                 </button>
                 <button
                     type="button"
                     onClick={() => handleAdd('choice')}
-                    className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-md bg-themeblue2/8 text-themeblue2/70 hover:bg-themeblue2/15 transition-colors active:scale-95"
+                    className="flex items-center gap-1 text-[9pt] px-2.5 py-1 rounded-md bg-themeblue2/8 text-themeblue2/70 hover:bg-themeblue2/15 transition-colors active:scale-95"
                 >
                     <Plus size={11} />Choice
                 </button>
                 <button
                     type="button"
                     onClick={() => handleAdd('branch')}
-                    className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-md bg-themepurple/8 text-themepurple/70 hover:bg-themepurple/15 transition-colors active:scale-95"
+                    className="flex items-center gap-1 text-[9pt] px-2.5 py-1 rounded-md bg-themepurple/8 text-themepurple/70 hover:bg-themepurple/15 transition-colors active:scale-95"
                 >
                     <Plus size={11} />Branch
                 </button>

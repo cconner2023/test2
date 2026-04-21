@@ -156,7 +156,7 @@ export function TourTooltip({
         {/* Close button — top right */}
         <button
           onClick={onSkip}
-          className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center text-tertiary/40 hover:text-tertiary/70 active:scale-95 transition-all"
+          className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center text-tertiary hover:text-tertiary active:scale-95 transition-all"
           aria-label="Close tour"
         >
           <X size={14} />
@@ -173,7 +173,7 @@ export function TourTooltip({
           <div className="flex items-center gap-2">
             <button
               onClick={onTogglePlay}
-              className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary/50 hover:text-tertiary/80 active:scale-95 transition-all"
+              className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-tertiary active:scale-95 transition-all"
               aria-label={isPlaying ? 'Pause tour' : 'Play tour'}
             >
               {isPlaying && !isPausePoint ? <Pause size={13} /> : <Play size={13} />}
@@ -200,8 +200,8 @@ export function TourTooltip({
               onClick={onPrev}
               className={`w-7 h-7 rounded-full flex items-center justify-center active:scale-95 transition-all ${
                 currentStep > 0
-                  ? 'text-tertiary/60 hover:bg-tertiary/10'
-                  : 'text-tertiary/20 pointer-events-none'
+                  ? 'text-tertiary hover:bg-tertiary/10'
+                  : 'text-tertiary pointer-events-none'
               }`}
               aria-label="Previous step"
               disabled={currentStep === 0}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Building2, Users, Inbox, ChevronRight, ChevronDown, AlertTriangle, User } from 'lucide-react'
+import { Inbox, ChevronRight, ChevronDown, AlertTriangle, User } from 'lucide-react'
 import { listClinics, listAllUsers, getAllAccountRequests } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import { useInvalidation } from '../../stores/useInvalidationStore'
@@ -35,8 +35,10 @@ export function AdminSummary({
   const [users, setUsers] = useState<AdminUser[]>([])
   const [pendingCount, setPendingCount] = useState(0)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(async () => {
+    setLoading(true)
     const [clinicData, userData, requests] = await Promise.all([
       listClinics(),
       listAllUsers(),
@@ -45,6 +47,7 @@ export function AdminSummary({
     setClinics(clinicData)
     setUsers(userData)
     setPendingCount(requests.length)
+    setLoading(false)
   }, [])
 
   useEffect(() => { loadData() }, [loadData, gen])
@@ -149,15 +152,14 @@ export function AdminSummary({
           <div
             role="button"
             tabIndex={0}
-            className="flex items-center gap-2 flex-1 min-w-0"
+            className="flex items-center flex-1 min-w-0"
             onClick={() => onSelectClinic(node.clinic)}
             onKeyDown={e => { if (e.key === 'Enter') onSelectClinic(node.clinic) }}
           >
-            <Building2 size={14} className="text-themeblue3 shrink-0" />
             <span className="text-[10pt] font-medium text-primary truncate">{node.clinic.name}</span>
           </div>
 
-          <span className="text-[9px] font-normal text-tertiary/60 tabular-nums shrink-0">
+          <span className="text-[9pt] md:text-[9pt] font-normal text-tertiary tabular-nums shrink-0">
             {node.totalUserCount}
           </span>
         </div>
@@ -166,6 +168,8 @@ export function AdminSummary({
       </div>
     )
   }
+
+  if (loading) return null
 
   if (clinics.length === 0 && users.length === 0) {
     return (
@@ -183,9 +187,6 @@ export function AdminSummary({
           onClick={() => onSwitchTab('users')}
           className="flex items-center gap-2 w-full text-left active:scale-[0.98] transition-all"
         >
-          <span className="w-7 h-7 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
-            <Users size={14} className="text-themeblue3" />
-          </span>
           <span className="text-[10pt] text-primary flex-1">Users</span>
           <span className="text-[10pt] font-semibold text-primary tabular-nums">{users.length}</span>
         </button>
@@ -194,9 +195,6 @@ export function AdminSummary({
           onClick={() => onSwitchTab('clinics')}
           className="flex items-center gap-2 w-full text-left active:scale-[0.98] transition-all"
         >
-          <span className="w-7 h-7 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
-            <Building2 size={14} className="text-themeblue3" />
-          </span>
           <span className="text-[10pt] text-primary flex-1">Clinics</span>
           <span className="text-[10pt] font-semibold text-primary tabular-nums">{clinics.length}</span>
         </button>
@@ -254,7 +252,7 @@ export function AdminSummary({
 
       {/* Hierarchy header */}
       <div className="px-4 py-2.5">
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Hierarchy</p>
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Hierarchy</p>
       </div>
 
       {/* Clinic tree */}
@@ -270,7 +268,7 @@ export function AdminSummary({
         >
           <span className="w-[18px] shrink-0" />
           <span className="text-[10pt] font-medium text-primary">All Clinics</span>
-          <span className="text-[9px] font-normal text-tertiary/60 tabular-nums ml-auto">{users.length}</span>
+          <span className="text-[9pt] md:text-[9pt] font-normal text-tertiary tabular-nums ml-auto">{users.length}</span>
         </button>
 
         {roots.map(node => renderClinicRow(node, 0))}

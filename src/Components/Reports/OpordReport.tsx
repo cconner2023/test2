@@ -10,7 +10,7 @@ const rowCx = 'flex items-center justify-between border-b border-primary/6 last:
 function InlineRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className={rowCx}>
-      <span className="text-[10px] font-semibold text-tertiary/40 uppercase tracking-widest w-24 shrink-0">{label}</span>
+      <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-24 shrink-0">{label}</span>
       {children}
     </div>
   )
@@ -28,13 +28,13 @@ interface LabeledTextareaProps {
 function LabeledTextarea({ label, value, onChange, placeholder = '', rows = 2, last = false }: LabeledTextareaProps) {
   return (
     <div className={`px-4 py-3 ${last ? '' : 'border-b border-primary/6'}`}>
-      <p className="text-[10px] font-semibold text-tertiary/40 uppercase tracking-widest mb-1.5">{label}</p>
+      <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest mb-1.5">{label}</p>
       <textarea
         rows={rows}
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary/30 focus:outline-none resize-none"
+        className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
       />
     </div>
   )
@@ -79,7 +79,7 @@ export function OpordReport() {
             value={report.unit}
             onChange={e => update({ unit: e.target.value })}
             placeholder="Unit or callsign"
-            className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none text-sm"
+            className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm"
           />
         </InlineRow>
         <InlineRow label="DTG">
@@ -88,7 +88,7 @@ export function OpordReport() {
             value={report.dtg}
             onChange={e => update({ dtg: e.target.value })}
             placeholder="DDHHMMZMmmYY"
-            className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none text-sm"
+            className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm"
           />
         </InlineRow>
         <InlineRow label="Op Name">
@@ -97,7 +97,7 @@ export function OpordReport() {
             value={report.operationName ?? ''}
             onChange={e => update({ operationName: e.target.value })}
             placeholder="Operation name"
-            className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none text-sm"
+            className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm"
           />
         </InlineRow>
       </SectionCard>
@@ -160,7 +160,7 @@ export function OpordReport() {
               value={report.missionWho}
               onChange={e => update({ missionWho: e.target.value })}
               placeholder="Who conducts the mission"
-              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none text-sm"
+              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm"
             />
           </InlineRow>
           <InlineRow label="WHAT">
@@ -169,7 +169,7 @@ export function OpordReport() {
               value={report.missionWhat}
               onChange={e => update({ missionWhat: e.target.value })}
               placeholder="Task to be accomplished"
-              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none text-sm"
+              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm"
             />
           </InlineRow>
           <InlineRow label="WHEN">
@@ -178,7 +178,7 @@ export function OpordReport() {
               value={report.missionWhen}
               onChange={e => update({ missionWhen: e.target.value })}
               placeholder="DTG or time window"
-              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none text-sm"
+              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm"
             />
           </InlineRow>
           <InlineRow label="WHERE">
@@ -187,7 +187,7 @@ export function OpordReport() {
               value={report.missionWhere}
               onChange={e => update({ missionWhere: e.target.value.toUpperCase() })}
               placeholder="MGRS"
-              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none text-sm font-mono"
+              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm font-mono"
             />
           </InlineRow>
           <InlineRow label="WHY">
@@ -196,7 +196,7 @@ export function OpordReport() {
               value={report.missionWhy}
               onChange={e => update({ missionWhy: e.target.value })}
               placeholder="Purpose of the mission"
-              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none text-sm"
+              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm"
             />
           </InlineRow>
         </SectionCard>
@@ -221,7 +221,7 @@ export function OpordReport() {
           />
 
           {/* Subordinate Tasks */}
-          <p className="text-[10px] font-semibold text-tertiary/40 uppercase tracking-widest px-4 pt-3 pb-1">
+          <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest px-4 pt-3 pb-1">
             Tasks to Subordinate Units
           </p>
 
@@ -235,18 +235,18 @@ export function OpordReport() {
                 value={task.unit}
                 onChange={e => updateTask(i, { unit: e.target.value })}
                 placeholder="Unit"
-                className="w-20 shrink-0 bg-transparent text-sm text-primary placeholder:text-tertiary/30 focus:outline-none border-b border-primary/10"
+                className="w-20 shrink-0 bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none border-b border-primary/10"
               />
               <input
                 type="text"
                 value={task.task}
                 onChange={e => updateTask(i, { task: e.target.value })}
                 placeholder="Assigned task"
-                className="flex-1 bg-transparent text-sm text-primary placeholder:text-tertiary/30 focus:outline-none"
+                className="flex-1 bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none"
               />
               <button
                 onClick={() => removeTask(i)}
-                className="text-tertiary/40 hover:text-themeredred transition-colors active:scale-95 shrink-0"
+                className="text-tertiary hover:text-themeredred transition-colors active:scale-95 shrink-0"
               >
                 <X size={14} />
               </button>
@@ -336,7 +336,7 @@ export function OpordReport() {
               value={report.commandLocation}
               onChange={e => update({ commandLocation: e.target.value })}
               placeholder="Commander's location"
-              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none text-sm"
+              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm"
             />
           </InlineRow>
           <InlineRow label="Succession">
@@ -345,7 +345,7 @@ export function OpordReport() {
               value={report.successionOfCommand}
               onChange={e => update({ successionOfCommand: e.target.value })}
               placeholder="1st, 2nd, 3rd..."
-              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none text-sm"
+              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm"
             />
           </InlineRow>
           <InlineRow label="Primary Freq">
@@ -354,7 +354,7 @@ export function OpordReport() {
               value={report.freqPrimary}
               onChange={e => update({ freqPrimary: e.target.value })}
               placeholder="MHz"
-              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none text-sm"
+              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm"
             />
           </InlineRow>
           <InlineRow label="Alt Freq">
@@ -363,7 +363,7 @@ export function OpordReport() {
               value={report.freqAlternate}
               onChange={e => update({ freqAlternate: e.target.value })}
               placeholder="MHz"
-              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none text-sm"
+              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm"
             />
           </InlineRow>
           <InlineRow label="Call Signs">
@@ -372,7 +372,7 @@ export function OpordReport() {
               value={report.callSigns}
               onChange={e => update({ callSigns: e.target.value })}
               placeholder="Call sign list"
-              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none text-sm"
+              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm"
             />
           </InlineRow>
           <InlineRow label="Challenge / PW">
@@ -381,7 +381,7 @@ export function OpordReport() {
               value={report.challengePassword}
               onChange={e => update({ challengePassword: e.target.value })}
               placeholder="Challenge / password"
-              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary/30 focus:outline-none text-sm"
+              className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm"
             />
           </InlineRow>
           <LabeledTextarea
@@ -404,7 +404,7 @@ export function OpordReport() {
               onChange={e => update({ notes: e.target.value })}
               placeholder="Additional notes..."
               rows={2}
-              className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary/30 focus:outline-none resize-none"
+              className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
             />
           </div>
         </SectionCard>

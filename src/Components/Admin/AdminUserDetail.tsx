@@ -8,16 +8,16 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { KeyRound, LogOut, X, Check } from 'lucide-react'
+import { KeyRound, LogOut, X, Check, Building2, ChevronRight, Mail } from 'lucide-react'
 import type { Certification } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import type { Component } from '../../Data/User'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { UserRow } from '../UserRow'
 import { AdminCertsSection } from './AdminCertsSection'
-import { RoleBadge } from './adminUtils'
 import { TextInput, PickerInput, MultiPickerInput, UicPinInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
+import { formatLastActive, RoleBadge } from './adminUtils'
 import {
   listAllUsers,
   listClinics,
@@ -39,9 +39,9 @@ import { invalidate } from '../../stores/useInvalidationStore'
 
 interface AdminUserDetailProps {
   user: AdminUser | null
-  onBack: () => void
   onUserUpdated: (user: AdminUser) => void
   onCreated?: (userId: string) => void
+  onSelectClinic?: (clinic: AdminClinic) => void
   // Edit toolbar props (Settings pattern)
   editing: boolean
   onEditingChange: (editing: boolean) => void
@@ -50,20 +50,15 @@ interface AdminUserDetailProps {
   onPendingChangesChange?: (hasPending: boolean) => void
 }
 
-interface Feedback {
-  type: 'success' | 'error'
-  message: string
-}
-
 const AVAILABLE_ROLES = ['medic', 'supervisor', 'dev', 'provider'] as const
 
 // ─── Component ────────────────────────────────────────────────────────
 
 export function AdminUserDetail({
   user,
-  onBack: _onBack,
   onUserUpdated,
   onCreated,
+  onSelectClinic,
   editing,
   onEditingChange,
   saveRequested,
@@ -78,7 +73,13 @@ export function AdminUserDetail({
   const [allCerts, setAllCerts] = useState<Certification[]>([])
 
   // ── UI state ────────────────────────────────────────────────────────
-  const [feedback, setFeedback] = useState<Feedback | null>(null)
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+
+  useEffect(() => {
+    if (!feedback) return
+    const t = setTimeout(() => setFeedback(null), UI_TIMING.FEEDBACK_DURATION)
+    return () => clearTimeout(t)
+  }, [feedback])
 
   // Reset password inline
   const [resetPwActive, setResetPwActive] = useState(false)
@@ -108,8 +109,6 @@ export function AdminUserDetail({
   const [createPassword, setCreatePassword] = useState('')
 
   // ── Derived data ────────────────────────────────────────────────────
-  const clinicMap = useMemo(() => new Map(clinics.map((c) => [c.id, c])), [clinics])
-
   const userCerts = useMemo(() => {
     if (!user) return []
     return allCerts.filter((cert) => cert.user_id === user.id)
@@ -356,18 +355,8 @@ export function AdminUserDetail({
     <div className={saving ? 'opacity-50 pointer-events-none' : undefined}>
       {/* Feedback banner */}
       {feedback && (
-        <div className={`mb-4 px-4 py-3 rounded-2xl border text-sm flex items-center justify-between gap-2 ${
-          feedback.type === 'success'
-            ? 'bg-themegreen/10 border-themegreen/20 text-themegreen'
-            : 'bg-themeredred/10 border-themeredred/20 text-themeredred'
-        }`}>
-          <span>{feedback.message}</span>
-          <button
-            onClick={() => setFeedback(null)}
-            className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center active:scale-95 transition-all hover:bg-white/20"
-          >
-            <X size={14} />
-          </button>
+        <div className="mb-4">
+          <ErrorDisplay type={feedback.type} message={feedback.message} />
         </div>
       )}
 
@@ -392,7 +381,7 @@ export function AdminUserDetail({
                   className="w-11 h-11"
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-normal text-tertiary/70">{user!.email}</p>
+                  <p className="text-[9pt] font-normal text-tertiary">{user!.email}</p>
                 </div>
               </div>
             )}
@@ -413,7 +402,7 @@ export function AdminUserDetail({
             </div>
             {editComponent && <PickerInput value={editRank} onChange={setEditRank} options={componentRanks} placeholder="Rank" />}
             <div>
-              <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1.5 block">UIC</span>
+              <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-1.5 block">UIC</span>
               <UicPinInput value={editUic} onChange={setEditUic} spread />
             </div>
             <PickerInput value={editClinicId} onChange={setEditClinicId} options={clinicOptions} placeholder="Clinic" />
@@ -427,33 +416,56 @@ export function AdminUserDetail({
             />
           </div>
         ) : user ? (
-          <div>
-            <UserRow
-              avatarId={user.avatar_id}
-              firstName={user.first_name}
-              lastName={user.last_name}
-              middleInitial={user.middle_initial}
-              rank={user.rank}
-              lastActiveAt={user.last_active_at}
-              subtitle={[user.credential, user.roles?.join(' · '), user.clinic_id && clinicMap.has(user.clinic_id) ? clinicMap.get(user.clinic_id)!.name : null].filter(Boolean).join(' · ') || user.email}
-              size="md"
-              showChevron={false}
-              right={
-                <div className="flex gap-1 flex-wrap justify-end shrink-0">
-                  {user.roles?.map((role) => <RoleBadge key={role} role={role} />)}
-                </div>
-              }
-            />
-            {user.email && (
-              <p className="text-[11px] font-normal text-tertiary/50 -mt-1.5 mb-3 pl-[3.75rem] px-4">{user.email}</p>
+          <UserRow
+            avatarId={user.avatar_id}
+            firstName={user.first_name}
+            lastName={user.last_name}
+            middleInitial={user.middle_initial}
+            rank={user.rank}
+            lastActiveAt={user.last_active_at}
+            subtitle={[user.credential, user.uic, user.clinic_name, user.email].filter(Boolean).join(' · ')}
+            meta={user.roles?.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {user.roles.map(r => <RoleBadge key={r} role={r} />)}
+              </div>
             )}
-          </div>
+            size="md"
+            showChevron={false}
+            right={<span className="text-[9pt] text-tertiary/50 shrink-0">{formatLastActive(user.last_active_at)}</span>}
+          />
         ) : null}
       </div>
 
+      {/* Clinic card — view mode only, when user has a clinic */}
+      {!editing && !isCreateMode && user?.clinic_id && (() => {
+        const userClinic = clinics.find(c => c.id === user.clinic_id)
+        if (!userClinic) return null
+        return (
+          <div className="mt-3 rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => onSelectClinic?.(userClinic)}
+              disabled={!onSelectClinic}
+              className="flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5 disabled:cursor-default"
+            >
+              <span className="w-9 h-9 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
+                <Building2 size={18} className="text-themeblue2" />
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-primary truncate">{userClinic.name}</p>
+                {userClinic.uics.length > 0 && (
+                  <p className="text-[9pt] text-tertiary mt-0.5 truncate">{userClinic.uics.join(', ')}</p>
+                )}
+              </div>
+              {onSelectClinic && <ChevronRight size={16} className="text-tertiary shrink-0" />}
+            </button>
+          </div>
+        )
+      })()}
+
       {!isCreateMode && (
         <div className="mt-4">
-          <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">Certifications</p>
+          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Certifications</p>
           <AdminCertsSection
             userId={user!.id}
             certs={userCerts}
@@ -466,8 +478,24 @@ export function AdminUserDetail({
       {/* Actions section — hidden during edit mode */}
       {!editing && (
         <div className="mt-4">
-          <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">Actions</p>
+          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Actions</p>
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/10">
+
+            {/* Email row */}
+            {user?.email && (
+              <a
+                href={`mailto:${user.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(`${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n`)}`}
+                className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5 text-left"
+              >
+                <span className="w-9 h-9 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
+                  <Mail size={18} className="text-themeblue2" />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-primary">Email User</p>
+                  <p className="text-[9pt] text-tertiary mt-0.5 truncate">{user.email}</p>
+                </div>
+              </a>
+            )}
 
             {/* Reset Password row */}
             <div>
@@ -480,7 +508,7 @@ export function AdminUserDetail({
                 </span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-primary">Reset Password</p>
-                  <p className="text-[11px] text-tertiary/70 mt-0.5">Set a new password for this user</p>
+                  <p className="text-[9pt] text-tertiary mt-0.5">Set a new password for this user</p>
                 </div>
                 {resetPwSuccess && (
                   <span className="text-xs font-medium text-themegreen shrink-0">Reset.</span>
@@ -527,7 +555,7 @@ export function AdminUserDetail({
                 className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5 disabled:opacity-50 text-left"
               >
                 <span className="w-9 h-9 rounded-full bg-tertiary/10 flex items-center justify-center shrink-0">
-                  <LogOut size={18} className="text-tertiary/50" />
+                  <LogOut size={18} className="text-tertiary" />
                 </span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-primary">

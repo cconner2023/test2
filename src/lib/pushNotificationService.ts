@@ -76,9 +76,10 @@ export async function subscribeToPush(): Promise<ServiceResult> {
  */
 export async function resyncPushSubscription(): Promise<void> {
   try {
-    const storedToken = getStoredFcmToken()
-    if (!storedToken) return
+    // Notification permission must be granted — if not, there's nothing to resync.
+    if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') return
 
+    const storedToken = getStoredFcmToken()
     let tokenToSave = storedToken
 
     const messaging = await getFirebaseMessaging()
@@ -89,8 +90,7 @@ export async function resyncPushSubscription(): Promise<void> {
         serviceWorkerRegistration: registration,
       })
       if (freshToken) {
-        tokenToSave = freshToken
-        if (freshToken !== storedToken) {
+        if (storedToken && freshToken !== storedToken) {
           // Token rotated — remove the stale DB row before saving the new one
           // to prevent orphaned subscriptions from accumulating.
           try {
@@ -99,9 +99,16 @@ export async function resyncPushSubscription(): Promise<void> {
             })
           } catch { /* best-effort cleanup of rotated token */ }
           localStorage.setItem(FCM_TOKEN_KEY, freshToken)
+        } else if (!storedToken) {
+          // Token was missing from localStorage (e.g. wiped by session cleanup on iOS).
+          // Firebase still holds the valid device token — recover it.
+          localStorage.setItem(FCM_TOKEN_KEY, freshToken)
         }
+        tokenToSave = freshToken
       }
     }
+
+    if (!tokenToSave) return
 
     await supabase.rpc('save_push_subscription', {
       p_fcm_token: tokenToSave,

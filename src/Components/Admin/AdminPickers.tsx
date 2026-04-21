@@ -1,58 +1,6 @@
 import { useState } from 'react'
-import { X, Plus } from 'lucide-react'
+import { X } from 'lucide-react'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
-
-export const ChipInput = ({
-  label, values, onChange, placeholder, transform,
-}: {
-  label?: string; values: string[]; onChange: (vals: string[]) => void
-  placeholder?: string; transform?: (val: string) => string
-}) => {
-  const [inputValue, setInputValue] = useState('')
-
-  const addChip = () => {
-    const val = transform ? transform(inputValue.trim()) : inputValue.trim()
-    if (val && !values.includes(val)) {
-      onChange([...values, val])
-    }
-    setInputValue('')
-  }
-
-  const removeChip = (idx: number) => {
-    onChange(values.filter((_, i) => i !== idx))
-  }
-
-  return (
-    <div>
-      {label && <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">{label}</span>}
-      <div className="mt-1 flex flex-wrap gap-1.5 mb-2">
-        {values.map((val, idx) => (
-          <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-themeblue2/10 text-themeblue2 text-xs font-medium border border-themeblue2/30">
-            {val}
-            <button type="button" onClick={() => removeChip(idx)} className="hover:text-themeredred transition-colors">
-              <X size={12} />
-            </button>
-          </span>
-        ))}
-      </div>
-      <div className="flex gap-2">
-        <input
-          type="text" value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addChip() } }}
-          placeholder={placeholder}
-          className="flex-1 px-3 py-2 rounded-lg bg-themewhite2 text-primary text-sm
-                     border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                     transition-colors placeholder:text-tertiary/30"
-        />
-        <button type="button" onClick={addChip} disabled={!inputValue.trim()}
-          className="shrink-0 w-10 h-10 rounded-full bg-themeblue3 text-white flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all">
-          <Plus size={16} />
-        </button>
-      </div>
-    </div>
-  )
-}
 
 export const UserPicker = ({
   label, selectedIds, allUsers, onChange,
@@ -84,7 +32,7 @@ export const UserPicker = ({
 
   return (
     <div>
-      {label && <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">{label}</span>}
+      {label && <span className="text-xs font-medium text-tertiary uppercase tracking-wide">{label}</span>}
       <div className="mt-1 flex flex-wrap gap-1.5 mb-2">
         {selectedIds.map((id) => {
           const u = userMap.get(id)
@@ -107,7 +55,7 @@ export const UserPicker = ({
           placeholder="Search users by name or email..."
           className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-primary text-sm
                      border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                     transition-colors placeholder:text-tertiary/30"
+                     transition-colors placeholder:text-tertiary"
         />
         {open && filtered.length > 0 && (
           <div className="absolute z-10 mt-1 w-full rounded-lg bg-themewhite2 border border-tertiary/10 shadow-lg max-h-48 overflow-y-auto">
@@ -116,7 +64,7 @@ export const UserPicker = ({
                 onClick={() => addUser(u.id)}
                 className="w-full text-left px-3 py-2 text-sm hover:bg-themeblue2/10 active:scale-95 transition-all">
                 <span className="text-primary font-medium">{u.first_name} {u.last_name}</span>
-                <span className="text-tertiary/50 ml-2">{u.email}</span>
+                <span className="text-tertiary ml-2">{u.email}</span>
               </button>
             ))}
           </div>
@@ -153,7 +101,7 @@ export const ClinicPicker = ({
 
   return (
     <div>
-      {label && <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">{label}</span>}
+      {label && <span className="text-xs font-medium text-tertiary uppercase tracking-wide">{label}</span>}
       <div className="mt-1 flex flex-wrap gap-1.5 mb-2">
         {selectedIds.map((id) => {
           const c = clinicMap.get(id)
@@ -176,7 +124,7 @@ export const ClinicPicker = ({
           placeholder="Search clinics by name or UIC..."
           className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-primary text-sm
                      border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                     transition-colors placeholder:text-tertiary/30"
+                     transition-colors placeholder:text-tertiary"
         />
         {open && filtered.length > 0 && (
           <div className="absolute z-10 mt-1 w-full rounded-lg bg-themewhite2 border border-tertiary/10 shadow-lg max-h-48 overflow-y-auto">
@@ -185,7 +133,7 @@ export const ClinicPicker = ({
                 onClick={() => addClinic(c.id)}
                 className="w-full text-left px-3 py-2 text-sm hover:bg-themeblue2/10 active:scale-95 transition-all">
                 <span className="text-primary font-medium">{c.name}</span>
-                {c.uics.length > 0 && <span className="text-tertiary/50 ml-2">{c.uics.join(', ')}</span>}
+                {c.uics.length > 0 && <span className="text-tertiary ml-2">{c.uics.join(', ')}</span>}
               </button>
             ))}
           </div>

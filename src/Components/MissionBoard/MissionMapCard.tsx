@@ -167,7 +167,7 @@ export function MissionMapCard({ onClick, overlayFeatures, overlayId: _overlayId
         onClick={onClick}
       />
       {position && (
-        <span className="absolute top-1.5 left-1.5 z-[600] text-[9px] font-semibold px-1.5 py-0.5 rounded bg-themewhite/80 text-secondary pointer-events-none">
+        <span className="absolute top-1.5 left-1.5 z-[600] text-[9pt] md:text-[9pt] font-semibold px-1.5 py-0.5 rounded bg-themewhite/80 text-secondary pointer-events-none">
           GPS
         </span>
       )}

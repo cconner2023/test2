@@ -48,7 +48,7 @@ export const TemplateOverlay = ({
                     aria-label={isChoice && showDropdown ? 'Dismiss options' : 'End template'}
                     tabIndex={-1}
                 >
-                    <X size={14} className="text-tertiary/40" />
+                    <X size={14} className="text-tertiary" />
                 </button>
             </div>
 
@@ -65,7 +65,7 @@ export const TemplateOverlay = ({
                                     e.stopPropagation();
                                     onSelectOption(option);
                                 }}
-                                className={`text-[11px] px-2.5 py-1 rounded-full font-medium transition-colors ${
+                                className={`text-[9pt] px-2.5 py-1 rounded-full font-medium transition-colors ${
                                     isFocused
                                         ? isBranch
                                             ? 'bg-themepurple text-white ring-2 ring-themepurple/40'
@@ -88,7 +88,7 @@ export const TemplateOverlay = ({
                                 e.stopPropagation();
                                 onDismissDropdown();
                             }}
-                            className={`text-[11px] px-2.5 py-1 rounded-full font-medium transition-colors ${
+                            className={`text-[9pt] px-2.5 py-1 rounded-full font-medium transition-colors ${
                                 selectedChoiceIndex === filteredOptions.length
                                     ? 'bg-tertiary/30 text-tertiary ring-2 ring-tertiary/30'
                                     : 'bg-tertiary/10 text-tertiary hover:bg-tertiary/20'
@@ -103,12 +103,12 @@ export const TemplateOverlay = ({
 
             {/* Typing hint for step or dismissed choice dropdown */}
             {activeNode.type === 'step' && (
-                <p className="text-[10px] text-tertiary/50">
+                <p className="text-[9pt] text-tertiary">
                     Type your response, then press Enter to continue
                 </p>
             )}
             {isChoice && !showDropdown && (
-                <p className="text-[10px] text-tertiary/50">
+                <p className="text-[9pt] text-tertiary">
                     Type your response, then press Enter to continue
                 </p>
             )}

@@ -103,7 +103,7 @@ export function PropertyLocationTree({
     return result
   }, [locationChildrenMap])
 
-  const { roots, unassignedItems } = useMemo(() => {
+  const { roots, unassignedItems, memberNodes } = useMemo(() => {
     const childrenMap = new Map<string | null, LocalPropertyLocation[]>()
     for (const loc of locations) {
       const key = loc.parent_id ?? null
@@ -123,6 +123,7 @@ export function PropertyLocationTree({
 
     function buildNode(loc: LocalPropertyLocation): TreeNode {
       const children = (childrenMap.get(loc.id) ?? [])
+        .filter(l => !l.holder_user_id) // member-locations don't nest further
         .sort((a, b) => a.name.localeCompare(b.name))
         .map(buildNode)
       const nodeItems = (itemsByLocation.get(loc.id) ?? [])
@@ -130,11 +131,28 @@ export function PropertyLocationTree({
       return { location: loc, children, items: nodeItems }
     }
 
-    const rootLocations = (childrenMap.get(null) ?? []).sort((a, b) => a.name.localeCompare(b.name))
-    const roots = rootLocations.map(buildNode)
-    const unassignedItems = (itemsByLocation.get(null) ?? []).sort((a, b) => a.name.localeCompare(b.name))
+    // Member-locations are children of root — split them out for section rendering
+    const memberNodes: TreeNode[] = locations
+      .filter(l => !!l.holder_user_id)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(loc => ({
+        location: loc,
+        children: [],
+        items: (itemsByLocation.get(loc.id) ?? []).sort((a, b) => a.name.localeCompare(b.name)),
+      }))
 
-    return { roots, unassignedItems }
+    // Physical root locations = no parent AND no holder_user_id
+    const rootLocations = locations
+      .filter(l => !l.holder_user_id && (l.parent_id ?? null) === null)
+      .sort((a, b) => a.name.localeCompare(b.name))
+    const roots = rootLocations.map(buildNode)
+
+    // Unassigned = no location at all
+    const unassignedItems = items
+      .filter(i => !i.parent_item_id && !i.location_id)
+      .sort((a, b) => a.name.localeCompare(b.name))
+
+    return { roots, unassignedItems, memberNodes }
   }, [locations, items])
 
   // Helper to keep ref + state in sync
@@ -241,7 +259,7 @@ export function PropertyLocationTree({
     }
   }, { filterTaps: true, delay: 150 })
 
-  if (roots.length === 0 && unassignedItems.length === 0) {
+  if (roots.length === 0 && unassignedItems.length === 0 && memberNodes.length === 0) {
     return (
       <div className="px-6 py-8 text-center text-[10pt] text-tertiary">
         No locations or items yet.
@@ -256,11 +274,12 @@ export function PropertyLocationTree({
   }
 
   function renderNode(node: TreeNode, depth: number) {
+    const isMember = !!node.location.holder_user_id
     const hasChildren = node.children.length > 0 || node.items.length > 0
     const isCollapsed = collapsed.has(node.location.id)
     const totalItems = countAllItems(node)
-    const isDragSource = dragState?.id === node.location.id
-    const isDropTarget = dropTargetId === node.location.id
+    const isDragSource = !isMember && dragState?.id === node.location.id
+    const isDropTarget = !isMember && dropTargetId === node.location.id
     const isActive = activeLocationId === node.location.id
 
     return (
@@ -276,12 +295,14 @@ export function PropertyLocationTree({
                 ? 'bg-primary/5 border-l-2 border-l-primary/40'
                 : 'hover:bg-secondary/5'
           }`}
-          style={{ paddingLeft: `${24 + depth * 20}px` }}
-          data-drag-id={node.location.id}
-          data-drag-type="location"
-          data-drag-name={node.location.name}
-          data-drop-id={node.location.id}
-          onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation) setContextMenu({ type: 'location', id: node.location.id, x: e.clientX, y: e.clientY }) }}
+          style={{ paddingLeft: `${16 + depth * 20}px` }}
+          {...(!isMember && {
+            'data-drag-id': node.location.id,
+            'data-drag-type': 'location',
+            'data-drag-name': node.location.name,
+            'data-drop-id': node.location.id,
+          })}
+          onContextMenu={!isMember ? (e) => { e.preventDefault(); e.stopPropagation(); if (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation) setContextMenu({ type: 'location', id: node.location.id, x: e.clientX, y: e.clientY }) } : undefined}
         >
           {/* Chevron */}
           {hasChildren ? (
@@ -308,13 +329,13 @@ export function PropertyLocationTree({
 
           {/* Item count badge */}
           {totalItems > 0 && (
-            <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/60 shrink-0">
+            <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary shrink-0">
               {totalItems}
             </span>
           )}
 
-          {/* Inline edit controls */}
-          {editing && (
+          {/* Inline edit controls — real locations only */}
+          {!isMember && editing && (
             <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
               {onEditLocation && (
                 <button
@@ -351,7 +372,7 @@ export function PropertyLocationTree({
                   className={`flex items-center gap-2 w-full py-2 pr-6 transition-colors text-left cursor-pointer ${
                     isItemDragSource ? 'opacity-30' : 'hover:bg-secondary/5'
                   }`}
-                  style={{ paddingLeft: `${24 + (depth + 1) * 20 + 18}px` }}
+                  style={{ paddingLeft: `${16 + (depth + 1) * 20 + 18}px` }}
                   onClick={() => onSelectItem(item)}
                   onKeyDown={(e) => { if (e.key === 'Enter') onSelectItem(item) }}
                   onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (onDeleteItem || onAddItemAtLocation) setContextMenu({ type: 'item', id: item.id, x: e.clientX, y: e.clientY }) }}
@@ -364,7 +385,7 @@ export function PropertyLocationTree({
                   )}
                   <span className="text-[10pt] text-primary truncate flex-1">{item.name}</span>
                   {item.quantity > 0 && (
-                    <span className="text-[9pt] text-tertiary/60 tabular-nums shrink-0">
+                    <span className="text-[9pt] text-tertiary tabular-nums shrink-0">
                       {item.quantity}
                     </span>
                   )}
@@ -411,7 +432,7 @@ export function PropertyLocationTree({
               ? 'bg-primary/5 border-l-2 border-l-primary/40'
               : 'hover:bg-secondary/5'
           }`}
-          style={{ paddingLeft: '24px' }}
+          style={{ paddingLeft: '16px' }}
           onClick={onSelectAll}
           onKeyDown={(e) => { if (e.key === 'Enter') onSelectAll() }}
         >
@@ -420,6 +441,7 @@ export function PropertyLocationTree({
         </div>
       )}
 
+      {memberNodes.map((node) => renderNode(node, 0))}
       {roots.map((node) => renderNode(node, 0))}
 
       {/* Root drop zone — only visible when dragging a location */}
@@ -445,7 +467,7 @@ export function PropertyLocationTree({
                 ? 'bg-themeyellow/10 ring-1 ring-themeyellow/30'
                 : 'hover:bg-secondary/5'
             }`}
-            style={{ paddingLeft: '24px' }}
+            style={{ paddingLeft: '16px' }}
             data-drop-id="__unassigned__"
           >
             <button
@@ -455,7 +477,7 @@ export function PropertyLocationTree({
               {collapsed.has('__unassigned__') ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
             </button>
             <span className="text-[10pt] font-medium text-tertiary italic flex-1">Unassigned</span>
-            <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/60 shrink-0">
+            <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary shrink-0">
               {unassignedItems.length}
             </span>
           </div>
@@ -473,7 +495,7 @@ export function PropertyLocationTree({
                     className={`flex items-center gap-2 w-full py-2 pr-6 transition-colors text-left cursor-pointer ${
                       isItemDragSource ? 'opacity-30' : 'hover:bg-secondary/5'
                     }`}
-                    style={{ paddingLeft: `${24 + 20 + 18}px` }}
+                    style={{ paddingLeft: `${16 + 20 + 18}px` }}
                     onClick={() => onSelectItem(item)}
                     onKeyDown={(e) => { if (e.key === 'Enter') onSelectItem(item) }}
                     onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (onDeleteItem || onAddItemAtLocation) setContextMenu({ type: 'item', id: item.id, x: e.clientX, y: e.clientY }) }}
@@ -486,7 +508,7 @@ export function PropertyLocationTree({
                     )}
                     <span className="text-[10pt] text-primary truncate flex-1">{item.name}</span>
                     {item.quantity > 0 && (
-                      <span className="text-[9pt] text-tertiary/60 tabular-nums shrink-0">
+                      <span className="text-[9pt] text-tertiary tabular-nums shrink-0">
                         {item.quantity}
                       </span>
                     )}

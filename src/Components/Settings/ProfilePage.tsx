@@ -136,7 +136,7 @@ export const ProfilePage = ({
                             </button>
                             <button
                                 onClick={onAvatarClick}
-                                className="mt-1.5 text-[11px] font-medium text-themeblue2 active:opacity-70 transition-opacity"
+                                className="mt-1.5 text-[9pt] font-medium text-themeblue2 active:opacity-70 transition-opacity"
                             >
                                 Edit Photo
                             </button>
@@ -151,7 +151,7 @@ export const ProfilePage = ({
                             )}
                             {user?.id && (
                                 <div className="flex items-center gap-2 mt-2">
-                                    <span className="text-[11px] font-mono tracking-[0.2em] text-tertiary/60 select-all">
+                                    <span className="text-[9pt] font-mono tracking-[0.2em] text-tertiary select-all">
                                         {user.id.slice(0, 8).toUpperCase()}
                                     </span>
                                     <ActionIconButton
@@ -180,12 +180,12 @@ export const ProfilePage = ({
                             className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5"
                         >
                             <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                                <div className="text-tertiary/70">{item.icon}</div>
+                                <div className="text-tertiary">{item.icon}</div>
                             </div>
                             <span className="flex-1 text-left text-sm font-medium text-primary">
                                 {item.label}
                             </span>
-                            <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+                            <ChevronRight size={16} className="text-tertiary shrink-0" />
                         </button>
                     ))}
                 </div>

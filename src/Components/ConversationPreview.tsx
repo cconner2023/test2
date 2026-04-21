@@ -42,11 +42,11 @@ export function ConversationPreview({
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-primary truncate">{getDisplayName(medic)}</p>
             {unavailableReason ? (
-              <p className="text-[10px] text-thememuted">{UNAVAILABLE_LABELS[unavailableReason]}</p>
+              <p className="text-[9pt] text-thememuted">{UNAVAILABLE_LABELS[unavailableReason]}</p>
             ) : (
               <>
-                {medic.credential && <p className="text-[10px] text-tertiary/50">{medic.credential}</p>}
-                {medic.clinicName && <p className="text-[10px] text-tertiary/40">{medic.clinicName}</p>}
+                {medic.credential && <p className="text-[9pt] text-tertiary">{medic.credential}</p>}
+                {medic.clinicName && <p className="text-[9pt] text-tertiary">{medic.clinicName}</p>}
               </>
             )}
           </div>
@@ -65,7 +65,7 @@ export function ConversationPreview({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-primary truncate">{group.name}</p>
-            <p className="text-[10px] text-tertiary/50">{group.memberCount} members</p>
+            <p className="text-[9pt] text-tertiary">{group.memberCount} members</p>
           </div>
         </div>
         <MessageSnippets msgs={msgs} userId={userId} />
@@ -81,7 +81,7 @@ function MessageSnippets({ msgs, userId }: { msgs: DecryptedSignalMessage[]; use
 
   return (
     <div className="space-y-1.5">
-      <p className="text-[10px] font-semibold text-tertiary/50 uppercase tracking-wider mb-0.5">Recent</p>
+      <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider mb-0.5">Recent</p>
       {msgs.map(msg => {
         const isOwn = msg.senderId === userId
         const text = msg.plaintext
@@ -89,7 +89,7 @@ function MessageSnippets({ msgs, userId }: { msgs: DecryptedSignalMessage[]; use
         return (
           <div key={msg.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] px-2.5 py-1.5 rounded-xl text-xs leading-relaxed ${
-              isOwn ? 'bg-themeblue2/10 text-primary/80' : 'bg-primary/5 text-primary/80'
+              isOwn ? 'bg-themeblue2/10 text-primary' : 'bg-primary/5 text-primary'
             }`}>
               <p className="line-clamp-2">{text}</p>
             </div>

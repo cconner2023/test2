@@ -113,13 +113,13 @@ function TemplatePreview({ template, expanders, orderSets }: {
         <div className="space-y-2">
           {sections.map(s => (
             <div key={s.label}>
-              <p className="text-[10px] font-semibold text-tertiary/50 uppercase tracking-wider mb-0.5">{s.label}</p>
-              <p className="text-xs text-primary/80 leading-relaxed whitespace-pre-wrap line-clamp-4">{s.content}</p>
+              <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider mb-0.5">{s.label}</p>
+              <p className="text-xs text-primary leading-relaxed whitespace-pre-wrap line-clamp-4">{s.content}</p>
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-xs text-tertiary/50">Empty template</p>
+        <p className="text-xs text-tertiary">Empty template</p>
       )}
     </div>
   )
@@ -172,7 +172,7 @@ function TemplateRow({ template, onSelect, onPreview, isMobile }: {
         center={
           <>
             <p className="text-sm font-medium text-primary truncate">{template.name}</p>
-            <p className="text-[10px] text-tertiary/50 mt-0.5 truncate">{fieldPreview(template)}</p>
+            <p className="text-[9pt] text-tertiary mt-0.5 truncate">{fieldPreview(template)}</p>
           </>
         }
       />
@@ -215,7 +215,7 @@ export function ProviderTemplateList({ templates, onSelect, hideHeader }: Provid
     <div className="flex flex-col h-full">
       {!hideHeader && (
         <div className="px-3 pt-3 pb-2">
-          <p className="text-[9pt] font-semibold text-tertiary/60 uppercase tracking-wider">Templates</p>
+          <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider">Templates</p>
         </div>
       )}
       <div className={`flex-1 overflow-y-auto px-2 pb-3${hideHeader ? ' pt-2' : ''}`}>

@@ -130,8 +130,8 @@ export function BodyRegionSvg({ patientType, burnedRegions, onToggle }: Props) {
 
             {/* Labels outside SVG canvas */}
             <div className="flex justify-around mt-1" style={{ width: w }}>
-                <p className="text-[9px] font-semibold text-tertiary/50 uppercase tracking-widest">Posterior</p>
-                <p className="text-[9px] font-semibold text-tertiary/50 uppercase tracking-widest">Anterior</p>
+                <p className="text-[9pt] md:text-[9pt] font-semibold text-tertiary uppercase tracking-widest">Posterior</p>
+                <p className="text-[9pt] md:text-[9pt] font-semibold text-tertiary uppercase tracking-widest">Anterior</p>
             </div>
         </div>
     )

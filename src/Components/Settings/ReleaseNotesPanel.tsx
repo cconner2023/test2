@@ -24,7 +24,7 @@ const ReleaseNoteItem = ({ note }: { note: ReleaseNoteTypes }) => {
             <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
                 <Icon size={14} className={className} />
             </div>
-            <p className="text-sm text-primary/80 flex-1">{note.text}</p>
+            <p className="text-sm text-primary flex-1">{note.text}</p>
         </div>
     );
 };
@@ -49,11 +49,11 @@ export const ReleaseNotesPanel = () => {
                     return (
                         <div key={version}>
                             <div className="flex items-center gap-2 mb-2">
-                                <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
+                                <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
                                     Version {version}
                                 </p>
                                 {isLatest && (
-                                    <span className="text-[9px] font-semibold text-themeblue2 uppercase tracking-wide">
+                                    <span className="text-[9pt] md:text-[9pt] font-semibold text-themeblue2 uppercase tracking-wide">
                                         Latest
                                     </span>
                                 )}
@@ -67,7 +67,7 @@ export const ReleaseNotesPanel = () => {
                                 ))}
                                 {notes[0]?.date && (
                                     <div className="px-4 py-2 border-t border-themeblue3/10">
-                                        <p className="text-[11px] text-tertiary/60">{notes[0].date}</p>
+                                        <p className="text-[9pt] text-tertiary">{notes[0].date}</p>
                                     </div>
                                 )}
                             </div>

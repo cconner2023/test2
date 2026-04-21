@@ -43,7 +43,7 @@ export function MissionBoard({ event, medics, onClose, onSave }: MissionBoardPro
           <span className={`font-semibold text-primary leading-tight ${textSize}`}>
             Mission Board
           </span>
-          <span className="text-[10px] font-semibold tracking-widest uppercase text-tertiary/50 truncate">
+          <span className="text-[9pt] font-semibold tracking-widest uppercase text-tertiary truncate">
             {overlay?.name ?? 'No overlay linked'}
           </span>
         </div>
@@ -78,7 +78,7 @@ export function MissionBoard({ event, medics, onClose, onSave }: MissionBoardPro
             <span className={`text-themeredred font-medium ${textSize}`}>
               Failed to load overlay
             </span>
-            <span className={`text-tertiary/60 ${textSize}`}>{error}</span>
+            <span className={`text-tertiary ${textSize}`}>{error}</span>
           </div>
         )}
 
@@ -87,7 +87,7 @@ export function MissionBoard({ event, medics, onClose, onSave }: MissionBoardPro
             <div className="w-10 h-10 rounded-full bg-themeblue3/10 flex items-center justify-center">
               <Map className="w-5 h-5 text-themeblue3/50" />
             </div>
-            <p className={`text-tertiary/60 leading-snug ${textSize}`}>
+            <p className={`text-tertiary leading-snug ${textSize}`}>
               No map overlay linked. Edit the event to link an overlay.
             </p>
           </div>

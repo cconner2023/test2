@@ -82,7 +82,7 @@ export function ImportInputBar({
                     placeholder={placeholder}
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
-                    className={`w-full rounded-full py-2.5 px-4 border shadow-xs bg-themewhite2 focus:outline-none text-base text-primary placeholder:text-tertiary/30 transition-all duration-300 ${
+                    className={`w-full rounded-full py-2.5 px-4 border shadow-xs bg-themewhite2 focus:outline-none text-base text-primary placeholder:text-tertiary transition-all duration-300 ${
                         error ? 'border-themeredred/30' : 'border-themeblue1/30'
                     }`}
                 />

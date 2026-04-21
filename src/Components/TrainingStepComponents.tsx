@@ -13,8 +13,8 @@ export function StepCallout({ type, text }: { type: 'warning' | 'caution' | 'not
         <div className={`${s.bg} border ${s.border} rounded-md px-3 py-2 mt-1.5 flex items-start gap-2`}>
             {s.icon}
             <div>
-                <p className="text-[7pt] font-bold tracking-wider opacity-60">{s.label}</p>
-                <p className="text-xs text-primary/80">{text}</p>
+                <p className="text-[9pt] font-bold tracking-wider opacity-60">{s.label}</p>
+                <p className="text-xs text-primary">{text}</p>
             </div>
         </div>
     )
@@ -24,7 +24,7 @@ export function PerformanceStepItem({ step }: { step: PerformanceStep }) {
     return (
         <div className={`${step.isSubStep ? 'ml-6' : ''}`}>
             <div className="flex items-start gap-2 py-1.5">
-                <span className="text-[9pt] text-tertiary/50 font-mono w-6 shrink-0 text-right mt-px">
+                <span className="text-[9pt] text-tertiary font-mono w-6 shrink-0 text-right mt-px">
                     {step.number}
                 </span>
                 <p className="text-sm text-primary flex-1">{step.text}</p>

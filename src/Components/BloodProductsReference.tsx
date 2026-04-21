@@ -80,14 +80,14 @@ export function BloodProductsReference() {
                         >
                             <span className="text-xs font-medium text-primary">{section.title}</span>
                             {isCollapsed
-                                ? <ChevronDown size={14} className="text-tertiary/50 shrink-0" />
-                                : <ChevronUp size={14} className="text-tertiary/50 shrink-0" />
+                                ? <ChevronDown size={14} className="text-tertiary shrink-0" />
+                                : <ChevronUp size={14} className="text-tertiary shrink-0" />
                             }
                         </button>
                         {!isCollapsed && (
                             <div className="px-3 pb-3 space-y-2">
                                 {section.content.map((item, ci) => (
-                                    <p key={ci} className="text-[11px] text-secondary/80 leading-relaxed pl-2 border-l-2 border-themeblue2/15">
+                                    <p key={ci} className="text-[9pt] text-secondary leading-relaxed pl-2 border-l-2 border-themeblue2/15">
                                         {item}
                                     </p>
                                 ))}

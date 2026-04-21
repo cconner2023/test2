@@ -71,7 +71,7 @@ export const UserAcknowledgment = ({ onAccept, persistent }: UserAcknowledgmentP
             <div className="w-10 h-10 rounded-full bg-tertiary/10 flex items-center justify-center mb-3">
               <ShieldCheck size={20} className="text-tertiary" />
           </div>
-            <h1 className="text-[17px] font-semibold text-primary">User Acknowledgment</h1>
+            <h1 className="text-[13pt] font-semibold text-primary">User Acknowledgment</h1>
         </div>
 
         {/* Content */}

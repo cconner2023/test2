@@ -171,7 +171,7 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
 
         {/* Email display */}
         <div className="mb-4">
-          <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Account</span>
+          <span className="text-xs font-medium text-tertiary uppercase tracking-wide">Account</span>
           <p className="text-sm text-primary mt-0.5 truncate">{email}</p>
         </div>
 

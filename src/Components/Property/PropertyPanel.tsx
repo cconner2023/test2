@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react'
-import { X, List, MapIcon, Pencil, Trash2 } from 'lucide-react'
+import { X, List, MapIcon, Pencil, Trash2, Check } from 'lucide-react'
 import { Section, SectionCard } from '../Section'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { usePropertyStore } from '../../stores/usePropertyStore'
@@ -12,6 +12,7 @@ import { LoadingSpinner } from '../LoadingSpinner'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useClinicName } from '../../Hooks/useClinicNameResolver'
 import type { LocalPropertyItem, LocalPropertyLocation } from '../../Types/PropertyTypes'
+import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
 import { fetchLocationTags, upsertLocationTags } from '../../lib/propertyService'
 import { PropertyItemDetail } from './PropertyItemDetail'
 import { HeaderPill, PillButton } from '../HeaderPill'
@@ -24,7 +25,7 @@ interface PropertyPanelProps {
   selectedItem?: LocalPropertyItem | null
   onSelectItem: (item: LocalPropertyItem) => void
   onEditItem: () => void
-  onDeleteItem: (item: LocalPropertyItem) => void
+  onDeleteItem?: (item: LocalPropertyItem) => void
   onAddItem: () => void
   onBack: () => void
   isMobile?: boolean
@@ -33,8 +34,6 @@ interface PropertyPanelProps {
   onDrilldownChange?: (path: Array<{ id: string; name: string }>) => void
   locationListRef?: React.Ref<unknown>
   onSearchChange?: (query: string) => void
-  mobileLocationView?: boolean
-  onMobileLocationViewChange?: (active: boolean) => void
   onEnrollItem?: (item: LocalPropertyItem) => void
 }
 
@@ -53,8 +52,6 @@ export const PropertyPanel = memo(function PropertyPanel({
   onDrilldownChange,
   locationListRef,
   onSearchChange,
-  mobileLocationView = false,
-  onMobileLocationViewChange,
   onEnrollItem,
 }: PropertyPanelProps) {
   const store = usePropertyStore(
@@ -65,19 +62,20 @@ export const PropertyPanel = memo(function PropertyPanel({
       editingItem: s.editingItem,
       setEditingItem: s.setEditingItem,
       setDefaultLocationId: s.setDefaultLocationId,
-      visibleLocations: s.visibleLocations,
+      locations: s.locations,
       addLocation: s.addLocation,
       editLocation: s.editLocation,
       removeLocation: s.removeLocation,
       editItem: s.editItem,
       removeItem: s.removeItem,
       holders: s.holders,
+      clinicMembers: s.clinicMembers,
       rootLocationId: s.rootLocationId,
       bumpTagVersion: s.bumpTagVersion,
     })),
   )
 
-  const visibleLocations = store.visibleLocations()
+  const visibleLocations = store.locations.filter(l => l.name !== ROOT_LOCATION_NAME)
   const showLoading = useMinLoadTime(store.isLoading)
   const clinicName = useClinicName(store.clinicId) || 'Clinic'
 
@@ -120,6 +118,7 @@ export const PropertyPanel = memo(function PropertyPanel({
       parent_id: parentId,
       name: trimmed,
       photo_data: null,
+      holder_user_id: null,
       created_by: '',
     })
     if (result?.success && result.location) {
@@ -211,7 +210,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           }}
           placeholder={parentName ? `New area in ${parentName}…` : 'Location name'}
           autoFocus
-          className="flex-1 min-w-0 rounded-full py-2.5 px-4 border border-themeblue1/30 shadow-xs bg-themewhite2 focus:outline-none text-base text-primary placeholder:text-tertiary/30 transition-all duration-300"
+          className="flex-1 min-w-0 rounded-full py-2.5 px-4 border border-themeblue1/30 shadow-xs bg-themewhite2 focus:outline-none text-base text-primary placeholder:text-tertiary transition-all duration-300"
         />
         <button
           onClick={cancelForm}
@@ -247,7 +246,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           }}
           placeholder="Rename location"
           autoFocus
-          className="flex-1 min-w-0 rounded-full py-2.5 px-4 border border-themeblue1/30 shadow-xs bg-themewhite2 focus:outline-none text-base text-primary placeholder:text-tertiary/30 transition-all duration-300"
+          className="flex-1 min-w-0 rounded-full py-2.5 px-4 border border-themeblue1/30 shadow-xs bg-themewhite2 focus:outline-none text-base text-primary placeholder:text-tertiary transition-all duration-300"
         />
         <button
           onClick={() => setRenamingLocation(null)}
@@ -289,9 +288,9 @@ export const PropertyPanel = memo(function PropertyPanel({
     return (
       <>
         <div className="flex h-full">
-          <div className="w-[260px] shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50">
+          <div data-tour="property-locations" className="w-[260px] shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50">
             <div className="shrink-0 px-4 py-3 border-b border-primary/10 flex flex-col gap-2">
-              <p className="text-[10pt] font-medium text-tertiary/70 uppercase tracking-wide px-2">Locations</p>
+              <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide px-2">Locations</p>
               {onSearchChange && (
                 <SearchInput
                   value={searchQuery}
@@ -315,8 +314,8 @@ export const PropertyPanel = memo(function PropertyPanel({
                 onSelectAll={() => setDesktopLocationId(null)}
                 allSelected={!desktopLocationId}
                 onEditLocation={(loc) => setRenamingLocation({ id: loc.id, name: loc.name })}
-                onDeleteLocation={(locId) => setPendingDeleteLocId(locId)}
-                onDeleteItem={(item) => setPendingDeleteItem(item)}
+                onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
+                onDeleteItem={onDeleteItem ? (item) => setPendingDeleteItem(item) : undefined}
                 onAddChildLocation={handleAddChildLocation}
                 onAddItemAtLocation={handleAddItemAtLocation}
               />
@@ -327,7 +326,10 @@ export const PropertyPanel = memo(function PropertyPanel({
             {(() => {
               const desktopItems = store.items
                 .filter((i) => !i.parent_item_id)
-                .filter((i) => !desktopLocationId || i.location_id === desktopLocationId)
+                .filter((i) => {
+                  if (!desktopLocationId) return true
+                  return i.location_id === desktopLocationId
+                })
                 .filter((i) => {
                   if (!searchQuery.trim()) return true
                   const q = searchQuery.toLowerCase()
@@ -342,7 +344,7 @@ export const PropertyPanel = memo(function PropertyPanel({
               return (
                 <div className="flex-1 overflow-y-auto px-4 py-3">
                   {desktopItems.length === 0 ? (
-                    <p className="text-sm text-tertiary/40 text-center py-8">No items</p>
+                    <p className="text-sm text-tertiary text-center py-8">No items</p>
                   ) : (
                     <Section title="Items" count={desktopItems.length} className="">
                       <SectionCard>
@@ -357,7 +359,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                               <span className="text-xs text-secondary truncate max-w-[120px]">{item.serial_number}</span>
                             )}
                             {item.quantity > 1 && (
-                              <span className="text-xs font-medium px-1.5 py-0.5 rounded-full shrink-0 bg-tertiary/10 text-tertiary/60">
+                              <span className="text-xs font-medium px-1.5 py-0.5 rounded-full shrink-0 bg-tertiary/10 text-tertiary">
                                 {item.quantity}
                               </span>
                             )}
@@ -380,7 +382,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                   <p className="text-sm font-medium text-primary">Item Details</p>
                   <HeaderPill>
                     <PillButton icon={Pencil} iconSize={16} onClick={onEditItem} label="Edit" />
-                    <PillButton icon={Trash2} iconSize={16} variant="danger" onClick={() => onDeleteItem(selectedItem!)} label="Delete" />
+                    {onDeleteItem && <PillButton icon={Trash2} iconSize={16} variant="danger" onClick={() => onDeleteItem(selectedItem!)} label="Delete" />}
                     <PillButton icon={X} iconSize={16} onClick={onBack} label="Close" />
                   </HeaderPill>
                 </div>
@@ -442,7 +444,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   // Mobile layout
   return (
     <>
-      <div className="flex flex-col h-full overflow-hidden">
+      <div data-tour="property-locations" className="flex flex-col h-full overflow-hidden">
         {renderNewLocationForm()}
 
         <div className="flex-1 overflow-y-auto">
@@ -455,8 +457,8 @@ export const PropertyPanel = memo(function PropertyPanel({
             searchQuery={searchQuery}
             onSelectItem={handleSelectItem}
             onEditLocation={(loc) => setRenamingLocation({ id: loc.id, name: loc.name })}
-            onDeleteLocation={(locId) => setPendingDeleteLocId(locId)}
-            onDeleteItem={(item) => setPendingDeleteItem(item)}
+            onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
+            onDeleteItem={onDeleteItem ? (item) => setPendingDeleteItem(item) : undefined}
             onAddChildLocation={handleAddChildLocation}
             onAddItemAtLocation={handleAddItemAtLocation}
             onDrilldownChange={onDrilldownChange}

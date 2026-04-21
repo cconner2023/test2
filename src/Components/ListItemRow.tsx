@@ -58,7 +58,7 @@ export function UnreadBadge({ count }: { count: number }) {
   if (!count || count <= 0) return null
   return (
     <div className="w-5 h-5 rounded-full bg-themeblue2 flex items-center justify-center shrink-0">
-      <span className="text-[10px] font-bold text-white">{count > 9 ? '9+' : count}</span>
+      <span className="text-[9pt] font-bold text-white">{count > 9 ? '9+' : count}</span>
     </div>
   )
 }

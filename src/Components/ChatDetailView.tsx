@@ -92,7 +92,7 @@ function ForwardPicker({
       </div>
       <div className="flex-1 overflow-y-auto px-2 py-2">
         {sorted.length === 0 ? (
-          <p className="text-sm text-tertiary/50 text-center py-8">No contacts to forward to</p>
+          <p className="text-sm text-tertiary text-center py-8">No contacts to forward to</p>
         ) : (
           sorted.map(medic => (
             <ContactListItem key={medic.id} medic={medic} onClick={() => onSelect(medic)} />
@@ -360,7 +360,7 @@ export function ChatDetailView({
     if (requestFlow?.status === 'received') {
       return (
         <div className="shrink-0 px-4 py-3">
-          <p className="text-sm text-center text-tertiary/70 mb-2">
+          <p className="text-sm text-center text-tertiary mb-2">
             {requestFlow.peerName ?? 'This user'} wants to message you
           </p>
           <div className="flex items-center gap-3">
@@ -390,14 +390,14 @@ export function ChatDetailView({
             <div className="flex-1 flex items-center gap-2 min-w-0 bg-themewhite2 rounded-lg px-3 py-1.5">
               <div className="w-0.5 self-stretch rounded-full bg-themeblue2 shrink-0" />
               <div className="min-w-0">
-                <p className="text-[10px] font-medium text-themeblue2">Replying to</p>
-                <p className="text-[11px] text-tertiary/60 truncate">
+                <p className="text-[9pt] font-medium text-themeblue2">Replying to</p>
+                <p className="text-[9pt] text-tertiary truncate">
                   {(replyingTo.plaintext || 'Photo').slice(0, 60)}
                 </p>
               </div>
             </div>
             <button onClick={() => setReplyingTo(null)} className="p-1 rounded-full hover:bg-primary/5 active:scale-95 transition-all shrink-0">
-              <X size={14} className="text-tertiary/50" />
+              <X size={14} className="text-tertiary" />
             </button>
           </div>
         )}
@@ -450,7 +450,7 @@ export function ChatDetailView({
                   disabled={sending}
                   className="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all shrink-0"
                 >
-                  <Plus size={18} className="text-tertiary/60" />
+                  <Plus size={18} className="text-tertiary" />
                 </button>
               )}
               <div className="chat-input-bar relative flex flex-1 items-center rounded-2xl border border-themeblue3/10 shadow-xs bg-themewhite
@@ -465,8 +465,8 @@ export function ChatDetailView({
                     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
                   })}
                   placeholder={placeholder}
-                  className="w-full bg-transparent outline-none text-[16px] text-tertiary px-3.5 py-2.5
-                      rounded-2xl min-w-0 placeholder:text-tertiary/30 resize-none leading-snug"
+                  className="w-full bg-transparent outline-none text-[12pt] text-tertiary px-3.5 py-2.5
+                      rounded-2xl min-w-0 placeholder:text-tertiary resize-none leading-snug"
                   disabled={inputDisabled}
                 />
               </div>
@@ -484,7 +484,7 @@ export function ChatDetailView({
                   disabled={inputDisabled}
                   className="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all shrink-0"
                 >
-                  <Mic size={18} className="text-tertiary/60" />
+                  <Mic size={18} className="text-tertiary" />
                 </button>
               ) : null}
             </div>
@@ -506,7 +506,7 @@ export function ChatDetailView({
       <div className="px-4 py-3">
       {msgs.length === 0 ? (
         <div className="flex items-center justify-center h-full">
-          <p className="text-sm text-tertiary/40">{emptyLabel}</p>
+          <p className="text-sm text-tertiary">{emptyLabel}</p>
         </div>
       ) : (
         (() => {
@@ -537,7 +537,7 @@ export function ChatDetailView({
             dateSeparator = (
               <div className="flex items-center gap-3 my-3">
                 <div className="flex-1 border-b border-primary/8" />
-                <span className="text-[10px] font-medium text-tertiary/40 shrink-0">{label}</span>
+                <span className="text-[9pt] font-medium text-tertiary shrink-0">{label}</span>
                 <div className="flex-1 border-b border-primary/8" />
               </div>
             )
@@ -564,7 +564,7 @@ export function ChatDetailView({
               {isThreadRoot && msgs.length > 1 && (
                 <div className="flex items-center gap-2 my-2 px-2">
                   <div className="flex-1 border-b border-primary/10" />
-                  <span className="text-[10px] text-tertiary/40 shrink-0">
+                  <span className="text-[9pt] text-tertiary shrink-0">
                     {msgs.length - 1} {msgs.length - 1 === 1 ? 'reply' : 'replies'}
                   </span>
                   <div className="flex-1 border-b border-primary/10" />

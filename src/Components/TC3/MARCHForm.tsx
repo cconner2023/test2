@@ -12,7 +12,7 @@ import { getBodyRegion, getRegionLabel, getRegionCenter } from '../../Utilities/
 import { TC3BodyDiagramSvg } from './TC3BodyDiagramSvg'
 
 // ── Shared input / select classes ────────────────
-const inputCls = 'w-full px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary/30'
+const inputCls = 'w-full px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary'
 const selectCls = 'px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:outline-none transition-all'
 
 // ── Location region picker ────────────────────────
@@ -41,15 +41,15 @@ function LocationRegionPicker({
         onClick={() => setOpen(s => !s)}
         className="w-full px-4 py-2.5 rounded-full text-sm bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:outline-none transition-all flex items-center justify-between gap-2"
       >
-        <span className={value ? 'text-primary' : 'text-tertiary/30'}>{value || 'Select on diagram'}</span>
+        <span className={value ? 'text-primary' : 'text-tertiary'}>{value || 'Select on diagram'}</span>
         {value ? (
           <X
             size={14}
-            className="text-tertiary/40 shrink-0"
+            className="text-tertiary shrink-0"
             onClick={(e) => { e.stopPropagation(); onChange('', '') }}
           />
         ) : (
-          <MapPin size={14} className="text-tertiary/30 shrink-0" />
+          <MapPin size={14} className="text-tertiary shrink-0" />
         )}
       </button>
       {open && (
@@ -127,7 +127,7 @@ const MARCH_LABELS: Record<MarchCat, string> = { H: 'M', A: 'A', B: 'R', C: 'C' 
 /** Small dot used in the add-menu overlay */
 function MarchBadge({ cat }: { cat: MarchCat }) {
   return (
-    <span className={`text-[8px] font-bold w-4 h-4 rounded flex items-center justify-center shrink-0 ${MARCH_COLORS[cat]}`}>
+    <span className={`text-[9pt] md:text-[9pt] font-bold w-4 h-4 rounded flex items-center justify-center shrink-0 ${MARCH_COLORS[cat]}`}>
       {MARCH_LABELS[cat]}
     </span>
   )
@@ -137,7 +137,7 @@ function MarchBadge({ cat }: { cat: MarchCat }) {
 function MarchIcon({ cat }: { cat: MarchCat }) {
   return (
     <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-      <span className="text-xs font-bold text-tertiary/60">{MARCH_LABELS[cat]}</span>
+      <span className="text-xs font-bold text-tertiary">{MARCH_LABELS[cat]}</span>
     </div>
   )
 }
@@ -153,10 +153,10 @@ function PillSelector<T extends string>({ options, value, onChange }: { options:
       {options.map((opt) => (
         <button
           key={opt} type="button" onClick={() => onChange(opt)}
-          className={`px-3 py-1.5 rounded-full text-[10px] font-semibold border transition-all active:scale-95
+          className={`px-3 py-1.5 rounded-full text-[9pt] font-semibold border transition-all active:scale-95
             ${value === opt
               ? 'bg-themeblue3 text-white border-transparent'
-              : 'border-tertiary/15 text-tertiary/60 bg-tertiary/8 hover:bg-tertiary/12'
+              : 'border-tertiary/15 text-tertiary bg-tertiary/8 hover:bg-tertiary/12'
             }`}
         >
           {opt}
@@ -173,7 +173,7 @@ function InjuryBadge({ injuryId }: { injuryId?: string }) {
   if (!inj) return null
   const label = inj.bodyRegion ? getRegionLabel(inj.bodyRegion) : inj.type
   return (
-    <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-themeredred/10 text-themeredred font-medium whitespace-nowrap">
+    <span className="text-[9pt] md:text-[9pt] px-1.5 py-0.5 rounded-full bg-themeredred/10 text-themeredred font-medium whitespace-nowrap">
       {label}
     </span>
   )
@@ -730,7 +730,7 @@ export const MARCHForm = memo(function MARCHForm() {
             <input type="text" value={draftMed.dose}
               onChange={(e) => setDraftMed(d => ({ ...d, dose: e.target.value }))}
               placeholder="Dose"
-              className={`flex-1 px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary/30`} />
+              className={`flex-1 px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary`} />
             <select value={draftMed.route}
               onChange={(e) => setDraftMed(d => ({ ...d, route: e.target.value as MedRoute }))}
               className={selectCls}>
@@ -768,7 +768,7 @@ export const MARCHForm = memo(function MARCHForm() {
             <input type="text" value={draftFluid.volume}
               onChange={(e) => setDraftFluid(d => ({ ...d, volume: e.target.value }))}
               placeholder="Volume"
-              className={`flex-1 px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary/30`} />
+              className={`flex-1 px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary`} />
             <select value={draftFluid.route}
               onChange={(e) => setDraftFluid(d => ({ ...d, route: e.target.value as MedRoute }))}
               className={selectCls}>
@@ -799,7 +799,7 @@ export const MARCHForm = memo(function MARCHForm() {
             <input type="text" value={draftBlood.volume}
               onChange={(e) => setDraftBlood(d => ({ ...d, volume: e.target.value }))}
               placeholder="Volume"
-              className={`flex-1 px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary/30`} />
+              className={`flex-1 px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary`} />
             <select value={draftBlood.route}
               onChange={(e) => setDraftBlood(d => ({ ...d, route: e.target.value as MedRoute }))}
               className={selectCls}>
@@ -868,7 +868,7 @@ export const MARCHForm = memo(function MARCHForm() {
             <input type="text" value={draftMed.dose}
               onChange={(e) => setDraftMed(d => ({ ...d, dose: e.target.value }))}
               placeholder="Dose"
-              className={`flex-1 px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary/30`} />
+              className={`flex-1 px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary`} />
             <select value={draftMed.route}
               onChange={(e) => setDraftMed(d => ({ ...d, route: e.target.value as MedRoute }))}
               className={selectCls}>
@@ -1010,10 +1010,10 @@ export const MARCHForm = memo(function MARCHForm() {
         <MarchIcon cat={icon} />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-primary truncate">{primary}</p>
-          {secondary && <p className="text-[11px] text-secondary mt-0.5 truncate">{secondary}</p>}
+          {secondary && <p className="text-[9pt] text-secondary mt-0.5 truncate">{secondary}</p>}
         </div>
-        {trailing && <span className="text-[11px] text-secondary shrink-0">{trailing}</span>}
-        <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+        {trailing && <span className="text-[9pt] text-secondary shrink-0">{trailing}</span>}
+        <ChevronRight size={16} className="text-tertiary shrink-0" />
       </button>
     )
   }
@@ -1022,7 +1022,7 @@ export const MARCHForm = memo(function MARCHForm() {
     <div data-tour="tc3-march">
       {/* Header */}
       <div className="mb-2">
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
           Interventions
         </p>
       </div>
@@ -1031,10 +1031,10 @@ export const MARCHForm = memo(function MARCHForm() {
       {rows.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-6">
           <button ref={fabRef} type="button" onClick={handleFab}
-            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40">
+            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary">
             <Plus size={14} />
           </button>
-          <p className="text-[10px] text-tertiary/40">Add intervention</p>
+          <p className="text-[9pt] text-tertiary">Add intervention</p>
         </div>
       ) : (
         <>
@@ -1043,7 +1043,7 @@ export const MARCHForm = memo(function MARCHForm() {
           </div>
           <div className="flex justify-center items-center gap-2 pt-1">
             <button ref={fabRef} type="button" onClick={handleFab}
-              className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40">
+              className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary">
               <Plus size={14} />
             </button>
           </div>
@@ -1064,7 +1064,7 @@ export const MARCHForm = memo(function MARCHForm() {
                 <div key={cat} className="space-y-1.5">
                   <div className="flex items-center gap-1.5">
                     <MarchBadge cat={cat} />
-                    <span className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
+                    <span className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
                       {cat === 'H' ? 'Hemorrhage' : cat === 'A' ? 'Airway' : cat === 'B' ? 'Breathing' : 'Circulation'}
                     </span>
                   </div>

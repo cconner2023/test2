@@ -913,6 +913,7 @@ export type Database = {
           clinic_id: string
           created_at: string
           created_by: string
+          holder_user_id: string | null
           id: string
           name: string
           parent_id: string | null
@@ -923,6 +924,7 @@ export type Database = {
           clinic_id: string
           created_at?: string
           created_by: string
+          holder_user_id?: string | null
           id?: string
           name: string
           parent_id?: string | null
@@ -933,6 +935,7 @@ export type Database = {
           clinic_id?: string
           created_at?: string
           created_by?: string
+          holder_user_id?: string | null
           id?: string
           name?: string
           parent_id?: string | null

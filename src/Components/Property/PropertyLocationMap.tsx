@@ -7,24 +7,97 @@
  * LOD: nested zones become visible when their parent zone fills ≥80%
  * of the viewport (via canvasScale), or when the parent is selected.
  */
-import { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle, forwardRef } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle, forwardRef, memo } from 'react'
 import { flushSync } from 'react-dom'
-import { useSpring, animated } from '@react-spring/web'
-import { Pencil, Check, PenTool, ZoomIn, ZoomOut, Scissors, Merge, X, Copy, Camera, Trash2, Maximize2, Move } from 'lucide-react'
+import { Pencil, Check, PenTool, ZoomIn, ZoomOut, Scissors, Merge, X, Copy, Camera, Trash2, Maximize2, Move, ChevronRight, Plus, Package } from 'lucide-react'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { fetchAllLocationTags, fetchLocationTags, upsertLocationTags } from '../../lib/propertyService'
 import { buildTagIndex, findLCA } from '../../lib/tagIndex'
 import type { TagIndex } from '../../lib/tagIndex'
+import { ActionButton } from '../ActionButton'
 import { LocationTagPhoto } from './LocationTagPhoto'
 import { CanvasEditOverlay } from './CanvasEditOverlay'
 import type { CanvasEditHandle } from './CanvasEditOverlay'
 import { ConfirmDialog } from '../ConfirmDialog'
-import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { createLogger } from '../../Utilities/Logger'
 import type { LocalPropertyItem, LocalPropertyLocation, PropertyLocation, LocationTag } from '../../Types/PropertyTypes'
 
 const logger = createLogger('PropertyLocationMap')
+
+// ── EditItemPin — draggable item badge for zone edit mode ─────
+
+interface EditItemPinProps {
+  pin: LocationTag
+  item: LocalPropertyItem
+  containerRef: React.RefObject<HTMLDivElement | null>
+  onMove: (targetId: string, newX: number, newY: number) => void
+  onTap: (item: LocalPropertyItem) => void
+}
+
+const EditItemPin = memo(function EditItemPin({ pin, item, containerRef, onMove, onTap }: EditItemPinProps) {
+  const [dragOffset, setDragOffset] = useState<{ dx: number; dy: number } | null>(null)
+  const dragState = useRef<{ startX: number; startY: number; moved: boolean } | null>(null)
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    dragState.current = { startX: e.clientX, startY: e.clientY, moved: false }
+    setDragOffset({ dx: 0, dy: 0 })
+  }, [])
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragState.current) return
+    e.stopPropagation()
+    const dx = e.clientX - dragState.current.startX
+    const dy = e.clientY - dragState.current.startY
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) dragState.current.moved = true
+    setDragOffset({ dx, dy })
+  }, [])
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    if (!dragState.current) return
+    e.stopPropagation()
+    const wasMoved = dragState.current.moved
+    dragState.current = null
+    setDragOffset(null)
+
+    if (!wasMoved) { onTap(item); return }
+
+    const container = containerRef.current
+    if (!container) return
+    const rect = container.getBoundingClientRect()
+    const newX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+    const newY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height))
+    onMove(pin.target_id, newX, newY)
+  }, [item, onTap, onMove, pin.target_id, containerRef])
+
+  const isDragging = dragOffset !== null && (dragState.current?.moved ?? false)
+
+  return (
+    <div
+      className={['absolute z-30 select-none touch-none pointer-events-auto', isDragging ? 'cursor-grabbing' : 'cursor-grab'].join(' ')}
+      style={{
+        left: `${pin.x * 100}%`,
+        top: `${pin.y * 100}%`,
+        transform: dragOffset
+          ? `translate(calc(-50% + ${dragOffset.dx}px), calc(-50% + ${dragOffset.dy}px))`
+          : 'translate(-50%, -50%)',
+      }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+    >
+      <div className={['px-2 py-1 rounded-full text-[9pt] font-medium bg-themewhite3/95 text-primary border border-themeblue3/40 shadow-sm backdrop-blur-sm min-h-[28px] flex items-center gap-1 transition-transform', isDragging ? 'shadow-md scale-105' : 'active:scale-95'].join(' ')}>
+        <span className="whitespace-nowrap max-w-[90px] truncate">{item.name}</span>
+        {item.quantity > 1 && (
+          <span className="shrink-0 text-[8pt] font-semibold text-themeblue1 bg-themeblue3/15 px-1 rounded-full leading-tight">×{item.quantity}</span>
+        )}
+      </div>
+    </div>
+  )
+})
 
 // ── LOD helpers (pure functions, no hooks) ────────────────────
 
@@ -39,6 +112,13 @@ function flattenToWorld(tagIndex: TagIndex, rootId: string): LocationTag[] {
     for (const tag of tags) {
       const tw = tag.width ?? 0
       const th = tag.height ?? 0
+
+      if (tag.target_type === 'item') {
+        // Point badge — convert zone-relative coords to world space, no size, no recurse
+        result.push({ ...tag, x: px + tag.x * pw, y: py + tag.y * ph })
+        continue
+      }
+
       if (tw <= 0 || th <= 0) continue
 
       const wx = px + tag.x * pw
@@ -82,9 +162,10 @@ interface PropertyLocationMapProps {
   onEditItem?: (id: string, updates: { location_id?: string | null }) => Promise<unknown>
   onUpdateLocation?: (id: string, updates: Partial<PropertyLocation>) => Promise<unknown>
   onSelectItem?: (item: LocalPropertyItem) => void
+  onCreateItem?: () => void
 }
 
-export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapProps>(function PropertyLocationMap({ clinicId, clinicName, locations, items, onCreateLocation, onDeleteLocation, onEditItem, onUpdateLocation, onSelectItem }, ref) {
+export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapProps>(function PropertyLocationMap({ clinicId, clinicName, locations, items, onCreateLocation, onDeleteLocation, onEditItem, onUpdateLocation, onSelectItem, onCreateItem }, ref) {
   const store = usePropertyStore()
   const isMobile = useIsMobile()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -98,6 +179,10 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   const [editCanvasTags, setEditCanvasTags] = useState<LocationTag[]>([])
   const [pendingZoneDelete, setPendingZoneDelete] = useState<{ targetId: string; label: string } | null>(null)
   const editRef = useRef<CanvasEditHandle>(null)
+  const [editItemPins, setEditItemPins] = useState<LocationTag[]>([])
+  const editItemPinsRef = useRef<LocationTag[]>([])
+  editItemPinsRef.current = editItemPins
+  const editZoneOverlayRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ startX: number; startY: number; scrollX: number; scrollY: number; zoneId: string | null } | null>(null)
   /** Suppress the click event that follows a drag-to-pan or a handled zone tap */
   const suppressClickRef = useRef(false)
@@ -221,53 +306,52 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     })
   }, [allWorldTags, rootLocationId, canvasScale, store.selectedZoneId])
 
-  // ── Item pins: combine persisted item tags with auto-generated pins for untagged items ──
+  // ── Item pins: only for selected zone, deduplicated against stale persisted pins ──
+  // Stale pins arise when an item moves zones but its old pin persists in the old zone's
+  // canvas — flattenToWorld emits both old + new, causing duplicate badges.
   const visibleTagsWithPins: LocationTag[] = useMemo(() => {
-    if (!items || items.length === 0) return visibleTags
+    const selectedId = store.selectedZoneId
 
-    // Collect persisted item tags already in visibleTags
-    const taggedItemIds = new Set<string>()
-    for (const t of visibleTags) {
-      if (t.target_type === 'item') taggedItemIds.add(t.target_id)
-    }
+    // Build item→currentZone map to detect stale pins
+    const itemLocationMap = new Map<string, string>()
+    for (const item of items) itemLocationMap.set(item.id, item.location_id ?? '')
 
-    // For each zone in visibleTags, find items assigned there but without a pin
-    const zoneTags = visibleTags.filter((t) => (t.width ?? 0) > 0 && (t.height ?? 0) > 0)
-    const autoPins: LocationTag[] = []
+    // Strip item pins that are stale (item moved zones) or not in the selected zone
+    const baseTags = visibleTags.filter((t) => {
+      if (t.target_type !== 'item') return true
+      if (t.location_id !== selectedId) return false
+      return itemLocationMap.get(t.target_id) === t.location_id
+    })
 
-    for (const zone of zoneTags) {
-      const untagged = items.filter(
-        (item) => item.location_id === zone.target_id && !taggedItemIds.has(item.id),
-      )
-      if (untagged.length === 0) continue
+    if (!selectedId || items.length === 0) return baseTags
 
-      const cols = 3
-      const rows = Math.ceil(untagged.length / cols)
-      const zw = zone.width ?? 0
-      const zh = zone.height ?? 0
+    // Auto-pin items in the selected zone that have no saved pin
+    const taggedIds = new Set(baseTags.filter((t) => t.target_type === 'item').map((t) => t.target_id))
+    const selectedZone = baseTags.find((t) => (t.width ?? 0) > 0 && t.target_id === selectedId)
+    if (!selectedZone) return baseTags
 
-      untagged.forEach((item, i) => {
-        const col = i % cols
-        const row = Math.floor(i / cols)
-        const pinX = zone.x + ((col + 0.5) / cols) * zw
-        const pinY = zone.y + ((row + 0.5) / rows) * zh
-        autoPins.push({
-          id: `auto-${item.id}`,
-          location_id: zone.target_id,
-          target_type: 'item',
-          target_id: item.id,
-          x: pinX,
-          y: pinY,
-          width: null,
-          height: null,
-          label: item.name,
-        })
-      })
-    }
+    const untagged = items.filter((item) => item.location_id === selectedId && !taggedIds.has(item.id))
+    if (untagged.length === 0) return baseTags
 
-    if (autoPins.length === 0) return visibleTags
-    return [...visibleTags, ...autoPins]
-  }, [visibleTags, items])
+    const cols = 3
+    const rows = Math.ceil(untagged.length / cols)
+    const zw = selectedZone.width ?? 0
+    const zh = selectedZone.height ?? 0
+
+    const autoPins: LocationTag[] = untagged.map((item, i) => ({
+      id: `auto-${item.id}`,
+      location_id: selectedId,
+      target_type: 'item' as const,
+      target_id: item.id,
+      x: selectedZone.x + ((i % cols + 0.5) / cols) * zw,
+      y: selectedZone.y + ((Math.floor(i / cols) + 0.5) / rows) * zh,
+      width: null,
+      height: null,
+      label: item.name,
+    }))
+
+    return [...baseTags, ...autoPins]
+  }, [visibleTags, items, store.selectedZoneId])
 
   // ── Zoom to a world-coord rect { x, y, width, height } ──
   const zoomToRect = useCallback(
@@ -531,14 +615,41 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   }, [allWorldTags, executeNavigation, tagIndex])
 
   // ── Edit mode ──
-  const handleEnterEdit = useCallback(async () => {
+  const handleEnterEdit = useCallback(async (startDrawing = false) => {
     if (!rootLocationId) return
     // Edit the selected zone's canvas (nested) or root canvas
     const canvasId = store.selectedZoneId || rootLocationId
-    const tags = await fetchLocationTags(canvasId)
+    const allTags = await fetchLocationTags(canvasId)
+
+    // Separate zone tags from item pins — CanvasEditOverlay only processes zone tags
+    const zoneTags = allTags.filter((t) => t.target_type !== 'item')
     setEditCanvasId(canvasId)
-    setEditCanvasTags(tags)
-    setIsDrawing(false)
+    setEditCanvasTags(zoneTags)
+
+    // Load item pins for non-root zone edits; auto-place any items without a saved pin
+    if (canvasId !== rootLocationId) {
+      const savedPins = allTags.filter((t) => t.target_type === 'item')
+      const taggedIds = new Set(savedPins.map((p) => p.target_id))
+      const untaggedItems = itemsRef.current.filter((i) => i.location_id === canvasId && !taggedIds.has(i.id))
+      const cols = 3
+      const rows = Math.max(1, Math.ceil(untaggedItems.length / cols))
+      const autoPins: LocationTag[] = untaggedItems.map((item, idx) => ({
+        id: crypto.randomUUID(),
+        location_id: canvasId,
+        target_type: 'item' as const,
+        target_id: item.id,
+        x: ((idx % cols) + 0.5) / cols,
+        y: (Math.floor(idx / cols) + 0.5) / rows,
+        width: null,
+        height: null,
+        label: item.name,
+      }))
+      setEditItemPins([...savedPins, ...autoPins])
+    } else {
+      setEditItemPins([])
+    }
+
+    setIsDrawing(startDrawing)
     setIsResizing(false)
     setIsMoving(false)
     setIsEditing(true)
@@ -556,6 +667,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     setIsResizing(false)
     setIsMoving(false)
     setEditCanvasId(null)
+    setEditItemPins([])
     setNamingState(null)
     setNameInput('')
   }, [])
@@ -601,6 +713,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
             parent_id: parentId,
             name: tag.label,
             photo_data: null,
+            holder_user_id: null,
             created_by: '',
           })
           if (result?.success && result.location) {
@@ -625,7 +738,8 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         }
       }
 
-      const savedTags = await upsertLocationTags(canvasId, resolvedTags)
+      // Merge item pins back in so they aren't clobbered by the zone tag save
+      const savedTags = await upsertLocationTags(canvasId, [...resolvedTags, ...editItemPinsRef.current])
 
       // Optimistic: update tagIndex directly — no bumpTagVersion() here to avoid
       // racing reconcileLocationTagsWithServer with the Supabase push in upsertLocationTags
@@ -813,50 +927,19 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     return m
   }, [locations])
 
-  // ── Item pin move: persist new position for a dragged item pin ──
-  const handleItemPinMove = useCallback(
-    async (targetId: string, canvasId: string, newX: number, newY: number) => {
-      if (!tagIndex) return
-
-      // Find existing tag for this item in the canvas
-      const canvasPins = tagIndex.byCanvas.get(canvasId) ?? []
-      const existing = canvasPins.find((t) => t.target_type === 'item' && t.target_id === targetId)
-
-      const item = itemsRef.current.find((i) => i.id === targetId)
-      const updatedPin: LocationTag = existing
-        ? { ...existing, x: newX, y: newY }
-        : {
-            id: `item-pin-${targetId}`,
-            location_id: canvasId,
-            target_type: 'item',
-            target_id: targetId,
-            x: newX,
-            y: newY,
-            width: null,
-            height: null,
-            label: item?.name ?? targetId,
-          }
-
-      // Optimistic update
-      setTagIndex((prev) => {
-        if (!prev) return prev
-        const newByCanvas = new Map(prev.byCanvas)
-        const current = newByCanvas.get(canvasId) ?? []
-        const filtered = current.filter((t) => !(t.target_type === 'item' && t.target_id === targetId))
-        newByCanvas.set(canvasId, [...filtered, updatedPin])
-        return buildTagIndex(newByCanvas)
-      })
-
-      // All location tags for this canvas (zones + other item pins + updated pin)
-      const otherPins = canvasPins.filter((t) => !(t.target_type === 'item' && t.target_id === targetId))
-      await upsertLocationTags(canvasId, [...otherPins, updatedPin])
-    },
-    [tagIndex],
-  )
-
   const photoInputRef = useRef<HTMLInputElement>(null)
   const [photoTargetId, setPhotoTargetId] = useState<string | null>(null)
-  const [zoneMenu, setZoneMenu] = useState<{ targetId: string; x: number; y: number } | null>(null)
+  const [holderBlockName, setHolderBlockName] = useState<string | null>(null)
+  const [inlinePrompt, setInlinePrompt] = useState<{ mode: 'rename'; value: string } | null>(null)
+  const inlineInputRef = useRef<HTMLInputElement>(null)
+
+  // Focus inline prompt input when it opens; clear it when zone deselects
+  useEffect(() => {
+    if (inlinePrompt) setTimeout(() => inlineInputRef.current?.focus(), 50)
+  }, [inlinePrompt])
+  useEffect(() => {
+    if (!store.selectedZoneId) { setInlinePrompt(null) }
+  }, [store.selectedZoneId])
 
   const handlePhotoUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -877,11 +960,32 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
   const isZoomed = canvasScale > 1 / BASE_CANVAS_SCALE
 
-  // ── Toolbar expand/collapse spring (NavTop-style) ──
-  const toolbarSpring = useSpring({
-    progress: isEditing ? 1 : 0,
-    config: { tension: 260, friction: 26 },
-  })
+  // ── Rename selected zone (updates location name + tag label) ──
+  const handleRenameZoneConfirm = useCallback(async (newName: string) => {
+    if (!store.selectedZoneId || !newName.trim() || !onUpdateLocation) return
+    const trimmed = newName.trim()
+
+    await onUpdateLocation(store.selectedZoneId, { name: trimmed })
+
+    // Also update tag label so the canvas reflects the new name immediately
+    const tag = allWorldTags.find((t) => t.target_id === store.selectedZoneId)
+    if (tag && tagIndex) {
+      const parentCanvasTags = tagIndex.byCanvas.get(tag.location_id) ?? []
+      const updated = parentCanvasTags.map((t) =>
+        t.target_id === store.selectedZoneId ? { ...t, label: trimmed } : t,
+      )
+      await upsertLocationTags(tag.location_id, updated)
+      store.bumpTagVersion()
+    }
+  }, [store, allWorldTags, tagIndex, onUpdateLocation])
+
+  // ── Inline prompt confirm (rename only) ──
+  const handleInlineConfirm = useCallback(async () => {
+    if (!inlinePrompt?.value.trim()) return
+    const value = inlinePrompt.value.trim()
+    setInlinePrompt(null)
+    await handleRenameZoneConfirm(value)
+  }, [inlinePrompt, handleRenameZoneConfirm])
 
   /** Zoom anchored to viewport center — adjusts scroll so the same point stays centered. */
   const zoomBy = useCallback((factor: number) => {
@@ -1007,6 +1111,8 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   const totalW = contentW + padX * 2
   const totalH = contentH + padY * 2
 
+  const hasSelectedPhoto = store.selectedZoneId ? !!(photoMap?.get(store.selectedZoneId)) : false
+
   const selectedZoneLabel = store.selectedZoneId
     ? allWorldTags.find((t) => t.target_id === store.selectedZoneId)?.label
       ?? locations.find((l) => l.id === store.selectedZoneId)?.name
@@ -1065,6 +1171,38 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                       onNamingChange={setNamingState}
                     />
                   </div>
+                  {/* Item pin badges — draggable, zone-relative coords, z-index above edit overlay */}
+                  {editItemPins.length > 0 && (
+                    <div
+                      ref={editZoneOverlayRef}
+                      className="absolute z-20 pointer-events-none"
+                      style={{
+                        left: `${parentBounds.x * 100}%`,
+                        top: `${parentBounds.y * 100}%`,
+                        width: `${(parentBounds.width ?? 0) * 100}%`,
+                        height: `${(parentBounds.height ?? 0) * 100}%`,
+                      }}
+                    >
+                      {editItemPins.map((pin) => {
+                        const item = itemsRef.current.find((i) => i.id === pin.target_id)
+                        if (!item) return null
+                        return (
+                          <EditItemPin
+                            key={pin.target_id}
+                            pin={pin}
+                            item={item}
+                            containerRef={editZoneOverlayRef}
+                            onMove={(targetId, newX, newY) =>
+                              setEditItemPins((prev) =>
+                                prev.map((p) => (p.target_id === targetId ? { ...p, x: newX, y: newY } : p)),
+                              )
+                            }
+                            onTap={onSelectItem ?? (() => {})}
+                          />
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1101,21 +1239,22 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                   photoMap={photoMap}
                   items={items}
                   onItemTap={onSelectItem}
-                  onZoneMenu={onUpdateLocation ? (targetId, x, y) => setZoneMenu({ targetId, x, y }) : undefined}
-                  onItemPinMove={handleItemPinMove}
                 />
 
                 {!rootLocationId && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <p className="text-[10pt] text-tertiary/50">Loading canvas...</p>
+                    <p className="text-[10pt] text-tertiary">Loading canvas...</p>
                   </div>
                 )}
                 {rootLocationId && canvasTags.length === 0 && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="text-center space-y-1">
-                      <p className="text-[10pt] text-tertiary/60">No zones yet</p>
-                      <p className="text-[9pt] text-tertiary/40">Tap Edit to draw zones</p>
-                    </div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <button
+                      onClick={handleEnterEdit}
+                      className="text-center space-y-1 active:scale-95 transition-all"
+                    >
+                      <p className="text-[10pt] text-tertiary">No zones yet</p>
+                      <p className="text-[9pt] text-themeblue2">Tap to draw zones</p>
+                    </button>
                   </div>
                 )}
               </div>
@@ -1143,17 +1282,21 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
           </div>
         )}
 
-        {/* Floating toolbar — top-right, expanding pill + rename dropdown */}
-        <div className="absolute top-3 right-3 z-20 flex flex-col items-end">
-          {/* Toolbar pill */}
-          <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 flex items-center shadow-sm">
-            <animated.div
-              className="flex items-center overflow-hidden"
-              style={{
-                maxWidth: toolbarSpring.progress.to(p => `${p * 400}px`),
-                opacity: toolbarSpring.progress,
-              }}
-            >
+        {/* Edit entry — top-right, view mode only */}
+        {!isEditing && (
+          <button
+            onClick={() => handleEnterEdit()}
+            className="absolute top-3 right-3 z-20 w-9 h-9 rounded-full border border-tertiary/20 bg-themewhite shadow-sm flex items-center justify-center text-tertiary hover:text-primary hover:bg-primary/5 active:scale-95 transition-all"
+            title="Edit layout"
+          >
+            <Pencil size={14} />
+          </button>
+        )}
+
+        {/* Edit mode toolbar — only visible when editing */}
+        {isEditing && (
+          <div className="absolute top-3 right-3 z-20 flex flex-col items-end">
+            <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 flex items-center shadow-sm">
               <button
                 onClick={() => { setIsDrawing((d) => !d); setIsResizing(false); setIsMoving(false) }}
                 className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${isDrawing ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
@@ -1187,15 +1330,6 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                   title="Delete"
                 >
                   <Trash2 size={15} />
-                </button>
-              )}
-              {editSelectionCount === 1 && (
-                <button
-                  onClick={() => editRef.current?.renameSelected()}
-                  className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
-                  title="Rename"
-                >
-                  <Pencil size={15} />
                 </button>
               )}
               {editSelectionCount >= 1 && <div className="h-5 w-px shrink-0 bg-tertiary/15" />}
@@ -1234,121 +1368,155 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
               >
                 <X size={15} />
               </button>
-            </animated.div>
+              <button
+                onClick={() => editRef.current?.save()}
+                className="w-11 h-11 shrink-0 rounded-full flex items-center justify-center bg-themeblue3 text-white active:scale-95 transition-all"
+                title="Save"
+              >
+                <Check size={18} />
+              </button>
+            </div>
 
-            {/* Anchored edit/save button — stays in place, icon morphs */}
-            <button
-              onClick={isEditing ? () => editRef.current?.save() : handleEnterEdit}
-              className={`w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all ${isEditing ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
-              title={isEditing ? 'Save' : 'Edit'}
-            >
-              {isEditing ? <Check size={18} /> : <Pencil size={18} />}
-            </button>
+            {/* Name input for newly drawn zones — drops below the pill */}
+            {namingState && (
+              <div className="mt-1.5 flex items-center gap-2 w-[calc(100vw-2rem)] max-w-xs">
+                <input
+                  ref={nameInputRef}
+                  type="text"
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleExternalNameConfirm()
+                    if (e.key === 'Escape') handleExternalNameCancel()
+                  }}
+                  placeholder={namingState.existingLabel ? 'Rename zone' : 'Name this zone'}
+                  className="flex-1 min-w-0 rounded-full py-2.5 px-4 border border-themeblue1/30 shadow-xs bg-themewhite2 focus:outline-none text-base text-primary placeholder:text-tertiary transition-all duration-300"
+                />
+                <button
+                  onClick={handleExternalNameCancel}
+                  className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary active:scale-95 transition-all duration-300"
+                >
+                  <X size={20} />
+                </button>
+                <button
+                  onClick={handleExternalNameConfirm}
+                  disabled={!nameInput.trim()}
+                  className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-themeblue3 text-white border border-themeblue1/30 disabled:opacity-30 active:scale-95 transition-all duration-300"
+                >
+                  <Check size={20} />
+                </button>
+              </div>
+            )}
           </div>
+        )}
 
-          {/* Rename dropdown — expands below the toolbar pill */}
-          {namingState && (
-            <div className="mt-1.5 flex items-center gap-2 w-[calc(100vw-2rem)] max-w-xs">
-              <input
-                ref={nameInputRef}
-                type="text"
-                value={nameInput}
-                onChange={(e) => setNameInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleExternalNameConfirm()
-                  if (e.key === 'Escape') handleExternalNameCancel()
-                }}
-                placeholder={namingState.existingLabel ? 'Rename zone' : 'Name this zone'}
-                className="flex-1 min-w-0 rounded-full py-2.5 px-4 border border-themeblue1/30 shadow-xs bg-themewhite2 focus:outline-none text-base text-primary placeholder:text-tertiary/30 transition-all duration-300"
-              />
+        {/* Floating zone popover — right side, below FAB toolbar, visible when a zone is selected */}
+        {store.selectedZoneId && (!isEditing || !!inlinePrompt) && (
+          <div className="absolute top-[72px] right-3 z-10 w-52 max-h-[60%] flex flex-col rounded-xl border border-tertiary/15 bg-themewhite shadow-md overflow-hidden">
+            {/* Header: zone title + dismiss */}
+            <div className="shrink-0 flex items-center gap-1 px-3 py-2 bg-themewhite3/50 border-b border-primary/10">
+              <span className="text-[9pt] font-medium text-primary truncate flex-1">{selectedZoneLabel}</span>
               <button
-                onClick={handleExternalNameCancel}
-                className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary active:scale-95 transition-all duration-300"
+                onClick={() => store.selectZone(null)}
+                className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
               >
-                <X size={20} />
-              </button>
-              <button
-                onClick={handleExternalNameConfirm}
-                disabled={!nameInput.trim()}
-                className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-themeblue3 text-white border border-themeblue1/30 disabled:opacity-30 active:scale-95 transition-all duration-300"
-              >
-                <Check size={20} />
+                <X size={11} />
               </button>
             </div>
-          )}
-
-        </div>
-
-      </div>
-
-      {/* Bottom panel — always visible, card grid of one-level-deep sub-zones + items */}
-      <div className="shrink-0 border-t border-primary/10 max-h-[45%] flex flex-col">
-        <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-themewhite3/50">
-          {store.selectedZoneId && (
-            <>
-              <button
-                onClick={handleResetZoom}
-                className="text-[9pt] text-themeblue2 hover:text-themeblue2/80 active:scale-95 transition-all"
-              >
-                {clinicName}
-              </button>
-              <span className="text-[9pt] text-tertiary/30">/</span>
-            </>
-          )}
-          <span className="text-[9pt] font-medium text-primary truncate">{selectedZoneLabel}</span>
-        </div>
-        <div className="flex-1 overflow-y-auto px-3 pb-3">
-          {childZoneCards.length === 0 && contextItems.length === 0 ? (
-            <p className="text-[9pt] text-tertiary/40 text-center py-6">
-              {store.selectedZoneId ? 'Nothing here yet' : 'Tap Edit to draw zones'}
-            </p>
-          ) : (
-            <div className="grid grid-cols-4 gap-2 pt-1">
-              {/* Child location cards */}
-              {childZoneCards.map(({ location, tag }) => (
-                <button
-                  key={location.id}
-                  onClick={() => tag ? handleZoneTap(location.id) : store.selectZone(location.id)}
-                  className="rounded-lg border border-themeblue3/20 bg-themeblue3/5 overflow-hidden active:scale-95 transition-all group relative"
-                >
-                  {location.photo_data ? (
-                    <img src={location.photo_data} alt={location.name} className="w-full h-16 object-cover" draggable={false} />
-                  ) : (
-                    <div className="w-full h-16 bg-themeblue3/10" />
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto">
+              {childZoneCards.length === 0 && contextItems.length === 0 ? (
+                <p className="text-[9pt] text-tertiary text-center py-4 px-3">Nothing here yet</p>
+              ) : (
+                <>
+                  {/* Child zones — slim rows */}
+                  {childZoneCards.map(({ location, tag }) => {
+                    const itemCount = items.filter((i) => i.location_id === location.id).length
+                    return (
+                      <button
+                        key={location.id}
+                        onClick={() => tag ? handleZoneTap(location.id) : store.selectZone(location.id)}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-themeblue3/5 active:bg-themeblue3/10 transition-colors border-b border-primary/5 last:border-b-0"
+                      >
+                        <div className="w-2 h-2 rounded-sm bg-themeblue3/40 shrink-0" />
+                        <span className="text-[9pt] font-medium text-primary truncate flex-1 text-left">{location.name}</span>
+                        {itemCount > 0 && <span className="text-[9pt] text-tertiary shrink-0">{itemCount}</span>}
+                        <ChevronRight size={12} className="text-tertiary shrink-0" />
+                      </button>
+                    )
+                  })}
+                  {/* Divider */}
+                  {childZoneCards.length > 0 && contextItems.length > 0 && (
+                    <div className="h-px bg-primary/10 mx-3 my-0.5" />
                   )}
-                  {onUpdateLocation && (
-                    <div
-                      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => { e.stopPropagation(); triggerPhotoUpload(location.id) }}
+                  {/* Items */}
+                  {contextItems.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => onSelectItem?.(item)}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-tertiary/5 active:bg-tertiary/10 transition-colors border-b border-primary/5 last:border-b-0"
                     >
-                      <Camera size={12} className="text-white" />
-                    </div>
-                  )}
-                  <div className="px-2 py-1.5">
-                    <p className="text-[9pt] font-medium text-primary truncate">{location.name}</p>
-                  </div>
-                </button>
-              ))}
-              {/* Item cards */}
-              {contextItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => onSelectItem?.(item)}
-                  className="rounded-lg border border-tertiary/15 bg-themewhite2 overflow-hidden active:scale-95 transition-all"
-                >
-                  {item.photo_url ? (
-                    <img src={item.photo_url} alt={item.name} className="w-full h-16 object-cover" draggable={false} />
-                  ) : (
-                    <div className="w-full h-16 bg-tertiary/5" />
-                  )}
-                  <div className="px-2 py-1.5">
-                    <p className="text-[9pt] font-medium text-primary truncate">{item.name}</p>
-                  </div>
-                </button>
-              ))}
+                      <span className="text-[9pt] text-primary truncate flex-1 text-left">{item.name}</span>
+                      <ChevronRight size={12} className="text-tertiary shrink-0" />
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
-          )}
-        </div>
+
+            {/* Footer actions */}
+            <div className="shrink-0 border-t border-primary/10">
+              {inlinePrompt ? (
+                <div className="flex items-center gap-1.5 px-2 py-2">
+                  <input
+                    ref={inlineInputRef}
+                    type="text"
+                    value={inlinePrompt.value}
+                    onChange={(e) => setInlinePrompt((p) => p ? { ...p, value: e.target.value } : p)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleInlineConfirm()
+                      if (e.key === 'Escape') setInlinePrompt(null)
+                    }}
+                    placeholder="Rename zone"
+                    className="flex-1 min-w-0 rounded-full py-1.5 px-3 border border-themeblue1/30 bg-themewhite2 focus:outline-none text-[9pt] text-primary placeholder:text-tertiary/50 transition-all duration-300"
+                  />
+                  <button
+                    onClick={() => setInlinePrompt(null)}
+                    className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary active:scale-95 transition-all"
+                  >
+                    <X size={12} />
+                  </button>
+                  <button
+                    onClick={handleInlineConfirm}
+                    disabled={!inlinePrompt.value.trim()}
+                    className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+                  >
+                    <Check size={12} />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-around px-3 py-2">
+                  <ActionButton icon={Pencil} label="Rename zone" onClick={() => setInlinePrompt({ mode: 'rename', value: selectedZoneLabel })} />
+                  <ActionButton icon={Plus} label="Add child zone" onClick={() => handleEnterEdit(true)} />
+                  <ActionButton icon={Camera} label={hasSelectedPhoto ? 'Change photo' : 'Add photo'} onClick={() => triggerPhotoUpload(store.selectedZoneId!)} />
+                  {onCreateItem && <ActionButton icon={Package} label="New item" onClick={onCreateItem} />}
+                  {hasSelectedPhoto && <ActionButton icon={X} label="Remove photo" onClick={() => onUpdateLocation?.(store.selectedZoneId!, { photo_data: null })} />}
+                  <ActionButton
+                    icon={Trash2}
+                    label="Delete zone"
+                    onClick={() => {
+                      if (!store.selectedZoneId) return
+                      const loc = locations.find((l) => l.id === store.selectedZoneId)
+                      if (loc?.holder_user_id) { setHolderBlockName(loc.name); return }
+                      setPendingZoneDelete({ targetId: store.selectedZoneId, label: selectedZoneLabel })
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
 
       {/* Hidden file input for zone photo uploads */}
@@ -1360,34 +1528,6 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         onChange={handlePhotoUpload}
       />
 
-      {/* Zone ellipsis context menu */}
-      {zoneMenu && (() => {
-        const hasPhoto = !!photoMap?.get(zoneMenu.targetId)
-        const menuItems: ContextMenuItem[] = [
-          {
-            key: 'photo',
-            label: hasPhoto ? 'Change Photo' : 'Add Photo',
-            icon: Camera,
-            onAction: () => { triggerPhotoUpload(zoneMenu.targetId); setZoneMenu(null) },
-          },
-          ...(hasPhoto ? [{
-            key: 'remove-photo',
-            label: 'Remove Photo',
-            icon: Trash2,
-            destructive: true,
-            onAction: () => { onUpdateLocation?.(zoneMenu.targetId, { photo_data: null }); setZoneMenu(null) },
-          }] : []),
-        ]
-        return (
-          <ContextMenu
-            x={zoneMenu.x}
-            y={zoneMenu.y}
-            items={menuItems}
-            onClose={() => setZoneMenu(null)}
-          />
-        )
-      })()}
-
       {/* Cascade delete confirmation */}
       <ConfirmDialog
         visible={!!pendingZoneDelete}
@@ -1397,6 +1537,16 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         variant="danger"
         onConfirm={handleConfirmZoneDelete}
         onCancel={() => setPendingZoneDelete(null)}
+      />
+
+      {/* Member location — block delete */}
+      <ConfirmDialog
+        visible={!!holderBlockName}
+        title="Can't delete this location"
+        subtitle={`${holderBlockName} is an active clinic member. Remove them from the clinic to delete their location.`}
+        confirmLabel="Got it"
+        onConfirm={() => setHolderBlockName(null)}
+        onCancel={() => setHolderBlockName(null)}
       />
     </div>
   )

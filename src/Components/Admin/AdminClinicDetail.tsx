@@ -11,12 +11,10 @@ import { X, Plus } from 'lucide-react'
 import { UserRow } from '../UserRow'
 import { listClinics, listAllUsers, updateClinic, createClinic } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
-import { fetchAllCertifications } from '../../lib/certificationService'
-import type { Certification } from '../../Data/User'
 import { formatLastActive } from './adminUtils'
 import { TextInput, UicPinInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
-import { ChipInput, UserPicker, ClinicPicker } from './AdminPickers'
+import { UserPicker, ClinicPicker } from './AdminPickers'
 
 interface AdminClinicDetailProps {
   clinic: AdminClinic | null
@@ -43,7 +41,6 @@ const AdminClinicDetail = ({
 }: AdminClinicDetailProps) => {
   const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
-  const [allCerts, setAllCerts] = useState<Certification[]>([])
 
   // Edit state
   const [editName, setEditName] = useState('')
@@ -80,16 +77,14 @@ const AdminClinicDetail = ({
   const onClinicUpdatedRef = useRef(onClinicUpdated)
   onClinicUpdatedRef.current = onClinicUpdated
 
-  /** Load clinics, users, and certifications. */
+  /** Load clinics and users. */
   const loadData = useCallback(async () => {
-    const [fetchedClinics, fetchedUsers, certData] = await Promise.all([
+    const [fetchedClinics, fetchedUsers] = await Promise.all([
       listClinics(),
       listAllUsers(),
-      isCreateMode ? Promise.resolve([]) : fetchAllCertifications(),
     ])
     setClinics(fetchedClinics)
     setUsers(fetchedUsers)
-    setAllCerts(certData)
 
     if (!isCreateMode) {
       const refreshed = fetchedClinics.find((c) => c.id === clinic?.id)
@@ -204,26 +199,6 @@ const AdminClinicDetail = ({
     return result
   }, [assignedUsers, additionalUsers])
 
-  /** Certifications grouped by user_id for O(1) lookup */
-  const certsByUser = useMemo(() => {
-    const map = new Map<string, Certification[]>()
-    for (const cert of allCerts) {
-      const arr = map.get(cert.user_id) || []
-      arr.push(cert)
-      map.set(cert.user_id, arr)
-    }
-    return map
-  }, [allCerts])
-
-  const buildUserSubtitle = (user: AdminUser) => {
-    const userCerts = certsByUser.get(user.id) || []
-    const parts: string[] = []
-    if (user.credential) parts.push(user.credential)
-    userCerts.filter((c) => !c.is_primary).forEach((c) => parts.push(c.title))
-    parts.push(formatLastActive(user.last_active_at))
-    return parts.filter(Boolean).join(' · ')
-  }
-
   const renderUserRow = (user: AdminUser) => (
     <UserRow
       key={user.id}
@@ -233,7 +208,8 @@ const AdminClinicDetail = ({
       middleInitial={user.middle_initial}
       rank={user.rank}
       lastActiveAt={user.last_active_at}
-      subtitle={buildUserSubtitle(user)}
+      subtitle={user.credential || user.email || ''}
+      right={<span className="text-[9pt] text-tertiary/50 shrink-0">{formatLastActive(user.last_active_at)}</span>}
       onClick={() => onSelectUser?.(user)}
     />
   )
@@ -249,7 +225,7 @@ const AdminClinicDetail = ({
             <TextInput label="Name" value={editName} onChange={setEditName} placeholder="Clinic name..." />
             <TextInput label="Location" value={editLocation} onChange={setEditLocation} placeholder="Location..." />
             <div>
-              <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">UICs</span>
+              <span className="text-xs font-medium text-tertiary uppercase tracking-wide">UICs</span>
               {editUics.length > 0 && (
                 <div className="mt-1 flex flex-wrap gap-1.5 mb-2">
                   {editUics.map((val, idx) => (
@@ -285,12 +261,12 @@ const AdminClinicDetail = ({
           <div className="px-4 py-3">
             <p className="text-sm font-semibold text-primary">{clinic.name}</p>
             {clinic.location && (
-              <p className="text-[11px] text-tertiary/60 mt-0.5">{clinic.location}</p>
+              <p className="text-[9pt] text-tertiary mt-0.5">{clinic.location}</p>
             )}
             {clinic.uics.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-2">
                 {clinic.uics.map((uic) => (
-                  <span key={uic} className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themeyellow/10 text-themeyellow border-themeyellow/30">
+                  <span key={uic} className="inline-flex items-center px-1.5 py-0.5 rounded text-[9pt] md:text-[9pt] font-medium border bg-themeyellow/10 text-themeyellow border-themeyellow/30">
                     {uic}
                   </span>
                 ))}
@@ -301,14 +277,14 @@ const AdminClinicDetail = ({
                 {clinic.child_clinic_ids.map((cid) => {
                   const child = clinics.find((c) => c.id === cid)
                   return (
-                    <span key={cid} className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
+                    <span key={cid} className="inline-flex items-center px-1.5 py-0.5 rounded text-[9pt] md:text-[9pt] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
                       {child ? child.name : cid.slice(0, 8)}
                     </span>
                   )
                 })}
               </div>
             )}
-            <p className="text-[11px] text-tertiary/50 mt-2">
+            <p className="text-[9pt] text-tertiary mt-2">
               {assignedUsers.length} member{assignedUsers.length !== 1 ? 's' : ''}
             </p>
           </div>
@@ -318,7 +294,7 @@ const AdminClinicDetail = ({
       {/* Assigned Users */}
       {!isCreateMode && assignedUsers.length > 0 && (
         <div className="mt-4">
-          <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
+          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
             Assigned Users ({assignedUsers.length})
           </p>
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/10">
@@ -330,7 +306,7 @@ const AdminClinicDetail = ({
       {/* Additional Users — view mode only (edit mode has UserPicker in main card) */}
       {!isCreateMode && !editing && additionalOnly.length > 0 && (
         <div className="mt-4">
-          <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
+          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
             Additional Users ({additionalOnly.length})
           </p>
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/10">
@@ -342,11 +318,11 @@ const AdminClinicDetail = ({
       {/* Empty state */}
       {!isCreateMode && !editing && allClinicUsers.length === 0 && (
         <div className="text-center py-8 mt-4">
-          <p className="text-tertiary/60 text-sm">No users assigned to this clinic</p>
+          <p className="text-tertiary text-sm">No users assigned to this clinic</p>
         </div>
       )}
     </div>
   )
 }
 
-export default AdminClinicDetail
+export { AdminClinicDetail }

@@ -28,7 +28,7 @@ import type { MapViewHandle, PresenceMarker } from './MapView';
 import { useLocationPublisher } from '../../Hooks/useLocationPublisher';
 import { useCalendarStore } from '../../stores/useCalendarStore';
 import { MGRSConverter } from './MGRSConverter';
-import { OverlayList } from './OverlayList';
+import { OverlayPopover as OverlayList } from './OverlayList';
 import { FeatureEditor } from './FeatureEditor';
 import { resolveSearch } from './searchResolver';
 

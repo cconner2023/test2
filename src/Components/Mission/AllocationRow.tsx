@@ -35,7 +35,7 @@ export function AllocationRow({
           {itemName}
         </span>
         {personnelName && (
-          <span className="text-[10px] text-tertiary/50 truncate block mt-0.5">
+          <span className="text-[9pt] text-tertiary truncate block mt-0.5">
             {personnelName}
           </span>
         )}
@@ -44,11 +44,11 @@ export function AllocationRow({
       {/* Chips */}
       <div className="flex items-center gap-1 shrink-0">
         {waypointLabel && (
-          <span className="px-2 py-0.5 rounded-full bg-themeblue3/10 text-[10px] font-medium text-themeblue3 uppercase tracking-widest whitespace-nowrap">
+          <span className="px-2 py-0.5 rounded-full bg-themeblue3/10 text-[9pt] font-medium text-themeblue3 uppercase tracking-widest whitespace-nowrap">
             {waypointLabel}
           </span>
         )}
-        <span className="px-2 py-0.5 rounded-full bg-themegreen/10 text-[10px] font-medium text-themegreen uppercase tracking-widest whitespace-nowrap">
+        <span className="px-2 py-0.5 rounded-full bg-themegreen/10 text-[9pt] font-medium text-themegreen uppercase tracking-widest whitespace-nowrap">
           {ALLOCATION_ROLE_LABELS[allocation.role]}
         </span>
       </div>
@@ -57,7 +57,7 @@ export function AllocationRow({
       <button
         type="button"
         onClick={() => onRemove(allocation.item_id)}
-        className="shrink-0 p-1 rounded-full text-tertiary/30 hover:text-themeredred hover:bg-themeredred/10 transition-colors"
+        className="shrink-0 p-1 rounded-full text-tertiary hover:text-themeredred hover:bg-themeredred/10 transition-colors"
         aria-label="Remove allocation"
       >
         <X size={12} />

@@ -1,4 +1,4 @@
-import { LayoutDashboard, ListTodo, Map, BarChart2, CalendarDays, MessageSquare } from 'lucide-react'
+import { LayoutDashboard, ListTodo, Map, LayoutGrid, CalendarDays, MessageSquare } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useUserProfile } from '../../Hooks/useUserProfile'
 import type { OverviewWidgetId } from '../../Data/User'
@@ -10,21 +10,26 @@ import { useAuthStore } from '../../stores/useAuthStore'
 const WIDGET_ICONS: Record<OverviewWidgetId, LucideIcon> = {
     'task-list':   ListTodo,
     'map-overlay': Map,
-    'gantt':       BarChart2,
+    'kanban':      LayoutGrid,
     'week-view':   CalendarDays,
     'messages':    MessageSquare,
 }
 
-const WIDGET_ORDER: OverviewWidgetId[] = ['task-list', 'map-overlay', 'gantt', 'week-view', 'messages']
+const WIDGET_ORDER: OverviewWidgetId[] = ['task-list', 'map-overlay', 'kanban', 'week-view', 'messages']
 
-const DEFAULT_WIDGETS: OverviewWidgetId[] = ['gantt', 'messages']
+const DEFAULT_WIDGETS: OverviewWidgetId[] = ['kanban', 'messages']
 
 export function OverviewWidgetsPanel() {
     const { profile, updateProfile, syncProfileField } = useUserProfile()
     const isDevRole = useAuthStore(s => s.isDevRole)
 
     const isVisible = profile.overviewWidgets !== null
-    const active: OverviewWidgetId[] = profile.overviewWidgets ?? DEFAULT_WIDGETS
+    const VALID_IDS = new Set<string>(WIDGET_ORDER)
+    const active: OverviewWidgetId[] = Array.from(new Set(
+        (profile.overviewWidgets ?? DEFAULT_WIDGETS)
+            .map(id => (id as string) === 'gantt' ? 'kanban' : id)
+            .filter((id): id is OverviewWidgetId => VALID_IDS.has(id))
+    ))
 
     const save = (widgets: OverviewWidgetId[] | null) => {
         updateProfile({ overviewWidgets: widgets })
@@ -65,8 +70,8 @@ export function OverviewWidgetsPanel() {
                 {isVisible && (
                     <div>
                         <div className="flex items-center gap-2 mb-2">
-                            <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Widgets</p>
-                            <p className="text-[9pt] text-tertiary/50">{active.length} / 3</p>
+                            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Widgets</p>
+                            <p className="text-[9pt] text-tertiary">{active.length} / 3</p>
                         </div>
                         <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden" data-tour="mission-overview-widget-list">
                             {WIDGET_ORDER.filter(id => id !== 'map-overlay' || isDevRole).map((id, idx) => {
@@ -88,14 +93,14 @@ export function OverviewWidgetsPanel() {
                                         } ${idx > 0 ? 'border-t border-themeblue3/8' : ''}`}
                                     >
                                         <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${isOn ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                                            <Icon size={18} className={isOn ? 'text-themeblue2' : 'text-tertiary/50'} />
+                                            <Icon size={18} className={isOn ? 'text-themeblue2' : 'text-tertiary'} />
                                         </div>
                                         <div className="flex-1 min-w-0 text-left">
                                             <p className={`text-sm font-medium ${isOn ? 'text-primary' : 'text-tertiary'}`}>{meta.label}</p>
-                                            <p className="text-[11px] text-tertiary/70 mt-0.5">{meta.subtitle}</p>
+                                            <p className="text-[9pt] text-tertiary mt-0.5">{meta.subtitle}</p>
                                         </div>
                                         {meta.disabled ? (
-                                            <span className="text-[9px] text-tertiary/40 font-semibold uppercase tracking-wide">Soon</span>
+                                            <span className="text-[9pt] md:text-[9pt] text-tertiary font-semibold uppercase tracking-wide">Soon</span>
                                         ) : (
                                             <ToggleSwitch checked={isOn} />
                                         )}

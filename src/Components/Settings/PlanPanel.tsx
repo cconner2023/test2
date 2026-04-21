@@ -417,7 +417,7 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
                     <p className="text-xs text-tertiary leading-relaxed">
                         Manage order tags and order sets for the plan section of your notes.
                         {(clinicPlanOrderTags || clinicPlanOrderSets?.length) && (
-                            <span className="text-tertiary/50"> Includes clinic-wide items.</span>
+                            <span className="text-tertiary"> Includes clinic-wide items.</span>
                         )}
                     </p>
 
@@ -469,7 +469,7 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
                     <div className="flex items-center justify-between">
                         <div className="min-w-0">
                             <p className="text-sm font-medium text-primary truncate">{composing?.name}</p>
-                            <p className="text-[11px] text-tertiary/60">
+                            <p className="text-[9pt] text-tertiary">
                                 {composeSelectedCount > 0
                                     ? <><span className="font-medium text-themeblue2">{composeSelectedCount}</span> tag{composeSelectedCount !== 1 ? 's' : ''} selected</>
                                     : 'Select tags above'

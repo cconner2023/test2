@@ -115,7 +115,7 @@ export function CompetencyMatrix({
       </div>
 
       {searchQuery.trim() && (
-        <p className="text-[10px] text-tertiary/50 mb-2">
+        <p className="text-[9pt] text-tertiary mb-2">
           {sorted.length} result{sorted.length !== 1 ? 's' : ''}
         </p>
       )}
@@ -141,8 +141,8 @@ export function CompetencyMatrix({
                   className="w-full flex items-center gap-2 p-3 text-left hover:bg-tertiary/5 transition-colors"
                 >
                   {isExpanded
-                    ? <ChevronDown size={14} className="text-tertiary/40 flex-shrink-0" />
-                    : <ChevronRight size={14} className="text-tertiary/40 flex-shrink-0" />
+                    ? <ChevronDown size={14} className="text-tertiary flex-shrink-0" />
+                    : <ChevronRight size={14} className="text-tertiary flex-shrink-0" />
                   }
                   <span className="text-sm font-medium text-primary flex-1 min-w-0 truncate">
                     {formatMedicName(sc.medic)}
@@ -158,13 +158,13 @@ export function CompetencyMatrix({
                     {filteredAreas.map((area) => (
                       <div key={area.areaName}>
                         <div className="flex items-center gap-1.5 mb-1.5">
-                          <span className="text-tertiary/50">
+                          <span className="text-tertiary">
                             {subjectAreaIcons[area.areaName]}
                           </span>
                           <span className="text-xs font-medium text-primary flex-1 min-w-0 truncate">
                             {area.areaName}
                           </span>
-                          <span className="text-[10px] text-tertiary/50">
+                          <span className="text-[9pt] text-tertiary">
                             {area.passed}/{area.total}
                           </span>
                         </div>

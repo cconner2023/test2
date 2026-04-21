@@ -21,7 +21,7 @@ import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { GroupInfo } from '../../lib/signal/groupTypes'
 import { MissionMapCard } from './MissionMapCard'
 import {
-  TaskRow, GanttBody, statusMenuItems,
+  TaskRow, statusMenuItems,
   formatDateLabel, offsetDate, CATEGORY_STRIPE,
 } from './MissionGantt'
 import { DatePickerCalendar } from '../FormInputs'
@@ -75,11 +75,11 @@ function ConvRow({ entry, lastText, unread, isPinned, onTap, onContext }: {
           {isPinned && <Pin size={9} className="text-themeblue2 shrink-0" />}
           <p className="text-xs font-medium text-primary truncate">{name}</p>
         </div>
-        {lastText && <p className="text-[10px] text-secondary truncate">{lastText}</p>}
+        {lastText && <p className="text-[9pt] text-secondary truncate">{lastText}</p>}
       </div>
       {unread > 0 && (
         <div className="min-w-[18px] h-[18px] px-1 rounded-full bg-themeblue2 flex items-center justify-center shrink-0">
-          <span className="text-[9px] font-semibold text-white leading-none">{unread > 9 ? '9+' : unread}</span>
+          <span className="text-[9pt] md:text-[9pt] font-semibold text-white leading-none">{unread > 9 ? '9+' : unread}</span>
         </div>
       )}
     </div>
@@ -157,9 +157,9 @@ function MessagesWidget() {
         className="flex flex-col items-center justify-center gap-1.5 px-3 py-4 cursor-pointer active:bg-themeblue2/5"
         onClick={() => setShowMessagesDrawer(true)}
       >
-        <MessageSquare size={18} className="text-tertiary/30" />
+        <MessageSquare size={18} className="text-tertiary" />
         <span className="text-xs text-secondary">No conversations</span>
-        <span className="text-[10px] font-medium text-themeblue1">Open Messages</span>
+        <span className="text-[9pt] font-medium text-themeblue1">Open Messages</span>
       </div>
     )
   }
@@ -207,6 +207,30 @@ function MessagesWidget() {
   )
 }
 
+function KanbanCard({ event, onTap, onContext }: {
+  event: CalendarEvent
+  onTap: () => void
+  onContext: (x: number, y: number) => void
+}) {
+  const longPress = useLongPress(onContext)
+  const stripe = CATEGORY_STRIPE[event.category] ?? 'bg-tertiary/50'
+  const isDone = event.status === 'completed' || event.status === 'cancelled'
+  return (
+    <button
+      onClick={onTap}
+      onContextMenu={(e) => { e.preventDefault(); onContext(e.clientX, e.clientY) }}
+      {...longPress}
+      className={`flex items-stretch text-left rounded overflow-hidden border border-themeblue3/10 active:scale-[0.98] w-full ${isDone ? 'opacity-50' : ''}`}
+    >
+      <div className={`w-1 shrink-0 ${stripe}`} />
+      <div className="flex-1 min-w-0 px-1.5 py-1 bg-themewhite2">
+        <p className="text-[9pt] font-medium text-primary truncate leading-tight">{event.title}</p>
+        <p className="text-[9pt] text-secondary tabular-nums leading-tight">{event.start_time.slice(11, 16)}</p>
+      </div>
+    </button>
+  )
+}
+
 function getWeekDays(date: Date): Date[] {
   const d = new Date(date)
   const day = d.getDay()
@@ -243,7 +267,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   const [contextMenu, setContextMenu] = useState<{ event: CalendarEvent; x: number; y: number } | null>(null)
 
   const dateBtnRef = useRef<HTMLButtonElement>(null)
-  const ganttScrollRef = useRef<HTMLDivElement>(null)
+  const outerRef = useRef<HTMLDivElement>(null)
   const weekViewElRef = useRef<HTMLDivElement | null>(null)
   const [weekViewMounted, setWeekViewMounted] = useState(false)
   const weekViewRef = useCallback((el: HTMLDivElement | null) => {
@@ -316,6 +340,18 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
     }
   }, [weekViewMounted]) // re-run when week-view widget mounts/unmounts
 
+  // Block the parent ColumnA carousel from claiming any touch that starts within
+  // the mission board. stopPropagation prevents @use-gesture/react on the parent
+  // from seeing pointerdown — native overflow scroll on child elements (gantt) is
+  // unaffected because stopPropagation does not call preventDefault.
+  useEffect(() => {
+    const el = outerRef.current
+    if (!el) return
+    const onPointerDown = (e: PointerEvent) => { e.stopPropagation() }
+    el.addEventListener('pointerdown', onPointerDown)
+    return () => el.removeEventListener('pointerdown', onPointerDown)
+  }, [])
+
   const dateKey = toDateKey(selectedDate)
   const isToday = dateKey === toDateKey(new Date())
   const allDayEvents = events.filter(e => eventFallsOnDate(e, dateKey))
@@ -352,10 +388,13 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   if (!isAuthenticated) return null
   if (overviewWidgets === null) return null
 
-  const DEFAULT_WIDGETS: OverviewWidgetId[] = ['gantt', 'messages']
-  const widgets: OverviewWidgetId[] = (overviewWidgets ?? DEFAULT_WIDGETS).filter(
-    id => id !== 'map-overlay' || isDevRole
-  )
+  const DEFAULT_WIDGETS: OverviewWidgetId[] = ['kanban', 'messages']
+  const VALID_IDS: OverviewWidgetId[] = ['task-list', 'map-overlay', 'kanban', 'week-view', 'messages']
+  const widgets: OverviewWidgetId[] = Array.from(new Set(
+    (overviewWidgets ?? DEFAULT_WIDGETS)
+      .map(id => (id as string) === 'gantt' ? 'kanban' : id)
+      .filter((id): id is OverviewWidgetId => (VALID_IDS as string[]).includes(id))
+  )).filter(id => id !== 'map-overlay' || isDevRole)
 
   const renderWidget = (id: OverviewWidgetId) => {
     switch (id) {
@@ -368,7 +407,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
                 onClick={() => setShowCalendarDrawer(true)}
               >
                 <span className="text-xs text-secondary">No tasks today</span>
-                <span className="text-[10px] font-medium text-themeblue1">Open Calendar</span>
+                <span className="text-[9pt] font-medium text-themeblue1">Open Calendar</span>
               </div>
             ) : (
               <>
@@ -383,7 +422,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
                 {extraCount > 0 && (
                   <button
                     onClick={() => setShowCalendarDrawer(true)}
-                    className="text-[10px] font-medium text-secondary text-left pl-2 py-0.5 active:text-themeblue1"
+                    className="text-[9pt] font-medium text-secondary text-left pl-2 py-0.5 active:text-themeblue1"
                   >
                     +{extraCount} more
                   </button>
@@ -406,32 +445,65 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
           </div>
         )
 
-      case 'gantt':
+      case 'kanban': {
+        const cols = [
+          { id: 'pending', label: 'Pending', events: allDayEvents.filter(e => e.status === 'pending') },
+          { id: 'active',  label: 'Active',  events: allDayEvents.filter(e => e.status === 'in_progress') },
+          { id: 'done',    label: 'Done',    events: allDayEvents.filter(e => e.status === 'completed' || e.status === 'cancelled') },
+        ]
         return (
-          <div key="gantt" className="overflow-hidden">
-            <div className="h-[100px] overflow-hidden">
-              <GanttBody
-                scrollRef={ganttScrollRef}
-                events={events}
-                userId={userId}
-                onEventClick={handleEventClick}
-                onEventContextMenu={(event, x, y) => setContextMenu({ event, x, y })}
-                selectedDate={selectedDate}
-                onDateChange={setSelectedDate}
-              />
+          <div key="kanban" className="flex flex-col">
+            <div className="flex divide-x divide-themeblue3/8">
+              {cols.map(col => (
+                <div key={col.id} className="flex-1 min-w-0 flex items-center justify-center gap-1 px-2 py-1.5 border-b border-themeblue3/8">
+                  <span className="text-[9pt] font-semibold text-secondary uppercase tracking-wide leading-none">{col.label}</span>
+                  {col.events.length > 0 && (
+                    <span className="text-[9pt] text-tertiary tabular-nums">{col.events.length}</span>
+                  )}
+                </div>
+              ))}
             </div>
+            {allDayEvents.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-1 py-4 cursor-pointer active:bg-themeblue2/5" onClick={() => setShowCalendarDrawer(true)}>
+                <span className="text-xs text-secondary">No events {isToday ? 'today' : 'this day'}</span>
+                <span className="text-[9pt] font-medium text-themeblue1">Open Calendar</span>
+              </div>
+            ) : (
+              <div className="flex divide-x divide-themeblue3/8 min-h-[70px]">
+                {cols.map(col => (
+                  <div key={col.id} className="flex-1 min-w-0 flex flex-col gap-px p-1 overflow-y-auto" style={{ maxHeight: 160 }}>
+                    {col.events.length === 0 ? (
+                      <div className="flex items-center justify-center py-3">
+                        <span className="text-[9pt] text-tertiary/40">—</span>
+                      </div>
+                    ) : (
+                      col.events.map(event => (
+                        <KanbanCard
+                          key={event.id}
+                          event={event}
+                          onTap={() => handleEventClick(event.id)}
+                          onContext={(x, y) => setContextMenu({ event, x, y })}
+                        />
+                      ))
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )
+      }
 
       case 'week-view': {
         const weekDays = getWeekDays(selectedDate)
         const todayKey = toDateKey(new Date())
+        const weekHasEvents = weekDays.some(day => events.some(e => eventFallsOnDate(e, toDateKey(day))))
         return (
           <div key="week-view" ref={weekViewRef} className="px-3 pt-1.5 pb-2">
             <div className="grid grid-cols-7 mb-1">
               {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map((d, i) => (
                 <div key={i} className="flex justify-center">
-                  <span className="text-[9px] font-semibold uppercase text-secondary">{d}</span>
+                  <span className="text-[9pt] md:text-[9pt] font-semibold uppercase text-secondary">{d}</span>
                 </div>
               ))}
             </div>
@@ -470,17 +542,26 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
                             e.status === 'cancelled'   ? 'bg-themeredred' :
                             'bg-secondary/50'
                           }`} />
-                          <span className="text-[9px] leading-tight text-primary truncate">{e.title}</span>
+                          <span className="text-[9pt] md:text-[9pt] leading-tight text-primary truncate">{e.title}</span>
                         </div>
                       ))}
                       {dayEvents.length > 3 && (
-                        <span className="text-[10px] leading-tight text-secondary pl-1">+{dayEvents.length - 3}</span>
+                        <span className="text-[9pt] leading-tight text-secondary pl-1">+{dayEvents.length - 3}</span>
                       )}
                     </div>
                   </button>
                 )
               })}
             </div>
+            {!weekHasEvents && (
+              <div
+                className="flex flex-col items-center gap-0.5 pt-2 pb-1 cursor-pointer active:opacity-60"
+                onClick={() => setShowCalendarDrawer(true)}
+              >
+                <span className="text-[9pt] text-secondary">No events this week</span>
+                <span className="text-[9pt] font-medium text-themeblue1">Open Calendar</span>
+              </div>
+            )}
           </div>
         )
       }
@@ -498,7 +579,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   }
 
   return (
-    <div className="rounded-xl overflow-hidden border border-themeblue3/10 bg-themewhite2" data-tour="mission-overview-panel">
+    <div ref={outerRef} className="rounded-xl overflow-hidden border border-themeblue3/10 bg-themewhite2" data-tour="mission-overview-panel">
 
       {/* Header */}
       <div className="flex items-center px-2 py-1.5 border-b border-themeblue3/8">

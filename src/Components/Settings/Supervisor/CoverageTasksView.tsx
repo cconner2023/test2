@@ -30,7 +30,7 @@ type CompetencyStatus = 'GO' | 'NO_GO' | 'UNTESTED'
 const statusConfig: Record<CompetencyStatus, { label: string; className: string }> = {
   GO: { label: 'GO', className: 'bg-themegreen/10 text-themegreen' },
   NO_GO: { label: 'NO GO', className: 'bg-themeredred/10 text-themeredred' },
-  UNTESTED: { label: 'Untested', className: 'bg-tertiary/5 text-tertiary/50' },
+  UNTESTED: { label: 'Untested', className: 'bg-tertiary/5 text-tertiary' },
 }
 
 interface CoverageTasksViewProps {
@@ -157,7 +157,7 @@ export function CoverageTasksView({
       <div>
         <div className="mb-4">
           <p className="text-sm font-medium text-primary">{task.title}</p>
-          <p className="text-[8pt] text-tertiary/50 font-mono">{task.taskId}</p>
+          <p className="text-[9pt] text-tertiary font-mono">{task.taskId}</p>
           {cov && (
             <div className="flex items-center gap-2 mt-2">
               <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
@@ -173,7 +173,7 @@ export function CoverageTasksView({
           )}
         </div>
 
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Personnel
         </p>
         <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
@@ -190,11 +190,11 @@ export function CoverageTasksView({
                 <span className="text-sm text-primary min-w-0 truncate flex-1">
                   {formatMedicName(soldier)}
                 </span>
-                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${cfg.className}`}>
+                <span className={`text-[9pt] font-semibold px-2 py-0.5 rounded-full ${cfg.className}`}>
                   {cfg.label}
                 </span>
                 {testable && (
-                  <ChevronRight size={16} className="text-tertiary/30 shrink-0" />
+                  <ChevronRight size={16} className="text-tertiary shrink-0" />
                 )}
               </button>
             )
@@ -216,12 +216,12 @@ export function CoverageTasksView({
   if (preSelectedSoldier) {
     return (
       <div>
-        <p className="text-xs text-tertiary/60 mb-3">
+        <p className="text-xs text-tertiary mb-3">
           Select a task for <span className="font-medium text-primary">{formatMedicName(preSelectedSoldier)}</span>:
         </p>
 
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
-          {areaName} <span className="font-normal text-tertiary/50">({tasks.length})</span>
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
+          {areaName} <span className="font-normal text-tertiary">({tasks.length})</span>
         </p>
         <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
           {tasks.map((task, index) => {
@@ -244,21 +244,21 @@ export function CoverageTasksView({
                   <p className={`text-sm font-medium truncate ${testable ? 'text-primary' : 'text-tertiary'}`}>
                     {task.title}
                   </p>
-                  <p className="text-[8pt] text-tertiary/50 font-mono">
+                  <p className="text-[9pt] text-tertiary font-mono">
                     {task.taskId}
                   </p>
                   {!testable && (
-                    <p className="text-[8pt] text-tertiary/40 flex items-center gap-1 mt-0.5">
+                    <p className="text-[9pt] text-tertiary flex items-center gap-1 mt-0.5">
                       <Lock size={9} /> Not testable
                     </p>
                   )}
                 </div>
                 <div className="shrink-0 ml-2 flex items-center gap-2">
-                  <span className="px-1.5 py-0.5 rounded text-[8pt] font-semibold bg-themeblue3/10 text-tertiary/60">
+                  <span className="px-1.5 py-0.5 rounded text-[9pt] font-semibold bg-themeblue3/10 text-tertiary">
                     {badge}
                   </span>
                   {testable && (
-                    <ChevronRight size={16} className="text-tertiary/30" />
+                    <ChevronRight size={16} className="text-tertiary" />
                   )}
                 </div>
               </button>
@@ -286,7 +286,7 @@ export function CoverageTasksView({
 
   return (
     <div data-tour="supervisor-task-list">
-      <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
+      <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
         {areaName}
       </p>
       <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
@@ -312,11 +312,11 @@ export function CoverageTasksView({
                   {task.title}
                 </p>
                 <div className="flex items-center gap-2 mt-1">
-                  <p className="text-[8pt] text-tertiary/50 font-mono shrink-0">
+                  <p className="text-[9pt] text-tertiary font-mono shrink-0">
                     {task.taskId}
                   </p>
                   {!testable && (
-                    <p className="text-[8pt] text-tertiary/40 flex items-center gap-1">
+                    <p className="text-[9pt] text-tertiary flex items-center gap-1">
                       <Lock size={9} /> Not testable
                     </p>
                   )}
@@ -336,11 +336,11 @@ export function CoverageTasksView({
                 )}
               </div>
               <div className="shrink-0 ml-2 flex items-center gap-2">
-                <span className="px-1.5 py-0.5 rounded text-[8pt] font-semibold bg-themewhite2 text-tertiary/60">
+                <span className="px-1.5 py-0.5 rounded text-[9pt] font-semibold bg-themewhite2 text-tertiary">
                   {badge}
                 </span>
                 {testable && (
-                  <ChevronRight size={16} className="text-tertiary/30" />
+                  <ChevronRight size={16} className="text-tertiary" />
                 )}
               </div>
             </button>

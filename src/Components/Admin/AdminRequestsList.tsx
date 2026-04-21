@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Clock, Building2, Trash2, UserCheck, Eye, X, HelpCircle, Check, RefreshCw } from 'lucide-react'
+import { Clock, Building2, Trash2, UserCheck, Eye, X, HelpCircle, Check, RefreshCw, Mail } from 'lucide-react'
 import { TextInput, PickerInput, MultiPickerInput, UicPinInput } from '../FormInputs'
 import { EmptyState } from '../EmptyState'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
@@ -25,7 +25,7 @@ import {
 } from '../../lib/adminService'
 import type { AdminClinic } from '../../lib/adminService'
 import type { AccountRequest } from '../../lib/accountRequestService'
-import { invalidate } from '../../stores/useInvalidationStore'
+import { invalidate, useInvalidation } from '../../stores/useInvalidationStore'
 import { UI_TIMING } from '../../Utilities/constants'
 
 // ─── Constants ──────────────────────────────────────────────
@@ -276,13 +276,13 @@ function RequestCard({
               </>
             )}
           </p>
-          <p className="text-[11px] text-tertiary/70 mt-0.5 truncate">
+          <p className="text-[9pt] text-tertiary mt-0.5 truncate">
             {isSupport
               ? request.email
               : [request.credential, request.email].filter(Boolean).join(' · ')}
           </p>
         </div>
-        <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0 ${getStatusColor(request.status)}`}>
+        <span className={`text-[9pt] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0 ${getStatusColor(request.status)}`}>
           {isSupport ? 'Help' : request.status}
         </span>
       </div>
@@ -304,7 +304,7 @@ function RequestCard({
 
       {/* Notes/justification preview (collapsed only) */}
       {!isSupport && !isExpanded && request.notes && (
-        <p className="text-[10pt] font-normal text-tertiary/70 italic px-4 pb-2 line-clamp-2">{request.notes}</p>
+        <p className="text-[10pt] font-normal text-tertiary italic px-4 pb-2 line-clamp-2">{request.notes}</p>
       )}
 
       {/* Support request: show message preview (collapsed only) */}
@@ -327,6 +327,13 @@ function RequestCard({
             Submitted: {new Date(request.requested_at).toLocaleString()}
           </p>
           <div className="flex items-center gap-3 pt-1">
+            <a
+              href={`mailto:${request.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(`${[request.first_name, request.last_name].filter(Boolean).join(' ')},\n\n`)}`}
+              className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-themeblue2 active:scale-95 transition-all"
+              title="Email"
+            >
+              <Mail size={16} />
+            </a>
             <button
               onClick={() => setConfirmDeleteId(request.id)}
               className="shrink-0 w-10 h-10 rounded-full text-themeredred flex items-center justify-center active:scale-95 transition-all"
@@ -349,15 +356,15 @@ function RequestCard({
 
             {/* User justification */}
             <div className="rounded-xl bg-themeblue2/5 border border-themeblue2/10 px-3.5 py-2.5">
-              <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-1">Justification</p>
-              <p className={`text-sm whitespace-pre-wrap ${request.notes ? 'text-primary' : 'text-tertiary/40 italic'}`}>
+              <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-1">Justification</p>
+              <p className={`text-sm whitespace-pre-wrap ${request.notes ? 'text-primary' : 'text-tertiary italic'}`}>
                 {request.notes || 'No justification provided'}
               </p>
             </div>
 
             {/* Profile — mirrors AccountRequestForm layout */}
             <div className="space-y-3">
-                <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Edit Account</p>
+                <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Edit Account</p>
 
                 <div className="grid grid-cols-2 gap-2">
                   <TextInput value={firstName} onChange={setFirstName} placeholder="First Name *" required />
@@ -381,13 +388,13 @@ function RequestCard({
                 )}
 
                 <div>
-                  <span className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-1.5 block">UIC</span>
+                  <span className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-1.5 block">UIC</span>
                   <UicPinInput value={uic} onChange={setUic} spread />
                 </div>
 
                 <PickerInput value={selectedClinicId} onChange={setSelectedClinicId} options={clinicOptions} placeholder="Clinic" />
                 {formMatchedClinic && selectedClinicId === formMatchedClinic.id && (
-                  <p className="-mt-2 text-[11px] text-themegreen flex items-center gap-1">
+                  <p className="-mt-2 text-[9pt] text-themegreen flex items-center gap-1">
                     <Building2 size={12} />
                     Auto-matched from UIC
                   </p>
@@ -412,7 +419,7 @@ function RequestCard({
                   value={rejectReason}
                   onChange={(e) => setRejectReason(e.target.value)}
                   placeholder="Reason..."
-                  className="flex-1 min-w-0 px-4 py-2.5 rounded-full bg-themewhite2 border border-tertiary/10 text-sm text-primary placeholder:text-tertiary/40 focus:outline-none focus:border-themeblue2 transition-colors"
+                  className="flex-1 min-w-0 px-4 py-2.5 rounded-full bg-themewhite2 border border-tertiary/10 text-sm text-primary placeholder:text-tertiary focus:outline-none focus:border-themeblue2 transition-colors"
                 />
                 <button
                   onClick={() => { setRejectMode(false); setRejectReason('') }}
@@ -430,6 +437,13 @@ function RequestCard({
               </div>
             ) : (
               <div className="flex items-center justify-end gap-2">
+                <a
+                  href={`mailto:${request.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(`${[request.rank, request.last_name].filter(Boolean).join(' ')},\n\n`)}`}
+                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-themeblue2 active:scale-95 transition-all"
+                  title="Email"
+                >
+                  <Mail size={18} />
+                </a>
                 <button
                   onClick={() => setRejectMode(true)}
                   disabled={processing}
@@ -461,20 +475,27 @@ function RequestCard({
 
             {/* User justification */}
             <div className="rounded-xl bg-themeblue2/5 border border-themeblue2/10 px-3.5 py-2.5">
-              <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-1">Justification</p>
-              <p className={`text-sm whitespace-pre-wrap ${request.notes ? 'text-primary' : 'text-tertiary/40 italic'}`}>
+              <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-1">Justification</p>
+              <p className={`text-sm whitespace-pre-wrap ${request.notes ? 'text-primary' : 'text-tertiary italic'}`}>
                 {request.notes || 'No justification provided'}
               </p>
             </div>
 
             {request.rejection_reason && (
               <div className="rounded-xl border border-themeredred/10 bg-themeredred/5 px-3.5 py-2.5">
-                <p className="text-[10px] font-semibold text-themeredred/60 tracking-widest uppercase mb-1">Rejection Reason</p>
+                <p className="text-[9pt] font-semibold text-themeredred/60 tracking-widest uppercase mb-1">Rejection Reason</p>
                 <p className="text-sm text-themeredred">{request.rejection_reason}</p>
               </div>
             )}
 
-            <div className="flex items-center justify-end">
+            <div className="flex items-center justify-end gap-2">
+              <a
+                href={`mailto:${request.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(`${[request.rank, request.last_name].filter(Boolean).join(' ')},\n\n`)}`}
+                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-themeblue2 active:scale-95 transition-all"
+                title="Email"
+              >
+                <Mail size={18} />
+              </a>
               <button
                 onClick={handleReopen}
                 disabled={processing}
@@ -494,6 +515,8 @@ function RequestCard({
 export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApproved }: AdminRequestsListProps) {
   const searchQuery = searchQueryProp ?? ''
 
+  const gen = useInvalidation('requests')
+
   // Data
   const [requests, setRequests] = useState<AccountRequest[]>([])
   const [clinics, setClinics] = useState<AdminClinic[]>([])
@@ -502,7 +525,6 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
   const showLoading = useMinLoadTime(loading)
 
   // Processing state
-  const [processingId, setProcessingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [deleteProcessing, setDeleteProcessing] = useState(false)
 
@@ -534,7 +556,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
     setLoading(false)
   }, [])
 
-  useEffect(() => { loadRequests() }, [loadRequests])
+  useEffect(() => { loadRequests() }, [loadRequests, gen])
 
   // ── UIC → clinic lookup ────────────────────────────────
   const uicToClinic = useMemo(() => {
@@ -605,14 +627,27 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
   // ── Shared context menu items builder ───────────────────
   const buildContextItems = (ctxRequest: AccountRequest | undefined, requestId: string) => {
     if (!ctxRequest) return []
+    const emailItem = ctxRequest.email ? [{
+      key: 'email',
+      label: 'Email',
+      icon: Mail,
+      onAction: () => {
+        const name = ctxRequest.request_type === 'support'
+          ? [ctxRequest.first_name, ctxRequest.last_name].filter(Boolean).join(' ')
+          : [ctxRequest.rank, ctxRequest.last_name].filter(Boolean).join(' ')
+        window.location.href = `mailto:${ctxRequest.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(`${name},\n\n`)}`
+      },
+    }] : []
     if (ctxRequest.request_type === 'support') {
       return [
         { key: 'view', label: 'View', icon: Eye, onAction: () => handleContextView(requestId) },
+        ...emailItem,
         { key: 'delete', label: 'Dismiss', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteId(requestId) },
       ]
     }
     return [
       { key: 'view', label: 'View', icon: Eye, onAction: () => handleContextView(requestId) },
+      ...emailItem,
       { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteId(requestId) },
     ]
   }

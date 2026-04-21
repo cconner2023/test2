@@ -64,7 +64,7 @@ export function ActionSheet({ visible, title, options, onClose }: ActionSheetPro
                   <button
                     key={opt.key}
                     onClick={() => handleOption(opt)}
-                    className={`w-full py-3 rounded-lg text-[15px] font-medium active:scale-95 transition-all ${
+                    className={`w-full py-3 rounded-lg text-[11pt] font-medium active:scale-95 transition-all ${
                       isDanger
                         ? 'bg-themeredred/10 text-themeredred'
                         : 'bg-themeblue3 text-white'
@@ -76,7 +76,7 @@ export function ActionSheet({ visible, title, options, onClose }: ActionSheetPro
               })}
               <button
                 onClick={close}
-                className="w-full py-3 rounded-lg text-[15px] font-medium text-tertiary active:scale-95 transition-all"
+                className="w-full py-3 rounded-lg text-[11pt] font-medium text-tertiary active:scale-95 transition-all"
               >
                 Cancel
               </button>
@@ -102,7 +102,7 @@ export function ActionSheet({ visible, title, options, onClose }: ActionSheetPro
           aria-modal="true"
           aria-labelledby="action-sheet-title"
         >
-          <p id="action-sheet-title" className="px-3.5 py-1.5 text-[10pt] font-medium text-tertiary/60 uppercase tracking-wider">
+          <p id="action-sheet-title" className="px-3.5 py-1.5 text-[10pt] font-medium text-tertiary uppercase tracking-wider">
             {title}
           </p>
 
@@ -118,7 +118,7 @@ export function ActionSheet({ visible, title, options, onClose }: ActionSheetPro
                 }`}
               >
                 {Icon && (
-                  <Icon size={14} className={isDanger ? 'text-themeredred/60' : 'text-tertiary/50'} />
+                  <Icon size={14} className={isDanger ? 'text-themeredred/60' : 'text-tertiary'} />
                 )}
                 {opt.label}
               </button>

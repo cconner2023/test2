@@ -17,9 +17,9 @@ export const EmptyState = ({
     className = '',
 }: EmptyStateProps) => (
     <div className={`flex flex-col items-center justify-center px-4 py-8 ${className}`}>
-        {icon && <div className="text-tertiary/30 mb-3">{icon}</div>}
+        {icon && <div className="text-tertiary mb-3">{icon}</div>}
         <p className="text-sm font-medium text-secondary mb-1">{title}</p>
-        {subtitle && <p className="text-xs text-tertiary/50 mb-4 text-center">{subtitle}</p>}
+        {subtitle && <p className="text-xs text-tertiary mb-4 text-center">{subtitle}</p>}
         {action && (
             <button
                 type="button"

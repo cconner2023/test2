@@ -30,7 +30,7 @@ export function GuidedToursPanel({ onClose }: { onClose: () => void }) {
   return (
     <div className="h-full overflow-y-auto">
       <div className="px-5 py-4 space-y-5">
-        <p className="text-sm text-tertiary/70">
+        <p className="text-sm text-tertiary">
           Interactive walkthroughs that highlight features and auto-play through each step. Tap any tour to start.
         </p>
 
@@ -40,7 +40,7 @@ export function GuidedToursPanel({ onClose }: { onClose: () => void }) {
 
           return (
             <div key={tier.key}>
-              <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
+              <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
                 {tier.label}
               </p>
               <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
@@ -58,14 +58,14 @@ export function GuidedToursPanel({ onClose }: { onClose: () => void }) {
                         {completed ? (
                           <Check size={18} className="text-themegreen" />
                         ) : (
-                          <Play size={16} className="text-tertiary/60 ml-0.5" />
+                          <Play size={16} className="text-tertiary ml-0.5" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0 text-left">
                         <p className="text-sm font-medium text-primary">{t.name}</p>
-                        <p className="text-[11px] text-tertiary/70 mt-0.5">{t.description}</p>
+                        <p className="text-[9pt] text-tertiary mt-0.5">{t.description}</p>
                       </div>
-                      <span className="text-[11px] text-tertiary/40 font-medium shrink-0">
+                      <span className="text-[9pt] text-tertiary font-medium shrink-0">
                         {t.steps.length} steps
                       </span>
                     </button>
@@ -78,7 +78,7 @@ export function GuidedToursPanel({ onClose }: { onClose: () => void }) {
 
         <button
           onClick={resetAllTours}
-          className="flex items-center justify-center gap-2 w-full py-3 text-sm text-tertiary/50 hover:text-tertiary/70 active:scale-95 transition-all"
+          className="flex items-center justify-center gap-2 w-full py-3 text-sm text-tertiary hover:text-tertiary active:scale-95 transition-all"
         >
           <RotateCcw size={14} />
           <span>Reset all tours</span>

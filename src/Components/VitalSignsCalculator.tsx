@@ -43,7 +43,7 @@ export const VitalSignsCalculator = forwardRef<VitalSignsCalculatorHandle>(funct
         return { label: 'Fever', color: 'text-themeredred' }
     }, [vitals.temp, tempF])
 
-    const inputClass = 'text-sm px-3 py-2 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 transition-all duration-300 placeholder:text-tertiary/30'
+    const inputClass = 'text-sm px-3 py-2 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 transition-all duration-300 placeholder:text-tertiary'
 
     return (
         <div className="px-5 pb-6 pt-1 space-y-4">
@@ -98,7 +98,7 @@ export const VitalSignsCalculator = forwardRef<VitalSignsCalculatorHandle>(funct
                         placeholder="98.6" className={inputClass}
                     />
                     {tempC && (
-                        <span className="text-xs text-secondary/50 mt-0.5">= {tempC} °C</span>
+                        <span className="text-xs text-secondary mt-0.5">= {tempC} °C</span>
                     )}
                     {tempHint && (
                         <span className={`text-xs font-medium mt-0.5 ${tempHint.color}`}>{tempHint.label}</span>
@@ -114,7 +114,7 @@ export const VitalSignsCalculator = forwardRef<VitalSignsCalculatorHandle>(funct
                         placeholder="68" className={inputClass}
                     />
                     {htCm && (
-                        <span className="text-xs text-secondary/50 mt-0.5">= {htCm} cm {htFtIn && `· ${htFtIn}`}</span>
+                        <span className="text-xs text-secondary mt-0.5">= {htCm} cm {htFtIn && `· ${htFtIn}`}</span>
                     )}
                 </div>
 
@@ -127,7 +127,7 @@ export const VitalSignsCalculator = forwardRef<VitalSignsCalculatorHandle>(funct
                         placeholder="170" className={inputClass}
                     />
                     {wtKg && (
-                        <span className="text-xs text-secondary/50 mt-0.5">= {wtKg} kg</span>
+                        <span className="text-xs text-secondary mt-0.5">= {wtKg} kg</span>
                     )}
                 </div>
             </div>
@@ -144,7 +144,7 @@ export const VitalSignsCalculator = forwardRef<VitalSignsCalculatorHandle>(funct
                     }`}>
                         {bmiInfo.display}
                     </span>
-                    <span className="text-xs text-secondary/50">
+                    <span className="text-xs text-secondary">
                         {bmiInfo.value < 18.5 ? 'Underweight'
                         : bmiInfo.value < 25 ? 'Normal'
                         : bmiInfo.value < 30 ? 'Overweight'

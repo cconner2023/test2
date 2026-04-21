@@ -276,7 +276,7 @@ export const MedicationsForm = memo(function MedicationsForm() {
 
   const ivPopoverPreview = (
     <div className="p-4 space-y-3">
-      <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">IV/IO Access</p>
+      <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">IV/IO Access</p>
       <div className="space-y-2">
         <div className="flex gap-2">
           <select
@@ -310,13 +310,13 @@ export const MedicationsForm = memo(function MedicationsForm() {
     <div className="p-4 space-y-3">
       {CATEGORIZED_MEDS.map((group) => (
         <div key={group.category} className="space-y-1.5">
-          <p className="text-[9px] font-semibold text-tertiary/50 tracking-wider uppercase">{group.label}</p>
+          <p className="text-[9pt] md:text-[9pt] font-semibold text-tertiary tracking-wider uppercase">{group.label}</p>
           <div className="flex flex-wrap gap-1.5">
             {group.meds.map((med, i) => (
               <button
                 key={i}
                 onClick={() => handleQuickAddMed(med, group.category)}
-                className="px-2.5 py-1.5 text-[11px] rounded-lg border border-tertiary/15 bg-themewhite2 text-tertiary hover:bg-themeredred/5 hover:border-themeredred/20 transition-all"
+                className="px-2.5 py-1.5 text-[9pt] rounded-lg border border-tertiary/15 bg-themewhite2 text-tertiary hover:bg-themeredred/5 hover:border-themeredred/20 transition-all"
               >
                 {med.name} {med.dose} {med.route}
               </button>
@@ -325,7 +325,7 @@ export const MedicationsForm = memo(function MedicationsForm() {
         </div>
       ))}
       <div className="border-t border-tertiary/10 pt-3 space-y-2">
-        <p className="text-[9px] font-semibold text-tertiary/50 tracking-wider uppercase">Custom</p>
+        <p className="text-[9pt] md:text-[9pt] font-semibold text-tertiary tracking-wider uppercase">Custom</p>
         <input
           type="text"
           value={draftMed.name}
@@ -409,20 +409,20 @@ export const MedicationsForm = memo(function MedicationsForm() {
 
   const fluidAddPopoverPreview = (
     <div className="p-4 space-y-3">
-      <p className="text-[9px] font-semibold text-tertiary/50 tracking-wider uppercase">Common Fluids</p>
+      <p className="text-[9pt] md:text-[9pt] font-semibold text-tertiary tracking-wider uppercase">Common Fluids</p>
       <div className="flex flex-wrap gap-1.5">
         {COMMON_FLUIDS.map((f, i) => (
           <button
             key={i}
             onClick={() => handleQuickAddFluid(f.type, f.volume)}
-            className="px-2.5 py-1.5 text-[11px] rounded-lg border border-tertiary/15 bg-themewhite2 text-tertiary hover:bg-themeredred/5 hover:border-themeredred/20 transition-all"
+            className="px-2.5 py-1.5 text-[9pt] rounded-lg border border-tertiary/15 bg-themewhite2 text-tertiary hover:bg-themeredred/5 hover:border-themeredred/20 transition-all"
           >
             {f.type} {f.volume}
           </button>
         ))}
       </div>
       <div className="border-t border-tertiary/10 pt-3 space-y-2">
-        <p className="text-[9px] font-semibold text-tertiary/50 tracking-wider uppercase">Custom</p>
+        <p className="text-[9pt] md:text-[9pt] font-semibold text-tertiary tracking-wider uppercase">Custom</p>
         <input
           type="text"
           value={draftFluid.type}
@@ -477,13 +477,13 @@ export const MedicationsForm = memo(function MedicationsForm() {
 
   const bloodAddPopoverPreview = (
     <div className="p-4 space-y-3">
-      <p className="text-[9px] font-semibold text-tertiary/50 tracking-wider uppercase">Common Blood Products</p>
+      <p className="text-[9pt] md:text-[9pt] font-semibold text-tertiary tracking-wider uppercase">Common Blood Products</p>
       <div className="flex flex-wrap gap-1.5">
         {COMMON_BLOOD.map((b, i) => (
           <button
             key={i}
             onClick={() => handleQuickAddBlood(b.type, b.volume)}
-            className="px-2.5 py-1.5 text-[11px] rounded-lg border border-tertiary/15 bg-themewhite2 text-tertiary hover:bg-themeredred/5 hover:border-themeredred/20 transition-all"
+            className="px-2.5 py-1.5 text-[9pt] rounded-lg border border-tertiary/15 bg-themewhite2 text-tertiary hover:bg-themeredred/5 hover:border-themeredred/20 transition-all"
           >
             {b.type} {b.volume}
           </button>
@@ -563,13 +563,13 @@ export const MedicationsForm = memo(function MedicationsForm() {
       {/* Section header */}
       <div>
         <h3 className="text-sm font-semibold text-primary mb-1">Medications & Fluids</h3>
-        <p className="text-[11px] text-tertiary/70">DD 1380 — Meds, IV/IO, Fluids, Blood Products</p>
+        <p className="text-[9pt] text-tertiary">DD 1380 — Meds, IV/IO, Fluids, Blood Products</p>
       </div>
 
       {/* IV/IO Access chips */}
       {hasIV && (
         <div className="space-y-1.5">
-          <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">IV/IO Access</p>
+          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">IV/IO Access</p>
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
             {ivAccess.map((iv) => (
               <button
@@ -579,9 +579,9 @@ export const MedicationsForm = memo(function MedicationsForm() {
               >
                 <span className="w-2 h-2 rounded-full bg-themegreen shrink-0" />
                 <span className="text-xs font-medium text-primary">{iv.type}</span>
-                <span className="text-xs text-tertiary/70">{iv.gauge}</span>
-                <span className="text-xs text-tertiary/70 truncate">{iv.site || 'No site'}</span>
-                <ChevronRight size={14} className="text-tertiary/30 ml-auto shrink-0" />
+                <span className="text-xs text-tertiary">{iv.gauge}</span>
+                <span className="text-xs text-tertiary truncate">{iv.site || 'No site'}</span>
+                <ChevronRight size={14} className="text-tertiary ml-auto shrink-0" />
               </button>
             ))}
           </div>
@@ -591,13 +591,13 @@ export const MedicationsForm = memo(function MedicationsForm() {
       {/* Medications chips — grouped by category */}
       {hasMeds && (
         <div className="space-y-1.5">
-          <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Medications</p>
+          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Medications</p>
           {(['Analgesic', 'Antibiotic', 'Other'] as MedCategory[]).map(cat => {
             const meds = groupedMeds[cat]
             if (!meds || meds.length === 0) return null
             return (
               <div key={cat} className="space-y-1">
-                <p className="text-[9px] font-semibold text-themeredred/60 tracking-wider uppercase pl-1">{cat}</p>
+                <p className="text-[9pt] md:text-[9pt] font-semibold text-themeredred/60 tracking-wider uppercase pl-1">{cat}</p>
                 <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
                   {meds.map((med) => (
                     <button
@@ -607,10 +607,10 @@ export const MedicationsForm = memo(function MedicationsForm() {
                     >
                       <span className="w-2 h-2 rounded-full bg-themeblue2 shrink-0" />
                       <span className="text-xs font-medium text-primary truncate">{med.name}</span>
-                      <span className="text-xs text-tertiary/70">{med.dose}</span>
-                      <span className="text-xs text-tertiary/70">{med.route}</span>
-                      <span className="text-[10px] text-tertiary/60">{med.time}</span>
-                      <ChevronRight size={14} className="text-tertiary/30 ml-auto shrink-0" />
+                      <span className="text-xs text-tertiary">{med.dose}</span>
+                      <span className="text-xs text-tertiary">{med.route}</span>
+                      <span className="text-[9pt] text-tertiary">{med.time}</span>
+                      <ChevronRight size={14} className="text-tertiary ml-auto shrink-0" />
                     </button>
                   ))}
                 </div>
@@ -623,7 +623,7 @@ export const MedicationsForm = memo(function MedicationsForm() {
       {/* Fluids chips */}
       {hasFluids && (
         <div className="space-y-1.5">
-          <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Fluids</p>
+          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Fluids</p>
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
             {fluids.map((f, i) => (
               <button
@@ -633,10 +633,10 @@ export const MedicationsForm = memo(function MedicationsForm() {
               >
                 <span className="w-2 h-2 rounded-full bg-teal-400 shrink-0" />
                 <span className="text-xs font-medium text-primary truncate">{f.type}</span>
-                <span className="text-xs text-tertiary/70">{f.volume}</span>
-                <span className="text-xs text-tertiary/70">{f.route}</span>
-                <span className="text-[10px] text-tertiary/60">{f.time}</span>
-                <ChevronRight size={14} className="text-tertiary/30 ml-auto shrink-0" />
+                <span className="text-xs text-tertiary">{f.volume}</span>
+                <span className="text-xs text-tertiary">{f.route}</span>
+                <span className="text-[9pt] text-tertiary">{f.time}</span>
+                <ChevronRight size={14} className="text-tertiary ml-auto shrink-0" />
               </button>
             ))}
           </div>
@@ -646,7 +646,7 @@ export const MedicationsForm = memo(function MedicationsForm() {
       {/* Blood Products chips */}
       {hasBlood && (
         <div className="space-y-1.5">
-          <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Blood Products</p>
+          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Blood Products</p>
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
             {bloodProducts.map((b, i) => (
               <button
@@ -656,10 +656,10 @@ export const MedicationsForm = memo(function MedicationsForm() {
               >
                 <span className="w-2 h-2 rounded-full bg-themeredred shrink-0" />
                 <span className="text-xs font-medium text-primary truncate">{b.type}</span>
-                <span className="text-xs text-tertiary/70">{b.volume}</span>
-                <span className="text-xs text-tertiary/70">{b.route}</span>
-                <span className="text-[10px] text-tertiary/60">{b.time}</span>
-                <ChevronRight size={14} className="text-tertiary/30 ml-auto shrink-0" />
+                <span className="text-xs text-tertiary">{b.volume}</span>
+                <span className="text-xs text-tertiary">{b.route}</span>
+                <span className="text-[9pt] text-tertiary">{b.time}</span>
+                <ChevronRight size={14} className="text-tertiary ml-auto shrink-0" />
               </button>
             ))}
           </div>
@@ -669,32 +669,32 @@ export const MedicationsForm = memo(function MedicationsForm() {
       {/* Empty state */}
       {!hasIV && !hasMeds && !hasFluids && !hasBlood && (
         <div className="rounded-2xl border border-dashed border-tertiary/15 bg-themewhite2/50 py-6 flex flex-col items-center gap-1.5">
-          <p className="text-[10px] text-tertiary/40">No items added yet</p>
+          <p className="text-[9pt] text-tertiary">No items added yet</p>
         </div>
       )}
 
       {/* Add buttons */}
       <div className="flex flex-wrap gap-3">
-        <button onClick={handleAddIV} className="flex items-center gap-1.5 text-[11px] text-tertiary/60 hover:text-primary transition-colors">
-          <span className="w-6 h-6 rounded-full flex items-center justify-center bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40 shrink-0">
+        <button onClick={handleAddIV} className="flex items-center gap-1.5 text-[9pt] text-tertiary hover:text-primary transition-colors">
+          <span className="w-6 h-6 rounded-full flex items-center justify-center bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary shrink-0">
             <Plus size={11} />
           </span>
           IV/IO
         </button>
-        <button onClick={handleAddMed} className="flex items-center gap-1.5 text-[11px] text-tertiary/60 hover:text-primary transition-colors">
-          <span className="w-6 h-6 rounded-full flex items-center justify-center bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40 shrink-0">
+        <button onClick={handleAddMed} className="flex items-center gap-1.5 text-[9pt] text-tertiary hover:text-primary transition-colors">
+          <span className="w-6 h-6 rounded-full flex items-center justify-center bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary shrink-0">
             <Plus size={11} />
           </span>
           Medication
         </button>
-        <button onClick={handleAddFluid} className="flex items-center gap-1.5 text-[11px] text-tertiary/60 hover:text-primary transition-colors">
-          <span className="w-6 h-6 rounded-full flex items-center justify-center bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40 shrink-0">
+        <button onClick={handleAddFluid} className="flex items-center gap-1.5 text-[9pt] text-tertiary hover:text-primary transition-colors">
+          <span className="w-6 h-6 rounded-full flex items-center justify-center bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary shrink-0">
             <Plus size={11} />
           </span>
           Fluid
         </button>
-        <button onClick={handleAddBlood} className="flex items-center gap-1.5 text-[11px] text-tertiary/60 hover:text-primary transition-colors">
-          <span className="w-6 h-6 rounded-full flex items-center justify-center bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary/40 shrink-0">
+        <button onClick={handleAddBlood} className="flex items-center gap-1.5 text-[9pt] text-tertiary hover:text-primary transition-colors">
+          <span className="w-6 h-6 rounded-full flex items-center justify-center bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary shrink-0">
             <Plus size={11} />
           </span>
           Blood Product

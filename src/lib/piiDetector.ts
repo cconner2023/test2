@@ -22,10 +22,6 @@ const PII_PATTERNS: PIIMatch[] = [
   // Date of birth with keyword prefix: DOB 01/15/1990
   { pattern: '(?:DOB|D\\.O\\.B|date of birth|born)\\s*[:\\-]?\\s*\\d{1,2}[/\\-.]\\d{1,2}[/\\-.]\\d{2,4}', label: 'Date of Birth' },
 
-  // Standalone dates: MM/DD/YYYY, MM-DD-YYYY, MM.DD.YYYY, YYYY-MM-DD
-  { pattern: '(?<!\\d)(?:0?[1-9]|1[0-2])[/\\-.](?:0?[1-9]|[12]\\d|3[01])[/\\-.](?:19|20)\\d{2}(?!\\d)', label: 'Date (possible DOB/PHI)' },
-  { pattern: '(?<!\\d)(?:19|20)\\d{2}[/\\-.](?:0?[1-9]|1[0-2])[/\\-.](?:0?[1-9]|[12]\\d|3[01])(?!\\d)', label: 'Date (possible DOB/PHI)' },
-
   // Written dates: January 15, 1990 / 15 Jan 1990
   { pattern: '(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\.?\\s+\\d{1,2},?\\s+(?:19|20)\\d{2}', label: 'Date (possible DOB/PHI)' },
   { pattern: '\\d{1,2}\\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\.?\\s+(?:19|20)\\d{2}', label: 'Date (possible DOB/PHI)' },

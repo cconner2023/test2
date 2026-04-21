@@ -54,6 +54,9 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
   const [isSaving, setIsSaving] = useState(false)
   const [isSerialized, setIsSerialized] = useState(editingItem?.is_serialized ?? true)
   const [newItemId, setNewItemId] = useState<string | null>(null)
+  const [conditionCode, setConditionCode] = useState<'serviceable' | 'unserviceable' | 'damaged' | 'missing'>(
+    editingItem?.condition_code ?? 'serviceable'
+  )
 
   const updateSerial = useCallback((idx: number, value: string) => {
     setSerialNumbers(prev => {
@@ -107,7 +110,7 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
       nomenclature: nomenclature.trim() || null,
       nsn: nsn.trim() || null,
       lin: lin.trim() || null,
-      condition_code: 'serviceable' as const,
+      condition_code: conditionCode,
       location_id: locationId || null,
       current_holder_id: holderId || null,
       parent_item_id: parentItemId || null,
@@ -176,7 +179,7 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
   }, [
     name, nomenclature, nsn, lin, serialNumbers, quantity,
     locationId, holderId, parentItemId, notes, expiryDate, isSerialized,
-    isEdit, editingItem, clinicId, addItem, editItem, onClose,
+    isEdit, editingItem, clinicId, addItem, editItem, onClose, conditionCode,
   ])
 
   const hasLocations = locationOptions.length > 0
@@ -223,6 +226,27 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
           Track individually (serialized)
         </button>
 
+        <div>
+          <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-1.5">Condition</p>
+          <div className="flex gap-1.5 flex-wrap">
+            {(['serviceable', 'unserviceable', 'damaged', 'missing'] as const).map((code) => (
+              <button
+                key={code}
+                type="button"
+                onClick={() => setConditionCode(code)}
+                className={[
+                  'px-3 py-1.5 rounded-full text-[9pt] font-medium capitalize border transition-all active:scale-95',
+                  conditionCode === code
+                    ? 'bg-themeblue3 text-white border-themeblue1/30'
+                    : 'bg-themewhite2 text-secondary border-tertiary/20',
+                ].join(' ')}
+              >
+                {code}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {isSerialized ? (
           <div className="space-y-1.5">
             {serialNumbers.map((sn, idx) => (
@@ -246,7 +270,7 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
                   <button
                     type="button"
                     onClick={() => removeSerial(idx)}
-                    className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-tertiary/40 hover:text-tertiary hover:bg-tertiary/10 active:scale-95 transition-all"
+                    className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-tertiary hover:text-tertiary hover:bg-tertiary/10 active:scale-95 transition-all"
                   >
                     <X size={13} />
                   </button>
@@ -254,7 +278,7 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
               </div>
             ))}
             {filledSerialCount > 1 && (
-              <p className="text-[10px] text-tertiary/50 pl-0.5">
+              <p className="text-[9pt] text-tertiary pl-0.5">
                 {filledSerialCount} items will be created
               </p>
             )}
@@ -312,7 +336,7 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
           <button
             type="button"
             onClick={() => setExpiryDate('')}
-            className="shrink-0 text-tertiary/40 hover:text-tertiary active:scale-95 transition-all"
+            className="shrink-0 text-tertiary hover:text-tertiary active:scale-95 transition-all"
           >
             <X size={14} />
           </button>
@@ -322,7 +346,7 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
       {/* Notes */}
       <div className="px-4 py-3">
         <textarea
-          className="w-full px-4 py-2.5 rounded-2xl text-primary text-sm border border-themeblue3/10 shadow-xs bg-themewhite dark:bg-themewhite3 focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all duration-300 placeholder:text-tertiary/30 resize-none"
+          className="w-full px-4 py-2.5 rounded-2xl text-primary text-sm border border-themeblue3/10 shadow-xs bg-themewhite dark:bg-themewhite3 focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all duration-300 placeholder:text-tertiary resize-none"
           rows={2}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}

@@ -54,11 +54,11 @@ function OverlaySection({
 }) {
   return (
     <div className="space-y-2">
-      <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">{label}</p>
+      <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">{label}</p>
 
       {medicContent && (
         <div className="rounded-xl bg-themewhite2 px-4 py-3">
-          <p className="text-[9pt] text-tertiary/50 mb-1">{medicName}</p>
+          <p className="text-[9pt] text-tertiary mb-1">{medicName}</p>
           <div className="text-sm text-primary whitespace-pre-wrap">{medicContent}</div>
         </div>
       )}
@@ -67,7 +67,7 @@ function OverlaySection({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full min-h-[80px] md:min-h-[56px] rounded-xl border border-themeblue3/10 shadow-xs bg-themewhite p-3 text-sm text-primary placeholder:text-tertiary/30 focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none resize-none transition-all duration-300"
+        className="w-full min-h-[80px] md:min-h-[56px] rounded-xl border border-themeblue3/10 shadow-xs bg-themewhite p-3 text-sm text-primary placeholder:text-tertiary focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none resize-none transition-all duration-300"
       />
     </div>
   );

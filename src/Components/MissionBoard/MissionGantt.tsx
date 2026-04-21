@@ -165,7 +165,7 @@ export function TaskRow({ event, onClick, onContextMenu }: { event: CalendarEven
         {circleColor && (
           <div className={`w-2 h-2 rounded-full shrink-0 ${circleColor}`} />
         )}
-        <span className="text-[10px] text-secondary tabular-nums shrink-0">
+        <span className="text-[9pt] text-secondary tabular-nums shrink-0">
           {formatTimeRange(event.start_time, event.end_time)}
         </span>
         <span className="flex-1 text-xs font-medium text-primary truncate">
@@ -326,13 +326,13 @@ export function GanttBody({ scrollRef, events, userId, onEventClick, onEventCont
             className="absolute overflow-hidden"
             style={{ left: di * DAY_WIDTH, top: BODY_PAD_TOP, width: DAY_WIDTH, height: AXIS_HEIGHT }}
           >
-            <span className="absolute top-0.5 left-1 text-[8px] font-semibold text-themeblue3/70 leading-none z-10 pointer-events-none">
+            <span className="absolute top-0.5 left-1 text-[9pt] md:text-[9pt] font-semibold text-themeblue3/70 leading-none z-10 pointer-events-none">
               {day.label}
             </span>
             <div className="absolute bottom-0 left-0 flex">
               {hourMarks.map(h => (
                 <div key={h} className="shrink-0 flex items-end pb-0.5 pl-1" style={{ width: HOUR_WIDTH }}>
-                  <span className="text-[8px] text-tertiary/50 leading-none">{formatHour(h)}</span>
+                  <span className="text-[9pt] md:text-[9pt] text-tertiary leading-none">{formatHour(h)}</span>
                 </div>
               ))}
             </div>

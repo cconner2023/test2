@@ -215,7 +215,7 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
                 value={marker.gauge}
                 onChange={(e) => updateMarker(marker.id, { gauge: e.target.value })}
                 placeholder="Gauge (e.g. 18g)"
-                className="w-full text-sm px-4 py-2.5 rounded-2xl border border-themeblue3/10 bg-themewhite2 outline-none focus:border-themeblue1/30 text-primary placeholder:text-tertiary/30 transition-all"
+                className="w-full text-sm px-4 py-2.5 rounded-2xl border border-themeblue3/10 bg-themewhite2 outline-none focus:border-themeblue1/30 text-primary placeholder:text-tertiary transition-all"
               />
             </div>
           )}
@@ -231,8 +231,8 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
                     key={t}
                     type="button"
                     onClick={() => updateMarker(marker.id, { tqType: t })}
-                    className={`px-3 py-1.5 text-[10px] font-semibold rounded-full transition-all ${
-                      marker.tqType === t ? 'bg-themeblue3 text-white' : 'bg-tertiary/8 text-tertiary/60 hover:bg-tertiary/12'
+                    className={`px-3 py-1.5 text-[9pt] font-semibold rounded-full transition-all ${
+                      marker.tqType === t ? 'bg-themeblue3 text-white' : 'bg-tertiary/8 text-tertiary hover:bg-tertiary/12'
                     }`}
                   >
                     {t}
@@ -248,8 +248,8 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
                     key={c}
                     type="button"
                     onClick={() => updateMarker(marker.id, { tqCategory: c })}
-                    className={`px-3 py-1.5 text-[10px] font-semibold rounded-full transition-all ${
-                      marker.tqCategory === c ? 'bg-themeblue3 text-white' : 'bg-tertiary/8 text-tertiary/60 hover:bg-tertiary/12'
+                    className={`px-3 py-1.5 text-[9pt] font-semibold rounded-full transition-all ${
+                      marker.tqCategory === c ? 'bg-themeblue3 text-white' : 'bg-tertiary/8 text-tertiary hover:bg-tertiary/12'
                     }`}
                   >
                     {c}
@@ -270,8 +270,8 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
                     key={d}
                     type="button"
                     onClick={() => updateMarker(marker.id, { dressingType: d })}
-                    className={`px-3 py-1.5 text-[10px] font-semibold rounded-full transition-all ${
-                      marker.dressingType === d ? 'bg-themeblue3 text-white' : 'bg-tertiary/8 text-tertiary/60 hover:bg-tertiary/12'
+                    className={`px-3 py-1.5 text-[9pt] font-semibold rounded-full transition-all ${
+                      marker.dressingType === d ? 'bg-themeblue3 text-white' : 'bg-tertiary/8 text-tertiary hover:bg-tertiary/12'
                     }`}
                   >
                     {d}
@@ -318,7 +318,7 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
       {/* ── DESCRIPTION ── */}
       {marker.description && (
         <div className="mx-4 mb-2">
-          <p className="text-[10px] text-tertiary/40 italic">{marker.description}</p>
+          <p className="text-[9pt] text-tertiary italic">{marker.description}</p>
         </div>
       )}
     </div>

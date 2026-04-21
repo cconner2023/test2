@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Copy, Share2, ScanLine, User, Check, X } from 'lucide-react'
+import { Copy, Share2, ScanLine, User, Check, X, ExternalLink } from 'lucide-react'
 import { PreviewOverlay } from './PreviewOverlay'
 import type { ContextMenuAction } from './PreviewOverlay'
 import { BarcodeDisplay } from './Barcode'
 import type { ImportPreview } from '../Hooks/useNoteImport'
+import type { MedevacRequest } from '../Types/MedevacTypes'
 import { useNoteShare } from '../Hooks/useNoteShare'
 import { profileAvatars } from '../Data/ProfileAvatars'
 import { supabase } from '../lib/supabase'
@@ -30,6 +31,7 @@ interface ImportResultPopoverProps {
   onDismissImage: () => void
   onStopScan: () => void
   onClose: () => void
+  onOpenMedevac?: (req: MedevacRequest) => void
   isMobile: boolean
 }
 
@@ -61,7 +63,7 @@ function NotePreviewContent({ preview }: { preview: ImportPreview }) {
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-sm font-medium text-primary">{preview.symptomText}</span>
         {preview.dispositionType && colors && (
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${colors.badgeBg} ${colors.badgeText}`}>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9pt] font-medium ${colors.badgeBg} ${colors.badgeText}`}>
             {preview.dispositionType}
             {preview.dispositionText ? ` — ${preview.dispositionText}` : ''}
           </span>
@@ -77,7 +79,7 @@ function NotePreviewContent({ preview }: { preview: ImportPreview }) {
       </div>
       {/* Note text */}
       <div data-tour="import-note-preview" className="rounded-xl bg-themewhite2 overflow-hidden">
-        <div className="px-3 py-2 text-tertiary text-[8pt] whitespace-pre-wrap max-h-36 overflow-y-auto">
+        <div className="px-3 py-2 text-tertiary text-[9pt] whitespace-pre-wrap max-h-36 overflow-y-auto">
           {preview.fullNote
             ? preview.fullNote.split('\n').filter(l => !l.startsWith('Signed:')).join('\n').trim()
             : 'No content'}
@@ -107,6 +109,7 @@ export function ImportResultPopover({
   onDismissImage,
   onStopScan,
   onClose,
+  onOpenMedevac,
   isMobile,
 }: ImportResultPopoverProps) {
   const { shareNote, shareStatus } = useNoteShare()
@@ -146,6 +149,13 @@ export function ImportResultPopover({
   if (preview) {
     popoverPreview = <NotePreviewContent preview={preview} />
     actions = [
+      ...(preview.isMedevac && preview.medevacReq && onOpenMedevac ? [{
+        key: 'open-9line',
+        label: 'Open',
+        icon: ExternalLink,
+        onAction: () => { onOpenMedevac(preview.medevacReq!); onClose() },
+        closesOnAction: false,
+      }] : []),
       {
         key: 'copy-note',
         label: copiedTarget === 'preview' ? 'Copied' : 'Copy',

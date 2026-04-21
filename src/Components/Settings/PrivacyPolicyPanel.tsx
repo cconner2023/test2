@@ -15,7 +15,7 @@ const Row = ({ icon, iconColor, title, children, border = true }: {
     </div>
     <div className="flex-1 min-w-0">
       <p className="text-sm font-medium text-primary">{title}</p>
-      <div className="text-[11px] text-tertiary/70 mt-0.5 leading-relaxed space-y-1.5">{children}</div>
+      <div className="text-[9pt] text-tertiary mt-0.5 leading-relaxed space-y-1.5">{children}</div>
     </div>
   </div>
 )
@@ -26,15 +26,15 @@ export const PrivacyPolicyPanel = () => (
 
       {/* ── Intro ── */}
       <div className="px-1">
-        <p className="text-xs text-tertiary/70 leading-relaxed">
+        <p className="text-xs text-tertiary leading-relaxed">
           We are committed to protecting your privacy. This policy explains what information we collect, how we use it, and your rights regarding your data.
         </p>
-        <p className="text-[10px] text-tertiary/50 mt-1">Last updated: March 2026</p>
+        <p className="text-[9pt] text-tertiary mt-1">Last updated: March 2026</p>
       </div>
 
       {/* ── Data Collection ── */}
       <div>
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">Data Collection</p>
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Data Collection</p>
         <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
           <Row icon={<EyeOff size={18} className="text-themeblue2" />} title="No Patient Data Collected" border={false}>
             <p>This application does <strong className="text-primary">not</strong> collect, store, or transmit Protected Health Information (PHI) or patients' Personally Identifiable Information (PII). No patient data is recorded on or sent to our servers.</p>
@@ -58,7 +58,7 @@ export const PrivacyPolicyPanel = () => (
 
       {/* ── Usage & Storage ── */}
       <div>
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">Usage & Storage</p>
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Usage & Storage</p>
         <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
           <Row icon={<UserCheck size={18} className="text-themeblue2" />} title="How We Use Your Information" border={false}>
             <p>Your information is used solely for:</p>
@@ -84,7 +84,7 @@ export const PrivacyPolicyPanel = () => (
 
       {/* ── Access & Control ── */}
       <div>
-        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">Access & Control</p>
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Access & Control</p>
         <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
           <Row icon={<ShieldCheck size={18} className="text-themeblue2" />} title="Data Access" border={false}>
             <p>Your profile data is accessible only to:</p>
@@ -114,7 +114,7 @@ export const PrivacyPolicyPanel = () => (
 
       {/* ── Footer ── */}
       <div className="px-4 py-3 rounded-xl border border-tertiary/10 bg-tertiary/5">
-        <p className="text-[11px] text-tertiary/50 leading-relaxed">
+        <p className="text-[9pt] text-tertiary leading-relaxed">
           This privacy policy may be updated periodically. Continued use of the application constitutes acceptance of any changes. Questions or concerns about this policy can be submitted through the Feedback panel.
         </p>
       </div>

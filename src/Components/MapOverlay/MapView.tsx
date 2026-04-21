@@ -45,6 +45,7 @@ interface MapViewProps {
   tilesCached?: boolean;
   /** Live field positions for mission participants — rendered as decaying presence markers. */
   presenceMarkers?: PresenceMarker[];
+  readOnlyFeatures?: OverlayFeature[];
 }
 
 const DEFAULT_CENTER: [number, number] = [38.8977, -77.0365];
@@ -84,6 +85,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   overlayId,
   tilesCached = false,
   presenceMarkers,
+  readOnlyFeatures,
 }, ref) {
   const { theme } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -91,6 +93,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   const tileLayerRef = useRef<L.GridLayer | null>(null);
   const gridLayerRef = useRef<L.GridLayer | null>(null);
   const featureLayerRef = useRef<L.LayerGroup>(L.layerGroup());
+  const readOnlyLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const gpsLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const measureLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const presenceLayerRef = useRef<L.LayerGroup>(L.layerGroup());
@@ -163,6 +166,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     // Note: overlayId-aware tile cache is applied in the theme/overlayId effect below
 
     featureLayerRef.current.addTo(map);
+    readOnlyLayerRef.current.addTo(map);
     gpsLayerRef.current.addTo(map);
     presenceLayerRef.current.addTo(map);
     measureLayerRef.current.addTo(map);
@@ -329,6 +333,59 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     }
   }, [features, selectedFeatureId, onFeatureClick]);
 
+  // Sync read-only features (visible but non-active overlays)
+  useEffect(() => {
+    const group = readOnlyLayerRef.current;
+    group.clearLayers();
+
+    for (const feature of (readOnlyFeatures ?? [])) {
+      const color = feature.style.color;
+      const baseWeight = feature.style.weight ?? 3;
+      const dashArray = feature.style.dash;
+
+      if (feature.type === 'waypoint' && feature.geometry.length > 0) {
+        const [lat, lng] = feature.geometry[0];
+        const wptType = feature.waypoint_type ?? 'generic';
+        const svg = waypointIconSvg(wptType, color, 24, false);
+        const icon = L.divIcon({
+          html: svg,
+          className: '',
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
+        });
+        const marker = L.marker([lat, lng], { icon });
+        marker.setOpacity(0.4);
+        if (feature.label) {
+          marker.bindTooltip(feature.label, {
+            permanent: true,
+            direction: 'top',
+            offset: [0, -16],
+            className: 'leaflet-tooltip-tactical',
+          });
+        }
+        group.addLayer(marker);
+      }
+
+      if (feature.type === 'route' && feature.geometry.length >= 2) {
+        const latlngs = feature.geometry.map(([lat, lng]) => [lat, lng] as [number, number]);
+        const line = L.polyline(latlngs, { color, weight: baseWeight, opacity: 0.35, dashArray: dashArray ?? undefined });
+        if (feature.label) {
+          line.bindTooltip(feature.label, { sticky: true, className: 'leaflet-tooltip-tactical' });
+        }
+        group.addLayer(line);
+      }
+
+      if (feature.type === 'area' && feature.geometry.length >= 3) {
+        const latlngs = feature.geometry.map(([lat, lng]) => [lat, lng] as [number, number]);
+        const polygon = L.polygon(latlngs, { color, weight: baseWeight, opacity: 0.35, fillColor: color, fillOpacity: 0.08, dashArray: dashArray ?? undefined });
+        if (feature.label) {
+          polygon.bindTooltip(feature.label, { sticky: true, className: 'leaflet-tooltip-tactical' });
+        }
+        group.addLayer(polygon);
+      }
+    }
+  }, [readOnlyFeatures]);
+
   // Sync GPS position
   useEffect(() => {
     const group = gpsLayerRef.current;
@@ -467,7 +524,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         <span>{mgrsReadout || '---'}</span>
         {mgrsCopied
           ? <ClipboardCheck size={12} className="text-themegreen shrink-0" />
-          : <Copy size={12} className="text-tertiary/50 shrink-0" />
+          : <Copy size={12} className="text-tertiary shrink-0" />
         }
       </button>
 
@@ -493,7 +550,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       {/* Attribution — collapsed info icon, expands on tap */}
       <div className="absolute bottom-2 right-3 z-[1000] flex items-center gap-1.5">
         {showAttribution && (
-          <span className="text-[10px] text-secondary/60 bg-themewhite2/80 dark:bg-themewhite3/80
+          <span className="text-[9pt] text-secondary bg-themewhite2/80 dark:bg-themewhite3/80
             backdrop-blur-sm px-2 py-0.5 rounded-md animate-fadeIn">
             © OpenStreetMap contributors
           </span>
@@ -502,8 +559,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
           type="button"
           onClick={toggleAttribution}
           className="w-6 h-6 rounded-full flex items-center justify-center
-            bg-themewhite2/60 dark:bg-themewhite3/60 text-tertiary/40
-            hover:text-tertiary/70 transition-colors"
+            bg-themewhite2/60 dark:bg-themewhite3/60 text-tertiary
+            hover:text-tertiary transition-colors"
           aria-label="Map attribution"
         >
           <Info size={12} />

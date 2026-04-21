@@ -85,7 +85,7 @@ export function SwipeableCard({
               <div className={`w-10 h-10 rounded-full flex items-center justify-center ${action.iconBg}`}>
                 <Icon size={18} className={action.iconColor} />
               </div>
-              <span className="text-[9pt] font-medium text-tertiary/60">{action.label}</span>
+              <span className="text-[9pt] font-medium text-tertiary">{action.label}</span>
             </button>
           )
         })}

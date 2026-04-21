@@ -250,7 +250,7 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
                     ? 'border-themeblue1/30 bg-themewhite2'
                     : 'border-themeblue3/10'
                 }`}>
-                  <Search size={16} className="ml-3 shrink-0 text-tertiary/50" />
+                  <Search size={16} className="ml-3 shrink-0 text-tertiary" />
                   <input
                     ref={searchInputRef}
                     data-tour="column-search"
@@ -261,7 +261,7 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
                     onFocus={handleColumnSearchFocus}
                     onBlur={handleColumnSearchBlur}
                     onKeyDown={handleColumnSearchKeyDown}
-                    className="text-tertiary bg-transparent outline-none text-[16px] w-full px-3 py-2 min-w-0 placeholder:text-tertiary/30 [&::-webkit-search-cancel-button]:hidden"
+                    className="text-tertiary bg-transparent outline-none text-[12pt] w-full px-3 py-2 min-w-0 placeholder:text-tertiary [&::-webkit-search-cancel-button]:hidden"
                   />
                   {hasSearch && (
                     <div
