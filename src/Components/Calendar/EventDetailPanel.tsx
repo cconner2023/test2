@@ -258,7 +258,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
         {/* Add to phone calendar */}
         <button
           onClick={() => shareSingleEvent(event).catch(() => {})}
-          className={`w-full flex items-center justify-center gap-2 rounded-2xl border border-themeblue3/20 bg-themewhite2 font-medium text-themeblue3 active:scale-95 transition-all duration-200 ${
+          className={`w-full flex items-center justify-center gap-2 rounded-2xl border border-themeblue2/20 bg-themewhite2 font-medium text-themeblue2 active:scale-95 transition-all duration-200 ${
             isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-xs'
           }`}
         >

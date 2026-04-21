@@ -53,7 +53,7 @@ export function DisambiguationCard({ candidates, items, onSelect, onManual }: Di
                   </span>
                 )}
                 {candidate.matchedBarcode && (
-                  <span className="text-[9pt] bg-themeblue3/10 text-themeblue3 border border-themeblue3/20 rounded-full px-2 py-0.5 font-semibold">
+                  <span className="text-[9pt] bg-themeblue2/10 text-themeblue2 border border-themeblue2/20 rounded-full px-2 py-0.5 font-semibold">
                     barcode
                   </span>
                 )}

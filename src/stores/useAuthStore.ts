@@ -402,15 +402,19 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     useCallStore.getState().reset()
     useCalendarStore.setState({ events: [], hydrated: false, vaultReplayDone: false })
 
-    // Aggressively wipe browser storage, but preserve the FCM token so push
-    // subscriptions survive involuntary SIGNED_OUT events (e.g. iOS PWA kills).
-    // On explicit signOut() the token is removed via unsubscribeFromPush() before
-    // this runs, so preserving it here is safe — it will already be gone.
+    // Aggressively wipe browser storage, but preserve keys that should survive
+    // sign-out: FCM token (so push subscriptions survive involuntary SIGNED_OUT
+    // events, e.g. iOS PWA kills) and theme (user appearance preference is
+    // device-level, not account-level).
     const fcmToken = localStorage.getItem('adtmc_fcm_token')
+    const savedTheme = localStorage.getItem('theme')
     try { localStorage.clear() } catch { /* ignore */ }
     try { sessionStorage.clear() } catch { /* ignore */ }
     if (fcmToken) {
       try { localStorage.setItem('adtmc_fcm_token', fcmToken) } catch { /* ignore */ }
+    }
+    if (savedTheme) {
+      try { localStorage.setItem('theme', savedTheme) } catch { /* ignore */ }
     }
   }
 

@@ -102,7 +102,7 @@ export function SitrepReport() {
                   onClick={() => update({ enemyContact: opt === 'Yes' })}
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-all active:scale-95 ${
                     report.enemyContact === (opt === 'Yes')
-                      ? 'bg-themeblue3/15 text-themeblue3'
+                      ? 'bg-themeblue2/15 text-themeblue2'
                       : 'bg-themewhite2 text-tertiary'
                   }`}
                 >
@@ -124,7 +124,7 @@ export function SitrepReport() {
                       onClick={() => update({ enemyType: value })}
                       className={`px-3 py-1 rounded-full text-xs font-medium transition-all active:scale-95 ${
                         report.enemyType === value
-                          ? 'bg-themeblue3/15 text-themeblue3'
+                          ? 'bg-themeblue2/15 text-themeblue2'
                           : 'bg-themewhite2 text-tertiary'
                       }`}
                     >
@@ -144,7 +144,7 @@ export function SitrepReport() {
                       onClick={() => update({ enemyDirection: dir })}
                       className={`px-2 py-1 rounded-full text-xs font-medium transition-all active:scale-95 text-center ${
                         report.enemyDirection === dir
-                          ? 'bg-themeblue3/15 text-themeblue3'
+                          ? 'bg-themeblue2/15 text-themeblue2'
                           : 'bg-themewhite2 text-tertiary'
                       }`}
                     >

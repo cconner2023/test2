@@ -151,7 +151,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
 
     return (
       <div className="px-4 py-4 space-y-3">
-        <div>
+        <div data-tour="event-form-title">
           <input
             type="text"
             value={form.title}
@@ -203,7 +203,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
         )}
 
         {/* Start date + time */}
-        <div>
+        <div data-tour="event-form-datetime">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Start</span>
             <label
@@ -393,7 +393,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                       isMobile ? 'gap-3 px-4 py-3' : 'gap-2 px-3 py-2'
                     } ${isSelected ? 'bg-themeblue3/8' : ''}`}
                   >
-                    <Package size={isMobile ? 16 : 14} className={isSelected ? 'text-themeblue3 shrink-0' : 'text-tertiary shrink-0'} />
+                    <Package size={isMobile ? 16 : 14} className={isSelected ? 'text-themeblue2 shrink-0' : 'text-tertiary shrink-0'} />
                     <div className="flex-1 min-w-0">
                       <p className={`font-medium text-primary truncate ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.name}</p>
                       {item.nsn && <p className="text-[9pt] text-tertiary truncate">{item.nsn}</p>}

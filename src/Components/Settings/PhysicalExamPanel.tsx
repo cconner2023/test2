@@ -128,7 +128,7 @@ export const PhysicalExamPanel = () => {
                                                 onClick={() => toggleBlock(childKey)}
                                                 className={`px-2.5 py-1 rounded-full text-[9pt] font-medium transition-all active:scale-95 ${
                                                     selected
-                                                        ? 'bg-themeblue3/15 text-themeblue3 ring-1 ring-inset ring-themeblue3/20'
+                                                        ? 'bg-themeblue2/15 text-themeblue2 ring-1 ring-inset ring-themeblue2/20'
                                                         : 'bg-tertiary/5 text-tertiary hover:bg-tertiary/10'
                                                 }`}
                                             >
@@ -226,7 +226,7 @@ export const PhysicalExamPanel = () => {
                         <button
                             type="button"
                             onClick={handleAdd}
-                            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-themeblue3/8 text-themeblue3 text-sm font-medium hover:bg-themeblue3/12 active:scale-[0.98] transition-all"
+                            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-themeblue2/8 text-themeblue2 text-sm font-medium hover:bg-themeblue2/12 active:scale-[0.98] transition-all"
                         >
                             <Plus size={16} />
                             Add Template

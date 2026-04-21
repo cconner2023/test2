@@ -131,7 +131,7 @@ function AssignmentsSection({
                             <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
                                 isOverdue ? 'bg-themeredred/10' : 'bg-themeblue3/10'
                             }`}>
-                                <ClipboardList size={14} className={isOverdue ? 'text-themeredred' : 'text-themeblue3'} />
+                                <ClipboardList size={14} className={isOverdue ? 'text-themeredred' : 'text-themeblue2'} />
                             </div>
                             <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-primary truncate">{title}</p>
@@ -152,7 +152,7 @@ function AssignmentsSection({
                                 </div>
                             </div>
                             <div className={`shrink-0 w-2 h-2 rounded-full ${
-                                isOverdue ? 'bg-themeredred' : 'bg-themeblue3'
+                                isOverdue ? 'bg-themeredred' : 'bg-themeblue2'
                             }`} />
                         </button>
                     )
@@ -221,7 +221,7 @@ function TaskRow({
                         {task.taskId}
                     </p>
                     {isAssigned && assignment.dueDate && (
-                        <span className={`text-[9pt] font-medium ${isOverdue ? 'text-themeredred' : 'text-themeblue3'}`}>
+                        <span className={`text-[9pt] font-medium ${isOverdue ? 'text-themeredred' : 'text-themeblue2'}`}>
                             {isOverdue ? 'Overdue' : 'Due'}: {formatDueDate(assignment.dueDate)}
                         </span>
                     )}
@@ -242,7 +242,7 @@ function TaskRow({
                 {completed ? (
                     <Check size={16} className="text-themegreen" />
                 ) : isAssigned ? (
-                    <div className={`w-2 h-2 rounded-full ${isOverdue ? 'bg-themeredred' : 'bg-themeblue3'}`} />
+                    <div className={`w-2 h-2 rounded-full ${isOverdue ? 'bg-themeredred' : 'bg-themeblue2'}`} />
                 ) : viewed ? (
                     <div className="w-2 h-2 rounded-full bg-themeyellow" />
                 ) : hasData ? (
@@ -495,8 +495,8 @@ function TaskDetail({
                         ? 'bg-themeredred/10 border border-themeredred/20'
                         : 'bg-themeblue3/10 border border-themeblue3/20'
                 }`}>
-                    <CalendarDays size={15} className={isOverdue ? 'text-themeredred' : 'text-themeblue3'} />
-                    <span className={`text-sm font-medium ${isOverdue ? 'text-themeredred' : 'text-themeblue3'}`}>
+                    <CalendarDays size={15} className={isOverdue ? 'text-themeredred' : 'text-themeblue2'} />
+                    <span className={`text-sm font-medium ${isOverdue ? 'text-themeredred' : 'text-themeblue2'}`}>
                         {isOverdue ? 'Overdue' : 'Due'}: {formatDueDate(assignment.dueDate)}
                     </span>
                     {assignment.supervisorNotes && (

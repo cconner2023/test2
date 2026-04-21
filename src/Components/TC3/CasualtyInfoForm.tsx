@@ -233,7 +233,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
                     onClick={() => updateDraft({ sex: draft.sex === opt.value ? '' : opt.value })}
                     className={`w-9 h-9 rounded-full text-xs font-bold transition-all border active:scale-95 ${
                       draft.sex === opt.value
-                        ? 'bg-themeblue3 text-white border-transparent'
+                        ? 'bg-themeblue2 text-white border-transparent'
                         : 'border-tertiary/15 text-tertiary hover:bg-tertiary/5'
                     }`}
                   >
@@ -254,7 +254,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
                     onClick={() => updateDraft({ bloodType: draft.bloodType === bt ? '' : bt })}
                     className={`min-w-[2.25rem] h-9 px-2 rounded-full text-xs font-bold transition-all border active:scale-95 ${
                       draft.bloodType === bt
-                        ? 'bg-themeblue3 text-white border-transparent'
+                        ? 'bg-themeblue2 text-white border-transparent'
                         : 'border-tertiary/15 text-tertiary hover:bg-tertiary/5'
                     }`}
                   >

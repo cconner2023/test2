@@ -449,7 +449,7 @@ export function PropertyLocationTree({
         <div
           className={`mx-3 my-1 py-2 rounded-md border-2 border-dashed text-center text-[10pt] font-medium transition-colors ${
             dropTargetId === '__root__'
-              ? 'border-themeblue3/40 bg-themeblue3/10 text-themeblue3'
+              ? 'border-themeblue3/40 bg-themeblue3/10 text-themeblue2'
               : 'border-tertiary/20 text-tertiary'
           }`}
           data-drop-id="__root__"

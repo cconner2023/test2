@@ -304,6 +304,8 @@ interface TC3State {
   selectedSection: TC3Section
   wizardStep: number
   showExport: boolean
+  exportCard: TC3Card | null
+  exportCards: TC3Card[]
   casualtyQueue: TC3QueueEntry[]
 }
 
@@ -318,6 +320,8 @@ interface TC3Actions {
 
   // Export drawer
   openExport: () => void
+  openExportForCard: (card: TC3Card) => void
+  openExportForCards: (cards: TC3Card[]) => void
   closeExport: () => void
 
   // Card lifecycle
@@ -419,6 +423,8 @@ export const useTC3Store = create<TC3Store>()((set, get) => ({
   selectedSection: 'casualty',
   wizardStep: 0,
   showExport: false,
+  exportCard: null,
+  exportCards: [],
   casualtyQueue: [],
 
   // Section navigation
@@ -430,8 +436,10 @@ export const useTC3Store = create<TC3Store>()((set, get) => ({
   setWizardStep: (step) => set({ wizardStep: step }),
 
   // Export drawer
-  openExport: () => set({ showExport: true }),
-  closeExport: () => set({ showExport: false }),
+  openExport: () => set({ showExport: true, exportCard: null, exportCards: [] }),
+  openExportForCard: (card) => set({ showExport: true, exportCard: card, exportCards: [] }),
+  openExportForCards: (cards) => set({ showExport: true, exportCard: null, exportCards: cards }),
+  closeExport: () => set({ showExport: false, exportCard: null, exportCards: [] }),
 
   // Card lifecycle
   resetCard: () => {

@@ -44,7 +44,7 @@ export function MedevacCard({ data }: MedevacCardProps) {
       }`}>
         <div className="flex items-center gap-1.5">
           {(isHot || hasNBC) && <AlertTriangle size={12} className="text-themeredred" />}
-          <span className="text-[9pt] font-bold tracking-widest uppercase text-themeblue3">9-Line MEDEVAC</span>
+          <span className="text-[9pt] font-bold tracking-widest uppercase text-themeblue2">9-Line MEDEVAC</span>
         </div>
         <div className="flex items-center gap-2">
           {highest && (
@@ -53,7 +53,7 @@ export function MedevacCard({ data }: MedevacCardProps) {
                 ? 'bg-themeredred/15 text-themeredred'
                 : highest === 'C'
                   ? 'bg-themeyellow/20 text-themeyellow'
-                  : 'bg-themeblue3/10 text-themeblue3'
+                  : 'bg-themeblue2/10 text-themeblue2'
             }`}>
               {highest} — {MEDEVAC_PRECEDENCE_LABELS[highest]}
             </span>

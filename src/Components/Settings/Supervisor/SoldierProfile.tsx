@@ -161,7 +161,7 @@ export function SoldierProfile({
                     isCompleted ? 'bg-themegreen/10' : isOverdue ? 'bg-themeredred/10' : 'bg-themeblue3/10'
                   }`}>
                     <ClipboardList size={14} className={
-                      isCompleted ? 'text-themegreen' : isOverdue ? 'text-themeredred' : 'text-themeblue3'
+                      isCompleted ? 'text-themegreen' : isOverdue ? 'text-themeredred' : 'text-themeblue2'
                     } />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -183,7 +183,7 @@ export function SoldierProfile({
                     </div>
                   </div>
                   <span className={`text-[9pt] font-medium shrink-0 ${
-                    isCompleted ? 'text-themegreen' : isOverdue ? 'text-themeredred' : 'text-themeblue3'
+                    isCompleted ? 'text-themegreen' : isOverdue ? 'text-themeredred' : 'text-themeblue2'
                   }`}>
                     {isCompleted ? 'Complete' : isOverdue ? 'Overdue' : 'Pending'}
                   </span>

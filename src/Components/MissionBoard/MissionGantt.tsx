@@ -326,7 +326,7 @@ export function GanttBody({ scrollRef, events, userId, onEventClick, onEventCont
             className="absolute overflow-hidden"
             style={{ left: di * DAY_WIDTH, top: BODY_PAD_TOP, width: DAY_WIDTH, height: AXIS_HEIGHT }}
           >
-            <span className="absolute top-0.5 left-1 text-[9pt] md:text-[9pt] font-semibold text-themeblue3/70 leading-none z-10 pointer-events-none">
+            <span className="absolute top-0.5 left-1 text-[9pt] md:text-[9pt] font-semibold text-themeblue2/70 leading-none z-10 pointer-events-none">
               {day.label}
             </span>
             <div className="absolute bottom-0 left-0 flex">

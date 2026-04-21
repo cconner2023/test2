@@ -9,8 +9,9 @@ import { getRegionLabel } from '../../Utilities/bodyRegionMap'
 import { encodeTC3Card } from '../../Utilities/tc3Codec'
 import { encryptBarcode } from '../../Utilities/barcodeCodec'
 import { TC3BodyDiagramSvg } from './TC3BodyDiagramSvg'
+import type { TC3Card } from '../../Types/TC3Types'
+import type { UserTypes } from '../../Data/User'
 
-/** Injury type → color mapping (matches InjuryMarker) */
 const INJURY_COLORS: Record<string, string> = {
   GSW: '#ef4444',
   blast: '#f97316',
@@ -21,17 +22,24 @@ const INJURY_COLORS: Record<string, string> = {
   other: '#6b7280',
 }
 
-interface TC3WriteNoteProps {
-  isVisible: boolean
-  onClose: () => void
+const PRIORITY_COLOR: Record<string, string> = {
+  Urgent: 'bg-themeredred',
+  Priority: 'bg-amber-500',
+  Routine: 'bg-themegreen',
 }
 
-export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: TC3WriteNoteProps) {
-  const card = useTC3Store((s) => s.card)
-  const profile = useAuthStore((s) => s.profile)
-  const userId = useAuthStore((s) => s.user?.id)
-  const isAuthenticated = useAuthStore(selectIsAuthenticated)
+// ── Single-card section — owns its own encode/copy/share state ────────────
 
+interface TC3CardSectionProps {
+  card: TC3Card
+  profile: UserTypes
+  userId: string | undefined
+  isAuthenticated: boolean
+  /** When set, renders a labeled header above the content (bulk mode) */
+  label?: string
+}
+
+function TC3CardSection({ card, profile, userId, isAuthenticated, label }: TC3CardSectionProps) {
   const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null)
   const [copiedMist, setCopiedMist] = useState(false)
   const [shareStatus, setShareStatus] = useState<'idle' | 'sharing' | 'shared'>('idle')
@@ -65,6 +73,22 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
     setTimeout(() => setCopiedTarget(null), 2000)
   }
 
+  const handleCopyMist = async () => {
+    const mistText = formatMISTReport(card)
+    try {
+      await navigator.clipboard.writeText(mistText)
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = mistText
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
+    setCopiedMist(true)
+    setTimeout(() => setCopiedMist(false), 2000)
+  }
+
   const handleShare = async () => {
     if (!navigator.share) return
     setShareStatus('sharing')
@@ -79,6 +103,94 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
   }
 
   const hasMarkers = card.markers.length > 0
+  const priority = card.evacuation.priority
+
+  return (
+    <div className="space-y-4">
+      {/* Bulk mode label */}
+      {label && (
+        <div className="flex items-center gap-2 px-1">
+          <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${priority ? PRIORITY_COLOR[priority] : 'bg-tertiary/30'}`} />
+          <p className="text-sm font-semibold text-primary">{label}</p>
+          {priority && <span className="text-[9pt] text-secondary">— {priority}</span>}
+        </div>
+      )}
+
+      {/* Body diagram with markers */}
+      {hasMarkers && (
+        <div className="rounded-xl border border-tertiary/15 bg-themewhite p-3">
+          <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">Injury Diagram</p>
+          <TC3BodyDiagramSvg markers={card.markers} readOnly compact />
+          <div className="mt-2 pt-2 border-t border-tertiary/10 flex flex-wrap gap-x-3 gap-y-1">
+            {card.markers.map((m, i) => {
+              const region = m.bodyRegion ? getRegionLabel(m.bodyRegion) : `(${Math.round(m.x)}%, ${Math.round(m.y)}%)`
+              const markerLabel = [...m.injuries, ...m.procedures].join(', ') || 'Marker'
+              const color = m.injuries.length > 0
+                ? (INJURY_COLORS[m.injuries[0]] ?? '#6b7280')
+                : m.procedures.length > 0 ? '#22c55e' : '#f59e0b'
+              return (
+                <div key={m.id} className="flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                  <span className="text-[9pt] md:text-[9pt] text-tertiary">{i + 1}. {markerLabel} ({region})</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Note text */}
+      <div className="rounded-xl bg-themewhite2 overflow-hidden">
+        <div className="flex items-center justify-end gap-1 px-3 pt-3">
+          <ActionIconButton onClick={handleCopyMist} status={copiedMist ? 'done' : 'idle'} variant="pdf" title="Copy MIST Handoff" />
+          <ActionIconButton onClick={() => handleCopy(noteText, 'preview')} status={copiedTarget === 'preview' ? 'done' : 'idle'} variant="copy" title="Copy note text" />
+        </div>
+        <pre className="px-4 pb-4 text-tertiary text-[9pt] whitespace-pre-wrap">
+          {noteText || 'No content'}
+        </pre>
+      </div>
+
+      {/* Encoded barcode */}
+      <div className="rounded-xl bg-themewhite2 overflow-hidden">
+        <div className="flex items-center justify-end gap-1 px-3 pt-3">
+          <ActionIconButton onClick={() => handleCopy(encodedText, 'encoded')} status={copiedTarget === 'encoded' ? 'done' : 'idle'} variant="copy" title="Copy encoded text" />
+          {typeof navigator.share === 'function' && (
+            <ActionIconButton onClick={handleShare} status={shareStatus === 'shared' ? 'done' : shareStatus === 'sharing' ? 'busy' : 'idle'} variant="share" title="Share note" />
+          )}
+        </div>
+        <div className="px-3 pb-4">
+          {encodedText && <BarcodeDisplay encodedText={encodedText} layout={encodedText.length > 300 ? 'col' : 'row'} />}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Drawer shell ──────────────────────────────────────────────────────────
+
+interface TC3WriteNoteProps {
+  isVisible: boolean
+  onClose: () => void
+  /** Preview a specific card (single, from queue) */
+  card?: TC3Card
+  /** Preview multiple cards (bulk export) */
+  cards?: TC3Card[]
+}
+
+export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose, card: cardProp, cards }: TC3WriteNoteProps) {
+  const storeCard = useTC3Store((s) => s.card)
+  const profile = useAuthStore((s) => s.profile)
+  const userId = useAuthStore((s) => s.user?.id)
+  const isAuthenticated = useAuthStore(selectIsAuthenticated)
+
+  const isBulk = cards && cards.length > 1
+  const effectiveCards = isBulk ? cards : [cardProp ?? storeCard]
+
+  const title = isBulk
+    ? `TC3 Export — ${cards.length} Casualties`
+    : cardProp
+    ? `TC3 — ${[cardProp.casualty.lastName, cardProp.casualty.firstName].filter(Boolean).join(', ') || 'Unknown'}`
+    : 'TC3 Card — Export'
 
   return (
     <BaseDrawer
@@ -86,96 +198,25 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
       onClose={onClose}
       fullHeight="90dvh"
       mobileClassName="flex flex-col bg-themewhite2"
-      header={{ title: 'TC3 Card — Export' }}
+      header={{ title }}
       contentPadding="standard"
     >
-      <div className="space-y-4">
-
-        {/* Body diagram with markers */}
-        {hasMarkers && (
-          <div className="rounded-xl border border-tertiary/15 bg-themewhite p-3">
-            <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">Injury Diagram</p>
-            <TC3BodyDiagramSvg
-              markers={card.markers}
-              readOnly
-              compact
-            />
-            <div className="mt-2 pt-2 border-t border-tertiary/10 flex flex-wrap gap-x-3 gap-y-1">
-              {card.markers.map((m, i) => {
-                const region = m.bodyRegion ? getRegionLabel(m.bodyRegion) : `(${Math.round(m.x)}%, ${Math.round(m.y)}%)`
-                const label = [...m.injuries, ...m.procedures].join(', ') || 'Marker'
-                const color = m.injuries.length > 0
-                  ? (INJURY_COLORS[m.injuries[0]] ?? '#6b7280')
-                  : m.procedures.length > 0 ? '#22c55e' : '#f59e0b'
-                return (
-                  <div key={m.id} className="flex items-center gap-1">
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                    <span className="text-[9pt] md:text-[9pt] text-tertiary">{i + 1}. {label} ({region})</span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Note Preview */}
-        <div className="rounded-xl bg-themewhite2 overflow-hidden">
-          <div className="flex items-center justify-end gap-1 px-3 pt-3">
-            <ActionIconButton
-              onClick={async () => {
-                const mistText = formatMISTReport(card)
-                try {
-                  await navigator.clipboard.writeText(mistText)
-                } catch {
-                  const ta = document.createElement('textarea')
-                  ta.value = mistText
-                  document.body.appendChild(ta)
-                  ta.select()
-                  document.execCommand('copy')
-                  document.body.removeChild(ta)
-                }
-                setCopiedMist(true)
-                setTimeout(() => setCopiedMist(false), 2000)
-              }}
-              status={copiedMist ? 'done' : 'idle'}
-              variant="pdf"
-              title="Copy MIST Handoff"
-            />
-            <ActionIconButton
-              onClick={() => handleCopy(noteText, 'preview')}
-              status={copiedTarget === 'preview' ? 'done' : 'idle'}
-              variant="copy"
-              title="Copy note text"
-            />
-          </div>
-          <pre className="px-4 pb-4 text-tertiary text-[9pt] whitespace-pre-wrap">
-            {noteText || 'No content'}
-          </pre>
-        </div>
-
-        {/* Encoded Note / Barcode */}
-        <div className="rounded-xl bg-themewhite2 overflow-hidden">
-          <div className="flex items-center justify-end gap-1 px-3 pt-3">
-            <ActionIconButton
-              onClick={() => handleCopy(encodedText, 'encoded')}
-              status={copiedTarget === 'encoded' ? 'done' : 'idle'}
-              variant="copy"
-              title="Copy encoded text"
-            />
-            {typeof navigator.share === 'function' && (
-              <ActionIconButton
-                onClick={handleShare}
-                status={shareStatus === 'shared' ? 'done' : shareStatus === 'sharing' ? 'busy' : 'idle'}
-                variant="share"
-                title="Share note"
+      <div className="space-y-8">
+        {effectiveCards.map((c, i) => {
+          const name = [c.casualty.lastName, c.casualty.firstName].filter(Boolean).join(', ') || `Casualty #${i + 1}`
+          return (
+            <div key={c.id}>
+              {isBulk && i > 0 && <div className="border-t border-tertiary/10 -mt-4 mb-8" />}
+              <TC3CardSection
+                card={c}
+                profile={profile}
+                userId={userId}
+                isAuthenticated={isAuthenticated}
+                label={isBulk ? name : undefined}
               />
-            )}
-          </div>
-          <div className="px-3 pb-4">
-            {encodedText && <BarcodeDisplay encodedText={encodedText} layout={encodedText.length > 300 ? 'col' : 'row'} />}
-          </div>
-        </div>
-
+            </div>
+          )
+        })}
       </div>
     </BaseDrawer>
   )

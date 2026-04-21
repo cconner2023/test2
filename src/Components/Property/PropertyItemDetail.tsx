@@ -250,7 +250,7 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
                       }`}
                     >
                       <span className="text-sm text-primary">{loc.name}</span>
-                      {splitTargetId === loc.id && <Check size={16} className="text-themeblue3 shrink-0" />}
+                      {splitTargetId === loc.id && <Check size={16} className="text-themeblue2 shrink-0" />}
                     </button>
                   ))
                 }

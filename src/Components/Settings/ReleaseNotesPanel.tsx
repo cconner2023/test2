@@ -1,5 +1,7 @@
-import { Bug, PlusCircle, RefreshCw, CalendarClock, Loader } from 'lucide-react';
+import { useState } from 'react';
+import { Bug, PlusCircle, RefreshCw, CalendarClock, Loader, Download, CheckCircle2 } from 'lucide-react';
 import { type ReleaseNoteTypes, ReleaseNotes } from '../../Data/Release';
+import { useServiceWorker } from '../../Hooks/useServiceWorker';
 
 type NoteType = Exclude<ReleaseNoteTypes['type'], undefined> | 'default';
 
@@ -29,6 +31,66 @@ const ReleaseNoteItem = ({ note }: { note: ReleaseNoteTypes }) => {
     );
 };
 
+const VersionStatusCard = () => {
+    const { updateAvailable, skipWaiting, checkForUpdate, isUpdating, appVersion } = useServiceWorker();
+    const [checking, setChecking] = useState(false);
+    const [justChecked, setJustChecked] = useState(false);
+
+    const handleCheck = () => {
+        setChecking(true);
+        setJustChecked(false);
+        checkForUpdate();
+        // SW update check is fire-and-forget; give it a moment then show feedback
+        setTimeout(() => {
+            setChecking(false);
+            setJustChecked(true);
+            setTimeout(() => setJustChecked(false), 3000);
+        }, 1500);
+    };
+
+    return (
+        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+            <div className="px-4 py-3.5 flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${updateAvailable ? 'bg-themeblue2/15' : 'bg-themegreen/15'}`}>
+                    {updateAvailable
+                        ? <Download size={16} className="text-themeblue2" />
+                        : <CheckCircle2 size={16} className="text-themegreen" />
+                    }
+                </div>
+                <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-primary">
+                        {updateAvailable ? 'Update available' : 'Up to date'}
+                    </p>
+                    <p className="text-[9pt] text-tertiary mt-0.5">
+                        Current version: {appVersion}
+                    </p>
+                </div>
+                {updateAvailable ? (
+                    <button
+                        onClick={skipWaiting}
+                        disabled={isUpdating}
+                        className="px-3 py-1.5 rounded-xl text-[9pt] font-semibold text-white bg-themeblue3 active:scale-95 transition-all disabled:opacity-60 flex items-center gap-1.5"
+                    >
+                        {isUpdating
+                            ? <><RefreshCw size={11} className="animate-spin" /> Installing…</>
+                            : <><Download size={11} /> Install</>
+                        }
+                    </button>
+                ) : (
+                    <button
+                        onClick={handleCheck}
+                        disabled={checking}
+                        className="w-8 h-8 rounded-full flex items-center justify-center bg-tertiary/10 active:scale-95 transition-all disabled:opacity-60"
+                        aria-label="Check for updates"
+                    >
+                        <RefreshCw size={15} className={`${justChecked ? 'text-themegreen' : 'text-tertiary'} ${checking ? 'animate-spin' : ''}`} />
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+};
+
 export const ReleaseNotesPanel = () => {
     const groupedNotes = ReleaseNotes.reduce<Record<string, ReleaseNoteTypes[]>>((acc, note) => {
         const version = note.version;
@@ -42,6 +104,12 @@ export const ReleaseNotesPanel = () => {
     return (
         <div className="h-full overflow-y-auto">
             <div className="px-5 py-4 space-y-5">
+                <div>
+                    <div className="flex items-center gap-2 mb-2">
+                        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">App Version</p>
+                    </div>
+                    <VersionStatusCard />
+                </div>
                 {versions.map((version, versionIndex) => {
                     const notes = groupedNotes[version];
                     const isLatest = versionIndex === 0;

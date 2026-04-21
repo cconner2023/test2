@@ -78,7 +78,7 @@ export default function GettingStartedScene({ currentStep, isMobile }: GettingSt
                     isMobile ? 'w-11 h-11' : 'w-9 h-9'
                   }`}
                 >
-                  <User size={20} className="text-themeblue3/40" />
+                  <User size={20} className="text-themeblue2/40" />
                 </div>
                 <div className="flex flex-col">
                   <span className="text-sm font-semibold text-primary">SPC Smith</span>
@@ -139,7 +139,7 @@ export default function GettingStartedScene({ currentStep, isMobile }: GettingSt
                       data-tour="menu-button"
                       className="w-[2.6875rem] h-[2.6875rem] rounded-full bg-themeblue3/10 flex items-center justify-center"
                     >
-                      <User size={20} className="text-themeblue3/40" />
+                      <User size={20} className="text-themeblue2/40" />
                     </button>
                   </div>
                   <span className="text-sm font-bold text-primary tracking-wider">ADTMC</span>
@@ -156,7 +156,7 @@ export default function GettingStartedScene({ currentStep, isMobile }: GettingSt
                       data-tour="menu-button"
                       className="w-8 h-8 rounded-full bg-themeblue3/10 flex items-center justify-center"
                     >
-                      <User size={16} className="text-themeblue3/40" />
+                      <User size={16} className="text-themeblue2/40" />
                     </button>
                     <button className="h-8 flex items-center px-3 py-1.5 bg-themewhite2 rounded-full">
                       <BookOpen size={16} className="stroke-themeblue1" />

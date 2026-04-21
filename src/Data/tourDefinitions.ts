@@ -71,9 +71,10 @@ export interface TourDefinition {
 //   'calendar:view:month'     — switch to month view
 //   'calendar:view:day'       — switch to day view
 //   'calendar:view:troops'    — switch to troops-to-task view
-//   'calendar:open-controls'  — open mobile controls drawer
-//   'calendar:close-controls' — close mobile controls drawer
-//   'calendar:cleanup'        — delete mock event, return to guided tours
+//   'calendar:open-controls'   — open mobile controls drawer
+//   'calendar:close-controls'  — close mobile controls drawer
+//   'calendar:open-event-form' — click add button, wait for event form
+//   'calendar:cleanup'         — delete mock event, return to guided tours
 //   'supervisor:open-first-area'  — navigate into first coverage area in supervisor panel
 //   'supervisor:cleanup'          — reset to base state, close supervisor, return to guided tours
 //   'clinic:open'                 — close all, open Settings → Clinic panel
@@ -90,6 +91,8 @@ export interface TourDefinition {
 //   'planorderset:save-compose'   — save the composed order set
 //   'planorderset:cleanup'        — cancel edit (discards staging), return to guided tours
 //   'navigate:settings:overview-widgets' — open Settings → Mission Overview panel
+//   'navigate:settings:theme-picker'     — open Settings → Appearance panel
+//   'navigate:settings:back'             — slide back to main settings panel
 //   'open:tc3'                    — enable TC3 mode (sets tc3Mode = true in authStore)
 //   'tc3:advance-page'            — advance mobile wizard to MARCH page (mobile only)
 //   'tc3:cleanup'                 — exit TC3 mode, reset wizard step, return to guided tours
@@ -828,10 +831,18 @@ const calendarTour: TourDefinition = {
       pausePoint: true,
       desktopOnly: true,
     },
-    // ── Add event hint ──
+    // ── Event form ──
     {
-      target: 'calendar-add-event',
-      text: 'Create events here — training, duty, range days, appointments, or custom.',
+      target: 'event-form-title',
+      text: 'New event form — give it a title and pick a category: Training, Duty, Range, Appointment, Mission, or MEDEVAC.',
+      placement: 'bottom',
+      beforeStep: 'calendar:open-event-form',
+      delay: 400,
+      duration: 5000,
+    },
+    {
+      target: 'event-form-datetime',
+      text: 'Set start and end date/time. Toggle All Day for full-day events — times collapse automatically.',
       placement: 'top',
       duration: 4000,
       pausePoint: true,
@@ -848,7 +859,7 @@ const settingsTour: TourDefinition = {
   steps: [
     {
       target: 'settings-profile',
-      text: 'Your profile card — tap to view or edit your rank, credentials, and component.',
+      text: 'Your profile card — tap to share your comms card, or view and edit your information.',
       placement: 'bottom',
       beforeStep: 'open:settings',
       delay: 400,
@@ -856,21 +867,48 @@ const settingsTour: TourDefinition = {
     },
     {
       target: 'settings-theme',
-      text: 'Toggle between light and dark mode. Your preference persists across sessions.',
+      text: 'Appearance — six named themes, each with a light and dark variant. Tap to browse.',
       placement: 'bottom',
       duration: 4000,
+      afterStep: 'navigate:settings:theme-picker',
+    },
+    {
+      target: 'theme-picker-grid',
+      text: 'Each card previews your actual app colors. Select a light or dark toggle to switch themes without leaving the gallery.',
+      placement: 'bottom',
+      duration: 5000,
+      delay: 400,
+      afterStep: 'navigate:settings:back',
     },
     {
       target: 'settings-pin',
-      text: 'Set a PIN to lock the app after inactivity. Required for handling sensitive patient data in the field.',
+      text: 'Set a log-in PIN, biometric authentication, log in with a QR, or edit your current devices.',
       placement: 'bottom',
       pausePoint: true,
     },
     {
       target: 'settings-notifications',
-      text: 'Enable push notifications for incoming messages and calendar alerts.',
+      text: 'Enable push notifications for messages.',
       placement: 'bottom',
       duration: 5000,
+    },
+    {
+      target: 'settings-release-notes',
+      text: "Release notes — a running log of what's new in each version, and an update check to make sure you're running the most current software.",
+      placement: 'bottom',
+      duration: 4000,
+    },
+    {
+      target: 'settings-feedback',
+      text: 'Report bugs, suggest features, or ask the developer team questions.',
+      placement: 'bottom',
+      duration: 4000,
+    },
+    {
+      target: 'settings-privacy',
+      text: 'Our data handling policy — how your information is stored, synced, and protected.',
+      placement: 'bottom',
+      duration: 4000,
     },
     // Mobile: guided tours item is further below fold — tooltip on top keeps it visible above the spotlight
     {

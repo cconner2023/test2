@@ -312,7 +312,7 @@ export function LaceReport() {
         <button
           type="button"
           onClick={addEquipment}
-          className="flex items-center gap-1.5 text-xs text-themeblue3/60 px-1 mt-2 active:scale-95 transition-all hover:text-themeblue3"
+          className="flex items-center gap-1.5 text-xs text-themeblue2/60 px-1 mt-2 active:scale-95 transition-all hover:text-themeblue2"
         >
           <Plus size={12} /> Add item
         </button>

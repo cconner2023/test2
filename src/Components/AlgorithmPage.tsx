@@ -203,7 +203,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
     }
     if (!algorithm || algorithmOptions.length === 0) {
         return (
-            <div className="p-4 text-center w-full text-themeblue3">
+            <div className="p-4 text-center w-full text-themeblue2">
                 <p>No algorithm found for: {selectedSymptom.text}</p>
             </div>
         );

@@ -188,6 +188,12 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       return
     }
 
+    // ── navigate:settings:back — slide right back to main settings ──
+    if (action === 'navigate:settings:back') {
+      window.dispatchEvent(new CustomEvent('tour:settings-back'))
+      return
+    }
+
     // ── navigate:settings:panel ──
     const settingsNav = action.match(/^navigate:settings:(.+)$/)
     if (settingsNav) {
@@ -363,6 +369,17 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
     // ── calendar:close-controls — close mobile controls drawer ──
     if (action === 'calendar:close-controls') {
       window.dispatchEvent(new CustomEvent('tour:calendar-close-controls'))
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+
+    // ── calendar:open-event-form — click add button, wait for form ──
+    if (action === 'calendar:open-event-form') {
+      const { useCalendarStore } = await import('../../stores/useCalendarStore')
+      useCalendarStore.getState().setView('month')
+      await new Promise(r => setTimeout(r, 200))
+      clickTarget('calendar-add-event')
+      await waitForTarget('event-form-title', 3000)
       await new Promise(r => setTimeout(r, 300))
       return
     }

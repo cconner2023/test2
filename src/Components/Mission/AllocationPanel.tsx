@@ -168,7 +168,7 @@ export function AllocationPanel({
         <div key={summary.waypoint.id}>
           {/* Section header */}
           <div className="flex items-center gap-1.5 mb-1.5 px-1">
-            <MapPin size={11} className="text-themeblue3 shrink-0" />
+            <MapPin size={11} className="text-themeblue2 shrink-0" />
             <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest truncate">
               {summary.waypoint.label ?? summary.waypoint.id}
             </span>
@@ -246,7 +246,7 @@ export function AllocationPanel({
         <button
           type="button"
           onClick={() => setShowForm(true)}
-          className="flex items-center justify-center gap-1.5 w-full py-2 rounded-2xl border border-dashed border-themeblue3/20 text-themeblue3 text-xs font-medium hover:bg-themeblue3/5 active:scale-[0.98] transition-all"
+          className="flex items-center justify-center gap-1.5 w-full py-2 rounded-2xl border border-dashed border-themeblue2/20 text-themeblue2 text-xs font-medium hover:bg-themeblue2/5 active:scale-[0.98] transition-all"
         >
           <Plus size={13} />
           Add allocation

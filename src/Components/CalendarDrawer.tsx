@@ -256,7 +256,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                                 )}
                             </div>
                             {isSelected && (
-                                <Check size={14} className="text-themeblue3 shrink-0" />
+                                <Check size={14} className="text-themeblue2 shrink-0" />
                             )}
                         </button>
                     )

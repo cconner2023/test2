@@ -85,7 +85,7 @@ export function MissionBoard({ event, medics, onClose, onSave }: MissionBoardPro
         {!loading && !error && overlay === null && (
           <div className="flex flex-col items-center justify-center gap-3 h-40 px-6 text-center">
             <div className="w-10 h-10 rounded-full bg-themeblue3/10 flex items-center justify-center">
-              <Map className="w-5 h-5 text-themeblue3/50" />
+              <Map className="w-5 h-5 text-themeblue2/50" />
             </div>
             <p className={`text-tertiary leading-snug ${textSize}`}>
               No map overlay linked. Edit the event to link an overlay.

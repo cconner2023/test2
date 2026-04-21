@@ -969,7 +969,7 @@ export function ClinicPanel({
                       <button
                         type="button"
                         onClick={handleToggleScan}
-                        className="p-1.5 text-tertiary hover:text-themeblue3 active:scale-95 transition-colors"
+                        className="p-1.5 text-tertiary hover:text-themeblue2 active:scale-95 transition-colors"
                         title="Scan QR code"
                       >
                         <Camera size={18} />
@@ -977,7 +977,7 @@ export function ClinicPanel({
                       <button
                         type="button"
                         onClick={handlePhotoUpload}
-                        className="p-1.5 text-tertiary hover:text-themeblue3 active:scale-95 transition-colors"
+                        className="p-1.5 text-tertiary hover:text-themeblue2 active:scale-95 transition-colors"
                         title="Upload QR photo"
                       >
                         <ImagePlus size={18} />

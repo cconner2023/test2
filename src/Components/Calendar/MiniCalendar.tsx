@@ -119,7 +119,7 @@ export function MiniCalendar({ selectedDate, onSelectDate, events, hideHeader, d
 
           <button
             onClick={jumpToToday}
-            className="text-xs font-semibold text-primary hover:text-themeblue3 transition-colors active:scale-95"
+            className="text-xs font-semibold text-primary hover:text-themeblue2 transition-colors active:scale-95"
             title="Jump to today"
           >
             {monthHeaderLabel}

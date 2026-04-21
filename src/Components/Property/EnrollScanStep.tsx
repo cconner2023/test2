@@ -76,7 +76,7 @@ export function EnrollScanStep({ itemName, onEnrolled, onSkip }: EnrollScanStepP
     return (
       <div className="flex flex-col items-center gap-4 px-4 py-6">
         <div className="w-14 h-14 rounded-full bg-themeblue3/10 flex items-center justify-center">
-          <Camera size={28} className="text-themeblue3" />
+          <Camera size={28} className="text-themeblue2" />
         </div>
 
         <div className="text-center">
@@ -139,7 +139,7 @@ export function EnrollScanStep({ itemName, onEnrolled, onSkip }: EnrollScanStepP
     return (
       <div className="flex flex-col items-center gap-3 px-4 py-8">
         <svg
-          className="w-8 h-8 animate-spin text-themeblue3"
+          className="w-8 h-8 animate-spin text-themeblue2"
           style={{ animationDuration: '1s' }}
           viewBox="0 0 40 40"
           fill="none"

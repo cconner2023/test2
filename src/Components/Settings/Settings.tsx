@@ -140,8 +140,16 @@ export const Settings = ({
                 setActivePanel(panel as typeof activePanel);
             }
         };
+        const backHandler = () => {
+            handleSlideAnimation('right');
+            setActivePanel('main');
+        };
         window.addEventListener('tour:settings-navigate', handler);
-        return () => window.removeEventListener('tour:settings-navigate', handler);
+        window.addEventListener('tour:settings-back', backHandler);
+        return () => {
+            window.removeEventListener('tour:settings-navigate', handler);
+            window.removeEventListener('tour:settings-back', backHandler);
+        };
     }, [handleSlideAnimation]);
 
     // Tour system: inject/cleanup demo text expander

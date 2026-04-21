@@ -8,6 +8,7 @@ import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 import { createHandlerBoundToURL } from 'workbox-precaching';
 
 declare let self: ServiceWorkerGlobalScope;
+declare const __BUILD_ID__: string;
 
 // Background Sync types (not in all TS libs)
 interface SyncEvent extends ExtendableEvent {
@@ -184,6 +185,36 @@ self.addEventListener('notificationclick', (event) => {
       import('./lib/signal/swFlush').then(m => m.flushOutboundQueue())
     );
   }
+});
+
+// ─── Install: selective skipWaiting ──────────────────────────────────
+// Skip waiting only when no prior build ID exists in the meta cache —
+// i.e. this is a pre-auth build that predates the update prompt system.
+// Post-auth users have the entry stamped on activate; their updates flow
+// through the app-level prompt so silent bug fixes and intentional bumps
+// are handled separately.
+const SW_META_CACHE = 'sw-meta';
+const SW_BUILD_KEY = 'build-id';
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(SW_META_CACHE).then(cache =>
+      cache.match(SW_BUILD_KEY).then(entry => {
+        if (!entry) self.skipWaiting();
+      })
+    )
+  );
+});
+
+// ─── Activate: stamp build ID in meta cache ───────────────────────────
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.open(SW_META_CACHE).then(cache =>
+      cache.put(SW_BUILD_KEY, new Response(__BUILD_ID__, {
+        headers: { 'Content-Type': 'text/plain' },
+      }))
+    )
+  );
 });
 
 // ─── Skip waiting + queue notification on message ────────────────────

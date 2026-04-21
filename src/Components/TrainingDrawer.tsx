@@ -97,8 +97,8 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
                             ? 'bg-themeredred/10 border border-themeredred/20'
                             : 'bg-themeblue3/10 border border-themeblue3/20'
                     }`}>
-                        <CalendarDays size={15} className={isOverdue ? 'text-themeredred' : 'text-themeblue3'} />
-                        <span className={`text-sm font-medium ${isOverdue ? 'text-themeredred' : 'text-themeblue3'}`}>
+                        <CalendarDays size={15} className={isOverdue ? 'text-themeredred' : 'text-themeblue2'} />
+                        <span className={`text-sm font-medium ${isOverdue ? 'text-themeredred' : 'text-themeblue2'}`}>
                             {isOverdue ? 'Overdue' : 'Due'}: {formatDueDate(assignment.dueDate)}
                         </span>
                         {assignment.supervisorNotes && (

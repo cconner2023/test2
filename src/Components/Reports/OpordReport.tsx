@@ -255,7 +255,7 @@ export function OpordReport() {
 
           <button
             onClick={addTask}
-            className="flex items-center gap-1 text-xs text-themeblue3 px-4 py-2.5 active:scale-95 transition-all"
+            className="flex items-center gap-1 text-xs text-themeblue2 px-4 py-2.5 active:scale-95 transition-all"
           >
             <Plus size={12} /> Add Task
           </button>

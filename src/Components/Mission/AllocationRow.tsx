@@ -44,7 +44,7 @@ export function AllocationRow({
       {/* Chips */}
       <div className="flex items-center gap-1 shrink-0">
         {waypointLabel && (
-          <span className="px-2 py-0.5 rounded-full bg-themeblue3/10 text-[9pt] font-medium text-themeblue3 uppercase tracking-widest whitespace-nowrap">
+          <span className="px-2 py-0.5 rounded-full bg-themeblue3/10 text-[9pt] font-medium text-themeblue2 uppercase tracking-widest whitespace-nowrap">
             {waypointLabel}
           </span>
         )}

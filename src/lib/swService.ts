@@ -7,6 +7,14 @@ import { createLogger } from '../Utilities/Logger'
 const logger = createLogger('PWA')
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000
 
+function isForcedUpdate(): boolean {
+  try { return localStorage.getItem('appBuildId') === null } catch { return false }
+}
+
+function stampBuildId(): void {
+  try { localStorage.setItem('appBuildId', __BUILD_ID__) } catch { /* storage unavailable */ }
+}
+
 export interface SWState {
   updateAvailable: boolean
   offlineReady: boolean
@@ -61,6 +69,12 @@ export function checkForUpdate(): void {
  * Supabase user is async, so we wait on the loading flag before deciding.
  */
 async function applyOrPrompt(update: (reloadPage?: boolean) => Promise<void>) {
+  if (isForcedUpdate()) {
+    logger.info('No build ID — pre-auth build detected, force applying update')
+    update(true).catch(() => {})
+    return
+  }
+
   // Lazy import avoids circular deps; module is already loaded so this is near-instant
   const { useAuthStore } = await import('../stores/useAuthStore')
 
@@ -119,6 +133,7 @@ export function initSW(): void {
       logger.info('New content available, checking version...')
       try {
         const res = await fetch(`${import.meta.env.BASE_URL}version.json?t=${Date.now()}`)
+        if (!res.ok) throw new Error(`version.json returned ${res.status}`)
         const { version: newVersion } = await res.json()
         if (newVersion === __APP_VERSION__) {
           logger.info('Same version, applying silently')
@@ -133,6 +148,7 @@ export function initSW(): void {
       await applyOrPrompt(update)
     },
     onOfflineReady() {
+      stampBuildId() // stamp after SW fully activates — avoids race with onNeedRefresh/isForcedUpdate
       logger.info('App ready to work offline')
       patch({ offlineReady: true })
     },

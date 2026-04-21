@@ -86,6 +86,8 @@ function AppContent() {
   const avatarState = useProfileAvatar(user?.id)
   const tc3Mode = useAuthStore((s) => s.profile.tc3Mode) ?? false
   const showTC3Export = useTC3Store((s) => s.showExport)
+  const tc3ExportCard = useTC3Store((s) => s.exportCard)
+  const tc3ExportCards = useTC3Store((s) => s.exportCards)
   const closeTC3Export = useTC3Store((s) => s.closeExport)
   const tc3WizardStep = useTC3Store((s) => s.wizardStep)
   const tc3PrevStep = useTC3Store((s) => s.prevWizardStep)
@@ -759,7 +761,7 @@ case 'mapOverlay':
         />
         </ErrorBoundary>
         {/* TC3WriteNote — lifted to root to escape transform stacking context */}
-        <TC3WriteNote isVisible={showTC3Export} onClose={closeTC3Export} />
+        <TC3WriteNote isVisible={showTC3Export} onClose={closeTC3Export} card={tc3ExportCard ?? undefined} cards={tc3ExportCards.length > 1 ? tc3ExportCards : undefined} />
         {/* WriteNotePage — BaseDrawer handles mobile/desktop positioning */}
         {navigation.writeNoteData && (
           <ErrorBoundary>

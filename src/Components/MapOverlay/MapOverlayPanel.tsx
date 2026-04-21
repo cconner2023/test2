@@ -643,7 +643,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
           <div className="flex flex-col h-full">
             {loading ? (
               <div className="flex-1 flex items-center justify-center">
-                <LoadingSpinner size="lg" className="text-themeblue3" />
+                <LoadingSpinner size="lg" className="text-themeblue2" />
               </div>
             ) : (
               <OverlayList
@@ -974,7 +974,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                 className="absolute inset-0 z-[1002] flex items-center justify-center bg-themewhite dark:bg-themewhite"
                 style={{ opacity: spinnerSpring.opacity, pointerEvents: searchPending ? 'auto' : 'none' }}
               >
-                <LoadingSpinner size="lg" className="text-themeblue3" />
+                <LoadingSpinner size="lg" className="text-themeblue2" />
               </animated.div>
 
               {/* Route/area finish + undo buttons */}

@@ -340,9 +340,9 @@ function ConversationPane({
   return (
     <div className="flex flex-col">
       {!signalReady && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-themeblue3/10 border-b border-themeblue3/20">
-          <div className="w-3 h-3 border-2 border-themeblue3 border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs text-themeblue3 font-medium">Setting up encryption…</span>
+        <div className="flex items-center gap-2 px-3 py-2 bg-themeblue2/10 border-b border-themeblue2/20">
+          <div className="w-3 h-3 border-2 border-themeblue2 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs text-themeblue2 font-medium">Setting up encryption…</span>
         </div>
       )}
       <div className="pt-1 pb-10">

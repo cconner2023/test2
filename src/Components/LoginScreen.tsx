@@ -182,7 +182,7 @@ export function LoginScreen() {
                 </g>
               </svg>
             </div>
-            <h1 className="text-xl font-semibold tracking-[2px] text-themeblue3 dark:text-themeblue1">
+            <h1 className="text-xl font-semibold tracking-[2px] text-themeblue2 dark:text-themeblue1">
               {view !== 'request' && <div className='text-[10pt] text-secondary'>Medical Knowledge Repository and Operational Network</div>}
             </h1>
           </div>
@@ -357,7 +357,7 @@ export function LoginScreen() {
                 <div className="flex items-center justify-center mt-2 px-1">
                   <button
                     onClick={openForgot}
-                    className="text-xs text-themeblue3 dark:text-themeblue1 hover:underline active:scale-95 transition-transform"
+                    className="text-xs text-themeblue2 dark:text-themeblue1 hover:underline active:scale-95 transition-transform"
                   >
                     Forgot password?
                   </button>
@@ -392,7 +392,7 @@ export function LoginScreen() {
 
               <button
                 onClick={() => switchView('help')}
-                className="w-full text-xs text-center text-themeblue3 dark:text-themeblue1 hover:underline mt-1.5 active:scale-95 transition-transform"
+                className="w-full text-xs text-center text-themeblue2 dark:text-themeblue1 hover:underline mt-1.5 active:scale-95 transition-transform"
               >
                 Need help? Contact support
               </button>
@@ -414,7 +414,7 @@ export function LoginScreen() {
                       We'll review your message and get back to you at {helpEmail}.
                     </p>
                   </div>
-                  <button onClick={() => switchView('main')} className="w-full text-xs text-themeblue3 dark:text-themeblue1 hover:underline mt-3 active:scale-95 transition-transform">
+                  <button onClick={() => switchView('main')} className="w-full text-xs text-themeblue2 dark:text-themeblue1 hover:underline mt-3 active:scale-95 transition-transform">
                     Back to sign in
                   </button>
                 </>

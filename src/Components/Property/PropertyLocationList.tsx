@@ -283,7 +283,7 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
     }
     return (
       <div className="w-10 h-10 rounded-xl bg-themeblue3/10 flex items-center justify-center shrink-0">
-        <span className="text-xs font-semibold text-themeblue3">{itemInitials(item.name)}</span>
+        <span className="text-xs font-semibold text-themeblue2">{itemInitials(item.name)}</span>
       </div>
     )
   }
@@ -359,7 +359,7 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
       >
         <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isMember ? 'bg-themeblue3/10' : 'bg-tertiary/8'}`}>
           {isMember
-            ? <User size={18} className="text-themeblue3" />
+            ? <User size={18} className="text-themeblue2" />
             : <FolderClosed size={18} className="text-tertiary" />
           }
         </div>

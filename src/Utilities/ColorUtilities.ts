@@ -24,7 +24,7 @@ interface ColorClasses {
 
 /** Shared base classes for OTHER and default (differ only by dispositionBadge). */
 const BLUE3_BASE: Omit<ColorClasses, 'dispositionBadge'> = {
-    symptomCheck: 'text-themeblue3',
+    symptomCheck: 'text-themeblue2',
     answerSlider: 'bg-themeblue3',
     answerButton: 'text-white',
     badgeBg: 'bg-themeblue3',
@@ -95,7 +95,7 @@ const COLOR_PALETTES: Record<string, ColorClasses> = {
         dispositionBadge: 'bg-themeblue2/10 text-white',
     },
     'OTHER': { ...BLUE3_BASE, dispositionBadge: 'bg-themeblue3/80 text-white' },
-    'default': { ...BLUE3_BASE, dispositionBadge: 'bg-themeblue3/10 text-themeblue3' },
+    'default': { ...BLUE3_BASE, dispositionBadge: 'bg-themeblue2/10 text-themeblue2' },
 };
 
 /** Return Tailwind color class mappings for a given disposition category (CAT I-IV, OTHER, or default). */

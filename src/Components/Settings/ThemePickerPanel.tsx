@@ -55,7 +55,7 @@ export function ThemePickerPanel() {
     const { theme: themeMode, themeName, setTheme, setThemeName } = useTheme();
 
     return (
-        <div className="px-5 py-4 space-y-3">
+        <div data-tour="theme-picker-grid" className="px-5 py-4 space-y-3">
             {THEME_DEFS.map((def) => {
                 const isSelected = themeName === def.name;
                 const pal = themeMode === 'dark' ? def.dark : def.light;

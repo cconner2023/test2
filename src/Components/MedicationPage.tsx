@@ -17,7 +17,7 @@ function IconList({ items }: { items: Array<{ icon: string; text: string }> }) {
                     key={idx}
                     className={`flex items-start gap-3 px-4 py-3 ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
                 >
-                    <span className="inline-flex items-center justify-center py-0.5 px-2 rounded-md bg-themeblue3/10 text-themeblue3 text-[8.5pt] font-medium shrink-0">
+                    <span className="inline-flex items-center justify-center py-0.5 px-2 rounded-md bg-themeblue3/10 text-themeblue2 text-[8.5pt] font-medium shrink-0">
                         {item.icon}
                     </span>
                     <span className="flex-1 text-sm text-primary">{item.text}</span>

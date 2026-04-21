@@ -5,6 +5,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { writeFileSync, mkdirSync } from 'fs'
 import { resolve } from 'path'
 const APP_VERSION = '2.6.6'
+const BUILD_ID = 'A0'
 
 export default defineConfig({
   base: '/test2/',
@@ -19,6 +20,7 @@ export default defineConfig({
   },
   define: {
     __APP_VERSION__: JSON.stringify(APP_VERSION),
+    __BUILD_ID__: JSON.stringify(BUILD_ID),
   },
   plugins: [
     react(),

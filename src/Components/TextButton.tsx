@@ -17,7 +17,7 @@ export function TextButton({
     const getVariant = () => {
         switch (variant) {
             case 'secondary':
-                return 'bg-themewhite2 text-themeblue3 hover:bg-themeblue1/20 rounded-full';
+                return 'bg-themewhite2 text-themeblue2 hover:bg-themeblue1/20 rounded-full';
             case 'primary':
                 return 'bg-themeblue3 text-themewhite2 hover:bg-themeblue3/80 rounded-full';
             case 'special':

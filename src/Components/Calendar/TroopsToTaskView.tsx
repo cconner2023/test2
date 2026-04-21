@@ -342,7 +342,7 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
             <button onClick={prevDay} className="w-6 h-6 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95">
               <ChevronLeft className="w-3.5 h-3.5" />
             </button>
-            <button onClick={jumpToToday} className="text-[9pt] font-semibold text-primary hover:text-themeblue3 transition-colors active:scale-95 truncate" title="Jump to today">
+            <button onClick={jumpToToday} className="text-[9pt] font-semibold text-primary hover:text-themeblue2 transition-colors active:scale-95 truncate" title="Jump to today">
               {dateNavLabel}
             </button>
             <button onClick={nextDay} className="w-6 h-6 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95">

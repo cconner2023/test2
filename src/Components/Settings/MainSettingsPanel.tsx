@@ -35,6 +35,9 @@ export const MainSettingsPanel = ({
         [PANEL.CLINIC]: 'settings-clinic',
         [PANEL.GUIDED_TOURS]: 'settings-guided-tours',
         [PANEL.PROVIDER_TEMPLATES]: 'settings-provider-templates',
+        [PANEL.RELEASE_NOTES]: 'settings-release-notes',
+        [PANEL.FEEDBACK]: 'settings-feedback',
+        [PANEL.PRIVACY_POLICY]: 'settings-privacy',
     };
     // Separate top row items (no header before them) from card sections
     const topItems: Extract<SettingsItem, { type: 'option' }>[] = [];
