@@ -6,6 +6,55 @@ import { TextInput } from '../FormInputs'
 import type { TC3VitalSet, AVPU } from '../../Types/TC3Types'
 
 const AVPU_OPTIONS: AVPU[] = ['A', 'V', 'P', 'U']
+
+/* ── GCS component descriptors ── */
+const EYE_LABELS: Record<number, string>    = { 1: 'None', 2: 'To Pain', 3: 'To Voice', 4: 'Spontaneous' }
+const VERBAL_LABELS: Record<number, string> = { 1: 'None', 2: 'Sounds', 3: 'Words', 4: 'Confused', 5: 'Oriented' }
+const MOTOR_LABELS: Record<number, string>  = { 1: 'None', 2: 'Extension', 3: 'Flexion', 4: 'Withdraws', 5: 'Localizes', 6: 'Obeys' }
+
+function GCSStepperRow({ label, value, max, labels, onChange }: {
+  label: string
+  value: number
+  max: number
+  labels: Record<number, string>
+  onChange: (v: number) => void
+}) {
+  const canDec = value > 0
+  const canInc = value < max
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-10 text-[9pt] font-medium text-tertiary uppercase tracking-wide shrink-0">{label}</span>
+      <button
+        type="button"
+        onClick={() => canDec && onChange(value - 1)}
+        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all text-base font-bold shrink-0 active:scale-95 ${
+          canDec ? 'bg-tertiary/8 text-primary hover:bg-tertiary/15' : 'bg-tertiary/4 text-tertiary/25 cursor-not-allowed'
+        }`}
+      >
+        −
+      </button>
+      <div className="flex-1 flex flex-col items-center min-w-0">
+        {value > 0 ? (
+          <>
+            <span className="text-sm font-bold text-primary leading-none">{value}</span>
+            <span className="text-[8pt] text-tertiary mt-0.5 leading-none truncate">{labels[value]}</span>
+          </>
+        ) : (
+          <span className="text-sm text-tertiary/40">—</span>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => canInc && onChange(value + 1)}
+        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all text-base font-bold shrink-0 active:scale-95 ${
+          canInc ? 'bg-tertiary/8 text-primary hover:bg-tertiary/15' : 'bg-tertiary/4 text-tertiary/25 cursor-not-allowed'
+        }`}
+      >
+        +
+      </button>
+    </div>
+  )
+}
 const AVPU_LABELS: Record<AVPU, string> = {
   A: 'Alert',
   V: 'Voice',
@@ -224,15 +273,13 @@ function VitalSetPreviewContent({ id }: { id: string }) {
         ))}
       </div>
 
-      {/* GCS inputs — total shown below */}
-      <div className="space-y-1.5">
-        <div className="grid grid-cols-3 gap-2">
-          <TextInput label="Eye (1-4)" value={String(gcs?.eye ?? '')} onChange={(v) => handleGCS('eye', v)} type="number" />
-          <TextInput label="Verbal (1-5)" value={String(gcs?.verbal ?? '')} onChange={(v) => handleGCS('verbal', v)} type="number" />
-          <TextInput label="Motor (1-6)" value={String(gcs?.motor ?? '')} onChange={(v) => handleGCS('motor', v)} type="number" />
-        </div>
+      {/* GCS steppers */}
+      <div className="space-y-2">
+        <GCSStepperRow label="Eye"    value={gcs?.eye    ?? 0} max={4} labels={EYE_LABELS}    onChange={(v) => handleGCS('eye',    String(v))} />
+        <GCSStepperRow label="Verbal" value={gcs?.verbal ?? 0} max={5} labels={VERBAL_LABELS} onChange={(v) => handleGCS('verbal', String(v))} />
+        <GCSStepperRow label="Motor"  value={gcs?.motor  ?? 0} max={6} labels={MOTOR_LABELS}  onChange={(v) => handleGCS('motor',  String(v))} />
         {gcsTotal !== null && gcsTotal > 0 && (
-          <p className="text-xs font-medium text-tertiary uppercase tracking-wide pl-1">GCS — {gcsTotal}</p>
+          <p className="text-xs font-medium text-tertiary uppercase tracking-wide pl-1 pt-0.5">GCS — {gcsTotal}</p>
         )}
       </div>
 

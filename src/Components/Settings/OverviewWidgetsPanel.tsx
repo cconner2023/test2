@@ -1,4 +1,4 @@
-import { LayoutDashboard, ListTodo, Map, LayoutGrid, CalendarDays, MessageSquare } from 'lucide-react'
+import { LayoutDashboard, ListTodo, Map, LayoutGrid, CalendarDays, MessageSquare, Thermometer } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useUserProfile } from '../../Hooks/useUserProfile'
 import type { OverviewWidgetId } from '../../Data/User'
@@ -13,9 +13,10 @@ const WIDGET_ICONS: Record<OverviewWidgetId, LucideIcon> = {
     'kanban':      LayoutGrid,
     'week-view':   CalendarDays,
     'messages':    MessageSquare,
+    'weather':     Thermometer,
 }
 
-const WIDGET_ORDER: OverviewWidgetId[] = ['task-list', 'map-overlay', 'kanban', 'week-view', 'messages']
+const WIDGET_ORDER: OverviewWidgetId[] = ['task-list', 'map-overlay', 'kanban', 'week-view', 'messages', 'weather']
 
 const DEFAULT_WIDGETS: OverviewWidgetId[] = ['kanban', 'messages']
 

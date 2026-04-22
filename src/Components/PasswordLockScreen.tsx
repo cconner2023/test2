@@ -3,6 +3,7 @@ import { Lock, Lightbulb } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { verifyPasswordLocally, storePasswordHash } from '../lib/authService'
 import { deriveAndStoreBackupKey } from '../lib/signal/backupService'
+import { ensureVaultExists, deriveAndCacheVaultKey, setVaultKeyReady } from '../lib/signal/vaultDevice'
 import { PasswordInput } from './FormInputs'
 import { ErrorDisplay } from './ErrorDisplay'
 
@@ -93,6 +94,15 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
         // Success — update local hash for future offline use
         storePasswordHash(password).catch(() => { })
         deriveAndStoreBackupKey(password, authData.user?.id ?? '').catch(() => { })
+        // Re-cache vault wrapping key (cleared on page reload) so processVaultMessages
+        // can run after the SIGNED_IN event fires from this re-auth.
+        const uid = authData.user?.id ?? ''
+        if (uid) {
+          const vaultKeyP = ensureVaultExists(uid, password)
+            .then(() => deriveAndCacheVaultKey(password, uid))
+            .catch(() => {})
+          setVaultKeyReady(vaultKeyP)
+        }
         setFailures(0)
         onUnlock()
         return

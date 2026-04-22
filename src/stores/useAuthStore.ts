@@ -470,8 +470,12 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
           set({ localSession: ls })
           persistLocalSession(ls)
 
-          // Process vault messages (deferred messages from offline period)
-          processVaultMessages(userId).catch(() => {})
+          // Process vault messages (deferred messages from offline period).
+          // If any messages were recovered, create a backup immediately so other
+          // devices don't miss them during the 60s periodic backup window.
+          processVaultMessages(userId)
+            .then(count => { if (count > 0) createBackup(userId).catch(() => {}) })
+            .catch(() => {})
 
           // Initialize clinic vault device (clinic persona — parallel to personal vault)
           // Await profile so clinicId is available on new devices (no localStorage cache)

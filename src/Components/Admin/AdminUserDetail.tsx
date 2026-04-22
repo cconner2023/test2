@@ -15,7 +15,7 @@ import type { Component } from '../../Data/User'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { UserRow } from '../UserRow'
 import { AdminCertsSection } from './AdminCertsSection'
-import { TextInput, PickerInput, MultiPickerInput, UicPinInput } from '../FormInputs'
+import { TextInput, PickerInput, MultiPickerInput, UicPinInput, PasswordInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { formatLastActive, RoleBadge } from './adminUtils'
 import {
@@ -30,6 +30,7 @@ import {
   createUser,
 } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
+import { ClinicPickerInput } from './AdminPickers'
 import { fetchAllCertifications } from '../../lib/certificationService'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { UI_TIMING } from '../../Utilities/constants'
@@ -115,12 +116,6 @@ export function AdminUserDetail({
   }, [allCerts, user])
 
   const componentRanks = editComponent ? ranksByComponent[editComponent as Component] : []
-
-  // ── Clinic options for edit PickerInput ─────────────────────────────
-  const clinicOptions = useMemo(
-    () => clinics.map(c => ({ value: c.id, label: `${c.name} (${c.uics.join(', ')})` })),
-    [clinics],
-  )
 
   // ── Data loading ────────────────────────────────────────────────────
 
@@ -370,7 +365,7 @@ export function AdminUserDetail({
             {isCreateMode ? (
               <>
                 <TextInput value={createEmail} onChange={setCreateEmail} placeholder="Email *" type="email" required />
-                <TextInput value={createPassword} onChange={setCreatePassword} placeholder="Temporary Password *" required />
+                <PasswordInput value={createPassword} onChange={setCreatePassword} placeholder="Temporary password (min 12 chars)" />
               </>
             ) : (
               <div className="flex items-center gap-3">
@@ -405,7 +400,7 @@ export function AdminUserDetail({
               <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-1.5 block">UIC</span>
               <UicPinInput value={editUic} onChange={setEditUic} spread />
             </div>
-            <PickerInput value={editClinicId} onChange={setEditClinicId} options={clinicOptions} placeholder="Clinic" />
+            <ClinicPickerInput value={editClinicId} onChange={setEditClinicId} allClinics={clinics} placeholder="Clinic" />
             <MultiPickerInput
               label="Roles"
               value={editRoles}
@@ -517,13 +512,13 @@ export function AdminUserDetail({
               {resetPwActive && (
                 <div className="px-4 pb-3.5 bg-tertiary/5">
                   <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={resetPwValue}
-                      onChange={(e) => setResetPwValue(e.target.value)}
-                      placeholder="New password (min 12 chars)..."
-                      className="flex-1 px-3 py-2 rounded-lg bg-themewhite2 border border-themeyellow/30 text-sm focus:border-themeblue2 focus:outline-none"
-                    />
+                    <div className="flex-1 min-w-0">
+                      <PasswordInput
+                        value={resetPwValue}
+                        onChange={setResetPwValue}
+                        placeholder="New password (min 12 chars)..."
+                      />
+                    </div>
                     <button
                       onClick={handleResetPassword}
                       disabled={resetPwProcessing || resetPwValue.length < 12}

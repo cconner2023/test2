@@ -10,6 +10,7 @@ import { QuestionRow, WordListContent } from './ScreenerDrawer'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { VitalSignsCalculator, type VitalSignsCalculatorHandle } from './VitalSignsCalculator'
 import { BurnCalculator } from './BurnCalculator'
+import { HeatCategoryCalculator } from './HeatCategoryCalculator'
 import { BloodProductsReference } from './BloodProductsReference'
 import { NineLineKB, NineLineExport } from './Reports/NineLineKB'
 import { KBOverlay } from './KBOverlay'
@@ -41,6 +42,7 @@ type KBView =
     | 'medication-detail'
     | 'screener'
     | 'burn'
+    | 'heat-category'
     | 'report-9line'
     | 'report-9line-review'
 
@@ -149,6 +151,11 @@ export function KnowledgeBaseDrawer({
             setView('burn')
             return
         }
+        if (category.id === 'heat-category') {
+            handleSlideAnimation('left')
+            setView('heat-category')
+            return
+        }
         if (category.id === 'blood-products') {
             setBloodOpen(true)
             return
@@ -204,6 +211,7 @@ export function KnowledgeBaseDrawer({
             case 'medications':
             case 'screener':
             case 'burn':
+            case 'heat-category':
             case 'report-9line':
                 setView('home')
                 setActiveScreener(null)
@@ -254,6 +262,8 @@ export function KnowledgeBaseDrawer({
                 return { title: activeScreener?.title || 'Screener', showBack: true, onBack: handleBack }
             case 'burn':
                 return { title: 'Burn Assessment', showBack: true, onBack: handleBack }
+            case 'heat-category':
+                return { title: 'Heat Category', showBack: true, onBack: handleBack }
             case 'report-9line':
                 return { title: '9-Line MEDEVAC', showBack: true, onBack: handleBack }
             case 'report-9line-review':
@@ -311,6 +321,9 @@ export function KnowledgeBaseDrawer({
                 )}
                 {view === 'burn' && (
                     <BurnCalculator />
+                )}
+                {view === 'heat-category' && (
+                    <HeatCategoryCalculator />
                 )}
                 {view === 'report-9line' && (
                     <NineLineKB

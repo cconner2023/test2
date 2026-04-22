@@ -2,26 +2,26 @@ import { RotateCcw, Users } from 'lucide-react'
 import { ActionButton } from '../ActionButton'
 
 interface TC3CardToolbarProps {
-  queueCount: number
+  totalCount: number
   onOpenQueue: () => void
   onClearCard: () => void
 }
 
 /**
  * Inline pill toolbar — always visible, single tap for each action.
- * MASCAL button: fills red + shows count when queue has entries.
+ * MASCAL button: fills red + shows total casualty count when > 1.
  * Clear button: danger ActionButton → triggers confirm overlay upstream.
  */
-export function TC3CardToolbar({ queueCount, onOpenQueue, onClearCard }: TC3CardToolbarProps) {
-  const isMASCAL = queueCount > 0
+export function TC3CardToolbar({ totalCount, onOpenQueue, onClearCard }: TC3CardToolbarProps) {
+  const isMASCAL = totalCount > 1
 
   return (
     <div className="flex items-center px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
-      {/* MASCAL queue — shows count inside when active, Users icon when idle */}
+      {/* MASCAL queue — shows total count when active, Users icon when idle */}
       <button
         onClick={onOpenQueue}
-        aria-label={isMASCAL ? `MASCAL Queue — ${queueCount} queued` : 'MASCAL Queue'}
-        title={isMASCAL ? `${queueCount} queued` : 'MASCAL Queue'}
+        aria-label={isMASCAL ? `MASCAL — ${totalCount} casualties` : 'MASCAL Queue'}
+        title={isMASCAL ? `${totalCount} casualties` : 'MASCAL Queue'}
         className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
           isMASCAL
             ? 'bg-themeredred text-white'
@@ -29,7 +29,7 @@ export function TC3CardToolbar({ queueCount, onOpenQueue, onClearCard }: TC3Card
         }`}
       >
         {isMASCAL ? (
-          <span className="text-[9pt] font-bold leading-none">{queueCount}</span>
+          <span className="text-[9pt] font-bold leading-none">{totalCount}</span>
         ) : (
           <Users size={16} />
         )}

@@ -6,6 +6,7 @@ import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { ErrorDisplay } from '../ErrorDisplay'
+import { PasswordInput } from '../FormInputs'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useLongPress } from '../../Hooks/useLongPress'
 import { formatLastActive, RoleBadge } from './adminUtils'
@@ -292,13 +293,13 @@ export function AdminUsersList({
         {resetPwUserId === user.id && (
           <div className="px-4 pb-3.5 bg-tertiary/5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={resetPwValue}
-                onChange={(e) => setResetPwValue(e.target.value)}
-                placeholder="New password (min 12 chars)..."
-                className="flex-1 px-3 py-2 rounded-lg bg-themewhite2 border border-themeyellow/30 text-sm focus:border-themeblue2 focus:outline-none transition-colors"
-              />
+              <div className="flex-1 min-w-0">
+                <PasswordInput
+                  value={resetPwValue}
+                  onChange={setResetPwValue}
+                  placeholder="New password (min 12 chars)..."
+                />
+              </div>
               <button
                 onClick={() => handleResetPassword(user.id)}
                 disabled={resetPwProcessing || resetPwValue.length < 12}

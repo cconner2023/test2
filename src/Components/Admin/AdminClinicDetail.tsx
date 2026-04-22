@@ -14,12 +14,14 @@ import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import { formatLastActive } from './adminUtils'
 import { TextInput, UicPinInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
-import { UserPicker, ClinicPicker } from './AdminPickers'
+import { UserPicker, ClinicMultiPickerInput } from './AdminPickers'
+import { invalidate } from '../../stores/useInvalidationStore'
 
 interface AdminClinicDetailProps {
   clinic: AdminClinic | null
   onClinicUpdated: (clinic: AdminClinic) => void
   onSelectUser?: (user: AdminUser) => void
+  onSelectClinic?: (clinic: AdminClinic) => void
   editing: boolean
   onEditingChange: (editing: boolean) => void
   saveRequested: boolean
@@ -32,6 +34,7 @@ const AdminClinicDetail = ({
   clinic,
   onClinicUpdated,
   onSelectUser,
+  onSelectClinic,
   editing,
   onEditingChange,
   saveRequested,
@@ -53,6 +56,7 @@ const AdminClinicDetail = ({
   const [error, setError] = useState<string | null>(null)
   const [uicDraft, setUicDraft] = useState('')
   const [uicError, setUicError] = useState<string | null>(null)
+  const [uicOwner, setUicOwner] = useState<AdminClinic | null>(null)
 
   const isCreateMode = clinic === null
 
@@ -61,16 +65,19 @@ const AdminClinicDetail = ({
     const upper = uicDraft.toUpperCase()
     if (editUics.includes(upper)) {
       setUicError('UIC already added.')
+      setUicOwner(null)
       return
     }
     const owner = clinics.find(c => c.id !== clinic?.id && c.uics.includes(upper))
     if (owner) {
-      setUicError(`UIC ${upper} assigned to ${owner.name}.`)
+      setUicError(`UIC ${upper} is assigned to`)
+      setUicOwner(owner)
       return
     }
     setEditUics(prev => [...prev, upper])
     setUicDraft('')
     setUicError(null)
+    setUicOwner(null)
   }, [uicDraft, editUics, clinics, clinic?.id])
 
   /** Stable ref for onClinicUpdated to avoid recreating loadData on every render. */
@@ -156,6 +163,7 @@ const AdminClinicDetail = ({
     if (result.success) {
       onEditingChange(false)
       loadData()
+      invalidate('clinics', 'users')
     } else {
       setError(result.error || 'Failed to update clinic')
     }
@@ -240,7 +248,7 @@ const AdminClinicDetail = ({
               )}
               <div className="flex items-end gap-2">
                 <div className="flex-1">
-                  <UicPinInput value={uicDraft} onChange={(v) => { setUicDraft(v); setUicError(null) }} spread />
+                  <UicPinInput value={uicDraft} onChange={(v) => { setUicDraft(v); setUicError(null); setUicOwner(null) }} spread />
                 </div>
                 <button
                   type="button"
@@ -251,10 +259,56 @@ const AdminClinicDetail = ({
                   <Plus size={16} />
                 </button>
               </div>
-              {uicError && <p className="text-xs text-themeredred mt-1">{uicError}</p>}
+              {uicError && (
+                <p className="text-xs text-themeredred mt-1">
+                  {uicError}{' '}
+                  {uicOwner && (
+                    onSelectClinic ? (
+                      <button
+                        type="button"
+                        onClick={() => onSelectClinic(uicOwner)}
+                        className="font-semibold underline text-themeblue2"
+                      >
+                        {uicOwner.name}
+                      </button>
+                    ) : (
+                      <span className="font-semibold">{uicOwner.name}</span>
+                    )
+                  )}
+                </p>
+              )}
+              {/* Users whose UIC matches any of the current clinic's UICs */}
+              {editUics.length > 0 && (() => {
+                const uicSet = new Set(editUics)
+                const suggested = users.filter(u => u.uic && uicSet.has(u.uic) && !editAdditionalUserIds.includes(u.id))
+                if (suggested.length === 0) return null
+                return (
+                  <div className="mt-2 rounded-lg bg-themeblue2/5 border border-themeblue2/20 px-3 py-2">
+                    <p className="text-[9pt] text-themeblue2 font-medium mb-1">
+                      {suggested.length} user{suggested.length !== 1 ? 's' : ''} with matching UICs
+                    </p>
+                    <div className="space-y-0.5">
+                      {suggested.map(u => (
+                        <div key={u.id} className="flex items-center justify-between">
+                          <span className="text-[9pt] text-primary">
+                            {[u.rank, u.first_name, u.last_name].filter(Boolean).join(' ') || u.email}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setEditAdditionalUserIds(prev => [...prev, u.id])}
+                            className="text-[9pt] text-themeblue2 font-medium ml-2 shrink-0"
+                          >
+                            + Add
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
-            <ClinicPicker label="Sub-clinics" selectedIds={editChildClinicIds} allClinics={clinics} excludeId={clinic?.id} onChange={setEditChildClinicIds} />
-            <ClinicPicker label="Associated Clinics" selectedIds={editAssociatedClinicIds} allClinics={clinics} excludeId={clinic?.id} onChange={setEditAssociatedClinicIds} />
+            <ClinicMultiPickerInput label="Sub-clinics" selectedIds={editChildClinicIds} allClinics={clinics} excludeId={clinic?.id} onChange={setEditChildClinicIds} placeholder="Add sub-clinic..." />
+            <ClinicMultiPickerInput label="Associated Clinics" selectedIds={editAssociatedClinicIds} allClinics={clinics} excludeId={clinic?.id} onChange={setEditAssociatedClinicIds} placeholder="Add associated clinic..." />
             <UserPicker label="Additional Users" selectedIds={editAdditionalUserIds} allUsers={users} onChange={setEditAdditionalUserIds} />
           </div>
         ) : clinic ? (

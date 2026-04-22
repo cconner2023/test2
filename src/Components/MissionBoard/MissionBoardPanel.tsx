@@ -20,6 +20,7 @@ import { useProfileAvatar } from '../../Hooks/useProfileAvatar'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { GroupInfo } from '../../lib/signal/groupTypes'
 import { MissionMapCard } from './MissionMapCard'
+import { WeatherWidget } from './WeatherWidget'
 import {
   TaskRow, statusMenuItems,
   formatDateLabel, offsetDate, CATEGORY_STRIPE,
@@ -389,7 +390,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   if (overviewWidgets === null) return null
 
   const DEFAULT_WIDGETS: OverviewWidgetId[] = ['kanban', 'messages']
-  const VALID_IDS: OverviewWidgetId[] = ['task-list', 'map-overlay', 'kanban', 'week-view', 'messages']
+  const VALID_IDS: OverviewWidgetId[] = ['task-list', 'map-overlay', 'kanban', 'week-view', 'messages', 'weather']
   const widgets: OverviewWidgetId[] = Array.from(new Set(
     (overviewWidgets ?? DEFAULT_WIDGETS)
       .map(id => (id as string) === 'gantt' ? 'kanban' : id)
@@ -570,6 +571,13 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
         return (
           <div key="messages">
             <MessagesWidget />
+          </div>
+        )
+
+      case 'weather':
+        return (
+          <div key="weather">
+            <WeatherWidget />
           </div>
         )
 

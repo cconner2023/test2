@@ -138,7 +138,7 @@ export interface UserTypes {
     overviewWidgets?: OverviewWidgetId[] | null
 }
 
-export type OverviewWidgetId = 'task-list' | 'map-overlay' | 'kanban' | 'week-view' | 'messages'
+export type OverviewWidgetId = 'task-list' | 'map-overlay' | 'kanban' | 'week-view' | 'messages' | 'weather'
 
 export const OVERVIEW_WIDGET_META: Record<OverviewWidgetId, { label: string; subtitle: string; disabled?: boolean }> = {
   'task-list':   { label: 'Task List',    subtitle: 'Your assigned tasks for the day' },
@@ -146,6 +146,7 @@ export const OVERVIEW_WIDGET_META: Record<OverviewWidgetId, { label: string; sub
   'kanban':      { label: 'Kanban',       subtitle: 'Events grouped by status' },
   'week-view':   { label: 'Week View',    subtitle: '7-day event summary strip' },
   'messages':    { label: 'Messages',     subtitle: 'Recent encrypted messages' },
+  'weather':     { label: 'Weather',      subtitle: 'Current temp, humidity & heat category' },
 }
 
 export const credentials: Credential[] = ['EMT-B', 'EMT-A', 'EMT-P', 'PA-C', 'NP', 'MD', 'DO'];

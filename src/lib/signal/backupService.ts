@@ -520,7 +520,7 @@ export async function restoreBackup(userId: string): Promise<void> {
     }
 
     for (const msg of payload.messages) {
-      await saveMessage(msg, userId)
+      await saveMessage(msg, userId, { preserveReadAt: true })
       // Route calendar events, but skip create/update for events that
       // were later deleted — prevents backup from resurrecting them.
       if (isCalendarEvent(msg.content)) {

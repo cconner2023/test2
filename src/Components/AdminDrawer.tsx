@@ -459,6 +459,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                             clinic={selectedClinic}
                             onClinicUpdated={(c) => setSelectedClinic(c)}
                             onSelectUser={handleSelectUser}
+                            onSelectClinic={handleSelectClinic}
                             onCreated={handleClinicCreated}
                             editing={clinicEditing}
                             onEditingChange={setClinicEditing}

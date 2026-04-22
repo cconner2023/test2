@@ -74,19 +74,19 @@ export const TC3MobileWizard = memo(function TC3MobileWizard() {
     >
       <TQAlertBanner />
 
+      {/* Stable toolbar — outside sliding content to prevent duplication on swipe */}
+      <div className="flex justify-end px-4 py-2 shrink-0">
+        <TC3CardToolbar
+          totalCount={casualtyQueue.length + 1}
+          onOpenQueue={() => setQueueOpen(true)}
+          onClearCard={() => setShowConfirmReset(true)}
+        />
+      </div>
+
       {/* Page content */}
       <div className="flex-1 overflow-y-auto">
         <ContentWrapper slideDirection={slideDirection}>
           <div className="px-4 py-4 min-h-full space-y-6">
-
-            {/* ── Card toolbar — row 0, both pages ── */}
-            <div className="flex justify-end">
-              <TC3CardToolbar
-                queueCount={casualtyQueue.length}
-                onOpenQueue={() => setQueueOpen(true)}
-                onClearCard={() => setShowConfirmReset(true)}
-              />
-            </div>
 
             {/* ── Page 0: Front of card ── */}
             {wizardStep === 0 && (

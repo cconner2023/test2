@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { Pill, BookOpen, Brain, ClipboardList, Calculator, Radio } from 'lucide-react'
+import { Pill, BookOpen, Brain, ClipboardList, Calculator, Radio, Thermometer } from 'lucide-react'
 
 export type KBGroup = 'medications' | 'training' | 'screening' | 'calculators' | 'reports'
 
@@ -74,6 +74,13 @@ export const kbCategories: KBCategory[] = [
         label: 'Burn Assessment',
         description: 'TBSA & Parkland formula',
         icon: Calculator,
+        group: 'calculators',
+    },
+    {
+        id: 'heat-category',
+        label: 'Heat Category',
+        description: 'WBGT to Army heat flag & work/rest',
+        icon: Thermometer,
         group: 'calculators',
     },
 

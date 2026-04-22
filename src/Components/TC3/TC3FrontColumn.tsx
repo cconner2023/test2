@@ -37,7 +37,7 @@ export const TC3FrontColumn = memo(function TC3FrontColumn() {
         {/* Card toolbar */}
         <div className="flex justify-end">
           <TC3CardToolbar
-            queueCount={casualtyQueue.length}
+            totalCount={casualtyQueue.length + 1}
             onOpenQueue={() => setQueueOpen(true)}
             onClearCard={() => setShowConfirmReset(true)}
           />
