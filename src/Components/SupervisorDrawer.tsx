@@ -12,6 +12,7 @@ import { useCalendarWrite } from '../Hooks/useCalendarWrite'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { updateAssignmentCalendarOriginId } from '../lib/trainingService'
 import { useAuthStore } from '../stores/useAuthStore'
+import { useNavigationStore } from '../stores/useNavigationStore'
 import { useSupervisorData } from './Settings/Supervisor/useSupervisorData'
 import { SoldierProfile } from './Settings/Supervisor/SoldierProfile'
 import { SoldierCertsEditor } from './Settings/Supervisor/SoldierCertsEditor'
@@ -71,6 +72,8 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   const { submitTestEvaluation, assignTask } = useTrainingCompletions()
   const { writeEvent } = useCalendarWrite()
   const user = useAuthStore(s => s.user)
+  const calendarEvents = useCalendarStore(s => s.events)
+  const setShowCalendarDrawer = useNavigationStore(s => s.setShowCalendarDrawer)
 
   const {
     loading: _loading,
@@ -97,6 +100,19 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     const entry = teamMetrics.soldierReadiness.find(s => s.soldierId === soldierId)
     return entry?.readinessPercent ?? 0
   }, [teamMetrics.soldierReadiness])
+
+  const windowedEvents = useMemo(() => {
+    const now = new Date()
+    const past7 = new Date(now); past7.setDate(past7.getDate() - 7)
+    const future14 = new Date(now); future14.setDate(future14.getDate() + 14)
+    return calendarEvents
+      .filter(e => {
+        const start = new Date(e.start_time)
+        const end = new Date(e.end_time)
+        return end >= past7 && start <= future14 && e.status !== 'cancelled'
+      })
+      .sort((a, b) => a.start_time.localeCompare(b.start_time))
+  }, [calendarEvents])
 
   // Tour: navigate into first coverage area programmatically
   useEffect(() => {
@@ -283,6 +299,11 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     onClose()
   }, [onClose])
 
+  const handleOpenCalendar = useCallback(() => {
+    handleClose()
+    setShowCalendarDrawer(true)
+  }, [handleClose, setShowCalendarDrawer])
+
   const handleTreeSelect = useCallback((selection: TreeSelection) => {
     setTreeSelection(selection)
     if (view.screen !== 'main') {
@@ -438,6 +459,8 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
               testableTaskMap={testableTaskMap}
               clinicName={clinicName}
               onNavigateToArea={handleNavigateToArea}
+              teamEvents={windowedEvents}
+              onOpenCalendar={handleOpenCalendar}
             />
           </div>
         )
@@ -462,6 +485,8 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
               handleSlideAnimation('left')
               setView({ screen: 'coverage-tasks', areaName, soldier })
             }}
+            calendarEvents={windowedEvents.filter(e => e.assigned_to.includes(soldier.id))}
+            onOpenCalendar={handleOpenCalendar}
           />
         )
       }

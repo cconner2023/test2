@@ -195,21 +195,24 @@ function MedevacFormInner({
       {/* Mode toggle */}
       <div className="flex items-center justify-between">
         <span className={`font-semibold text-tertiary uppercase tracking-wider ${isMobile ? 'text-xs' : 'text-[9pt]'}`}>Context</span>
-        <div className="flex items-center rounded-full border border-primary/10 overflow-hidden">
-          {(['wartime', 'peacetime'] as MedevacMode[]).map(m => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => update({ mode: m })}
-              className={`px-3 py-1 transition-all ${isMobile ? 'text-sm' : 'text-xs'} font-medium ${
-                req.mode === m
-                  ? 'bg-themeblue3 text-white'
-                  : 'text-secondary hover:text-primary'
-              }`}
-            >
-              {m === 'wartime' ? 'Wartime' : 'Peacetime'}
-            </button>
-          ))}
+        <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15">
+          {(['wartime', 'peacetime'] as MedevacMode[]).map(m => {
+            const isActive = req.mode === m
+            return (
+              <button
+                key={m}
+                type="button"
+                aria-label={m === 'wartime' ? 'Wartime' : 'Peacetime'}
+                title={m === 'wartime' ? 'Wartime' : 'Peacetime'}
+                onClick={() => update({ mode: m })}
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 text-xs font-bold ${
+                  isActive ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
+                }`}
+              >
+                {m === 'wartime' ? 'W' : 'P'}
+              </button>
+            )
+          })}
         </div>
       </div>
 

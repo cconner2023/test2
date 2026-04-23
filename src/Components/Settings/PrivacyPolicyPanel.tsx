@@ -114,9 +114,9 @@ export const PrivacyPolicyPanel = () => (
             <ul className="list-disc list-outside ml-4 space-y-0.5">
               <li>Use the app without an account (guest mode)</li>
               <li>Request a copy of your stored data</li>
-              <li>Request deletion of your account and all associated data</li>
+              <li>Delete your account and all associated data at any time</li>
             </ul>
-            <p className="mt-1">Local data can be permanently deleted from your device at any time by signing out. To request deletion of your server-side profile, contact an administrator.</p>
+            <p className="mt-1">Local data can be permanently deleted from your device at any time by signing out. You can permanently delete your account and all server-side data at any time in <strong className="text-primary">Settings &gt; Profile &gt; Delete Account</strong>. This action is immediate and irreversible.</p>
           </Row>
         </div>
       </div>

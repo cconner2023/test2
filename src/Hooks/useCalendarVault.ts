@@ -28,6 +28,7 @@ import type { PeerDevice, FanOutMessageInput, PeerBundleRpcResult } from '../lib
 import type { PublicKeyBundle } from '../lib/signal/types'
 import type { CalendarEvent } from '../Types/CalendarTypes'
 import { loadPendingVaultSends, clearPendingVaultSend, loadPendingVaultDeletes, clearPendingVaultDelete } from '../lib/calendarEventStore'
+import { getTombstones } from '../lib/calendarRouting'
 import { useCalendarStore } from '../stores/useCalendarStore'
 
 const logger = createLogger('CalendarVault')
@@ -182,8 +183,16 @@ export function useCalendarVault(): UseCalendarVaultResult {
       for (const item of pendingSends) {
         const originId = await sendEvent('c', item.event)
         if (originId) {
-          await clearPendingVaultSend(item.id)
-          useCalendarStore.getState().updateEvent(item.id, { originId })
+          // If the event was deleted while this send was in flight, the vault
+          // message we just created must be hard-deleted so logged-out devices
+          // don't resurrect the event on vault replay.
+          if (getTombstones().has(item.id)) {
+            deleteEvents([originId]).catch(() => {})
+            await clearPendingVaultSend(item.id)
+          } else {
+            await clearPendingVaultSend(item.id)
+            useCalendarStore.getState().updateEvent(item.id, { originId })
+          }
         }
       }
 

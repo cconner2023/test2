@@ -1,8 +1,28 @@
 import { useMemo } from 'react'
-import { AlertTriangle, Building2 } from 'lucide-react'
+import { AlertTriangle, Building2, Calendar } from 'lucide-react'
 import { formatMedicName } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { TeamMetrics } from './supervisorHelpers'
+import type { CalendarEvent } from '../../../Types/CalendarTypes'
+import { getCategoryMeta } from '../../../Types/CalendarTypes'
+import { ActionButton } from '../../ActionButton'
+
+function formatEventDate(evt: CalendarEvent): string {
+  const start = new Date(evt.start_time)
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1)
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1)
+  const eventDay = new Date(start); eventDay.setHours(0, 0, 0, 0)
+
+  let dayLabel: string
+  if (eventDay.getTime() === today.getTime()) dayLabel = 'Today'
+  else if (eventDay.getTime() === yesterday.getTime()) dayLabel = 'Yesterday'
+  else if (eventDay.getTime() === tomorrow.getTime()) dayLabel = 'Tomorrow'
+  else dayLabel = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+  if (evt.all_day) return dayLabel
+  return `${dayLabel} · ${start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+}
 
 interface TeamReportingProps {
   metrics: TeamMetrics
@@ -13,6 +33,8 @@ interface TeamReportingProps {
   onNavigateToTask?: (taskId: string) => void
   onNavigateToArea?: (areaName: string) => void
   clinicName?: string | null
+  teamEvents: CalendarEvent[]
+  onOpenCalendar: () => void
 }
 
 function readinessColor(pct: number): string {
@@ -36,7 +58,10 @@ export function TeamReporting({
   onNavigateToTask,
   onNavigateToArea,
   clinicName,
+  teamEvents,
+  onOpenCalendar,
 }: TeamReportingProps) {
+  const now = useMemo(() => new Date(), [])
   const sortedSoldiers = useMemo(() => {
     return [...metrics.soldierReadiness].sort((a, b) => a.readinessPercent - b.readinessPercent)
   }, [metrics.soldierReadiness])
@@ -82,6 +107,54 @@ export function TeamReporting({
             </div>
             <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(metrics.certCompliancePercent)}`}>{metrics.certCompliancePercent}%</span>
           </div>
+        </div>
+      </div>
+
+      {/* Team Schedule */}
+      <div>
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
+          Team Schedule
+        </p>
+        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          {teamEvents.length === 0 ? (
+            <div className="flex items-center gap-3 px-4 py-3">
+              <p className="text-sm text-tertiary flex-1">No events in the next 14 days</p>
+              <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
+                <ActionButton icon={Calendar} label="Open full calendar" onClick={onOpenCalendar} />
+              </div>
+            </div>
+          ) : (
+            <>
+              {teamEvents.map((evt, idx) => {
+                const isPast = new Date(evt.end_time) < now
+                const meta = getCategoryMeta(evt.category)
+                return (
+                  <div
+                    key={evt.id}
+                    className={`flex items-center gap-3 px-4 py-3 transition-opacity ${idx > 0 ? 'border-t border-tertiary/8' : ''} ${isPast ? 'opacity-50' : ''}`}
+                  >
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${meta.solidColor}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-primary truncate">{evt.title}</p>
+                      <p className="text-[9pt] text-tertiary">{formatEventDate(evt)}</p>
+                    </div>
+                    {evt.assigned_to.length > 0 && (
+                      <span className="text-[9pt] text-tertiary shrink-0">
+                        {evt.assigned_to.length === 1
+                          ? resolveName(evt.assigned_to[0])
+                          : `${evt.assigned_to.length} assigned`}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+              <div className="flex items-center justify-end gap-3 px-4 py-2 border-t border-tertiary/8">
+                <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
+                  <ActionButton icon={Calendar} label="Open full calendar" onClick={onOpenCalendar} />
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -185,6 +258,7 @@ export function TeamReporting({
           ))}
         </div>
       </div>
+
     </div>
   )
 }

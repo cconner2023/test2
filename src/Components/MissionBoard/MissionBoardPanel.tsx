@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect, useRef, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Pin, Trash2, Users, MessageSquare } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pin, Trash2, Users, MessageSquare, Calendar } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useCalendarStore } from '../../stores/useCalendarStore'
@@ -28,6 +28,7 @@ import {
 import { DatePickerCalendar } from '../FormInputs'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ContextMenu } from '../ContextMenu'
+import { ActionButton } from '../ActionButton'
 
 const TASK_PREVIEW_LIMIT = 4
 
@@ -154,13 +155,11 @@ function MessagesWidget() {
 
   if (displayed.length === 0) {
     return (
-      <div
-        className="flex flex-col items-center justify-center gap-1.5 px-3 py-4 cursor-pointer active:bg-themeblue2/5"
-        onClick={() => setShowMessagesDrawer(true)}
-      >
-        <MessageSquare size={18} className="text-tertiary" />
-        <span className="text-xs text-secondary">No conversations</span>
-        <span className="text-[9pt] font-medium text-themeblue1">Open Messages</span>
+      <div className="flex items-center gap-3 px-4 py-3">
+        <p className="text-sm text-tertiary flex-1">No conversations</p>
+        <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
+          <ActionButton icon={MessageSquare} label="Open Messages" onClick={() => setShowMessagesDrawer(true)} />
+        </div>
       </div>
     )
   }
@@ -403,12 +402,11 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
         return (
           <div key="task-list" className="px-2.5 py-2 flex flex-col gap-1.5 min-h-[90px]">
             {myTasks.length === 0 ? (
-              <div
-                className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer active:bg-themeblue2/5 rounded-lg py-2"
-                onClick={() => setShowCalendarDrawer(true)}
-              >
-                <span className="text-xs text-secondary">No tasks today</span>
-                <span className="text-[9pt] font-medium text-themeblue1">Open Calendar</span>
+              <div className="flex items-center gap-3 -mx-2.5 px-4 py-3">
+                <p className="text-sm text-tertiary flex-1">No tasks today</p>
+                <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
+                  <ActionButton icon={Calendar} label="Open Calendar" onClick={() => setShowCalendarDrawer(true)} />
+                </div>
               </div>
             ) : (
               <>
@@ -465,9 +463,11 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
               ))}
             </div>
             {allDayEvents.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-1 py-4 cursor-pointer active:bg-themeblue2/5" onClick={() => setShowCalendarDrawer(true)}>
-                <span className="text-xs text-secondary">No events {isToday ? 'today' : 'this day'}</span>
-                <span className="text-[9pt] font-medium text-themeblue1">Open Calendar</span>
+              <div className="flex items-center gap-3 px-4 py-3">
+                <p className="text-sm text-tertiary flex-1">No events {isToday ? 'today' : 'this day'}</p>
+                <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
+                  <ActionButton icon={Calendar} label="Open Calendar" onClick={() => setShowCalendarDrawer(true)} />
+                </div>
               </div>
             ) : (
               <div className="flex divide-x divide-themeblue3/8 min-h-[70px]">
@@ -555,12 +555,11 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
               })}
             </div>
             {!weekHasEvents && (
-              <div
-                className="flex flex-col items-center gap-0.5 pt-2 pb-1 cursor-pointer active:opacity-60"
-                onClick={() => setShowCalendarDrawer(true)}
-              >
-                <span className="text-[9pt] text-secondary">No events this week</span>
-                <span className="text-[9pt] font-medium text-themeblue1">Open Calendar</span>
+              <div className="flex items-center gap-3 -mx-3 px-4 py-3">
+                <p className="text-sm text-tertiary flex-1">No events this week</p>
+                <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
+                  <ActionButton icon={Calendar} label="Open Calendar" onClick={() => setShowCalendarDrawer(true)} />
+                </div>
               </div>
             )}
           </div>

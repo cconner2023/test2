@@ -56,3 +56,7 @@ supabase/
 inline-build/
 .playwright-cli/
 .playwright/
+
+# MemPalace per-project files (issue #185)
+mempalace.yaml
+entities.json

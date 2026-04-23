@@ -22,18 +22,10 @@ function GCSStepperRow({ label, value, max, labels, onChange }: {
   const canDec = value > 0
   const canInc = value < max
   return (
-    <div className="flex items-center gap-2">
-      <span className="w-10 text-[9pt] font-medium text-tertiary uppercase tracking-wide shrink-0">{label}</span>
-      <button
-        type="button"
-        onClick={() => canDec && onChange(value - 1)}
-        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all text-base font-bold shrink-0 active:scale-95 ${
-          canDec ? 'bg-tertiary/8 text-primary hover:bg-tertiary/15' : 'bg-tertiary/4 text-tertiary/25 cursor-not-allowed'
-        }`}
-      >
-        −
-      </button>
-      <div className="flex-1 flex flex-col items-center min-w-0">
+    <div className="flex items-center gap-3 rounded-full bg-tertiary/6 pl-4 pr-1.5 py-1.5">
+      {/* Label + value on the left */}
+      <span className="w-12 text-[9pt] font-medium text-tertiary uppercase tracking-wide shrink-0">{label}</span>
+      <div className="flex-1 flex flex-col min-w-0">
         {value > 0 ? (
           <>
             <span className="text-sm font-bold text-primary leading-none">{value}</span>
@@ -43,15 +35,27 @@ function GCSStepperRow({ label, value, max, labels, onChange }: {
           <span className="text-sm text-tertiary/40">—</span>
         )}
       </div>
-      <button
-        type="button"
-        onClick={() => canInc && onChange(value + 1)}
-        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all text-base font-bold shrink-0 active:scale-95 ${
-          canInc ? 'bg-tertiary/8 text-primary hover:bg-tertiary/15' : 'bg-tertiary/4 text-tertiary/25 cursor-not-allowed'
-        }`}
-      >
-        +
-      </button>
+      {/* − + grouped on the right */}
+      <div className="flex gap-1 shrink-0">
+        <button
+          type="button"
+          onClick={() => canDec && onChange(value - 1)}
+          className={`w-9 h-9 rounded-full flex items-center justify-center transition-all text-base font-bold active:scale-95 ${
+            canDec ? 'bg-tertiary/10 text-primary hover:bg-tertiary/15' : 'bg-tertiary/4 text-tertiary/25 cursor-not-allowed'
+          }`}
+        >
+          −
+        </button>
+        <button
+          type="button"
+          onClick={() => canInc && onChange(value + 1)}
+          className={`w-9 h-9 rounded-full flex items-center justify-center transition-all text-base font-bold active:scale-95 ${
+            canInc ? 'bg-tertiary/10 text-primary hover:bg-tertiary/15' : 'bg-tertiary/4 text-tertiary/25 cursor-not-allowed'
+          }`}
+        >
+          +
+        </button>
+      </div>
     </div>
   )
 }
@@ -262,10 +266,10 @@ function VitalSetPreviewContent({ id }: { id: string }) {
             key={opt}
             type="button"
             onClick={() => handleAVPU(opt)}
-            className={`w-9 h-9 rounded-full text-xs font-bold transition-all border active:scale-95 ${
+            className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all active:scale-95 ${
               avpu === opt
-                ? 'bg-themeredred text-white border-transparent'
-                : 'border-tertiary/15 text-tertiary hover:bg-tertiary/5'
+                ? 'bg-themeredred text-white'
+                : 'bg-tertiary/10 text-tertiary hover:bg-tertiary/15'
             }`}
           >
             {opt}
@@ -310,10 +314,10 @@ function VitalSetPreviewContent({ id }: { id: string }) {
                   }
                   updateVitalSet(id, updates)
                 }}
-                className={`w-9 h-9 rounded-full text-xs font-bold transition-all border active:scale-95 ${
+                className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all active:scale-95 ${
                   vs.pulseLocation === opt
-                    ? 'bg-themeblue3 text-white border-transparent'
-                    : 'border-tertiary/15 text-tertiary hover:bg-tertiary/5'
+                    ? 'bg-themeblue3 text-white'
+                    : 'bg-tertiary/10 text-tertiary hover:bg-tertiary/15'
                 }`}
               >
                 {opt}

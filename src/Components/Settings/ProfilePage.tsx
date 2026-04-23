@@ -1,14 +1,36 @@
-import { useState, useCallback } from 'react';
-import { User, Award, KeyRound, LogOut, ChevronRight, Trash2 } from 'lucide-react';
+import { useState, useCallback, useMemo } from 'react';
+import { User, Award, KeyRound, LogOut, ChevronRight, Trash2, Calendar } from 'lucide-react';
 import bwipjs from 'bwip-js';
 import { useAuth } from '../../Hooks/useAuth';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useCalendarStore } from '../../stores/useCalendarStore';
+import { useNavigationStore } from '../../stores/useNavigationStore';
+import { getCategoryMeta } from '../../Types/CalendarTypes';
+import type { CalendarEvent } from '../../Types/CalendarTypes';
 import { useAvatar } from '../../Utilities/AvatarContext';
 import { getInitials } from '../../Utilities/nameUtils';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { PinKeypad } from '../PinKeypad';
 import { isPinEnabled, verifyPin } from '../../lib/pinService';
 import { ActionIconButton } from '../WriteNoteHelpers';
+import { ActionButton } from '../ActionButton';
+
+function formatEventDate(evt: CalendarEvent): string {
+  const start = new Date(evt.start_time)
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1)
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1)
+  const eventDay = new Date(start); eventDay.setHours(0, 0, 0, 0)
+
+  let dayLabel: string
+  if (eventDay.getTime() === today.getTime()) dayLabel = 'Today'
+  else if (eventDay.getTime() === yesterday.getTime()) dayLabel = 'Yesterday'
+  else if (eventDay.getTime() === tomorrow.getTime()) dayLabel = 'Tomorrow'
+  else dayLabel = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+  if (evt.all_day) return dayLabel
+  return `${dayLabel} · ${start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+}
 
 interface ProfilePageProps {
     onAvatarClick: () => void;
@@ -26,6 +48,28 @@ export const ProfilePage = ({
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar();
     const { profile, user } = useAuth();
     const deviceRole = useAuthStore(s => s.deviceRole);
+    const calendarEvents = useCalendarStore(s => s.events);
+    const setShowSettings = useNavigationStore(s => s.setShowSettings);
+    const setShowCalendarDrawer = useNavigationStore(s => s.setShowCalendarDrawer);
+    const now = useMemo(() => new Date(), []);
+
+    const myEvents = useMemo(() => {
+        if (!user?.id) return []
+        const past7 = new Date(now); past7.setDate(past7.getDate() - 7)
+        const future14 = new Date(now); future14.setDate(future14.getDate() + 14)
+        return calendarEvents
+            .filter(e => {
+                const start = new Date(e.start_time)
+                const end = new Date(e.end_time)
+                return end >= past7 && start <= future14 && e.status !== 'cancelled' && e.assigned_to.includes(user.id)
+            })
+            .sort((a, b) => a.start_time.localeCompare(b.start_time))
+    }, [calendarEvents, user?.id, now])
+
+    const handleOpenCalendar = useCallback(() => {
+        setShowSettings(false)
+        setShowCalendarDrawer(true)
+    }, [setShowSettings, setShowCalendarDrawer])
 
     // Sign out dialog
     const [showSignOut, setShowSignOut] = useState(false);
@@ -188,6 +232,48 @@ export const ProfilePage = ({
                             <ChevronRight size={16} className="text-tertiary shrink-0" />
                         </button>
                     ))}
+                </div>
+
+                {/* Schedule */}
+                <div>
+                    <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
+                        Schedule
+                    </p>
+                    <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                        {myEvents.length === 0 ? (
+                            <div className="flex items-center gap-3 px-4 py-3">
+                                <p className="text-sm text-tertiary flex-1">No events in the next 14 days</p>
+                                <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
+                                    <ActionButton icon={Calendar} label="Open full calendar" onClick={handleOpenCalendar} />
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                {myEvents.map((evt, idx) => {
+                                    const isPast = new Date(evt.end_time) < now
+                                    const meta = getCategoryMeta(evt.category)
+                                    return (
+                                        <div
+                                            key={evt.id}
+                                            className={`flex items-center gap-3 px-4 py-3 transition-opacity ${idx > 0 ? 'border-t border-tertiary/8' : ''} ${isPast ? 'opacity-50' : ''}`}
+                                        >
+                                            <div className={`w-2 h-2 rounded-full shrink-0 ${meta.solidColor}`} />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-primary truncate">{evt.title}</p>
+                                                <p className="text-[9pt] text-tertiary">{formatEventDate(evt)}</p>
+                                            </div>
+                                            <span className="text-[9pt] text-tertiary shrink-0 capitalize">{evt.category}</span>
+                                        </div>
+                                    )
+                                })}
+                                <div className="flex items-center justify-end gap-3 px-4 py-2 border-t border-tertiary/8">
+                                    <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
+                                        <ActionButton icon={Calendar} label="View in calendar" onClick={handleOpenCalendar} />
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
                 </div>
 
                 {/* Danger Zone */}

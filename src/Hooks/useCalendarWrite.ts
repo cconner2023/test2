@@ -16,7 +16,7 @@ import { useState, useCallback } from 'react'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { useCalendarVault } from './useCalendarVault'
 import { getTombstones } from '../lib/calendarRouting'
-import { addCalendarTombstone, queuePendingVaultDelete } from '../lib/calendarEventStore'
+import { addCalendarTombstone, queuePendingVaultDelete, clearPendingVaultSend } from '../lib/calendarEventStore'
 import type { CalendarEvent } from '../Types/CalendarTypes'
 import { createLogger } from '../Utilities/Logger'
 
@@ -116,6 +116,12 @@ export function useCalendarWrite(): UseCalendarWriteResult {
     // Tombstone first (sync) — resurrection guard before any await
     getTombstones().add(id)
     addCalendarTombstone(id).catch(() => {})
+
+    // Cancel any pending offline vault send for this event so it never fires.
+    // If the drain already sent it and patched originId into the store, the
+    // originIds list above will catch it. If the drain sent it but hasn't
+    // patched the store yet, the drain will see the tombstone and clean up.
+    clearPendingVaultSend(id).catch(() => {})
 
     setIsDeleting(true)
     try {
