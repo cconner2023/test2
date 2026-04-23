@@ -1,6 +1,7 @@
 // src/Components/Reports/LaceReport.tsx
 import { useState } from 'react'
-import { Copy, Download, Printer, Plus, X } from 'lucide-react'
+import { Copy, Check, Download, Printer, Plus, X } from 'lucide-react'
+import { ActionButton } from '../ActionButton'
 import { Section, SectionCard } from '../Section'
 import { emptyLaceReport, DEFAULT_AMMO_TYPES } from '../../Types/ReportTypes'
 import type { LaceReport as LaceReportType, LaceEquipmentLine } from '../../Types/ReportTypes'
@@ -318,7 +319,7 @@ export function LaceReport() {
         </button>
       </Section>
 
-      {/* Notes */}
+      {/* Notes + export */}
       <Section title="Notes" className="mb-0">
         <SectionCard>
           <div className="px-4 py-3">
@@ -330,30 +331,17 @@ export function LaceReport() {
               className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
             />
           </div>
+          <div className="border-t border-primary/6 flex items-center justify-end px-3 py-2">
+            <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15">
+              <ActionButton icon={copied ? Check : Copy} label="Copy" onClick={handleCopy} variant={copied ? 'success' : 'default'} />
+              <ActionButton icon={Download} label="Download" onClick={handleDownload} />
+              <ActionButton icon={Printer} label="Print" onClick={handlePrint} />
+            </div>
+          </div>
         </SectionCard>
       </Section>
 
-      {/* Export bar */}
-      <div className="flex gap-2 pt-2 pb-6">
-        <button
-          onClick={handleCopy}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-themewhite2 text-sm text-secondary active:scale-95 transition-all"
-        >
-          <Copy size={14} />{copied ? 'Copied!' : 'Copy Text'}
-        </button>
-        <button
-          onClick={handleDownload}
-          className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-themewhite2 text-sm text-secondary active:scale-95 transition-all"
-        >
-          <Download size={14} />
-        </button>
-        <button
-          onClick={handlePrint}
-          className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-themewhite2 text-sm text-secondary active:scale-95 transition-all"
-        >
-          <Printer size={14} />
-        </button>
-      </div>
+      <div className="pb-6" />
 
     </div>
   )

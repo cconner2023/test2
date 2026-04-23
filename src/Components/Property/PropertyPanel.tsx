@@ -76,14 +76,14 @@ export const PropertyPanel = memo(function PropertyPanel({
   )
 
   const visibleLocations = store.locations.filter(l => l.name !== ROOT_LOCATION_NAME)
-  const showLoading = useMinLoadTime(store.isLoading)
+  const hasData = visibleLocations.length > 0 || store.items.length > 0
+  const showLoading = useMinLoadTime(store.isLoading) && !hasData
   const clinicName = useClinicName(store.clinicId) || 'Clinic'
 
   const [desktopLocationId, setDesktopLocationId] = useState<string | null>(null)
   const [showNewLocation, setShowNewLocation] = useState(false)
   const [newLocationName, setNewLocationName] = useState('')
   const [newLocationParentId, setNewLocationParentId] = useState<string | null>(null)
-  const [renamingLocation, setRenamingLocation] = useState<{ id: string; name: string } | null>(null)
   const [showInlineForm, setShowInlineForm] = useState(false)
   const [pendingDeleteItem, setPendingDeleteItem] = useState<LocalPropertyItem | null>(null)
   const [pendingDeleteLocId, setPendingDeleteLocId] = useState<string | null>(null)
@@ -229,47 +229,6 @@ export const PropertyPanel = memo(function PropertyPanel({
     )
   }
 
-  const renderRenameForm = () => {
-    if (!renamingLocation) return null
-    return (
-      <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-primary/10">
-        <input
-          type="text"
-          value={renamingLocation.name}
-          onChange={(e) => setRenamingLocation((prev) => prev ? { ...prev, name: e.target.value } : null)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && renamingLocation.name.trim()) {
-              store.editLocation(renamingLocation.id, { name: renamingLocation.name.trim() })
-              setRenamingLocation(null)
-            }
-            if (e.key === 'Escape') setRenamingLocation(null)
-          }}
-          placeholder="Rename location"
-          autoFocus
-          className="flex-1 min-w-0 rounded-full py-2.5 px-4 border border-themeblue1/30 shadow-xs bg-themewhite2 focus:outline-none text-base text-primary placeholder:text-tertiary transition-all duration-300"
-        />
-        <button
-          onClick={() => setRenamingLocation(null)}
-          className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary active:scale-95 transition-all duration-300"
-        >
-          <X size={20} />
-        </button>
-        <button
-          onClick={() => {
-            if (renamingLocation.name.trim()) {
-              store.editLocation(renamingLocation.id, { name: renamingLocation.name.trim() })
-              setRenamingLocation(null)
-            }
-          }}
-          disabled={!renamingLocation.name.trim()}
-          className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-themeblue3 text-white border border-themeblue1/30 disabled:opacity-30 active:scale-95 transition-all duration-300"
-        >
-          <Check size={20} />
-        </button>
-      </div>
-    )
-  }
-
   // Mobile: detail view
   if (view === 'property-detail' && isMobile && selectedItem) {
     return (
@@ -300,7 +259,6 @@ export const PropertyPanel = memo(function PropertyPanel({
               )}
             </div>
             {renderNewLocationForm()}
-            {renderRenameForm()}
             <div className="flex-1 overflow-y-auto">
               <PropertyLocationTree
                 locations={visibleLocations}
@@ -313,7 +271,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 onMoveItem={handleMoveItem}
                 onSelectAll={() => setDesktopLocationId(null)}
                 allSelected={!desktopLocationId}
-                onEditLocation={(loc) => setRenamingLocation({ id: loc.id, name: loc.name })}
+                onEditLocation={(loc) => store.editLocation(loc.id, { name: loc.name })}
                 onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
                 onDeleteItem={onDeleteItem ? (item) => setPendingDeleteItem(item) : undefined}
                 onAddChildLocation={handleAddChildLocation}

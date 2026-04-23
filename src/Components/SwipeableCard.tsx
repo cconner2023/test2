@@ -44,7 +44,7 @@ export function SwipeableCard({
 
   const swipeEnabled = enabled && actions.length > 0
 
-  const { rowRef, handlers } = useSwipeGesture({
+  const { rowRef, handlers, isPressing } = useSwipeGesture({
     actionWidth,
     isOpen,
     enabled: swipeEnabled,
@@ -96,7 +96,7 @@ export function SwipeableCard({
         ref={rowRef}
         {...handlers}
         onContextMenu={onContextMenu}
-        className="relative"
+        className={`relative transition-opacity duration-100 ${isPressing ? 'opacity-60' : ''}`}
         style={{ touchAction: 'pan-y', cursor: 'pointer' }}
       >
         {children}

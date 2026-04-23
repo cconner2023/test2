@@ -12,6 +12,7 @@
  */
 import L from 'leaflet'
 import { latLngToUTM, utmToLatLng, utmZone } from './utmProjection'
+import type { ThemeName, ThemeMode } from '../../Utilities/ThemeContext'
 
 interface GridTheme {
   lineColor: string
@@ -20,19 +21,33 @@ interface GridTheme {
   labelBg: string
 }
 
-export const GRID_THEME_LIGHT: GridTheme = {
-  lineColor: 'rgba(0,66,92,0.25)',
-  lineColorMajor: 'rgba(0,66,92,0.45)',
-  labelColor: '#00425C',
-  labelBg: 'rgba(240,242,245,0.8)',
+const GRID_THEMES: Record<`${ThemeName}-${ThemeMode}`, GridTheme> = {
+  'default-light':    { lineColor: 'rgba(0,66,92,0.25)',       lineColorMajor: 'rgba(0,66,92,0.45)',       labelColor: '#00425C', labelBg: 'rgba(240,242,245,0.8)' },
+  'default-dark':     { lineColor: 'rgba(129,161,181,0.25)',   lineColorMajor: 'rgba(129,161,181,0.45)',   labelColor: '#81A1B5', labelBg: 'rgba(14,22,32,0.8)' },
+
+  'ironclad-light':   { lineColor: 'rgba(160,100,20,0.30)',    lineColorMajor: 'rgba(160,100,20,0.55)',    labelColor: '#8B6010', labelBg: 'rgba(248,242,225,0.8)' },
+  'ironclad-dark':    { lineColor: 'rgba(218,140,38,0.25)',    lineColorMajor: 'rgba(218,140,38,0.45)',    labelColor: '#C8901A', labelBg: 'rgba(30,26,20,0.8)' },
+
+  'forest-light':     { lineColor: 'rgba(22,110,82,0.28)',     lineColorMajor: 'rgba(22,110,82,0.50)',     labelColor: '#166E52', labelBg: 'rgba(240,244,238,0.8)' },
+  'forest-dark':      { lineColor: 'rgba(52,162,124,0.25)',    lineColorMajor: 'rgba(52,162,124,0.45)',    labelColor: '#34A27C', labelBg: 'rgba(14,16,14,0.8)' },
+
+  'void-light':       { lineColor: 'rgba(0,110,148,0.28)',     lineColorMajor: 'rgba(0,110,148,0.50)',     labelColor: '#006E94', labelBg: 'rgba(238,242,248,0.8)' },
+  'void-dark':        { lineColor: 'rgba(0,164,190,0.25)',     lineColorMajor: 'rgba(0,164,190,0.45)',     labelColor: '#00A4BE', labelBg: 'rgba(10,12,16,0.8)' },
+
+  'slipstream-light': { lineColor: 'rgba(48,100,88,0.28)',     lineColorMajor: 'rgba(48,100,88,0.50)',     labelColor: '#306458', labelBg: 'rgba(242,244,240,0.8)' },
+  'slipstream-dark':  { lineColor: 'rgba(84,136,124,0.25)',    lineColorMajor: 'rgba(84,136,124,0.45)',    labelColor: '#54887C', labelBg: 'rgba(14,18,22,0.8)' },
+
+  'urban-light':      { lineColor: 'rgba(90,66,48,0.28)',      lineColorMajor: 'rgba(90,66,48,0.50)',      labelColor: '#5A4230', labelBg: 'rgba(244,240,232,0.8)' },
+  'urban-dark':       { lineColor: 'rgba(132,100,78,0.25)',    lineColorMajor: 'rgba(132,100,78,0.45)',    labelColor: '#84644E', labelBg: 'rgba(14,13,11,0.8)' },
 }
 
-export const GRID_THEME_DARK: GridTheme = {
-  lineColor: 'rgba(129,161,181,0.25)',
-  lineColorMajor: 'rgba(129,161,181,0.45)',
-  labelColor: '#81A1B5',
-  labelBg: 'rgba(15,25,35,0.8)',
+export function getGridTheme(name: ThemeName, mode: ThemeMode): GridTheme {
+  return GRID_THEMES[`${name}-${mode}`] ?? GRID_THEMES[`default-${mode}`]
 }
+
+// Backward-compat aliases
+export const GRID_THEME_LIGHT: GridTheme = GRID_THEMES['default-light']
+export const GRID_THEME_DARK: GridTheme  = GRID_THEMES['default-dark']
 
 function gridInterval(zoom: number): { major: number; minor: number } {
   if (zoom <= 8) return { major: 100000, minor: 100000 }

@@ -24,7 +24,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const VALID_NAMES: ThemeName[] = ['default', 'ironclad', 'forest', 'void', 'slipstream', 'urban'];
 const VALID_MODES: ThemeMode[] = ['light', 'dark'];
 
-function parseThemeId(raw: string | null): { name: ThemeName; mode: ThemeMode } | null {
+export function parseThemeId(raw: string | null): { name: ThemeName; mode: ThemeMode } | null {
     if (!raw) return null;
     // Migrate legacy format
     if (raw === 'light') return { name: 'default', mode: 'light' };

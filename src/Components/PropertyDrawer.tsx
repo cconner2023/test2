@@ -20,6 +20,8 @@ import { UI_TIMING } from '../Utilities/constants'
 import { usePropertyStore } from '../stores/usePropertyStore'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useShallow } from 'zustand/react/shallow'
+import { exportPropertyCSV } from '../Utilities/PropertyCSV'
+import { PropertyCSVImportSheet } from './Property/PropertyCSVImportSheet'
 
 interface PropertyDrawerProps {
     isVisible: boolean
@@ -64,6 +66,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const [scanMode, setScanMode] = useState(false)
     const [enrollingItem, setEnrollingItem] = useState<LocalPropertyItem | null>(null)
     const [showAddSheet, setShowAddSheet] = useState(false)
+    const [showImportSheet, setShowImportSheet] = useState(false)
     const addItemTriggerRef = useRef<(() => void) | null>(null)
     const addLocationTriggerRef = useRef<(() => void) | null>(null)
     const initRef = useRef(false)
@@ -366,6 +369,8 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 options={[
                     { key: 'item', label: 'New Item', onAction: () => { setShowAddSheet(false); addItemTriggerRef.current?.() } },
                     { key: 'location', label: 'New Location', onAction: () => { setShowAddSheet(false); addLocationTriggerRef.current?.() } },
+                    { key: 'import-csv', label: 'Import CSV', onAction: () => { setShowAddSheet(false); setShowImportSheet(true) } },
+                    { key: 'export-csv', label: 'Export CSV', onAction: () => { setShowAddSheet(false); exportPropertyCSV(items, store.locations) } },
                 ]}
                 onClose={() => setShowAddSheet(false)}
             />
@@ -402,6 +407,10 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                     </div>
                 </div>
             )}
+            <PropertyCSVImportSheet
+                visible={showImportSheet}
+                onClose={() => setShowImportSheet(false)}
+            />
         </BaseDrawer>
     )
 }

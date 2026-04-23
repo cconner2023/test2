@@ -10,7 +10,9 @@ import { DayView } from './DayView'
 import { TroopsToTaskView } from './TroopsToTaskView'
 import { InfiniteScrollCalendar } from './InfiniteScrollCalendar'
 import { ConfirmDialog } from '../ConfirmDialog'
+import { ActionSheet } from '../ActionSheet'
 import { BaseDrawer } from '../BaseDrawer'
+import { CalendarCSVImportSheet } from './CalendarCSVImportSheet'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { useNavigationStore } from '../../stores/useNavigationStore'
@@ -30,6 +32,7 @@ import type { CalendarEvent, EventFormData, EventStatus } from '../../Types/Cale
 import {
   eventToFormData, toDateKey, eventFallsOnDate, generateId, createEmptyFormData,
 } from '../../Types/CalendarTypes'
+import { shareCalendar } from '../../lib/calendarExport'
 
 type PanelView = 'calendar' | 'detail' | 'form'
 type DayDrawerView = 'detail' | 'edit'
@@ -55,7 +58,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const eventFormRef = useRef<EventFormHandle>(null)
 
   const { clinicId, user } = useAuth()
-  const { writeEvent, vaultUpdate, deleteEvent: calendarDeleteEvent, isWriting } = useCalendarWrite()
+  const { writeEvent, vaultUpdate, deleteEvent: calendarDeleteEvent, isWriting, isDeleting } = useCalendarWrite()
   const [isFormPending, setIsFormPending] = useState(false)
 
   // Kick off IDB hydration + vault subscription
@@ -73,6 +76,9 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
   const [overlayOptions, setOverlayOptions] = useState<OverlayOption[]>([])
   const [missionBoardEventId, setMissionBoardEventId] = useState<string | null>(null)
+
+  const [showAddSheet, setShowAddSheet] = useState(false)
+  const [showImportSheet, setShowImportSheet] = useState(false)
 
   const [confirmDeleteEvent, setConfirmDeleteEvent] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ eventId: string; x: number; y: number } | null>(null)
@@ -342,9 +348,12 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     vaultUpdate(movedEvent)
   }, [vaultUpdate])
 
-  const handleDeleteEvent = useCallback((id: string) => {
-    calendarDeleteEvent(id)
+  const handleDeleteEvent = useCallback(async (id: string) => {
+    await calendarDeleteEvent(id)
     setPanelView('calendar')
+    setShowDayDrawer(false)
+    setDayDrawerEventId(null)
+    setDayDrawerView('detail')
   }, [calendarDeleteEvent])
 
   const handleFormCancel = useCallback(() => {
@@ -472,10 +481,10 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       variant="danger"
       onConfirm={() => {
         if (confirmDeleteEvent) {
-          handleDeleteEvent(confirmDeleteEvent)
+          const id = confirmDeleteEvent
           setConfirmDeleteEvent(null)
           setEditingEvent(null)
-          setShowDayDrawer(false)
+          handleDeleteEvent(id)
         }
       }}
       onCancel={() => setConfirmDeleteEvent(null)}
@@ -589,11 +598,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
               <button
                 data-tour="calendar-add-event"
-                onClick={() => handleNewEvent()}
-                disabled={!vaultReplayDone}
-                className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 ${
-                  vaultReplayDone ? 'bg-themeblue3 text-white active:scale-95' : 'bg-tertiary/30 text-tertiary cursor-not-allowed'
-                }`}
+                onClick={() => setShowAddSheet(true)}
+                className="w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 bg-themeblue3 text-white active:scale-95"
               >
                 <Plus className="w-5 h-5" />
               </button>
@@ -637,7 +643,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 propertyItems={propertyItems}
                 overlayOptions={overlayOptions}
               />
-              {(isFormPending || isWriting) && (
+              {(isFormPending || isWriting || isDeleting) && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-xl">
                   <LoadingSpinner size="md" />
                 </div>
@@ -711,7 +717,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 />
               )}
 
-              {(isFormPending || isWriting) && (
+              {(isFormPending || isWriting || isDeleting) && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-xl">
                   <LoadingSpinner size="md" />
                 </div>
@@ -781,22 +787,29 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                       propertyItems={propertyItems}
                     />
                   </div>
-                  {(isFormPending || isWriting) && (
+                  {(isFormPending || isWriting || isDeleting) && (
                     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-xl">
                       <LoadingSpinner size="md" />
                     </div>
                   )}
                 </div>
               ) : panelView === 'detail' && selectedEvent && !missionBoardEventId ? (
-                <EventDetailPanel
-                  event={selectedEvent}
-                  onClose={handleDetailBack}
-                  onEdit={handleEditEvent}
-                  onDelete={handleDeleteEvent}
-                  onOpenMissionBoard={() => handleOpenMissionBoard(selectedEvent.id)}
-                  assignedNames={resolveAssigned(selectedEvent.assigned_to)}
-                  linkedPropertyItems={resolvePropertyItems(selectedEvent.property_item_ids ?? [])}
-                />
+                <div className="relative flex flex-col flex-1 min-h-0">
+                  <EventDetailPanel
+                    event={selectedEvent}
+                    onClose={handleDetailBack}
+                    onEdit={handleEditEvent}
+                    onDelete={handleDeleteEvent}
+                    onOpenMissionBoard={() => handleOpenMissionBoard(selectedEvent.id)}
+                    assignedNames={resolveAssigned(selectedEvent.assigned_to)}
+                    linkedPropertyItems={resolvePropertyItems(selectedEvent.property_item_ids ?? [])}
+                  />
+                  {isDeleting && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-xl">
+                      <LoadingSpinner size="md" />
+                    </div>
+                  )}
+                </div>
               ) : panelView === 'detail' && missionBoardEventId ? (() => {
                 const missionEvent = events.find(e => e.id === missionBoardEventId)
                 return missionEvent ? (
@@ -812,6 +825,26 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           </div>
         )}
       </div>
+
+      <ActionSheet
+        visible={showAddSheet}
+        title="Calendar"
+        options={[
+          { key: 'new', label: 'New Event', onAction: () => handleNewEvent() },
+          { key: 'import', label: 'Import CSV', onAction: () => setShowImportSheet(true) },
+          { key: 'export', label: 'Export .ics', onAction: () => shareCalendar(events).catch(() => {}) },
+        ]}
+        onClose={() => setShowAddSheet(false)}
+      />
+
+      {showImportSheet && clinicId && user && (
+        <CalendarCSVImportSheet
+          visible={showImportSheet}
+          onClose={() => setShowImportSheet(false)}
+          clinicId={clinicId}
+          userId={user.id}
+        />
+      )}
 
       {deleteConfirmDialog}
 

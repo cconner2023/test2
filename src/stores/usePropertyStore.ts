@@ -23,6 +23,7 @@ import {
   syncLocationNameToTags,
   ensureRootLocation,
   ensureMemberLocations,
+  reconcileLocationsFromTags,
   updateFingerprint,
   recordExpendedEntry,
 } from '../lib/propertyService'
@@ -162,19 +163,27 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
 
       const rootLoc = await ensureRootLocation(clinicId, user.id)
 
+      // Set initial data — keep isLoading true so PropertyPanel spinner holds
+      // if the first fetch returned nothing (the reconciliation below may fix it).
+      // If locations already has data, PropertyPanel's hasData guard will render
+      // the list immediately without waiting for isLoading to flip.
       set({
         items,
         locations,
         holders: holderMap,
         clinicMembers: memberList,
         rootLocationId: rootLoc.id,
-        isLoading: false,
       })
+
+      // Reconcile: any zone on the root canvas whose target_id has no matching
+      // property_locations record gets created here (preserving the original ID).
+      // This fixes the case where locationTags and propertyLocations diverged.
+      await reconcileLocationsFromTags(clinicId, user.id, rootLoc.id, locations)
 
       // Eagerly ensure every clinic member has a persisted location record
       await ensureMemberLocations(clinicId, user.id, memberList, rootLoc.id)
       const freshLocations = await fetchClinicLocations(clinicId)
-      set({ locations: freshLocations })
+      set({ locations: freshLocations, isLoading: false })
 
       if (cleanupListeners) {
         cleanupListeners()

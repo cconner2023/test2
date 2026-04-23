@@ -291,7 +291,7 @@ function VitalSetPreviewContent({ id }: { id: string }) {
 
       {/* Pulse + Location pills */}
       <div className="grid grid-cols-2 gap-2">
-        <TextInput label="Pulse" value={vs.pulse} onChange={(v) => handleChange('pulse', v)} placeholder="HR" />
+        <TextInput label="Pulse" value={vs.pulse} onChange={(v) => handleChange('pulse', v)} placeholder="HR" inputMode="numeric" />
         <div>
           <span className="text-xs font-medium text-tertiary uppercase tracking-wide">Location</span>
           <div className="flex gap-1.5 mt-1.5">
@@ -347,10 +347,10 @@ function VitalSetPreviewContent({ id }: { id: string }) {
 
       {/* Remaining vitals */}
       <div className="grid grid-cols-2 gap-2">
-        <TextInput label="RR" value={vs.rr} onChange={(v) => handleChange('rr', v)} placeholder="/min" />
-        <TextInput label="SpO2" value={vs.spo2} onChange={(v) => handleChange('spo2', v)} placeholder="%" />
-        <TextInput label="Temp" value={vs.temp ?? ''} onChange={(v) => handleChange('temp', v)} placeholder="°F" />
-        <TextInput label="Pain" value={vs.painScale} onChange={(v) => handleChange('painScale', v)} placeholder="0-10" />
+        <TextInput label="RR" value={vs.rr} onChange={(v) => handleChange('rr', v)} placeholder="/min" inputMode="numeric" />
+        <TextInput label="SpO2" value={vs.spo2} onChange={(v) => handleChange('spo2', v)} placeholder="%" inputMode="numeric" />
+        <TextInput label="Temp" value={vs.temp ?? ''} onChange={(v) => handleChange('temp', v)} placeholder="°F" inputMode="decimal" />
+        <TextInput label="Pain" value={vs.painScale} onChange={(v) => handleChange('painScale', v)} placeholder="0-10" inputMode="numeric" />
       </div>
     </div>
   )

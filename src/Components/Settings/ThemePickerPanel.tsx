@@ -1,4 +1,5 @@
 import { useTheme, type ThemeName, type ThemeMode } from '../../Utilities/ThemeContext';
+import { useUserProfile } from '../../Hooks/useUserProfile';
 
 const THEME_DEFS: {
     name: ThemeName;
@@ -53,6 +54,7 @@ const THEME_DEFS: {
 
 export function ThemePickerPanel() {
     const { theme: themeMode, themeName, setTheme, setThemeName } = useTheme();
+    const { syncProfileField } = useUserProfile();
 
     return (
         <div data-tour="theme-picker-grid" className="px-5 py-4 space-y-3">
@@ -63,7 +65,7 @@ export function ThemePickerPanel() {
                 return (
                     <button
                         key={def.name}
-                        onClick={() => setThemeName(def.name)}
+                        onClick={() => { setThemeName(def.name); syncProfileField({ theme: `${def.name}-${themeMode}` }); }}
                         className={`w-full rounded-2xl border transition-all active:scale-[0.98] overflow-hidden text-left ${
                             isSelected
                                 ? 'border-themeblue2/60 shadow-sm'
@@ -106,6 +108,7 @@ export function ThemePickerPanel() {
                                                 e.stopPropagation();
                                                 setThemeName(def.name);
                                                 setTheme(mode);
+                                                syncProfileField({ theme: `${def.name}-${mode}` });
                                             }}
                                             className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
                                                 isActiveMode

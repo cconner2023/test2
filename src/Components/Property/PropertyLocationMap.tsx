@@ -1413,15 +1413,54 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         {/* Floating zone popover — right side, below FAB toolbar, visible when a zone is selected */}
         {store.selectedZoneId && (!isEditing || !!inlinePrompt) && (
           <div className="absolute top-[72px] right-3 z-10 w-52 max-h-[60%] flex flex-col rounded-xl border border-tertiary/15 bg-themewhite shadow-md overflow-hidden">
-            {/* Header: zone title + dismiss */}
+            {/* Header: zone title (tap to rename) + dismiss */}
             <div className="shrink-0 flex items-center gap-1 px-3 py-2 bg-themewhite3/50 border-b border-primary/10">
-              <span className="text-[9pt] font-medium text-primary truncate flex-1">{selectedZoneLabel}</span>
-              <button
-                onClick={() => store.selectZone(null)}
-                className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
-              >
-                <X size={11} />
-              </button>
+              {inlinePrompt ? (
+                <>
+                  <input
+                    ref={inlineInputRef}
+                    type="text"
+                    value={inlinePrompt.value}
+                    onChange={(e) => setInlinePrompt((p) => p ? { ...p, value: e.target.value } : p)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleInlineConfirm()
+                      if (e.key === 'Escape') setInlinePrompt(null)
+                    }}
+                    onBlur={handleInlineConfirm}
+                    className="flex-1 min-w-0 text-[9pt] font-medium text-primary bg-transparent border-b border-themeblue3/50 focus:outline-none"
+                  />
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setInlinePrompt(null)}
+                    className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                  >
+                    <X size={11} />
+                  </button>
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={handleInlineConfirm}
+                    disabled={!inlinePrompt.value.trim()}
+                    className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-themeblue2 active:scale-95 transition-all disabled:opacity-30"
+                  >
+                    <Check size={11} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span
+                    className="text-[9pt] font-medium text-primary truncate flex-1 cursor-text"
+                    onClick={() => setInlinePrompt({ mode: 'rename', value: selectedZoneLabel ?? '' })}
+                  >
+                    {selectedZoneLabel}
+                  </span>
+                  <button
+                    onClick={() => store.selectZone(null)}
+                    className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                  >
+                    <X size={11} />
+                  </button>
+                </>
+              )}
             </div>
             {/* Body */}
             <div className="flex-1 overflow-y-auto">
@@ -1466,53 +1505,22 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
             {/* Footer actions */}
             <div className="shrink-0 border-t border-primary/10">
-              {inlinePrompt ? (
-                <div className="flex items-center gap-1.5 px-2 py-2">
-                  <input
-                    ref={inlineInputRef}
-                    type="text"
-                    value={inlinePrompt.value}
-                    onChange={(e) => setInlinePrompt((p) => p ? { ...p, value: e.target.value } : p)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleInlineConfirm()
-                      if (e.key === 'Escape') setInlinePrompt(null)
-                    }}
-                    placeholder="Rename zone"
-                    className="flex-1 min-w-0 rounded-full py-1.5 px-3 border border-themeblue1/30 bg-themewhite2 focus:outline-none text-[9pt] text-primary placeholder:text-tertiary/50 transition-all duration-300"
-                  />
-                  <button
-                    onClick={() => setInlinePrompt(null)}
-                    className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary active:scale-95 transition-all"
-                  >
-                    <X size={12} />
-                  </button>
-                  <button
-                    onClick={handleInlineConfirm}
-                    disabled={!inlinePrompt.value.trim()}
-                    className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
-                  >
-                    <Check size={12} />
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center justify-around px-3 py-2">
-                  <ActionButton icon={Pencil} label="Rename zone" onClick={() => setInlinePrompt({ mode: 'rename', value: selectedZoneLabel })} />
-                  <ActionButton icon={Plus} label="Add child zone" onClick={() => handleEnterEdit(true)} />
-                  <ActionButton icon={Camera} label={hasSelectedPhoto ? 'Change photo' : 'Add photo'} onClick={() => triggerPhotoUpload(store.selectedZoneId!)} />
-                  {onCreateItem && <ActionButton icon={Package} label="New item" onClick={onCreateItem} />}
-                  {hasSelectedPhoto && <ActionButton icon={X} label="Remove photo" onClick={() => onUpdateLocation?.(store.selectedZoneId!, { photo_data: null })} />}
-                  <ActionButton
-                    icon={Trash2}
-                    label="Delete zone"
-                    onClick={() => {
-                      if (!store.selectedZoneId) return
-                      const loc = locations.find((l) => l.id === store.selectedZoneId)
-                      if (loc?.holder_user_id) { setHolderBlockName(loc.name); return }
-                      setPendingZoneDelete({ targetId: store.selectedZoneId, label: selectedZoneLabel })
-                    }}
-                  />
-                </div>
-              )}
+              <div className="flex items-center justify-around px-3 py-2">
+                <ActionButton icon={Plus} label="Add child zone" onClick={() => handleEnterEdit(true)} />
+                <ActionButton icon={Camera} label={hasSelectedPhoto ? 'Change photo' : 'Add photo'} onClick={() => triggerPhotoUpload(store.selectedZoneId!)} />
+                {onCreateItem && <ActionButton icon={Package} label="New item" onClick={onCreateItem} />}
+                {hasSelectedPhoto && <ActionButton icon={X} label="Remove photo" onClick={() => onUpdateLocation?.(store.selectedZoneId!, { photo_data: null })} />}
+                <ActionButton
+                  icon={Trash2}
+                  label="Delete zone"
+                  onClick={() => {
+                    if (!store.selectedZoneId) return
+                    const loc = locations.find((l) => l.id === store.selectedZoneId)
+                    if (loc?.holder_user_id) { setHolderBlockName(loc.name); return }
+                    setPendingZoneDelete({ targetId: store.selectedZoneId, label: selectedZoneLabel })
+                  }}
+                />
+              </div>
             </div>
           </div>
         )}

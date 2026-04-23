@@ -5,7 +5,7 @@ import './App.css'
 import { NavTop } from './Components/NavTop'
 import { SideNav } from './Components/SideNav'
 import { SearchResults } from './Components/SearchResults'
-import { ThemeProvider } from './Utilities/ThemeContext'
+import { ThemeProvider, parseThemeId, useTheme } from './Utilities/ThemeContext'
 import { AvatarProvider } from './Utilities/AvatarContext'
 import { AlgorithmPage } from './Components/AlgorithmPage'
 import type { SearchResultType } from './Types/CatTypes'
@@ -816,9 +816,30 @@ function PushToastBridge() {
   )
 }
 
+/** Applies the Supabase-stored theme once per login session so theme persists across devices. */
+function ProfileThemeSync() {
+  const userId = useAuthStore((s) => s.user?.id)
+  const profileTheme = useAuthStore((s) => (s.profile as Record<string, unknown>).theme as string | undefined)
+  const { setThemeName, setTheme } = useTheme()
+  const lastAppliedUserId = useRef<string | undefined>(undefined)
+
+  useEffect(() => {
+    if (!userId || !profileTheme) return
+    if (userId === lastAppliedUserId.current) return
+    const parsed = parseThemeId(profileTheme)
+    if (!parsed) return
+    lastAppliedUserId.current = userId
+    setThemeName(parsed.name)
+    setTheme(parsed.mode)
+  }, [userId, profileTheme, setThemeName, setTheme])
+
+  return null
+}
+
 function App() {
   return (
     <ThemeProvider>
+      <ProfileThemeSync />
       <LockGate>
         <AppContent />
       </LockGate>

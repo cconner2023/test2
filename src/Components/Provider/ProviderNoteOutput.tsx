@@ -180,7 +180,7 @@ export function ProviderNoteOutput({
             <div>
                 <div className="pb-2 flex items-center justify-between">
                     <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Note Preview</p>
-                    <div className="flex items-center gap-0.5">
+                    <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15">
                         <ActionIconButton
                             onClick={() => handleCopy(previewNote, 'preview')}
                             status={copiedTarget === 'preview' ? 'done' : 'idle'}
@@ -208,7 +208,7 @@ export function ProviderNoteOutput({
             <div>
                 <div className="pb-2 flex items-center justify-between">
                     <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Encoded Note</p>
-                    <div className="flex items-center gap-0.5">
+                    <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15">
                         <ActionIconButton
                             onClick={handleShare}
                             status={shareBtnStatus}

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Pencil, Check, Radio, Compass, LayoutDashboard } from 'lucide-react';
+import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Pencil, Check, Radio, Compass, LayoutDashboard, HardDrive } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import { useAvatar } from '../../Utilities/AvatarContext';
@@ -40,6 +40,7 @@ import { ConfirmDialog } from '../ConfirmDialog';
 import { GuidedToursPanel } from './GuidedToursPanel';
 import { GUIDED_TEXT_EXPANDER } from '../../Data/GuidedTourData';
 import { ThemePickerPanel } from './ThemePickerPanel';
+import { StoragePanel } from './StoragePanel';
 import { useTheme } from '../../Utilities/ThemeContext';
 
 
@@ -56,7 +57,7 @@ export const Settings = ({
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
     const { themeName } = useTheme();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'guided-tours' | 'overview-widgets' | 'theme-picker'>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'guided-tours' | 'overview-widgets' | 'theme-picker' | 'storage'>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const prevVisibleRef = useRef(false);
@@ -261,10 +262,11 @@ export const Settings = ({
         );
 
         // UTILITIES section
-        if (isAuthenticated && isDevRole) {
+        if (isAuthenticated) {
             items.push(
                 { type: 'header', label: 'Utilities' },
-                opt(PANEL.LORA, <Radio size={20} />, 'WhisperNet', 'LoRa mesh offline messaging'),
+                opt(PANEL.STORAGE, <HardDrive size={20} />, 'Local Storage', 'Cached data and sync status'),
+                ...(isDevRole ? [opt(PANEL.LORA, <Radio size={20} />, 'WhisperNet', 'LoRa mesh offline messaging')] : []),
             );
         }
 
@@ -368,6 +370,7 @@ export const Settings = ({
             case 'note-content':            return { title: 'Note Content', ...backTo() };
             case 'overview-widgets':        return { title: 'Mission Overview', ...backTo() };
             case 'theme-picker':            return { title: 'Appearance', ...backTo() };
+            case 'storage':                 return { title: 'Local Storage', ...backTo() };
             case 'text-templates': {
                 const doTemplatesBack = () => { handleSlideAnimation('right'); setTemplatesEditing(false); setTemplatesHasPending(false); setActivePanel('note-content'); };
                 const templatesPills = (
@@ -619,6 +622,7 @@ export const Settings = ({
                             ),
                             'overview-widgets': <OverviewWidgetsPanel />,
                             'theme-picker':     <ThemePickerPanel />,
+                            'storage':          <StoragePanel />,
                             'plan-settings': (
                                 <PlanPanel
                                     editing={planEditing}

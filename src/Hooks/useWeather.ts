@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { estimateWBGT, getCategory } from '../lib/wbgtUtils'
 import type { HeatCategory } from '../lib/wbgtUtils'
 
@@ -90,11 +90,6 @@ export function useWeather(): WeatherState {
       { timeout: 10000, maximumAge: forceRefresh ? 0 : 5 * 60 * 1000 },
     )
   }, [fetchWeather])
-
-  useEffect(() => {
-    if (state.temp !== null) return // already have fresh cache
-    requestLocation(false)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const refresh = useCallback(() => requestLocation(true), [requestLocation])
 

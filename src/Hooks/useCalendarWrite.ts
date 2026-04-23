@@ -39,17 +39,22 @@ export interface UseCalendarWriteResult {
   vaultUpdate: (event: CalendarEvent) => void
 
   /**
-   * Tombstone immediately, remove from store, queue vault hard-delete.
-   * Fan-out 'd' notification is best-effort (known offline gap).
+   * Tombstones immediately (resurrection guard), awaits vault fan-out 'd',
+   * then removes from store. Sets isDeleting=true so callers can show an
+   * overlay while the Supabase call is in flight.
    */
-  deleteEvent: (id: string) => void
+  deleteEvent: (id: string) => Promise<void>
 
   /** True while writeEvent is in flight. */
   isWriting: boolean
+
+  /** True while deleteEvent is awaiting vault fan-out. */
+  isDeleting: boolean
 }
 
 export function useCalendarWrite(): UseCalendarWriteResult {
   const [isWriting, setIsWriting] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const { sendEvent, deleteEvents } = useCalendarVault()
 
   const writeEvent = useCallback(async (event: CalendarEvent): Promise<void> => {
@@ -103,30 +108,34 @@ export function useCalendarWrite(): UseCalendarWriteResult {
     }).catch(() => {})
   }, [sendEvent, deleteEvents])
 
-  const deleteEvent = useCallback((id: string): void => {
+  const deleteEvent = useCallback(async (id: string): Promise<void> => {
     const store = useCalendarStore.getState()
     const event = store.events.find(e => e.id === id)
     const originIds = event?.originId ? [event.originId] : []
 
-    // Tombstone in-memory and IDB immediately — prevents any path from resurrecting
+    // Tombstone first (sync) — resurrection guard before any await
     getTombstones().add(id)
     addCalendarTombstone(id).catch(() => {})
 
-    // Remove from store + IDB
-    store.removeEvent(id)
-    store.selectEvent(null)
-
-    // Queue vault hard-delete; drain executes it when online
-    if (originIds.length > 0) {
-      deleteEvents(originIds).catch(() => {
+    setIsDeleting(true)
+    try {
+      // Queue vault hard-delete unconditionally; drain covers offline retry
+      if (originIds.length > 0) {
+        deleteEvents(originIds).catch(() => {
+          queuePendingVaultDelete(id, originIds).catch(() => {})
+        })
         queuePendingVaultDelete(id, originIds).catch(() => {})
-      })
-      queuePendingVaultDelete(id, originIds).catch(() => {})
-    }
+      }
 
-    // Best-effort fan-out delete notification to member devices
-    sendEvent('d', { id }).catch(() => {})
+      // Await fan-out 'd' — the Supabase call that takes wall-clock time
+      await sendEvent('d', { id }).catch(() => {})
+    } finally {
+      setIsDeleting(false)
+      // Remove from store after vault op so the overlay has a surface to render on
+      useCalendarStore.getState().removeEvent(id)
+      useCalendarStore.getState().selectEvent(null)
+    }
   }, [sendEvent, deleteEvents])
 
-  return { writeEvent, vaultUpdate, deleteEvent, isWriting }
+  return { writeEvent, vaultUpdate, deleteEvent, isWriting, isDeleting }
 }

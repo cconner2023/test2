@@ -31,6 +31,7 @@ export const PANEL = {
     GUIDED_TOURS: 34,
     THEME_PICKER: 35,
     OVERVIEW_WIDGETS: 36,
+    STORAGE: 37,
 } as const;
 
 export type PanelId = (typeof PANEL)[keyof typeof PANEL];
@@ -59,6 +60,7 @@ export const PANEL_TARGET: Partial<Record<PanelId, string>> = {
     [PANEL.GUIDED_TOURS]: 'guided-tours',
     [PANEL.OVERVIEW_WIDGETS]: 'overview-widgets',
     [PANEL.TOGGLE_THEME]: 'theme-picker',
+    [PANEL.STORAGE]: 'storage',
 };
 
 export type SettingsItem =

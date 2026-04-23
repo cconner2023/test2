@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from 'react'
+import { useRef, useCallback, useEffect, useState } from 'react'
 import { GESTURE_THRESHOLDS } from '../Utilities/GestureUtils'
 
 interface UseSwipeGestureProps {
@@ -30,6 +30,7 @@ export function useSwipeGesture({
   } | null>(null)
   const wasTouchRef = useRef(false)
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [isPressing, setIsPressing] = useState(false)
 
   const openThreshold = actionWidth * 0.3
 
@@ -59,10 +60,12 @@ export function useSwipeGesture({
     if (onLongPress) {
       const x = t.clientX
       const y = t.clientY
+      setIsPressing(true)
       longPressTimerRef.current = setTimeout(() => {
         const state = touchRef.current
         if (state && !state.swiping && !state.dirDecided) {
           state.longPressFired = true
+          setIsPressing(false)
           onLongPress(x, y)
         }
       }, 500)
@@ -80,6 +83,7 @@ export function useSwipeGesture({
       if (Math.abs(dx) < GESTURE_THRESHOLDS.DIRECTION_LOCK && Math.abs(dy) < GESTURE_THRESHOLDS.DIRECTION_LOCK) return
       state.dirDecided = true
       clearLongPress()
+      setIsPressing(false)
       if (Math.abs(dy) > Math.abs(dx)) { touchRef.current = null; return }
       if (!enabled) { touchRef.current = null; return }
       state.swiping = true
@@ -97,6 +101,7 @@ export function useSwipeGesture({
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     clearLongPress()
+    setIsPressing(false)
     const state = touchRef.current
     if (!state) return
     touchRef.current = null
@@ -121,6 +126,7 @@ export function useSwipeGesture({
 
   const handleTouchCancel = useCallback(() => {
     clearLongPress()
+    setIsPressing(false)
     touchRef.current = null
     snapTo(isOpen ? -actionWidth : 0)
   }, [isOpen, snapTo, actionWidth, clearLongPress])
@@ -139,5 +145,5 @@ export function useSwipeGesture({
     onClick: handleClick,
   }
 
-  return { rowRef, handlers, snapTo }
+  return { rowRef, handlers, snapTo, isPressing }
 }

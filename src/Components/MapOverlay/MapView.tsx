@@ -4,9 +4,9 @@ import 'leaflet/dist/leaflet.css';
 import { forward } from 'mgrs';
 import { Plus, Minus, Info, Copy, ClipboardCheck, LocateFixed } from 'lucide-react';
 import { useTheme } from '../../Utilities/ThemeContext';
-import { createThemedTileLayer, TILE_THEME_LIGHT, TILE_THEME_DARK } from './ThemedTileLayer';
+import { createThemedTileLayer, getTileTheme } from './ThemedTileLayer';
 import { getTileFromCache } from '../../lib/mapTileService';
-import { createMGRSGridLayer, GRID_THEME_LIGHT, GRID_THEME_DARK } from './MGRSGridLayer';
+import { createMGRSGridLayer, getGridTheme } from './MGRSGridLayer';
 import type { OverlayFeature, DrawMode } from '../../Types/MapOverlayTypes';
 import { waypointIconSvg } from './WaypointIcon';
 
@@ -87,7 +87,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   presenceMarkers,
   readOnlyFeatures,
 }, ref) {
-  const { theme } = useTheme();
+  const { theme, themeName } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const tileLayerRef = useRef<L.GridLayer | null>(null);
@@ -154,13 +154,11 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       attributionControl: false,
     });
 
-    const tileTheme = theme === 'dark' ? TILE_THEME_DARK : TILE_THEME_LIGHT;
-    const tileLayer = createThemedTileLayer(tileTheme);
+    const tileLayer = createThemedTileLayer(getTileTheme(themeName, theme));
     tileLayer.addTo(map);
     tileLayerRef.current = tileLayer;
 
-    const gridTheme = theme === 'dark' ? GRID_THEME_DARK : GRID_THEME_LIGHT;
-    const gridLayer = createMGRSGridLayer(gridTheme);
+    const gridLayer = createMGRSGridLayer(getGridTheme(themeName, theme));
     gridLayer.addTo(map);
     gridLayerRef.current = gridLayer;
     // Note: overlayId-aware tile cache is applied in the theme/overlayId effect below
@@ -201,23 +199,21 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     if (tileLayerRef.current) map.removeLayer(tileLayerRef.current);
     if (gridLayerRef.current) map.removeLayer(gridLayerRef.current);
 
-    const tileTheme = theme === 'dark' ? TILE_THEME_DARK : TILE_THEME_LIGHT;
     const tileCache = (overlayId && tilesCached)
       ? (z: number, x: number, y: number) => getTileFromCache(overlayId, z, x, y)
       : null;
-    const tileLayer = createThemedTileLayer(tileTheme, tileCache);
+    const tileLayer = createThemedTileLayer(getTileTheme(themeName, theme), tileCache);
     tileLayer.addTo(map);
     tileLayerRef.current = tileLayer;
 
     if (showGrid) {
-      const gridTheme = theme === 'dark' ? GRID_THEME_DARK : GRID_THEME_LIGHT;
-      const gridLayer = createMGRSGridLayer(gridTheme);
+      const gridLayer = createMGRSGridLayer(getGridTheme(themeName, theme));
       gridLayer.addTo(map);
       gridLayerRef.current = gridLayer;
     } else {
       gridLayerRef.current = null;
     }
-  }, [theme, showGrid, overlayId, tilesCached]);
+  }, [theme, themeName, showGrid, overlayId, tilesCached]);
 
   // Map click handler
   useEffect(() => {

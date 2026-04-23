@@ -218,7 +218,7 @@ function RequestCard({
   }, [request.id, setExpandedId, onRefresh])
 
   // ── Long press ──────────────────────────────────────────
-  const longPress = useLongPress((x: number, y: number) => {
+  const { isPressing, ...longPress } = useLongPress((x: number, y: number) => {
     if (!hasActions) return
     setContextMenu({ requestId: request.id, x, y })
   }, { delay: 500 })
@@ -256,7 +256,7 @@ function RequestCard({
         setContextMenu({ requestId: request.id, x: e.clientX, y: e.clientY })
       } : undefined}
       onClick={handleTap}
-      className="transition-all hover:bg-themeblue2/5 cursor-pointer select-none"
+      className={`transition-all hover:bg-themeblue2/5 cursor-pointer select-none ${isPressing ? 'opacity-60' : ''}`}
     >
       {/* Row 1: icon + name/subtitle + status badge */}
       <div className="flex items-center gap-3 px-4 py-3.5">

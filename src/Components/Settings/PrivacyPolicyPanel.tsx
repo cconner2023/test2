@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ShieldCheck, Database, EyeOff, Server, Trash2, UserCheck, Scale, Activity } from 'lucide-react'
+import { ShieldCheck, Database, EyeOff, Server, Trash2, UserCheck, Scale, Activity, Camera, MapPin } from 'lucide-react'
 
 /* ── row primitive (matches PinSetupPanel / Settings card rows) ── */
 const Row = ({ icon, iconColor, title, children, border = true }: {
@@ -29,7 +29,7 @@ export const PrivacyPolicyPanel = () => (
         <p className="text-xs text-tertiary leading-relaxed">
           We are committed to protecting your privacy. This policy explains what information we collect, how we use it, and your rights regarding your data.
         </p>
-        <p className="text-[9pt] text-tertiary mt-1">Last updated: March 2026</p>
+        <p className="text-[9pt] text-tertiary mt-1">Last updated: April 2026</p>
       </div>
 
       {/* ── Data Collection ── */}
@@ -50,6 +50,7 @@ export const PrivacyPolicyPanel = () => (
               <li><strong className="text-primary">Activity:</strong> Timestamp of your last activity, updated periodically via background heartbeat</li>
               <li><strong className="text-primary">Messaging:</strong> All message contents are end-to-end encrypted (E2EE) and the server is not able to interpret them</li>
               <li><strong className="text-primary">Property:</strong> Property locations and quantities so you always have access to them</li>
+              <li><strong className="text-primary">Location:</strong> During active missions, your field position is stored as part of the mission calendar event, Signal-encrypted and scoped only to mission participants. Location is never collected outside of an active mission context</li>
             </ul>
             <p className="mt-1">Guest users can use most app features without creating an account. No data is collected from guest users.</p>
           </Row>
@@ -99,6 +100,14 @@ export const PrivacyPolicyPanel = () => (
             <p className="mt-1">Activity tracking is enabled by default. No location, usage, or behavioral data is collected — only a timestamp.</p>
             <p className="mt-1">Accounts with no recorded activity for more than 90 consecutive days may be placed in hibernation. Disabling activity tracking means no heartbeat is sent, which may cause your account to be flagged as inactive.</p>
             <p className="mt-1">You can opt out at any time in <strong className="text-primary">Settings &gt; Security &gt; Activity Tracking</strong>.</p>
+          </Row>
+          <Row icon={<Camera size={18} className="text-themeblue2" />} title="Device Permissions">
+            <p>This app requests access to your camera and location only for specific features. You can review and grant these permissions at any time in <strong className="text-primary">Settings &gt; Security &gt; Permissions</strong>.</p>
+            <ul className="list-disc list-outside ml-4 space-y-0.5 mt-1">
+              <li><strong className="text-primary">Camera:</strong> Used for QR code scanning (device linking, contact lookup) and property item identification. The camera is activated only when you explicitly trigger a scan. No images or video are stored or transmitted.</li>
+              <li><strong className="text-primary">Location:</strong> Used to share your field position with mission participants during active operations. Location sharing is tied to calendar missions and does not run in the background outside of active mission context.</li>
+            </ul>
+            <p className="mt-1">If a permission is denied, the associated feature will be unavailable. Permissions can be granted or revoked through your browser or OS settings at any time.</p>
           </Row>
           <Row icon={<Trash2 size={18} className="text-themeblue2" />} title="Your Rights & Data Deletion">
             <p>You have the right to:</p>

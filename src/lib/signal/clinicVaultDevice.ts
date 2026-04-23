@@ -444,6 +444,19 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
     return 0
   }
 
+  // 3a. Force-sync server OTPs to match blob — prevents senders from getting
+  // OTPs whose private keys were evicted by pre-April-19 code.
+  await supabase
+    .from('signal_key_bundles')
+    .update({
+      one_time_pre_keys: vaultKeys.preKeys.map(pk => ({
+        keyId: pk.keyId, publicKey: pk.publicKeyBase64,
+      })),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', clinicId)
+    .eq('device_id', CLINIC_VAULT_DEVICE_ID)
+
   // 3. Fetch unread vault messages
   const { data: rows, error: fetchError } = await supabase
     .from('signal_messages')
@@ -590,6 +603,7 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
       processedCount++
     } catch (e) {
       logger.error(`Failed to process clinic vault message ${row.id}:`, e)
+      processedIds.push(row.id)  // Mark as read — permanently undecryptable
     }
   }
 

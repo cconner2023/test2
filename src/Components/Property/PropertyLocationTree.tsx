@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronRight, ChevronDown, Pencil, Trash2, Eye, FolderPlus, PackagePlus } from 'lucide-react'
+import { ChevronRight, ChevronDown, Pencil, Trash2, Eye, FolderPlus, PackagePlus, X, Check } from 'lucide-react'
 import { useDrag } from '@use-gesture/react'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import type { LocalPropertyLocation, LocalPropertyItem } from '../../Types/PropertyTypes'
@@ -63,6 +63,31 @@ export function PropertyLocationTree({
   const dropTargetRef = useRef<string | null>(null)
   const ghostRef = useRef<HTMLDivElement>(null)
   const [contextMenu, setContextMenu] = useState<{ type: 'location' | 'item' | 'root'; id: string; x: number; y: number } | null>(null)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const renameInputRef = useRef<HTMLInputElement>(null)
+
+  const startInlineRename = useCallback((loc: LocalPropertyLocation) => {
+    setRenamingId(loc.id)
+    setRenameValue(loc.name)
+    setTimeout(() => renameInputRef.current?.focus(), 30)
+  }, [])
+
+  const commitInlineRename = useCallback(() => {
+    if (!renamingId) return
+    const trimmed = renameValue.trim()
+    if (trimmed) {
+      const loc = locations.find(l => l.id === renamingId)
+      if (loc) onEditLocation?.({ ...loc, name: trimmed })
+    }
+    setRenamingId(null)
+    setRenameValue('')
+  }, [renamingId, renameValue, locations, onEditLocation])
+
+  const cancelInlineRename = useCallback(() => {
+    setRenamingId(null)
+    setRenameValue('')
+  }, [])
 
   const toggleCollapse = useCallback((id: string) => {
     setCollapsed((prev) => {
@@ -318,13 +343,29 @@ export function PropertyLocationTree({
 
           {/* Location icon + name */}
           <div
-            role="button"
-            tabIndex={0}
+            role={renamingId === node.location.id ? undefined : 'button'}
+            tabIndex={renamingId === node.location.id ? undefined : 0}
             className="flex items-center gap-2 flex-1 min-w-0 text-left cursor-pointer"
-            onClick={() => onSelectLocation(node.location)}
-            onKeyDown={(e) => { if (e.key === 'Enter') onSelectLocation(node.location) }}
+            onClick={renamingId === node.location.id ? undefined : () => onSelectLocation(node.location)}
+            onKeyDown={renamingId === node.location.id ? undefined : (e) => { if (e.key === 'Enter') onSelectLocation(node.location) }}
           >
-            <span className="text-[10pt] font-medium text-primary truncate">{node.location.name}</span>
+            {renamingId === node.location.id ? (
+              <input
+                ref={renameInputRef}
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitInlineRename()
+                  if (e.key === 'Escape') cancelInlineRename()
+                }}
+                onBlur={commitInlineRename}
+                onClick={(e) => e.stopPropagation()}
+                className="flex-1 min-w-0 text-[10pt] font-medium text-primary bg-transparent border-b border-themeblue3/50 focus:outline-none"
+              />
+            ) : (
+              <span className="text-[10pt] font-medium text-primary truncate">{node.location.name}</span>
+            )}
           </div>
 
           {/* Item count badge */}
@@ -337,21 +378,43 @@ export function PropertyLocationTree({
           {/* Inline edit controls — real locations only */}
           {!isMember && editing && (
             <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-              {onEditLocation && (
-                <button
-                  onClick={() => onEditLocation(node.location)}
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
-                >
-                  <Pencil size={13} />
-                </button>
-              )}
-              {onDeleteLocation && (
-                <button
-                  onClick={() => onDeleteLocation(node.location.id)}
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
-                >
-                  <Trash2 size={13} />
-                </button>
+              {renamingId === node.location.id ? (
+                <>
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={cancelInlineRename}
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                  >
+                    <X size={13} />
+                  </button>
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={commitInlineRename}
+                    disabled={!renameValue.trim()}
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-themeblue2 active:scale-95 transition-all disabled:opacity-30"
+                  >
+                    <Check size={13} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  {onEditLocation && (
+                    <button
+                      onClick={() => startInlineRename(node.location)}
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                  )}
+                  {onDeleteLocation && (
+                    <button
+                      onClick={() => onDeleteLocation(node.location.id)}
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -554,7 +617,7 @@ export function PropertyLocationTree({
               items={[
                 ...(onAddChildLocation ? [{ key: 'add-area', label: 'New Area', icon: FolderPlus, onAction: () => onAddChildLocation(loc.id) }] : []),
                 ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(loc.id) }] : []),
-                ...(onEditLocation ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditLocation(loc) }] : []),
+                ...(onEditLocation ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => startInlineRename(loc) }] : []),
                 ...(onDeleteLocation ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteLocation(loc.id) }] : []),
               ]}
             />

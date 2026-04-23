@@ -12,6 +12,7 @@ export const TextInput = ({
   maxLength,
   required = false,
   type = 'text',
+  inputMode,
   currentValue,
   hint,
 }: {
@@ -23,6 +24,7 @@ export const TextInput = ({
   maxLength?: number
   required?: boolean
   type?: string
+  inputMode?: 'none' | 'text' | 'tel' | 'url' | 'email' | 'numeric' | 'decimal' | 'search'
   currentValue?: string | null
   hint?: string | null
 }) => (
@@ -39,6 +41,7 @@ export const TextInput = ({
     )}
     <input
       type={type}
+      inputMode={inputMode}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onBlur={onBlur}

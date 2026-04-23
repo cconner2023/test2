@@ -516,6 +516,63 @@ export async function ensureMemberLocations(
   await upsertLocationTags(rootLocationId, [...existingTags, ...additionalTags])
 }
 
+// ── Zone → Location Reconciliation ───────────────────────────
+
+/**
+ * Ensures a `property_locations` record exists for every zone tag on the
+ * root canvas.  Called during store init so that zones drawn on the map
+ * are always reflected in the list view.
+ *
+ * Preserves `tag.target_id` as the location `id` so existing canvas links
+ * remain valid.  Only creates records — never deletes or renames existing ones.
+ *
+ * Returns true if any records were created (caller can trigger an IDB flush).
+ */
+export async function reconcileLocationsFromTags(
+  clinicId: string,
+  userId: string,
+  rootLocationId: string,
+  existingLocations: LocalPropertyLocation[],
+): Promise<boolean> {
+  const rootTags = await fetchLocationTags(rootLocationId)
+  const zoneTags = rootTags.filter(t => t.target_type === 'location')
+  if (zoneTags.length === 0) return false
+
+  const knownIds = new Set(existingLocations.map(l => l.id))
+  knownIds.add(rootLocationId)
+
+  const now = new Date().toISOString()
+  let created = false
+
+  for (const tag of zoneTags) {
+    if (knownIds.has(tag.target_id)) continue
+
+    const location: PropertyLocation = {
+      id: tag.target_id,
+      clinic_id: clinicId,
+      parent_id: null,
+      name: tag.label ?? 'Location',
+      photo_data: null,
+      holder_user_id: null,
+      created_by: userId,
+      created_at: now,
+      updated_at: now,
+    }
+    await saveLocalPropertyLocation(localLocation(location, 'pending'))
+    await addToSyncQueue({
+      user_id: userId,
+      action: 'create',
+      table_name: 'property_locations',
+      record_id: location.id,
+      payload: location as unknown as Record<string, unknown>,
+    })
+    knownIds.add(tag.target_id)
+    created = true
+  }
+
+  return created
+}
+
 // ── Root Location (invisible canvas host) ────────────────────
 
 import { ROOT_LOCATION_NAME } from '../Types/PropertyTypes'

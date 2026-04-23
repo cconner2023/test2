@@ -304,56 +304,24 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
     const isRenaming = !isMember && renamingId === loc.id
     const count = totalDescendantItems(loc.id)
 
-    if (isRenaming) {
-      return (
-        <div key={loc.id} className="flex items-center gap-2 px-4 py-3">
-          <input
-            ref={renameInputRef}
-            type="text"
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commitRename()
-              if (e.key === 'Escape') cancelRename()
-            }}
-            placeholder="Rename location"
-            className="flex-1 min-w-0 rounded-full py-2.5 px-4 border border-themeblue1/30 shadow-xs bg-themewhite2 focus:outline-none text-base text-primary placeholder:text-tertiary transition-all duration-300"
-          />
-          <button
-            onClick={cancelRename}
-            className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary active:scale-95 transition-all duration-300"
-          >
-            <X size={20} />
-          </button>
-          <button
-            onClick={commitRename}
-            disabled={!renameValue.trim()}
-            className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-themeblue3 text-white border border-themeblue1/30 disabled:opacity-30 active:scale-95 transition-all duration-300"
-          >
-            <Check size={20} />
-          </button>
-        </div>
-      )
-    }
-
     return (
       <div
         key={loc.id}
-        role="button"
-        tabIndex={0}
-        onClick={() => drillInto(loc)}
-        onKeyDown={(e) => { if (e.key === 'Enter') drillInto(loc) }}
+        role={isRenaming ? undefined : 'button'}
+        tabIndex={isRenaming ? undefined : 0}
+        onClick={isRenaming ? undefined : () => drillInto(loc)}
+        onKeyDown={isRenaming ? undefined : (e) => { if (e.key === 'Enter') drillInto(loc) }}
         onContextMenu={(e) => {
           e.preventDefault()
           e.stopPropagation()
-          if (!isMember && (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation)) {
+          if (!isMember && !isRenaming && (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation)) {
             setContextMenu({ type: 'location', id: loc.id, x: e.clientX, y: e.clientY })
           }
         }}
-        onTouchStart={(e) => handleTouchStart('location', loc.id, e, isMember)}
-        onTouchEnd={handleTouchEnd}
-        onTouchMove={handleTouchMove}
-        className={`flex items-center gap-3 px-4 py-3 active:bg-secondary/5 transition-colors cursor-pointer ${
+        onTouchStart={isRenaming ? undefined : (e) => handleTouchStart('location', loc.id, e, isMember)}
+        onTouchEnd={isRenaming ? undefined : handleTouchEnd}
+        onTouchMove={isRenaming ? undefined : handleTouchMove}
+        className={`flex items-center gap-3 px-4 py-3 ${isRenaming ? '' : 'active:bg-secondary/5 transition-colors cursor-pointer'} ${
           !isLast ? 'border-b border-tertiary/8' : ''
         }`}
       >
@@ -364,32 +332,69 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
           }
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-primary truncate">{loc.name}</p>
-          {count > 0 && (
+          {isRenaming ? (
+            <input
+              ref={renameInputRef}
+              type="text"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRename()
+                if (e.key === 'Escape') cancelRename()
+              }}
+              onBlur={commitRename}
+              className="w-full text-sm font-medium text-primary bg-transparent border-b border-themeblue3/50 focus:outline-none pb-0.5"
+            />
+          ) : (
+            <p className="text-sm font-medium text-primary truncate">{loc.name}</p>
+          )}
+          {!isRenaming && count > 0 && (
             <p className="text-xs text-tertiary mt-0.5">{count} item{count !== 1 ? 's' : ''}</p>
           )}
         </div>
         {!isMember && editing ? (
           <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-            {onEditLocation && (
-              <button
-                onClick={() => startRename(loc)}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
-              >
-                <Pencil size={14} />
-              </button>
-            )}
-            {onDeleteLocation && (
-              <button
-                onClick={() => onDeleteLocation(loc.id)}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
-              >
-                <Trash2 size={14} />
-              </button>
+            {isRenaming ? (
+              <>
+                <button
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={cancelRename}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                >
+                  <X size={14} />
+                </button>
+                <button
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={commitRename}
+                  disabled={!renameValue.trim()}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-themeblue2 active:scale-95 transition-all disabled:opacity-30"
+                >
+                  <Check size={14} />
+                </button>
+              </>
+            ) : (
+              <>
+                {onEditLocation && (
+                  <button
+                    onClick={() => startRename(loc)}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
+                {onDeleteLocation && (
+                  <button
+                    onClick={() => onDeleteLocation(loc.id)}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </>
             )}
           </div>
         ) : (
-          <ChevronRight size={16} className="text-tertiary shrink-0" />
+          !isRenaming && <ChevronRight size={16} className="text-tertiary shrink-0" />
         )}
       </div>
     )

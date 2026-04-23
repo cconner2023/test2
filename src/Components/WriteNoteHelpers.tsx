@@ -151,15 +151,15 @@ export const ActionIconButton = ({
     variant: 'copy' | 'share' | 'pdf' | 'calendar';
     title: string;
 }) => {
-    const colorClass = status === 'done' ? 'text-themegreen'
-        : status === 'busy' ? 'text-purple-600'
-            : 'text-tertiary hover:text-primary hover:bg-themewhite3';
+    const colorClass = status === 'done' ? 'bg-themeblue2 text-white'
+        : status === 'busy' ? 'bg-themeblue2/8 text-tertiary'
+            : 'bg-themeblue2/8 text-primary';
 
     return (
         <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onClick(); }}
-            className={`p-1.5 transition-colors rounded-full ${colorClass}`}
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${colorClass}`}
             title={title}
         >
             {status === 'busy' ? (

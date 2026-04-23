@@ -136,6 +136,8 @@ export interface UserTypes {
     providerNoteTemplates?: ProviderNoteTemplate[];
     /** Mission overview widget selection — null hides the panel entirely */
     overviewWidgets?: OverviewWidgetId[] | null
+    /** Appearance theme ID, e.g. "default-dark". Synced to Supabase for cross-device persistence. */
+    theme?: string
 }
 
 export type OverviewWidgetId = 'task-list' | 'map-overlay' | 'kanban' | 'week-view' | 'messages' | 'weather'

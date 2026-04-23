@@ -87,7 +87,7 @@ function LongPressRow({ children, onLongPress: onLongPressCb, onClick }: {
     if (rowRef.current) onLongPressCb(rowRef.current.getBoundingClientRect())
   }, [onLongPressCb])
 
-  const longPressHandlers = useLongPress(handleLongPress, { delay: 400 })
+  const { isPressing, ...longPressHandlers } = useLongPress(handleLongPress, { delay: 400 })
 
   const handleClick = useCallback(() => {
     if (firedRef.current) { firedRef.current = false; return }
@@ -95,7 +95,13 @@ function LongPressRow({ children, onLongPress: onLongPressCb, onClick }: {
   }, [onClick])
 
   return (
-    <div ref={rowRef} {...longPressHandlers} onClick={handleClick} onContextMenu={e => e.preventDefault()}>
+    <div
+      ref={rowRef}
+      {...longPressHandlers}
+      onClick={handleClick}
+      onContextMenu={e => e.preventDefault()}
+      className={`transition-opacity duration-100 ${isPressing ? 'opacity-60' : ''}`}
+    >
       {children}
     </div>
   )

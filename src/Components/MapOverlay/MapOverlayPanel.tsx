@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useSpring, animated } from '@react-spring/web';
-import { ChevronLeft, Compass, Move, MapPin, Route, Pentagon, Pencil, Trash2, Check, X, Search, RefreshCw, Ruler, Wifi, RadioTower, Grid3X3, Undo2 } from 'lucide-react';
+import { ChevronLeft, Compass, Layers, Move, MapPin, Route, Pentagon, Pencil, Trash2, Check, X, Search, RefreshCw, Ruler, Wifi, RadioTower, Grid3X3, Undo2 } from 'lucide-react';
 import { LoadingSpinner } from '../LoadingSpinner';
 import { forward } from 'mgrs';
 import { BaseDrawer } from '../BaseDrawer';
@@ -32,7 +32,7 @@ import { OverlayPopover as OverlayList } from './OverlayList';
 import { FeatureEditor } from './FeatureEditor';
 import { resolveSearch } from './searchResolver';
 
-type ViewState = 'list' | 'viewer' | 'converter';
+type ViewState = 'viewer' | 'converter';
 
 interface MapOverlayPanelProps {
   isVisible: boolean;
@@ -75,7 +75,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   const isMobile = useIsMobile();
   const { user, clinicId } = useAuth();
 
-  const [view, setView] = useState<ViewState>('list');
+  const [view, setView] = useState<ViewState>('viewer');
+  const [showPopover, setShowPopover] = useState(false);
+  const [visibleOverlayIds, setVisibleOverlayIds] = useState<Set<string>>(new Set());
   const [overlayId, setOverlayId] = useState<string | null>(null);
   const [overlayName, setOverlayName] = useState('');
   const [features, setFeatures] = useState<OverlayFeature[]>([]);
@@ -171,6 +173,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   useEffect(() => {
     if (!isVisible) {
       hasAutoNavigated.current = false;
+      setShowPopover(false);
       return;
     }
     if (!clinicId) return;
@@ -253,6 +256,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     inProgressGeometry.current = [];
     inProgressFeatureId.current = null;
     setView('viewer');
+    setShowPopover(false);
+    setVisibleOverlayIds(prev => new Set([...prev, id]));
     startWatching();
     // Center on clinic location if resolved
     if (initialCenter) {
@@ -270,6 +275,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     inProgressGeometry.current = [];
     inProgressFeatureId.current = null;
     setView('viewer');
+    setShowPopover(false);
+    setVisibleOverlayIds(prev => new Set([...prev, overlay.id]));
     startWatching();
     if (overlay.features.length > 0) {
       const bbox = computeOverlayBbox(overlay.features);
@@ -278,6 +285,15 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
       setTimeout(() => mapRef.current?.flyTo(initialCenter[0], initialCenter[1], 12), 400);
     }
   }, [startWatching, initialCenter]);
+
+  const handleToggleVisible = useCallback((overlayId: string) => {
+    setVisibleOverlayIds(prev => {
+      const next = new Set(prev);
+      if (next.has(overlayId)) next.delete(overlayId);
+      else next.add(overlayId);
+      return next;
+    });
+  }, []);
 
   const handleDeleteOverlay = useCallback(async (id: string) => {
     if (!user) return;
@@ -330,19 +346,24 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   }, []);
 
   const handleBack = useCallback(() => {
-    if (view === 'viewer') { stopWatching(); setIsSharing(false); }
-    setView('list');
-    setDrawMode('pan');
-    setSelectedFeatureId(null);
-    setNamingFeatureId(null);
-    setEditingFeatureId(null);
-    setIsEditing(false);
-    setSavingOverlayName(false);
-    setMeasurePoints([]);
-    setMeasureResult(null);
-    inProgressGeometry.current = [];
-    inProgressFeatureId.current = null;
-  }, [view, stopWatching]);
+    if (view === 'viewer') {
+      stopWatching();
+      setIsSharing(false);
+      setDrawMode('pan');
+      setSelectedFeatureId(null);
+      setNamingFeatureId(null);
+      setEditingFeatureId(null);
+      setIsEditing(false);
+      setSavingOverlayName(false);
+      setMeasurePoints([]);
+      setMeasureResult(null);
+      inProgressGeometry.current = [];
+      inProgressFeatureId.current = null;
+      onClose();
+    } else {
+      setView('viewer');
+    }
+  }, [view, stopWatching, onClose]);
 
   // ── Map click handler ──
   const handleMapClick = useCallback((lat: number, lng: number) => {
@@ -624,57 +645,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
       onClose={onClose}
       mobileFullScreen
       fullHeight="95dvh"
-      // Viewer view uses a custom in-content header: an animated proportional
-      // flex split between the search pill and tool pill that DrawerHeader's
-      // left/right slot model doesn't accommodate. Intentional exception.
-      header={view === 'list' ? {
-        title: 'Map Overlay',
-        badge: 'BETA',
-        leftContent: isMobile ? (
-          <HeaderPill>
-            <PillButton icon={Compass} onClick={handleOpenConverter} label="MGRS" />
-          </HeaderPill>
-        ) : undefined,
-      } : undefined}
+      header={undefined}
     >
       <ContentWrapper slideDirection="">
-        {/* ── List view ── */}
-        {view === 'list' && (
-          <div className="flex flex-col h-full">
-            {loading ? (
-              <div className="flex-1 flex items-center justify-center">
-                <LoadingSpinner size="lg" className="text-themeblue2" />
-              </div>
-            ) : (
-              <OverlayList
-                overlays={overlays}
-                onSelect={handleOpenOverlay}
-                onDelete={handleDeleteOverlay}
-                onNewOverlay={handleNewOverlay}
-                tileMeta={tileMetaMap}
-                downloadingId={downloadingId}
-                downloadProgress={downloadProgress}
-                onDownloadTiles={handleDownloadTiles}
-                onEvictTiles={handleEvictTiles}
-              />
-            )}
-            {!isMobile && (
-              <div className="px-4 pb-6">
-                <button
-                  type="button"
-                  onClick={handleOpenConverter}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl
-                    border border-tertiary/15 bg-themewhite2 text-sm font-medium text-secondary
-                    active:scale-95 transition-all duration-300"
-                >
-                  <Compass size={16} />
-                  MGRS Converter
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* ── Viewer ── */}
         {view === 'viewer' && (
           <div className="flex flex-col h-full relative">
@@ -685,7 +658,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
               </div>
             )}
 
-            {/* Sub-header: back + search (static — toolbar is now a map FAB) */}
+            {/* Sub-header: back + layers toggle + search */}
             <div className={
               isMobile
                 ? 'absolute top-0 left-0 right-0 z-[1001] flex items-center gap-2 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))]'
@@ -693,7 +666,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
             }>
               {isMobile ? (
                 <HeaderPill multi>
-                  <PillButton icon={ChevronLeft} onClick={handleBack} label="Overlays" />
+                  <PillButton icon={ChevronLeft} onClick={handleBack} label="Close map" />
                   <button
                     type="button"
                     onClick={handleBack}
@@ -708,19 +681,30 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                   )}
                 </HeaderPill>
               ) : (
+                /* Layers toggle — desktop only, left of search */
                 <button
                   type="button"
-                  onClick={handleBack}
-                  className="flex items-center gap-1 p-1.5 shrink-0 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
+                  onClick={() => setShowPopover(prev => !prev)}
+                  className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all
+                    ${showPopover ? 'bg-themeblue3 text-white' : 'text-tertiary hover:bg-themewhite2'}`}
                   aria-label="Overlays"
+                  title="Overlays"
                 >
-                  <ChevronLeft size={20} className="text-tertiary" />
-                  <span className="text-xs text-secondary truncate max-w-[7rem]">
-                    {overlayName || 'New Overlay'}
-                  </span>
-                  {overlayId && tileMetaMap.has(overlayId) && (
-                    <Wifi size={13} className="text-themegreen shrink-0" title="Tiles cached — available offline" />
-                  )}
+                  <Layers size={17} />
+                </button>
+              )}
+
+              {/* Mobile: Layers toggle */}
+              {isMobile && (
+                <button
+                  type="button"
+                  onClick={() => setShowPopover(prev => !prev)}
+                  className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all
+                    ${showPopover ? 'bg-themeblue3 text-white' : 'text-tertiary hover:bg-themewhite2'}`}
+                  aria-label="Overlays"
+                  title="Overlays"
+                >
+                  <Layers size={17} />
                 </button>
               )}
 
@@ -757,6 +741,18 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                   </>
                 )}
               </div>
+
+              {/* Close button — desktop only, right of search */}
+              {!isMobile && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary hover:bg-themewhite2 active:scale-95 transition-all"
+                  aria-label="Close"
+                >
+                  <X size={17} />
+                </button>
+              )}
             </div>
 
             {/* Map area */}
@@ -779,6 +775,30 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                 tilesCached={overlayId ? tileMetaMap.has(overlayId) : false}
                 presenceMarkers={presenceMarkers}
               />
+
+              {/* ── Overlay popover — anchored left, below sub-header ── */}
+              {showPopover && (
+                <div
+                  className="absolute left-3 z-[1001]"
+                  style={{ top: isMobile ? '68px' : '12px' }}
+                >
+                  <OverlayList
+                    overlays={overlays}
+                    activeOverlayId={overlayId}
+                    visibleOverlayIds={visibleOverlayIds}
+                    onMakeActive={handleOpenOverlay}
+                    onToggleVisible={handleToggleVisible}
+                    onDelete={handleDeleteOverlay}
+                    onNewOverlay={handleNewOverlay}
+                    onClose={() => setShowPopover(false)}
+                    tileMeta={tileMetaMap}
+                    downloadingId={downloadingId}
+                    downloadProgress={downloadProgress}
+                    onDownloadTiles={handleDownloadTiles}
+                    onEvictTiles={handleEvictTiles}
+                  />
+                </div>
+              )}
 
               {/* ── FAB toolbar — Property-style floating pill, top-right of map ── */}
               <div
@@ -1056,7 +1076,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
             {isMobile ? (
               <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center backdrop-blur-xl bg-themewhite3/80">
                 <HeaderPill>
-                  <PillButton icon={ChevronLeft} onClick={handleBack} label="Back to list" />
+                  <PillButton icon={ChevronLeft} onClick={handleBack} label="Back to map" />
                 </HeaderPill>
                 <p className="flex-1 text-sm font-medium text-primary truncate text-center mx-3">
                   MGRS Converter
@@ -1069,7 +1089,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                   type="button"
                   onClick={handleBack}
                   className="p-1.5 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
-                  aria-label="Back to list"
+                  aria-label="Back to map"
                 >
                   <ChevronLeft size={20} className="text-tertiary" />
                 </button>

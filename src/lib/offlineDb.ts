@@ -864,6 +864,19 @@ export async function deleteLocalMapOverlay(overlayId: string): Promise<void> {
 // ============================================================
 
 /**
+ * Clear only the offline tile cache stores.
+ * Safe to call at any time — tiles re-download on demand.
+ */
+export async function clearTileCache(): Promise<void> {
+  const db = await getDb()
+  const tx = db.transaction(['cachedTiles', 'tileMetadata'], 'readwrite')
+  await tx.objectStore('cachedTiles').clear()
+  await tx.objectStore('tileMetadata').clear()
+  await tx.done
+  logger.info('Cleared tile cache from IndexedDB')
+}
+
+/**
  * Clear all user data from IndexedDB.
  * Called on intentional sign-out to prevent data leaking between accounts.
  */

@@ -199,6 +199,7 @@ export function MessageBubble({
     if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
     longPressTimerRef.current = setTimeout(() => {
       longPressFiredRef.current = true
+      setTapped(false)
       onLongPress?.(message, t.clientX, t.clientY)
     }, 500)
   }, [message, onLongPress])

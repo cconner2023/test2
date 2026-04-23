@@ -50,7 +50,7 @@ function ConvRow({ entry, lastText, unread, isPinned, onTap, onContext }: {
   onTap: () => void
   onContext: (x: number, y: number) => void
 }) {
-  const longPress = useLongPress(onContext)
+  const { isPressing, ...longPressHandlers } = useLongPress(onContext)
   const name = entry.isSelf
     ? 'Notes to Self'
     : entry.type === 'group' && entry.group
@@ -59,10 +59,10 @@ function ConvRow({ entry, lastText, unread, isPinned, onTap, onContext }: {
 
   return (
     <div
-      className="flex items-center gap-4 px-3 py-3 active:bg-themeblue2/5 cursor-pointer select-none"
+      className={`flex items-center gap-4 px-3 py-3 active:bg-themeblue2/5 cursor-pointer select-none transition-opacity duration-100 ${isPressing ? 'opacity-60' : ''}`}
       onClick={onTap}
       onContextMenu={(e) => { e.preventDefault(); onContext(e.clientX, e.clientY) }}
-      {...longPress}
+      {...longPressHandlers}
     >
       {entry.type === 'group' ? (
         <div className="w-8 h-8 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
@@ -213,15 +213,15 @@ function KanbanCard({ event, onTap, onContext }: {
   onTap: () => void
   onContext: (x: number, y: number) => void
 }) {
-  const longPress = useLongPress(onContext)
+  const { isPressing, ...longPressHandlers } = useLongPress(onContext)
   const stripe = CATEGORY_STRIPE[event.category] ?? 'bg-tertiary/50'
   const isDone = event.status === 'completed' || event.status === 'cancelled'
   return (
     <button
       onClick={onTap}
       onContextMenu={(e) => { e.preventDefault(); onContext(e.clientX, e.clientY) }}
-      {...longPress}
-      className={`flex items-stretch text-left rounded overflow-hidden border border-themeblue3/10 active:scale-[0.98] w-full ${isDone ? 'opacity-50' : ''}`}
+      {...longPressHandlers}
+      className={`flex items-stretch text-left rounded overflow-hidden border border-themeblue3/10 active:scale-[0.98] w-full transition-opacity duration-100 ${isDone ? 'opacity-50' : isPressing ? 'opacity-60' : ''}`}
     >
       <div className={`w-1 shrink-0 ${stripe}`} />
       <div className="flex-1 min-w-0 px-1.5 py-1 bg-themewhite2">
@@ -575,11 +575,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
         )
 
       case 'weather':
-        return (
-          <div key="weather">
-            <WeatherWidget />
-          </div>
-        )
+        return <WeatherWidget key="weather" />
 
       default:
         return null

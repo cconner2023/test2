@@ -1,4 +1,5 @@
 import L from 'leaflet';
+import type { ThemeName, ThemeMode } from '../../Utilities/ThemeContext';
 
 type RGB = [number, number, number];
 
@@ -11,17 +12,33 @@ export interface TileTheme {
   accent: RGB;
 }
 
-export const TILE_THEME_LIGHT: TileTheme = {
-  background: [238, 241, 245],   // themewhite2
-  foreground: [8, 18, 28],       // near-black — crisp text/roads
-  accent: [88, 128, 152],        // mid-blue features (water, parks)
+const TILE_THEMES: Record<`${ThemeName}-${ThemeMode}`, TileTheme> = {
+  'default-light':    { background: [238, 241, 245], foreground: [8,   18,  28 ], accent: [88,  128, 152] },
+  'default-dark':     { background: [14,  22,  32 ], foreground: [232, 242, 250], accent: [45,  90,  118] },
+
+  'ironclad-light':   { background: [248, 242, 225], foreground: [38,  28,  15 ], accent: [160, 100, 20 ] },
+  'ironclad-dark':    { background: [30,  26,  20 ], foreground: [215, 205, 188], accent: [180, 120, 35 ] },
+
+  'forest-light':     { background: [240, 244, 238], foreground: [12,  22,  12 ], accent: [40,  120, 85 ] },
+  'forest-dark':      { background: [14,  16,  14 ], foreground: [205, 220, 205], accent: [50,  145, 105] },
+
+  'void-light':       { background: [238, 242, 248], foreground: [10,  12,  22 ], accent: [0,   100, 140] },
+  'void-dark':        { background: [10,  12,  16 ], foreground: [195, 218, 235], accent: [0,   140, 175] },
+
+  'slipstream-light': { background: [242, 244, 240], foreground: [10,  18,  28 ], accent: [55,  105, 95 ] },
+  'slipstream-dark':  { background: [14,  18,  22 ], foreground: [205, 220, 230], accent: [70,  130, 118] },
+
+  'urban-light':      { background: [244, 240, 232], foreground: [28,  20,  12 ], accent: [110, 80,  55 ] },
+  'urban-dark':       { background: [14,  13,  11 ], foreground: [218, 208, 192], accent: [130, 98,  76 ] },
 };
 
-export const TILE_THEME_DARK: TileTheme = {
-  background: [14, 22, 32],      // themewhite (dark)
-  foreground: [232, 242, 250],   // bright white-blue — crisp text/roads
-  accent: [45, 90, 118],         // mid-blue features
-};
+export function getTileTheme(name: ThemeName, mode: ThemeMode): TileTheme {
+  return TILE_THEMES[`${name}-${mode}`] ?? TILE_THEMES[`default-${mode}`];
+}
+
+// Backward-compat aliases
+export const TILE_THEME_LIGHT: TileTheme = TILE_THEMES['default-light'];
+export const TILE_THEME_DARK: TileTheme  = TILE_THEMES['default-dark'];
 
 const TILE_SUBDOMAINS = ['a', 'b', 'c'];
 

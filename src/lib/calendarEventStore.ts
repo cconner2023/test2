@@ -228,8 +228,15 @@ export async function clearAllPendingVaultSends(): Promise<void> {
   }
 }
 
-/** Prune tombstones older than maxAgeDays to keep the store bounded. */
-export async function clearExpiredTombstones(maxAgeDays = 30): Promise<void> {
+/**
+ * Prune tombstones older than maxAgeDays to keep the store bounded.
+ * Must exceed the vault message lifetime — processClinicVaultMessages replays
+ * ALL vault messages with no age filter, and SPK retention is 90 days.
+ * A tombstone pruned before its guarded event ages out of the vault creates a
+ * resurrection vector: vault replay routes the old 'c' unopposed.
+ * Default of 180 days gives a 2x safety margin over the SPK retention window.
+ */
+export async function clearExpiredTombstones(maxAgeDays = 180): Promise<void> {
   try {
     const db = await getDb()
     const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000

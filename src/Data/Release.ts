@@ -7,6 +7,7 @@ export interface ReleaseNoteTypes {
 }
 
 export const ReleaseNotes: ReleaseNoteTypes[] = [
+    { version: '2.6.6', type: 'added', text: 'device permissions visible in Settings > Security — view and grant camera and location access from within the app' },
     { version: '2.6.6', type: 'added', text: 'MASCAL queue — manage multiple casualties simultaneously, toggle between patients to update vitals and interventions' },
     { version: '2.6.6', type: 'added', text: '9-line MEDEVAC request builder with export / import' },
     { version: '2.6.6', type: 'added', text: 'extend messaging to all users, find by user email or share your id to another user' },

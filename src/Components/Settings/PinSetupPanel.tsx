@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Lock, KeyRound, ScanFace, Timer, Activity, Smartphone, ChevronRight } from 'lucide-react'
+import { Lock, KeyRound, ScanFace, Timer, Activity, Smartphone, ChevronRight, Camera, MapPin } from 'lucide-react'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { ToggleSwitch } from './ToggleSwitch'
 import { PinKeypad } from '../PinKeypad'
@@ -62,12 +62,35 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
   const [bioEnrolled, setBioEnrolled] = useState(isBiometricEnrolled())
   const [bioLoading, setBioLoading] = useState(false)
 
-  // Check biometric availability
+  // Device permission state
+  type PermState = 'granted' | 'denied' | 'prompt' | 'unsupported'
+  const [cameraPermission, setCameraPermission] = useState<PermState>('unsupported')
+  const [locationPermission, setLocationPermission] = useState<PermState>('unsupported')
+
+  // Check biometric availability + device permissions
   useEffect(() => {
     let cancelled = false
     async function check() {
       const available = await isBiometricAvailable()
       if (!cancelled) setBioAvailable(available)
+
+      if (navigator.permissions) {
+        try {
+          const cam = await navigator.permissions.query({ name: 'camera' as PermissionName })
+          if (!cancelled) {
+            setCameraPermission(cam.state as PermState)
+            cam.onchange = () => setCameraPermission(cam.state as PermState)
+          }
+        } catch { /* browser doesn't support querying camera */ }
+
+        try {
+          const geo = await navigator.permissions.query({ name: 'geolocation' })
+          if (!cancelled) {
+            setLocationPermission(geo.state as PermState)
+            geo.onchange = () => setLocationPermission(geo.state as PermState)
+          }
+        } catch { /* browser doesn't support querying geolocation */ }
+      }
     }
     check()
     return () => { cancelled = true }
@@ -114,6 +137,23 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
       setBioLoading(false)
     }
   }, [bioEnrolled, setError])
+
+  const handleRequestCamera = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      stream.getTracks().forEach(t => t.stop())
+      setCameraPermission('granted')
+    } catch {
+      setCameraPermission('denied')
+    }
+  }, [])
+
+  const handleRequestLocation = useCallback(() => {
+    navigator.geolocation.getCurrentPosition(
+      () => setLocationPermission('granted'),
+      () => setLocationPermission('denied'),
+    )
+  }, [])
 
   const handleSubmit = useCallback(async (pin: string) => {
     setError('')
@@ -218,169 +258,242 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
 
     return (
       <div className="h-full overflow-y-auto">
-        <div className="px-5 py-4 space-y-4">
-          <p className="text-xs text-tertiary leading-relaxed">
-            Set a PIN for secure re-entry. Enable App Lock to automatically lock the app when switching away or after inactivity.
-          </p>
+        <div className="px-5 py-4 space-y-5">
 
           {success && <ErrorDisplay type="success" message={success} />}
           {error && <ErrorDisplay type="error" message={error} />}
 
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-
-            {/* App Lock */}
-            <div
-              className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
-              onClick={handleAppLockToggle}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAppLockToggle() } }}
-            >
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${appLockOn ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                <Lock size={18} className={appLockOn ? 'text-themeblue2' : 'text-tertiary'} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${appLockOn ? 'text-primary' : 'text-tertiary'}`}>App Lock</p>
-                <p className="text-[9pt] text-tertiary mt-0.5">Lock when switching away or after inactivity</p>
-              </div>
-              <ToggleSwitch checked={appLockOn} />
+          {/* ── Lock ─────────────────────────────────────────────── */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Lock</p>
             </div>
+            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
 
-            {/* PIN management — visible whenever a PIN is set */}
-            {pinEnabled && (
-              <>
-                {bioAvailable && (
-                  <div
-                    onClick={bioLoading ? undefined : handleBiometricToggle}
-                    className={`flex items-center gap-3 pl-16 pr-4 py-3 bg-tertiary/5 transition-all ${bioLoading ? 'opacity-50' : 'cursor-pointer hover:bg-themeblue2/5 active:scale-95'}`}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (!bioLoading && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleBiometricToggle() } }}
-                  >
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${bioEnrolled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                      <ScanFace size={16} className={bioEnrolled ? 'text-themeblue2' : 'text-tertiary'} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium ${bioEnrolled ? 'text-primary' : 'text-tertiary'}`}>
-                        {bioLoading ? 'Setting up...' : 'Face ID / Touch ID'}
-                      </p>
-                      <p className="text-[9pt] text-tertiary mt-0.5">Use biometrics instead of PIN</p>
-                    </div>
-                    <ToggleSwitch checked={bioEnrolled} />
-                  </div>
-                )}
-
-                <div
-                  className="flex items-center gap-3 pl-16 pr-4 py-3 bg-tertiary/5 cursor-pointer transition-all hover:bg-themeblue2/5 active:scale-95"
-                  onClick={() => { resetState(); setPendingAction('change'); setView('verify-current') }}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); resetState(); setPendingAction('change'); setView('verify-current') } }}
-                >
-                  <KeyRound size={16} className="text-themeblue2 shrink-0" />
-                  <span className="text-sm font-medium text-themeblue2">Change PIN</span>
-                </div>
-
-                <div
-                  className="flex items-center gap-3 pl-16 pr-4 py-3 bg-tertiary/5 cursor-pointer transition-all hover:bg-themeblue2/5 active:scale-95"
-                  onClick={() => { resetState(); setPendingAction('remove'); setView('verify-current') }}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); resetState(); setPendingAction('remove'); setView('verify-current') } }}
-                >
-                  <KeyRound size={16} className="text-themered shrink-0" />
-                  <span className="text-sm font-medium text-themered">Remove PIN</span>
-                </div>
-              </>
-            )}
-
-            {/* Inactivity Timeout */}
-            {isAuthenticated && (
               <div
                 className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
-                onClick={() => {
-                  const next = timeoutEnabled ? 0 : TIMEOUT_20_MIN
-                  setTimeoutMs(next)
-                  setInactivityTimeoutMs(next)
-                }}
+                onClick={handleAppLockToggle}
                 role="button"
                 tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAppLockToggle() } }}
+              >
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${appLockOn ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                  <Lock size={18} className={appLockOn ? 'text-themeblue2' : 'text-tertiary'} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-medium ${appLockOn ? 'text-primary' : 'text-tertiary'}`}>App Lock</p>
+                  <p className="text-[9pt] text-tertiary mt-0.5">Lock when switching away or after inactivity</p>
+                </div>
+                <ToggleSwitch checked={appLockOn} />
+              </div>
+
+              {pinEnabled && (
+                <>
+                  {bioAvailable && (
+                    <div
+                      onClick={bioLoading ? undefined : handleBiometricToggle}
+                      className={`flex items-center gap-3 pl-16 pr-4 py-3 bg-tertiary/5 transition-all ${bioLoading ? 'opacity-50' : 'cursor-pointer hover:bg-themeblue2/5 active:scale-95'}`}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (!bioLoading && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleBiometricToggle() } }}
+                    >
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${bioEnrolled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                        <ScanFace size={16} className={bioEnrolled ? 'text-themeblue2' : 'text-tertiary'} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium ${bioEnrolled ? 'text-primary' : 'text-tertiary'}`}>
+                          {bioLoading ? 'Setting up...' : 'Face ID / Touch ID'}
+                        </p>
+                        <p className="text-[9pt] text-tertiary mt-0.5">Use biometrics instead of PIN</p>
+                      </div>
+                      <ToggleSwitch checked={bioEnrolled} />
+                    </div>
+                  )}
+                  <div
+                    className="flex items-center gap-3 pl-16 pr-4 py-3 bg-tertiary/5 cursor-pointer transition-all hover:bg-themeblue2/5 active:scale-95"
+                    onClick={() => { resetState(); setPendingAction('change'); setView('verify-current') }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); resetState(); setPendingAction('change'); setView('verify-current') } }}
+                  >
+                    <KeyRound size={16} className="text-themeblue2 shrink-0" />
+                    <span className="text-sm font-medium text-themeblue2">Change PIN</span>
+                  </div>
+                  <div
+                    className="flex items-center gap-3 pl-16 pr-4 py-3 bg-tertiary/5 cursor-pointer transition-all hover:bg-themeblue2/5 active:scale-95"
+                    onClick={() => { resetState(); setPendingAction('remove'); setView('verify-current') }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); resetState(); setPendingAction('remove'); setView('verify-current') } }}
+                  >
+                    <KeyRound size={16} className="text-themered shrink-0" />
+                    <span className="text-sm font-medium text-themered">Remove PIN</span>
+                  </div>
+                </>
+              )}
+
+              {isAuthenticated && (
+                <div
+                  className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
+                  onClick={() => {
                     const next = timeoutEnabled ? 0 : TIMEOUT_20_MIN
                     setTimeoutMs(next)
                     setInactivityTimeoutMs(next)
-                  }
-                }}
-              >
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${timeoutEnabled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                  <Timer size={18} className={timeoutEnabled ? 'text-themeblue2' : 'text-tertiary'} />
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      const next = timeoutEnabled ? 0 : TIMEOUT_20_MIN
+                      setTimeoutMs(next)
+                      setInactivityTimeoutMs(next)
+                    }
+                  }}
+                >
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${timeoutEnabled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                    <Timer size={18} className={timeoutEnabled ? 'text-themeblue2' : 'text-tertiary'} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium ${timeoutEnabled ? 'text-primary' : 'text-tertiary'}`}>Inactivity Timeout</p>
+                    <p className="text-[9pt] text-tertiary mt-0.5">
+                      {appLockOn
+                        ? 'Lock to PIN screen after 20 min'
+                        : 'Require password re-entry after 20 min'}
+                    </p>
+                  </div>
+                  <ToggleSwitch checked={timeoutEnabled} />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-medium ${timeoutEnabled ? 'text-primary' : 'text-tertiary'}`}>Inactivity Timeout</p>
-                  <p className="text-[9pt] text-tertiary mt-0.5">
-                    {appLockOn
-                      ? 'Lock to PIN screen after 20 min'
-                      : 'Require password re-entry after 20 min'}
-                  </p>
-                </div>
-                <ToggleSwitch checked={timeoutEnabled} />
-              </div>
-            )}
+              )}
 
-            {/* Activity Tracking */}
-            {isAuthenticated && (
-              <div
-                className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
-                onClick={() => {
-                  const next = !activityTracking
-                  setActivityTrackingEnabled(next)
-                  setActivityTracking(next)
-                }}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
+            </div>
+          </div>
+
+          {/* ── Session ──────────────────────────────────────────── */}
+          {isAuthenticated && (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Session</p>
+              </div>
+              <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+
+                <div
+                  className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
+                  onClick={() => {
                     const next = !activityTracking
                     setActivityTrackingEnabled(next)
                     setActivityTracking(next)
-                  }
-                }}
-              >
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${activityTracking ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                  <Activity size={18} className={activityTracking ? 'text-themeblue2' : 'text-tertiary'} />
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      const next = !activityTracking
+                      setActivityTrackingEnabled(next)
+                      setActivityTracking(next)
+                    }
+                  }}
+                >
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${activityTracking ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                    <Activity size={18} className={activityTracking ? 'text-themeblue2' : 'text-tertiary'} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium ${activityTracking ? 'text-primary' : 'text-tertiary'}`}>Activity Tracking</p>
+                    <p className="text-[9pt] text-tertiary mt-0.5">Background heartbeat keeps your account active and powers session tracking. Disabling may lead to account hibernation after 90 days.</p>
+                  </div>
+                  <ToggleSwitch checked={activityTracking} />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-medium ${activityTracking ? 'text-primary' : 'text-tertiary'}`}>Activity Tracking</p>
-                  <p className="text-[9pt] text-tertiary mt-0.5">Background heartbeat keeps your account active and powers session tracking. Disabling may lead to account hibernation after 90 days.</p>
-                </div>
-                <ToggleSwitch checked={activityTracking} />
-              </div>
-            )}
 
-            {/* Sessions & Devices */}
-            {onNavigateToDevices && (
-              <div
-                className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
-                onClick={onNavigateToDevices}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigateToDevices() } }}
-              >
-                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                  <Smartphone size={18} className="text-tertiary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-primary">Sessions & Devices</p>
-                  <p className="text-[9pt] text-tertiary mt-0.5">View and manage registered devices</p>
-                </div>
-                <ChevronRight size={16} className="text-tertiary shrink-0" />
-              </div>
-            )}
+                {onNavigateToDevices && (
+                  <div
+                    className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
+                    onClick={onNavigateToDevices}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigateToDevices() } }}
+                  >
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                      <Smartphone size={18} className="text-tertiary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-primary">Sessions & Devices</p>
+                      <p className="text-[9pt] text-tertiary mt-0.5">View and manage registered devices</p>
+                    </div>
+                    <ChevronRight size={16} className="text-tertiary shrink-0" />
+                  </div>
+                )}
 
-          </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Permissions ──────────────────────────────────────── */}
+          {(cameraPermission !== 'unsupported' || locationPermission !== 'unsupported') && (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Permissions</p>
+              </div>
+              <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+
+                {cameraPermission !== 'unsupported' && (() => {
+                  const granted = cameraPermission === 'granted'
+                  const denied = cameraPermission === 'denied'
+                  return (
+                    <div
+                      className={`flex items-center gap-3 px-4 py-3.5 transition-all ${cameraPermission === 'prompt' ? 'cursor-pointer active:scale-95 hover:bg-themeblue2/5' : ''}`}
+                      onClick={cameraPermission === 'prompt' ? handleRequestCamera : undefined}
+                      role={cameraPermission === 'prompt' ? 'button' : undefined}
+                      tabIndex={cameraPermission === 'prompt' ? 0 : undefined}
+                      onKeyDown={cameraPermission === 'prompt' ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRequestCamera() } } : undefined}
+                    >
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${granted ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                        <Camera size={18} className={granted ? 'text-themeblue2' : 'text-tertiary'} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium ${granted ? 'text-primary' : 'text-tertiary'}`}>Camera</p>
+                        <p className="text-[9pt] text-tertiary mt-0.5">
+                          {granted ? 'Allowed — used for QR scanning and property identification'
+                            : denied ? 'Blocked — enable in your browser or OS settings'
+                            : 'Tap to allow camera access'}
+                        </p>
+                      </div>
+                      <ToggleSwitch checked={granted} />
+                    </div>
+                  )
+                })()}
+
+                {locationPermission !== 'unsupported' && (() => {
+                  const granted = locationPermission === 'granted'
+                  const denied = locationPermission === 'denied'
+                  return (
+                    <div
+                      className={`flex items-center gap-3 px-4 py-3.5 transition-all ${locationPermission === 'prompt' ? 'cursor-pointer active:scale-95 hover:bg-themeblue2/5' : ''}`}
+                      onClick={locationPermission === 'prompt' ? handleRequestLocation : undefined}
+                      role={locationPermission === 'prompt' ? 'button' : undefined}
+                      tabIndex={locationPermission === 'prompt' ? 0 : undefined}
+                      onKeyDown={locationPermission === 'prompt' ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRequestLocation() } } : undefined}
+                    >
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${granted ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                        <MapPin size={18} className={granted ? 'text-themeblue2' : 'text-tertiary'} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium ${granted ? 'text-primary' : 'text-tertiary'}`}>Location</p>
+                        <p className="text-[9pt] text-tertiary mt-0.5">
+                          {granted ? 'Allowed — used for field position tracking on missions'
+                            : denied ? 'Blocked — enable in your browser or OS settings'
+                            : 'Tap to allow location access'}
+                        </p>
+                      </div>
+                      <ToggleSwitch checked={granted} />
+                    </div>
+                  )
+                })()}
+
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
     )

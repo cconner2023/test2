@@ -4,6 +4,8 @@ import { Copy, Check, Printer, X, Image } from 'lucide-react'
 import { MedevacForm } from '../Medevac/MedevacForm'
 import { ActionButton } from '../ActionButton'
 import { BarcodeDisplay } from '../Barcode'
+
+const PILL = 'flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15'
 import type { MedevacRequest } from '../../Types/MedevacTypes'
 import { medevacPatientTotal } from '../../Types/MedevacTypes'
 import { medevacToText, medevacToCompact, copyToClipboard, printReport } from '../../lib/reportExport'
@@ -39,10 +41,6 @@ interface NineLineExportProps {
   req: MedevacRequest
   onClear: () => void
 }
-
-const BTN = 'p-1.5 rounded-full transition-all active:scale-95'
-const BTN_IDLE = `${BTN} text-tertiary hover:text-primary hover:bg-themewhite3`
-const BTN_DONE = `${BTN} text-themegreen`
 
 export function NineLineExport({ req, onClear }: NineLineExportProps) {
   const [copiedText, setCopiedText] = useState(false)
@@ -86,23 +84,9 @@ export function NineLineExport({ req, onClear }: NineLineExportProps) {
       <div>
         <div className="pb-2 flex items-center justify-between">
           <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">9-Line Preview</p>
-          <div className="flex items-center gap-0.5">
-            <button
-              type="button"
-              onClick={handleCopyText}
-              title="Copy text"
-              className={copiedText ? BTN_DONE : BTN_IDLE}
-            >
-              {copiedText ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            </button>
-            <button
-              type="button"
-              onClick={handlePrint}
-              title="Print"
-              className={BTN_IDLE}
-            >
-              <Printer className="w-4 h-4" />
-            </button>
+          <div className={PILL}>
+            <ActionButton icon={copiedText ? Check : Copy} label="Copy text" onClick={handleCopyText} variant={copiedText ? 'success' : 'default'} iconSize={14} />
+            <ActionButton icon={Printer} label="Print" onClick={handlePrint} iconSize={14} />
           </div>
         </div>
         <div className="rounded-xl bg-themewhite2 overflow-hidden">
@@ -116,23 +100,9 @@ export function NineLineExport({ req, onClear }: NineLineExportProps) {
       <div>
         <div className="pb-2 flex items-center justify-between">
           <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Data Matrix</p>
-          <div className="flex items-center gap-0.5">
-            <button
-              type="button"
-              onClick={handleCopyImage}
-              title="Copy image"
-              className={copiedDm === 'image' ? BTN_DONE : BTN_IDLE}
-            >
-              {copiedDm === 'image' ? <Check className="w-4 h-4" /> : <Image className="w-4 h-4" />}
-            </button>
-            <button
-              type="button"
-              onClick={handleCopyCode}
-              title="Copy code"
-              className={copiedDm === 'code' ? BTN_DONE : BTN_IDLE}
-            >
-              {copiedDm === 'code' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            </button>
+          <div className={PILL}>
+            <ActionButton icon={copiedDm === 'image' ? Check : Image} label="Copy image" onClick={handleCopyImage} variant={copiedDm === 'image' ? 'success' : 'default'} iconSize={14} />
+            <ActionButton icon={copiedDm === 'code' ? Check : Copy} label="Copy code" onClick={handleCopyCode} variant={copiedDm === 'code' ? 'success' : 'default'} iconSize={14} />
           </div>
         </div>
         <div ref={barcodeRef} className="rounded-xl overflow-hidden">

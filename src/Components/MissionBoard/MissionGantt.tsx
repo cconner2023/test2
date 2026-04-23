@@ -149,15 +149,15 @@ export function TaskRow({ event, onClick, onContextMenu }: { event: CalendarEven
   const isDone   = event.status === 'completed' || event.status === 'cancelled'
   const isActive = event.status === 'in_progress'
   const circleColor = STATUS_CIRCLE[event.status]
-  const longPress = useLongPress(onContextMenu)
+  const { isPressing, ...longPressHandlers } = useLongPress(onContextMenu)
 
   return (
     <button
       onClick={onClick}
       onContextMenu={(e) => { e.preventDefault(); onContextMenu(e.clientX, e.clientY) }}
-      {...longPress}
-      className={`w-full flex items-stretch text-left rounded-lg overflow-hidden border border-themeblue3/10 active:scale-[0.99] ${
-        isDone ? 'opacity-45' : 'opacity-100'
+      {...longPressHandlers}
+      className={`w-full flex items-stretch text-left rounded-lg overflow-hidden border border-themeblue3/10 active:scale-[0.99] transition-opacity duration-100 ${
+        isDone ? 'opacity-45' : isPressing ? 'opacity-60' : 'opacity-100'
       }`}
     >
       <div className={`w-1 shrink-0 ${stripe} ${isActive ? 'animate-pulse' : ''}`} />

@@ -143,7 +143,7 @@ function TemplateRow({ template, onSelect, onPreview, isMobile }: {
     }
   }, [onPreview])
 
-  const longPressHandlers = useLongPress(handleLongPress, { delay: 400 })
+  const { isPressing, ...longPressHandlers } = useLongPress(handleLongPress, { delay: 400 })
   const isTourTemplate = template.id.startsWith(PROVIDER_TOUR_TEMPLATE_PREFIX)
 
   const handleClick = useCallback(() => {
@@ -160,6 +160,7 @@ function TemplateRow({ template, onSelect, onPreview, isMobile }: {
       data-tour={isTourTemplate ? 'provider-template-apply' : undefined}
       {...(isMobile ? longPressHandlers : {})}
       onContextMenu={isMobile ? (e) => e.preventDefault() : undefined}
+      className={isMobile && isPressing ? 'transition-opacity duration-100 opacity-60' : undefined}
     >
       <ListItemRow
         onClick={handleClick}

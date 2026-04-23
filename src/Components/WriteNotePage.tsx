@@ -409,7 +409,7 @@ export const WriteNotePage = ({
                                     <section data-tour="writenote-preview">
                                         <div className="pb-2 flex items-center justify-between">
                                             <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Note Preview</p>
-                                            <div className="flex items-center gap-0.5">
+                                            <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15">
                                                 <ActionIconButton
                                                     onClick={handleLog}
                                                     status={logStatus}
@@ -441,7 +441,7 @@ export const WriteNotePage = ({
                                     <section data-tour="writenote-encoded">
                                         <div className="pb-2 flex items-center justify-between">
                                             <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Encoded Note</p>
-                                            <div className="flex items-center gap-0.5">
+                                            <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15">
                                                 <ActionIconButton
                                                     onClick={() => handleCopy(encodedValue, 'encoded')}
                                                     status={copiedTarget === 'encoded' ? 'done' : 'idle'}

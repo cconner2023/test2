@@ -195,7 +195,7 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
             )}
             <div className="absolute inset-0 flex flex-col items-center justify-center p-1 gap-0.5 overflow-hidden">
               <span
-                className="text-[10pt] font-medium text-center leading-tight line-clamp-2 pointer-events-none"
+                className={['text-[10pt] font-medium text-center leading-tight line-clamp-2 pointer-events-none', !photo ? 'text-primary' : ''].join(' ')}
                 style={photo
                   ? { color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6)' }
                   : undefined}

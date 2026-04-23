@@ -233,7 +233,7 @@ interface ClinicCardProps {
 }
 
 function ClinicCard({ clinic, assignedUserCount, onTap, onContextMenu }: ClinicCardProps) {
-  const longPressHandlers = useLongPress((x, y) => onContextMenu(x, y))
+  const { isPressing, ...longPressHandlers } = useLongPress((x, y) => onContextMenu(x, y))
 
   return (
     <div
@@ -246,7 +246,7 @@ function ClinicCard({ clinic, assignedUserCount, onTap, onContextMenu }: ClinicC
         onContextMenu(e.clientX, e.clientY)
       }}
       {...longPressHandlers}
-      className="flex items-center gap-3 px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5 cursor-pointer select-none"
+      className={`flex items-center gap-3 px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5 cursor-pointer select-none ${isPressing ? 'opacity-60' : ''}`}
     >
       <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
         <Building2 size={16} className="text-tertiary" />

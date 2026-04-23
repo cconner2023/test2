@@ -53,6 +53,7 @@ export function HeatCategoryCalculator() {
           value={wbgtInput}
           onChange={setWbgtInput}
           placeholder="e.g. 86.5"
+          inputMode="decimal"
         />
       ) : (
         <div className="grid grid-cols-2 gap-3">
@@ -61,12 +62,14 @@ export function HeatCategoryCalculator() {
             value={tempInput}
             onChange={setTempInput}
             placeholder="e.g. 95"
+            inputMode="decimal"
           />
           <TextInput
             label="Humidity (%)"
             value={rhInput}
             onChange={setRhInput}
             placeholder="e.g. 70"
+            inputMode="numeric"
           />
         </div>
       )}

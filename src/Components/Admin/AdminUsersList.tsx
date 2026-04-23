@@ -43,7 +43,7 @@ interface UserCardProps {
 }
 
 function UserCard({ user, onTap, onContextMenu, children }: UserCardProps) {
-  const longPress = useLongPress((x, y) => onContextMenu(x, y))
+  const { isPressing, ...longPressHandlers } = useLongPress((x, y) => onContextMenu(x, y))
 
   return (
     <div
@@ -53,8 +53,8 @@ function UserCard({ user, onTap, onContextMenu, children }: UserCardProps) {
         e.preventDefault()
         onContextMenu(e.clientX, e.clientY)
       }}
-      {...longPress}
-      className="cursor-pointer"
+      {...longPressHandlers}
+      className={`cursor-pointer transition-opacity duration-100 ${isPressing ? 'opacity-60' : ''}`}
     >
       {children}
     </div>
