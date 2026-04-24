@@ -4,8 +4,9 @@
  * Zones use 0..1 normalised coords as CSS percentages.
  * "Zooming" changes the canvas scale and scrolls to target.
  *
- * LOD: nested zones become visible when their parent zone fills ≥80%
- * of the viewport (via canvasScale), or when the parent is selected.
+ * LOD: top-level zones are always visible. Nested zones appear only when their
+ * parent fills ≥LOD_FILL_THRESHOLD of the viewport (via canvasScale), or when
+ * the parent is selected (direct children) or on the selection's ancestor chain.
  */
 import { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle, forwardRef, memo } from 'react'
 import { flushSync } from 'react-dom'
@@ -147,6 +148,9 @@ const TAP_THRESHOLD = 8
 /** Base canvas multiplier — canvas starts 3× viewport so panning works at zoom=1 */
 const BASE_CANVAS_SCALE = 3
 
+/** Sub-zones appear once their parent fills at least this fraction of the viewport. */
+const LOD_FILL_THRESHOLD = 0.5
+
 export interface MapNavHandle {
   navigateToZone: (targetId: string) => void
   resetZoom: () => void
@@ -275,10 +279,6 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       depthOf.set(tag.target_id, depth)
     }
 
-    // Dynamic visible depth: always show depth 0+1, expand when navigated deeper
-    const selectedDepth = selectedId ? (depthOf.get(selectedId) ?? 0) : 0
-    const visibleDepth = Math.max(1, selectedDepth + 1)
-
     // Build ancestor set so the selected zone + its parent chain are always visible
     const ancestorIds = new Set<string>()
     if (selectedId) {
@@ -293,16 +293,18 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
     return allWorldTags.filter((tag) => {
       const depth = depthOf.get(tag.target_id) ?? 0
-      // Show all zones up to the dynamic depth threshold
-      if (depth <= visibleDepth) return true
-      // Selected zone's children + ancestor chain (catches edges beyond threshold)
+      // Top-level zones (and root-canvas items) always visible
+      if (depth === 0) return true
+      // Direct children of the selected zone — always visible
       if (tag.location_id === selectedId) return true
+      // Selected zone itself + its ancestor chain — always visible
       if (ancestorIds.has(tag.target_id)) return true
 
+      // LOD: nested zone appears once its parent fills ≥ threshold of viewport
       const parent = byTargetId.get(tag.location_id)
       if (!parent) return false
-      const fill = Math.max((parent.width ?? 0), (parent.height ?? 0)) * canvasScale
-      return fill >= 0.8
+      const parentFill = Math.max((parent.width ?? 0), (parent.height ?? 0)) * canvasScale
+      return parentFill >= LOD_FILL_THRESHOLD
     })
   }, [allWorldTags, rootLocationId, canvasScale, store.selectedZoneId])
 

@@ -3,7 +3,6 @@ import { Clock, Trash2, Eye, Mail, Lightbulb } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { ContextMenu } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
-import { ErrorDisplay } from '../ErrorDisplay'
 import { AdminListSkeleton } from './AdminSkeletons'
 import { RequestCard } from './RequestCard'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
@@ -52,19 +51,13 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
   const [confirmDeleteSuggestionId, setConfirmDeleteSuggestionId] = useState<string | null>(null)
   const [deleteProcessing, setDeleteProcessing] = useState(false)
 
-  // Status feedback
-  const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  // Notify modal
+  const [notify, setNotify] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   // Expand + context menu
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [expandedSuggestionId, setExpandedSuggestionId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ requestId: string; x: number; y: number } | null>(null)
-
-  useEffect(() => {
-    if (!status) return
-    const t = setTimeout(() => setStatus(null), UI_TIMING.FEEDBACK_DURATION)
-    return () => clearTimeout(t)
-  }, [status])
 
   // ── Data loading ────────────────────────────────────────
   const loadRequests = useCallback(async () => {
@@ -162,11 +155,11 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
     const result = await deleteAccountRequest(requestId)
     if (result.success) {
       setConfirmDeleteId(null)
-      setStatus({ type: 'success', message: 'Request permanently deleted' })
+      setNotify({ type: 'success', message: 'Request permanently deleted' })
       await loadRequests()
       invalidate('requests')
     } else {
-      setStatus({ type: 'error', message: `Failed to delete: ${result.error}` })
+      setNotify({ type: 'error', message: `Failed to delete: ${result.error}` })
     }
     setDeleteProcessing(false)
   }, [loadRequests])
@@ -177,10 +170,10 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
     if (result.success) {
       setConfirmDeleteSuggestionId(null)
       if (expandedSuggestionId === suggestionId) setExpandedSuggestionId(null)
-      setStatus({ type: 'success', message: 'Suggestion dismissed' })
+      setNotify({ type: 'success', message: 'Suggestion dismissed' })
       await loadRequests()
     } else {
-      setStatus({ type: 'error', message: `Failed to dismiss: ${result.error}` })
+      setNotify({ type: 'error', message: `Failed to dismiss: ${result.error}` })
     }
     setDeleteProcessing(false)
   }, [loadRequests, expandedSuggestionId])
@@ -309,6 +302,17 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
     />
   )
 
+  const notifyDialog = (
+    <ConfirmDialog
+      visible={!!notify}
+      title={notify?.message ?? ''}
+      variant={notify?.type === 'success' ? 'success' : 'danger'}
+      notifyOnly
+      autoDismissMs={UI_TIMING.FEEDBACK_DURATION}
+      onCancel={() => setNotify(null)}
+    />
+  )
+
   // ── Bare mode: just the items (no wrapper chrome) ──────
   if (bare) {
     if (feedItems.length === 0) return null
@@ -327,17 +331,14 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
           onCancel={() => setConfirmDeleteId(null)}
         />
         {suggestionConfirmDialog}
+        {notifyDialog}
       </>
     )
   }
 
   return (
     <div className="pb-24">
-      <div className="px-5 pt-4 pb-2 space-y-5">
-        {status && <ErrorDisplay type={status.type} message={status.message} />}
-      </div>
-
-      <div className="px-5 pb-4">
+      <div className="px-5 pt-4 pb-4">
         {showLoading ? (
           <AdminListSkeleton />
         ) : feedItems.length === 0 ? (
@@ -366,6 +367,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
       />
 
       {suggestionConfirmDialog}
+      {notifyDialog}
     </div>
   )
 }

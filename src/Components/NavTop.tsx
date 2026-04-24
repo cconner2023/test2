@@ -8,12 +8,14 @@ import type { NavTopProps } from "../Types/NavTopTypes";
 import { useAvatar } from "../Utilities/AvatarContext";
 import { useAuth } from "../Hooks/useAuth";
 import { useTotalUnread } from "../stores/useMessagingStore";
+import { useFeatureVotesStore, selectHasUnvotedActiveCycle } from "../stores/useFeatureVotesStore";
 import { getInitials } from "../Utilities/nameUtils";
 
 export function NavTop({ search, import: importProps, actions, ui }: NavTopProps) {
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar()
     const { profile, isAuthenticated } = useAuth()
     const totalUnread = useTotalUnread()
+    const hasUnvotedCycle = useFeatureVotesStore(selectHasUnvotedActiveCycle)
 
     // Destructure grouped props for cleaner usage
     const {
@@ -199,26 +201,31 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                 <HeaderPill>
                                     <button
                                         onClick={onMenuClick}
-                                        className="w-[2.6875rem] h-[2.6875rem] rounded-full flex items-center justify-center active:scale-95 transition-transform overflow-hidden"
+                                        className="relative w-[2.6875rem] h-[2.6875rem] rounded-full flex items-center justify-center active:scale-95 transition-transform"
                                         aria-label="Open menu"
                                         data-tour="menu-button"
                                     >
-                                        {isCustom && customImage ? (
-                                            <img
-                                                src={customImage}
-                                                alt="Profile"
-                                                className="w-full h-full object-cover rounded-full"
-                                            />
-                                        ) : isInitials ? (
-                                            <div className="w-full h-full rounded-full bg-themeblue2/15 flex items-center justify-center">
-                                                <span className="text-xs font-semibold text-themeblue2">
-                                                    {getInitials(profile.firstName, profile.lastName)}
-                                                </span>
-                                            </div>
-                                        ) : (
-                                            <div className="w-full h-full rounded-full overflow-hidden">
-                                                {currentAvatar.svg}
-                                            </div>
+                                        <div className="w-full h-full rounded-full overflow-hidden">
+                                            {isCustom && customImage ? (
+                                                <img
+                                                    src={customImage}
+                                                    alt="Profile"
+                                                    className="w-full h-full object-cover rounded-full"
+                                                />
+                                            ) : isInitials ? (
+                                                <div className="w-full h-full rounded-full bg-themeblue2/15 flex items-center justify-center">
+                                                    <span className="text-xs font-semibold text-themeblue2">
+                                                        {getInitials(profile.firstName, profile.lastName)}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <div className="w-full h-full rounded-full overflow-hidden">
+                                                    {currentAvatar.svg}
+                                                </div>
+                                            )}
+                                        </div>
+                                        {hasUnvotedCycle && (
+                                            <span className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-themeredred ring-2 ring-themewhite" aria-label="New in settings" />
                                         )}
                                     </button>
                                 </HeaderPill>
@@ -232,23 +239,28 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                             {/* Avatar — opens SideNav */}
                             <button
                                 onClick={onMenuClick}
-                                className="w-8 h-8 rounded-full overflow-hidden shrink-0 active:scale-95 transition-transform"
+                                className="relative w-8 h-8 rounded-full shrink-0 active:scale-95 transition-transform"
                                 aria-label="Open menu"
                                 title="Menu"
                                 data-tour="menu-button"
                             >
-                                {isCustom && customImage ? (
-                                    <img src={customImage} alt="Profile" className="w-full h-full object-cover rounded-full" />
-                                ) : isInitials ? (
-                                    <div className="w-full h-full rounded-full bg-themeblue2/15 flex items-center justify-center">
-                                        <span className="text-xs font-semibold text-themeblue2">
-                                            {getInitials(profile.firstName, profile.lastName)}
-                                        </span>
-                                    </div>
-                                ) : (
-                                    <div className="w-full h-full rounded-full overflow-hidden">
-                                        {currentAvatar.svg}
-                                    </div>
+                                <div className="w-full h-full rounded-full overflow-hidden">
+                                    {isCustom && customImage ? (
+                                        <img src={customImage} alt="Profile" className="w-full h-full object-cover rounded-full" />
+                                    ) : isInitials ? (
+                                        <div className="w-full h-full rounded-full bg-themeblue2/15 flex items-center justify-center">
+                                            <span className="text-xs font-semibold text-themeblue2">
+                                                {getInitials(profile.firstName, profile.lastName)}
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <div className="w-full h-full rounded-full overflow-hidden">
+                                            {currentAvatar.svg}
+                                        </div>
+                                    )}
+                                </div>
+                                {hasUnvotedCycle && (
+                                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-themeredred ring-2 ring-themewhite" aria-label="New in settings" />
                                 )}
                             </button>
                             <animated.div

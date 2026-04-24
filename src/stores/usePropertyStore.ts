@@ -195,6 +195,7 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
         onSyncStart: () => set({ isSyncing: true }),
         onSyncComplete: () => set({ isSyncing: false }),
         onPropertyReconcileComplete: (reconciledItems) => set({ items: reconciledItems }),
+        onLocationsReconcileComplete: () => { void get().refreshLocations() },
         getLocations: () => get().locations,
         onTagsReconcileComplete: () => set((state) => ({ tagVersion: state.tagVersion + 1 })),
       })

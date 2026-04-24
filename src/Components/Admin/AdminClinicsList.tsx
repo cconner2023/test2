@@ -3,7 +3,6 @@ import { Pencil, Trash2, Building2, Eye, ChevronRight } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
-import { ErrorDisplay } from '../ErrorDisplay'
 import { AdminListSkeleton } from './AdminSkeletons'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useLongPress } from '../../Hooks/useLongPress'
@@ -46,14 +45,8 @@ export function AdminClinicsList({
   const [deleteTarget, setDeleteTarget] = useState<{ ids: string[]; label: string } | null>(null)
   const [deleteProcessing, setDeleteProcessing] = useState(false)
 
-  // ── Feedback state ──────────────────────────────────────────
-  const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
-
-  useEffect(() => {
-    if (!status) return
-    const t = setTimeout(() => setStatus(null), UI_TIMING.FEEDBACK_DURATION)
-    return () => clearTimeout(t)
-  }, [status])
+  // ── Notify modal ────────────────────────────────────────────
+  const [notify, setNotify] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   // ── Data loading ────────────────────────────────────────────
 
@@ -104,9 +97,9 @@ export function AdminClinicsList({
     setDeleteTarget(null)
 
     if (failures.length === 0) {
-      setStatus({ type: 'success', message: 'Deleted.' })
+      setNotify({ type: 'success', message: 'Deleted.' })
     } else {
-      setStatus({ type: 'error', message: `Failed to delete ${failures.length} clinic(s)` })
+      setNotify({ type: 'error', message: `Failed to delete ${failures.length} clinic(s)` })
     }
 
     await loadData()
@@ -181,6 +174,15 @@ export function AdminClinicsList({
         onConfirm={handleDeleteConfirm}
         onCancel={handleDeleteCancel}
       />
+
+      <ConfirmDialog
+        visible={!!notify}
+        title={notify?.message ?? ''}
+        variant={notify?.type === 'success' ? 'success' : 'danger'}
+        notifyOnly
+        autoDismissMs={UI_TIMING.FEEDBACK_DURATION}
+        onCancel={() => setNotify(null)}
+      />
     </>
   )
 
@@ -199,11 +201,7 @@ export function AdminClinicsList({
 
   return (
     <div className="pb-24">
-      <div className="px-5 pt-4 pb-2 space-y-5">
-        {status && <ErrorDisplay type={status.type} message={status.message} />}
-      </div>
-
-      <div className="px-5 pb-4">
+      <div className="px-5 pt-4 pb-4">
         {showLoading ? (
           <AdminListSkeleton />
         ) : filteredClinics.length === 0 ? (

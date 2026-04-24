@@ -76,13 +76,7 @@ export function AdminUserDetail({
   const [allCerts, setAllCerts] = useState<Certification[]>([])
 
   // ── UI state ────────────────────────────────────────────────────────
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
-
-  useEffect(() => {
-    if (!feedback) return
-    const t = setTimeout(() => setFeedback(null), UI_TIMING.FEEDBACK_DURATION)
-    return () => clearTimeout(t)
-  }, [feedback])
+  const [notify, setNotify] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   // Reset password inline
   const [resetPwActive, setResetPwActive] = useState(false)
@@ -304,9 +298,9 @@ export function AdminUserDetail({
     if (result.success) {
       setResetPwActive(false)
       setResetPwValue('')
-      setFeedback({ type: 'success', message: 'Password reset.' })
+      setNotify({ type: 'success', message: 'Password reset.' })
     } else {
-      setFeedback({ type: 'error', message: result.error || 'Failed to reset password' })
+      setNotify({ type: 'error', message: result.error || 'Failed to reset password' })
     }
   }
 
@@ -318,12 +312,12 @@ export function AdminUserDetail({
     setForceLogoutProcessing(false)
 
     if (result.success) {
-      setFeedback({
+      setNotify({
         type: 'success',
         message: `Force logout complete: ${result.sessionsDeleted} session(s), ${result.devicesDeleted} device(s), ${result.bundlesDeleted} key bundle(s) cleared`,
       })
     } else {
-      setFeedback({ type: 'error', message: result.error || 'Failed to force logout user' })
+      setNotify({ type: 'error', message: result.error || 'Failed to force logout user' })
     }
   }
 
@@ -337,13 +331,6 @@ export function AdminUserDetail({
 
   return (
     <div className={saving ? 'opacity-50 pointer-events-none' : undefined}>
-      {/* Feedback banner */}
-      {feedback && (
-        <div className="mb-4">
-          <ErrorDisplay type={feedback.type} message={feedback.message} />
-        </div>
-      )}
-
       {/* Error banner */}
       {error && <div className="mb-4"><ErrorDisplay message={error} /></div>}
 
@@ -543,6 +530,15 @@ export function AdminUserDetail({
         processing={forceLogoutProcessing}
         onConfirm={handleForceLogout}
         onCancel={() => setConfirmForceLogout(false)}
+      />
+
+      <ConfirmDialog
+        visible={!!notify}
+        title={notify?.message ?? ''}
+        variant={notify?.type === 'success' ? 'success' : 'danger'}
+        notifyOnly
+        autoDismissMs={UI_TIMING.FEEDBACK_DURATION}
+        onCancel={() => setNotify(null)}
       />
     </div>
   )

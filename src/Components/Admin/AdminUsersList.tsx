@@ -4,7 +4,6 @@ import { UserRow } from '../UserRow'
 import { EmptyState } from '../EmptyState'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
-import { ErrorDisplay } from '../ErrorDisplay'
 import { AdminListSkeleton } from './AdminSkeletons'
 import { ResetPasswordForm } from './ResetPasswordForm'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
@@ -113,18 +112,11 @@ export function AdminUsersList({
   const [confirmLogoutId, setConfirmLogoutId] = useState<string | null>(null)
   const [logoutProcessing, setLogoutProcessing] = useState(false)
 
-  // Feedback banner
-  const [feedback, setFeedback] = useState<{
+  // Notify modal
+  const [notify, setNotify] = useState<{
     type: 'success' | 'error'
     message: string
   } | null>(null)
-
-  // Auto-dismiss feedback
-  useEffect(() => {
-    if (!feedback) return
-    const t = setTimeout(() => setFeedback(null), UI_TIMING.FEEDBACK_DURATION)
-    return () => clearTimeout(t)
-  }, [feedback])
 
   // ─── Data Loading ──────────────────────────────────────────────────────
 
@@ -171,10 +163,10 @@ export function AdminUsersList({
       setConfirmDeleteId(null)
 
       if (result.success) {
-        setFeedback({ type: 'success', message: 'Deleted.' })
+        setNotify({ type: 'success', message: 'Deleted.' })
         await loadUsers()
       } else {
-        setFeedback({
+        setNotify({
           type: 'error',
           message: result.error || 'Failed to delete user',
         })
@@ -193,9 +185,9 @@ export function AdminUsersList({
       if (result.success) {
         setResetPwUserId(null)
         setResetPwValue('')
-        setFeedback({ type: 'success', message: 'Password reset.' })
+        setNotify({ type: 'success', message: 'Password reset.' })
       } else {
-        setFeedback({
+        setNotify({
           type: 'error',
           message: result.error || 'Failed to reset password',
         })
@@ -211,12 +203,12 @@ export function AdminUsersList({
     setConfirmLogoutId(null)
 
     if (result.success) {
-      setFeedback({
+      setNotify({
         type: 'success',
         message: `Force logout complete: ${result.sessionsDeleted} session(s), ${result.devicesDeleted} device(s), ${result.bundlesDeleted} key bundle(s) cleared`,
       })
     } else {
-      setFeedback({
+      setNotify({
         type: 'error',
         message: result.error || 'Failed to force logout user',
       })
@@ -367,6 +359,15 @@ export function AdminUsersList({
         }}
         onCancel={() => setConfirmLogoutId(null)}
       />
+
+      <ConfirmDialog
+        visible={!!notify}
+        title={notify?.message ?? ''}
+        variant={notify?.type === 'success' ? 'success' : 'danger'}
+        notifyOnly
+        autoDismissMs={UI_TIMING.FEEDBACK_DURATION}
+        onCancel={() => setNotify(null)}
+      />
     </>
   )
 
@@ -383,11 +384,7 @@ export function AdminUsersList({
 
   return (
     <div className="pb-24">
-      <div className="px-5 pt-4 pb-2 space-y-5">
-        {feedback && <ErrorDisplay type={feedback.type} message={feedback.message} />}
-      </div>
-
-      <div className="px-5 pb-4">
+      <div className="px-5 pt-4 pb-4">
         {showLoading ? (
           <AdminListSkeleton />
         ) : filteredUsers.length === 0 ? (

@@ -117,6 +117,9 @@ export const MainSettingsPanel = ({
                                         {item.badge > 99 ? '99+' : item.badge}
                                     </span>
                                 )}
+                                {item.dot && (
+                                    <span className="w-2 h-2 rounded-full bg-themeredred shrink-0" aria-label="New" />
+                                )}
                                 <ChevronRight size={16} className="text-tertiary shrink-0" />
                             </button>
                         ))}
@@ -162,6 +165,9 @@ export const MainSettingsPanel = ({
                                         <span className="min-w-5 h-5 px-1.5 rounded-full bg-themeblue2 text-white text-[9pt] font-semibold flex items-center justify-center">
                                             {item.badge > 99 ? '99+' : item.badge}
                                         </span>
+                                    )}
+                                    {item.dot && !item.disabled && (
+                                        <span className="w-2 h-2 rounded-full bg-themeredred shrink-0" aria-label="New" />
                                     )}
                                     {item.disabled ? (
                                         <span className="text-[9pt] md:text-[9pt] text-tertiary font-semibold uppercase tracking-wide">Soon</span>

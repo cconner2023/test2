@@ -722,6 +722,8 @@ export function setupConnectivityListeners(
     onSyncComplete?: (result: SyncResult) => void
     onTrainingReconcileComplete?: (completions: LocalTrainingCompletion[]) => void
     onPropertyReconcileComplete?: (items: LocalPropertyItem[]) => void
+    /** Called after property_locations reconciliation so the store can refresh from IDB. */
+    onLocationsReconcileComplete?: () => void
     /** Called after tag reconciliation so the UI can refresh the canvas. */
     onTagsReconcileComplete?: () => void
     /** Provides current locations for tag reconciliation scope. */
@@ -795,6 +797,7 @@ export function setupConnectivityListeners(
 
         // 1b-ii. Reconcile locations (was previously missing)
         await reconcilePropertyLocationsWithServer(callbacks.clinicId)
+        callbacks?.onLocationsReconcileComplete?.()
 
         // 1c. Reconcile location tags (zones on canvas)
         const locations = callbacks?.getLocations?.() || []
