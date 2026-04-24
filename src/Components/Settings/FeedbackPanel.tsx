@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { Star, Check, CheckCircle, MessageSquareText, RefreshCw } from 'lucide-react'
+import { Star, Check, CheckCircle, RefreshCw } from 'lucide-react'
 import { submitFeedback } from '../../lib/feedbackService'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { TextInput } from '../FormInputs'
+import { useAuthStore } from '../../stores/useAuthStore'
+import { useFeatureVotesStore } from '../../stores/useFeatureVotesStore'
 
 export const FeedbackPanel = () => {
   const [rating, setRating] = useState(0)
@@ -15,6 +17,9 @@ export const FeedbackPanel = () => {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const userId = useAuthStore((s) => s.user?.id)
+  const markFeedbackEngagement = useFeatureVotesStore((s) => s.markFeedbackEngagement)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,6 +39,7 @@ export const FeedbackPanel = () => {
     setSubmitting(false)
 
     if (result.success) {
+      if (userId) markFeedbackEngagement(userId)
       setSubmitted(true)
     } else {
       setError(result.error || 'Failed to submit feedback')
@@ -117,12 +123,9 @@ export const FeedbackPanel = () => {
 
               {/* Comments */}
               <div>
-                <div className="flex items-center gap-1.5 mb-1">
-                  <MessageSquareText size={14} className="text-tertiary" />
-                  <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">
-                    Additional comments
-                  </span>
-                </div>
+                <span className="block text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-1">
+                  Additional comments
+                </span>
                 <textarea
                   value={comments}
                   onChange={(e) => setComments(e.target.value)}
@@ -154,13 +157,15 @@ export const FeedbackPanel = () => {
 
               {/* Submit */}
               <div className="flex items-center justify-end pt-1">
-                <button
-                  type="submit"
-                  disabled={rating === 0 || submitting}
-                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
-                >
-                  {submitting ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
-                </button>
+                <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15">
+                  <button
+                    type="submit"
+                    disabled={rating === 0 || submitting}
+                    className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+                  >
+                    {submitting ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
+                  </button>
+                </div>
               </div>
 
             </div>

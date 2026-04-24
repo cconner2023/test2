@@ -1,21 +1,33 @@
 /**
- * Clinic Vault Device — Persistent Signal device for the clinic persona.
+ * Clinic Vault Device — always-online Signal peer for the clinic persona.
  *
  * The clinic is a "user" in the Signal infrastructure. Its vault device
- * (`device_id = 'vault'`) is the canonical store for all clinic-wide
- * messages (calendar events, property, announcements).
+ * (`device_id = 'vault'`) is a peer in the fan-out mesh: every clinic action
+ * ('c', 'u', 'd' for calendar events, property, announcements) is encrypted
+ * for it alongside the member clinic devices, and it holds those messages
+ * until any clinic member logs in and drains them via
+ * processClinicVaultMessages. That drain pair-cleans 'c'/'d' pairs by
+ * event_id so the vault's state matches what the rest of the mesh already
+ * observes in realtime.
  *
  * Key differences from personal vault (vaultDevice.ts):
  * - Wrapping key derived from clinic's `encryption_key` (shared among members)
  *   instead of a user password.
  * - Provisioned once per clinic, never deleted unless clinic is deleted.
- * - Any authenticated clinic member can process vault messages on login.
+ * - Any authenticated clinic member can drain its inbox on login.
  * - Member fan-out copies use personal recipient_id; vault copy uses clinic_id.
  *
  * Security model:
  * - Vault private keys wrapped with PBKDF2(encryption_key, salt, 600K iterations)
  * - Same ECDSA signing + ECDH identity as personal vault
  * - X3DH + Double Ratchet for message encryption (standard Signal Protocol)
+ *
+ * Crypto posture caveat: unlike a normal Signal peer, the current code forces
+ * fresh X3DH on every vault send and never consumes OTP private keys from the
+ * blob — a replay-all-forever posture that keeps historical messages
+ * decryptable across logins but is archive-shaped at the crypto layer. The
+ * calendar/property/etc. LAYERS treat the vault as a normal peer; only the
+ * underlying cipher bookkeeping still operates in archive mode. Future work.
  */
 
 import { createLogger } from '../../Utilities/Logger'
@@ -478,7 +490,7 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
   const sessionMap = new Map<string, { state: RatchetState; ad: Uint8Array }>()
   const processedIds: string[] = []
   let processedCount = 0
-  const calendarRoutes: CalendarEventContent[] = []
+  const calendarRoutes: Array<{ content: CalendarEventContent; originId: string | null }> = []
 
   for (const row of rows as SignalMessageRow[]) {
     try {
@@ -524,21 +536,20 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
           privateKey: matchedSpk.privateKey,
         }
 
-        // The vault is a replay archive — OTP private keys must NEVER be evicted from the blob.
-        // Every vault message uses fresh X3DH (deleteClinicSession before send), so every
-        // message includes a oneTimePreKeyId. If we remove OTP private keys after the first
-        // successful replay (login N), subsequent logins cannot recompute DH4 → wrong shared
-        // secret → AEAD failure for ALL vault messages.
-        // Solution: look up by keyId only, never mark consumed, never remove from blob.
-        // SPK rotation already re-uploads the full OTP list to the public bundle every 7 days,
-        // so senders continue to have public OTPs to use.
+        // OTP private keys are retained in the blob indefinitely because the
+        // vault's crypto posture is archive-mode (see header): every vault send
+        // forces fresh X3DH, so every message carries a oneTimePreKeyId, and
+        // later logins must still recompute DH4 from the same private key or
+        // AEAD fails for every vault message. SPK rotation re-uploads the full
+        // OTP list to the public bundle every 7 days so senders always have
+        // public OTPs. Look up by keyId only, never mark consumed.
         let otpkPair: { publicKey: CryptoKey; privateKey: CryptoKey } | null = null
         if (initial.oneTimePreKeyId !== null) {
           const otpk = vaultKeys.preKeys.find(pk => pk.keyId === initial.oneTimePreKeyId)
           if (otpk) {
             otpkPair = { publicKey: otpk.publicKey, privateKey: otpk.privateKey }
           } else {
-            logger.warn(`Vault OTP keyId ${initial.oneTimePreKeyId} absent from blob for message ${row.id} — OTP was consumed and removed on a prior login. This message is permanently undecryptable.`)
+            logger.warn(`Vault OTP keyId ${initial.oneTimePreKeyId} absent from blob for message ${row.id} — either never provisioned or evicted by pre-April-19 code. This message is permanently undecryptable.`)
           }
         }
 
@@ -596,7 +607,7 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
       // Parse and route content
       const { content } = parseMessageContent(plaintext)
       if (isCalendarEvent(content)) {
-        calendarRoutes.push(content)
+        calendarRoutes.push({ content, originId: (row as SignalMessageRow).origin_id ?? null })
       }
 
       processedIds.push(row.id)
@@ -607,18 +618,32 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
     }
   }
 
-  // 5. Route calendar events with delete-awareness.
-  // Delete messages no longer fan out to the vault (useCalendarVault filters them),
-  // so this pre-scan is dead code for new messages. Kept for backward compat with
-  // any legacy 'd' messages already in the vault store.
+  // 5. Route calendar events with delete-awareness, then cooperatively clean
+  // paired 'c'/'d' messages from the vault. The vault is a peer device that
+  // receives every action via fan-out; every device that runs this replay
+  // contributes the same cleanup pass, so the first one after a delete wipes
+  // the pair. Subsequent replays find nothing to pair and no-op.
   if (calendarRoutes.length > 0) {
     const deletedEventIds = new Set<string>()
-    for (const c of calendarRoutes) {
-      if (c.action === 'delete') deletedEventIds.add(c.data.id)
+    for (const { content } of calendarRoutes) {
+      if (content.action === 'delete') deletedEventIds.add(content.data.id)
     }
-    for (const c of calendarRoutes) {
-      if (c.action === 'delete' || !deletedEventIds.has(c.data.id)) {
-        routeCalendarEvent(c)
+    for (const { content } of calendarRoutes) {
+      if (content.action === 'delete' || !deletedEventIds.has(content.data.id)) {
+        routeCalendarEvent(content)
+      }
+    }
+    if (deletedEventIds.size > 0) {
+      const pairedOriginIds = calendarRoutes
+        .filter(({ content, originId }) => originId && deletedEventIds.has(content.data.id))
+        .map(({ originId }) => originId as string)
+      if (pairedOriginIds.length > 0) {
+        supabase.rpc('hard_delete_clinic_vault_messages', {
+          p_clinic_id: clinicId,
+          p_origin_ids: pairedOriginIds,
+        }).then(({ error }) => {
+          if (error) logger.warn('Vault pair-clean RPC failed:', error.message)
+        }).catch(() => { /* best-effort; next replay retries */ })
       }
     }
   }

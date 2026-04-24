@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { Bug, PlusCircle, RefreshCw, CalendarClock, Loader, Download, CheckCircle2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Bug, PlusCircle, RefreshCw, CalendarClock, Loader, Download, CheckCircle2, MessageCircleQuestion, ChevronRight, CheckCircle } from 'lucide-react';
 import { type ReleaseNoteTypes, ReleaseNotes } from '../../Data/Release';
 import { useServiceWorker } from '../../Hooks/useServiceWorker';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { useFeatureVotesStore } from '../../stores/useFeatureVotesStore';
 
 type NoteType = Exclude<ReleaseNoteTypes['type'], undefined> | 'default';
 
@@ -91,7 +93,58 @@ const VersionStatusCard = () => {
     );
 };
 
-export const ReleaseNotesPanel = () => {
+interface ReleaseNotesPanelProps {
+    onOpenFeatureVotes?: () => void;
+}
+
+const FeatureVotesCard = ({ onOpen }: { onOpen: () => void }) => {
+    const userId = useAuthStore((s) => s.user?.id);
+    const isAuthenticated = useAuthStore((s) => !!s.user);
+    const activeCycle = useFeatureVotesStore((s) => s.activeCycle);
+    const userVote = useFeatureVotesStore((s) => s.userVote);
+    const hydrate = useFeatureVotesStore((s) => s.hydrate);
+
+    useEffect(() => {
+        if (!isAuthenticated || !userId) return;
+        hydrate(userId);
+    }, [isAuthenticated, userId, hydrate]);
+
+    if (!isAuthenticated || !activeCycle) return null;
+
+    const hasVoted = !!userVote;
+
+    return (
+        <div>
+            <div className="flex items-center gap-2 mb-2">
+                <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Up next — your vote</p>
+            </div>
+            <button
+                onClick={onOpen}
+                className="w-full rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden active:scale-[0.99] hover:bg-themeblue2/5 transition-all text-left"
+            >
+                <div className="px-4 py-3.5 flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${hasVoted ? 'bg-themegreen/15' : 'bg-themeblue2/15'}`}>
+                        {hasVoted
+                            ? <CheckCircle size={16} className="text-themegreen" />
+                            : <MessageCircleQuestion size={16} className="text-themeblue2" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-primary truncate">{activeCycle.title}</p>
+                        <p className="text-[9pt] text-tertiary mt-0.5">
+                            {hasVoted ? 'You\'ve voted — tap to change or see standings' : 'Help decide what ships next'}
+                        </p>
+                    </div>
+                    {!hasVoted && (
+                        <span className="w-2 h-2 rounded-full bg-themeredred shrink-0" aria-label="Unvoted" />
+                    )}
+                    <ChevronRight size={16} className="text-tertiary shrink-0" />
+                </div>
+            </button>
+        </div>
+    );
+};
+
+export const ReleaseNotesPanel = ({ onOpenFeatureVotes }: ReleaseNotesPanelProps = {}) => {
     const groupedNotes = ReleaseNotes.reduce<Record<string, ReleaseNoteTypes[]>>((acc, note) => {
         const version = note.version;
         if (!acc[version]) acc[version] = [];
@@ -110,6 +163,7 @@ export const ReleaseNotesPanel = () => {
                     </div>
                     <VersionStatusCard />
                 </div>
+                {onOpenFeatureVotes && <FeatureVotesCard onOpen={onOpenFeatureVotes} />}
                 {versions.map((version, versionIndex) => {
                     const notes = groupedNotes[version];
                     const isLatest = versionIndex === 0;

@@ -4,20 +4,21 @@
  * Startup sequence:
  *  1. Load tombstones (prevents resurrecting deleted events).
  *  2. Load persisted events from IndexedDB.
- *  3. Merge with vault-replayed events already in the store.
+ *  3. Merge with events already routed by processClinicVaultMessages.
  *
- * Vault replay is full (replay-all, age-pruned 90 days) so the store is
- * authoritative after processClinicVaultMessages() completes. IDB events
- * whose vault message was hard-deleted (i.e. deleted on another device)
- * are excluded from the merge to prevent resurrection.
+ * The clinic vault is a Signal peer device that's always online — every 'c',
+ * 'u', 'd' fan-out lands in its inbox, and processClinicVaultMessages drains
+ * that inbox (pair-cleaning 'c'/'d' pairs by event_id) into the calendar
+ * store. After it completes, the store reflects the vault's current peer
+ * state, so any IDB row absent from it is stale: the event was deleted on
+ * another device (pair-cleaned away) or its 'c' was never vaulted.
  *
- * Cold-start replay is handled by processClinicVaultMessages() in the
- * login flow (useAuthStore). Realtime incoming events are handled by
- * useSignalMessages → routeCalendarEvent (standard Signal fan-out).
+ * Cold-start drain runs in the login flow (useAuthStore →
+ * processClinicVaultMessages). Realtime incoming events arrive on member
+ * devices via useSignalMessages → routeCalendarEvent.
  *
  * IDB persistence is handled by the calendarPersist middleware on
- * useCalendarStore — every mutation (add, update, remove, move, assign)
- * writes through to IDB automatically.
+ * useCalendarStore — every mutation writes through automatically.
  */
 
 import { useEffect } from 'react'
@@ -48,14 +49,12 @@ export function useCalendarSync() {
 
         const idbEvents = await loadCalendarEvents()
 
-        // Vault replay is authoritative — it replays ALL vault messages on every login
-        // (no ACK pruning). Any IDB event absent from the vault-replayed store either:
-        //   (a) was deleted on another device (vault 'c' was hard-deleted), or
-        //   (b) aged out past 90 days.
-        // In both cases the IDB copy is stale and must not be merged in.
+        // The store now reflects the vault peer's current state (post pair-clean).
+        // Any IDB event absent from it is stale — its 'c'/'d' pair was cleaned,
+        // or its 'c' aged past decryptability.
         //
-        // Exception: events with no originId were created locally and never vaulted
-        // (pending sends). Keep those — the drain will send them.
+        // Exception: events with no originId were created locally and never
+        // reached the vault (pending sends). Keep those — the drain will send them.
         const storeEvents = useCalendarStore.getState().events
         const vaultIds = new Set(storeEvents.map(e => e.id))
         const idbLive = idbEvents.filter(e => {

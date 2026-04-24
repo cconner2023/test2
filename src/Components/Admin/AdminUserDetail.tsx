@@ -8,24 +8,25 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { KeyRound, LogOut, X, Check, Building2, ChevronRight, Mail } from 'lucide-react'
+import { KeyRound, LogOut, Building2, ChevronRight, Mail } from 'lucide-react'
 import type { Certification } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import type { Component } from '../../Data/User'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { UserRow } from '../UserRow'
 import { AdminCertsSection } from './AdminCertsSection'
+import { ResetPasswordForm } from './ResetPasswordForm'
 import { TextInput, PickerInput, MultiPickerInput, UicPinInput, PasswordInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
-import { formatLastActive, RoleBadge } from './adminUtils'
+import { ConfirmDialog } from '../ConfirmDialog'
+import { formatLastActive, RoleBadge, SupervisorCreatedBadge } from './adminUtils'
 import {
   listAllUsers,
   listClinics,
   resetUserPassword,
   forceLogoutUser,
   updateUserProfile,
-  addUserRole,
-  removeUserRole,
+  setUserRoles,
   setUserClinic,
   createUser,
 } from '../../lib/adminService'
@@ -35,6 +36,7 @@ import { fetchAllCertifications } from '../../lib/certificationService'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { UI_TIMING } from '../../Utilities/constants'
 import { invalidate } from '../../stores/useInvalidationStore'
+import { sameStringSet } from '../../Utilities/arrayEquals'
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -86,10 +88,10 @@ export function AdminUserDetail({
   const [resetPwActive, setResetPwActive] = useState(false)
   const [resetPwValue, setResetPwValue] = useState('')
   const [resetPwProcessing, setResetPwProcessing] = useState(false)
-  const [resetPwSuccess, setResetPwSuccess] = useState(false)
 
   // Force logout
   const [forceLogoutProcessing, setForceLogoutProcessing] = useState(false)
+  const [confirmForceLogout, setConfirmForceLogout] = useState(false)
 
   // ── Edit state ──────────────────────────────────────────────────────
   const [editFirstName, setEditFirstName] = useState('')
@@ -176,7 +178,7 @@ export function AdminUserDetail({
       || editRank !== (user?.rank || '')
       || editUic !== (user?.uic || '')
       || editClinicId !== (user?.clinic_id || '')
-      || JSON.stringify([...editRoles].sort()) !== JSON.stringify([...(user?.roles ?? ['medic'])].sort())
+      || !sameStringSet(editRoles, user?.roles ?? ['medic'])
 
     onPendingChangesChange?.(changed)
   }, [editing, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editRoles, user, onPendingChangesChange])
@@ -256,27 +258,15 @@ export function AdminUserDetail({
       return
     }
 
-    // 2. Reconcile roles
-    const oldRoles = new Set(user.roles || [])
-    const newRoles = new Set<string>(chosenRoles)
-    for (const role of chosenRoles) {
-      if (!oldRoles.has(role)) {
-        const result = await addUserRole(user.id, role)
-        if (!result.success) {
-          setError(`Failed to add role ${role}: ${result.error}`)
-          setSaving(false)
-          return
-        }
-      }
-    }
-    for (const role of user.roles || []) {
-      if (!newRoles.has(role)) {
-        const result = await removeUserRole(user.id, role)
-        if (!result.success) {
-          setError(`Failed to remove role ${role}: ${result.error}`)
-          setSaving(false)
-          return
-        }
+    // 2. Reconcile roles — single RPC call with the final role set
+    const oldSorted = [...(user.roles || [])].sort().join(',')
+    const newSorted = [...chosenRoles].sort().join(',')
+    if (oldSorted !== newSorted) {
+      const result = await setUserRoles(user.id, chosenRoles as ('medic' | 'supervisor' | 'dev' | 'provider')[])
+      if (!result.success) {
+        setError(result.error || 'Failed to update roles')
+        setSaving(false)
+        return
       }
     }
 
@@ -314,8 +304,7 @@ export function AdminUserDetail({
     if (result.success) {
       setResetPwActive(false)
       setResetPwValue('')
-      setResetPwSuccess(true)
-      setTimeout(() => setResetPwSuccess(false), UI_TIMING.SAVE_ERROR_DURATION)
+      setFeedback({ type: 'success', message: 'Password reset.' })
     } else {
       setFeedback({ type: 'error', message: result.error || 'Failed to reset password' })
     }
@@ -323,6 +312,7 @@ export function AdminUserDetail({
 
   const handleForceLogout = async () => {
     if (!user) return
+    setConfirmForceLogout(false)
     setForceLogoutProcessing(true)
     const result = await forceLogoutUser(user.id)
     setForceLogoutProcessing(false)
@@ -340,7 +330,6 @@ export function AdminUserDetail({
   const openResetPassword = () => {
     setResetPwActive(true)
     setResetPwValue('')
-    setResetPwSuccess(false)
   }
 
   // ── Full name helper ────────────────────────────────────────────────
@@ -397,7 +386,12 @@ export function AdminUserDetail({
             </div>
             {editComponent && <PickerInput value={editRank} onChange={setEditRank} options={componentRanks} placeholder="Rank" />}
             <div>
-              <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-1.5 block">UIC</span>
+              <div className="flex items-baseline justify-between mb-1.5">
+                <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">UIC</span>
+                <span className={`text-[9pt] tabular-nums ${editUic.length === 6 ? 'text-themegreen' : 'text-tertiary'}`}>
+                  {editUic.length}/6
+                </span>
+              </div>
               <UicPinInput value={editUic} onChange={setEditUic} spread />
             </div>
             <ClinicPickerInput value={editClinicId} onChange={setEditClinicId} allClinics={clinics} placeholder="Clinic" />
@@ -419,9 +413,10 @@ export function AdminUserDetail({
             rank={user.rank}
             lastActiveAt={user.last_active_at}
             subtitle={[user.credential, user.uic, user.clinic_name, user.email].filter(Boolean).join(' · ')}
-            meta={user.roles?.length > 0 && (
-              <div className="flex flex-wrap gap-1">
+            meta={(user.roles?.length > 0 || user.supervisor_created) && (
+              <div className="flex flex-wrap items-center gap-1">
                 {user.roles.map(r => <RoleBadge key={r} role={r} />)}
+                {user.supervisor_created && <SupervisorCreatedBadge />}
               </div>
             )}
             size="md"
@@ -505,47 +500,22 @@ export function AdminUserDetail({
                   <p className="text-sm font-medium text-primary">Reset Password</p>
                   <p className="text-[9pt] text-tertiary mt-0.5">Set a new password for this user</p>
                 </div>
-                {resetPwSuccess && (
-                  <span className="text-xs font-medium text-themegreen shrink-0">Reset.</span>
-                )}
               </button>
               {resetPwActive && (
-                <div className="px-4 pb-3.5 bg-tertiary/5">
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 min-w-0">
-                      <PasswordInput
-                        value={resetPwValue}
-                        onChange={setResetPwValue}
-                        placeholder="New password (min 12 chars)..."
-                      />
-                    </div>
-                    <button
-                      onClick={handleResetPassword}
-                      disabled={resetPwProcessing || resetPwValue.length < 12}
-                      aria-label="Reset password"
-                      className="shrink-0 w-10 h-10 rounded-full bg-themeyellow text-white flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
-                    >
-                      <Check size={16} />
-                    </button>
-                    <button
-                      onClick={() => { setResetPwActive(false); setResetPwValue('') }}
-                      aria-label="Cancel"
-                      className="shrink-0 w-10 h-10 rounded-full text-tertiary flex items-center justify-center active:scale-95 transition-all"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                  {resetPwValue.length > 0 && resetPwValue.length < 12 && (
-                    <p className="text-xs text-themeredred mt-1.5">Minimum 12 characters.</p>
-                  )}
-                </div>
+                <ResetPasswordForm
+                  value={resetPwValue}
+                  onChange={setResetPwValue}
+                  onSubmit={handleResetPassword}
+                  onCancel={() => { setResetPwActive(false); setResetPwValue('') }}
+                  processing={resetPwProcessing}
+                />
               )}
             </div>
 
             {/* Force Logout row */}
             {currentUserId !== user?.id && (
               <button
-                onClick={handleForceLogout}
+                onClick={() => setConfirmForceLogout(true)}
                 disabled={forceLogoutProcessing}
                 className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5 disabled:opacity-50 text-left"
               >
@@ -563,6 +533,17 @@ export function AdminUserDetail({
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        visible={confirmForceLogout}
+        title={`Force logout ${user?.first_name ?? ''} ${user?.last_name ?? 'user'}?`}
+        subtitle="Clears all sessions, device registrations, and Signal key bundles. The user must re-authenticate and re-register on every device."
+        confirmLabel="Force Logout"
+        variant="warning"
+        processing={forceLogoutProcessing}
+        onConfirm={handleForceLogout}
+        onCancel={() => setConfirmForceLogout(false)}
+      />
     </div>
   )
 }

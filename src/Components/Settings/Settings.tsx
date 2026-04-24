@@ -41,13 +41,15 @@ import { GuidedToursPanel } from './GuidedToursPanel';
 import { GUIDED_TEXT_EXPANDER } from '../../Data/GuidedTourData';
 import { ThemePickerPanel } from './ThemePickerPanel';
 import { StoragePanel } from './StoragePanel';
+import { FeatureVotesPanel } from './FeatureVotesPanel';
+import { useFeatureVotesStore, selectHasUnvotedActiveCycle } from '../../stores/useFeatureVotesStore';
 import { useTheme } from '../../Utilities/ThemeContext';
 
 
 interface SettingsDrawerProps {
     isVisible: boolean;
     onClose: () => void;
-    initialPanel?: 'main' | 'release-notes' | 'user-profile' | 'feedback';
+    initialPanel?: 'main' | 'release-notes' | 'user-profile' | 'feedback' | 'feature-votes';
 }
 
 export const Settings = ({
@@ -57,12 +59,13 @@ export const Settings = ({
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
     const { themeName } = useTheme();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'guided-tours' | 'overview-widgets' | 'theme-picker' | 'storage'>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'guided-tours' | 'overview-widgets' | 'theme-picker' | 'storage' | 'feature-votes'>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const prevVisibleRef = useRef(false);
     const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
     const { user, signOut, isAuthenticated, isDevRole, isSupervisorRole, clinicId } = useAuth();
+    const hasUnvotedCycle = useFeatureVotesStore(selectHasUnvotedActiveCycle);
     const [planEditing, setPlanEditing] = useState(false);
     const [planSaveRequested, setPlanSaveRequested] = useState(false);
     const [planHasPending, setPlanHasPending] = useState(false);
@@ -256,7 +259,7 @@ export const Settings = ({
         items.push(
             { type: 'header', label: 'About' },
             ...((GUIDED_TOURS_ENABLED || isDevRole) ? [opt(PANEL.GUIDED_TOURS, <Compass size={20} />, 'Guided Tours', 'Interactive feature walkthroughs')] : []),
-            opt(PANEL.RELEASE_NOTES, <Shield size={20} />, 'Release Notes', 'What\'s new in this version'),
+            opt(PANEL.RELEASE_NOTES, <Shield size={20} />, 'Release Notes', 'What\'s new in this version', hasUnvotedCycle ? { badge: 1 } : undefined),
             opt(PANEL.FEEDBACK, <MessageSquare size={20} />, 'Feedback', 'Report issues or suggestions'),
             opt(PANEL.PRIVACY_POLICY, <Scale size={20} />, 'Privacy', 'Data handling and policy'),
         );
@@ -271,7 +274,7 @@ export const Settings = ({
         }
 
         return items;
-    }, [themeName, handleItemClick, isDevRole, isAuthenticated, isSupervisorRole, profile.clinicName, updateProfile]);
+    }, [themeName, handleItemClick, isDevRole, isAuthenticated, isSupervisorRole, profile.clinicName, updateProfile, hasUnvotedCycle]);
 
     // Swipe-back for sub-panels (mobile touch only)
     const swipeHandlers = useSwipeBack(
@@ -358,6 +361,7 @@ export const Settings = ({
             case 'certifications':      return { title: 'Certifications', ...backTo('user-profile') };
             // All panels below slide right back to main
             case 'release-notes':       return { title: 'Release Notes', ...backTo() };
+            case 'feature-votes':       return { title: 'Feature Votes', ...backTo() };
             case 'avatar-picker':       return { title: 'Choose Avatar', ...backTo() };
             case 'user-profile':        return { title: 'Profile', ...backTo() };
             case 'sessions-devices':    return { title: 'Linked Devices', ...backTo('pin-setup') };
@@ -609,7 +613,8 @@ export const Settings = ({
                                 />
                             ),
                             'guided-tours':         <GuidedToursPanel onClose={handleClose} />,
-                            'release-notes':        <ReleaseNotesPanel />,
+                            'release-notes':        <ReleaseNotesPanel onOpenFeatureVotes={() => { handleSlideAnimation('left'); setActivePanel('feature-votes'); }} />,
+                            'feature-votes':        <FeatureVotesPanel onOpenFeedback={() => { handleSlideAnimation('left'); setActivePanel('feedback'); }} />,
                             'feedback':             <FeedbackPanel />,
                             'privacy-policy':       <PrivacyPolicyPanel />,
                             'note-content': (

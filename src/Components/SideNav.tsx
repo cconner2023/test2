@@ -4,6 +4,7 @@ import { useAuth } from '../Hooks/useAuth'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useAvatar } from '../Utilities/AvatarContext'
 import { useTotalUnread } from '../stores/useMessagingStore'
+import { useFeatureVotesStore, selectHasUnvotedActiveCycle } from '../stores/useFeatureVotesStore'
 import { getInitials } from '../Utilities/nameUtils'
 import { useNavItems } from '../Hooks/useNavItems'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
@@ -62,6 +63,7 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
   const { profile } = useAuth()
   const tc3Mode = useAuthStore((s) => s.profile.tc3Mode) ?? false
   const totalUnread = useTotalUnread()
+  const hasUnvotedCycle = useFeatureVotesStore(selectHasUnvotedActiveCycle)
   const isConnected = useSyncExternalStore(subscribeOnline, getOnline)
 
   const iconMap = isMobile ? iconMapMobile : iconMapDesktop
@@ -190,6 +192,9 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
                       <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-themeredred text-white text-[9pt] font-bold leading-none">
                         {totalUnread > 99 ? '99+' : totalUnread}
                       </span>
+                    )}
+                    {item.action === 'settings' && hasUnvotedCycle && (
+                      <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-themeredred" aria-label="Unvoted feature cycle" />
                     )}
                   </div>
                   <span className={`tracking-wide ${isMobile ? 'text-[11pt]' : 'text-[10pt]'} text-primary font-medium flex-1`}>

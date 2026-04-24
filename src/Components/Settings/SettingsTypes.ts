@@ -32,6 +32,7 @@ export const PANEL = {
     THEME_PICKER: 35,
     OVERVIEW_WIDGETS: 36,
     STORAGE: 37,
+    FEATURE_VOTES: 38,
 } as const;
 
 export type PanelId = (typeof PANEL)[keyof typeof PANEL];
@@ -61,6 +62,7 @@ export const PANEL_TARGET: Partial<Record<PanelId, string>> = {
     [PANEL.OVERVIEW_WIDGETS]: 'overview-widgets',
     [PANEL.TOGGLE_THEME]: 'theme-picker',
     [PANEL.STORAGE]: 'storage',
+    [PANEL.FEATURE_VOTES]: 'feature-votes',
 };
 
 export type SettingsItem =

@@ -235,10 +235,24 @@ export const features = {
     store: null,
     services: ['offlineDb', 'syncEngine', 'syncService'],
     tables: ['training_completions', 'property_items', 'property_locations',
-             'location_tags', 'custody_ledger', 'discrepancies'],
+             'location_tags', 'custody_ledger', 'discrepancies',
+             'feature_votes', 'feature_vote_suggestions'],
     idb: ['packagebackend-offline:syncQueue'],
     components: null, // background service
     drawer: null,
+  },
+
+  featureVoting: {
+    label: 'Feature Voting',
+    store: 'useFeatureVotesStore',
+    services: ['featureVotingService', 'offlineDb', 'syncService'],
+    tables: ['feature_vote_cycles', 'feature_vote_candidates', 'feature_votes', 'feature_vote_suggestions'],
+    idb: ['packagebackend-offline:featureVoteCycles',
+          'packagebackend-offline:featureVoteCandidates',
+          'packagebackend-offline:featureVotes',
+          'packagebackend-offline:featureVoteSuggestions'],
+    components: 'Components/FeatureVoting/, Components/Settings/FeatureVotesPanel.tsx, Components/Admin/AdminFeatureVotesSection.tsx',
+    drawer: null, // embedded in Settings + Admin + login toast
   },
 } as const;
 

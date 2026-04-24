@@ -3,8 +3,8 @@ import { Pencil, Trash2, Building2, Eye, ChevronRight } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
-import { LoadingSpinner } from '../LoadingSpinner'
 import { ErrorDisplay } from '../ErrorDisplay'
+import { AdminListSkeleton } from './AdminSkeletons'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useLongPress } from '../../Hooks/useLongPress'
 import { listClinics, listAllUsers, deleteClinic } from '../../lib/adminService'
@@ -205,7 +205,7 @@ export function AdminClinicsList({
 
       <div className="px-5 pb-4">
         {showLoading ? (
-          <LoadingSpinner label="Loading clinics..." className="py-12 text-tertiary" />
+          <AdminListSkeleton />
         ) : filteredClinics.length === 0 ? (
           <EmptyState
             icon={<Building2 size={28} />}
@@ -239,8 +239,9 @@ function ClinicCard({ clinic, assignedUserCount, onTap, onContextMenu }: ClinicC
     <div
       role="button"
       tabIndex={0}
+      aria-label={`Open clinic ${clinic.name}`}
       onClick={onTap}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onTap() }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTap() } }}
       onContextMenu={(e) => {
         e.preventDefault()
         onContextMenu(e.clientX, e.clientY)

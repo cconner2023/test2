@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { Pencil, Plus, Building2, Trash2, X, Inbox, Users, Check } from 'lucide-react'
+import { Pencil, Plus, Building2, Trash2, X, Inbox, Users, Check, ChevronLeft, MessageCircleQuestion } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from './BaseDrawer'
 import { MobileSearchBar } from './MobileSearchBar'
 import { HeaderPill, PillButton } from './HeaderPill'
@@ -20,6 +20,7 @@ import { AdminUserDetail } from './Admin/AdminUserDetail'
 import { AdminClinicsList } from './Admin/AdminClinicsList'
 import { AdminClinicDetail } from './Admin/AdminClinicDetail'
 import { AdminSummary } from './Admin/AdminSummary'
+import { AdminFeatureVotesSection } from './Admin/AdminFeatureVotesSection'
 import type { AdminUser, AdminClinic } from '../lib/adminService'
 import type { AccountRequest } from '../lib/accountRequestService'
 
@@ -28,13 +29,21 @@ export type AdminView =
     | 'admin-user-detail'
     | 'admin-clinic-detail'
 
-const TABS = ['requests', 'users', 'clinics'] as const
-type AdminTab = typeof TABS[number]
+const ALL_TABS = ['requests', 'users', 'clinics', 'feature-votes'] as const
+type AdminTab = typeof ALL_TABS[number]
 
 const TAB_ICONS: Record<AdminTab, typeof Inbox> = {
     requests: Inbox,
     users: Users,
     clinics: Building2,
+    'feature-votes': MessageCircleQuestion,
+}
+
+const TAB_LABELS: Record<AdminTab, string> = {
+    requests: 'Requests',
+    users: 'Users',
+    clinics: 'Clinics',
+    'feature-votes': 'Feature Votes',
 }
 
 interface AdminDrawerProps {
@@ -84,6 +93,11 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     const isMobile = useIsMobile()
     const currentUserId = useAuthStore(s => s.user?.id ?? null)
+    const isDevRole = useAuthStore(s => s.isDevRole)
+    const visibleTabs = useMemo<AdminTab[]>(
+        () => isDevRole ? [...ALL_TABS] : ALL_TABS.filter(t => t !== 'feature-votes'),
+        [isDevRole]
+    )
 
     const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
         setSlideDirection(direction)
@@ -126,7 +140,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const handleRequestApproved = useCallback((
         userId: string,
         request: AccountRequest,
-        configured: { roles: string[]; clinicId: string | null },
+        configured: { roles: string[]; clinicId: string | null; warnings: string[] },
     ) => {
         const newUser: AdminUser = {
             id: userId,
@@ -144,10 +158,17 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             created_at: new Date().toISOString(),
             last_active_at: null,
             avatar_id: null,
+            supervisor_created: false,
         }
-        handleSelectUser(newUser)
+        // Partial-failure recovery: if any post-approval step failed, open the
+        // user in edit mode so admin can finish configuring the account.
+        if (configured.warnings.length > 0) {
+            handleEditUser(newUser)
+        } else {
+            handleSelectUser(newUser)
+        }
         invalidate('requests', 'users')
-    }, [handleSelectUser])
+    }, [handleSelectUser, handleEditUser])
 
     const handleEditClinic = useCallback((clinic: AdminClinic) => {
         setSelectedClinic(clinic)
@@ -263,6 +284,20 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     const isUserCreateMode = view === 'admin-user-detail' && selectedUser === null
     const isClinicCreateMode = view === 'admin-clinic-detail' && selectedClinic === null
+    const isDetailView = view === 'admin-user-detail' || view === 'admin-clinic-detail'
+    const desktopDetailPaneOpen = !isMobile && isDetailView
+
+    const detailTitle = useMemo(() => {
+        if (view === 'admin-user-detail') {
+            return selectedUser
+                ? `${selectedUser.first_name || ''} ${selectedUser.last_name || ''}`.trim() || 'User'
+                : 'New User'
+        }
+        if (view === 'admin-clinic-detail') {
+            return selectedClinic?.name || 'New Clinic'
+        }
+        return ''
+    }, [view, selectedUser, selectedClinic])
 
     // Header actions for detail views (handles both view/edit and create modes)
     const detailHeaderActions = useMemo(() => {
@@ -303,7 +338,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         />
                     )}
 
-                    {/* Save / Close */}
+                    {/* Save (always visible when editing) — on desktop, drawer Close lives on main header; back chevron closes detail pane */}
                     {userEditing ? (
                         <PillButton
                             icon={Check}
@@ -312,9 +347,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                             onClick={() => setUserSaveRequested(true)}
                             label="Save"
                         />
-                    ) : (
+                    ) : isMobile ? (
                         <PillButton icon={X} onClick={handleClose} label="Close" />
-                    )}
+                    ) : null}
                 </HeaderPill>
             )
         }
@@ -356,7 +391,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         />
                     )}
 
-                    {/* Save / Close */}
+                    {/* Save (always visible when editing) — on desktop, drawer Close lives on main header; back chevron closes detail pane */}
                     {clinicEditing ? (
                         <PillButton
                             icon={Check}
@@ -365,18 +400,27 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                             onClick={() => setClinicSaveRequested(true)}
                             label="Save"
                         />
-                    ) : (
+                    ) : isMobile ? (
                         <PillButton icon={X} onClick={handleClose} label="Close" />
-                    )}
+                    ) : null}
                 </HeaderPill>
             )
         }
 
         return undefined
-    }, [view, selectedUser, selectedClinic, userEditing, clinicEditing, isUserCreateMode, isClinicCreateMode, handleClose, currentUserId])
+    }, [view, selectedUser, selectedClinic, userEditing, clinicEditing, isUserCreateMode, isClinicCreateMode, handleClose, currentUserId, isMobile])
 
     // Header config per view
+    // Desktop always shows the "Admin Panel" header — detail views get their own
+    // sub-header inside the right pane. Mobile keeps the push-navigation pattern.
     const headerConfig = useMemo(() => {
+        if (!isMobile) {
+            return {
+                title: 'Admin Panel',
+                rightContent: mainHeaderActions,
+                hideDefaultClose: !!mainHeaderActions,
+            }
+        }
         switch (view) {
             case 'admin':
                 return {
@@ -386,9 +430,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 }
             case 'admin-user-detail':
                 return {
-                    title: selectedUser
-                        ? `${selectedUser.first_name || ''} ${selectedUser.last_name || ''}`.trim() || 'User'
-                        : 'New User',
+                    title: detailTitle,
                     showBack: true,
                     onBack: handleBack,
                     rightContent: detailHeaderActions,
@@ -396,14 +438,14 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 }
             case 'admin-clinic-detail':
                 return {
-                    title: selectedClinic?.name || 'New Clinic',
+                    title: detailTitle,
                     showBack: true,
                     onBack: handleBack,
                     rightContent: detailHeaderActions,
                     hideDefaultClose: !!detailHeaderActions,
                 }
         }
-    }, [view, selectedUser, selectedClinic, handleBack, detailHeaderActions, mainHeaderActions])
+    }, [isMobile, view, detailTitle, handleBack, detailHeaderActions, mainHeaderActions])
 
 
     // After creating a user, load full user and switch to view mode
@@ -432,53 +474,59 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         invalidate('clinics')
     }, [handleBack])
 
-    // Render active content
-    const renderContent = () => {
-        switch (view) {
-            case 'admin-user-detail':
-                return (
-                    <ScrollPane>
-                        <AdminUserDetail
-                            user={selectedUser}
-                            onUserUpdated={(u) => setSelectedUser(u)}
-                            onCreated={handleUserCreated}
-                            onSelectClinic={handleSelectClinic}
-                            editing={userEditing}
-                            onEditingChange={setUserEditing}
-                            saveRequested={userSaveRequested}
-                            onSaveComplete={() => setUserSaveRequested(false)}
-                            onPendingChangesChange={setUserHasPending}
-                        />
-                    </ScrollPane>
-                )
-
-            case 'admin-clinic-detail':
-                return (
-                    <ScrollPane>
-                        <AdminClinicDetail
-                            clinic={selectedClinic}
-                            onClinicUpdated={(c) => setSelectedClinic(c)}
-                            onSelectUser={handleSelectUser}
-                            onSelectClinic={handleSelectClinic}
-                            onCreated={handleClinicCreated}
-                            editing={clinicEditing}
-                            onEditingChange={setClinicEditing}
-                            saveRequested={clinicSaveRequested}
-                            onSaveComplete={() => setClinicSaveRequested(false)}
-                            onPendingChangesChange={setClinicHasPending}
-                        />
-                    </ScrollPane>
-                )
-
-            case 'admin':
-            default:
-                return renderMainView()
+    // Render detail content (user/clinic) — shared by mobile (full-width) and
+    // desktop (right pane).
+    const renderDetailContent = () => {
+        if (view === 'admin-user-detail') {
+            return (
+                <ScrollPane>
+                    <AdminUserDetail
+                        user={selectedUser}
+                        onUserUpdated={(u) => setSelectedUser(u)}
+                        onCreated={handleUserCreated}
+                        onSelectClinic={handleSelectClinic}
+                        editing={userEditing}
+                        onEditingChange={setUserEditing}
+                        saveRequested={userSaveRequested}
+                        onSaveComplete={() => setUserSaveRequested(false)}
+                        onPendingChangesChange={setUserHasPending}
+                    />
+                </ScrollPane>
+            )
         }
+        if (view === 'admin-clinic-detail') {
+            return (
+                <ScrollPane>
+                    <AdminClinicDetail
+                        clinic={selectedClinic}
+                        onClinicUpdated={(c) => setSelectedClinic(c)}
+                        onSelectUser={handleSelectUser}
+                        onSelectClinic={handleSelectClinic}
+                        onCreated={handleClinicCreated}
+                        editing={clinicEditing}
+                        onEditingChange={setClinicEditing}
+                        saveRequested={clinicSaveRequested}
+                        onSaveComplete={() => setClinicSaveRequested(false)}
+                        onPendingChangesChange={setClinicHasPending}
+                    />
+                </ScrollPane>
+            )
+        }
+        return null
+    }
+
+    // Render active content — mobile slides between main and detail via `view`.
+    const renderContent = () => {
+        if (view === 'admin-user-detail' || view === 'admin-clinic-detail') {
+            return renderDetailContent()
+        }
+        return renderMainView()
     }
 
     // ActionSheet options per tab
     const addSheetOptions = useMemo(() => {
         const options = []
+        if (activeTab === 'feature-votes') return options
         if (activeTab !== 'clinics') {
             options.push({ key: 'user', label: 'New User', onAction: () => { setShowAddSheet(false); handleCreateUser() } })
         }
@@ -493,9 +541,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         <div className="absolute bottom-4 inset-x-0 flex items-center justify-center z-20 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
             {/* Centered tab switcher */}
             <div className="bg-themewhite2/90 dark:bg-themewhite3/90 backdrop-blur-sm rounded-full shadow-sm border border-tertiary/10 flex items-center p-1 gap-1 pointer-events-auto">
-                {TABS.map((tab) => {
+                {visibleTabs.map((tab) => {
                     const TabIcon = TAB_ICONS[tab]
-                    const label = tab.charAt(0).toUpperCase() + tab.slice(1)
+                    const label = TAB_LABELS[tab]
                     return (
                         <button
                             key={tab}
@@ -514,16 +562,18 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 })}
             </div>
 
-            {/* FAB — absolute right, aligned to island */}
-            <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
-                <button
-                    onClick={() => setShowAddSheet(true)}
-                    className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
-                    title="Add new"
-                >
-                    <Plus className="w-5 h-5" />
-                </button>
-            </div>
+            {/* FAB — absolute right, aligned to island. Hidden on tabs that manage creation inline. */}
+            {activeTab !== 'feature-votes' && (
+                <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
+                    <button
+                        onClick={() => setShowAddSheet(true)}
+                        className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
+                        title="Add new"
+                    >
+                        <Plus className="w-5 h-5" />
+                    </button>
+                </div>
+            )}
         </div>
     )
 
@@ -551,6 +601,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     onCreateClinic={handleCreateClinic}
                     searchQuery={searchQuery}
                 />
+            )}
+            {activeTab === 'feature-votes' && isDevRole && (
+                <AdminFeatureVotesSection />
             )}
         </>
     )
@@ -616,10 +669,19 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         >
             <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && view !== 'admin' ? swipeHandlers : undefined}>
                 <div className="h-full relative">
-                    {/* Desktop: split pane layout */}
+                    {/* Desktop: three-pane (summary | list | detail). Opening detail
+                        collapses the summary sidebar and slides the detail pane in —
+                        mirrors the CalendarDrawer rightPanelOpen pattern. */}
                     {!isMobile ? (
                         <div className="flex h-full">
-                            <div className="w-[260px] shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50">
+                            <div
+                                aria-hidden={desktopDetailPaneOpen}
+                                className={`shrink-0 overflow-hidden flex flex-col bg-themewhite3/50 transition-all duration-300 ease-out ${
+                                    desktopDetailPaneOpen
+                                        ? 'w-0 opacity-0 border-r-0'
+                                        : 'w-[260px] opacity-100 border-r border-tertiary/10'
+                                }`}
+                            >
                                 <MobileSearchBar
                                     variant="admin"
                                     value={searchQuery}
@@ -639,7 +701,33 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                 </MobileSearchBar>
                             </div>
                             <div className="flex-1 min-w-0 overflow-hidden">
-                                {renderContent()}
+                                {renderMainView()}
+                            </div>
+                            <div
+                                aria-hidden={!desktopDetailPaneOpen}
+                                className={`shrink-0 overflow-hidden flex flex-col bg-themewhite transition-all duration-300 ease-out ${
+                                    desktopDetailPaneOpen
+                                        ? 'w-[520px] opacity-100 border-l border-tertiary/10'
+                                        : 'w-0 opacity-0 border-l-0'
+                                }`}
+                            >
+                                <div className="flex items-center gap-2 px-3 py-2 border-b border-tertiary/10">
+                                    <button
+                                        type="button"
+                                        onClick={handleBack}
+                                        aria-label="Close detail"
+                                        className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-tertiary/10 text-tertiary active:scale-95 shrink-0"
+                                    >
+                                        <ChevronLeft size={18} />
+                                    </button>
+                                    <h2 className="flex-1 min-w-0 truncate text-[11pt] font-semibold text-primary">
+                                        {detailTitle}
+                                    </h2>
+                                    {detailHeaderActions}
+                                </div>
+                                <div className="flex-1 min-h-0 overflow-hidden">
+                                    {renderDetailContent()}
+                                </div>
                             </div>
                         </div>
                     ) : (

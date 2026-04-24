@@ -6,7 +6,6 @@ import { fetchClinicTestHistory, fetchClinicAssignments, type TrainingCompletion
 import { createLogger } from '../../../Utilities/Logger'
 import {
   formatMedicName,
-  getExpirationStatus,
   buildTestableTaskMap,
   buildCompetencyMatrix,
   computeTeamMetrics,
@@ -14,6 +13,7 @@ import {
   type SoldierCompetency,
   type TeamMetrics,
 } from './supervisorHelpers'
+import { getExpirationStatus } from '../../Certifications/certHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { Certification } from '../../../Data/User'
 

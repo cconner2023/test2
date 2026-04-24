@@ -48,6 +48,8 @@ import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useRealtimeTrainingCompletions } from './useRealtimeTrainingCompletions';
 import { usePageVisibility } from './usePageVisibility';
+import { useCalendarWrite } from './useCalendarWrite';
+import { useCalendarStore } from '../stores/useCalendarStore';
 import { getTaskData } from '../Data/TrainingData';
 import { createLogger } from '../Utilities/Logger';
 import type { CompletionResult } from '../Types/database.types';
@@ -203,6 +205,10 @@ export function useTrainingCompletions() {
 
   // Page visibility — pauses realtime channels when backgrounded
   const isPageVisible = usePageVisibility();
+
+  // Calendar delete gate — used to cascade assignment deletion into the
+  // linked calendar event before the training row is removed.
+  const { deleteEvent: deleteCalendarEvent } = useCalendarWrite();
 
   // Auth version counter — incremented on SIGNED_IN / SIGNED_OUT to
   // trigger the init effect to re-run with the new user context.
@@ -569,13 +575,34 @@ export function useTrainingCompletions() {
       // Optimistically remove from UI
       setCompletions((prev) => prev.filter((c) => c.id !== completionId));
 
-      // Hard-delete from IndexedDB + queue sync for Supabase deletion
+      // If this completion is linked to a calendar event, delegate to the
+      // calendar delete gate — it fan-outs the 'd' and cascades back to
+      // this completion row via deleteCompletionsByCalendarOriginId. The
+      // cascade is fire-and-forget (not awaited end-to-end), but both sides
+      // tombstone locally before any await so resurrection is blocked even
+      // on partial failure.
+      const target = completions.find((c) => c.id === completionId);
+      if (target?.calendarOriginId) {
+        const event = useCalendarStore
+          .getState()
+          .events.find((e) => e.originId === target.calendarOriginId);
+        if (event) {
+          deleteCalendarEvent(event.id).catch((err) => {
+            logger.error('Cascade calendar delete failed:', err);
+            refreshCompletions(userId);
+          });
+          return;
+        }
+      }
+
+      // No linked event (read/test completion, or orphaned link): hard-delete
+      // directly via the service.
       deleteCompletionApi(completionId, userId).catch((err) => {
         logger.error('Delete completion failed:', err);
         refreshCompletions(userId);
       });
     },
-    [refreshCompletions]
+    [refreshCompletions, completions, deleteCalendarEvent]
   );
 
   const assignTask = useCallback(

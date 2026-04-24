@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Inbox, ChevronRight, ChevronDown, AlertTriangle, User } from 'lucide-react'
+import { Inbox, ChevronRight, ChevronDown, AlertTriangle, User, Building2 } from 'lucide-react'
+import { ActionButton } from '../ActionButton'
 import { listClinics, listAllUsers, getAllAccountRequests } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import { useInvalidation } from '../../stores/useInvalidationStore'
+import { AdminSummarySkeleton } from './AdminSkeletons'
 
 interface AdminSummaryProps {
   onSelectClinic: (clinic: AdminClinic) => void
@@ -152,6 +154,7 @@ export function AdminSummary({
           <div
             role="button"
             tabIndex={0}
+            aria-label={`Select clinic ${node.clinic.name}`}
             className="flex items-center flex-1 min-w-0"
             onClick={() => onSelectClinic(node.clinic)}
             onKeyDown={e => { if (e.key === 'Enter') onSelectClinic(node.clinic) }}
@@ -169,12 +172,19 @@ export function AdminSummary({
     )
   }
 
-  if (loading) return null
+  if (loading) return <AdminSummarySkeleton />
 
   if (clinics.length === 0 && users.length === 0) {
     return (
-      <div className="px-4 py-8 text-center text-[10pt] text-tertiary">
-        No data.
+      <div className="px-4 py-4">
+        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          <div className="flex items-center gap-3 px-4 py-3">
+            <p className="text-sm text-tertiary flex-1">No users or clinics yet</p>
+            <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
+              <ActionButton icon={Building2} label="Open clinics" onClick={() => onSwitchTab('clinics')} />
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
@@ -260,6 +270,7 @@ export function AdminSummary({
         <button
           onClick={onSelectAll}
           onKeyDown={e => { if (e.key === 'Enter') onSelectAll() }}
+          aria-label="Show all clinics"
           className={`flex items-center gap-2 w-full py-2 px-4 text-left cursor-pointer transition-all active:scale-[0.98] ${
             allSelected
               ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'

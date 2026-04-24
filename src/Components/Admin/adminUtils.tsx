@@ -1,5 +1,6 @@
-import { Star, CheckCircle } from 'lucide-react'
+import { Star, CheckCircle, UserPlus } from 'lucide-react'
 import type { Certification } from '../../Data/User'
+import { getExpirationStatus, certBadgeColors } from '../Certifications/certHelpers'
 
 /** Format a timestamp as a human-readable relative time string */
 export const formatLastActive = (isoString: string | null): string => {
@@ -57,22 +58,16 @@ export const RoleBadge = ({ role }: { role: string }) => {
   )
 }
 
-export function getExpirationStatus(expDate: string | null): 'valid' | 'expiring' | 'expired' | 'none' {
-  if (!expDate) return 'none'
-  const now = new Date()
-  const exp = new Date(expDate)
-  const diffDays = (exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-  if (diffDays < 0) return 'expired'
-  if (diffDays <= 90) return 'expiring'
-  return 'valid'
-}
-
-export const certBadgeColors = {
-  valid:    'bg-themegreen/10 text-themegreen border-themegreen/30',
-  expiring: 'bg-themeyellow/10 text-themeyellow border-themeyellow/30',
-  expired:  'bg-themeredred/10 text-themeredred border-themeredred/30',
-  none:     'bg-tertiary/5 text-tertiary border-tertiary/20',
-} as const
+/** Badge marking a user onboarded via the supervisor drawer (not admin-created). */
+export const SupervisorCreatedBadge = () => (
+  <span
+    title="Created by supervisor"
+    className="inline-flex items-center gap-0.5 h-5 px-1.5 rounded text-[9pt] font-medium border bg-themeyellow/10 text-themeyellow border-themeyellow/30 shrink-0"
+  >
+    <UserPlus size={10} />
+    Sup
+  </span>
+)
 
 /** Inline cert badges for user cards */
 export function CertBadges({ certs }: { certs: Certification[] }) {

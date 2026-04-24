@@ -7,8 +7,9 @@
  */
 
 import { useEffect, useCallback, useMemo, useState, useRef } from 'react'
-import { X, Plus } from 'lucide-react'
+import { X, Plus, UserPlus } from 'lucide-react'
 import { UserRow } from '../UserRow'
+import { ActionButton } from '../ActionButton'
 import { listClinics, listAllUsers, updateClinic, createClinic } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import { formatLastActive } from './adminUtils'
@@ -16,6 +17,7 @@ import { TextInput, UicPinInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { UserPicker, ClinicMultiPickerInput } from './AdminPickers'
 import { invalidate } from '../../stores/useInvalidationStore'
+import { sameStringSet } from '../../Utilities/arrayEquals'
 
 interface AdminClinicDetailProps {
   clinic: AdminClinic | null
@@ -124,10 +126,10 @@ const AdminClinicDetail = ({
     const changed =
       editName !== (clinic?.name ?? '') ||
       editLocation !== (clinic?.location ?? '') ||
-      JSON.stringify(editUics) !== JSON.stringify(clinic?.uics ?? []) ||
-      JSON.stringify(editChildClinicIds) !== JSON.stringify(clinic?.child_clinic_ids ?? []) ||
-      JSON.stringify(editAssociatedClinicIds) !== JSON.stringify(clinic?.associated_clinic_ids ?? []) ||
-      JSON.stringify(editAdditionalUserIds) !== JSON.stringify(clinic?.additional_user_ids ?? [])
+      !sameStringSet(editUics, clinic?.uics ?? []) ||
+      !sameStringSet(editChildClinicIds, clinic?.child_clinic_ids ?? []) ||
+      !sameStringSet(editAssociatedClinicIds, clinic?.associated_clinic_ids ?? []) ||
+      !sameStringSet(editAdditionalUserIds, clinic?.additional_user_ids ?? [])
     onPendingChangesChange?.(changed)
   }, [editing, editName, editLocation, editUics, editChildClinicIds, editAssociatedClinicIds, editAdditionalUserIds, clinic, onPendingChangesChange])
 
@@ -151,6 +153,9 @@ const AdminClinicDetail = ({
       const result = await createClinic({ ...payload, location: editLocation.trim() || undefined })
       setSaving(false)
       if (result.success && result.id) {
+        if (result.warnings?.length) {
+          setError(`Clinic created, but: ${result.warnings.join('; ')}`)
+        }
         onCreated?.(result.id)
       } else {
         setError(!result.success ? result.error : 'Failed to create clinic')
@@ -164,6 +169,9 @@ const AdminClinicDetail = ({
       onEditingChange(false)
       loadData()
       invalidate('clinics', 'users')
+      if (result.warnings?.length) {
+        setError(`Saved, but: ${result.warnings.join('; ')}`)
+      }
     } else {
       setError(result.error || 'Failed to update clinic')
     }
@@ -277,15 +285,30 @@ const AdminClinicDetail = ({
                   )}
                 </p>
               )}
-              {/* Users whose UIC matches any of the current clinic's UICs */}
+              {/* Users whose self-reported UIC matches one of this clinic's UICs —
+                  surface them as one-click additions to the Additional Users list. */}
               {editUics.length > 0 && (() => {
                 const uicSet = new Set(editUics)
                 const suggested = users.filter(u => u.uic && uicSet.has(u.uic) && !editAdditionalUserIds.includes(u.id))
                 if (suggested.length === 0) return null
                 return (
                   <div className="mt-2 rounded-lg bg-themeblue2/5 border border-themeblue2/20 px-3 py-2">
-                    <p className="text-[9pt] text-themeblue2 font-medium mb-1">
-                      {suggested.length} user{suggested.length !== 1 ? 's' : ''} with matching UICs
+                    <div className="flex items-baseline justify-between mb-1">
+                      <p className="text-[9pt] text-themeblue2 font-medium">
+                        {suggested.length} user{suggested.length !== 1 ? 's' : ''} match these UICs
+                      </p>
+                      {suggested.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setEditAdditionalUserIds(prev => [...prev, ...suggested.map(u => u.id)])}
+                          className="text-[9pt] text-themeblue2 font-semibold shrink-0"
+                        >
+                          Add all
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[9pt] text-tertiary mb-1.5">
+                      Self-reported at signup — add to the Additional Users list below.
                     </p>
                     <div className="space-y-0.5">
                       {suggested.map(u => (
@@ -369,10 +392,15 @@ const AdminClinicDetail = ({
         </div>
       )}
 
-      {/* Empty state */}
+      {/* Empty state — canonical horizontal card + action button */}
       {!isCreateMode && !editing && allClinicUsers.length === 0 && (
-        <div className="text-center py-8 mt-4">
-          <p className="text-tertiary text-sm">No users assigned to this clinic</p>
+        <div className="mt-4 rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          <div className="flex items-center gap-3 px-4 py-3">
+            <p className="text-sm text-tertiary flex-1">No users assigned to this clinic</p>
+            <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
+              <ActionButton icon={UserPlus} label="Add users" onClick={() => onEditingChange(true)} />
+            </div>
+          </div>
         </div>
       )}
     </div>

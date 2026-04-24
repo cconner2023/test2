@@ -30,12 +30,6 @@ interface PendingVaultSend {
   queuedAt: number
 }
 
-interface PendingVaultDelete {
-  id: string        // calendar event ID (key)
-  originIds: string[]
-  queuedAt: number
-}
-
 interface CalendarEventsDB extends DBSchema {
   events: {
     key: string
@@ -49,14 +43,10 @@ interface CalendarEventsDB extends DBSchema {
     key: string
     value: PendingVaultSend
   }
-  pendingVaultDeletes: {
-    key: string
-    value: PendingVaultDelete
-  }
 }
 
 const DB_NAME = 'adtmc-calendar-events'
-const DB_VERSION = 4
+const DB_VERSION = 5
 
 const { getDb, destroy: destroyDb } = createIdbSingleton<CalendarEventsDB>(
   DB_NAME,
@@ -72,8 +62,10 @@ const { getDb, destroy: destroyDb } = createIdbSingleton<CalendarEventsDB>(
       if (oldVersion < 3) {
         db.createObjectStore('pendingVaultSends', { keyPath: 'id' })
       }
-      if (oldVersion < 4) {
-        db.createObjectStore('pendingVaultDeletes', { keyPath: 'id' })
+      if (oldVersion < 5 && db.objectStoreNames.contains('pendingVaultDeletes')) {
+        // Retired: vault pair-cleans its own 'c'/'d' rows on replay, so a
+        // client-side hard-delete retry queue is no longer needed.
+        db.deleteObjectStore('pendingVaultDeletes')
       }
     },
   },
@@ -230,11 +222,17 @@ export async function clearAllPendingVaultSends(): Promise<void> {
 
 /**
  * Prune tombstones older than maxAgeDays to keep the store bounded.
- * Must exceed the vault message lifetime — processClinicVaultMessages replays
- * ALL vault messages with no age filter, and SPK retention is 90 days.
- * A tombstone pruned before its guarded event ages out of the vault creates a
- * resurrection vector: vault replay routes the old 'c' unopposed.
- * Default of 180 days gives a 2x safety margin over the SPK retention window.
+ *
+ * Invariant: maxAgeDays must exceed the longest window in which an
+ * unpaired 'c' can remain decryptable in the vault. If a tombstone is
+ * pruned while a matching 'c' still lives in the vault inbox, the next
+ * drain routes that 'c' unopposed and resurrects the event.
+ *
+ * Bound: vault 'c' messages become undecryptable once the SPK they were
+ * encrypted under ages past retention (90 days). OTP private keys are
+ * retained in the blob indefinitely under the current crypto posture, so
+ * SPK retention is the effective decryptability ceiling. 180 days gives
+ * a 2× safety margin.
  */
 export async function clearExpiredTombstones(maxAgeDays = 180): Promise<void> {
   try {
@@ -251,45 +249,3 @@ export async function clearExpiredTombstones(maxAgeDays = 180): Promise<void> {
   }
 }
 
-// ---- Pending Vault Delete Queue ----
-
-/** Queue a vault hard-delete for retry when connectivity returns. */
-export async function queuePendingVaultDelete(eventId: string, originIds: string[]): Promise<void> {
-  try {
-    const db = await getDb()
-    await db.put('pendingVaultDeletes', { id: eventId, originIds, queuedAt: Date.now() })
-  } catch (e) {
-    logger.warn('Failed to queue pending vault delete:', e)
-  }
-}
-
-/** Load all queued vault deletes pending retry. */
-export async function loadPendingVaultDeletes(): Promise<PendingVaultDelete[]> {
-  try {
-    const db = await getDb()
-    return db.getAll('pendingVaultDeletes')
-  } catch (e) {
-    logger.warn('Failed to load pending vault deletes:', e)
-    return []
-  }
-}
-
-/** Remove a successfully deleted entry from the retry queue. */
-export async function clearPendingVaultDelete(eventId: string): Promise<void> {
-  try {
-    const db = await getDb()
-    await db.delete('pendingVaultDeletes', eventId)
-  } catch (e) {
-    logger.warn('Failed to clear pending vault delete:', e)
-  }
-}
-
-/** Clear all pending vault deletes — called on logout. */
-export async function clearAllPendingVaultDeletes(): Promise<void> {
-  try {
-    const db = await getDb()
-    await db.clear('pendingVaultDeletes')
-  } catch (e) {
-    logger.warn('Failed to clear pending vault deletes:', e)
-  }
-}

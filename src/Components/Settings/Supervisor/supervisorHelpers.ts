@@ -4,6 +4,7 @@ import { categoryOrder } from '../../../Data/TrainingConstants'
 import { isTaskTestable } from '../../../Data/TrainingData'
 import type { TrainingCompletionUI } from '../../../lib/trainingService'
 import type { Certification } from '../../../Data/User'
+import { getExpirationStatus } from '../../Certifications/certHelpers'
 
 // ─── Name Formatting ─────────────────────────────────────────────────────────
 
@@ -18,27 +19,6 @@ export function formatMedicName(medic: ClinicMedic): string {
   }
   return parts.join(' ') || 'Unknown'
 }
-
-// ─── Certification Status ────────────────────────────────────────────────────
-
-export type ExpirationStatus = 'valid' | 'expiring' | 'expired' | 'none'
-
-export function getExpirationStatus(expDate: string | null): ExpirationStatus {
-  if (!expDate) return 'none'
-  const now = new Date()
-  const exp = new Date(expDate)
-  const diffDays = (exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-  if (diffDays < 0) return 'expired'
-  if (diffDays <= 90) return 'expiring'
-  return 'valid'
-}
-
-export const certBadgeColors = {
-  valid:    'bg-themegreen/10 text-themegreen border-themegreen/30',
-  expiring: 'bg-themeyellow/10 text-themeyellow border-themeyellow/30',
-  expired:  'bg-themeredred/10 text-themeredred border-themeredred/30',
-  none:     'bg-tertiary/5 text-tertiary border-tertiary/20',
-} as const
 
 // ─── Testable Tasks ──────────────────────────────────────────────────────────
 

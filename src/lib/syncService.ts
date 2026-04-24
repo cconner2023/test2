@@ -33,6 +33,8 @@ import {
   getNextRetryTime,
   resetAllFailedItems,
   getDb,
+  updateFeatureVoteSyncStatus,
+  updateFeatureVoteSuggestionSyncStatus,
   type LocalTrainingCompletion,
 } from './offlineDb'
 import type { LocalPropertyItem } from '../Types/PropertyTypes'
@@ -40,7 +42,7 @@ import type { LocalPropertyItem } from '../Types/PropertyTypes'
 const logger = createLogger('SyncService')
 
 /** Tables that the sync queue is allowed to write to. */
-const ALLOWED_SYNC_TABLES = ['training_completions', 'property_items', 'property_locations', 'discrepancies', 'custody_ledger', 'location_tags', 'map_overlays'] as const
+const ALLOWED_SYNC_TABLES = ['training_completions', 'property_items', 'property_locations', 'discrepancies', 'custody_ledger', 'location_tags', 'map_overlays', 'feature_votes', 'feature_vote_suggestions'] as const
 type SyncableTable = typeof ALLOWED_SYNC_TABLES[number]
 
 /** Maximum number of retries before giving up on a sync item. */
@@ -216,6 +218,10 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
           await markPropertyRecordSynced('propertyLocations', item.record_id)
         } else if (table === 'discrepancies' && item.action !== 'delete') {
           await markPropertyRecordSynced('propertyDiscrepancies', item.record_id)
+        } else if (table === 'feature_votes' && item.action !== 'delete') {
+          await updateFeatureVoteSyncStatus(item.record_id, 'synced')
+        } else if (table === 'feature_vote_suggestions' && item.action !== 'delete') {
+          await updateFeatureVoteSuggestionSyncStatus(item.record_id, 'synced')
         }
 
         processed++
@@ -245,6 +251,10 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
             : item.table_name === 'property_locations' ? 'propertyLocations'
             : 'propertyDiscrepancies'
           await markPropertyRecordSynced(storeName, item.record_id, 'error')
+        } else if (item.table_name === 'feature_votes' && item.action !== 'delete') {
+          await updateFeatureVoteSyncStatus(item.record_id, 'error', errorMessage)
+        } else if (item.table_name === 'feature_vote_suggestions' && item.action !== 'delete') {
+          await updateFeatureVoteSuggestionSyncStatus(item.record_id, 'error', errorMessage)
         }
 
         failed++

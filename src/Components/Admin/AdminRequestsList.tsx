@@ -1,517 +1,39 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Clock, Building2, Trash2, UserCheck, Eye, X, HelpCircle, Check, RefreshCw, Mail } from 'lucide-react'
-import { TextInput, PickerInput, MultiPickerInput, UicPinInput } from '../FormInputs'
+import { Clock, Trash2, Eye, Mail, Lightbulb } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
-import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
+import { ContextMenu } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
-import { LoadingSpinner } from '../LoadingSpinner'
 import { ErrorDisplay } from '../ErrorDisplay'
+import { AdminListSkeleton } from './AdminSkeletons'
+import { RequestCard } from './RequestCard'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
-import { useLongPress } from '../../Hooks/useLongPress'
-import { credentials, components, ranksByComponent } from '../../Data/User'
-import type { Component } from '../../Data/User'
 import {
   getAllAccountRequests,
   deleteAccountRequest,
   listClinics,
   listAllUsers,
-  approveAccountRequest,
-  rejectAccountRequest,
-  reopenAccountRequest,
-  updateUserProfile,
-  setUserRoles,
-  setUserClinic,
-  sendApprovalEmail,
 } from '../../lib/adminService'
 import type { AdminClinic } from '../../lib/adminService'
 import type { AccountRequest } from '../../lib/accountRequestService'
+import {
+  fetchSuggestions,
+  adminDeleteSuggestion,
+  type FeatureVoteSuggestion,
+} from '../../lib/featureVotingService'
 import { invalidate, useInvalidation } from '../../stores/useInvalidationStore'
 import { UI_TIMING } from '../../Utilities/constants'
 
-// ─── Constants ──────────────────────────────────────────────
-const AVAILABLE_ROLES = ['medic', 'supervisor', 'dev', 'provider'] as const
-type Role = (typeof AVAILABLE_ROLES)[number]
-
-// ─── Status badge colors ────────────────────────────────────
-function getStatusColor(status: string): string {
-  switch (status) {
-    case 'pending':  return 'bg-themeyellow/10 text-themeyellow border-themeyellow/30'
-    case 'approved': return 'bg-themegreen/10 text-themegreen border-themegreen/30'
-    case 'rejected': return 'bg-themeredred/10 text-themeredred border-themeredred/30'
-    default:         return 'bg-tertiary/10 text-tertiary border-tertiary/30'
-  }
-}
-
-// ─── Public Interface ───────────────────────────────────────
 interface AdminRequestsListProps {
   searchQuery?: string
   /** When true, renders items without wrapper chrome (for unified search results) */
   bare?: boolean
-  onApproved?: (userId: string, request: AccountRequest, configured: { roles: string[]; clinicId: string | null }) => void
+  onApproved?: (
+    userId: string,
+    request: AccountRequest,
+    configured: { roles: string[]; clinicId: string | null; warnings: string[] },
+  ) => void
 }
 
-// ─── Per-card component ─────────────────────────────────────
-function RequestCard({
-  request,
-  expandedId,
-  setExpandedId,
-  setConfirmDeleteId,
-  matchedClinic: cardMatchedClinic,
-  isExistingUser,
-  setContextMenu,
-  clinics,
-  uicToClinic,
-  onApproved,
-  onRefresh,
-}: {
-  request: AccountRequest
-  expandedId: string | null
-  setExpandedId: (id: string | null) => void
-  setConfirmDeleteId: (id: string | null) => void
-  matchedClinic: AdminClinic | undefined
-  isExistingUser: boolean
-  setContextMenu: (v: { requestId: string; x: number; y: number } | null) => void
-  clinics: AdminClinic[]
-  uicToClinic: Map<string, AdminClinic>
-  onApproved?: (userId: string, request: AccountRequest, configured: { roles: string[]; clinicId: string | null }) => void
-  onRefresh: () => void
-}) {
-  const isSupport = request.request_type === 'support'
-  const isPending = request.status === 'pending'
-  const isRejected = request.status === 'rejected'
-  const hasActions = isSupport ? true : (isPending || isRejected)
-  const isExpanded = expandedId === request.id
-
-  // ── Form state (only used when expanded + pending) ──────
-  const [firstName, setFirstName] = useState(request.first_name || '')
-  const [lastName, setLastName] = useState(request.last_name || '')
-  const [middleInitial, setMiddleInitial] = useState(request.middle_initial || '')
-  const [credential, setCredential] = useState(request.credential || '')
-  const [component, setComponent] = useState(request.component || '')
-  const [rank, setRank] = useState(request.rank || '')
-  const [uic, setUic] = useState(request.uic || '')
-  const [roles, setRoles] = useState<string[]>(['medic'])
-  const [selectedClinicId, setSelectedClinicId] = useState('')
-  const [processing, setProcessing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [rejectMode, setRejectMode] = useState(false)
-  const [rejectReason, setRejectReason] = useState('')
-
-  // ── Derived ─────────────────────────────────────────────
-  const componentRanks = component ? ranksByComponent[component as Component] : []
-
-  const clinicOptions = useMemo(
-    () => clinics.map((c) => ({ value: c.id, label: `${c.name} (${c.uics.join(', ')})` })),
-    [clinics],
-  )
-
-  const formMatchedClinic = uic ? uicToClinic.get(uic.toUpperCase()) : undefined
-
-  // ── Auto-set clinic from UIC ────────────────────────────
-  useEffect(() => {
-    if (!isExpanded || !isPending || !uic || selectedClinicId) return
-    const matched = uicToClinic.get(uic.toUpperCase())
-    if (matched) setSelectedClinicId(matched.id)
-  }, [isExpanded, isPending, uic, uicToClinic, selectedClinicId])
-
-  // ── Component → rank filtering ──────────────────────────
-  const handleComponentChange = useCallback((val: string) => {
-    setComponent(val)
-    if (val && rank && !ranksByComponent[val as Component]?.includes(rank)) {
-      setRank('')
-    }
-  }, [rank])
-
-  // ── Handlers ────────────────────────────────────────────
-  const handleApprove = useCallback(async () => {
-    if (uic.trim().length !== 6) {
-      setError('UIC must be exactly 6 characters.')
-      return
-    }
-    const chosenRoles = roles
-    if (chosenRoles.length === 0) {
-      setError('Select at least one role.')
-      return
-    }
-
-    setProcessing(true)
-    setError(null)
-
-    const approveResult = await approveAccountRequest(request.id)
-    if (!approveResult.success) {
-      setError(approveResult.error || 'Failed to approve request')
-      setProcessing(false)
-      return
-    }
-
-    const userId = approveResult.userId
-    const warnings: string[] = []
-
-    const profileResult = await updateUserProfile(userId, {
-      firstName: firstName || undefined,
-      lastName: lastName || undefined,
-      middleInitial,
-      credential,
-      component,
-      rank,
-      uic: uic || undefined,
-    })
-    if (!profileResult.success) warnings.push('Profile update failed')
-
-    const rolesResult = await setUserRoles(userId, chosenRoles as ('medic' | 'supervisor' | 'dev' | 'provider')[])
-    if (!rolesResult.success) warnings.push('Role assignment failed')
-
-    if (selectedClinicId) {
-      const clinicResult = await setUserClinic(userId, selectedClinicId)
-      if (!clinicResult.success) warnings.push('Clinic assignment failed')
-    }
-
-    sendApprovalEmail(approveResult.email)
-
-    setProcessing(false)
-
-    if (warnings.length > 0) {
-      setError(`Account created but: ${warnings.join(', ')}. Edit user to fix.`)
-    }
-
-    onApproved?.(userId, request, {
-      roles: chosenRoles,
-      clinicId: selectedClinicId,
-    })
-    invalidate('requests', 'users')
-    onRefresh()
-  }, [
-    request, firstName, lastName, middleInitial, credential, component, rank, uic,
-    roles, selectedClinicId, onApproved, onRefresh,
-  ])
-
-  const handleReject = useCallback(async () => {
-    if (!rejectReason.trim()) {
-      setError('Rejection reason required.')
-      return
-    }
-    setProcessing(true)
-    setError(null)
-    const result = await rejectAccountRequest(request.id, rejectReason.trim())
-    setProcessing(false)
-    if (result.success) {
-      setExpandedId(null)
-      invalidate('requests')
-      onRefresh()
-    } else {
-      setError(result.error || 'Failed to reject request')
-    }
-  }, [request.id, rejectReason, setExpandedId, onRefresh])
-
-  const handleReopen = useCallback(async () => {
-    setProcessing(true)
-    setError(null)
-    const result = await reopenAccountRequest(request.id)
-    setProcessing(false)
-    if (result.success) {
-      setExpandedId(null)
-      invalidate('requests')
-      onRefresh()
-    } else {
-      setError(result.error || 'Failed to reopen request')
-    }
-  }, [request.id, setExpandedId, onRefresh])
-
-  // ── Long press ──────────────────────────────────────────
-  const { isPressing, ...longPress } = useLongPress((x: number, y: number) => {
-    if (!hasActions) return
-    setContextMenu({ requestId: request.id, x, y })
-  }, { delay: 500 })
-
-  const handleTap = useCallback(() => {
-    if (!hasActions) return
-    setExpandedId(isExpanded ? null : request.id)
-  }, [hasActions, isExpanded, setExpandedId, request.id])
-
-  // ── Icon styling ────────────────────────────────────────
-  const iconBg = isSupport
-    ? 'bg-themeblue2/10'
-    : request.status === 'pending'  ? 'bg-themeyellow/10'
-    : request.status === 'approved' ? 'bg-themegreen/10'
-    : request.status === 'rejected' ? 'bg-themeredred/10'
-    : 'bg-tertiary/10'
-
-  const IconComponent = isSupport
-    ? HelpCircle
-    : request.status === 'pending'  ? Clock
-    : request.status === 'approved' ? UserCheck
-    : X
-
-  const iconColor = isSupport
-    ? 'text-themeblue2'
-    : request.status === 'pending'  ? 'text-themeyellow'
-    : request.status === 'approved' ? 'text-themegreen'
-    : 'text-themeredred'
-
-  return (
-    <div
-      {...longPress}
-      onContextMenu={hasActions ? (e) => {
-        e.preventDefault()
-        setContextMenu({ requestId: request.id, x: e.clientX, y: e.clientY })
-      } : undefined}
-      onClick={handleTap}
-      className={`transition-all hover:bg-themeblue2/5 cursor-pointer select-none ${isPressing ? 'opacity-60' : ''}`}
-    >
-      {/* Row 1: icon + name/subtitle + status badge */}
-      <div className="flex items-center gap-3 px-4 py-3.5">
-        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
-          <IconComponent size={16} className={iconColor} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-primary truncate">
-            {isSupport ? (
-              `${request.first_name}${request.last_name ? ` ${request.last_name}` : ''}`
-            ) : (
-              <>
-                {request.rank ? `${request.rank} ` : ''}
-                {request.first_name}
-                {request.middle_initial ? ` ${request.middle_initial}` : ''}{' '}
-                {request.last_name}
-              </>
-            )}
-          </p>
-          <p className="text-[9pt] text-tertiary mt-0.5 truncate">
-            {isSupport
-              ? request.email
-              : [request.credential, request.email].filter(Boolean).join(' · ')}
-          </p>
-        </div>
-        <span className={`text-[9pt] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0 ${getStatusColor(request.status)}`}>
-          {isSupport ? 'Help' : request.status}
-        </span>
-      </div>
-
-      {/* Row 2: UIC + clinic (hidden when expanded — form has these fields) */}
-      {!isSupport && !isExpanded && request.uic && (
-        <div className="flex items-center gap-2 flex-wrap px-4 pb-2">
-          <span className="text-[10pt] font-normal text-tertiary">{request.uic}</span>
-          {cardMatchedClinic ? (
-            <span className="inline-flex items-center gap-1 text-[10pt] font-normal text-tertiary">
-              <Building2 size={12} />
-              {cardMatchedClinic.name}
-            </span>
-          ) : (
-            <span className="text-[10pt] font-normal text-tertiary">No clinic match</span>
-          )}
-        </div>
-      )}
-
-      {/* Notes/justification preview (collapsed only) */}
-      {!isSupport && !isExpanded && request.notes && (
-        <p className="text-[10pt] font-normal text-tertiary italic px-4 pb-2 line-clamp-2">{request.notes}</p>
-      )}
-
-      {/* Support request: show message preview (collapsed only) */}
-      {isSupport && !isExpanded && request.notes && (
-        <p className="text-[10pt] font-normal text-tertiary px-4 pb-2 line-clamp-2">{request.notes}</p>
-      )}
-
-      {/* Already a user note */}
-      {!isExpanded && isExistingUser && (
-        <p className="text-[10pt] font-normal text-tertiary px-4 pb-2">Already a user — safe to clear this request</p>
-      )}
-
-      {/* ── Expanded: support request (simple) ─────────────── */}
-      {isExpanded && isSupport && (
-        <div className="px-4 pb-3.5 pt-3 border-t border-tertiary/10 space-y-2" onClick={(e) => e.stopPropagation()}>
-          {request.notes && (
-            <p className="text-[10pt] font-normal text-primary whitespace-pre-wrap">{request.notes}</p>
-          )}
-          <p className="text-[10pt] font-normal text-tertiary">
-            Submitted: {new Date(request.requested_at).toLocaleString()}
-          </p>
-          <div className="flex items-center gap-3 pt-1">
-            <a
-              href={`mailto:${request.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(`${[request.first_name, request.last_name].filter(Boolean).join(' ')},\n\n`)}`}
-              className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-themeblue2 active:scale-95 transition-all"
-              title="Email"
-            >
-              <Mail size={16} />
-            </a>
-            <button
-              onClick={() => setConfirmDeleteId(request.id)}
-              className="shrink-0 w-10 h-10 rounded-full text-themeredred flex items-center justify-center active:scale-95 transition-all"
-              title="Dismiss"
-            >
-              <Trash2 size={16} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Expanded: pending request (full edit form) ──────── */}
-      {isExpanded && isPending && !isSupport && (
-        <div
-          className="border-t border-tertiary/10 px-4 pb-4 pt-3"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className={`space-y-3 ${processing ? 'opacity-50 pointer-events-none' : ''}`}>
-            {error && <ErrorDisplay message={error} />}
-
-            {/* User justification */}
-            <div className="rounded-xl bg-themeblue2/5 border border-themeblue2/10 px-3.5 py-2.5">
-              <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-1">Justification</p>
-              <p className={`text-sm whitespace-pre-wrap ${request.notes ? 'text-primary' : 'text-tertiary italic'}`}>
-                {request.notes || 'No justification provided'}
-              </p>
-            </div>
-
-            {/* Profile — mirrors AccountRequestForm layout */}
-            <div className="space-y-3">
-                <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Edit Account</p>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <TextInput value={firstName} onChange={setFirstName} placeholder="First Name *" required />
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 min-w-0">
-                      <TextInput value={lastName} onChange={setLastName} placeholder="Last Name *" required />
-                    </div>
-                    <div className="w-11 shrink-0">
-                      <TextInput value={middleInitial} onChange={(v) => setMiddleInitial(v.toUpperCase().slice(0, 1))} placeholder="MI" maxLength={1} />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <PickerInput value={credential} onChange={setCredential} options={credentials} placeholder="Credential" />
-                  <PickerInput value={component} onChange={handleComponentChange} options={components} placeholder="Component" />
-                </div>
-
-                {component && (
-                  <PickerInput value={rank} onChange={setRank} options={componentRanks} placeholder="Rank" />
-                )}
-
-                <div>
-                  <span className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-1.5 block">UIC</span>
-                  <UicPinInput value={uic} onChange={setUic} spread />
-                </div>
-
-                <PickerInput value={selectedClinicId} onChange={setSelectedClinicId} options={clinicOptions} placeholder="Clinic" />
-                {formMatchedClinic && selectedClinicId === formMatchedClinic.id && (
-                  <p className="-mt-2 text-[9pt] text-themegreen flex items-center gap-1">
-                    <Building2 size={12} />
-                    Auto-matched from UIC
-                  </p>
-                )}
-
-                <MultiPickerInput
-                  label="Roles"
-                  value={roles}
-                  onChange={setRoles}
-                  options={AVAILABLE_ROLES.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))}
-                  placeholder="Roles"
-                  required
-                />
-
-            </div>
-
-            {/* Action buttons */}
-            {rejectMode ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                  placeholder="Reason..."
-                  className="flex-1 min-w-0 px-4 py-2.5 rounded-full bg-themewhite2 border border-tertiary/10 text-sm text-primary placeholder:text-tertiary focus:outline-none focus:border-themeblue2 transition-colors"
-                />
-                <button
-                  onClick={() => { setRejectMode(false); setRejectReason('') }}
-                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
-                >
-                  <X size={18} />
-                </button>
-                <button
-                  onClick={handleReject}
-                  disabled={processing || !rejectReason.trim()}
-                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeredred text-white disabled:opacity-30 active:scale-95 transition-all"
-                >
-                  {processing ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center justify-end gap-2">
-                <a
-                  href={`mailto:${request.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(`${[request.rank, request.last_name].filter(Boolean).join(' ')},\n\n`)}`}
-                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-themeblue2 active:scale-95 transition-all"
-                  title="Email"
-                >
-                  <Mail size={18} />
-                </a>
-                <button
-                  onClick={() => setRejectMode(true)}
-                  disabled={processing}
-                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-themeredred active:scale-95 transition-all disabled:opacity-30"
-                >
-                  <Trash2 size={18} />
-                </button>
-                <button
-                  onClick={handleApprove}
-                  disabled={processing}
-                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
-                >
-                  {processing ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Expanded: rejected request (read-only + reopen) ── */}
-      {isExpanded && isRejected && !isSupport && (
-        <div
-          className="border-t border-tertiary/10 px-4 pb-4 pt-3"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className={`space-y-3 ${processing ? 'opacity-50 pointer-events-none' : ''}`}>
-            {error && <ErrorDisplay message={error} />}
-
-            {/* User justification */}
-            <div className="rounded-xl bg-themeblue2/5 border border-themeblue2/10 px-3.5 py-2.5">
-              <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-1">Justification</p>
-              <p className={`text-sm whitespace-pre-wrap ${request.notes ? 'text-primary' : 'text-tertiary italic'}`}>
-                {request.notes || 'No justification provided'}
-              </p>
-            </div>
-
-            {request.rejection_reason && (
-              <div className="rounded-xl border border-themeredred/10 bg-themeredred/5 px-3.5 py-2.5">
-                <p className="text-[9pt] font-semibold text-themeredred/60 tracking-widest uppercase mb-1">Rejection Reason</p>
-                <p className="text-sm text-themeredred">{request.rejection_reason}</p>
-              </div>
-            )}
-
-            <div className="flex items-center justify-end gap-2">
-              <a
-                href={`mailto:${request.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(`${[request.rank, request.last_name].filter(Boolean).join(' ')},\n\n`)}`}
-                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-themeblue2 active:scale-95 transition-all"
-                title="Email"
-              >
-                <Mail size={18} />
-              </a>
-              <button
-                onClick={handleReopen}
-                disabled={processing}
-                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
-              >
-                {processing ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── Component ──────────────────────────────────────────────
 export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApproved }: AdminRequestsListProps) {
   const searchQuery = searchQueryProp ?? ''
 
@@ -519,6 +41,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
 
   // Data
   const [requests, setRequests] = useState<AccountRequest[]>([])
+  const [suggestions, setSuggestions] = useState<FeatureVoteSuggestion[]>([])
   const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [userEmails, setUserEmails] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
@@ -526,6 +49,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
 
   // Processing state
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [confirmDeleteSuggestionId, setConfirmDeleteSuggestionId] = useState<string | null>(null)
   const [deleteProcessing, setDeleteProcessing] = useState(false)
 
   // Status feedback
@@ -533,9 +57,9 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
 
   // Expand + context menu
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [expandedSuggestionId, setExpandedSuggestionId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ requestId: string; x: number; y: number } | null>(null)
 
-  // Clear status banner after a delay
   useEffect(() => {
     if (!status) return
     const t = setTimeout(() => setStatus(null), UI_TIMING.FEEDBACK_DURATION)
@@ -545,14 +69,16 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
   // ── Data loading ────────────────────────────────────────
   const loadRequests = useCallback(async () => {
     setLoading(true)
-    const [reqData, clinicData, userData] = await Promise.all([
+    const [reqData, clinicData, userData, sugResult] = await Promise.all([
       getAllAccountRequests(),
       listClinics(),
       listAllUsers(),
+      fetchSuggestions({ status: 'pending' }),
     ])
     setRequests(reqData)
     setClinics(clinicData)
     setUserEmails(new Set(userData.map(u => u.email?.toLowerCase()).filter(Boolean)))
+    setSuggestions(sugResult.ok ? sugResult.data : [])
     setLoading(false)
   }, [])
 
@@ -595,6 +121,41 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
     })
   }, [requests, searchQuery])
 
+  // Pending suggestions are feedback items that share the Requests inbox.
+  const filteredSuggestions = useMemo(() => {
+    if (!searchQuery.trim()) return suggestions
+    const q = searchQuery.toLowerCase()
+    return suggestions.filter((s) =>
+      s.title.toLowerCase().includes(q) ||
+      (s.description?.toLowerCase().includes(q) ?? false)
+    )
+  }, [suggestions, searchQuery])
+
+  type FeedItem =
+    | { key: string; kind: 'request'; data: AccountRequest; date: string; pendingRank: 0 | 1 }
+    | { key: string; kind: 'suggestion'; data: FeatureVoteSuggestion; date: string; pendingRank: 0 | 1 }
+
+  const feedItems: FeedItem[] = useMemo(() => {
+    const req: FeedItem[] = filteredRequests.map((r) => ({
+      key: `req-${r.id}`,
+      kind: 'request',
+      data: r,
+      date: r.requested_at,
+      pendingRank: r.status === 'pending' ? 0 : 1,
+    }))
+    const sug: FeedItem[] = filteredSuggestions.map((s) => ({
+      key: `sug-${s.id}`,
+      kind: 'suggestion',
+      data: s,
+      date: s.createdAt,
+      pendingRank: 0,
+    }))
+    return [...req, ...sug].sort((a, b) => {
+      if (a.pendingRank !== b.pendingRank) return a.pendingRank - b.pendingRank
+      return new Date(b.date).getTime() - new Date(a.date).getTime()
+    })
+  }, [filteredRequests, filteredSuggestions])
+
   // ── Delete handler ──────────────────────────────────────
   const handleDeleteRequest = useCallback(async (requestId: string) => {
     setDeleteProcessing(true)
@@ -610,21 +171,21 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
     setDeleteProcessing(false)
   }, [loadRequests])
 
-  // ── Context menu helper: expand the card ────────────────
-  const handleContextView = useCallback((requestId: string) => {
-    setExpandedId(requestId)
-  }, [])
+  const handleDeleteSuggestion = useCallback(async (suggestionId: string) => {
+    setDeleteProcessing(true)
+    const result = await adminDeleteSuggestion(suggestionId)
+    if (result.success) {
+      setConfirmDeleteSuggestionId(null)
+      if (expandedSuggestionId === suggestionId) setExpandedSuggestionId(null)
+      setStatus({ type: 'success', message: 'Suggestion dismissed' })
+      await loadRequests()
+    } else {
+      setStatus({ type: 'error', message: `Failed to dismiss: ${result.error}` })
+    }
+    setDeleteProcessing(false)
+  }, [loadRequests, expandedSuggestionId])
 
-  // ── Loading state ───────────────────────────────────────
-  if (showLoading && !bare) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <LoadingSpinner className="text-tertiary" />
-      </div>
-    )
-  }
-
-  // ── Shared context menu items builder ───────────────────
+  // ── Context menu items for a single request ─────────────
   const buildContextItems = (ctxRequest: AccountRequest | undefined, requestId: string) => {
     if (!ctxRequest) return []
     const emailItem = ctxRequest.email ? [{
@@ -638,56 +199,123 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
         window.location.href = `mailto:${ctxRequest.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(`${name},\n\n`)}`
       },
     }] : []
-    if (ctxRequest.request_type === 'support') {
-      return [
-        { key: 'view', label: 'View', icon: Eye, onAction: () => handleContextView(requestId) },
-        ...emailItem,
-        { key: 'delete', label: 'Dismiss', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteId(requestId) },
-      ]
-    }
+    const deleteLabel = ctxRequest.request_type === 'support' ? 'Dismiss' : 'Delete'
     return [
-      { key: 'view', label: 'View', icon: Eye, onAction: () => handleContextView(requestId) },
+      { key: 'view', label: 'View', icon: Eye, onAction: () => setExpandedId(requestId) },
       ...emailItem,
-      { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteId(requestId) },
+      { key: 'delete', label: deleteLabel, icon: Trash2, destructive: true, onAction: () => setConfirmDeleteId(requestId) },
     ]
   }
 
+  const renderCard = (request: AccountRequest) => {
+    const isRejected = request.status === 'rejected'
+    const matchedClinic = request.uic ? uicToClinic.get(request.uic.toUpperCase()) : undefined
+    const isExistingUser = isRejected && userEmails.has(request.email.toLowerCase())
+    return (
+      <RequestCard
+        key={request.id}
+        request={request}
+        expandedId={expandedId}
+        setExpandedId={setExpandedId}
+        setConfirmDeleteId={setConfirmDeleteId}
+        matchedClinic={matchedClinic}
+        isExistingUser={isExistingUser}
+        setContextMenu={setContextMenu}
+        clinics={clinics}
+        uicToClinic={uicToClinic}
+        onApproved={onApproved}
+        onRefresh={loadRequests}
+      />
+    )
+  }
+
+  // Suggestion card — mirrors RequestCard's isSupport shape (feedback-item pattern).
+  const renderSuggestionCard = (s: FeatureVoteSuggestion) => {
+    const isExpanded = expandedSuggestionId === s.id
+    return (
+      <div
+        key={`sug-${s.id}`}
+        onClick={() => setExpandedSuggestionId(isExpanded ? null : s.id)}
+        className="transition-all hover:bg-themeblue2/5 cursor-pointer select-none"
+      >
+        <div className="flex items-center gap-3 px-4 py-3.5">
+          <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeyellow/10">
+            <Lightbulb size={16} className="text-themeyellow" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-primary truncate">{s.title}</p>
+            <p className="text-[9pt] text-tertiary mt-0.5 truncate">Feature suggestion</p>
+          </div>
+          <span className="text-[9pt] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0 bg-themeyellow/10 text-themeyellow border-themeyellow/30">
+            Idea
+          </span>
+        </div>
+
+        {!isExpanded && s.description && (
+          <p className="text-[10pt] font-normal text-tertiary px-4 pb-2 line-clamp-2">{s.description}</p>
+        )}
+
+        {isExpanded && (
+          <div className="px-4 pb-3.5 pt-3 border-t border-tertiary/10 space-y-2" onClick={(e) => e.stopPropagation()}>
+            {s.description && (
+              <p className="text-[10pt] font-normal text-primary whitespace-pre-wrap">{s.description}</p>
+            )}
+            <p className="text-[10pt] font-normal text-tertiary">
+              Submitted: {new Date(s.createdAt).toLocaleString()}
+            </p>
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                onClick={() => setConfirmDeleteSuggestionId(s.id)}
+                className="shrink-0 w-10 h-10 rounded-full text-themeredred flex items-center justify-center active:scale-95 transition-all"
+                aria-label="Dismiss"
+                title="Dismiss"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const renderFeedItem = (item: FeedItem) =>
+    item.kind === 'request' ? renderCard(item.data) : renderSuggestionCard(item.data)
+
+  const renderContextMenu = () => {
+    if (!contextMenu) return null
+    const ctxRequest = requests.find(r => r.id === contextMenu.requestId)
+    const ctxItems = buildContextItems(ctxRequest, contextMenu.requestId)
+    return (
+      <ContextMenu
+        x={contextMenu.x}
+        y={contextMenu.y}
+        onClose={() => setContextMenu(null)}
+        items={ctxItems}
+      />
+    )
+  }
+
+  const suggestionConfirmDialog = (
+    <ConfirmDialog
+      visible={!!confirmDeleteSuggestionId}
+      title="Dismiss this suggestion?"
+      subtitle="Permanent."
+      confirmLabel="Dismiss"
+      variant="danger"
+      processing={deleteProcessing}
+      onConfirm={() => { if (confirmDeleteSuggestionId) handleDeleteSuggestion(confirmDeleteSuggestionId) }}
+      onCancel={() => setConfirmDeleteSuggestionId(null)}
+    />
+  )
+
   // ── Bare mode: just the items (no wrapper chrome) ──────
   if (bare) {
-    if (filteredRequests.length === 0) return null
+    if (feedItems.length === 0) return null
     return (
       <>
-        {filteredRequests.map((request) => {
-          const isRejected = request.status === 'rejected'
-          const matchedClinic = request.uic
-            ? uicToClinic.get(request.uic.toUpperCase())
-            : undefined
-          const isExistingUser = isRejected && userEmails.has(request.email.toLowerCase())
-
-          return (
-            <RequestCard
-              key={request.id}
-              request={request}
-              expandedId={expandedId}
-              setExpandedId={setExpandedId}
-              setConfirmDeleteId={setConfirmDeleteId}
-              matchedClinic={matchedClinic}
-              isExistingUser={isExistingUser}
-              setContextMenu={setContextMenu}
-              clinics={clinics}
-              uicToClinic={uicToClinic}
-              onApproved={onApproved}
-              onRefresh={loadRequests}
-            />
-          )
-        })}
-
-        {contextMenu && (() => {
-          const ctxRequest = requests.find(r => r.id === contextMenu.requestId)
-          const ctxItems = buildContextItems(ctxRequest, contextMenu.requestId)
-          return <ContextMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} items={ctxItems} />
-        })()}
-
+        {feedItems.map(renderFeedItem)}
+        {renderContextMenu()}
         <ConfirmDialog
           visible={!!confirmDeleteId}
           title="Delete this request?"
@@ -698,6 +326,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
           onConfirm={() => { if (confirmDeleteId) handleDeleteRequest(confirmDeleteId) }}
           onCancel={() => setConfirmDeleteId(null)}
         />
+        {suggestionConfirmDialog}
       </>
     )
   }
@@ -709,57 +338,22 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
       </div>
 
       <div className="px-5 pb-4">
-        {filteredRequests.length === 0 ? (
+        {showLoading ? (
+          <AdminListSkeleton />
+        ) : feedItems.length === 0 ? (
           <EmptyState
             icon={<Clock size={28} />}
             title={searchQuery ? 'No requests match your search' : 'No requests found'}
           />
         ) : (
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-themeblue3/10">
-            {filteredRequests.map((request) => {
-              const isRejected = request.status === 'rejected'
-              const matchedClinic = request.uic
-                ? uicToClinic.get(request.uic.toUpperCase())
-                : undefined
-              const isExistingUser = isRejected && userEmails.has(request.email.toLowerCase())
-
-              return (
-                <RequestCard
-                  key={request.id}
-                  request={request}
-                  expandedId={expandedId}
-                  setExpandedId={setExpandedId}
-                  setConfirmDeleteId={setConfirmDeleteId}
-                  matchedClinic={matchedClinic}
-                  isExistingUser={isExistingUser}
-                  setContextMenu={setContextMenu}
-                  clinics={clinics}
-                  uicToClinic={uicToClinic}
-                  onApproved={onApproved}
-                  onRefresh={loadRequests}
-                />
-              )
-            })}
+            {feedItems.map(renderFeedItem)}
           </div>
         )}
       </div>
 
-      {/* Right-click / long-press context menu */}
-      {contextMenu && (() => {
-        const ctxRequest = requests.find(r => r.id === contextMenu.requestId)
-        const ctxItems = buildContextItems(ctxRequest, contextMenu.requestId)
+      {renderContextMenu()}
 
-        return (
-          <ContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            onClose={() => setContextMenu(null)}
-            items={ctxItems}
-          />
-        )
-      })()}
-
-      {/* Single delete confirmation */}
       <ConfirmDialog
         visible={!!confirmDeleteId}
         title="Permanently delete this request?"
@@ -770,6 +364,8 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
         onConfirm={() => { if (confirmDeleteId) handleDeleteRequest(confirmDeleteId) }}
         onCancel={() => setConfirmDeleteId(null)}
       />
+
+      {suggestionConfirmDialog}
     </div>
   )
 }

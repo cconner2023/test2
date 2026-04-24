@@ -1,15 +1,15 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { UserPlus, Pencil, KeyRound, Trash2, LogOut, Eye, Check, X, Mail } from 'lucide-react'
+import { UserPlus, Pencil, KeyRound, Trash2, LogOut, Eye, Mail } from 'lucide-react'
 import { UserRow } from '../UserRow'
 import { EmptyState } from '../EmptyState'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
-import { LoadingSpinner } from '../LoadingSpinner'
 import { ErrorDisplay } from '../ErrorDisplay'
-import { PasswordInput } from '../FormInputs'
+import { AdminListSkeleton } from './AdminSkeletons'
+import { ResetPasswordForm } from './ResetPasswordForm'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useLongPress } from '../../Hooks/useLongPress'
-import { formatLastActive, RoleBadge } from './adminUtils'
+import { formatLastActive, RoleBadge, SupervisorCreatedBadge } from './adminUtils'
 import {
   listAllUsers,
   deleteUser,
@@ -44,11 +44,21 @@ interface UserCardProps {
 
 function UserCard({ user, onTap, onContextMenu, children }: UserCardProps) {
   const { isPressing, ...longPressHandlers } = useLongPress((x, y) => onContextMenu(x, y))
+  const label = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email || 'user'
 
   return (
     <div
       key={user.id}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${label}`}
       onClick={onTap}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onTap()
+        }
+      }}
       onContextMenu={(e) => {
         e.preventDefault()
         onContextMenu(e.clientX, e.clientY)
@@ -98,6 +108,10 @@ export function AdminUsersList({
   // Confirm dialog
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [deleteProcessing, setDeleteProcessing] = useState(false)
+
+  // Force logout confirm
+  const [confirmLogoutId, setConfirmLogoutId] = useState<string | null>(null)
+  const [logoutProcessing, setLogoutProcessing] = useState(false)
 
   // Feedback banner
   const [feedback, setFeedback] = useState<{
@@ -191,7 +205,11 @@ export function AdminUsersList({
   )
 
   const handleForceLogout = useCallback(async (userId: string) => {
+    setLogoutProcessing(true)
     const result = await forceLogoutUser(userId)
+    setLogoutProcessing(false)
+    setConfirmLogoutId(null)
+
     if (result.success) {
       setFeedback({
         type: 'success',
@@ -245,7 +263,7 @@ export function AdminUsersList({
           key: 'logout',
           label: 'Log Out',
           icon: LogOut,
-          onAction: () => handleForceLogout(user.id),
+          onAction: () => setConfirmLogoutId(user.id),
         },
         {
           key: 'delete',
@@ -257,13 +275,17 @@ export function AdminUsersList({
       ]
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentUserId, onEditUser, onSelectUser, handleForceLogout],
+    [currentUserId, onEditUser, onSelectUser],
   )
 
   // ─── Render ────────────────────────────────────────────────────────────
 
   const deleteTargetUser = confirmDeleteId
     ? users.find((u) => u.id === confirmDeleteId)
+    : null
+
+  const logoutTargetUser = confirmLogoutId
+    ? users.find((u) => u.id === confirmLogoutId)
     : null
 
   // ── Shared: render user row items ──────────────────────
@@ -282,44 +304,23 @@ export function AdminUsersList({
           rank={user.rank}
           lastActiveAt={user.last_active_at}
           subtitle={[user.credential, user.uic, user.clinic_name, user.email].filter(Boolean).join(' · ')}
-          meta={user.roles?.length > 0 && (
-            <div className="flex flex-wrap gap-1">
+          meta={(user.roles?.length > 0 || user.supervisor_created) && (
+            <div className="flex flex-wrap items-center gap-1">
               {user.roles.map(r => <RoleBadge key={r} role={r} />)}
+              {user.supervisor_created && <SupervisorCreatedBadge />}
             </div>
           )}
           right={<span className="text-[9pt] text-tertiary/50 shrink-0">{formatLastActive(user.last_active_at)}</span>}
         />
 
         {resetPwUserId === user.id && (
-          <div className="px-4 pb-3.5 bg-tertiary/5" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 min-w-0">
-                <PasswordInput
-                  value={resetPwValue}
-                  onChange={setResetPwValue}
-                  placeholder="New password (min 12 chars)..."
-                />
-              </div>
-              <button
-                onClick={() => handleResetPassword(user.id)}
-                disabled={resetPwProcessing || resetPwValue.length < 12}
-                className="shrink-0 w-10 h-10 rounded-full bg-themeyellow text-white flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
-                aria-label="Reset password"
-              >
-                <Check size={16} />
-              </button>
-              <button
-                onClick={() => { setResetPwUserId(null); setResetPwValue('') }}
-                className="shrink-0 w-10 h-10 rounded-full text-tertiary flex items-center justify-center active:scale-95 transition-all"
-                aria-label="Cancel"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            {resetPwValue.length > 0 && resetPwValue.length < 12 && (
-              <p className="text-xs font-normal text-themeredred mt-1.5">Minimum 12 characters.</p>
-            )}
-          </div>
+          <ResetPasswordForm
+            value={resetPwValue}
+            onChange={setResetPwValue}
+            onSubmit={() => handleResetPassword(user.id)}
+            onCancel={() => { setResetPwUserId(null); setResetPwValue('') }}
+            processing={resetPwProcessing}
+          />
         )}
       </UserCard>
     )
@@ -353,6 +354,19 @@ export function AdminUsersList({
         }}
         onCancel={() => setConfirmDeleteId(null)}
       />
+
+      <ConfirmDialog
+        visible={!!confirmLogoutId}
+        title={`Force logout ${logoutTargetUser?.first_name ?? ''} ${logoutTargetUser?.last_name ?? 'user'}?`}
+        subtitle="Clears all sessions, device registrations, and Signal key bundles. The user must re-authenticate and re-register on every device."
+        confirmLabel="Force Logout"
+        variant="warning"
+        processing={logoutProcessing}
+        onConfirm={() => {
+          if (confirmLogoutId) handleForceLogout(confirmLogoutId)
+        }}
+        onCancel={() => setConfirmLogoutId(null)}
+      />
     </>
   )
 
@@ -375,7 +389,7 @@ export function AdminUsersList({
 
       <div className="px-5 pb-4">
         {showLoading ? (
-          <LoadingSpinner label="Loading users..." className="py-12 text-tertiary" />
+          <AdminListSkeleton />
         ) : filteredUsers.length === 0 ? (
           <EmptyState
             icon={<UserPlus size={28} />}

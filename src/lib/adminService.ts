@@ -23,7 +23,7 @@ import { validatePasswordComplexity } from './constants'
 import { getErrorMessage } from '../Utilities/errorUtils'
 import { succeed, fail, type ServiceResult } from './result'
 import { classifySupabaseError, ErrorCode } from './errorCodes'
-import { validateRpcResult } from './validators'
+import { validateRpcResult, validateRpcArray } from './validators'
 
 const logger = createLogger('AdminService')
 
@@ -43,6 +43,7 @@ export interface AdminUser {
   created_at: string
   last_active_at: string | null
   avatar_id: string | null
+  supervisor_created: boolean
 }
 
 /**
@@ -163,12 +164,25 @@ export async function approveAccountRequest(
 
 /**
  * Send the "account approved" notification email via Magic Link template.
+ * Returns a ServiceResult so callers can surface delivery failures — the
+ * user account is already created at this point, so a failure here is
+ * non-fatal but worth telling the admin about.
  */
-export function sendApprovalEmail(email: string): void {
-  supabase.auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: false },
-  }).catch((e) => logger.warn('Approval notification email failed:', e))
+export async function sendApprovalEmail(email: string): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: false },
+    })
+    if (error) {
+      logger.warn('Approval notification email failed:', error)
+      return fail(error.message)
+    }
+    return succeed()
+  } catch (error) {
+    logger.warn('Approval notification email failed:', error)
+    return fail(getErrorMessage(error))
+  }
 }
 
 /**
@@ -341,8 +355,21 @@ export async function listAllUsers(): Promise<AdminUser[]> {
   try {
     const { data, error } = await supabase.rpc('admin_list_users')
     if (error) throw error
-    if (!Array.isArray(data)) return []
-    return data as unknown as AdminUser[]
+    const validated = validateRpcArray<AdminUser>(data, ['id', 'email'], 'listAllUsers')
+    if (!validated.ok) {
+      logger.error('listAllUsers validation failed:', validated.error)
+      return []
+    }
+
+    // Merge supervisor_created — the RPC predates this column, so we pull it
+    // via a secondary profiles query and overlay onto the RPC result.
+    const { data: flagRows } = await supabase
+      .from('profiles')
+      .select('id, supervisor_created')
+    const flagMap = new Map<string, boolean>(
+      (flagRows ?? []).map(r => [r.id as string, Boolean((r as { supervisor_created?: boolean }).supervisor_created)]),
+    )
+    return validated.data.map(u => ({ ...u, supervisor_created: flagMap.get(u.id) ?? false }))
   } catch (error) {
     logger.error('Failed to list users:', error)
     return []
@@ -494,6 +521,13 @@ export interface AdminClinic {
 }
 
 /**
+ * Cache decrypted clinic locations keyed by the tuple that uniquely identifies
+ * the ciphertext: clinic id + encryption key + ciphertext. If any of those
+ * change (rotation, re-encrypt, location update), the cache naturally misses.
+ */
+const locationDecryptCache = new Map<string, string | null>()
+
+/**
  * List all clinics. Dev only.
  */
 export async function listClinics(): Promise<AdminClinic[]> {
@@ -505,19 +539,30 @@ export async function listClinics(): Promise<AdminClinic[]> {
 
     if (error) throw error
 
-    // Decrypt location fields using each clinic's own encryption key
+    // Decrypt location fields using each clinic's own encryption key (memoized)
     const clinics = await Promise.all(
-      (data || []).map(async (row) => ({
-        id: row.id,
-        name: row.name,
-        uics: row.uics || [],
-        child_clinic_ids: row.child_clinic_ids || [],
-        additional_user_ids: row.additional_user_ids || [],
-        associated_clinic_ids: row.associated_clinic_ids || [],
-        location: row.encryption_key
-          ? await decryptWithRawKey(row.encryption_key, row.location)
-          : row.location,
-      }))
+      (data || []).map(async (row) => {
+        let location: string | null = row.location
+        if (row.encryption_key && row.location) {
+          const cacheKey = `${row.id}:${row.encryption_key}:${row.location}`
+          const cached = locationDecryptCache.get(cacheKey)
+          if (cached !== undefined) {
+            location = cached
+          } else {
+            location = await decryptWithRawKey(row.encryption_key, row.location)
+            locationDecryptCache.set(cacheKey, location)
+          }
+        }
+        return {
+          id: row.id,
+          name: row.name,
+          uics: row.uics || [],
+          child_clinic_ids: row.child_clinic_ids || [],
+          additional_user_ids: row.additional_user_ids || [],
+          associated_clinic_ids: row.associated_clinic_ids || [],
+          location,
+        }
+      })
     )
 
     return clinics
@@ -529,6 +574,11 @@ export async function listClinics(): Promise<AdminClinic[]> {
 
 /**
  * Create a new clinic (dev only).
+ *
+ * The clinic row is created first. Vault provisioning and reciprocal
+ * association sync happen afterward — if either fails, the clinic still
+ * exists, so we return the failures as `warnings` rather than failing the
+ * whole operation. The UI should surface these to the admin.
  */
 export async function createClinic(data: {
   name: string
@@ -537,7 +587,7 @@ export async function createClinic(data: {
   child_clinic_ids?: string[]
   associated_clinic_ids?: string[]
   additional_user_ids?: string[]
-}): Promise<ServiceResult<{ id?: string }>> {
+}): Promise<ServiceResult<{ id?: string; warnings?: string[] }>> {
   try {
     const rawKey = generateClinicKeyBase64()
     const encryptedLocation = data.location
@@ -563,6 +613,7 @@ export async function createClinic(data: {
     if (error) return fail(error.message)
 
     const newId = result.id
+    const warnings: string[] = []
 
     // Provision clinic vault device immediately so the encryption identity
     // exists from creation — not deferred until first member login.
@@ -570,16 +621,20 @@ export async function createClinic(data: {
       const vaultResult = await ensureClinicVaultExists(newId, rawKey)
       if (!vaultResult.ok) {
         logger.error('Clinic created but vault provisioning failed:', vaultResult.error)
+        warnings.push('Vault provisioning failed — messaging for this clinic may not work until retried')
       }
     }
 
     // Reciprocal: add new clinic to each associated clinic's array
     const associated = data.associated_clinic_ids || []
     if (newId && associated.length > 0) {
-      await syncAssociatedClinics(newId, [], associated)
+      const syncFailures = await syncAssociatedClinics(newId, [], associated)
+      if (syncFailures.length > 0) {
+        warnings.push(`Peer clinic sync failed for ${syncFailures.length} clinic(s)`)
+      }
     }
 
-    return succeed({ id: newId })
+    return succeed({ id: newId, warnings: warnings.length > 0 ? warnings : undefined })
   } catch (error) {
     logger.error('Failed to create clinic:', error)
     return fail(getErrorMessage(error))
@@ -589,29 +644,49 @@ export async function createClinic(data: {
 /**
  * Sync associated_clinic_ids reciprocally.
  * Adds `clinicId` to every clinic in `added`, removes it from every clinic in `removed`.
+ * Returns a list of peer clinic ids that failed — empty if everything succeeded.
  */
-async function syncAssociatedClinics(clinicId: string, removed: string[], added: string[]) {
+async function syncAssociatedClinics(clinicId: string, removed: string[], added: string[]): Promise<string[]> {
+  const failures: string[] = []
+
   // Disassociate via RPC (bi-directional, audited, marks invites as revoked)
   for (const peerId of removed) {
-    await supabase.rpc('disassociate_clinic', {
+    const { error } = await supabase.rpc('disassociate_clinic', {
       p_clinic_id: clinicId,
       p_peer_clinic_id: peerId,
     })
+    if (error) {
+      logger.error(`disassociate_clinic failed for peer ${peerId}:`, error.message)
+      failures.push(peerId)
+    }
   }
+
   // Add this clinic to newly associated clinics
   for (const peerId of added) {
-    const { data: peer } = await supabase
+    const { data: peer, error: fetchError } = await supabase
       .from('clinics')
       .select('associated_clinic_ids')
       .eq('id', peerId)
       .single()
-    if (peer) {
-      const existing: string[] = peer.associated_clinic_ids || []
-      if (!existing.includes(clinicId)) {
-        await supabase.from('clinics').update({ associated_clinic_ids: [...existing, clinicId] }).eq('id', peerId)
+    if (fetchError || !peer) {
+      logger.error(`peer clinic ${peerId} fetch failed:`, fetchError?.message)
+      failures.push(peerId)
+      continue
+    }
+    const existing: string[] = peer.associated_clinic_ids || []
+    if (!existing.includes(clinicId)) {
+      const { error: updateError } = await supabase
+        .from('clinics')
+        .update({ associated_clinic_ids: [...existing, clinicId] })
+        .eq('id', peerId)
+      if (updateError) {
+        logger.error(`peer clinic ${peerId} update failed:`, updateError.message)
+        failures.push(peerId)
       }
     }
   }
+
+  return failures
 }
 
 /**
@@ -627,13 +702,15 @@ export async function updateClinic(
     associated_clinic_ids?: string[]
     additional_user_ids?: string[]
   }
-): Promise<ServiceResult> {
+): Promise<ServiceResult<{ warnings?: string[] }>> {
   try {
     // Encrypt location if it's being updated
     const payload: Record<string, unknown> = { ...updates }
     if (updates.location !== undefined && updates.location !== null) {
       payload.location = await encryptClinicField(id, updates.location)
     }
+
+    const warnings: string[] = []
 
     // Reciprocal sync: diff old vs new associated_clinic_ids
     if (updates.associated_clinic_ids !== undefined) {
@@ -646,7 +723,10 @@ export async function updateClinic(
       const newIds = updates.associated_clinic_ids
       const added = newIds.filter(cid => !oldIds.includes(cid))
       const removed = oldIds.filter(cid => !newIds.includes(cid))
-      await syncAssociatedClinics(id, removed, added)
+      const syncFailures = await syncAssociatedClinics(id, removed, added)
+      if (syncFailures.length > 0) {
+        warnings.push(`Peer clinic sync failed for ${syncFailures.length} clinic(s)`)
+      }
     }
 
     const { error } = await supabase
@@ -655,7 +735,7 @@ export async function updateClinic(
       .eq('id', id)
 
     if (error) return fail(error.message)
-    return succeed()
+    return succeed({ warnings: warnings.length > 0 ? warnings : undefined })
   } catch (error) {
     logger.error('Failed to update clinic:', error)
     return fail(getErrorMessage(error))

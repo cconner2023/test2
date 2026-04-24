@@ -18,7 +18,7 @@ import { SIGNAL } from '../constants'
 import { createLogger } from '../../Utilities/Logger'
 import { base64ToBytes, bytesToBase64 } from '../base64Utils'
 import { saveMessage, setOnMessageSaved, loadAllConversations, getAllTombstones, saveTombstone } from './messageStore'
-import { isCalendarEvent, routeCalendarEvent } from '../calendarRouting'
+import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones } from '../calendarRouting'
 import type { StoredMessage } from './messageStore'
 
 const logger = createLogger('BackupService')
@@ -451,6 +451,12 @@ export async function createBackup(userId: string): Promise<void> {
 
 /** Restore messages from an encrypted backup on Supabase. */
 export async function restoreBackup(userId: string): Promise<void> {
+  // Warm the calendar tombstone set before routing any restored messages.
+  // restoreBackup can race processClinicVaultMessages at login; without this,
+  // a 'c' from the personal backup for a clinic-deleted event could bypass
+  // the routeCalendarEvent tombstone guard if the backup finishes first.
+  await initCalendarTombstones()
+
   try { if (_backupKeyReady) await _backupKeyReady } catch { /* fall through to IDB */ }
   if (!_backupKey) {
     // Session restored without password (e.g. page refresh) — try IDB

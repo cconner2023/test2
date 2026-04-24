@@ -70,6 +70,58 @@ export interface SyncQueueItem {
   next_retry_at: string | null
 }
 
+/** Local-only sync metadata attached to offline-first records. */
+export interface LocalSyncMeta {
+  _sync_status: TrainingCompletionSyncStatus
+  _sync_retry_count: number
+  _last_sync_error: string | null
+  _last_sync_error_message: string | null
+}
+
+export interface LocalFeatureVoteCycle {
+  id: string
+  title: string
+  description: string | null
+  opened_at: string
+  closed_at: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface LocalFeatureVoteCandidate {
+  id: string
+  cycle_id: string
+  title: string
+  description: string | null
+  sort_order: number
+  source_suggestion_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface LocalFeatureVote extends LocalSyncMeta {
+  id: string
+  cycle_id: string
+  candidate_id: string
+  user_id: string
+  created_at: string
+  updated_at: string
+}
+
+export interface LocalFeatureVoteSuggestion extends LocalSyncMeta {
+  id: string
+  cycle_id: string | null
+  user_id: string
+  title: string
+  description: string | null
+  status: 'pending' | 'approved' | 'rejected'
+  reviewed_at: string | null
+  reviewed_by: string | null
+  created_at: string
+  updated_at: string
+}
+
 /** Shape of a training completion stored in IndexedDB. Mirrors the
  *  Supabase training_completions row plus local-only metadata. */
 export interface LocalTrainingCompletion {
@@ -165,10 +217,38 @@ interface PackageBackEndDB extends DBSchema {
     key: string  // overlayId
     value: TileMetadata
   }
+  featureVoteCycles: {
+    key: string
+    value: LocalFeatureVoteCycle
+  }
+  featureVoteCandidates: {
+    key: string
+    value: LocalFeatureVoteCandidate
+    indexes: {
+      'by-cycle': string
+    }
+  }
+  featureVotes: {
+    key: string
+    value: LocalFeatureVote
+    indexes: {
+      'by-user': string
+      'by-cycle': string
+      'by-user-cycle': [string, string]
+    }
+  }
+  featureVoteSuggestions: {
+    key: string
+    value: LocalFeatureVoteSuggestion
+    indexes: {
+      'by-user': string
+      'by-status': string
+    }
+  }
 }
 
 const DB_NAME = 'packagebackend-offline'
-const DB_VERSION = 7
+const DB_VERSION = 8
 
 let dbInstance: IDBPDatabase<PackageBackEndDB> | null = null
 
@@ -271,6 +351,23 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
       if (oldVersion < 7) {
         db.createObjectStore('cachedTiles', { keyPath: 'key' })
         db.createObjectStore('tileMetadata', { keyPath: 'overlayId' })
+      }
+
+      // v7 → v8: Feature voting stores
+      if (oldVersion < 8) {
+        db.createObjectStore('featureVoteCycles', { keyPath: 'id' })
+
+        const candStore = db.createObjectStore('featureVoteCandidates', { keyPath: 'id' })
+        candStore.createIndex('by-cycle', 'cycle_id')
+
+        const votesStore = db.createObjectStore('featureVotes', { keyPath: 'id' })
+        votesStore.createIndex('by-user', 'user_id')
+        votesStore.createIndex('by-cycle', 'cycle_id')
+        votesStore.createIndex('by-user-cycle', ['user_id', 'cycle_id'])
+
+        const suggStore = db.createObjectStore('featureVoteSuggestions', { keyPath: 'id' })
+        suggStore.createIndex('by-user', 'user_id')
+        suggStore.createIndex('by-status', 'status')
       }
     },
   })
@@ -883,7 +980,7 @@ export async function clearTileCache(): Promise<void> {
 export async function clearAllUserData(): Promise<void> {
   const db = await getDb()
   const tx = db.transaction(
-    ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations', 'propertyDiscrepancies', 'locationTags', 'mapOverlays', 'cachedTiles', 'tileMetadata'],
+    ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations', 'propertyDiscrepancies', 'locationTags', 'mapOverlays', 'cachedTiles', 'tileMetadata', 'featureVoteCycles', 'featureVoteCandidates', 'featureVotes', 'featureVoteSuggestions'],
     'readwrite',
   )
   await tx.objectStore('syncQueue').clear()
@@ -895,8 +992,124 @@ export async function clearAllUserData(): Promise<void> {
   await tx.objectStore('mapOverlays').clear()
   await tx.objectStore('cachedTiles').clear()
   await tx.objectStore('tileMetadata').clear()
+  await tx.objectStore('featureVoteCycles').clear()
+  await tx.objectStore('featureVoteCandidates').clear()
+  await tx.objectStore('featureVotes').clear()
+  await tx.objectStore('featureVoteSuggestions').clear()
   await tx.done
   logger.info('Cleared all user data from IndexedDB')
+}
+
+// ============================================================
+// Feature Voting Operations
+// ============================================================
+
+export async function getLocalFeatureVoteCycles(): Promise<LocalFeatureVoteCycle[]> {
+  const db = await getDb()
+  return db.getAll('featureVoteCycles')
+}
+
+export async function saveLocalFeatureVoteCycle(cycle: LocalFeatureVoteCycle): Promise<void> {
+  const db = await getDb()
+  await db.put('featureVoteCycles', cycle)
+}
+
+export async function deleteLocalFeatureVoteCycle(cycleId: string): Promise<void> {
+  const db = await getDb()
+  await db.delete('featureVoteCycles', cycleId)
+}
+
+export async function getLocalFeatureVoteCandidates(cycleId: string): Promise<LocalFeatureVoteCandidate[]> {
+  const db = await getDb()
+  return db.getAllFromIndex('featureVoteCandidates', 'by-cycle', cycleId)
+}
+
+export async function saveLocalFeatureVoteCandidate(candidate: LocalFeatureVoteCandidate): Promise<void> {
+  const db = await getDb()
+  await db.put('featureVoteCandidates', candidate)
+}
+
+export async function deleteLocalFeatureVoteCandidate(candidateId: string): Promise<void> {
+  const db = await getDb()
+  await db.delete('featureVoteCandidates', candidateId)
+}
+
+export async function getLocalFeatureVotesByCycle(cycleId: string): Promise<LocalFeatureVote[]> {
+  const db = await getDb()
+  return db.getAllFromIndex('featureVotes', 'by-cycle', cycleId)
+}
+
+export async function getLocalFeatureVoteForUserCycle(userId: string, cycleId: string): Promise<LocalFeatureVote | undefined> {
+  const db = await getDb()
+  const all = await db.getAllFromIndex('featureVotes', 'by-user-cycle', [userId, cycleId])
+  return all[0]
+}
+
+export async function saveLocalFeatureVote(vote: LocalFeatureVote): Promise<void> {
+  const db = await getDb()
+  await db.put('featureVotes', vote)
+}
+
+export async function updateFeatureVoteSyncStatus(
+  voteId: string,
+  status: TrainingCompletionSyncStatus,
+  errorMessage?: string
+): Promise<void> {
+  const db = await getDb()
+  const vote = await db.get('featureVotes', voteId)
+  if (!vote) return
+  vote._sync_status = status
+  if (status === 'error') {
+    vote._sync_retry_count = (vote._sync_retry_count || 0) + 1
+    vote._last_sync_error = new Date().toISOString()
+    vote._last_sync_error_message = errorMessage || 'Unknown error'
+  } else if (status === 'synced') {
+    vote._sync_retry_count = 0
+    vote._last_sync_error = null
+    vote._last_sync_error_message = null
+  }
+  await db.put('featureVotes', vote)
+}
+
+export async function getLocalFeatureVoteSuggestions(): Promise<LocalFeatureVoteSuggestion[]> {
+  const db = await getDb()
+  return db.getAll('featureVoteSuggestions')
+}
+
+export async function getLocalFeatureVoteSuggestionsByUser(userId: string): Promise<LocalFeatureVoteSuggestion[]> {
+  const db = await getDb()
+  return db.getAllFromIndex('featureVoteSuggestions', 'by-user', userId)
+}
+
+export async function saveLocalFeatureVoteSuggestion(suggestion: LocalFeatureVoteSuggestion): Promise<void> {
+  const db = await getDb()
+  await db.put('featureVoteSuggestions', suggestion)
+}
+
+export async function deleteLocalFeatureVoteSuggestion(suggestionId: string): Promise<void> {
+  const db = await getDb()
+  await db.delete('featureVoteSuggestions', suggestionId)
+}
+
+export async function updateFeatureVoteSuggestionSyncStatus(
+  suggestionId: string,
+  status: TrainingCompletionSyncStatus,
+  errorMessage?: string
+): Promise<void> {
+  const db = await getDb()
+  const s = await db.get('featureVoteSuggestions', suggestionId)
+  if (!s) return
+  s._sync_status = status
+  if (status === 'error') {
+    s._sync_retry_count = (s._sync_retry_count || 0) + 1
+    s._last_sync_error = new Date().toISOString()
+    s._last_sync_error_message = errorMessage || 'Unknown error'
+  } else if (status === 'synced') {
+    s._sync_retry_count = 0
+    s._last_sync_error = null
+    s._last_sync_error_message = null
+  }
+  await db.put('featureVoteSuggestions', s)
 }
 
 // ============================================================

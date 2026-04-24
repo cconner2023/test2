@@ -45,6 +45,7 @@ import type { MessageNotification } from './Hooks/useMessageNotifications'
 
 import { MissionBoardPanel } from './Components/MissionBoard/MissionBoardPanel'
 import { Settings } from './Components/Settings'
+import { FeatureVotePrompt } from './Components/FeatureVoting/FeatureVotePrompt'
 import { KnowledgeBaseDrawer } from './Components/KnowledgeBaseDrawer'
 import { TrainingDrawer } from './Components/TrainingDrawer'
 import { MessagesDrawer } from './Components/MessagesDrawer'
@@ -111,7 +112,7 @@ function AppContent() {
     collapse: searchFocused ? 1 : 0,
     config: { tension: 280, friction: 28 },
   })
-  const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes' | 'user-profile' | 'feedback'>('main')
+  const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes' | 'user-profile' | 'feedback' | 'feature-votes'>('main')
   const [initialTrainingTaskId, setInitialTrainingTaskId] = useState<string | null>(null)
 
   // ── Messages slide (mobile only — mirrors menuSlide from the right) ──
@@ -783,6 +784,12 @@ case 'mapOverlay':
       <CallOverlay />
       <MessageToastBridge onTap={handleNotificationTap} />
       <PushToastBridge />
+      <FeatureVotePrompt
+        onOpenPanel={() => {
+          setSettingsInitialPanel('feature-votes')
+          navigation.setShowSettings(true)
+        }}
+      />
     </div>
     </CallProvider>
     </MessagesProvider>

@@ -557,3 +557,77 @@ export async function updateAssignmentCalendarOriginId(
 
   await saveLocalTrainingCompletion(updated)
 }
+
+/**
+ * Re-link training completions when a calendar event's originId rotates
+ * (every edit mints a fresh originId via the Signal fan-out ratchet).
+ * Keeps the training↔calendar cascade link alive across edits without
+ * adding a separate stable id column.
+ *
+ * Writes IDB AND queues a Supabase update so reconcile doesn't pull the
+ * stale originId back on next fullSync — cross-device link rot otherwise.
+ */
+export async function relinkCompletionsByOriginId(
+  oldOriginId: string,
+  newOriginId: string,
+  userId: string
+): Promise<void> {
+  const locals = await getLocalTrainingCompletions(userId)
+  const matches = locals.filter(l => l.calendar_origin_id === oldOriginId)
+  if (matches.length === 0) return
+
+  const now = new Date().toISOString()
+  for (const local of matches) {
+    const updated: LocalTrainingCompletion = {
+      ...local,
+      calendar_origin_id: newOriginId,
+      updated_at: now,
+      _sync_status: userId === 'guest' ? 'synced' : 'pending',
+    }
+    await saveLocalTrainingCompletion(updated)
+
+    if (userId === 'guest') continue
+
+    const payload = stripLocalFields(updated as unknown as Record<string, unknown>)
+    await addToSyncQueue({
+      user_id: userId,
+      action: 'update',
+      table_name: 'training_completions',
+      record_id: local.id,
+      payload,
+    })
+
+    immediateSync(
+      { id: local.id, payload },
+      {
+        tableName: 'training_completions',
+        upsertFn: async (rec) => {
+          const { error } = await supabase
+            .from('training_completions')
+            .update(rec.payload as never)
+            .eq('id', local.id)
+          if (error) throw error
+        },
+        updateSyncStatus: updateTrainingCompletionSyncStatus,
+      },
+      'update'
+    ).catch(() => { /* drain covers retry */ })
+  }
+}
+
+/**
+ * Find and delete any training_completions linked to a calendar event by
+ * its current originId. Used by the calendar delete gate to cascade the
+ * delete back into training when the event was an assignment surface.
+ * Idempotent: no-op if no match.
+ */
+export async function deleteCompletionsByCalendarOriginId(
+  calendarOriginId: string,
+  userId: string
+): Promise<void> {
+  const locals = await getLocalTrainingCompletions(userId)
+  const matches = locals.filter(l => l.calendar_origin_id === calendarOriginId)
+  for (const match of matches) {
+    await deleteCompletion(match.id, userId)
+  }
+}

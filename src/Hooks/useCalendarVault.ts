@@ -27,7 +27,7 @@ import type { CalendarEventContent, CalendarEventPayload } from '../lib/signal/m
 import type { PeerDevice, FanOutMessageInput, PeerBundleRpcResult } from '../lib/signal/transportTypes'
 import type { PublicKeyBundle } from '../lib/signal/types'
 import type { CalendarEvent } from '../Types/CalendarTypes'
-import { loadPendingVaultSends, clearPendingVaultSend, loadPendingVaultDeletes, clearPendingVaultDelete } from '../lib/calendarEventStore'
+import { loadPendingVaultSends, clearPendingVaultSend } from '../lib/calendarEventStore'
 import { getTombstones } from '../lib/calendarRouting'
 import { useCalendarStore } from '../stores/useCalendarStore'
 
@@ -135,13 +135,10 @@ export function useCalendarVault(): UseCalendarVaultResult {
       }
 
       // Filter out our own clinic device — we don't send to ourselves.
-      // Also skip the vault for delete actions: the original create/update is already
-      // hard-deleted from Supabase, so the vault has nothing to replay and needs no tombstone.
-      const targetDevices = devicesResult.data.filter(d => {
-        if (d.deviceId === clinicDeviceId) return false
-        if (action === 'd' && d.deviceId === 'vault') return false
-        return true
-      })
+      // The vault is a peer device that receives every action, including 'd':
+      // cooperative cleanup during processClinicVaultMessages pairs 'c'/'d'
+      // by event_id and hard-deletes the pair from signal_messages.
+      const targetDevices = devicesResult.data.filter(d => d.deviceId !== clinicDeviceId)
       if (targetDevices.length === 0) {
         logger.warn('No target clinic devices for fan-out (only self)')
         return null
@@ -175,19 +172,21 @@ export function useCalendarVault(): UseCalendarVaultResult {
 
   // Drain pending vault sends on mount and whenever connectivity returns.
   // Events queued offline (e.g. algorithm metrics) are re-sent here.
+  // Deletes don't need a drain — a 'd' fan-out reaches every clinic device
+  // including the vault, and the vault's cooperative clean during next
+  // processClinicVaultMessages pass handles any lingering 'c'.
   useEffect(() => {
     if (!clinicId || !userId) return
     const drain = async () => {
-      // Drain pending sends
       const pendingSends = await loadPendingVaultSends()
       for (const item of pendingSends) {
         const originId = await sendEvent('c', item.event)
         if (originId) {
-          // If the event was deleted while this send was in flight, the vault
-          // message we just created must be hard-deleted so logged-out devices
-          // don't resurrect the event on vault replay.
+          // If the event was deleted while this send was in flight, fan-out
+          // a matching 'd' so the vault pair-cleans the freshly sent 'c' on
+          // the next replay pass.
           if (getTombstones().has(item.id)) {
-            deleteEvents([originId]).catch(() => {})
+            sendEvent('d', { id: item.id }).catch(() => {})
             await clearPendingVaultSend(item.id)
           } else {
             await clearPendingVaultSend(item.id)
@@ -195,23 +194,12 @@ export function useCalendarVault(): UseCalendarVaultResult {
           }
         }
       }
-
-      // Drain pending deletes
-      const pendingDeletes = await loadPendingVaultDeletes()
-      for (const item of pendingDeletes) {
-        try {
-          await deleteEvents(item.originIds)
-          await clearPendingVaultDelete(item.id)
-        } catch {
-          // Will retry on next drain
-        }
-      }
     }
     // Drain immediately — covers the case where app restarts while already online.
     drain()
     window.addEventListener('online', drain)
     return () => window.removeEventListener('online', drain)
-  }, [sendEvent, deleteEvents, clinicId, userId])
+  }, [sendEvent, clinicId, userId])
 
   return {
     ready: !!clinicId && !!userId,

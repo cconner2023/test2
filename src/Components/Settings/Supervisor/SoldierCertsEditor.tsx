@@ -8,7 +8,8 @@ import {
   type CertInput,
 } from '../../../lib/certificationService'
 import { credentials } from '../../../Data/User'
-import { formatMedicName, getExpirationStatus } from './supervisorHelpers'
+import { formatMedicName } from './supervisorHelpers'
+import { getExpirationStatus } from '../../Certifications/certHelpers'
 import { TextInput } from '../../FormInputs'
 import { SwipeableCard, type SwipeAction } from '../../SwipeableCard'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
