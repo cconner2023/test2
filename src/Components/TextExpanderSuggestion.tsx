@@ -39,7 +39,7 @@ export const TextExpanderSuggestion = ({ suggestions, selectedIndex, onDismiss, 
                                 <Layers size={11} className="text-themepurple/70" />
                             </span>
                         )}
-                        <span className="text-tertiary text-xs shrink-0 self-start mt-0.5">&rarr;</span>
+                        <span className="text-tertiary text-[10pt] shrink-0 self-start mt-0.5">&rarr;</span>
                         <span className="text-sm text-tertiary truncate flex-1 min-w-0">{preview}</span>
                         {isSelected && (
                             <kbd className="shrink-0 text-[9pt] text-tertiary border border-tertiary/15 rounded px-1.5 py-0.5 font-mono self-start mt-0.5">

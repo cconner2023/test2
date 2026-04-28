@@ -112,7 +112,7 @@ function AppContent() {
     collapse: searchFocused ? 1 : 0,
     config: { tension: 280, friction: 28 },
   })
-  const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes' | 'user-profile' | 'feedback' | 'feature-votes'>('main')
+  const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes' | 'user-profile' | 'feedback' | 'feature-votes' | 'clinic'>('main')
   const [initialTrainingTaskId, setInitialTrainingTaskId] = useState<string | null>(null)
 
   // ── Messages slide (mobile only — mirrors menuSlide from the right) ──
@@ -208,6 +208,18 @@ function AppContent() {
   const resetSettingsPanel = useCallback(() => {
     setSettingsInitialPanel('main')
   }, [])
+
+  // Cross-drawer deep-link: dispatch a window event with `{ panel }` to open Settings at a panel
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ panel?: 'main' | 'release-notes' | 'user-profile' | 'feedback' | 'feature-votes' | 'clinic' }>).detail
+      if (!detail?.panel) return
+      setSettingsInitialPanel(detail.panel)
+      navigation.setShowSettings(true)
+    }
+    window.addEventListener('beacon:open-settings', handler)
+    return () => window.removeEventListener('beacon:open-settings', handler)
+  }, [navigation.setShowSettings])
 
   const handleKnowledgeBaseClick = useCallback(() => {
     setInitialTrainingTaskId(null)

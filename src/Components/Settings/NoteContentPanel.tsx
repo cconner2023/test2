@@ -31,7 +31,7 @@ export const NoteContentPanel = ({ onNavigate }: NoteContentPanelProps) => {
     return (
         <div className="h-full overflow-y-auto">
             <div className="px-5 py-4 space-y-5">
-                <p className="text-xs text-tertiary leading-relaxed">
+                <p className="text-[10pt] text-tertiary leading-relaxed">
                     Configure your note sections.
                 </p>
 

@@ -1,8 +1,10 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
-import { RotateCcw } from 'lucide-react'
-import { Section, SectionHeader, SectionCard } from './Section'
+import { RefreshCw } from 'lucide-react'
+import { Section, SectionCard } from './Section'
+import { ActionButton } from './ActionButton'
 import { REGIONS_MAP } from './BurnDiagram/burnRegions'
 import { BurnBodyDiagram } from './BurnDiagram/BurnBodyDiagram'
+import { ActionPill } from './ActionPill'
 
 type PatientType = 'adult' | 'pediatric'
 
@@ -81,52 +83,51 @@ export function BurnCalculator() {
 
             {/* Measurements */}
             <div ref={measurementsRef}>
-                <div className="flex items-center justify-between mb-2">
-                    <SectionHeader>Measurements</SectionHeader>
-                    <button
-                        onClick={handleReset}
-                        className="flex items-center gap-1.5 text-xs text-tertiary hover:text-secondary active:scale-95 transition-all"
-                    >
-                        <RotateCcw size={12} />
-                        Clear
-                    </button>
-                </div>
-                <SectionCard>
-                    {/* Wt row */}
-                    <div className="flex items-center gap-3 px-4 py-3.5">
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-primary">Wt</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-16 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
-                                <input
-                                    type="text"
-                                    inputMode="decimal"
-                                    value={weight}
-                                    onChange={e => setWeight(e.target.value)}
-                                    placeholder="170"
-                                    className="w-full bg-transparent outline-none text-sm text-primary px-3 py-1.5 rounded-full text-center placeholder:text-tertiary"
-                                />
-                            </div>
-                            <span className="text-xs text-tertiary">lbs</span>
-                            {wtKgDisplay && (
-                                <span className="text-[9pt] text-secondary">= {wtKgDisplay} kg</span>
-                            )}
-                        </div>
-                    </div>
+                <Section title="Measurements">
+                    <div className="relative">
+                        <SectionCard>
+                            <div className="pt-14">
+                                {/* Wt row */}
+                                <div className="flex items-center gap-3 px-4 py-3.5">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-primary">Wt</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-16 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
+                                            <input
+                                                type="text"
+                                                inputMode="decimal"
+                                                value={weight}
+                                                onChange={e => setWeight(e.target.value)}
+                                                placeholder="170"
+                                                className="w-full bg-transparent outline-none text-base md:text-sm text-primary px-3 py-1.5 rounded-full text-center placeholder:text-tertiary"
+                                            />
+                                        </div>
+                                        <span className="text-[10pt] text-tertiary">lbs</span>
+                                        {wtKgDisplay && (
+                                            <span className="text-[9pt] text-secondary">= {wtKgDisplay} kg</span>
+                                        )}
+                                    </div>
+                                </div>
 
-                    {/* TBSA row */}
-                    <div className="flex items-center gap-3 px-4 py-3.5 border-t border-tertiary/10">
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-primary">TBSA</p>
-                        </div>
-                        <span className={`text-sm font-bold ${
-                            totalTBSA > 0 ? 'text-primary' : 'text-tertiary'
-                        }`}>
-                            {totalTBSA.toFixed(1)}%
-                        </span>
+                                {/* TBSA row */}
+                                <div className="flex items-center gap-3 px-4 py-3.5 border-t border-primary/6">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-primary">TBSA</p>
+                                    </div>
+                                    <span className={`text-sm font-bold ${
+                                        totalTBSA > 0 ? 'text-primary' : 'text-tertiary'
+                                    }`}>
+                                        {totalTBSA.toFixed(1)}%
+                                    </span>
+                                </div>
+                            </div>
+                        </SectionCard>
+                        <ActionPill shadow="sm" className="absolute top-2 right-2">
+                            <ActionButton icon={RefreshCw} label="Clear" variant="danger" onClick={handleReset} />
+                        </ActionPill>
                     </div>
-                </SectionCard>
+                </Section>
             </div>
 
             {/* Parkland Formula — appears when both Wt and TBSA are set */}

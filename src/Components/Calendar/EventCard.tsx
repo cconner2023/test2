@@ -33,7 +33,7 @@ export function EventCard({ event, onSelect, onContextMenu }: EventCardProps) {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-primary truncate">{event.title}</p>
           <div className="flex items-center gap-3 mt-1">
-            <span className="flex items-center gap-1 text-xs text-tertiary">
+            <span className="flex items-center gap-1 text-[10pt] text-tertiary">
               <Clock size={12} />
               {formatTime(event.start_time, event.all_day)}
               {!event.all_day && (
@@ -41,7 +41,7 @@ export function EventCard({ event, onSelect, onContextMenu }: EventCardProps) {
               )}
             </span>
             {event.location && (
-              <span className="flex items-center gap-1 text-xs text-tertiary truncate">
+              <span className="flex items-center gap-1 text-[10pt] text-tertiary truncate">
                 <MapPin size={12} />
                 {event.location}
               </span>

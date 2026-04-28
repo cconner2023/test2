@@ -329,15 +329,15 @@ export async function generatePreKeys(
  * Consume a pre-key (remove from local store after peer uses it).
  * Called when a peer uses one of our pre-keys to initiate a session.
  * Returns the pre-key for session setup, or null if not found.
+ *
+ * Uses an atomic IDB transaction (load+delete in one tx) so two concurrent
+ * X3DH responds for the same keyId can't both consume it.
  */
 export async function consumePreKey(keyId: number): Promise<StoredPreKey | null> {
-  const preKey = await store.loadPreKey(keyId)
+  const preKey = await store.consumePreKeyAtomic(keyId)
   if (!preKey) {
     logger.warn(`Pre-key ${keyId} not found (already consumed or never existed)`)
-    return null
   }
-
-  await store.removePreKey(keyId)
   return preKey
 }
 

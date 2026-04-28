@@ -207,6 +207,51 @@ export async function fetchUserVote(cycleId: string, userId: string): Promise<Re
   return ok(data ? rowToVote(data as Record<string, unknown>) : null)
 }
 
+export interface CandidateVoter {
+  userId: string
+  displayName: string
+}
+
+export type VotersByCandidate = Record<string, CandidateVoter[]>
+
+/**
+ * Fetch the voters for each candidate in a cycle.
+ * Dev-gated at the call site (AdminFeatureVotesSection); profile lookup
+ * is a separate pass so we don't depend on a Postgres relation hint.
+ */
+export async function fetchVoters(cycleId: string): Promise<Result<VotersByCandidate>> {
+  const { data: votes, error } = await supabase
+    .from('feature_votes')
+    .select('candidate_id, user_id')
+    .eq('cycle_id', cycleId)
+
+  if (error) return err(error.message, error.code)
+  const voteRows = (votes as { candidate_id: string; user_id: string }[]) ?? []
+
+  const userIds = Array.from(new Set(voteRows.map((v) => v.user_id)))
+  const nameById: Record<string, string> = {}
+  if (userIds.length > 0) {
+    const { data: profiles, error: pErr } = await supabase
+      .from('profiles')
+      .select('id, display_name')
+      .in('id', userIds)
+    if (pErr) return err(pErr.message, pErr.code)
+    for (const p of (profiles as { id: string; display_name: string | null }[]) ?? []) {
+      nameById[p.id] = p.display_name?.trim() || 'Unknown'
+    }
+  }
+
+  const out: VotersByCandidate = {}
+  for (const v of voteRows) {
+    const list = out[v.candidate_id] ?? (out[v.candidate_id] = [])
+    list.push({ userId: v.user_id, displayName: nameById[v.user_id] ?? 'Unknown' })
+  }
+  for (const cid of Object.keys(out)) {
+    out[cid].sort((a, b) => a.displayName.localeCompare(b.displayName))
+  }
+  return ok(out)
+}
+
 export async function fetchTally(cycleId: string): Promise<Result<VoteTally>> {
   const { data, error } = await supabase
     .from('feature_votes')

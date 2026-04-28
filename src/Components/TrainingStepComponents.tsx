@@ -14,7 +14,7 @@ export function StepCallout({ type, text }: { type: 'warning' | 'caution' | 'not
             {s.icon}
             <div>
                 <p className="text-[9pt] font-bold tracking-wider opacity-60">{s.label}</p>
-                <p className="text-xs text-primary">{text}</p>
+                <p className="text-[10pt] text-primary">{text}</p>
             </div>
         </div>
     )

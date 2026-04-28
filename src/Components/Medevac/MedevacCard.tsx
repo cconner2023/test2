@@ -28,7 +28,7 @@ export function MedevacCard({ data }: MedevacCardProps) {
 
   const rowCx = `flex items-start justify-between gap-4 ${isMobile ? 'px-4 py-2.5' : 'px-3 py-2'} border-b border-primary/6 last:border-0`
   const labelCx = 'text-[9pt] font-semibold text-tertiary tracking-widest uppercase shrink-0'
-  const valueCx = `font-medium text-primary text-right ${isMobile ? 'text-sm' : 'text-xs'}`
+  const valueCx = `font-medium text-primary text-right ${isMobile ? 'text-sm' : 'text-[10pt]'}`
 
   // "1A, 2C" precedence summary
   const l3Summary = (['A','B','C','D','E'] as const)
@@ -68,7 +68,7 @@ export function MedevacCard({ data }: MedevacCardProps) {
         <span className={labelCx}>L1 Pickup</span>
         <div className="text-right">
           <p className={`${valueCx} font-mono tracking-wider`}>{data.l1 || '—'}</p>
-          {data.l1d && <p className={`text-tertiary ${isMobile ? 'text-xs' : 'text-[9pt]'}`}>{data.l1d}</p>}
+          {data.l1d && <p className={`text-tertiary ${isMobile ? 'text-[10pt]' : 'text-[9pt]'}`}>{data.l1d}</p>}
         </div>
       </div>
 
@@ -126,10 +126,10 @@ export function MedevacCard({ data }: MedevacCardProps) {
         <div className="text-right">
           <p className={valueCx}>{data.l7} — {MEDEVAC_MARKING_LABELS[data.l7]}</p>
           {data.l7 === 'C' && data.l7c && (
-            <p className={`text-tertiary ${isMobile ? 'text-xs' : 'text-[9pt]'}`}>{data.l7c}</p>
+            <p className={`text-tertiary ${isMobile ? 'text-[10pt]' : 'text-[9pt]'}`}>{data.l7c}</p>
           )}
           {data.l7 === 'E' && data.l7o && (
-            <p className={`text-tertiary ${isMobile ? 'text-xs' : 'text-[9pt]'}`}>{data.l7o}</p>
+            <p className={`text-tertiary ${isMobile ? 'text-[10pt]' : 'text-[9pt]'}`}>{data.l7o}</p>
           )}
         </div>
       </div>
@@ -156,7 +156,7 @@ export function MedevacCard({ data }: MedevacCardProps) {
 
       {data.notes && (
         <div className={`${isMobile ? 'px-4 py-2.5' : 'px-3 py-2'}`}>
-          <p className={`text-secondary ${isMobile ? 'text-sm' : 'text-xs'} whitespace-pre-wrap`}>{data.notes}</p>
+          <p className={`text-secondary ${isMobile ? 'text-sm' : 'text-[10pt]'} whitespace-pre-wrap`}>{data.notes}</p>
         </div>
       )}
     </SectionCard>

@@ -370,7 +370,7 @@ export function PropertyLocationTree({
 
           {/* Item count badge */}
           {totalItems > 0 && (
-            <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary shrink-0">
+            <span className="text-[10pt] font-medium px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary shrink-0">
               {totalItems}
             </span>
           )}
@@ -540,7 +540,7 @@ export function PropertyLocationTree({
               {collapsed.has('__unassigned__') ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
             </button>
             <span className="text-[10pt] font-medium text-tertiary italic flex-1">Unassigned</span>
-            <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary shrink-0">
+            <span className="text-[10pt] font-medium px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary shrink-0">
               {unassignedItems.length}
             </span>
           </div>

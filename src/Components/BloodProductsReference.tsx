@@ -78,7 +78,7 @@ export function BloodProductsReference() {
                             onClick={() => toggle(idx)}
                             className="flex items-center justify-between w-full px-3 py-2.5 text-left active:scale-[0.98] transition-all"
                         >
-                            <span className="text-xs font-medium text-primary">{section.title}</span>
+                            <span className="text-[10pt] font-medium text-primary">{section.title}</span>
                             {isCollapsed
                                 ? <ChevronDown size={14} className="text-tertiary shrink-0" />
                                 : <ChevronUp size={14} className="text-tertiary shrink-0" />

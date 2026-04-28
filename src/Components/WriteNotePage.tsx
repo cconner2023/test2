@@ -22,6 +22,8 @@ import { X, Plus, Check } from 'lucide-react';
 import { PreviewOverlay } from './PreviewOverlay';
 import { GUIDED_HPI_EXPANDED, GUIDED_PE_TEXT, GUIDED_PLAN_TEXT } from '../Data/GuidedTourData';
 import { PdfPreviewModal } from './PdfPreviewModal';
+import { ActionButton } from './ActionButton';
+import { ActionPill } from './ActionPill'
 
 type DispositionType = dispositionType['type'];
 
@@ -82,7 +84,7 @@ export const WriteNotePage = ({
     const { expanders, orderTags, instructionTags, orderSets } = useMergedNoteContent();
     const colors = getColorClasses(disposition.type);
     const [includeDecisionMaking, setIncludeDecisionMaking] = useState(true);
-    const [includeFullNote, setIncludeFullNote] = useState(false);
+    const [includeFullNote, setIncludeFullNote] = useState(() => !!window.__tourNoteOverride);
 
     // Tour override: clean up global flag on restore/unmount
     useEffect(() => {
@@ -190,16 +192,32 @@ export const WriteNotePage = ({
         const onInjectHPI = () => { setNote(GUIDED_HPI_EXPANDED); };
         const onInjectPE = () => { setPeNote(GUIDED_PE_TEXT); };
         const onInjectPlan = () => { setPlanNote(GUIDED_PLAN_TEXT); };
+        const onOpenDdx = () => {
+            const anchor = document.querySelector('[data-tour="writenote-ddx"]') as HTMLElement | null;
+            if (anchor) setDdxAnchorRect(anchor.getBoundingClientRect());
+            setDdxPopoverVisible(true);
+        };
+        const onCloseDdx = () => { setDdxPopoverVisible(false); };
+        const onSelectDdxDemo = () => {
+            const demo = availableDdx.slice(0, 2);
+            if (demo.length) setSelectedDdx(demo);
+        };
 
         window.addEventListener('tour:inject-hpi', onInjectHPI);
         window.addEventListener('tour:inject-pe', onInjectPE);
         window.addEventListener('tour:inject-plan', onInjectPlan);
+        window.addEventListener('tour:open-ddx', onOpenDdx);
+        window.addEventListener('tour:close-ddx', onCloseDdx);
+        window.addEventListener('tour:select-ddx-demo', onSelectDdxDemo);
         return () => {
             window.removeEventListener('tour:inject-hpi', onInjectHPI);
             window.removeEventListener('tour:inject-pe', onInjectPE);
             window.removeEventListener('tour:inject-plan', onInjectPlan);
+            window.removeEventListener('tour:open-ddx', onOpenDdx);
+            window.removeEventListener('tour:close-ddx', onCloseDdx);
+            window.removeEventListener('tour:select-ddx-demo', onSelectDdxDemo);
         };
-    }, [setNote, setPeNote, setPlanNote]);
+    }, [setNote, setPeNote, setPlanNote, availableDdx, setSelectedDdx]);
 
     return (
         <>
@@ -224,27 +242,50 @@ export const WriteNotePage = ({
             >
                 <div className={`flex-1 ${slideDirection === 'left' ? 'animate-slide-in-left' : slideDirection === 'right' ? 'animate-slide-in-right' : ''}`}>
                     {/* Edit Page */}
-                    <div data-tour="writenote-hpi" className={`w-full p-4 ${currentPageId !== 'edit' ? 'hidden' : ''}`}>
+                    <div data-tour="writenote-edit-page" className={`w-full p-4 ${currentPageId !== 'edit' ? 'hidden' : ''}`}>
                         <div className="space-y-4">
+                                {/* Decision Making toggle */}
+                                <div data-tour="writenote-decision-toggle">
+                                    <SectionToggle
+                                        label="Decision Making"
+                                        enabled={includeDecisionMaking}
+                                        onToggle={() => setIncludeDecisionMaking(v => !v)}
+                                        colors={colors}
+                                    />
+                                </div>
+
+                                {includeDecisionMaking && (
+                                    <div className="rounded-xl border border-tertiary/15 bg-themewhite2 overflow-hidden px-2 py-2">
+                                        <DecisionMaking
+                                            algorithmOptions={algorithmOptions}
+                                            cardStates={cardStates}
+                                            disposition={disposition}
+                                            dispositionType={disposition.type}
+                                        />
+                                    </div>
+                                )}
+
                                 {/* Full Note toggle */}
-                                <SectionToggle
-                                    label="Full Note"
-                                    enabled={includeFullNote}
-                                    onToggle={() => setIncludeFullNote(v => !v)}
-                                    colors={colors}
-                                />
+                                <div data-tour="writenote-section-toggles">
+                                    <SectionToggle
+                                        label="Full Note"
+                                        enabled={includeFullNote}
+                                        onToggle={() => setIncludeFullNote(v => !v)}
+                                        colors={colors}
+                                    />
+                                </div>
 
                                 {includeFullNote && (
                                 <>
                                 {/* Subjective section */}
-                                <section className="space-y-2">
+                                <section data-tour="writenote-hpi" className="space-y-2">
                                     <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Subjective</p>
                                     <ExpandableInput
                                         value={note}
                                         onChange={setNote}
                                         expanders={expanders}
                                         multiline
-                                        className="w-full rounded-xl border border-themegray1/20 bg-themewhite p-3 text-sm text-primary placeholder:text-tertiary focus:border-themeblue1/30 focus:outline-none resize-none transition-colors leading-6"
+                                        className="w-full rounded-xl border border-themegray1/20 bg-themewhite p-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:border-themeblue1/30 focus:outline-none resize-none transition-colors leading-6"
                                         placeholder="History of present illness..."
                                     />
                                 </section>
@@ -261,32 +302,9 @@ export const WriteNotePage = ({
                                         expanders={expanders}
                                     />
                                 </section>
-                                </>
-                                )}
 
-                                {/* Decision Making toggle */}
-                                <SectionToggle
-                                    label="Decision Making"
-                                    enabled={includeDecisionMaking}
-                                    onToggle={() => setIncludeDecisionMaking(v => !v)}
-                                    colors={colors}
-                                />
-
-                                {includeDecisionMaking && (
-                                    <div className="rounded-xl border border-tertiary/15 bg-themewhite2 overflow-hidden px-2 py-2">
-                                        <DecisionMaking
-                                            algorithmOptions={algorithmOptions}
-                                            cardStates={cardStates}
-                                            disposition={disposition}
-                                            dispositionType={disposition.type}
-                                        />
-                                    </div>
-                                )}
-
-                                {includeFullNote && (
-                                <>
                                 {/* Differential Diagnoses */}
-                                <div className="space-y-2 pt-1">
+                                <div data-tour="writenote-ddx" className="pt-1">
                                     {(selectedDdx.length > 0 || customDdx.length > 0) ? (
                                         <div
                                             className="rounded-xl bg-themewhite2 overflow-hidden cursor-pointer active:scale-[0.98] transition-all"
@@ -299,14 +317,11 @@ export const WriteNotePage = ({
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="flex justify-center py-2">
-                                            <button
-                                                type="button"
-                                                onClick={openDdxPopover}
-                                                className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary"
-                                            >
-                                                <Plus size={14} />
-                                            </button>
+                                        <div className="flex items-center gap-3 py-2">
+                                            <p className="text-sm text-tertiary flex-1">No differentials selected</p>
+                                            <ActionPill shadow="sm">
+                                                <ActionButton icon={Plus} label="Add differential" onClick={openDdxPopover} />
+                                            </ActionPill>
                                         </div>
                                     )}
                                 </div>
@@ -406,84 +421,77 @@ export const WriteNotePage = ({
                                         <PIIWarningBanner warnings={[...new Set([...piiWarnings, ...pePiiWarnings])]} />
                                     )}
                                     {/* Note Preview */}
-                                    <section data-tour="writenote-preview">
-                                        <div className="pb-2 flex items-center justify-between">
-                                            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Note Preview</p>
-                                            <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15">
-                                                <ActionIconButton
-                                                    onClick={handleLog}
-                                                    status={logStatus}
-                                                    variant="calendar"
-                                                    title="Log to calendar"
-                                                />
-                                                <ActionIconButton
-                                                    onClick={() => handleCopy(previewNote, 'preview')}
-                                                    status={copiedTarget === 'preview' ? 'done' : 'idle'}
-                                                    variant="copy"
-                                                    title="Copy note text"
-                                                />
-                                                <ActionIconButton
-                                                    onClick={handleExportSF600}
-                                                    status={exportStatusToIconStatus(sf600ExportStatus)}
-                                                    variant="pdf"
-                                                    title="Export SF600 PDF"
-                                                />
-                                            </div>
+                                    <section data-tour="writenote-preview" className="relative rounded-xl bg-themewhite2 overflow-hidden">
+                                        <div className="px-4 pt-14 pb-3 text-tertiary text-[9pt] whitespace-pre-wrap max-h-48 overflow-y-auto">
+                                            {previewNote || "No content selected"}
                                         </div>
-                                        <div className="rounded-xl bg-themewhite2 overflow-hidden">
-                                            <div className="px-4 py-3 text-tertiary text-[9pt] whitespace-pre-wrap max-h-48 overflow-y-auto">
-                                                {previewNote || "No content selected"}
-                                            </div>
-                                        </div>
+                                        <ActionPill shadow="sm" className="absolute top-2 right-2">
+                                            <ActionIconButton
+                                                onClick={handleLog}
+                                                status={logStatus}
+                                                variant="calendar"
+                                                title="Log to calendar"
+                                                tourTag="writenote-log-calendar"
+                                            />
+                                            <ActionIconButton
+                                                onClick={() => handleCopy(previewNote, 'preview')}
+                                                status={copiedTarget === 'preview' ? 'done' : 'idle'}
+                                                variant="copy"
+                                                title="Copy note text"
+                                            />
+                                            <ActionIconButton
+                                                onClick={handleExportSF600}
+                                                status={exportStatusToIconStatus(sf600ExportStatus)}
+                                                variant="pdf"
+                                                title="Export SF600 PDF"
+                                                tourTag="writenote-export-sf600"
+                                            />
+                                        </ActionPill>
                                     </section>
 
                                     {/* Encoded Note / Barcode */}
-                                    <section data-tour="writenote-encoded">
-                                        <div className="pb-2 flex items-center justify-between">
-                                            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Encoded Note</p>
-                                            <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15">
-                                                <ActionIconButton
-                                                    onClick={() => handleCopy(encodedValue, 'encoded')}
-                                                    status={copiedTarget === 'encoded' ? 'done' : 'idle'}
-                                                    variant="copy"
-                                                    title="Copy encoded text"
-                                                />
-                                                <ActionIconButton
-                                                    onClick={handleShare}
-                                                    status={shareStatusToIconStatus(shareStatus)}
-                                                    variant="share"
-                                                    title="Share note as image"
-                                                />
-                                                <ActionIconButton
-                                                    onClick={handleExportDD689}
-                                                    status={exportStatusToIconStatus(exportStatus)}
-                                                    variant="pdf"
-                                                    title="Export DD689 PDF"
-                                                />
-                                            </div>
+                                    <section data-tour="writenote-encoded" className="relative rounded-xl bg-themewhite2 overflow-hidden">
+                                        <div className="px-4 pt-14 pb-3">
+                                            <NoteBarcodeGenerator
+                                                algorithmOptions={algorithmOptions}
+                                                cardStates={cardStates}
+                                                noteOptions={{
+                                                    includeAlgorithm: true,
+                                                    selectedDdx,
+                                                    customDdx,
+                                                    customNote: note,
+                                                    physicalExamNote: peNote,
+                                                    peState: peState ?? undefined,
+                                                    planNote,
+                                                    user: profile,
+                                                    userId: authUserId,
+                                                }}
+                                                symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
+                                                onEncodedValueChange={setEncodedValue}
+                                                layout={encodedValue.length > 300 ? 'col' : 'row'}
+                                            />
                                         </div>
-                                        <div className="rounded-xl bg-themewhite2 overflow-hidden">
-                                            <div className="px-4 py-3">
-                                                <NoteBarcodeGenerator
-                                                    algorithmOptions={algorithmOptions}
-                                                    cardStates={cardStates}
-                                                    noteOptions={{
-                                                        includeAlgorithm: true,
-                                                        selectedDdx,
-                                                        customDdx,
-                                                        customNote: note,
-                                                        physicalExamNote: peNote,
-                                                        peState: peState ?? undefined,
-                                                        planNote,
-                                                        user: profile,
-                                                        userId: authUserId,
-                                                    }}
-                                                    symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
-                                                    onEncodedValueChange={setEncodedValue}
-                                                    layout={encodedValue.length > 300 ? 'col' : 'row'}
-                                                />
-                                            </div>
-                                        </div>
+                                        <ActionPill shadow="sm" className="absolute top-2 right-2">
+                                            <ActionIconButton
+                                                onClick={() => handleCopy(encodedValue, 'encoded')}
+                                                status={copiedTarget === 'encoded' ? 'done' : 'idle'}
+                                                variant="copy"
+                                                title="Copy encoded text"
+                                            />
+                                            <ActionIconButton
+                                                onClick={handleShare}
+                                                status={shareStatusToIconStatus(shareStatus)}
+                                                variant="share"
+                                                title="Share note as image"
+                                            />
+                                            <ActionIconButton
+                                                onClick={handleExportDD689}
+                                                status={exportStatusToIconStatus(exportStatus)}
+                                                variant="pdf"
+                                                title="Export DD689 PDF"
+                                                tourTag="writenote-export-dd689"
+                                            />
+                                        </ActionPill>
                                     </section>
 
                             </div>

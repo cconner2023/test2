@@ -84,7 +84,7 @@ export function FeatureEditor({ feature, onUpdate, onDelete, onClose }: FeatureE
         <div className="px-4 pb-6 flex flex-col gap-4">
           {/* Label */}
           <div>
-            <label className="block text-xs font-medium text-secondary mb-1">Label</label>
+            <label className="block text-[10pt] font-medium text-secondary mb-1">Label</label>
             <input
               type="text"
               value={feature.label}
@@ -96,7 +96,7 @@ export function FeatureEditor({ feature, onUpdate, onDelete, onClose }: FeatureE
 
           {/* Color Picker */}
           <div>
-            <label className="block text-xs font-medium text-secondary mb-1">Color</label>
+            <label className="block text-[10pt] font-medium text-secondary mb-1">Color</label>
             <div className="flex items-center gap-3">
               {TACTICAL_COLORS.map((tc) => (
                 <button
@@ -114,7 +114,7 @@ export function FeatureEditor({ feature, onUpdate, onDelete, onClose }: FeatureE
 
           {/* MGRS Readout */}
           <div>
-            <label className="block text-xs font-medium text-secondary mb-1">MGRS</label>
+            <label className="block text-[10pt] font-medium text-secondary mb-1">MGRS</label>
             <button
               type="button"
               onClick={handleCopyMgrs}
@@ -132,7 +132,7 @@ export function FeatureEditor({ feature, onUpdate, onDelete, onClose }: FeatureE
 
           {/* Notes */}
           <div>
-            <label className="block text-xs font-medium text-secondary mb-1">Notes</label>
+            <label className="block text-[10pt] font-medium text-secondary mb-1">Notes</label>
             <textarea
               value={feature.notes ?? ''}
               onChange={(e) => handleNotesChange(e.target.value)}

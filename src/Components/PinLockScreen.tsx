@@ -106,7 +106,7 @@ export const PinLockScreen = ({ onUnlock }: PinLockScreenProps) => {
         className="w-full px-4 py-3 rounded-lg bg-themewhite2 text-primary text-center text-sm border border-themegray1/30 focus:outline-none focus:border-themeblue2"
       />
       {passwordError && (
-        <p className="text-xs text-themeredred">Incorrect password</p>
+        <p className="text-[10pt] text-themeredred">Incorrect password</p>
       )}
       <button
         onClick={handlePasswordUnlock}
@@ -119,7 +119,7 @@ export const PinLockScreen = ({ onUnlock }: PinLockScreenProps) => {
   ) : undefined
 
   return (
-    <div className="fixed inset-0 z-[100] bg-themewhite overflow-y-auto select-none"
+    <div className="fixed inset-0 z-30 bg-themewhite overflow-y-auto select-none"
          style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}>
       <div className="min-h-full flex flex-col items-center justify-center py-8 px-6">
       {/* Header */}

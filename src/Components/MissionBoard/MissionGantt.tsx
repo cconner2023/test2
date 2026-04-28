@@ -1,6 +1,6 @@
 import { type RefObject, useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { Clock, Play, CheckCircle2, Ban } from 'lucide-react'
-import { toDateKey } from '../../Types/CalendarTypes'
+import { toDateKey, formatShortDayLabel } from '../../Types/CalendarTypes'
 import type { CalendarEvent, EventCategory, EventStatus } from '../../Types/CalendarTypes'
 import { MissionEventBar } from './MissionEventBar'
 import { type ContextMenuItem } from '../ContextMenu'
@@ -39,7 +39,7 @@ function generateDays(center: Date, before: number, after: number): DaySlot[] {
     days.push({
       date: d,
       dateKey: toDateKey(d),
-      label: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+      label: formatShortDayLabel(d),
     })
   }
   return days
@@ -94,10 +94,6 @@ export function offsetDate(base: Date, days: number): Date {
   const d = new Date(base)
   d.setDate(d.getDate() + days)
   return d
-}
-
-export function formatDateLabel(d: Date): string {
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
 function assignLanes(events: CalendarEvent[]): number[] {
@@ -168,7 +164,7 @@ export function TaskRow({ event, onClick, onContextMenu }: { event: CalendarEven
         <span className="text-[9pt] text-secondary tabular-nums shrink-0">
           {formatTimeRange(event.start_time, event.end_time)}
         </span>
-        <span className="flex-1 text-xs font-medium text-primary truncate">
+        <span className="flex-1 text-[10pt] font-medium text-primary truncate">
           {event.title}
         </span>
       </div>

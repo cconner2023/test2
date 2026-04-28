@@ -551,7 +551,7 @@ function KBHome({
                 <div className="h-full flex items-center justify-center text-themeblue1">
                     <div className="text-center">
                         <p className="text-sm">No results for "{searchQuery}"</p>
-                        <p className="text-xs mt-1 text-tertiary">Try different keywords</p>
+                        <p className="text-[10pt] mt-1 text-tertiary">Try different keywords</p>
                     </div>
                 </div>
             )
@@ -559,7 +559,7 @@ function KBHome({
 
         return (
             <>
-                <div className="px-3 py-2 text-xs text-tertiary border-b border-themewhite2">
+                <div className="px-3 py-2 text-[10pt] text-tertiary border-b border-themewhite2">
                     {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
                 </div>
                 {searchResults.map((result, idx) => (
@@ -854,7 +854,7 @@ function StandaloneScreener({ screenerConfig }: { screenerConfig: ScreenerConfig
     return (
         <div className="px-4 pb-6">
             {/* Instruction */}
-            <p className="text-xs text-secondary py-3 border-b border-tertiary/10">
+            <p className="text-[10pt] text-secondary py-3 border-b border-tertiary/10">
                 {screenerConfig.instruction}
             </p>
 
@@ -889,7 +889,7 @@ function StandaloneScreener({ screenerConfig }: { screenerConfig: ScreenerConfig
 
                             {q.type === 'check' && (
                                 <div className="py-2 px-1">
-                                    <p className="text-xs text-primary mb-1.5">{q.text}</p>
+                                    <p className="text-[10pt] text-primary mb-1.5">{q.text}</p>
                                     <div className="flex flex-wrap gap-1.5">
                                         {q.options?.map((opt, optIdx) => {
                                             const isSelected = ((baseResponses[qIdx] ?? 0) & (1 << optIdx)) !== 0
@@ -923,7 +923,7 @@ function StandaloneScreener({ screenerConfig }: { screenerConfig: ScreenerConfig
                             )}
 
                             {gate && qIdx === gate.gatedFromIndex - 1 && gateEvaluated && (
-                                <div className={`mx-1 my-3 px-3 py-2.5 rounded-md text-xs font-medium text-center ${
+                                <div className={`mx-1 my-3 px-3 py-2.5 rounded-md text-[10pt] font-medium text-center ${
                                     gateOpen
                                         ? 'bg-themegreen/10 text-themegreen border border-themegreen/20'
                                         : 'bg-themeyellow/15 text-secondary border border-themeyellow/30'
@@ -964,7 +964,7 @@ function StandaloneScreener({ screenerConfig }: { screenerConfig: ScreenerConfig
             {/* Follow-up question (GAD-7 difficulty) */}
             {screenerConfig.followUp && (
                 <div className="py-2 px-1 mt-2 border-t border-tertiary/10">
-                    <p className="text-xs text-primary mb-1.5">
+                    <p className="text-[10pt] text-primary mb-1.5">
                         {screenerConfig.followUp.text}
                     </p>
                     <div className="flex gap-1">
@@ -1000,7 +1000,7 @@ function StandaloneScreener({ screenerConfig }: { screenerConfig: ScreenerConfig
                             }`}>
                                 <div className="flex items-center justify-between mb-2">
                                     <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Result</p>
-                                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                    <span className={`text-[10pt] px-2 py-0.5 rounded-full font-medium ${
                                         aboveThreshold
                                             ? 'bg-themeyellow/20 text-secondary'
                                             : 'bg-themegreen/15 text-themegreen'

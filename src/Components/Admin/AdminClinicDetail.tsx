@@ -11,13 +11,15 @@ import { X, Plus, UserPlus } from 'lucide-react'
 import { UserRow } from '../UserRow'
 import { ActionButton } from '../ActionButton'
 import { listClinics, listAllUsers, updateClinic, createClinic } from '../../lib/adminService'
-import type { AdminUser, AdminClinic } from '../../lib/adminService'
+import type { AdminUser, AdminClinic, ClinicRoom } from '../../lib/adminService'
 import { formatLastActive } from './adminUtils'
 import { TextInput, UicPinInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { UserPicker, ClinicMultiPickerInput } from './AdminPickers'
 import { invalidate } from '../../stores/useInvalidationStore'
 import { sameStringSet } from '../../Utilities/arrayEquals'
+import { ActionPill } from '../ActionPill'
+import { EmptyState } from '../EmptyState'
 
 interface AdminClinicDetailProps {
   clinic: AdminClinic | null
@@ -54,6 +56,8 @@ const AdminClinicDetail = ({
   const [editChildClinicIds, setEditChildClinicIds] = useState<string[]>([])
   const [editAssociatedClinicIds, setEditAssociatedClinicIds] = useState<string[]>([])
   const [editAdditionalUserIds, setEditAdditionalUserIds] = useState<string[]>([])
+  const [editRooms, setEditRooms] = useState<ClinicRoom[]>([])
+  const [roomDraft, setRoomDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [uicDraft, setUicDraft] = useState('')
@@ -115,6 +119,8 @@ const AdminClinicDetail = ({
       setEditChildClinicIds([...(clinic?.child_clinic_ids ?? [])])
       setEditAssociatedClinicIds([...(clinic?.associated_clinic_ids ?? [])])
       setEditAdditionalUserIds([...(clinic?.additional_user_ids ?? [])])
+      setEditRooms((clinic?.rooms ?? []).map(r => ({ ...r })))
+      setRoomDraft('')
       setError(null)
     }
     prevEditingRef.current = editing
@@ -123,15 +129,18 @@ const AdminClinicDetail = ({
   /** Track pending changes. */
   useEffect(() => {
     if (!editing) { onPendingChangesChange?.(false); return }
+    const roomsChanged =
+      JSON.stringify(editRooms) !== JSON.stringify(clinic?.rooms ?? [])
     const changed =
       editName !== (clinic?.name ?? '') ||
       editLocation !== (clinic?.location ?? '') ||
       !sameStringSet(editUics, clinic?.uics ?? []) ||
       !sameStringSet(editChildClinicIds, clinic?.child_clinic_ids ?? []) ||
       !sameStringSet(editAssociatedClinicIds, clinic?.associated_clinic_ids ?? []) ||
-      !sameStringSet(editAdditionalUserIds, clinic?.additional_user_ids ?? [])
+      !sameStringSet(editAdditionalUserIds, clinic?.additional_user_ids ?? []) ||
+      roomsChanged
     onPendingChangesChange?.(changed)
-  }, [editing, editName, editLocation, editUics, editChildClinicIds, editAssociatedClinicIds, editAdditionalUserIds, clinic, onPendingChangesChange])
+  }, [editing, editName, editLocation, editUics, editChildClinicIds, editAssociatedClinicIds, editAdditionalUserIds, editRooms, clinic, onPendingChangesChange])
 
   const handleSave = useCallback(async () => {
     if (!editName.trim()) {
@@ -147,6 +156,7 @@ const AdminClinicDetail = ({
       child_clinic_ids: editChildClinicIds,
       associated_clinic_ids: editAssociatedClinicIds,
       additional_user_ids: editAdditionalUserIds,
+      rooms: editRooms,
     }
 
     if (isCreateMode) {
@@ -175,7 +185,28 @@ const AdminClinicDetail = ({
     } else {
       setError(result.error || 'Failed to update clinic')
     }
-  }, [editName, editLocation, editUics, editChildClinicIds, editAssociatedClinicIds, editAdditionalUserIds, isCreateMode, clinic, onEditingChange, loadData, onCreated])
+  }, [editName, editLocation, editUics, editChildClinicIds, editAssociatedClinicIds, editAdditionalUserIds, editRooms, isCreateMode, clinic, onEditingChange, loadData, onCreated])
+
+  const handleAddRoom = useCallback(() => {
+    const trimmed = roomDraft.trim()
+    if (!trimmed) return
+    const lower = trimmed.toLowerCase()
+    if (editRooms.some(r => r.name.toLowerCase() === lower)) return
+    const nextSort = editRooms.reduce((m, r) => Math.max(m, r.sort_order), -1) + 1
+    setEditRooms(prev => [
+      ...prev,
+      { id: crypto.randomUUID(), name: trimmed, sort_order: nextSort },
+    ])
+    setRoomDraft('')
+  }, [roomDraft, editRooms])
+
+  const handleRenameRoom = useCallback((id: string, name: string) => {
+    setEditRooms(prev => prev.map(r => r.id === id ? { ...r, name } : r))
+  }, [])
+
+  const handleDeleteRoom = useCallback((id: string) => {
+    setEditRooms(prev => prev.filter(r => r.id !== id))
+  }, [])
 
   useEffect(() => {
     if (saveRequested) {
@@ -235,104 +266,143 @@ const AdminClinicDetail = ({
       {error && <div className="mb-3"><ErrorDisplay message={error} /></div>}
 
       {/* Main card — compact card in view, form inputs in edit */}
-      <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+      <div className="rounded-2xl bg-themewhite2 overflow-hidden">
         {editing ? (
-          <div className="px-4 py-3.5 space-y-3">
-            <TextInput label="Name" value={editName} onChange={setEditName} placeholder="Clinic name..." />
-            <TextInput label="Location" value={editLocation} onChange={setEditLocation} placeholder="Location..." />
-            <div>
-              <span className="text-xs font-medium text-tertiary uppercase tracking-wide">UICs</span>
-              {editUics.length > 0 && (
-                <div className="mt-1 flex flex-wrap gap-1.5 mb-2">
-                  {editUics.map((val, idx) => (
-                    <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-themeblue2/10 text-themeblue2 text-xs font-medium border border-themeblue2/30">
-                      {val}
-                      <button type="button" onClick={() => setEditUics(prev => prev.filter((_, i) => i !== idx))} className="hover:text-themeredred transition-colors">
-                        <X size={12} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-end gap-2">
-                <div className="flex-1">
-                  <UicPinInput value={uicDraft} onChange={(v) => { setUicDraft(v); setUicError(null); setUicOwner(null) }} spread />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleAddUic}
-                  disabled={uicDraft.length !== 6}
-                  className="shrink-0 w-10 h-10 rounded-full bg-themeblue3 text-white flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
-                >
-                  <Plus size={16} />
-                </button>
+          <div>
+            <TextInput value={editName} onChange={setEditName} placeholder="Clinic name" />
+            <TextInput value={editLocation} onChange={setEditLocation} placeholder="Location" />
+
+            {editUics.length > 0 && (
+              <div className="px-4 py-3 flex flex-wrap gap-1.5 border-b border-primary/6">
+                {editUics.map((val, idx) => (
+                  <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-themeblue2/10 text-themeblue2 text-[10pt] font-medium border border-themeblue2/30">
+                    {val}
+                    <button type="button" onClick={() => setEditUics(prev => prev.filter((_, i) => i !== idx))} className="hover:text-themeredred transition-colors">
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
               </div>
-              {uicError && (
-                <p className="text-xs text-themeredred mt-1">
-                  {uicError}{' '}
-                  {uicOwner && (
-                    onSelectClinic ? (
+            )}
+            <div className="flex items-center border-b border-primary/6">
+              <div className="flex-1 min-w-0">
+                <UicPinInput value={uicDraft} onChange={(v) => { setUicDraft(v); setUicError(null); setUicOwner(null) }} spread />
+              </div>
+              <button
+                type="button"
+                onClick={handleAddUic}
+                disabled={uicDraft.length !== 6}
+                className="shrink-0 w-9 h-9 mr-3 rounded-full bg-themeblue3 text-white flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
+              >
+                <Plus size={16} />
+              </button>
+            </div>
+            {uicError && (
+              <p className="px-4 py-2 text-[10pt] text-themeredred border-b border-primary/6">
+                {uicError}{' '}
+                {uicOwner && (
+                  onSelectClinic ? (
+                    <button
+                      type="button"
+                      onClick={() => onSelectClinic(uicOwner)}
+                      className="font-semibold underline text-themeblue2"
+                    >
+                      {uicOwner.name}
+                    </button>
+                  ) : (
+                    <span className="font-semibold">{uicOwner.name}</span>
+                  )
+                )}
+              </p>
+            )}
+            {/* Users whose self-reported UIC matches one of this clinic's UICs */}
+            {editUics.length > 0 && (() => {
+              const uicSet = new Set(editUics)
+              const suggested = users.filter(u => u.uic && uicSet.has(u.uic) && !editAdditionalUserIds.includes(u.id))
+              if (suggested.length === 0) return null
+              return (
+                <div className="px-4 py-3 bg-themeblue2/5 border-b border-primary/6">
+                  <div className="flex items-baseline justify-between mb-1">
+                    <p className="text-[9pt] text-themeblue2 font-medium">
+                      {suggested.length} user{suggested.length !== 1 ? 's' : ''} match these UICs
+                    </p>
+                    {suggested.length > 1 && (
                       <button
                         type="button"
-                        onClick={() => onSelectClinic(uicOwner)}
-                        className="font-semibold underline text-themeblue2"
+                        onClick={() => setEditAdditionalUserIds(prev => [...prev, ...suggested.map(u => u.id)])}
+                        className="text-[9pt] text-themeblue2 font-semibold shrink-0"
                       >
-                        {uicOwner.name}
+                        Add all
                       </button>
-                    ) : (
-                      <span className="font-semibold">{uicOwner.name}</span>
-                    )
-                  )}
-                </p>
-              )}
-              {/* Users whose self-reported UIC matches one of this clinic's UICs —
-                  surface them as one-click additions to the Additional Users list. */}
-              {editUics.length > 0 && (() => {
-                const uicSet = new Set(editUics)
-                const suggested = users.filter(u => u.uic && uicSet.has(u.uic) && !editAdditionalUserIds.includes(u.id))
-                if (suggested.length === 0) return null
-                return (
-                  <div className="mt-2 rounded-lg bg-themeblue2/5 border border-themeblue2/20 px-3 py-2">
-                    <div className="flex items-baseline justify-between mb-1">
-                      <p className="text-[9pt] text-themeblue2 font-medium">
-                        {suggested.length} user{suggested.length !== 1 ? 's' : ''} match these UICs
-                      </p>
-                      {suggested.length > 1 && (
+                    )}
+                  </div>
+                  <p className="text-[9pt] text-tertiary mb-1.5">
+                    Self-reported at signup — add to the Additional Users list below.
+                  </p>
+                  <div className="space-y-0.5">
+                    {suggested.map(u => (
+                      <div key={u.id} className="flex items-center justify-between">
+                        <span className="text-[9pt] text-primary">
+                          {[u.rank, u.first_name, u.last_name].filter(Boolean).join(' ') || u.email}
+                        </span>
                         <button
                           type="button"
-                          onClick={() => setEditAdditionalUserIds(prev => [...prev, ...suggested.map(u => u.id)])}
-                          className="text-[9pt] text-themeblue2 font-semibold shrink-0"
+                          onClick={() => setEditAdditionalUserIds(prev => [...prev, u.id])}
+                          className="text-[9pt] text-themeblue2 font-medium ml-2 shrink-0"
                         >
-                          Add all
+                          + Add
                         </button>
-                      )}
-                    </div>
-                    <p className="text-[9pt] text-tertiary mb-1.5">
-                      Self-reported at signup — add to the Additional Users list below.
-                    </p>
-                    <div className="space-y-0.5">
-                      {suggested.map(u => (
-                        <div key={u.id} className="flex items-center justify-between">
-                          <span className="text-[9pt] text-primary">
-                            {[u.rank, u.first_name, u.last_name].filter(Boolean).join(' ') || u.email}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setEditAdditionalUserIds(prev => [...prev, u.id])}
-                            className="text-[9pt] text-themeblue2 font-medium ml-2 shrink-0"
-                          >
-                            + Add
-                          </button>
-                        </div>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
                   </div>
-                )
-              })()}
+                </div>
+              )
+            })()}
+
+            <ClinicMultiPickerInput selectedIds={editChildClinicIds} allClinics={clinics} excludeId={clinic?.id} onChange={setEditChildClinicIds} placeholder="Add sub-clinic" />
+            <ClinicMultiPickerInput selectedIds={editAssociatedClinicIds} allClinics={clinics} excludeId={clinic?.id} onChange={setEditAssociatedClinicIds} placeholder="Add associated clinic" />
+            <UserPicker label="Additional users" selectedIds={editAdditionalUserIds} allUsers={users} onChange={setEditAdditionalUserIds} />
+
+            {editRooms.length > 0 && (
+              <div className="px-4 py-3 space-y-1.5 border-b border-primary/6">
+                {[...editRooms]
+                  .sort((a, b) => a.sort_order - b.sort_order)
+                  .map((room) => (
+                    <div key={room.id} className="flex items-center gap-2 rounded-md border border-themeblue3/20 bg-themeblue3/5 px-2 py-1">
+                      <input
+                        type="text"
+                        value={room.name}
+                        onChange={(e) => handleRenameRoom(room.id, e.target.value)}
+                        className="flex-1 bg-transparent text-sm text-primary focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteRoom(room.id)}
+                        className="shrink-0 text-tertiary hover:text-themeredred transition-colors"
+                        title="Delete"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            )}
+            <div className="flex items-center border-b border-primary/6">
+              <div className="flex-1 min-w-0">
+                <TextInput value={roomDraft} onChange={setRoomDraft} placeholder="Room name" />
+              </div>
+              <button
+                type="button"
+                onClick={handleAddRoom}
+                disabled={!roomDraft.trim()}
+                className="shrink-0 w-9 h-9 mr-3 rounded-full bg-themeblue3 text-white flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
+              >
+                <Plus size={16} />
+              </button>
             </div>
-            <ClinicMultiPickerInput label="Sub-clinics" selectedIds={editChildClinicIds} allClinics={clinics} excludeId={clinic?.id} onChange={setEditChildClinicIds} placeholder="Add sub-clinic..." />
-            <ClinicMultiPickerInput label="Associated Clinics" selectedIds={editAssociatedClinicIds} allClinics={clinics} excludeId={clinic?.id} onChange={setEditAssociatedClinicIds} placeholder="Add associated clinic..." />
-            <UserPicker label="Additional Users" selectedIds={editAdditionalUserIds} allUsers={users} onChange={setEditAdditionalUserIds} />
+            <p className="px-4 py-2 text-[9pt] text-tertiary">
+              Deleting a room won't affect past events — they'll just stop showing the room pill.
+            </p>
           </div>
         ) : clinic ? (
           <div className="px-4 py-3">
@@ -359,6 +429,17 @@ const AdminClinicDetail = ({
                     </span>
                   )
                 })}
+              </div>
+            )}
+            {clinic.rooms.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {[...clinic.rooms]
+                  .sort((a, b) => a.sort_order - b.sort_order)
+                  .map((room) => (
+                    <span key={room.id} className="inline-flex items-center px-1.5 py-0.5 rounded text-[9pt] font-medium border bg-themeblue3/10 text-themeblue3 border-themeblue3/30">
+                      {room.name}
+                    </span>
+                  ))}
               </div>
             )}
             <p className="text-[9pt] text-tertiary mt-2">
@@ -392,16 +473,12 @@ const AdminClinicDetail = ({
         </div>
       )}
 
-      {/* Empty state — canonical horizontal card + action button */}
       {!isCreateMode && !editing && allClinicUsers.length === 0 && (
-        <div className="mt-4 rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-          <div className="flex items-center gap-3 px-4 py-3">
-            <p className="text-sm text-tertiary flex-1">No users assigned to this clinic</p>
-            <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
-              <ActionButton icon={UserPlus} label="Add users" onClick={() => onEditingChange(true)} />
-            </div>
-          </div>
-        </div>
+        <EmptyState
+          className="mt-4"
+          title="No users assigned to this clinic"
+          action={{ icon: UserPlus, label: 'Add users', onClick: () => onEditingChange(true) }}
+        />
       )}
     </div>
   )

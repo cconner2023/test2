@@ -2,11 +2,11 @@
 import { useMemo, memo } from 'react'
 import type { decisionMakingType } from '../Types/AlgorithmTypes'
 import type { medListTypes } from '../Data/MedData'
-import { SectionHeader, SectionCard } from './Section'
+import { SectionHeader } from './Section'
 
 interface DecisionMakingItemProps {
     item: decisionMakingType;
-    onMedicationClick: (medication: medListTypes) => void;
+    onMedicationClick: (medication: medListTypes, anchorRect: DOMRect) => void;
 }
 
 // Consolidated badge/pill component
@@ -17,14 +17,14 @@ function Pill({
     title,
 }: {
     children: React.ReactNode;
-    onClick?: () => void;
+    onClick?: (rect: DOMRect) => void;
     className?: string;
     title?: string;
 }) {
     return (
         <button
             className={`px-2 py-0.5 text-[9pt] rounded-full bg-tertiary/5 text-tertiary transition-colors active:scale-95 ${onClick ? 'cursor-pointer' : ''} ${className}`}
-            onClick={onClick}
+            onClick={(e) => onClick?.((e.currentTarget as HTMLButtonElement).getBoundingClientRect())}
             type={onClick ? 'button' : undefined}
             title={title}
         >
@@ -120,7 +120,7 @@ function ContentSection({
                         {item.medFind.map((med, medIndex) => (
                             <Pill
                                 key={medIndex}
-                                onClick={() => onMedicationClick(med)}
+                                onClick={(rect) => onMedicationClick(med, rect)}
                                 title={`Click to view ${med.text} details`}
                             >
                                 {med.text}
@@ -158,7 +158,7 @@ export const DecisionMakingItem = memo(function DecisionMakingItem({
                 </SectionHeader></div>
             )}
 
-            <SectionCard>
+            <div className="rounded-2xl bg-themewhite2 overflow-hidden">
                 <div className="px-4 py-3 space-y-3">
                     {/* Parent section */}
                     <div>
@@ -174,7 +174,7 @@ export const DecisionMakingItem = memo(function DecisionMakingItem({
                         </div>
                     )}
                 </div>
-            </SectionCard>
+            </div>
         </div>
     );
 });

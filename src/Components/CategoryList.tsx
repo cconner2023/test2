@@ -83,7 +83,7 @@ export function SymptomGuidelines({
                             <div
                                 key={`gen-${item.id || index}`}
                                 onClick={() => onNavigate(guidelineToResult('gen', item, index, symptom, category))}
-                                className="flex items-center px-4 py-3.5 text-xs text-tertiary cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
+                                className="flex items-center px-4 py-3.5 text-[10pt] text-tertiary cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
                             >
                                 {item.text}
                             </div>
@@ -107,7 +107,7 @@ export function SymptomGuidelines({
                                 <div
                                     key={`${section.key}-${item.id || index}`}
                                     {...(!isDDX ? { onClick: () => onNavigate(guidelineToResult(section.type, item, index, symptom, category)) } : {})}
-                                    className={`flex items-center px-4 py-3.5 text-xs text-tertiary transition-all ${isDDX ? '' : 'cursor-pointer active:scale-95 hover:bg-themeblue2/5'}`}
+                                    className={`flex items-center px-4 py-3.5 text-[10pt] text-tertiary transition-all ${isDDX ? '' : 'cursor-pointer active:scale-95 hover:bg-themeblue2/5'}`}
                                 >
                                     {isTraining && item.icon && (
                                         <span className="text-tertiary mr-1.5 text-[9pt]">{item.icon}</span>

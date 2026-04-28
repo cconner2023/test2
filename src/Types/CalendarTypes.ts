@@ -1,5 +1,5 @@
 export type EventCategory =
-  | 'training' | 'duty' | 'range' | 'appointment' | 'mission' | 'medevac' | 'other'
+  | 'training' | 'duty' | 'range' | 'appointment' | 'mission' | 'medevac' | 'huddle' | 'leave' | 'other'
 
 export type EventStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
 
@@ -22,6 +22,15 @@ export interface CalendarEvent {
   report_time: string | null
   assigned_to: string[]
   property_item_ids: string[]
+  /** Stable reference to a clinic room (clinics.rooms[].id). Resolved client-side. */
+  room_id?: string | null
+  /**
+   * Stable reference to a supervisor-defined huddle task / station
+   * (clinics.huddle_tasks[].id). Only meaningful when category === 'huddle'.
+   * Present → event renders in that task's row in the huddle band.
+   * Absent → event renders in the providers row (provider on left, paired medic(s) on right).
+   */
+  huddle_task_id?: string | null
   /** Structured geo-binding — links to a map overlay and optionally a primary waypoint. */
   structured_location?: StructuredLocation | null
   /** Resource allocations — items staged at specific waypoints with roles and responsible personnel. */
@@ -60,6 +69,10 @@ export interface EventFormData {
   report_time: string
   assigned_to: string[]
   property_item_ids: string[]
+  /** Selected clinic room id (clinics.rooms[].id). Empty string = no room. */
+  room_id?: string | null
+  /** Selected huddle task id (clinics.huddle_tasks[].id). Only meaningful when category === 'huddle'. */
+  huddle_task_id?: string | null
   /** Overlay link set from the overlay picker — undefined means no overlay selected. */
   structured_location?: StructuredLocation | null
   /** 9-line MEDEVAC request — populated when category is 'medevac'. */
@@ -73,6 +86,8 @@ export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: str
   { value: 'appointment', label: 'Appointment', color: 'bg-themeblue1/20',   solidColor: 'bg-themeblue1' },
   { value: 'mission',     label: 'Mission',     color: 'bg-themegreen/20',   solidColor: 'bg-themegreen' },
   { value: 'medevac',     label: 'MEDEVAC',     color: 'bg-themeredred/20',  solidColor: 'bg-themeredred' },
+  { value: 'huddle',      label: 'Huddle',      color: 'bg-themeblue3/20',   solidColor: 'bg-themeblue3' },
+  { value: 'leave',       label: 'Leave',       color: 'bg-tertiary/15',     solidColor: 'bg-tertiary' },
   { value: 'other',       label: 'Other',       color: 'bg-tertiary/20',     solidColor: 'bg-tertiary' },
 ]
 
@@ -83,6 +98,8 @@ export const CATEGORY_BG_MAP: Record<EventCategory, string> = {
   appointment: 'bg-themeblue1/20 border-themeblue1/30 text-primary',
   mission: 'bg-themegreen/20 border-themegreen/30 text-primary',
   medevac: 'bg-themeredred/20 border-themeredred/30 text-primary',
+  huddle: 'bg-themeblue3/20 border-themeblue3/30 text-primary',
+  leave: 'bg-tertiary/10 border-tertiary/20 text-tertiary',
   other: 'bg-tertiary/20 border-tertiary/20 text-secondary',
 }
 
@@ -119,6 +136,8 @@ export function createEmptyFormData(forDateKey?: string): EventFormData {
     report_time: '',
     assigned_to: [],
     property_item_ids: [],
+    room_id: null,
+    huddle_task_id: null,
     structured_location: null,
     medevac_data: null,
   }
@@ -138,6 +157,8 @@ export function eventToFormData(event: CalendarEvent): EventFormData {
     report_time: event.report_time ?? '',
     assigned_to: event.assigned_to ?? [],
     property_item_ids: event.property_item_ids ?? [],
+    room_id: event.room_id ?? null,
+    huddle_task_id: event.huddle_task_id ?? null,
     structured_location: event.structured_location ?? null,
     medevac_data: event.medevac_data ?? null,
   }
@@ -150,6 +171,11 @@ export function toLocalISOString(date: Date): string {
 
 export function toDateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** "Mon, Mar 22" — short weekday + short month + day, en-US. */
+export function formatShortDayLabel(d: Date): string {
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
 export function eventFallsOnDate(event: CalendarEvent, dateKey: string): boolean {
@@ -168,6 +194,12 @@ export const STATUS_META: Record<EventStatus, { opacity: string; pulse: boolean;
   completed:   { opacity: 'opacity-50',  pulse: false, strikethrough: true  },
   cancelled:   { opacity: 'opacity-40',  pulse: false, strikethrough: true  },
 }
+
+/**
+ * Sentinel huddle_task_id reserved for provider-pairing huddle events.
+ * Cannot collide with real task ids (those are uuid/random strings).
+ */
+export const PROVIDER_HUDDLE_TASK_ID = '0'
 
 export const DAY_START_HOUR = 0
 export const DAY_END_HOUR = 24

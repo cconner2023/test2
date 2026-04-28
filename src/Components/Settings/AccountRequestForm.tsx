@@ -203,18 +203,18 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
                 <span className="text-sm font-medium text-primary">
                   {requestStatus.first_name} {requestStatus.middle_initial}{' '}{requestStatus.last_name}
                 </span>
-                <span className="text-xs text-secondary">
+                <span className="text-[10pt] text-secondary">
                   {new Date(requestStatus.requested_at).toLocaleDateString()}
                 </span>
               </div>
-              <p className="text-xs text-secondary">{requestStatus.email}</p>
+              <p className="text-[10pt] text-secondary">{requestStatus.email}</p>
               {(requestStatus.rank || requestStatus.component) && (
-                <p className="text-xs text-secondary">
+                <p className="text-[10pt] text-secondary">
                   {[requestStatus.rank, requestStatus.component, requestStatus.uic].filter(Boolean).join(' · ')}
                 </p>
               )}
               <div className="pt-2 border-t border-tertiary/10">
-                <p className="text-xs text-secondary">
+                <p className="text-[10pt] text-secondary">
                   {requestStatus.status === 'pending' && 'Your request is pending review. You will be notified once approved.'}
                   {requestStatus.status === 'approved' && 'Your account has been approved. Sign in with your email and the password you created.'}
                   {requestStatus.status === 'rejected' && (requestStatus.rejection_reason
@@ -227,7 +227,7 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
 
           <button
             onClick={() => onBack?.()}
-            className="w-full text-xs text-themeblue2 hover:underline mt-3 active:scale-95 transition-all"
+            className="w-full text-[10pt] text-themeblue2 hover:underline mt-3 active:scale-95 transition-all"
           >
             Back to sign in
           </button>
@@ -241,14 +241,14 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
         <div className="rounded-xl border border-tertiary/15 p-5">
           <div className="space-y-3">
             <p className="text-sm font-medium text-primary">Request Submitted</p>
-            <p className="text-xs text-secondary">
+            <p className="text-[10pt] text-secondary">
               An administrator will review your request shortly.
             </p>
 
             {statusCheckToken && (
               <div className="pt-2 border-t border-tertiary/10 space-y-1.5">
-                <p className="text-xs text-secondary">Status check token</p>
-                <code className="block p-2 rounded-lg border border-tertiary/10 text-xs font-mono text-primary break-all select-all">
+                <p className="text-[10pt] text-secondary">Status check token</p>
+                <code className="block p-2 rounded-lg border border-tertiary/10 text-[10pt] font-mono text-primary break-all select-all">
                   {statusCheckToken}
                 </code>
                 <p className="text-[9pt] text-secondary">
@@ -269,7 +269,7 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
 
         <button
           onClick={() => onBack?.()}
-          className="w-full text-xs text-themeblue2 hover:underline mt-3 active:scale-95 transition-all"
+          className="w-full text-[10pt] text-themeblue2 hover:underline mt-3 active:scale-95 transition-all"
         >
           Back to sign in
         </button>
@@ -281,7 +281,7 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
 
   return (
     <div>
-      <p className="text-xs text-secondary mb-4">
+      <p className="text-[10pt] text-secondary mb-4">
         An account lets you log training completion and store your preferences. No patient data is collected.
       </p>
 
@@ -301,10 +301,8 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
         </div>
       )}
 
-      <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <p className="text-[9pt] font-semibold text-secondary tracking-widest uppercase">New Account</p>
-
+      <form onSubmit={handleSubmit}>
+        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
           <TextInput
             value={email}
             onChange={(val) => { setEmail(val); setEmailWarning(null); setIsDuplicateError(false) }}
@@ -314,49 +312,31 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
             required
             hint={checkingEmail ? 'Checking...' : emailWarning}
           />
-          {isDuplicateError && emailWarning && (
-            <button
-              type="button"
-              onClick={handleCheckStatus}
-              className="-mt-1 w-full px-3 py-2 rounded-full bg-themeblue3 text-white text-sm font-medium
-                       active:scale-95 transition-transform"
-            >
-              Check Request Status
-            </button>
-          )}
 
-          <div className="grid grid-cols-2 gap-2">
-            <TextInput value={firstName} onChange={setFirstName} placeholder="First Name *" required />
-            <div className="flex items-center gap-2">
-              <div className="flex-1 min-w-0">
-                <TextInput value={lastName} onChange={setLastName} placeholder="Last Name *" required />
-              </div>
-              <div className="w-11 shrink-0">
-                <TextInput value={middleInitial} onChange={setMiddleInitial} placeholder="MI" maxLength={1} />
-              </div>
+          <TextInput value={firstName} onChange={setFirstName} placeholder="First Name *" required />
+          <div className="flex items-stretch border-b border-primary/6">
+            <div className="flex-1 min-w-0">
+              <TextInput value={lastName} onChange={setLastName} placeholder="Last Name *" required />
+            </div>
+            <div className="w-16 shrink-0 border-l border-primary/6">
+              <TextInput value={middleInitial} onChange={setMiddleInitial} placeholder="MI" maxLength={1} />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <PickerInput value={credential} onChange={setCredential} options={userData.credentials} placeholder="Medical Credential" required />
-            <PickerInput value={component} onChange={handleComponentChange} options={userData.components} placeholder="Component" required />
-          </div>
-
+          <PickerInput value={credential} onChange={setCredential} options={userData.credentials} placeholder="Medical Credential *" required />
+          <PickerInput value={component} onChange={handleComponentChange} options={userData.components} placeholder="Component *" required />
           {component && (
-            <PickerInput value={rank} onChange={setRank} options={componentRanks} placeholder="Rank" required />
+            <PickerInput value={rank} onChange={setRank} options={componentRanks} placeholder="Rank *" required />
           )}
 
-          <div>
-            <span className="text-[9pt] font-semibold text-secondary tracking-widest uppercase mb-1.5 block">UIC</span>
-            <UicPinInput value={uic} onChange={setUic} spread />
-          </div>
+          <UicPinInput value={uic} onChange={setUic} spread />
 
           <TextInput value={notes} onChange={setNotes} placeholder="Unit & justification *" required />
 
           <PasswordInput value={password} onChange={setPassword} placeholder="Password *" />
           <PasswordInput value={confirmPassword} onChange={setConfirmPassword} placeholder="Confirm Password *" />
 
-          <label className="flex items-start gap-2.5 cursor-pointer pt-1 active:scale-[0.98] transition-transform select-none">
+          <label className="flex items-start gap-2.5 cursor-pointer px-4 py-3 border-b border-primary/6 active:scale-[0.98] transition-transform select-none">
             <input
               type="checkbox"
               checked={contactConsent}
@@ -373,26 +353,37 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
             </span>
           </label>
 
-          <div className="flex items-center justify-end gap-2 pt-1">
+          <div className="flex items-center justify-end gap-2 px-3 py-2">
             {onBack && (
               <button
                 type="button"
                 onClick={onBack}
-                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             )}
             <button
               type="submit"
-              disabled={submitting || !firstName.trim() || !lastName.trim() || !email.trim() || !credential || !component || uic.trim().length !== 6 || !contactConsent || !notes.trim()}
-              className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+              disabled={submitting}
+              className={`shrink-0 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white overflow-hidden transition-all duration-300 ease-out active:scale-95 ${firstName.trim() && lastName.trim() && email.trim() && credential && component && uic.trim().length === 6 && contactConsent && notes.trim() ? 'w-9 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
             >
-              {submitting ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
+              {submitting ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
             </button>
           </div>
-        </form>
-      </div>
+        </div>
+
+        {isDuplicateError && emailWarning && (
+          <button
+            type="button"
+            onClick={handleCheckStatus}
+            className="mt-2 w-full px-3 py-2 rounded-full bg-themeblue3 text-white text-sm font-medium
+                     active:scale-95 transition-transform"
+          >
+            Check Request Status
+          </button>
+        )}
+      </form>
 
     </div>
   )

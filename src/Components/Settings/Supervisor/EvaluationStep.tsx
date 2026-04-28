@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Check, X } from 'lucide-react'
+import { Check, ChevronRight, X } from 'lucide-react'
 import { getTaskData, type PerformanceStep } from '../../../Data/TrainingData'
 import type { StepResult } from '../../../Types/SupervisorTestTypes'
 import { StepCallout } from '../../TrainingStepComponents'
 import { SectionHeader } from '../../Section'
+import { ActionPill } from '../../ActionPill'
 
 // ─── EvaluationStep ──────────────────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ export function EvaluationStep({
         <div className="mb-5">
           <p className="text-[9pt] text-tertiary font-mono">{taskNumber}</p>
           <h3 className="text-lg font-semibold text-primary">{taskTitle}</h3>
-          <p className="text-xs text-tertiary mt-1">Evaluating: <span className="font-medium text-primary">{medicName}</span></p>
+          <p className="text-[10pt] text-tertiary mt-1">Evaluating: <span className="font-medium text-primary">{medicName}</span></p>
         </div>
 
         {/* Task-level caution */}
@@ -179,28 +180,33 @@ export function EvaluationStep({
       </div>
 
       {/* Sticky bottom bar */}
-      <div className="sticky bottom-0 left-0 right-0 bg-themewhite border-t border-tertiary/10 px-4 py-3 space-y-2">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-tertiary">
-            {evaluatedCount}/{totalSteps} steps evaluated
-          </span>
-          {overallPreview && (
-            <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-              overallPreview === 'PASS' ? 'bg-themegreen/15 text-themegreen' : 'bg-themeredred/15 text-themeredred'
-            }`}>
-              {overallPreview}
+      <div className="sticky bottom-0 left-0 right-0 bg-themewhite border-t border-primary/6 px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <span className="text-sm text-tertiary truncate">
+              {evaluatedCount}/{totalSteps} steps evaluated
             </span>
-          )}
+            {overallPreview && (
+              <span className={`px-3 py-1 rounded-full text-[10pt] font-bold shrink-0 ${
+                overallPreview === 'PASS' ? 'bg-themegreen/15 text-themegreen' : 'bg-themeredred/15 text-themeredred'
+              }`}>
+                {overallPreview}
+              </span>
+            )}
+          </div>
+          <ActionPill>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={!allEvaluated}
+              aria-label="Submit Evaluation"
+              title={allEvaluated ? 'Submit Evaluation' : 'Complete all steps before submitting'}
+              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all disabled:opacity-40 bg-themeblue2 text-white"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </ActionPill>
         </div>
-        <button
-          onClick={handleSubmit}
-          disabled={!allEvaluated}
-          className="w-full py-3 rounded-lg bg-themeblue3 text-white text-sm font-semibold
-                     hover:bg-themeblue3/90 active:scale-95 transition-all
-                     disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          Submit Evaluation
-        </button>
       </div>
     </div>
   )

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Clock, Trash2, Eye, Mail, Lightbulb } from 'lucide-react'
+import { Trash2, Eye, Mail, Lightbulb } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { ContextMenu } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -342,10 +342,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
         {showLoading ? (
           <AdminListSkeleton />
         ) : feedItems.length === 0 ? (
-          <EmptyState
-            icon={<Clock size={28} />}
-            title={searchQuery ? 'No requests match your search' : 'No requests found'}
-          />
+          <EmptyState title={searchQuery ? 'No requests match your search' : 'No requests found'} />
         ) : (
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-themeblue3/10">
             {feedItems.map(renderFeedItem)}

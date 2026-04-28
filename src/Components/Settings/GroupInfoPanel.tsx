@@ -119,11 +119,11 @@ export function GroupInfoPanel({
         {/* Members list */}
         <div className="px-4">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-xs text-tertiary">{members.length} members</p>
+            <p className="text-[10pt] text-tertiary">{members.length} members</p>
             {isAdmin && (
               <button
                 onClick={() => setShowAddPicker(!showAddPicker)}
-                className="flex items-center gap-1 text-xs text-themeblue2 hover:text-themeblue2/80"
+                className="flex items-center gap-1 text-[10pt] text-themeblue2 hover:text-themeblue2/80"
               >
                 <UserPlus size={12} />
                 Add

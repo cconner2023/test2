@@ -516,7 +516,7 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
         {/* Cancel link */}
         <button
           onClick={() => { resetState(); setView('status') }}
-          className="mt-5 text-xs text-tertiary hover:text-primary transition-colors"
+          className="mt-5 text-[10pt] text-tertiary hover:text-primary transition-colors"
         >
           Cancel
         </button>

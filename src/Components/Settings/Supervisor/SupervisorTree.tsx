@@ -1,7 +1,9 @@
-import { useState } from 'react'
-import { ChevronRight, ChevronDown } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { ChevronRight, ChevronDown, Plus } from 'lucide-react'
 import { formatMedicName } from './supervisorHelpers'
 import { UserAvatar } from '../UserAvatar'
+import { ActionPill } from '../../ActionPill'
+import { ActionButton } from '../../ActionButton'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 
 export type TreeSelection =
@@ -13,6 +15,8 @@ interface SupervisorTreeProps {
   selection: TreeSelection
   onSelect: (selection: TreeSelection) => void
   readinessForSoldier: (soldierId: string) => number
+  /** When provided, an Add-member pill appears in the Personnel header */
+  onAddMember?: (anchorRect: DOMRect) => void
 }
 
 function readinessColor(pct: number): string {
@@ -26,8 +30,10 @@ export function SupervisorTree({
   selection,
   onSelect,
   readinessForSoldier,
+  onAddMember,
 }: SupervisorTreeProps) {
   const [personnelCollapsed, setPersonnelCollapsed] = useState(false)
+  const addPillRef = useRef<HTMLDivElement>(null)
 
   const isActive = (sel: TreeSelection): boolean => {
     if (sel.type !== selection.type) return false
@@ -45,12 +51,24 @@ export function SupervisorTree({
   )
 
   return (
-    <div className="h-full flex flex-col py-1">
+    <div className="relative h-full flex flex-col py-1">
+      {onAddMember && (
+        <ActionPill ref={addPillRef} shadow="sm" className="absolute top-2 right-2 z-10">
+          <ActionButton
+            icon={Plus}
+            label="Add member"
+            onClick={() => {
+              if (!addPillRef.current) return
+              onAddMember(addPillRef.current.getBoundingClientRect())
+            }}
+          />
+        </ActionPill>
+      )}
       <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="shrink-0 px-4 py-3 border-b border-primary/10 flex items-center justify-between">
-          <p className="text-xs font-medium text-tertiary uppercase tracking-wide">Personnel</p>
+        <div className="shrink-0 px-4 py-3 border-b border-primary/10 flex items-center gap-2">
+          <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Personnel</p>
           {medics.length > 0 && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
+            <span className="text-[10pt] px-2 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
               {medics.length}
             </span>
           )}
@@ -70,7 +88,7 @@ export function SupervisorTree({
           >
             {personnelCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
           </button>
-          <span className="text-xs font-medium text-primary truncate flex-1">All Personnel</span>
+          <span className="text-[10pt] font-medium text-primary truncate flex-1">All Personnel</span>
         </div>
 
         {/* Individual soldiers */}

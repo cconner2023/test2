@@ -127,14 +127,14 @@ function AddAllocationForm({
           type="button"
           onClick={handleAdd}
           disabled={!canSubmit}
-          className="flex-1 py-1.5 rounded-full bg-themeblue3 text-white text-xs font-semibold disabled:opacity-40 transition-opacity active:scale-[0.98]"
+          className="flex-1 py-1.5 rounded-full bg-themeblue3 text-white text-[10pt] font-semibold disabled:opacity-40 transition-opacity active:scale-[0.98]"
         >
           Add
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="flex-1 py-1.5 rounded-full border border-themeblue3/20 text-primary text-xs font-medium active:scale-[0.98]"
+          className="flex-1 py-1.5 rounded-full border border-themeblue3/20 text-primary text-[10pt] font-medium active:scale-[0.98]"
         >
           Cancel
         </button>
@@ -228,7 +228,7 @@ export function AllocationPanel({
 
       {/* Empty state */}
       {!hasContent && !showForm && (
-        <p className="text-xs text-tertiary italic text-center py-2">
+        <p className="text-[10pt] text-tertiary italic text-center py-2">
           No items allocated yet.
         </p>
       )}
@@ -246,7 +246,7 @@ export function AllocationPanel({
         <button
           type="button"
           onClick={() => setShowForm(true)}
-          className="flex items-center justify-center gap-1.5 w-full py-2 rounded-2xl border border-dashed border-themeblue2/20 text-themeblue2 text-xs font-medium hover:bg-themeblue2/5 active:scale-[0.98] transition-all"
+          className="flex items-center justify-center gap-1.5 w-full py-2 rounded-2xl border border-dashed border-themeblue2/20 text-themeblue2 text-[10pt] font-medium hover:bg-themeblue2/5 active:scale-[0.98] transition-all"
         >
           <Plus size={13} />
           Add allocation

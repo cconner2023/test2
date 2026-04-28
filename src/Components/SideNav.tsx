@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, useSyncExternalStore } from 'react'
-import { Upload, BookOpen, Mail, Package, ClipboardCheck, Settings, HelpCircle, UserCog, Radio, Map as MapIcon, Eye, CalendarDays, Stethoscope, MessageSquare, X, Pin, ChevronUp, ChevronDown, EyeOff, Crosshair } from 'lucide-react'
+import { Upload, BookOpen, Package, ClipboardCheck, Settings, HelpCircle, UserCog, Radio, Map as MapIcon, Eye, CalendarDays, Stethoscope, MessageSquare, X, Pin, ChevronUp, ChevronDown, EyeOff, Crosshair } from 'lucide-react'
 import { useAuth } from '../Hooks/useAuth'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useAvatar } from '../Utilities/AvatarContext'
@@ -12,7 +12,7 @@ import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 const iconMapMobile: Record<string, React.ReactNode> = {
   'import': <Upload size={20} className="text-primary" />,
   'knowledgebase': <BookOpen size={20} className="text-primary" />,
-  'messages': <Mail size={20} className="text-primary" />,
+  'messages': <MessageSquare size={20} className="text-primary" />,
   'property': <Package size={20} className="text-primary" />,
   'provider': <Stethoscope size={20} className="text-primary" />,
   'supervisor': <ClipboardCheck size={20} className="text-primary" />,
@@ -27,7 +27,7 @@ const iconMapMobile: Record<string, React.ReactNode> = {
 const iconMapDesktop: Record<string, React.ReactNode> = {
   'import': <Upload size={16} className="text-primary" />,
   'knowledgebase': <BookOpen size={16} className="text-primary" />,
-  'messages': <Mail size={16} className="text-primary" />,
+  'messages': <MessageSquare size={16} className="text-primary" />,
   'property': <Package size={16} className="text-primary" />,
   'provider': <Stethoscope size={16} className="text-primary" />,
   'supervisor': <ClipboardCheck size={16} className="text-primary" />,
@@ -155,7 +155,7 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
               : 'Guest'}
           </div>
           {profile.credential && (
-            <div className="text-xs text-secondary truncate">{profile.credential}</div>
+            <div className="text-[10pt] text-secondary truncate">{profile.credential}</div>
           )}
         </div>
       </button>
@@ -216,7 +216,7 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
             onClick={() => {
               hidden.forEach(a => toggleHide(a))
             }}
-            className="flex items-center justify-center gap-1.5 w-full py-2.5 mt-2 text-xs text-tertiary hover:text-tertiary active:scale-95 transform-gpu transition-colors"
+            className="flex items-center justify-center gap-1.5 w-full py-2.5 mt-2 text-[10pt] text-tertiary hover:text-tertiary active:scale-95 transform-gpu transition-colors"
           >
             <Eye size={12} />
             <span>{hiddenCount} hidden — tap to restore</span>
@@ -249,7 +249,7 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
           </div>
         )}
         <div className="px-4 py-3 text-center">
-          <p className="text-xs text-tertiary">Version {__APP_VERSION__}</p>
+          <p className="text-[10pt] text-tertiary">Version {__APP_VERSION__}</p>
           <div className="flex items-center justify-center gap-1.5 mt-2">
             <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-themegreen' : 'bg-tertiary/40'}`} />
             <span className={`text-[9pt] font-medium ${isConnected ? 'text-themegreen' : 'text-tertiary'}`}>

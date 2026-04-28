@@ -52,7 +52,7 @@ const StorageErrorToast: React.FC<StorageErrorToastProps> = ({ message, onDismis
                 </div>
                 <div>
                     <p className="text-sm font-medium text-primary">Storage Error</p>
-                    <p className="text-xs text-tertiary">{message}</p>
+                    <p className="text-[10pt] text-tertiary">{message}</p>
                 </div>
             </div>
         </div>

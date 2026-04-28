@@ -43,6 +43,9 @@ const logger = createLogger('VaultDevice')
 export const VAULT_DEVICE_ID = 'vault'
 const VAULT_KDF_ITERATIONS = 600_000
 const VAULT_PREKEY_BATCH_SIZE = 500
+/** Cap on retained previous signed pre-keys. Vault rotates SPK every drain;
+ *  the previous N keep in-flight InitialMessages decryptable across a rotation. */
+const VAULT_PREVIOUS_SPK_RETENTION = 10
 
 // ---- Types ----
 
@@ -55,6 +58,16 @@ interface VaultDeviceKeysRow {
   version: number
 }
 
+/** Signed pre-key shape stored in the vault blob (JWK format). */
+interface VaultStoredSignedPreKey {
+  keyId: number
+  privateKey: JsonWebKey
+  publicKey: JsonWebKey
+  publicKeyBase64: string
+  signature: string
+  createdAt: string
+}
+
 /** Plaintext vault blob — all private keys in JWK format. */
 interface VaultBlobPlaintext {
   signingPrivateKey: JsonWebKey
@@ -63,14 +76,11 @@ interface VaultBlobPlaintext {
   dhPublicKey: JsonWebKey
   signingPublicKeyBase64: string
   dhPublicKeyBase64: string
-  signedPreKey: {
-    keyId: number
-    privateKey: JsonWebKey
-    publicKey: JsonWebKey
-    publicKeyBase64: string
-    signature: string
-    createdAt: string
-  }
+  signedPreKey: VaultStoredSignedPreKey
+  /** Retained old SPKs so InitialMessages encrypted to a recently-rotated
+   *  SPK still decrypt during the drain window. Bounded by
+   *  VAULT_PREVIOUS_SPK_RETENTION; oldest entries dropped on overflow. */
+  previousSignedPreKeys?: VaultStoredSignedPreKey[]
   preKeys: Array<{
     keyId: number
     privateKey: JsonWebKey
@@ -78,6 +88,16 @@ interface VaultBlobPlaintext {
     publicKeyBase64: string
   }>
   nextPreKeyId: number
+}
+
+/** Imported SPK with live CryptoKey handles. */
+interface VaultImportedSignedPreKey {
+  keyId: number
+  privateKey: CryptoKey
+  publicKey: CryptoKey
+  publicKeyBase64: string
+  signature: string
+  createdAt: string
 }
 
 /** Recovered vault keys with CryptoKey objects ready for use. */
@@ -88,14 +108,8 @@ interface VaultPrivateKeys {
   dhPublicKey: CryptoKey
   signingPublicKeyBase64: string
   dhPublicKeyBase64: string
-  signedPreKey: {
-    keyId: number
-    privateKey: CryptoKey
-    publicKey: CryptoKey
-    publicKeyBase64: string
-    signature: string
-    createdAt: string
-  }
+  signedPreKey: VaultImportedSignedPreKey
+  previousSignedPreKeys: VaultImportedSignedPreKey[]
   preKeys: Array<{
     keyId: number
     privateKey: CryptoKey
@@ -430,6 +444,24 @@ export async function ensureVaultExists(
 
 // ---- Vault Key Recovery ----
 
+/** Import a single SPK JWK record into live CryptoKey handles. */
+async function importVaultSpk(spk: VaultStoredSignedPreKey): Promise<VaultImportedSignedPreKey> {
+  const [spkPriv, spkPub] = await Promise.all([
+    crypto.subtle.importKey('jwk', spk.privateKey,
+      { name: 'ECDH', namedCurve: SIGNAL.CURVE }, true, ['deriveKey', 'deriveBits']),
+    crypto.subtle.importKey('jwk', spk.publicKey,
+      { name: 'ECDH', namedCurve: SIGNAL.CURVE }, true, []),
+  ])
+  return {
+    keyId: spk.keyId,
+    privateKey: spkPriv,
+    publicKey: spkPub,
+    publicKeyBase64: spk.publicKeyBase64,
+    signature: spk.signature,
+    createdAt: spk.createdAt,
+  }
+}
+
 /** Import JWK keys from the decrypted blob back into CryptoKey objects. */
 async function importVaultKeys(blob: VaultBlobPlaintext): Promise<VaultPrivateKeys> {
   const [signingPriv, signingPub, dhPriv, dhPub] = await Promise.all([
@@ -443,13 +475,10 @@ async function importVaultKeys(blob: VaultBlobPlaintext): Promise<VaultPrivateKe
       { name: 'ECDH', namedCurve: SIGNAL.CURVE }, true, []),
   ])
 
-  const spk = blob.signedPreKey
-  const [spkPriv, spkPub] = await Promise.all([
-    crypto.subtle.importKey('jwk', spk.privateKey,
-      { name: 'ECDH', namedCurve: SIGNAL.CURVE }, true, ['deriveKey', 'deriveBits']),
-    crypto.subtle.importKey('jwk', spk.publicKey,
-      { name: 'ECDH', namedCurve: SIGNAL.CURVE }, true, []),
-  ])
+  const importedSpk = await importVaultSpk(blob.signedPreKey)
+  const importedPrevious = await Promise.all(
+    (blob.previousSignedPreKeys ?? []).map(importVaultSpk)
+  )
 
   const preKeys = await Promise.all(blob.preKeys.map(async pk => ({
     keyId: pk.keyId,
@@ -467,14 +496,8 @@ async function importVaultKeys(blob: VaultBlobPlaintext): Promise<VaultPrivateKe
     dhPublicKey: dhPub,
     signingPublicKeyBase64: blob.signingPublicKeyBase64,
     dhPublicKeyBase64: blob.dhPublicKeyBase64,
-    signedPreKey: {
-      keyId: spk.keyId,
-      privateKey: spkPriv,
-      publicKey: spkPub,
-      publicKeyBase64: spk.publicKeyBase64,
-      signature: spk.signature,
-      createdAt: spk.createdAt,
-    },
+    signedPreKey: importedSpk,
+    previousSignedPreKeys: importedPrevious,
     preKeys,
     nextPreKeyId: blob.nextPreKeyId,
   }
@@ -592,10 +615,19 @@ export async function processVaultMessages(userId: string): Promise<number> {
         // X3DH initial message
         const initial = inner as unknown as InitialMessage
 
-        // Find the vault signed pre-key
+        // Look up the SPK referenced by the InitialMessage. Senders may have
+        // fetched the bundle before the most recent vault drain rotated SPK,
+        // so fall back through previousSignedPreKeys before giving up.
+        const matchedSpk = vaultKeys.signedPreKey.keyId === initial.signedPreKeyId
+          ? vaultKeys.signedPreKey
+          : vaultKeys.previousSignedPreKeys.find(s => s.keyId === initial.signedPreKeyId)
+        if (!matchedSpk) {
+          logger.warn(`Vault SPK ${initial.signedPreKeyId} not found (current or previous) — skipping row ${row.id}`)
+          continue
+        }
         const spkPair = {
-          publicKey: vaultKeys.signedPreKey.publicKey,
-          privateKey: vaultKeys.signedPreKey.privateKey,
+          publicKey: matchedSpk.publicKey,
+          privateKey: matchedSpk.privateKey,
         }
 
         // Find and consume one-time pre-key
@@ -629,11 +661,11 @@ export async function processVaultMessages(userId: string): Promise<number> {
           initial.ephemeralKey
         )
 
-        // Initialize receiver ratchet
+        // Initialize receiver ratchet against the matched SPK
         const ratchetState = await initReceiver(x3dh.sharedSecret, {
-          publicKey: vaultKeys.signedPreKey.publicKey,
-          privateKey: vaultKeys.signedPreKey.privateKey,
-          publicKeyBase64: vaultKeys.signedPreKey.publicKeyBase64,
+          publicKey: matchedSpk.publicKey,
+          privateKey: matchedSpk.privateKey,
+          publicKeyBase64: matchedSpk.publicKeyBase64,
         })
 
         // Decrypt first message
@@ -790,6 +822,30 @@ async function rotateVaultSignedPreKey(
     const newSpkSignature = await signBytes(vaultKeys.signingPrivateKey, spkPubBytes)
     const newSpkId = vaultKeys.signedPreKey.keyId + 1
 
+    // Push the outgoing SPK onto the retention list so InitialMessages still
+    // referencing it (sent before this rotation) can decrypt on next drain.
+    // Bounded — drop oldest first to stay under VAULT_PREVIOUS_SPK_RETENTION.
+    const outgoingSpkJwk: VaultStoredSignedPreKey = {
+      keyId: vaultKeys.signedPreKey.keyId,
+      privateKey: await crypto.subtle.exportKey('jwk', vaultKeys.signedPreKey.privateKey),
+      publicKey: await crypto.subtle.exportKey('jwk', vaultKeys.signedPreKey.publicKey),
+      publicKeyBase64: vaultKeys.signedPreKey.publicKeyBase64,
+      signature: vaultKeys.signedPreKey.signature,
+      createdAt: vaultKeys.signedPreKey.createdAt,
+    }
+    const previousJwk: VaultStoredSignedPreKey[] = await Promise.all(
+      vaultKeys.previousSignedPreKeys.map(async s => ({
+        keyId: s.keyId,
+        privateKey: await crypto.subtle.exportKey('jwk', s.privateKey),
+        publicKey: await crypto.subtle.exportKey('jwk', s.publicKey),
+        publicKeyBase64: s.publicKeyBase64,
+        signature: s.signature,
+        createdAt: s.createdAt,
+      }))
+    )
+    const retainedPrevious = [...previousJwk, outgoingSpkJwk]
+      .slice(-VAULT_PREVIOUS_SPK_RETENTION)
+
     // Re-assemble blob with new SPK
     const updatedBlob: VaultBlobPlaintext = {
       signingPrivateKey: await crypto.subtle.exportKey('jwk', vaultKeys.signingPrivateKey),
@@ -806,6 +862,7 @@ async function rotateVaultSignedPreKey(
         signature: newSpkSignature,
         createdAt: new Date().toISOString(),
       },
+      previousSignedPreKeys: retainedPrevious,
       preKeys: await Promise.all(vaultKeys.preKeys.map(async pk => ({
         keyId: pk.keyId,
         privateKey: await crypto.subtle.exportKey('jwk', pk.privateKey),

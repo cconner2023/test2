@@ -72,12 +72,12 @@ export const FluidsPanel = memo(function FluidsPanel() {
                 removeIVAccess(iv.id)
                 addIVAccess(updated)
               }}
-              className="text-xs bg-transparent border border-tertiary/20 rounded px-1.5 py-1 outline-none text-tertiary"
+              className="text-[10pt] bg-transparent border border-tertiary/20 rounded px-1.5 py-1 outline-none text-tertiary"
             >
               {ROUTE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
-            <span className="text-xs text-tertiary">{iv.site || 'Site N/A'}</span>
-            <span className="text-xs text-tertiary">{iv.gauge}</span>
+            <span className="text-[10pt] text-tertiary">{iv.site || 'Site N/A'}</span>
+            <span className="text-[10pt] text-tertiary">{iv.gauge}</span>
             <button onClick={() => removeIVAccess(iv.id)} className="ml-auto p-1 hover:bg-themeredred/10 rounded transition-colors">
               <X size={14} className="text-themeredred/60" />
             </button>
@@ -97,9 +97,9 @@ export const FluidsPanel = memo(function FluidsPanel() {
         {fluids.map((f, i) => (
           <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-tertiary/15 bg-themewhite2">
             <div className="flex-1 min-w-0 grid grid-cols-4 gap-1 items-center">
-              <span className="text-xs font-medium text-primary truncate">{f.type}</span>
-              <span className="text-xs text-tertiary">{f.volume}</span>
-              <span className="text-xs text-tertiary">{f.route}</span>
+              <span className="text-[10pt] font-medium text-primary truncate">{f.type}</span>
+              <span className="text-[10pt] text-tertiary">{f.volume}</span>
+              <span className="text-[10pt] text-tertiary">{f.route}</span>
               <span className="text-[9pt] text-tertiary">{f.time}</span>
             </div>
             <button onClick={() => removeFluid(i)} className="p-1 hover:bg-themeredred/10 rounded transition-colors shrink-0">
@@ -139,9 +139,9 @@ export const FluidsPanel = memo(function FluidsPanel() {
         {bloodProducts.map((b, i) => (
           <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-tertiary/15 bg-themewhite2">
             <div className="flex-1 min-w-0 grid grid-cols-4 gap-1 items-center">
-              <span className="text-xs font-medium text-primary truncate">{b.type}</span>
-              <span className="text-xs text-tertiary">{b.volume}</span>
-              <span className="text-xs text-tertiary">{b.route}</span>
+              <span className="text-[10pt] font-medium text-primary truncate">{b.type}</span>
+              <span className="text-[10pt] text-tertiary">{b.volume}</span>
+              <span className="text-[10pt] text-tertiary">{b.route}</span>
               <span className="text-[9pt] text-tertiary">{b.time}</span>
             </div>
             <button onClick={() => removeBloodProduct(i)} className="p-1 hover:bg-themeredred/10 rounded transition-colors shrink-0">

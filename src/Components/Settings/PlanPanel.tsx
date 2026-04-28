@@ -1,51 +1,54 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import { Check, X, Trash2 } from 'lucide-react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { Check, Trash2, X, User, Building2 } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { updateClinicNoteContent } from '../../lib/supervisorService';
 import type { UserTypes, PlanBlockKey, PlanOrderSet, PlanOrderTags } from '../../Data/User';
-import { PlanTagManager } from './PlanTagManager';
-import type { StagedTagDeletes, StagedTagAdds, StagedTagEdits } from './PlanTagManager';
+import { PLAN_ORDER_CATEGORIES } from '../../Data/User';
+import { PreviewOverlay } from '../PreviewOverlay';
+import { MobileSearchBar } from '../MobileSearchBar';
+import { TextInput } from '../FormInputs';
+import { ActionButton } from '../ActionButton';
+import { PlanAllBlocksPreview, CategoryPicker } from '../PlanBlockPreview';
+import type { LucideIcon } from 'lucide-react';
+import { CATEGORY_META, PlanTagManager } from './PlanTagManager';
 import { OrderSetManager } from './OrderSetManager';
+import { ActionPill } from '../ActionPill'
 
-export interface ComposingSet {
-    editId: string | null;
-    name: string;
-    presets: Partial<Record<PlanBlockKey, string[]>>;
-}
+const ALL_KEYS: PlanBlockKey[] = [...PLAN_ORDER_CATEGORIES, 'instructions'];
+const EMPTY_TAGS: PlanOrderTags = { referral: [], meds: [], radiology: [], lab: [], followUp: [] };
 
-interface PlanPanelProps {
-    editing?: boolean;
-    saveRequested?: boolean;
-    onSaveComplete?: () => void;
-    onPendingChangesChange?: (hasPending: boolean) => void;
-}
+type Scope = 'personal' | 'clinic';
 
-export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPendingChangesChange }: PlanPanelProps) => {
+type TagPopover =
+    | { mode: 'edit'; anchor: DOMRect; key: PlanBlockKey; original: string; isClinic: boolean }
+    | { mode: 'new'; anchor: DOMRect };
+
+type OrderSetPopover =
+    | { mode: 'edit'; anchor: DOMRect; orderSet: PlanOrderSet; isClinic: boolean }
+    | { mode: 'new'; anchor: DOMRect };
+
+export const PlanPanel = () => {
     const { profile, updateProfile, syncProfileField } = useUserProfile();
-    const [scope, setScope] = useState<'personal' | 'clinic'>('personal');
     const clinicPlanOrderTags = useAuthStore(s => s.clinicPlanOrderTags);
     const clinicPlanInstructionTags = useAuthStore(s => s.clinicPlanInstructionTags);
     const clinicPlanOrderSets = useAuthStore(s => s.clinicPlanOrderSets);
     const isSupervisorRole = useAuthStore(s => s.isSupervisorRole);
     const clinicId = useAuthStore(s => s.clinicId);
 
-    const planOrderTags = profile.planOrderTags ?? { referral: [], meds: [], radiology: [], lab: [], followUp: [] };
+    const planOrderTags = profile.planOrderTags ?? EMPTY_TAGS;
     const planInstructionTags = profile.planInstructionTags ?? [];
     const planOrderSets = profile.planOrderSets ?? [];
 
-    const emptyTags = { referral: [], meds: [], radiology: [], lab: [], followUp: [] } as PlanOrderTags;
-
-    // Always compute merged data — everyone sees a unified list with provenance badges
-    const activePlanOrderTags = useMemo(() => {
-        const clinic = clinicPlanOrderTags;
-        const personal = planOrderTags;
+    // Merged display lists — every viewer sees personal + clinic, with provenance
+    const activePlanOrderTags = useMemo<PlanOrderTags>(() => {
+        const c = clinicPlanOrderTags;
         return {
-            referral: [...new Set([...(clinic?.referral ?? []), ...personal.referral])],
-            meds: [...new Set([...(clinic?.meds ?? []), ...personal.meds])],
-            radiology: [...new Set([...(clinic?.radiology ?? []), ...personal.radiology])],
-            lab: [...new Set([...(clinic?.lab ?? []), ...personal.lab])],
-            followUp: [...new Set([...(clinic?.followUp ?? []), ...personal.followUp])],
+            referral:  [...new Set([...(c?.referral  ?? []), ...planOrderTags.referral])],
+            meds:      [...new Set([...(c?.meds      ?? []), ...planOrderTags.meds])],
+            radiology: [...new Set([...(c?.radiology ?? []), ...planOrderTags.radiology])],
+            lab:       [...new Set([...(c?.lab       ?? []), ...planOrderTags.lab])],
+            followUp:  [...new Set([...(c?.followUp  ?? []), ...planOrderTags.followUp])],
         };
     }, [clinicPlanOrderTags, planOrderTags]);
 
@@ -59,449 +62,499 @@ export const PlanPanel = ({ editing = false, saveRequested, onSaveComplete, onPe
         [clinicPlanOrderSets, planOrderSets]
     );
 
-    // Clinic identifier sets for provenance detection
     const clinicOrderSetIds = useMemo(() =>
         new Set((clinicPlanOrderSets ?? []).map(s => s.id)),
         [clinicPlanOrderSets]
     );
 
-    const clinicTagSets = useMemo(() => {
-        const clinic = clinicPlanOrderTags;
+    const clinicTagSets = useMemo<Record<string, Set<string>>>(() => {
+        const c = clinicPlanOrderTags;
         return {
-            referral: new Set(clinic?.referral ?? []),
-            meds: new Set(clinic?.meds ?? []),
-            radiology: new Set(clinic?.radiology ?? []),
-            lab: new Set(clinic?.lab ?? []),
-            followUp: new Set(clinic?.followUp ?? []),
+            referral:     new Set(c?.referral  ?? []),
+            meds:         new Set(c?.meds      ?? []),
+            radiology:    new Set(c?.radiology ?? []),
+            lab:          new Set(c?.lab       ?? []),
+            followUp:     new Set(c?.followUp  ?? []),
             instructions: new Set(clinicPlanInstructionTags ?? []),
         };
     }, [clinicPlanOrderTags, clinicPlanInstructionTags]);
 
-    const [composing, setComposing] = useState<ComposingSet | null>(null);
+    // ── Persistence ────────────────────────────────────────────────
 
-    // Order set staging
-    const [stagedDeletes, setStagedDeletes] = useState<Set<string>>(new Set());
-    const [stagedAdds, setStagedAdds] = useState<PlanOrderSet[]>([]);
-    const [stagedEdits, setStagedEdits] = useState<PlanOrderSet[]>([]);
-
-    // Tag staging
-    const [stagedTagDeletes, setStagedTagDeletes] = useState<StagedTagDeletes>({});
-    const [stagedTagAdds, setStagedTagAdds] = useState<StagedTagAdds>({});
-    const [stagedTagEdits, setStagedTagEdits] = useState<StagedTagEdits>({});
-
-    const hasOrderSetPending = stagedDeletes.size > 0 || stagedAdds.length > 0 || stagedEdits.length > 0;
-    const hasTagPending = Object.values(stagedTagDeletes).some(s => s && s.size > 0)
-        || Object.values(stagedTagAdds).some(a => a && a.length > 0)
-        || Object.values(stagedTagEdits).some(m => m && m.size > 0);
-    const hasPending = hasOrderSetPending || hasTagPending;
-
-    useEffect(() => {
-        onPendingChangesChange?.(hasPending);
-    }, [hasPending, onPendingChangesChange]);
-
-    const handleUpdate = useCallback((fields: Partial<UserTypes>) => {
-        updateProfile(fields);
+    const writePersonal = useCallback((updates: Partial<UserTypes>) => {
+        updateProfile(updates);
         const dbFields: Record<string, unknown> = {};
-        if (fields.planOrderTags !== undefined) dbFields.plan_order_tags = fields.planOrderTags;
-        if (fields.planInstructionTags !== undefined) dbFields.plan_instruction_tags = fields.planInstructionTags;
-        if (fields.planOrderSets !== undefined) dbFields.plan_order_sets = fields.planOrderSets;
+        if (updates.planOrderTags !== undefined)        dbFields.plan_order_tags = updates.planOrderTags;
+        if (updates.planInstructionTags !== undefined)  dbFields.plan_instruction_tags = updates.planInstructionTags;
+        if (updates.planOrderSets !== undefined)        dbFields.plan_order_sets = updates.planOrderSets;
         syncProfileField(dbFields);
     }, [updateProfile, syncProfileField]);
 
-    // Commit all staged changes
-    useEffect(() => {
-        if (!saveRequested) return;
+    const writeClinic = useCallback((updates: { planOrderTags?: PlanOrderTags; planInstructionTags?: string[]; planOrderSets?: PlanOrderSet[] }) => {
+        if (!clinicId) return;
+        updateClinicNoteContent(clinicId, updates);
+        const next: Partial<{ clinicPlanOrderTags: PlanOrderTags; clinicPlanInstructionTags: string[]; clinicPlanOrderSets: PlanOrderSet[] }> = {};
+        if (updates.planOrderTags !== undefined)        next.clinicPlanOrderTags = updates.planOrderTags;
+        if (updates.planInstructionTags !== undefined)  next.clinicPlanInstructionTags = updates.planInstructionTags;
+        if (updates.planOrderSets !== undefined)        next.clinicPlanOrderSets = updates.planOrderSets;
+        useAuthStore.setState(next);
+    }, [clinicId]);
 
-        if (scope === 'clinic' && clinicId) {
-            // --- Clinic save ---
-            const baseTags = clinicPlanOrderTags ?? emptyTags;
-            const baseInstr = clinicPlanInstructionTags ?? [];
-            const baseSets = clinicPlanOrderSets ?? [];
-
-            let nextSets = [...baseSets];
-            if (hasOrderSetPending) {
-                for (const edited of stagedEdits) {
-                    nextSets = nextSets.map(s => s.id === edited.id ? edited : s);
-                }
-                if (stagedDeletes.size > 0) nextSets = nextSets.filter(s => !stagedDeletes.has(s.id));
-                if (stagedAdds.length > 0) nextSets = [...nextSets, ...stagedAdds];
-            }
-
-            let nextOrderTags = { ...baseTags };
-            let nextInstrTags = [...baseInstr];
-            if (hasTagPending) {
-                for (const cat of ['referral', 'meds', 'radiology', 'lab', 'followUp'] as const) {
-                    let tags = [...(nextOrderTags[cat] ?? [])];
-                    const deletes = stagedTagDeletes[cat];
-                    if (deletes && deletes.size > 0) tags = tags.filter(t => !deletes.has(t));
-                    const edits = stagedTagEdits[cat];
-                    if (edits && edits.size > 0) tags = tags.map(t => edits.get(t) ?? t);
-                    const adds = stagedTagAdds[cat];
-                    if (adds && adds.length > 0) tags = [...tags, ...adds];
-                    nextOrderTags[cat] = tags;
-                }
-                const instrDeletes = stagedTagDeletes.instructions;
-                if (instrDeletes && instrDeletes.size > 0) nextInstrTags = nextInstrTags.filter(t => !instrDeletes.has(t));
-                const instrEdits = stagedTagEdits.instructions;
-                if (instrEdits && instrEdits.size > 0) nextInstrTags = nextInstrTags.map(t => instrEdits.get(t) ?? t);
-                const instrAdds = stagedTagAdds.instructions;
-                if (instrAdds && instrAdds.length > 0) nextInstrTags = [...nextInstrTags, ...instrAdds];
-            }
-
-            if (hasPending) {
-                updateClinicNoteContent(clinicId, {
-                    planOrderTags: nextOrderTags,
-                    planInstructionTags: nextInstrTags,
-                    planOrderSets: nextSets,
-                });
-                useAuthStore.setState({
-                    clinicPlanOrderTags: nextOrderTags,
-                    clinicPlanInstructionTags: nextInstrTags,
-                    clinicPlanOrderSets: nextSets,
-                });
+    const mutateTags = useCallback((scope: Scope, key: PlanBlockKey, fn: (current: string[]) => string[]) => {
+        if (scope === 'clinic') {
+            if (key === 'instructions') {
+                writeClinic({ planInstructionTags: fn(clinicPlanInstructionTags ?? []) });
+            } else {
+                const base = clinicPlanOrderTags ?? EMPTY_TAGS;
+                writeClinic({ planOrderTags: { ...base, [key]: fn(base[key] ?? []) } });
             }
         } else {
-            // --- Personal save ---
-            const updates: Partial<UserTypes> = {};
-
-            if (hasOrderSetPending) {
-                let next = [...planOrderSets];
-                for (const edited of stagedEdits) {
-                    next = next.map(s => s.id === edited.id ? edited : s);
-                }
-                if (stagedDeletes.size > 0) next = next.filter(s => !stagedDeletes.has(s.id));
-                if (stagedAdds.length > 0) next = [...next, ...stagedAdds];
-                updates.planOrderSets = next;
+            if (key === 'instructions') {
+                writePersonal({ planInstructionTags: fn(planInstructionTags) });
+            } else {
+                writePersonal({ planOrderTags: { ...planOrderTags, [key]: fn(planOrderTags[key] ?? []) } });
             }
-
-            if (hasTagPending) {
-                const newOrderTags = { ...planOrderTags };
-                for (const cat of ['referral', 'meds', 'radiology', 'lab', 'followUp'] as const) {
-                    let tags = [...(newOrderTags[cat] ?? [])];
-                    const deletes = stagedTagDeletes[cat];
-                    if (deletes && deletes.size > 0) tags = tags.filter(t => !deletes.has(t));
-                    const edits = stagedTagEdits[cat];
-                    if (edits && edits.size > 0) tags = tags.map(t => edits.get(t) ?? t);
-                    const adds = stagedTagAdds[cat];
-                    if (adds && adds.length > 0) tags = [...tags, ...adds];
-                    newOrderTags[cat] = tags;
-                }
-                updates.planOrderTags = newOrderTags;
-
-                let instrTags = [...planInstructionTags];
-                const instrDeletes = stagedTagDeletes.instructions;
-                if (instrDeletes && instrDeletes.size > 0) instrTags = instrTags.filter(t => !instrDeletes.has(t));
-                const instrEdits = stagedTagEdits.instructions;
-                if (instrEdits && instrEdits.size > 0) instrTags = instrTags.map(t => instrEdits.get(t) ?? t);
-                const instrAdds = stagedTagAdds.instructions;
-                if (instrAdds && instrAdds.length > 0) instrTags = [...instrTags, ...instrAdds];
-                updates.planInstructionTags = instrTags;
-            }
-
-            if (hasPending) handleUpdate(updates);
         }
+    }, [clinicPlanInstructionTags, clinicPlanOrderTags, planInstructionTags, planOrderTags, writeClinic, writePersonal]);
 
-        // Clear all staging
-        setStagedDeletes(new Set());
-        setStagedAdds([]);
-        setStagedEdits([]);
-        setStagedTagDeletes({});
-        setStagedTagAdds({});
-        setStagedTagEdits({});
-        setComposing(null);
-        onSaveComplete?.();
-    }, [saveRequested]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // Clear staging when editing is turned off (cancel)
-    useEffect(() => {
-        if (!editing) {
-            setStagedDeletes(new Set());
-            setStagedAdds([]);
-            setStagedEdits([]);
-            setStagedTagDeletes({});
-            setStagedTagAdds({});
-            setStagedTagEdits({});
-            setComposing(null);
-        }
-    }, [editing]);
-
-    // Reset staging when scope changes
-    useEffect(() => {
-        setStagedDeletes(new Set());
-        setStagedAdds([]);
-        setStagedEdits([]);
-        setStagedTagDeletes({});
-        setStagedTagAdds({});
-        setStagedTagEdits({});
-        setComposing(null);
-    }, [scope]);
-
-    // Tour system: listen for plan tour events
-    useEffect(() => {
-        const handleStageTag = (e: Event) => {
-            const { key, tag } = (e as CustomEvent).detail as { key: PlanBlockKey; tag: string };
-            setStagedTagAdds(prev => ({ ...prev, [key]: [...(prev[key] ?? []), tag] }));
-        };
-        const handleStartCompose = (e: Event) => {
-            const { name } = (e as CustomEvent).detail as { name: string };
-            setComposing({ editId: null, name, presets: {} });
-        };
-        const handleTogglePreset = (e: Event) => {
-            const { key, tag } = (e as CustomEvent).detail as { key: PlanBlockKey; tag: string };
-            setComposing(prev => {
-                if (!prev) return prev;
-                const current = prev.presets[key] ?? [];
-                const next = current.includes(tag) ? current.filter(t => t !== tag) : [...current, tag];
-                return { ...prev, presets: { ...prev.presets, [key]: next } };
-            });
-        };
-        const handleSaveCompose = () => {
-            setComposing(prev => {
-                if (!prev || !prev.name.trim()) return prev;
-                const cleaned: Partial<Record<PlanBlockKey, string[]>> = {};
-                for (const [key, tags] of Object.entries(prev.presets)) {
-                    if (tags && tags.length > 0) cleaned[key as PlanBlockKey] = tags;
-                }
-                setStagedAdds(a => [...a, { id: crypto.randomUUID(), name: prev.name.trim(), presets: cleaned }]);
-                return null;
-            });
-        };
-        window.addEventListener('tour:plan-stage-tag', handleStageTag);
-        window.addEventListener('tour:plan-start-compose', handleStartCompose);
-        window.addEventListener('tour:plan-toggle-preset', handleTogglePreset);
-        window.addEventListener('tour:plan-save-compose', handleSaveCompose);
-        return () => {
-            window.removeEventListener('tour:plan-stage-tag', handleStageTag);
-            window.removeEventListener('tour:plan-start-compose', handleStartCompose);
-            window.removeEventListener('tour:plan-toggle-preset', handleTogglePreset);
-            window.removeEventListener('tour:plan-save-compose', handleSaveCompose);
-        };
-    }, []);
-
-    // --- Order set handlers ---
-
-    const handleStartAdd = useCallback((name: string) => {
-        setComposing({ editId: null, name, presets: {} });
-    }, []);
-
-    const handleStartEdit = useCallback((os: PlanOrderSet) => {
-        const staged = stagedEdits.find(s => s.id === os.id);
-        const source = staged ?? os;
-        setComposing({ editId: source.id, name: source.name, presets: JSON.parse(JSON.stringify(source.presets)) });
-    }, [stagedEdits]);
-
-    const handleTogglePreset = useCallback((key: PlanBlockKey, tag: string) => {
-        setComposing(prev => {
-            if (!prev) return prev;
-            const current = prev.presets[key] ?? [];
-            const next = current.includes(tag)
-                ? current.filter(t => t !== tag)
-                : [...current, tag];
-            return { ...prev, presets: { ...prev.presets, [key]: next } };
+    const cascadeRenameInSets = (sets: PlanOrderSet[], key: PlanBlockKey, original: string, next: string) =>
+        sets.map(os => {
+            const presets = os.presets[key];
+            if (!presets || !presets.includes(original)) return os;
+            return { ...os, presets: { ...os.presets, [key]: presets.map(t => t === original ? next : t) } };
         });
-    }, []);
 
-    const handleSaveCompose = useCallback(() => {
-        if (!composing || !composing.name.trim()) return;
+    const cascadeDeleteFromSets = (sets: PlanOrderSet[], key: PlanBlockKey, tag: string) =>
+        sets.map(os => {
+            const presets = os.presets[key];
+            if (!presets || !presets.includes(tag)) return os;
+            const remaining = presets.filter(t => t !== tag);
+            const nextPresets = { ...os.presets };
+            if (remaining.length > 0) nextPresets[key] = remaining;
+            else delete nextPresets[key];
+            return { ...os, presets: nextPresets };
+        });
 
-        const cleaned: Partial<Record<PlanBlockKey, string[]>> = {};
-        for (const [key, tags] of Object.entries(composing.presets)) {
-            if (tags && tags.length > 0) cleaned[key as PlanBlockKey] = tags;
-        }
+    const addTag = useCallback((scope: Scope, key: PlanBlockKey, tag: string) => {
+        mutateTags(scope, key, (cur) => cur.includes(tag) ? cur : [...cur, tag]);
+    }, [mutateTags]);
 
-        if (composing.editId) {
-            setStagedEdits(prev => {
-                const filtered = prev.filter(s => s.id !== composing.editId);
-                return [...filtered, { id: composing.editId!, name: composing.name.trim(), presets: cleaned }];
-            });
-            setStagedDeletes(prev => {
-                if (!prev.has(composing.editId!)) return prev;
-                const next = new Set(prev);
-                next.delete(composing.editId!);
-                return next;
-            });
+    const renameTag = useCallback((scope: Scope, key: PlanBlockKey, original: string, next: string) => {
+        if (original === next) return;
+        mutateTags(scope, key, (cur) => cur.map(t => t === original ? next : t));
+        if (scope === 'clinic') {
+            writeClinic({ planOrderSets: cascadeRenameInSets(clinicPlanOrderSets ?? [], key, original, next) });
         } else {
-            setStagedAdds(prev => [...prev, { id: crypto.randomUUID(), name: composing.name.trim(), presets: cleaned }]);
+            writePersonal({ planOrderSets: cascadeRenameInSets(planOrderSets, key, original, next) });
         }
-        setComposing(null);
-    }, [composing]);
+    }, [mutateTags, clinicPlanOrderSets, planOrderSets, writeClinic, writePersonal]);
 
-    const handleDeleteCompose = useCallback(() => {
-        if (!composing?.editId) return;
-        setStagedDeletes(prev => {
-            const next = new Set(prev);
-            next.add(composing.editId!);
-            return next;
-        });
-        setStagedEdits(prev => prev.filter(s => s.id !== composing.editId));
-        setComposing(null);
-    }, [composing]);
+    const deleteTag = useCallback((scope: Scope, key: PlanBlockKey, tag: string) => {
+        mutateTags(scope, key, (cur) => cur.filter(t => t !== tag));
+        if (scope === 'clinic') {
+            writeClinic({ planOrderSets: cascadeDeleteFromSets(clinicPlanOrderSets ?? [], key, tag) });
+        } else {
+            writePersonal({ planOrderSets: cascadeDeleteFromSets(planOrderSets, key, tag) });
+        }
+    }, [mutateTags, clinicPlanOrderSets, planOrderSets, writeClinic, writePersonal]);
 
-    const handleCancelCompose = useCallback(() => setComposing(null), []);
+    const upsertOrderSet = useCallback((scope: Scope, set: PlanOrderSet) => {
+        if (scope === 'clinic') {
+            const cur = clinicPlanOrderSets ?? [];
+            const exists = cur.some(s => s.id === set.id);
+            writeClinic({ planOrderSets: exists ? cur.map(s => s.id === set.id ? set : s) : [...cur, set] });
+        } else {
+            const exists = planOrderSets.some(s => s.id === set.id);
+            writePersonal({ planOrderSets: exists ? planOrderSets.map(s => s.id === set.id ? set : s) : [...planOrderSets, set] });
+        }
+    }, [clinicPlanOrderSets, planOrderSets, writeClinic, writePersonal]);
 
-    const handleComposingNameChange = useCallback((name: string) => {
-        setComposing(prev => prev ? { ...prev, name } : prev);
-    }, []);
+    const deleteOrderSet = useCallback((scope: Scope, id: string) => {
+        if (scope === 'clinic') {
+            writeClinic({ planOrderSets: (clinicPlanOrderSets ?? []).filter(s => s.id !== id) });
+        } else {
+            writePersonal({ planOrderSets: planOrderSets.filter(s => s.id !== id) });
+        }
+    }, [clinicPlanOrderSets, planOrderSets, writeClinic, writePersonal]);
 
-    const handleUnstageAdd = useCallback((id: string) => {
-        setStagedAdds(prev => prev.filter(s => s.id !== id));
-    }, []);
-
-    const handleUnstageDelete = useCallback((id: string) => {
-        setStagedDeletes(prev => {
-            const next = new Set(prev);
-            next.delete(id);
-            return next;
-        });
-    }, []);
-
-    // --- Tag handlers ---
-
-    const handleToggleTagDelete = useCallback((key: PlanBlockKey, tag: string) => {
-        setStagedTagDeletes(prev => {
-            const current = prev[key] ?? new Set();
-            const next = new Set(current);
-            if (next.has(tag)) {
-                next.delete(tag);
-            } else {
-                next.add(tag);
-            }
-            return { ...prev, [key]: next };
-        });
-    }, []);
-
-    const handleStageTagAdd = useCallback((key: PlanBlockKey, tag: string) => {
-        setStagedTagAdds(prev => {
-            const current = prev[key] ?? [];
-            return { ...prev, [key]: [...current, tag] };
-        });
-    }, []);
-
-    const handleStageTagEdit = useCallback((key: PlanBlockKey, original: string, next: string) => {
-        setStagedTagEdits(prev => {
-            const map = new Map(prev[key] ?? new Map<string, string>());
-            if (next === original) {
-                map.delete(original);
-            } else {
-                map.set(original, next);
-            }
-            return { ...prev, [key]: map };
-        });
-        // If this tag was staged for delete, clear the delete since the user is now renaming it
-        setStagedTagDeletes(prev => {
-            const set = prev[key];
-            if (!set || !set.has(original)) return prev;
-            const nextSet = new Set(set);
-            nextSet.delete(original);
-            return { ...prev, [key]: nextSet };
-        });
-    }, []);
-
-    const handleUnstageTagAdd = useCallback((key: PlanBlockKey, tag: string) => {
-        setStagedTagAdds(prev => {
-            const current = prev[key] ?? [];
-            return { ...prev, [key]: current.filter(t => t !== tag) };
-        });
-    }, []);
-
-    const composeSelectedCount = composing
-        ? (['referral', 'meds', 'radiology', 'lab', 'followUp', 'instructions'] as PlanBlockKey[]).reduce(
-            (sum, k) => sum + (composing.presets[k]?.length ?? 0), 0,
-        )
-        : 0;
+    // ── Popover state ──────────────────────────────────────────────
+    const [tagPopover, setTagPopover] = useState<TagPopover | null>(null);
+    const [orderSetPopover, setOrderSetPopover] = useState<OrderSetPopover | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     return (
-        <div className="flex flex-col h-full" data-tour="plan-settings-panel">
-            <div className="flex-1 overflow-y-auto">
-                <div className="px-5 py-4 space-y-5">
-                    <p className="text-xs text-tertiary leading-relaxed">
+        <>
+            <MobileSearchBar
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search order sets and tags..."
+                inheritScroll
+            >
+                <div className="px-5 py-4 space-y-5" data-tour="plan-settings-panel">
+                    <p className="text-[10pt] text-tertiary leading-relaxed">
                         Manage order tags and order sets for the plan section of your notes.
-                        {(clinicPlanOrderTags || clinicPlanOrderSets?.length) && (
+                        {(clinicPlanOrderTags || (clinicPlanOrderSets?.length ?? 0) > 0) && (
                             <span className="text-tertiary"> Includes clinic-wide items.</span>
                         )}
                     </p>
 
                     <OrderSetManager
                         orderSets={activePlanOrderSets}
-                        editing={editing}
-                        composing={composing}
-                        onComposingNameChange={handleComposingNameChange}
-                        onStartAdd={handleStartAdd}
-                        onStartEdit={handleStartEdit}
-                        stagedDeletes={stagedDeletes}
-                        stagedAdds={stagedAdds}
-                        stagedEdits={stagedEdits}
-                        onUnstageAdd={handleUnstageAdd}
-                        onUnstageDelete={handleUnstageDelete}
                         clinicOrderSetIds={clinicOrderSetIds}
                         isSupervisorRole={isSupervisorRole}
-                        scope={scope}
-                        onScopeChange={setScope}
+                        filter={searchQuery}
+                        onTapRow={(os, anchor) => setOrderSetPopover({
+                            mode: 'edit',
+                            anchor: anchor.getBoundingClientRect(),
+                            orderSet: os,
+                            isClinic: clinicOrderSetIds.has(os.id),
+                        })}
+                        onTapNew={(anchor) => setOrderSetPopover({ mode: 'new', anchor: anchor.getBoundingClientRect() })}
                     />
 
                     <PlanTagManager
                         orderTags={activePlanOrderTags}
                         instructionTags={activePlanInstructionTags}
-                        editing={editing}
-                        selectMode={!!composing}
-                        selectedPresets={composing?.presets}
-                        onTogglePreset={handleTogglePreset}
-                        stagedTagDeletes={stagedTagDeletes}
-                        stagedTagAdds={stagedTagAdds}
-                        stagedTagEdits={stagedTagEdits}
-                        onToggleTagDelete={handleToggleTagDelete}
-                        onStageTagAdd={handleStageTagAdd}
-                        onUnstageTagAdd={handleUnstageTagAdd}
-                        onStageTagEdit={handleStageTagEdit}
                         clinicTagSets={clinicTagSets}
                         isSupervisorRole={isSupervisorRole}
-                        scope={scope}
-                        onScopeChange={setScope}
+                        filter={searchQuery}
+                        onTapTag={(key, tag, anchor) => setTagPopover({
+                            mode: 'edit',
+                            anchor: anchor.getBoundingClientRect(),
+                            key,
+                            original: tag,
+                            isClinic: clinicTagSets[key]?.has(tag) ?? false,
+                        })}
+                        onTapNew={(anchor) => setTagPopover({ mode: 'new', anchor: anchor.getBoundingClientRect() })}
                     />
                 </div>
-            </div>
+            </MobileSearchBar>
 
-            {/* Sticky footer — visible during order set composition */}
-            <div data-tour="plan-orderset-footer" className={`overflow-hidden transition-all duration-300 ease-out ${
-                composing ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'
-            }`}>
-                <div className="px-5 py-3 border-t border-themeblue2/15 bg-themewhite2">
-                    <div className="flex items-center justify-between">
-                        <div className="min-w-0">
-                            <p className="text-sm font-medium text-primary truncate">{composing?.name}</p>
-                            <p className="text-[9pt] text-tertiary">
-                                {composeSelectedCount > 0
-                                    ? <><span className="font-medium text-themeblue2">{composeSelectedCount}</span> tag{composeSelectedCount !== 1 ? 's' : ''} selected</>
-                                    : 'Select tags above'
-                                }
-                            </p>
-                        </div>
-                        <div className="flex gap-1.5 shrink-0">
-                            <button
-                                onClick={handleCancelCompose}
-                                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary hover:bg-tertiary/10 active:scale-95 transition-all"
-                            >
-                                <X size={18} />
-                            </button>
-                            {composing?.editId && (
-                                <button
-                                    onClick={handleDeleteCompose}
-                                    className="animate-spring-in shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeredred/10 text-themeredred active:scale-95 transition-all"
-                                >
-                                    <Trash2 size={18} />
-                                </button>
-                            )}
-                            <button
-                                onClick={handleSaveCompose}
-                                disabled={!composing?.name?.trim()}
-                                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-40 active:scale-95 transition-all"
-                            >
-                                <Check size={18} />
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+            <TagEditPopover
+                state={tagPopover}
+                onClose={() => setTagPopover(null)}
+                isSupervisorRole={!!isSupervisorRole}
+                hasClinic={!!clinicId}
+                onSubmitNew={(scope, key, tag) => { addTag(scope, key, tag); setTagPopover(null); }}
+                onRename={(scope, key, original, next) => { renameTag(scope, key, original, next); setTagPopover(null); }}
+                onDelete={(scope, key, tag) => { deleteTag(scope, key, tag); setTagPopover(null); }}
+            />
+
+            <OrderSetEditPopover
+                state={orderSetPopover}
+                onClose={() => setOrderSetPopover(null)}
+                allOrderTags={activePlanOrderTags}
+                allInstructionTags={activePlanInstructionTags}
+                isSupervisorRole={!!isSupervisorRole}
+                hasClinic={!!clinicId}
+                onSave={(scope, set) => { upsertOrderSet(scope, set); setOrderSetPopover(null); }}
+                onDelete={(scope, id) => { deleteOrderSet(scope, id); setOrderSetPopover(null); }}
+            />
+        </>
     );
 };
+
+// ── Tag edit / new popover ─────────────────────────────────────────
+
+function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitNew, onRename, onDelete }: {
+    state: TagPopover | null;
+    onClose: () => void;
+    isSupervisorRole: boolean;
+    hasClinic: boolean;
+    onSubmitNew: (scope: Scope, key: PlanBlockKey, tag: string) => void;
+    onRename: (scope: Scope, key: PlanBlockKey, original: string, next: string) => void;
+    onDelete: (scope: Scope, key: PlanBlockKey, tag: string) => void;
+}) {
+    const [name, setName] = useState('');
+    const [category, setCategory] = useState<PlanBlockKey>('meds');
+    const [scope, setScope] = useState<Scope>('personal');
+    const supervisorScopeAvailable = isSupervisorRole && hasClinic;
+
+    useEffect(() => {
+        if (!state) return;
+        if (state.mode === 'edit') {
+            setName(state.original);
+            setCategory(state.key);
+            setScope(state.isClinic ? 'clinic' : 'personal');
+        } else {
+            setName('');
+            setCategory('meds');
+            setScope('personal');
+        }
+    }, [state]);
+
+    const trimmed = name.trim();
+    const isOpen = !!state;
+    const isEdit = state?.mode === 'edit';
+    const canSave = !!trimmed && (!isEdit || trimmed !== (state as Extract<TagPopover, { mode: 'edit' }>).original);
+
+    const handleSave = () => {
+        if (!state) return;
+        if (state.mode === 'edit') {
+            if (!trimmed || trimmed === state.original) return;
+            onRename(scope, state.key, state.original, trimmed);
+        } else {
+            if (!trimmed) return;
+            onSubmitNew(scope, category, trimmed);
+        }
+    };
+
+    const handleDelete = () => {
+        if (!state || state.mode !== 'edit') return;
+        onDelete(scope, state.key, state.original);
+    };
+
+    const editMeta = isEdit ? CATEGORY_META[(state as Extract<TagPopover, { mode: 'edit' }>).key] : null;
+    const placeholder = isEdit ? editMeta?.label ?? 'Tag' : CATEGORY_META[category].label;
+
+    return (
+        <PreviewOverlay
+            isOpen={isOpen}
+            onClose={onClose}
+            anchorRect={state?.anchor ?? null}
+            title={isEdit ? `Edit ${editMeta?.label ?? ''} tag` : 'New tag'}
+            maxWidth={360}
+            footer={
+                <ActionPill>
+                    <ActionButton
+                        icon={Check}
+                        label="Save"
+                        variant={canSave ? 'success' : 'disabled'}
+                        onClick={handleSave}
+                    />
+                    {isEdit && (
+                        <ActionButton
+                            icon={Trash2}
+                            label="Delete"
+                            variant="danger"
+                            onClick={handleDelete}
+                        />
+                    )}
+                </ActionPill>
+            }
+            rightFooter={!isEdit ? (
+                <ActionPill>
+                    <CategoryPicker
+                        value={category}
+                        variant="icon"
+                        categories={ALL_KEYS.map(k => ({
+                            key: k,
+                            label: CATEGORY_META[k].label,
+                            icon: CATEGORY_META[k].icon,
+                            color: CATEGORY_META[k].color,
+                            bg: CATEGORY_META[k].bg,
+                        }))}
+                        onChange={(k) => k && setCategory(k as PlanBlockKey)}
+                    />
+                    {supervisorScopeAvailable && (
+                        <ActionButton
+                            icon={scope === 'clinic' ? Building2 : User}
+                            label={scope === 'clinic' ? 'Clinic' : 'Personal'}
+                            onClick={() => setScope(s => s === 'personal' ? 'clinic' : 'personal')}
+                        />
+                    )}
+                </ActionPill>
+            ) : undefined}
+        >
+            <div className="flex items-center gap-2 px-3 py-2">
+                {isEdit && editMeta && (
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${editMeta.bg}`}>
+                        <editMeta.icon size={14} className={editMeta.color} />
+                    </div>
+                )}
+                <input
+                    autoFocus
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSave(); } }}
+                    placeholder={placeholder}
+                    className="flex-1 bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm min-w-0"
+                />
+            </div>
+        </PreviewOverlay>
+    );
+}
+
+// ── Order set edit / new popover ───────────────────────────────────
+
+function OrderSetEditPopover({
+    state, onClose, allOrderTags, allInstructionTags, isSupervisorRole, hasClinic,
+    onSave, onDelete,
+}: {
+    state: OrderSetPopover | null;
+    onClose: () => void;
+    allOrderTags: PlanOrderTags;
+    allInstructionTags: string[];
+    isSupervisorRole: boolean;
+    hasClinic: boolean;
+    onSave: (scope: Scope, set: PlanOrderSet) => void;
+    onDelete: (scope: Scope, id: string) => void;
+}) {
+    const [name, setName] = useState('');
+    const [presets, setPresets] = useState<Partial<Record<PlanBlockKey, string[]>>>({});
+    const [scope, setScope] = useState<Scope>('personal');
+    const idRef = useRef<string>('');
+    const supervisorScopeAvailable = isSupervisorRole && hasClinic;
+
+    useEffect(() => {
+        if (!state) return;
+        if (state.mode === 'edit') {
+            setName(state.orderSet.name);
+            setPresets(JSON.parse(JSON.stringify(state.orderSet.presets)));
+            setScope(state.isClinic ? 'clinic' : 'personal');
+            idRef.current = state.orderSet.id;
+        } else {
+            setName('');
+            setPresets({});
+            setScope('personal');
+            idRef.current = crypto.randomUUID();
+        }
+    }, [state]);
+
+    const isOpen = !!state;
+    const isEdit = state?.mode === 'edit';
+    const trimmed = name.trim();
+    const canSave = !!trimmed;
+
+    const togglePreset = useCallback((key: PlanBlockKey, tag: string) => {
+        setPresets(prev => {
+            const current = prev[key] ?? [];
+            const next = current.includes(tag) ? current.filter(t => t !== tag) : [...current, tag];
+            const nextMap = { ...prev };
+            if (next.length > 0) nextMap[key] = next;
+            else delete nextMap[key];
+            return nextMap;
+        });
+    }, []);
+
+    const allFor = useCallback((key: PlanBlockKey) =>
+        key === 'instructions' ? allInstructionTags : (allOrderTags[key] ?? []),
+        [allOrderTags, allInstructionTags]
+    );
+
+    const categories = useMemo(() => ALL_KEYS.map(key => ({
+        key,
+        label: CATEGORY_META[key].label,
+        tags: allFor(key),
+        state: { status: 'active' as const, selectedTags: presets[key] ?? [], freeText: '' },
+    })), [allFor, presets]);
+
+    const groupedSelected = useMemo(() =>
+        ALL_KEYS
+            .map(key => ({
+                catKey: key,
+                catLabel: CATEGORY_META[key].label,
+                catIcon: CATEGORY_META[key].icon as LucideIcon,
+                catColor: CATEGORY_META[key].color,
+                catBg: CATEGORY_META[key].bg,
+                tags: presets[key] ?? [],
+            }))
+            .filter(g => g.tags.length > 0),
+        [presets]
+    );
+
+    const handleSave = () => {
+        if (!canSave) return;
+        const cleaned: Partial<Record<PlanBlockKey, string[]>> = {};
+        for (const k of ALL_KEYS) {
+            const v = presets[k];
+            if (v && v.length > 0) cleaned[k] = v;
+        }
+        onSave(scope, { id: idRef.current, name: trimmed, presets: cleaned });
+    };
+
+    const handleDelete = () => {
+        if (!state || state.mode !== 'edit') return;
+        onDelete(scope, state.orderSet.id);
+    };
+
+    return (
+        <PreviewOverlay
+            isOpen={isOpen}
+            onClose={onClose}
+            anchorRect={state?.anchor ?? null}
+            title={isEdit ? 'Edit order set' : 'New order set'}
+            maxWidth={520}
+            previewMaxHeight="40dvh"
+            searchPlaceholder="Search tags"
+            preview={(filter, clearFilter) => (
+                <div>
+                    <div className="sticky top-0 z-10 bg-themewhite">
+                        <TextInput
+                            value={name}
+                            onChange={setName}
+                            placeholder="Name (e.g. URI Basic)"
+                        />
+                    </div>
+                    {groupedSelected.length > 0 && (
+                        <div className="border-b border-primary/6">
+                            <div className="px-4 pt-3 pb-1">
+                                <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">
+                                    Selected
+                                </p>
+                            </div>
+                            <div className="px-2 pb-2 space-y-1">
+                                {groupedSelected.map(({ catKey, catLabel, catIcon: CatIcon, catColor, catBg, tags }) => (
+                                    <div key={catKey}>
+                                        <div className="flex items-center gap-2 px-2 pt-1.5 pb-0.5">
+                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${catBg}`}>
+                                                <CatIcon size={11} className="text-themeblue2" />
+                                            </div>
+                                            <span className="text-[9pt] font-semibold uppercase tracking-widest text-themeblue2">{catLabel}</span>
+                                        </div>
+                                        <div className="pl-10">
+                                            {tags.map(tag => (
+                                                <div key={tag} className="flex items-center gap-2 py-1">
+                                                    <span className="flex-1 text-sm text-primary break-words min-w-0">{tag}</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => togglePreset(catKey, tag)}
+                                                        className="shrink-0 p-1 text-tertiary active:text-themeredred transition-colors"
+                                                    >
+                                                        <X size={12} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    <PlanAllBlocksPreview
+                        categories={categories}
+                        filter={filter}
+                        onToggleTag={(catKey, tag) => { togglePreset(catKey as PlanBlockKey, tag); clearFilter(); }}
+                        activeTab={null}
+                    />
+                </div>
+            )}
+            rightFooter={!isEdit && supervisorScopeAvailable ? (
+                <ActionPill>
+                    <ActionButton
+                        icon={scope === 'clinic' ? Building2 : User}
+                        label={scope === 'clinic' ? 'Clinic' : 'Personal'}
+                        onClick={() => setScope(s => s === 'personal' ? 'clinic' : 'personal')}
+                    />
+                </ActionPill>
+            ) : undefined}
+            actions={[
+                ...(isEdit ? [{
+                    key: 'delete',
+                    label: 'Delete',
+                    icon: Trash2,
+                    onAction: handleDelete,
+                    variant: 'danger' as const,
+                }] : []),
+                {
+                    key: 'save',
+                    label: 'Save',
+                    icon: Check,
+                    onAction: handleSave,
+                    variant: canSave ? ('default' as const) : ('disabled' as const),
+                },
+            ]}
+        />
+    );
+}

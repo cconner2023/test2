@@ -510,6 +510,12 @@ export async function forceLogoutUser(
 /**
  * Clinic summary returned by listClinics.
  */
+export interface ClinicRoom {
+  id: string
+  name: string
+  sort_order: number
+}
+
 export interface AdminClinic {
   id: string
   name: string
@@ -518,6 +524,7 @@ export interface AdminClinic {
   associated_clinic_ids: string[]
   location: string | null
   additional_user_ids: string[]
+  rooms: ClinicRoom[]
 }
 
 /**
@@ -534,7 +541,7 @@ export async function listClinics(): Promise<AdminClinic[]> {
   try {
     const { data, error } = await supabase
       .from('clinics')
-      .select('id, name, uics, child_clinic_ids, associated_clinic_ids, location, additional_user_ids, encryption_key')
+      .select('id, name, uics, child_clinic_ids, associated_clinic_ids, location, additional_user_ids, rooms, encryption_key')
       .order('name')
 
     if (error) throw error
@@ -561,6 +568,7 @@ export async function listClinics(): Promise<AdminClinic[]> {
           additional_user_ids: row.additional_user_ids || [],
           associated_clinic_ids: row.associated_clinic_ids || [],
           location,
+          rooms: (row.rooms as ClinicRoom[]) || [],
         }
       })
     )
@@ -701,6 +709,7 @@ export async function updateClinic(
     child_clinic_ids?: string[]
     associated_clinic_ids?: string[]
     additional_user_ids?: string[]
+    rooms?: ClinicRoom[]
   }
 ): Promise<ServiceResult<{ warnings?: string[] }>> {
   try {

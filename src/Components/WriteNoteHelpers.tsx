@@ -7,6 +7,7 @@ import type { useTextExpander } from '../Hooks/useTextExpander';
 import { TextExpanderSuggestion } from './TextExpanderSuggestion';
 import { TemplateOverlay } from './TemplateOverlay';
 import { PIIWarningBanner } from './PIIWarningBanner';
+import { ActionPill } from './ActionPill'
 
 // ---------------------------------------------------------------------------
 // Utility: apply text + cursor to a textarea, batching with rAF cursor sync.
@@ -145,11 +146,13 @@ export const ActionIconButton = ({
     status,
     variant,
     title,
+    tourTag,
 }: {
     onClick: () => void;
     status: 'idle' | 'busy' | 'done';
     variant: 'copy' | 'share' | 'pdf' | 'calendar';
     title: string;
+    tourTag?: string;
 }) => {
     const colorClass = status === 'done' ? 'bg-themeblue2 text-white'
         : status === 'busy' ? 'bg-themeblue2/8 text-tertiary'
@@ -158,6 +161,7 @@ export const ActionIconButton = ({
     return (
         <button
             type="button"
+            data-tour={tourTag}
             onClick={(e) => { e.stopPropagation(); onClick(); }}
             className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${colorClass}`}
             title={title}
@@ -358,17 +362,18 @@ export const NoteWizardFooter = ({
         <div />
         <div key={currentPage} className={`flex items-center gap-2 ${slideDirection === 'left' ? 'animate-footer-btn-left' : slideDirection === 'right' ? 'animate-footer-btn-right' : ''}`}>
             {currentPage < visiblePages.length - 1 && (
-                <button
-                    data-tour="writenote-next"
-                    onClick={handleNext}
-                    disabled={hasPII}
-                    className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2 disabled:opacity-40 ${colors.buttonClass}`}
-                    aria-label="Next"
-                    title={hasPII ? 'Remove PII/PHI before continuing' : undefined}
-                >
-                    <span className="hidden md:inline text-sm font-medium">Next</span>
-                    <ChevronRight className="w-6 h-6" />
-                </button>
+                <ActionPill>
+                    <button
+                        data-tour="writenote-next"
+                        onClick={handleNext}
+                        disabled={hasPII}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all disabled:opacity-40 ${colors.buttonClass}`}
+                        aria-label="Next"
+                        title={hasPII ? 'Remove PII/PHI before continuing' : undefined}
+                    >
+                        <ChevronRight className="w-5 h-5" />
+                    </button>
+                </ActionPill>
             )}
         </div>
     </div>

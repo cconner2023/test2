@@ -1,19 +1,38 @@
 import { useMemo, useCallback, useRef, useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
-import { CATEGORY_BG_MAP, toDateKey } from '../../Types/CalendarTypes'
+import { CATEGORY_BG_MAP, PROVIDER_HUDDLE_TASK_ID, toDateKey, formatShortDayLabel } from '../../Types/CalendarTypes'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useIsMobile } from '../../Hooks/useIsMobile'
+import type { ClinicRoom } from '../../lib/adminService'
+import type { ClinicHuddleTask } from '../../lib/supervisorService'
+import { DatePickerCalendar } from '../FormInputs'
+import { PreviewOverlay } from '../PreviewOverlay'
+import { getDisplayName } from '../../Utilities/nameUtils'
 
 interface TroopsToTaskViewProps {
   date: Date
   events: CalendarEvent[]
   medics: ClinicMedic[]
+  rooms: ClinicRoom[]
+  /** Supervisor-defined huddle stations, sorted by sort_order. One band row per task. */
+  huddleTasks: ClinicHuddleTask[]
   onSelectEvent: (id: string) => void
   onAssign: (eventId: string, userId: string) => void
   onUnassign: (eventId: string, userId: string) => void
   onDateChange: (date: Date) => void
+  /** Called from the huddle band's "+" buttons. taskId pre-selects a station for the new event. */
+  onNewHuddleEvent?: (forDateKey: string, taskId?: string) => void
+  /**
+   * Tap-to-assign a medic to a huddle row. taskId is either a huddle task id or
+   * PROVIDER_HUDDLE_TASK_ID for the providers section. providerId is set when the
+   * row belongs to a specific provider — the medic should be paired with that
+   * provider's existing event (or a new one created for them), not added as a
+   * standalone provider entry. Caller is responsible for
+   * duplicate detection + confirmation modal.
+   */
+  onAssignMedicToHuddle?: (medicId: string, taskId: string, forDateKey: string, providerId?: string) => void
 }
 
 const HOUR_COL_WIDTH = 80
@@ -23,19 +42,10 @@ const NAME_COL_WIDTH = 180
 const DAYS_BUFFER = 7 // 7 before + 7 after = 15 days
 const LOAD_THRESHOLD = 2 // days from edge before loading more
 const LANE_HEIGHT = 24
+const LANE_HEIGHT_HUDDLE = 32
 const LANE_GAP = 2
 const ROW_PAD = 4 // top + bottom padding inside row
-
-function formatName(m: ClinicMedic): string {
-  const parts: string[] = []
-  if (m.rank) parts.push(m.rank)
-  if (m.lastName) {
-    let name = m.lastName
-    if (m.firstName) name += ', ' + m.firstName.charAt(0) + '.'
-    parts.push(name)
-  }
-  return parts.join(' ') || 'Unknown'
-}
+const TIME_HEADER_HEIGHT = 28 // px — used to offset the sticky huddle band
 
 interface DaySlot {
   date: Date
@@ -52,7 +62,7 @@ function generateDays(centerDate: Date, before: number, after: number): DaySlot[
     days.push({
       date: d,
       dateKey: toDateKey(d),
-      label: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+      label: formatShortDayLabel(d),
     })
   }
   return days
@@ -110,12 +120,26 @@ function assignLanes(assignments: CalendarEvent[], days: DaySlot[]): PositionedE
   return positioned
 }
 
-export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateChange }: TroopsToTaskViewProps) {
+export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onSelectEvent, onDateChange, onNewHuddleEvent, onAssignMedicToHuddle }: TroopsToTaskViewProps) {
   const isMobile = useIsMobile()
+  const [armedMedicId, setArmedMedicId] = useState<string | null>(null)
+  const armedMedic = useMemo(
+    () => (armedMedicId ? medics.find(m => m.id === armedMedicId) ?? null : null),
+    [armedMedicId, medics],
+  )
+
+  // Esc cancels the armed-medic state
+  useEffect(() => {
+    if (!armedMedicId) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setArmedMedicId(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [armedMedicId])
   const scrollRef = useRef<HTMLDivElement>(null)
   const dayMarkerRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const [days, setDays] = useState(() => generateDays(date, DAYS_BUFFER, DAYS_BUFFER))
   const [visibleDateLabel, setVisibleDateLabel] = useState('')
+  const [visibleDateKey, setVisibleDateKey] = useState(() => toDateKey(date))
   const initialScrollDone = useRef(false)
   const [nowLineX, setNowLineX] = useState<number | null>(null)
 
@@ -150,11 +174,17 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
     })
   }, [events, days])
 
+  // Huddle events render in their own band, not in medic lanes — exclude them here
+  const nonHuddleEvents = useMemo(
+    () => visibleEvents.filter(e => e.category !== 'huddle'),
+    [visibleEvents],
+  )
+
   // Assignments per medic — lane-resolved
   const medicLanes = useMemo(() => {
     const raw = new Map<string, CalendarEvent[]>()
     for (const medic of medics) raw.set(medic.id, [])
-    for (const event of visibleEvents) {
+    for (const event of nonHuddleEvents) {
       for (const userId of event.assigned_to) {
         const existing = raw.get(userId) ?? []
         existing.push(event)
@@ -166,12 +196,102 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
       map.set(id, assignLanes(evts, days))
     }
     return map
-  }, [medics, visibleEvents, days])
+  }, [medics, nonHuddleEvents, days])
 
   const unassignedLanes = useMemo(() =>
-    assignLanes(visibleEvents.filter(e => e.assigned_to.length === 0), days),
-    [visibleEvents, days]
+    assignLanes(nonHuddleEvents.filter(e => e.assigned_to.length === 0), days),
+    [nonHuddleEvents, days]
   )
+
+  // ── Huddle band — sectioned: providers row(s) + one row per supervisor-defined task ──
+
+  /**
+   * Huddle events split by where they render in the band:
+   *   - providerEvents: no `huddle_task_id`, ≥1 assignee with provider role.
+   *     Render under each on-shift provider's row (left = provider name/badge,
+   *     right = paired medic chip(s)).
+   *   - taskEvents: have a `huddle_task_id`. Render in that station's row.
+   *   - Orphan huddle events (no task_id, no provider assignee) fall through to
+   *     the "Other huddle" lane so nothing silently disappears.
+   */
+  const { providerEvents, taskEvents, orphanHuddleEvents } = useMemo(() => {
+    const providerOnly: CalendarEvent[] = []
+    const tasked: CalendarEvent[] = []
+    const orphan: CalendarEvent[] = []
+    const localMedicById = new Map<string, ClinicMedic>()
+    for (const m of medics) localMedicById.set(m.id, m)
+    for (const e of visibleEvents) {
+      if (e.category !== 'huddle') continue
+      if (e.huddle_task_id === PROVIDER_HUDDLE_TASK_ID) {
+        providerOnly.push(e)
+        continue
+      }
+      if (e.huddle_task_id) {
+        tasked.push(e)
+        continue
+      }
+      // Legacy: null huddle_task_id with a provider assignee — treat as provider event.
+      const hasProvider = e.assigned_to.some(id => {
+        const m = localMedicById.get(id)
+        return !!m && (m.roles ?? []).includes('provider')
+      })
+      if (hasProvider) providerOnly.push(e)
+      else orphan.push(e)
+    }
+    return { providerEvents: providerOnly, taskEvents: tasked, orphanHuddleEvents: orphan }
+  }, [visibleEvents, medics])
+
+  /**
+   * All provider huddle events lane-stacked into a single "PROVIDER" row.
+   * Row height expands with the number of overlapping events regardless of
+   * how many users hold the provider role.
+   */
+  const providerLanesAll = useMemo(
+    () => assignLanes(providerEvents, days),
+    [providerEvents, days],
+  )
+
+  /** Per-task huddle event lanes — keyed by task id. */
+  const taskLanes = useMemo(() => {
+    const map = new Map<string, PositionedEvent[]>()
+    for (const task of huddleTasks) {
+      const evts = taskEvents.filter(e => e.huddle_task_id === task.id)
+      map.set(task.id, assignLanes(evts, days))
+    }
+    return map
+  }, [huddleTasks, taskEvents, days])
+
+  /** Lane-stacked orphan huddle events (no task, no provider). */
+  const orphanHuddleLanes = useMemo(
+    () => assignLanes(orphanHuddleEvents, days),
+    [orphanHuddleEvents, days],
+  )
+
+  const medicById = useMemo(() => {
+    const map = new Map<string, ClinicMedic>()
+    for (const m of medics) map.set(m.id, m)
+    return map
+  }, [medics])
+
+  /**
+   * Provider-role medic IDs who are assigned to at least one huddle event
+   * intersecting the currently visible day. Drives the "Provider" badge swap
+   * in the personnel row — a provider only reads as a provider on days they
+   * actually have a huddle.
+   */
+  const activeProviderIdsForVisibleDay = useMemo(() => {
+    const set = new Set<string>()
+    for (const e of visibleEvents) {
+      if (e.category !== 'huddle') continue
+      if (e.start_time.slice(0, 10) > visibleDateKey) continue
+      if (e.end_time.slice(0, 10) < visibleDateKey) continue
+      for (const id of e.assigned_to) {
+        const m = medicById.get(id)
+        if (m && (m.roles ?? []).includes('provider')) set.add(id)
+      }
+    }
+    return set
+  }, [visibleEvents, visibleDateKey, medicById])
 
   // Scroll to current time on mount (or selected date center if not today)
   useEffect(() => {
@@ -238,7 +358,10 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
           if (entry.isIntersecting) {
             const dateKey = entry.target.getAttribute('data-day-key')
             const day = days.find(d => d.dateKey === dateKey)
-            if (day) setVisibleDateLabel(day.label)
+            if (day) {
+              setVisibleDateLabel(day.label)
+              setVisibleDateKey(day.dateKey)
+            }
           }
         }
       },
@@ -299,8 +422,15 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
     onDateChange(d)
   }, [date, onDateChange])
 
-  const jumpToToday = useCallback(() => {
-    onDateChange(new Date())
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerAnchor, setPickerAnchor] = useState<DOMRect | null>(null)
+  const openPicker = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    setPickerAnchor(e.currentTarget.getBoundingClientRect())
+    setPickerOpen(true)
+  }, [])
+  const handlePickerChange = useCallback((iso: string) => {
+    onDateChange(new Date(iso + 'T00:00:00'))
+    setPickerOpen(false)
   }, [onDateChange])
 
   const dateNavLabel = visibleDateLabel || date.toLocaleDateString('en-US', {
@@ -321,12 +451,12 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
       className="touch-pan-xy h-full min-h-0 min-w-0 overflow-auto overscroll-contain"
       onScroll={handleScroll}
     >
-      <div className="relative" style={{ minWidth: totalWidth, display: 'grid', gridTemplateRows: `auto repeat(${medics.length + (unassignedLanes.length > 0 ? 1 : 0)}, auto) 1fr` }}>
-        {/* Current time indicator — vertical red line spanning all rows */}
+      <div className="relative" style={{ minWidth: totalWidth, display: 'grid', gridTemplateRows: `auto auto repeat(${medics.length + (unassignedLanes.length > 0 ? 1 : 0)}, auto) 1fr` }}>
+        {/* Current time indicator — vertical red line spanning content rows (excludes trailing 1fr footer) */}
         {nowLineX !== null && (
           <div
-            className="absolute top-0 bottom-0 z-[3] pointer-events-none"
-            style={{ left: NAME_COL_WIDTH + nowLineX }}
+            className="absolute top-0 bottom-0 z-[11] pointer-events-none"
+            style={{ left: NAME_COL_WIDTH + nowLineX, gridRow: '1 / -2' }}
           >
             <div className="relative h-full">
               <div className="absolute top-0 w-2 h-2 -translate-x-1/2 rounded-full bg-themeredred" />
@@ -342,7 +472,7 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
             <button onClick={prevDay} className="w-6 h-6 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95">
               <ChevronLeft className="w-3.5 h-3.5" />
             </button>
-            <button onClick={jumpToToday} className="text-[9pt] font-semibold text-primary hover:text-themeblue2 transition-colors active:scale-95 truncate" title="Jump to today">
+            <button onClick={openPicker} className="text-[9pt] font-semibold text-primary hover:text-themeblue2 transition-colors active:scale-95 truncate" title="Pick a date">
               {dateNavLabel}
             </button>
             <button onClick={nextDay} className="w-6 h-6 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95">
@@ -372,20 +502,257 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
           ))}
         </div>
 
+        {/* Huddle band — sticky under the time header, sectioned into Providers + Tasks rows */}
+        <div
+          data-tour="calendar-huddle-band"
+          className="flex flex-col border-b border-themeblue3/20 bg-themewhite3"
+        >
+          {/* Provider row — single "PROVIDER" lane that expands height with all on-shift provider huddle events. */}
+          {(() => {
+            const positioned = providerLanesAll
+            const laneCount = positioned.length > 0 ? Math.max(...positioned.map(p => p.lane)) + 1 : 1
+            const rowHeight = ROW_PAD * 2 + laneCount * (LANE_HEIGHT_HUDDLE + LANE_GAP)
+            const isDropTarget = !!armedMedicId && !!onAssignMedicToHuddle
+            const handleRowClick = isDropTarget
+              ? () => {
+                  onAssignMedicToHuddle!(armedMedicId!, PROVIDER_HUDDLE_TASK_ID, visibleDateKey || toDateKey(date))
+                  setArmedMedicId(null)
+                }
+              : onNewHuddleEvent
+                ? () => onNewHuddleEvent(visibleDateKey || toDateKey(date), PROVIDER_HUDDLE_TASK_ID)
+                : undefined
+            return (
+              <div
+                className={`relative flex border-b border-themeblue3/10 transition-colors ${
+                  isDropTarget ? 'bg-themeblue3/15 ring-1 ring-inset ring-themeblue3 cursor-pointer animate-pulse' : ''
+                }`}
+                style={{ height: rowHeight }}
+                onClick={handleRowClick}
+                role={handleRowClick ? 'button' : undefined}
+                title={isDropTarget ? `Assign ${armedMedic?.lastName ?? ''} to provider huddle` : 'Tap to add provider huddle'}
+              >
+                <div
+                  className="sticky left-0 z-[7] shrink-0 flex items-center px-2 border-r border-primary/10 bg-themewhite3"
+                  style={{ width: NAME_COL_WIDTH }}
+                >
+                  <span className="text-[9pt] font-semibold uppercase tracking-wider text-tertiary truncate">Provider</span>
+                </div>
+                <div className="flex-1 relative">
+                  {days.map((day, dayIdx) => (
+                    Array.from({ length: HOURS_PER_DAY }, (_, h) => (
+                      <div
+                        key={`${day.dateKey}-${h}`}
+                        className={`absolute top-0 bottom-0 ${
+                          h === 0 ? 'border-l-2 border-l-primary/20' : 'border-l border-l-primary/5'
+                        }`}
+                        style={{ left: dayIdx * DAY_WIDTH + h * HOUR_COL_WIDTH, width: HOUR_COL_WIDTH }}
+                      />
+                    ))
+                  )).flat()}
+                  {positioned.map(({ event, left, width, lane }) => {
+                    const assignees = event.assigned_to
+                      .map(id => medicById.get(id))
+                      .filter((m): m is ClinicMedic => !!m)
+                    const provider = assignees.find(m => (m.roles ?? []).includes('provider')) ?? assignees[0]
+                    const partners = assignees.filter(m => m.id !== provider?.id)
+                    return (
+                      <button
+                        key={event.id}
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onSelectEvent(event.id) }}
+                        className="absolute rounded-md bg-themeblue3/15 border border-themeblue3/40 hover:bg-themeblue3/25 transition-colors text-left overflow-hidden"
+                        style={{
+                          left,
+                          width,
+                          top: ROW_PAD + lane * (LANE_HEIGHT_HUDDLE + LANE_GAP),
+                          height: LANE_HEIGHT_HUDDLE,
+                        }}
+                        title={provider ? `${getDisplayName(provider)}${partners.length ? ' + ' + partners.map(p => getDisplayName(p)).join(', ') : ''}` : 'Provider huddle'}
+                      >
+                        <div
+                          className="absolute inset-y-0 right-0 flex items-center gap-1.5 px-1"
+                          style={{
+                            left: `clamp(0px, calc(var(--sl, 0) * 1px - ${left}px), ${Math.max(0, width - 40)}px)`,
+                          }}
+                        >
+                          {provider ? (
+                            <>
+                              <UserAvatar avatarId={provider.avatarId} firstName={provider.firstName} lastName={provider.lastName} className="w-6 h-6 shrink-0 ring-1 ring-themeblue3/50" />
+                              <span className="text-[9pt] font-medium text-primary truncate">{getDisplayName(provider)}</span>
+                            </>
+                          ) : (
+                            <span className="text-[9pt] italic text-tertiary truncate">unassigned</span>
+                          )}
+                          {partners.map(p => (
+                            <span key={p.id} className="inline-flex items-center gap-1 shrink-0 pl-1 border-l border-themeblue3/30">
+                              <UserAvatar avatarId={p.avatarId} firstName={p.firstName} lastName={p.lastName} className="w-6 h-6 shrink-0" />
+                              <span className="text-[9pt] text-primary truncate">{getDisplayName(p)}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* Task rows — one per supervisor-defined station. Tap-armed medic drops here; empty tap creates a new huddle. */}
+          {huddleTasks.map(task => {
+            const positioned = taskLanes.get(task.id) ?? []
+            const laneCount = positioned.length > 0 ? Math.max(...positioned.map(p => p.lane)) + 1 : 1
+            const rowHeight = ROW_PAD * 2 + laneCount * (LANE_HEIGHT_HUDDLE + LANE_GAP)
+            const isDropTarget = !!armedMedicId && !!onAssignMedicToHuddle
+            const handleRowClick = isDropTarget
+              ? () => {
+                  onAssignMedicToHuddle!(armedMedicId!, task.id, visibleDateKey || toDateKey(date))
+                  setArmedMedicId(null)
+                }
+              : onNewHuddleEvent
+                ? () => onNewHuddleEvent(visibleDateKey || toDateKey(date), task.id)
+                : undefined
+            return (
+              <div
+                key={task.id}
+                className={`relative flex border-b border-themeblue3/10 transition-colors ${
+                  isDropTarget ? 'bg-themeblue3/15 ring-1 ring-inset ring-themeblue3 cursor-pointer animate-pulse' : ''
+                }`}
+                style={{ height: rowHeight }}
+                onClick={handleRowClick}
+                role={handleRowClick ? 'button' : undefined}
+                title={isDropTarget ? `Assign ${armedMedic?.lastName ?? ''} to ${task.name}` : `Tap to assign someone to ${task.name}`}
+              >
+                <div
+                  className="sticky left-0 z-[7] shrink-0 flex items-center px-2 border-r border-primary/10 bg-themewhite3"
+                  style={{ width: NAME_COL_WIDTH }}
+                >
+                  <span className="text-[9pt] font-semibold uppercase tracking-wider text-tertiary truncate">{task.name}</span>
+                </div>
+                <div className="flex-1 relative">
+                  {days.map((day, dayIdx) => (
+                    Array.from({ length: HOURS_PER_DAY }, (_, h) => (
+                      <div
+                        key={`${day.dateKey}-${h}`}
+                        className={`absolute top-0 bottom-0 ${
+                          h === 0 ? 'border-l-2 border-l-primary/20' : 'border-l border-l-primary/5'
+                        }`}
+                        style={{ left: dayIdx * DAY_WIDTH + h * HOUR_COL_WIDTH, width: HOUR_COL_WIDTH }}
+                      />
+                    ))
+                  )).flat()}
+                  {positioned.map(({ event, left, width, lane }) => {
+                    const assignees = event.assigned_to
+                      .map(id => medicById.get(id))
+                      .filter((m): m is ClinicMedic => !!m)
+                    return (
+                      <button
+                        key={event.id}
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onSelectEvent(event.id) }}
+                        className="absolute rounded-md bg-themeblue3/15 border border-themeblue3/40 hover:bg-themeblue3/25 transition-colors text-left overflow-hidden"
+                        style={{
+                          left,
+                          width,
+                          top: ROW_PAD + lane * (LANE_HEIGHT_HUDDLE + LANE_GAP),
+                          height: LANE_HEIGHT_HUDDLE,
+                        }}
+                        title={assignees.length ? assignees.map(m => getDisplayName(m)).join(', ') : 'unassigned'}
+                      >
+                        <div
+                          className="absolute inset-y-0 right-0 flex items-center gap-1.5 px-1"
+                          style={{
+                            left: `clamp(0px, calc(var(--sl, 0) * 1px - ${left}px), ${Math.max(0, width - 40)}px)`,
+                          }}
+                        >
+                          {assignees.length === 0 ? (
+                            <span className="text-[9pt] italic text-tertiary truncate">unassigned</span>
+                          ) : (
+                            assignees.map((m, i) => (
+                              <span key={m.id} className={`inline-flex items-center gap-1 shrink-0 ${i > 0 ? 'pl-1 border-l border-themeblue3/30' : ''}`}>
+                                <UserAvatar avatarId={m.avatarId} firstName={m.firstName} lastName={m.lastName} className={`w-6 h-6 shrink-0 ${(m.roles ?? []).includes('provider') ? 'ring-1 ring-themeblue3/50' : ''}`} />
+                                <span className="text-[9pt] text-primary truncate">{getDisplayName(m)}</span>
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+
+          {/* Orphan huddle events — fallback so unconfigured rows don't disappear silently */}
+          {orphanHuddleLanes.length > 0 && (() => {
+            const laneCount = Math.max(...orphanHuddleLanes.map(p => p.lane)) + 1
+            const rowHeight = ROW_PAD * 2 + laneCount * (LANE_HEIGHT_HUDDLE + LANE_GAP)
+            return (
+              <div className="relative flex border-b border-themeblue3/10" style={{ height: rowHeight }}>
+                <div className="sticky left-0 z-[7] shrink-0 flex items-center px-2 border-r border-primary/10 bg-themewhite3" style={{ width: NAME_COL_WIDTH }}>
+                  <span className="text-[9pt] font-semibold uppercase tracking-wider text-tertiary truncate">Other huddle</span>
+                </div>
+                <div className="flex-1 relative">
+                  {days.map((day, dayIdx) => (
+                    Array.from({ length: HOURS_PER_DAY }, (_, h) => (
+                      <div
+                        key={`${day.dateKey}-${h}`}
+                        className={`absolute top-0 bottom-0 ${
+                          h === 0 ? 'border-l-2 border-l-primary/20' : 'border-l border-l-primary/5'
+                        }`}
+                        style={{ left: dayIdx * DAY_WIDTH + h * HOUR_COL_WIDTH, width: HOUR_COL_WIDTH }}
+                      />
+                    ))
+                  )).flat()}
+                  {orphanHuddleLanes.map(({ event, left, width, lane }) => (
+                    <button
+                      key={event.id}
+                      type="button"
+                      onClick={() => onSelectEvent(event.id)}
+                      className="absolute rounded-md border bg-themeblue3/10 border-themeblue3/30 hover:bg-themeblue3/20 transition-colors text-left overflow-hidden flex items-center gap-1.5 px-1.5"
+                      style={{
+                        left,
+                        width,
+                        top: ROW_PAD + lane * (LANE_HEIGHT_HUDDLE + LANE_GAP),
+                        height: LANE_HEIGHT_HUDDLE,
+                      }}
+                    >
+                      <span className="text-[9pt] text-primary truncate">{event.title || 'Huddle'}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+        </div>
+
         {/* Personnel rows */}
         {medics.map(medic => {
           const positioned = medicLanes.get(medic.id) ?? []
           const laneCount = positioned.length > 0 ? Math.max(...positioned.map(p => p.lane)) + 1 : 1
           const rowHeight = Math.max(ROW_PAD * 2 + laneCount * (LANE_HEIGHT + LANE_GAP), 52)
+          const isArmed = armedMedicId === medic.id
+          const canArm = !!onAssignMedicToHuddle
           return (
             <div key={medic.id} className="relative flex border-b border-primary/5" style={{ height: rowHeight }}>
-              <div className={`sticky left-0 z-[5] shrink-0 flex items-center border-r border-primary/10 bg-themewhite3 ${isMobile ? 'gap-3 px-3' : 'gap-2 px-2'}`} style={{ width: NAME_COL_WIDTH }}>
+              <div
+                className={`sticky left-0 z-[5] shrink-0 flex items-center border-r border-primary/10 transition-colors ${isMobile ? 'gap-3 px-3' : 'gap-2 px-2'} ${
+                  isArmed ? 'bg-themeblue3/20 ring-1 ring-inset ring-themeblue3' : 'bg-themewhite3'
+                } ${canArm ? 'cursor-pointer' : ''}`}
+                style={{ width: NAME_COL_WIDTH }}
+                onClick={canArm ? () => setArmedMedicId(prev => prev === medic.id ? null : medic.id) : undefined}
+                role={canArm ? 'button' : undefined}
+                title={canArm ? (isArmed ? 'Tap a huddle row to assign — Esc to cancel' : 'Tap, then tap a huddle row to assign') : undefined}
+              >
                 <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className={isMobile ? 'w-10 h-10' : 'w-7 h-7'} />
                 <div className="min-w-0">
-                  <p className={`font-medium text-primary truncate ${isMobile ? 'text-sm' : 'text-xs'}`}>{formatName(medic)}</p>
-                  {medic.credential && (
+                  <p className={`font-medium text-primary truncate ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{getDisplayName(medic)}</p>
+                  {activeProviderIdsForVisibleDay.has(medic.id) ? (
+                    <p className="text-[9pt] text-themeblue3 font-medium truncate">Provider</p>
+                  ) : medic.credential ? (
                     <p className="text-[9pt] text-tertiary truncate">{medic.credential}</p>
-                  )}
+                  ) : null}
                 </div>
               </div>
 
@@ -490,6 +857,19 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, onDateCh
         {/* Bottom padding */}
         <div className="h-20" />
       </div>
+
+      <PreviewOverlay
+        isOpen={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        anchorRect={pickerAnchor}
+        title="Jump to date"
+      >
+        <DatePickerCalendar
+          value={toDateKey(date)}
+          onChange={handlePickerChange}
+          onClose={() => setPickerOpen(false)}
+        />
+      </PreviewOverlay>
     </div>
   )
 }

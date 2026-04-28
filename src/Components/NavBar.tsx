@@ -1,4 +1,4 @@
-import { BookOpen, Mail, Package, Radio, Map } from "lucide-react";
+import { BookOpen, MessageSquare, Package, Radio, Map } from "lucide-react";
 import { useAvatar } from "../Utilities/AvatarContext";
 import { useAuth } from "../Hooks/useAuth";
 import { useTotalUnread } from "../stores/useMessagingStore";
@@ -32,7 +32,7 @@ export function NavBar({ onKnowledgeBaseClick, onMessagesClick, onPropertyClick,
                     <img src={customImage} alt="Profile" className="w-full h-full object-cover rounded-full" />
                 ) : isInitials ? (
                     <div className="w-full h-full rounded-full bg-themeblue2/15 flex items-center justify-center">
-                        <span className="text-xs font-semibold text-themeblue2">
+                        <span className="text-[10pt] font-semibold text-themeblue2">
                             {getInitials(profile.firstName, profile.lastName)}
                         </span>
                     </div>
@@ -52,7 +52,7 @@ export function NavBar({ onKnowledgeBaseClick, onMessagesClick, onPropertyClick,
             {/* Messages — gated on auth */}
             {isAuthenticated && (
                 <button onClick={onMessagesClick} className={`${BTN} relative`} aria-label="Messages" title="Messages">
-                    <Mail className="w-4 h-4 stroke-themeblue1" />
+                    <MessageSquare className="w-4 h-4 stroke-themeblue1" />
                     <span className="hidden lg:inline text-[10pt] text-tertiary">Messages</span>
                     {totalUnread > 0 && (
                         <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-themeredred text-white text-[9pt] font-bold leading-none">

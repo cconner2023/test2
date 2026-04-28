@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { Pencil, X, CalendarPlus, Map, Copy, Check, Printer, Image } from 'lucide-react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
-import { getCategoryMeta } from '../../Types/CalendarTypes'
+import { getCategoryMeta, formatShortDayLabel } from '../../Types/CalendarTypes'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { shareSingleEvent } from '../../lib/calendarExport'
@@ -40,7 +40,7 @@ function formatDateTime(iso: string, allDay: boolean): string {
   if (allDay) {
     return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
   }
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) +
+  return formatShortDayLabel(d) +
     ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
@@ -105,7 +105,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
 
           <h2 className={`font-bold text-primary ${isMobile ? 'text-lg' : 'text-sm'}`}>{event.title}</h2>
 
-          <div className={`space-y-2 ${isMobile ? 'text-sm' : 'text-xs'}`}>
+          <div className={`space-y-2 ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>
             <p className="text-primary">
               {formatDateTime(event.start_time, event.all_day)}
               {!event.all_day && (
@@ -128,7 +128,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
 
           {event.description && (
             <div className="pt-3 border-t border-primary/8">
-              <p className={`text-secondary whitespace-pre-wrap ${isMobile ? 'text-sm' : 'text-xs'}`}>{event.description}</p>
+              <p className={`text-secondary whitespace-pre-wrap ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{event.description}</p>
             </div>
           )}
         </div>
@@ -143,7 +143,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
           </div>
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
             {assignedNames.length === 0 ? (
-              <p className={`text-tertiary ${isMobile ? 'text-sm px-4 py-4' : 'text-xs px-3 py-3'}`}>Unassigned</p>
+              <p className={`text-tertiary ${isMobile ? 'text-sm px-4 py-4' : 'text-[10pt] px-3 py-3'}`}>Unassigned</p>
             ) : (
               assignedNames.map((person) => (
                 <div key={person.id} className={`flex items-center ${isMobile ? 'gap-3 px-4 py-3' : 'gap-2 px-3 py-2'}`}>
@@ -153,7 +153,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
                     lastName={person.lastName}
                     className={isMobile ? 'w-10 h-10' : 'w-7 h-7'}
                   />
-                  <span className={`font-medium text-primary ${isMobile ? 'text-sm' : 'text-xs'}`}>{person.name}</span>
+                  <span className={`font-medium text-primary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{person.name}</span>
                 </div>
               ))
             )}
@@ -173,7 +173,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
               {linkedPropertyItems.map((item) => (
                 <div key={item.id} className={`flex items-center ${isMobile ? 'gap-3 px-4 py-3' : 'gap-2 px-3 py-2'}`}>
                   <div className="min-w-0">
-                    <p className={`font-medium text-primary truncate ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.name}</p>
+                    <p className={`font-medium text-primary truncate ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{item.name}</p>
                     {item.nsn && <p className="text-[9pt] text-tertiary">{item.nsn}</p>}
                   </div>
                 </div>
@@ -207,7 +207,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
               </div>
             </div>
             <div className="rounded-xl bg-themewhite2 overflow-hidden">
-              <div className="px-4 py-3 text-tertiary text-[9pt] whitespace-pre-wrap leading-relaxed">
+              <div className="px-4 py-3 text-tertiary text-[10pt] whitespace-pre-wrap leading-relaxed">
                 {medevacToText(event.medevac_data)}
               </div>
             </div>
@@ -247,7 +247,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
           <button
             onClick={onOpenMissionBoard}
             className={`w-full flex items-center justify-center gap-2 rounded-2xl border border-themegreen/30 bg-themegreen/10 font-medium text-themegreen active:scale-95 transition-all duration-200 ${
-              isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-xs'
+              isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-[10pt]'
             }`}
           >
             <Map className={isMobile ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
@@ -259,7 +259,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
         <button
           onClick={() => shareSingleEvent(event).catch(() => {})}
           className={`w-full flex items-center justify-center gap-2 rounded-2xl border border-themeblue2/20 bg-themewhite2 font-medium text-themeblue2 active:scale-95 transition-all duration-200 ${
-            isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-xs'
+            isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-[10pt]'
           }`}
         >
           <CalendarPlus className={isMobile ? 'w-4 h-4' : 'w-3.5 h-3.5'} />

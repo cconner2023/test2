@@ -37,25 +37,23 @@ export const ClinicPickerInput = ({
   const selected = allClinics.find(c => c.id === value) ?? null
 
   return (
-    <div>
-      {label && (
-        <span className="text-xs font-medium text-tertiary uppercase tracking-wide">{label}</span>
-      )}
-      <div className={label ? 'mt-1' : ''}>
-        <button
-          type="button"
-          onClick={() => setVisible(true)}
-          className={`w-full px-4 py-2.5 rounded-full text-left text-sm border border-themeblue3/10 shadow-xs bg-themewhite2 transition-all duration-200 flex items-center justify-between active:scale-[0.98] ${value ? 'text-primary' : 'text-tertiary'}`}
-        >
-          <div className="flex-1 min-w-0 flex items-center gap-2 truncate">
-            <span className="truncate">{selected ? selected.name : placeholder}</span>
-            {selected && selected.uics.length > 0 && (
-              <span className="text-tertiary text-xs shrink-0">{selected.uics.join(' · ')}</span>
-            )}
-          </div>
-          <ChevronDown size={16} className="shrink-0 ml-2 text-tertiary" />
-        </button>
-      </div>
+    <div className="block border-b border-primary/6 last:border-b-0">
+      <button
+        type="button"
+        onClick={() => setVisible(true)}
+        className={`w-full bg-transparent px-4 py-3 text-left text-base md:text-sm
+                   flex items-center justify-between gap-3 focus:outline-none ${
+                     value ? 'text-primary' : 'text-tertiary'
+                   }`}
+      >
+        <div className="flex-1 min-w-0 flex items-center gap-2 truncate">
+          <span className="truncate">{selected ? selected.name : (placeholder || label)}</span>
+          {selected && selected.uics.length > 0 && (
+            <span className="text-tertiary text-[10pt] shrink-0">{selected.uics.join(' · ')}</span>
+          )}
+        </div>
+        <ChevronDown size={16} className="shrink-0 text-tertiary" />
+      </button>
 
       <PreviewOverlay
         isOpen={visible}
@@ -143,16 +141,13 @@ export const ClinicMultiPickerInput = ({
   }, [selectedIds, onChange])
 
   return (
-    <div>
-      {label && (
-        <span className="text-xs font-medium text-tertiary uppercase tracking-wide">{label}</span>
-      )}
+    <div className="block border-b border-primary/6 last:border-b-0">
       {selectedIds.length > 0 && (
-        <div className="mt-1 flex flex-wrap gap-1.5 mb-2">
+        <div className="px-4 pt-3 flex flex-wrap gap-1.5">
           {selectedIds.map(id => {
             const c = clinicMap.get(id)
             return (
-              <span key={id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-themeblue2/10 text-themeblue2 text-xs font-medium border border-themeblue2/30">
+              <span key={id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-themeblue2/10 text-themeblue2 text-[10pt] font-medium border border-themeblue2/30">
                 <span>{c ? c.name : id.slice(0, 8)}</span>
                 {c && c.uics.length > 0 && (
                   <span className="text-themeblue2/60">{c.uics[0]}</span>
@@ -172,10 +167,11 @@ export const ClinicMultiPickerInput = ({
       <button
         type="button"
         onClick={() => setVisible(true)}
-        className="w-full px-4 py-2.5 rounded-full text-left text-sm border border-themeblue3/10 shadow-xs bg-themewhite2 transition-all duration-200 flex items-center justify-between active:scale-[0.98] text-tertiary"
+        className="w-full bg-transparent px-4 py-3 text-left text-base md:text-sm
+                   flex items-center justify-between gap-3 focus:outline-none text-tertiary"
       >
-        <span>{placeholder}</span>
-        <ChevronDown size={16} className="shrink-0 ml-2 text-tertiary" />
+        <span>{placeholder || label}</span>
+        <ChevronDown size={16} className="shrink-0 text-tertiary" />
       </button>
 
       <PreviewOverlay
@@ -264,38 +260,37 @@ export const UserPicker = ({
   }
 
   return (
-    <div>
-      {label && <span className="text-xs font-medium text-tertiary uppercase tracking-wide">{label}</span>}
-      <div className="mt-1 flex flex-wrap gap-1.5 mb-2">
-        {selectedIds.map((id) => {
-          const u = userMap.get(id)
-          const display = u ? `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email : id.slice(0, 8)
-          return (
-            <span key={id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-themepurple/10 text-themepurple text-xs font-medium border border-themepurple/30">
-              {display}
-              <button type="button" onClick={() => removeUser(id)} className="hover:text-themeredred transition-colors">
-                <X size={12} />
-              </button>
-            </span>
-          )
-        })}
-      </div>
+    <div className="block border-b border-primary/6 last:border-b-0">
+      {selectedIds.length > 0 && (
+        <div className="px-4 pt-3 flex flex-wrap gap-1.5">
+          {selectedIds.map((id) => {
+            const u = userMap.get(id)
+            const display = u ? `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email : id.slice(0, 8)
+            return (
+              <span key={id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-themepurple/10 text-themepurple text-[10pt] font-medium border border-themepurple/30">
+                {display}
+                <button type="button" onClick={() => removeUser(id)} className="hover:text-themeredred transition-colors">
+                  <X size={12} />
+                </button>
+              </span>
+            )
+          })}
+        </div>
+      )}
       <div className="relative">
         <input
           type="text" value={search}
           onChange={(e) => { setSearch(e.target.value); setOpen(true) }}
           onFocus={() => setOpen(true)}
-          placeholder="Search users by name or email..."
-          className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-primary text-sm
-                     border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                     transition-colors placeholder:text-tertiary"
+          placeholder={label ?? 'Search users by name or email'}
+          className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none"
         />
         {open && filtered.length > 0 && (
-          <div className="absolute z-10 mt-1 w-full rounded-lg bg-themewhite2 border border-tertiary/10 shadow-lg max-h-48 overflow-y-auto">
+          <div className="absolute z-10 mt-1 left-2 right-2 rounded-2xl bg-themewhite shadow-lg max-h-48 overflow-y-auto">
             {filtered.map((u) => (
               <button key={u.id} type="button"
                 onClick={() => addUser(u.id)}
-                className="w-full text-left px-3 py-2 text-sm hover:bg-themeblue2/10 active:scale-95 transition-all">
+                className="w-full text-left px-4 py-2 text-sm hover:bg-themeblue2/10 active:scale-95 transition-all border-b border-primary/6 last:border-b-0">
                 <span className="text-primary font-medium">{u.first_name} {u.last_name}</span>
                 <span className="text-tertiary ml-2">{u.email}</span>
               </button>

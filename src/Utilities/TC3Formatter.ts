@@ -160,18 +160,9 @@ function formatFluids(card: TC3Card): string {
 }
 
 function formatVitals(card: TC3Card): string {
-  if (card.vitals.length === 0 && !card.avpu && !card.gcs) return ''
+  if (card.vitals.length === 0) return ''
 
   const lines: string[] = ['VITAL SIGNS']
-
-  // Mental status first
-  const mentalParts: string[] = []
-  if (card.avpu) mentalParts.push(`AVPU: ${card.avpu}`)
-  if (card.gcs) {
-    const total = card.gcs.eye + card.gcs.verbal + card.gcs.motor
-    mentalParts.push(`GCS: ${total} (E${card.gcs.eye} V${card.gcs.verbal} M${card.gcs.motor})`)
-  }
-  if (mentalParts.length > 0) lines.push(`  ${mentalParts.join('  ')}`)
 
   card.vitals.forEach((vs, i) => {
     lines.push(`Set #${i + 1} (${vs.time})`)
@@ -184,6 +175,13 @@ function formatVitals(card: TC3Card): string {
     ].filter(Boolean)
     if (items.length > 0) lines.push(`  ${items.join(', ')}`)
     if (vs.painScale) lines.push(`  Pain: ${vs.painScale}`)
+    const mentalParts: string[] = []
+    if (vs.avpu) mentalParts.push(`AVPU: ${vs.avpu}`)
+    if (vs.gcs) {
+      const total = vs.gcs.eye + vs.gcs.verbal + vs.gcs.motor
+      mentalParts.push(`GCS: ${total} (E${vs.gcs.eye} V${vs.gcs.verbal} M${vs.gcs.motor})`)
+    }
+    if (mentalParts.length > 0) lines.push(`  ${mentalParts.join('  ')}`)
   })
 
   return lines.join('\n')
@@ -243,22 +241,20 @@ export function formatMISTReport(card: TC3Card): string {
     lines.push('I - INJURIES: None documented')
   }
 
-  // S — Signs & Symptoms
+  // S — Signs & Symptoms (latest vital set)
   const vs = card.vitals.length > 0 ? card.vitals[card.vitals.length - 1] : null
-  if (vs || card.avpu || card.gcs) {
+  if (vs) {
     const sParts: string[] = []
-    if (card.avpu) sParts.push(`AVPU: ${card.avpu}`)
-    if (vs) {
-      if (vs.pulse) sParts.push(`HR: ${vs.pulse}`)
-      if (vs.bp) sParts.push(`BP: ${vs.bp}`)
-      if (vs.spo2) sParts.push(`SpO2: ${vs.spo2}`)
-      if (vs.rr) sParts.push(`RR: ${vs.rr}`)
-    }
+    if (vs.avpu) sParts.push(`AVPU: ${vs.avpu}`)
+    if (vs.pulse) sParts.push(`HR: ${vs.pulse}`)
+    if (vs.bp) sParts.push(`BP: ${vs.bp}`)
+    if (vs.spo2) sParts.push(`SpO2: ${vs.spo2}`)
+    if (vs.rr) sParts.push(`RR: ${vs.rr}`)
     lines.push(`S - SIGNS: ${sParts.join('  ')}`)
     const s2Parts: string[] = []
-    if (vs?.painScale) s2Parts.push(`Pain: ${vs.painScale}/10`)
-    if (card.gcs) {
-      const total = card.gcs.eye + card.gcs.verbal + card.gcs.motor
+    if (vs.painScale) s2Parts.push(`Pain: ${vs.painScale}/10`)
+    if (vs.gcs) {
+      const total = vs.gcs.eye + vs.gcs.verbal + vs.gcs.motor
       s2Parts.push(`GCS: ${total}`)
     }
     if (s2Parts.length > 0) lines.push(`    ${s2Parts.join('  ')}`)

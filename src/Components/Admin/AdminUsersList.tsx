@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { UserPlus, Pencil, KeyRound, Trash2, LogOut, Eye, Mail } from 'lucide-react'
+import { Pencil, KeyRound, Trash2, LogOut, Eye, Mail } from 'lucide-react'
 import { UserRow } from '../UserRow'
 import { EmptyState } from '../EmptyState'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
@@ -388,10 +388,7 @@ export function AdminUsersList({
         {showLoading ? (
           <AdminListSkeleton />
         ) : filteredUsers.length === 0 ? (
-          <EmptyState
-            icon={<UserPlus size={28} />}
-            title={searchQuery ? 'No users match your search' : 'No users found'}
-          />
+          <EmptyState title={searchQuery ? 'No users match your search' : 'No users found'} />
         ) : (
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
             {renderUserItems()}

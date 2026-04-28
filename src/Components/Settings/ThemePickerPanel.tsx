@@ -1,5 +1,6 @@
 import { useTheme, type ThemeName, type ThemeMode } from '../../Utilities/ThemeContext';
 import { useUserProfile } from '../../Hooks/useUserProfile';
+import { ActionPill } from '../ActionPill'
 
 const THEME_DEFS: {
     name: ThemeName;
@@ -98,7 +99,7 @@ export function ThemePickerPanel() {
                                 <p className="text-[9pt] text-tertiary mt-0.5">{def.tagline}</p>
                             </div>
                             {/* light / dark mode toggle */}
-                            <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15">
+                            <ActionPill>
                                 {(['light', 'dark'] as ThemeMode[]).map((mode) => {
                                     const isActiveMode = isSelected && themeMode === mode;
                                     return (
@@ -136,7 +137,7 @@ export function ThemePickerPanel() {
                                         </button>
                                     );
                                 })}
-                            </div>
+                            </ActionPill>
                             {isSelected ? (
                                 <div className="w-5 h-5 rounded-full bg-themeblue2 flex items-center justify-center shrink-0">
                                     <svg width="10" height="8" viewBox="0 0 10 8" fill="none">

@@ -16,6 +16,8 @@ https://cconner2023.github.io/test2
   - 30+ algorithms across 6 clinical categories
   - Integrated screening tools (PHQ-2/9, GAD-7, MACE-2) with automatic scoring
   - Inline clinical guidelines, medication references, and linked training tasks
+- **Battle Injuries with MASCAL mode:** Step-by-step TC3 documentation.
+  - Integrated Vitals graph. Track your casualties in real time.
 - **Additional Knowledge Base:** Per-item training completion with sync to server for authenticated users based off of critical task list and 68W STP.
   - Train anywhere with the doctrine.
   - Leaders can evaluate training. encrypt at rest with sync to server on connect.
@@ -23,6 +25,9 @@ https://cconner2023.github.io/test2
 - **Messaging:** Message users in your clinic
   - chain ratchet + DH ratchet encrypted at rest. Device purge for inactive devices. Message purge after > 4MB network storage. 
   - LoRa architecture + the same DH/chain ratchet for offline messaging in low-bandwidth environments using mesh node, guardian + witness prop, and self-healing node architecture.
+- **Calendar:** A troops to task. How I think it should be
+  - chain ratchet + DH ratchet encrypted at rest. Device purge for inactive devices. Based on clinic association so your platoon always knows what the group is doing
+  - customizable huddle tasks so your supervisors can edit all aspects to stay organized.
 - **Authentication:** Auth with role-based accesses: medic, provider, supervisor, admin, credentials, dev.
   - Clinics are parent/child to reflect the reality that a lot of medicine may happen outside of a DHA clinic - the rest happens at the Battalion during sick call, in the field, or deployed.
 - **Offline-First:** sync queue pushes to network on connect. 
@@ -35,12 +40,9 @@ https://cconner2023.github.io/test2
 - No PII/PHI or note documentation is stored, transmitted, or touches the server. Patient safety is top priority — be respectful of HIPAA and the right to privacy.
 
 ## Feedback
-- We're always looking for feedback on how to make this product better. You can send feedback in the application settings.
+- We're always looking for feedback on how to make this product better. You can send feedback in the application settings or in gh.
 
 ## In Progress and thoughts
-- **BAA:** To one day store / send PHI/PII through secured servers with audit logging. Sick Call logs, real-time provider or NCO notification.
-- **Battle Injuries:** TC3 cards and 9-line generation so you or 1SG can send it up over E2EE or LoRa.
-- **Prolonged Field Care Algorithms:** they're at deployed medicine, but what if you don't have connectivity and you need it quick.
+- **BAA:** one day store / send PHI/PII through secured servers with audit logging. Sick Call logs, real-time provider or NCO notification.
 - **Call higher:** built in E2EE web calls to your clinic provider, but what if you have to send to the next geographic node.
 - **VoIP:** DSN becomes encrypt VoIP on medic devices with audit logging. Why are we posting medics 24/7 somewhere when we could run E2EE on-call with a familiar number.
-- **Shift handoff:** we train like we're going to sit on a patient until a miracle happens. I've gotten some pretty crummy hand-offs from medics who were never taught.

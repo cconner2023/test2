@@ -34,7 +34,7 @@ const InstallPrompt: React.FC<{ onVisibilityChange?: (visible: boolean) => void 
                                 </div>
                                 <div>
                                     <p className="text-sm font-semibold text-primary">Install App</p>
-                                    <p className="text-xs text-tertiary mt-0.5">
+                                    <p className="text-[10pt] text-tertiary mt-0.5">
                                         {isIOS
                                             ? 'Add to home screen for offline access.'
                                             : 'Offline access. Works without signal.'
@@ -54,7 +54,7 @@ const InstallPrompt: React.FC<{ onVisibilityChange?: (visible: boolean) => void 
                         {isIOS ? (
                             /* iOS instructions */
                             <div className="mt-4 px-1">
-                                <p className="text-xs text-tertiary leading-relaxed">
+                                <p className="text-[10pt] text-tertiary leading-relaxed">
                                     Tap <Share className="inline h-3.5 w-3.5 text-themeblue2 -mt-0.5" /> in your browser toolbar, then <span className="font-medium text-primary">Add to Home Screen</span>.
                                 </p>
                                 <div className="flex justify-end mt-3">

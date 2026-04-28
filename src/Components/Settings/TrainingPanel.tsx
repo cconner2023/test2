@@ -345,7 +345,7 @@ function TrainingList({
             />
         )}
         <div className="px-5 py-4 space-y-5">
-            <p className="text-xs text-tertiary">
+            <p className="text-[10pt] text-tertiary">
                 Select a task to begin studying.
             </p>
 
@@ -500,7 +500,7 @@ function TaskDetail({
                         {isOverdue ? 'Overdue' : 'Due'}: {formatDueDate(assignment.dueDate)}
                     </span>
                     {assignment.supervisorNotes && (
-                        <span className="text-xs text-tertiary ml-auto truncate max-w-[50%]">
+                        <span className="text-[10pt] text-tertiary ml-auto truncate max-w-[50%]">
                             {assignment.supervisorNotes}
                         </span>
                     )}

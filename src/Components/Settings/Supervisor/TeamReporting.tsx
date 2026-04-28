@@ -1,11 +1,12 @@
-import { useMemo } from 'react'
-import { AlertTriangle, Building2, Calendar } from 'lucide-react'
+import { useMemo, useRef } from 'react'
+import { AlertTriangle, Building2, Calendar, Plus } from 'lucide-react'
 import { formatMedicName } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { TeamMetrics } from './supervisorHelpers'
 import type { CalendarEvent } from '../../../Types/CalendarTypes'
 import { getCategoryMeta } from '../../../Types/CalendarTypes'
 import { ActionButton } from '../../ActionButton'
+import { ActionPill } from '../../ActionPill'
 
 function formatEventDate(evt: CalendarEvent): string {
   const start = new Date(evt.start_time)
@@ -35,6 +36,10 @@ interface TeamReportingProps {
   clinicName?: string | null
   teamEvents: CalendarEvent[]
   onOpenCalendar: () => void
+  /** When provided, the clinic-overview card becomes tap-to-edit (supervisor surface) */
+  onEditClinic?: (anchorRect: DOMRect) => void
+  /** When provided, an Add-member pill appears in the Soldier Readiness header */
+  onAddMember?: (anchorRect: DOMRect) => void
 }
 
 function readinessColor(pct: number): string {
@@ -60,8 +65,11 @@ export function TeamReporting({
   clinicName,
   teamEvents,
   onOpenCalendar,
+  onEditClinic,
+  onAddMember,
 }: TeamReportingProps) {
   const now = useMemo(() => new Date(), [])
+  const addMemberPillRef = useRef<HTMLDivElement>(null)
   const sortedSoldiers = useMemo(() => {
     return [...metrics.soldierReadiness].sort((a, b) => a.readinessPercent - b.readinessPercent)
   }, [metrics.soldierReadiness])
@@ -81,8 +89,14 @@ export function TeamReporting({
 
   return (
     <div className="space-y-5">
-      {/* Clinic Overview Card */}
-      <div data-tour="supervisor-clinic-stats" className="rounded-xl bg-themewhite2 px-4 py-3 mb-5">
+      {/* Clinic Overview Card — tap-to-edit when supervisor (onEditClinic provided) */}
+      <button
+        type="button"
+        data-tour="supervisor-clinic-stats"
+        disabled={!onEditClinic}
+        onClick={(e) => onEditClinic?.(e.currentTarget.getBoundingClientRect())}
+        className="w-full text-left rounded-xl bg-themewhite2 px-4 py-3 mb-5 enabled:hover:bg-secondary/5 enabled:active:scale-[0.99] disabled:cursor-default transition-all"
+      >
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
             <Building2 size={16} className="text-tertiary" />
@@ -108,7 +122,7 @@ export function TeamReporting({
             <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(metrics.certCompliancePercent)}`}>{metrics.certCompliancePercent}%</span>
           </div>
         </div>
-      </div>
+      </button>
 
       {/* Team Schedule */}
       <div>
@@ -119,9 +133,9 @@ export function TeamReporting({
           {teamEvents.length === 0 ? (
             <div className="flex items-center gap-3 px-4 py-3">
               <p className="text-sm text-tertiary flex-1">No events in the next 14 days</p>
-              <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
+              <ActionPill shadow="sm">
                 <ActionButton icon={Calendar} label="Open full calendar" onClick={onOpenCalendar} />
-              </div>
+              </ActionPill>
             </div>
           ) : (
             <>
@@ -149,9 +163,9 @@ export function TeamReporting({
                 )
               })}
               <div className="flex items-center justify-end gap-3 px-4 py-2 border-t border-tertiary/8">
-                <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
+                <ActionPill shadow="sm">
                   <ActionButton icon={Calendar} label="Open full calendar" onClick={onOpenCalendar} />
-                </div>
+                </ActionPill>
               </div>
             </>
           )}
@@ -163,7 +177,19 @@ export function TeamReporting({
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Soldier Readiness
         </p>
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+        <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          {onAddMember && (
+            <ActionPill ref={addMemberPillRef} shadow="sm" className="absolute top-2 right-2 z-10">
+              <ActionButton
+                icon={Plus}
+                label="Add member"
+                onClick={() => {
+                  if (!addMemberPillRef.current) return
+                  onAddMember(addMemberPillRef.current.getBoundingClientRect())
+                }}
+              />
+            </ActionPill>
+          )}
           {sortedSoldiers.map((entry, index) => {
             const soldier = medics.find(m => m.id === entry.soldierId)
             if (!soldier) return null

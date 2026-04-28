@@ -88,7 +88,7 @@ function MessageSnippets({ msgs, userId }: { msgs: DecryptedSignalMessage[]; use
           || (msg.messageType === 'image' ? 'Image' : msg.messageType === 'voice' ? 'Voice message' : 'Message')
         return (
           <div key={msg.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] px-2.5 py-1.5 rounded-xl text-xs leading-relaxed ${
+            <div className={`max-w-[85%] px-2.5 py-1.5 rounded-xl text-[10pt] leading-relaxed ${
               isOwn ? 'bg-themeblue2/10 text-primary' : 'bg-primary/5 text-primary'
             }`}>
               <p className="line-clamp-2">{text}</p>

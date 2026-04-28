@@ -43,116 +43,122 @@ export const VitalSignsCalculator = forwardRef<VitalSignsCalculatorHandle>(funct
         return { label: 'Fever', color: 'text-themeredred' }
     }, [vitals.temp, tempF])
 
-    const inputClass = 'text-sm px-3 py-2 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 transition-all duration-300 placeholder:text-tertiary'
+    const inputCx = 'flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-base md:text-[10pt]'
+    const rowCx = 'flex items-center justify-between border-b border-primary/6 last:border-0 px-4 py-3'
+    const labelCx = 'text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-24 shrink-0'
 
     return (
-        <div className="px-5 pb-6 pt-1 space-y-4">
-            {/* Vital Signs grid — matches PhysicalExam layout */}
-            <div className="grid grid-cols-3 gap-2">
+        <div>
                 {/* HR */}
-                <div className="flex flex-col">
-                    <label className="text-xs text-secondary mb-0.5">HR (bpm)</label>
+                <div className={rowCx}>
+                    <span className={labelCx}>HR (bpm)</span>
                     <input
                         type="text" inputMode="numeric"
                         value={vitals.hr} onChange={e => setValue('hr', e.target.value)}
-                        placeholder="60-100" className={inputClass}
+                        placeholder="60-100" className={inputCx}
                     />
                 </div>
 
                 {/* RR */}
-                <div className="flex flex-col">
-                    <label className="text-xs text-secondary mb-0.5">RR (/min)</label>
+                <div className={rowCx}>
+                    <span className={labelCx}>RR (/min)</span>
                     <input
                         type="text" inputMode="numeric"
                         value={vitals.rr} onChange={e => setValue('rr', e.target.value)}
-                        placeholder="12-20" className={inputClass}
+                        placeholder="12-20" className={inputCx}
                     />
                 </div>
 
                 {/* BP */}
-                <div className="flex flex-col">
-                    <label className="text-xs text-secondary mb-0.5">BP (mmHg)</label>
-                    <div className="flex items-center gap-1">
+                <div className={rowCx}>
+                    <span className={labelCx}>BP (mmHg)</span>
+                    <div className="flex items-center gap-1 flex-1 justify-end">
                         <input
                             type="text" inputMode="numeric"
                             value={vitals.bpSys} onChange={e => setValue('bpSys', e.target.value)}
                             placeholder="120"
-                            className={`w-1/2 ${inputClass}`}
+                            className={`${inputCx} w-14`}
                         />
-                        <span className="text-xs text-secondary">/</span>
+                        <span className="text-[10pt] text-tertiary">/</span>
                         <input
                             type="text" inputMode="numeric"
                             value={vitals.bpDia} onChange={e => setValue('bpDia', e.target.value)}
                             placeholder="80"
-                            className={`w-1/2 ${inputClass}`}
+                            className={`${inputCx} w-14`}
                         />
                     </div>
                 </div>
 
                 {/* Temp */}
-                <div className="flex flex-col">
-                    <label className="text-xs text-secondary mb-0.5">Temp (°F)</label>
-                    <input
-                        type="text" inputMode="decimal"
-                        value={vitals.temp} onChange={e => setValue('temp', e.target.value)}
-                        placeholder="98.6" className={inputClass}
-                    />
-                    {tempC && (
-                        <span className="text-xs text-secondary mt-0.5">= {tempC} °C</span>
-                    )}
-                    {tempHint && (
-                        <span className={`text-xs font-medium mt-0.5 ${tempHint.color}`}>{tempHint.label}</span>
-                    )}
+                <div className={rowCx}>
+                    <span className={labelCx}>Temp (°F)</span>
+                    <div className="flex flex-col items-end flex-1 gap-0.5">
+                        <input
+                            type="text" inputMode="decimal"
+                            value={vitals.temp} onChange={e => setValue('temp', e.target.value)}
+                            placeholder="98.6" className={inputCx}
+                        />
+                        {(tempC || tempHint) && (
+                            <div className="flex items-center gap-1.5 text-[9pt]">
+                                {tempC && <span className="text-tertiary">{tempC} °C</span>}
+                                {tempHint && <span className={`font-medium ${tempHint.color}`}>{tempHint.label}</span>}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Ht */}
-                <div className="flex flex-col">
-                    <label className="text-xs text-secondary mb-0.5">Ht (in)</label>
-                    <input
-                        type="text" inputMode="decimal"
-                        value={vitals.ht} onChange={e => setValue('ht', e.target.value)}
-                        placeholder="68" className={inputClass}
-                    />
-                    {htCm && (
-                        <span className="text-xs text-secondary mt-0.5">= {htCm} cm {htFtIn && `· ${htFtIn}`}</span>
-                    )}
+                <div className={rowCx}>
+                    <span className={labelCx}>Ht (in)</span>
+                    <div className="flex flex-col items-end flex-1 gap-0.5">
+                        <input
+                            type="text" inputMode="decimal"
+                            value={vitals.ht} onChange={e => setValue('ht', e.target.value)}
+                            placeholder="68" className={inputCx}
+                        />
+                        {htCm && (
+                            <span className="text-[9pt] text-tertiary">{htCm} cm{htFtIn && ` · ${htFtIn}`}</span>
+                        )}
+                    </div>
                 </div>
 
                 {/* Wt */}
-                <div className="flex flex-col">
-                    <label className="text-xs text-secondary mb-0.5">Wt (lbs)</label>
-                    <input
-                        type="text" inputMode="decimal"
-                        value={vitals.wt} onChange={e => setValue('wt', e.target.value)}
-                        placeholder="170" className={inputClass}
-                    />
-                    {wtKg && (
-                        <span className="text-xs text-secondary mt-0.5">= {wtKg} kg</span>
-                    )}
+                <div className={rowCx}>
+                    <span className={labelCx}>Wt (lbs)</span>
+                    <div className="flex flex-col items-end flex-1 gap-0.5">
+                        <input
+                            type="text" inputMode="decimal"
+                            value={vitals.wt} onChange={e => setValue('wt', e.target.value)}
+                            placeholder="170" className={inputCx}
+                        />
+                        {wtKg && (
+                            <span className="text-[9pt] text-tertiary">{wtKg} kg</span>
+                        )}
+                    </div>
                 </div>
-            </div>
 
-            {/* BMI — derived from Ht + Wt */}
-            {bmiInfo && (
-                <div className="flex items-center gap-2">
-                    <span className="text-xs text-secondary">BMI:</span>
-                    <span className={`text-xs font-medium ${
-                        bmiInfo.value < 18.5 ? 'text-themeyellow'
-                        : bmiInfo.value < 25 ? 'text-themegreen'
-                        : bmiInfo.value < 30 ? 'text-themeyellow'
-                        : 'text-themeredred'
-                    }`}>
-                        {bmiInfo.display}
-                    </span>
-                    <span className="text-xs text-secondary">
-                        {bmiInfo.value < 18.5 ? 'Underweight'
-                        : bmiInfo.value < 25 ? 'Normal'
-                        : bmiInfo.value < 30 ? 'Overweight'
-                        : 'Obese'}
-                    </span>
-                </div>
-            )}
-
+                {/* BMI — derived from Ht + Wt */}
+                {bmiInfo && (
+                    <div className={rowCx}>
+                        <span className={labelCx}>BMI</span>
+                        <div className="flex items-center gap-1.5">
+                            <span className={`text-sm font-medium ${
+                                bmiInfo.value < 18.5 ? 'text-themeyellow'
+                                : bmiInfo.value < 25 ? 'text-themegreen'
+                                : bmiInfo.value < 30 ? 'text-themeyellow'
+                                : 'text-themeredred'
+                            }`}>
+                                {bmiInfo.display}
+                            </span>
+                            <span className="text-[9pt] text-tertiary">
+                                {bmiInfo.value < 18.5 ? 'Underweight'
+                                : bmiInfo.value < 25 ? 'Normal'
+                                : bmiInfo.value < 30 ? 'Overweight'
+                                : 'Obese'}
+                            </span>
+                        </div>
+                    </div>
+                )}
         </div>
     )
 })

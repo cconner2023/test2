@@ -52,8 +52,3 @@ export const emptyCertForm: CertFormData = {
   exp_date: '',
   is_primary: false,
 }
-
-export const certPillInput =
-  'w-full rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs ' +
-  'focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm ' +
-  'bg-themewhite text-primary placeholder:text-tertiary transition-all duration-300'

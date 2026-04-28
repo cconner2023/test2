@@ -24,7 +24,7 @@ export function GroupListItem({ group, lastMessage, unreadCount, onClick }: Grou
           <p className="text-sm font-medium text-primary truncate">{group.name}</p>
           <p className="text-[9pt] text-tertiary">{group.memberCount} members</p>
           {lastMessage && (
-            <p className="text-xs text-tertiary truncate mt-0.5">{lastMessage}</p>
+            <p className="text-[10pt] text-tertiary truncate mt-0.5">{lastMessage}</p>
           )}
         </>
       }

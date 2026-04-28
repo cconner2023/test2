@@ -10,6 +10,7 @@ interface TourOverlayProps {
   isPlaying: boolean
   isPausePoint: boolean
   progressPercent: number
+  hideStepperDots?: boolean
   hidden?: boolean
   onNext: () => void
   onPrev: () => void
@@ -24,6 +25,7 @@ export function TourOverlay({
   isPlaying,
   isPausePoint,
   progressPercent,
+  hideStepperDots = false,
   hidden = false,
   onNext,
   onPrev,
@@ -71,6 +73,7 @@ export function TourOverlay({
           isPlaying={isPlaying}
           isPausePoint={isPausePoint}
           progressPercent={progressPercent}
+          hideStepperDots={hideStepperDots}
           isLastStep={currentStep === totalSteps - 1}
           onNext={onNext}
           onPrev={onPrev}

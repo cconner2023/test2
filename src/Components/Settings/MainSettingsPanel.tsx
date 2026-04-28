@@ -182,7 +182,7 @@ export const MainSettingsPanel = ({
 
                 <div className="pt-4 border-t border-tertiary/10">
                     <div className="text-center">
-                        <p className="text-xs text-tertiary mt-1">Version {__APP_VERSION__}</p>
+                        <p className="text-[10pt] text-tertiary mt-1">Version {__APP_VERSION__}</p>
                         <div className="flex items-center justify-center gap-1.5 mt-2">
                             <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-themegreen' : 'bg-tertiary/40'}`} />
                             <span className={`text-[9pt] font-medium ${isConnected ? 'text-themegreen' : 'text-tertiary'}`}>

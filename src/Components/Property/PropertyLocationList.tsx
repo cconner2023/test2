@@ -283,7 +283,7 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
     }
     return (
       <div className="w-10 h-10 rounded-xl bg-themeblue3/10 flex items-center justify-center shrink-0">
-        <span className="text-xs font-semibold text-themeblue2">{itemInitials(item.name)}</span>
+        <span className="text-[10pt] font-semibold text-themeblue2">{itemInitials(item.name)}</span>
       </div>
     )
   }
@@ -349,7 +349,7 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
             <p className="text-sm font-medium text-primary truncate">{loc.name}</p>
           )}
           {!isRenaming && count > 0 && (
-            <p className="text-xs text-tertiary mt-0.5">{count} item{count !== 1 ? 's' : ''}</p>
+            <p className="text-[10pt] text-tertiary mt-0.5">{count} item{count !== 1 ? 's' : ''}</p>
           )}
         </div>
         {!isMember && editing ? (
@@ -429,7 +429,7 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-primary truncate">{item.name}</p>
             {subtitleWithHolder && (
-              <p className="text-xs text-secondary truncate mt-0.5">{subtitleWithHolder}</p>
+              <p className="text-[10pt] text-secondary truncate mt-0.5">{subtitleWithHolder}</p>
             )}
           </div>
           {renderExpiryChip(expiry)}
@@ -468,7 +468,7 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-primary truncate">{item.name}</p>
           {subtitle && (
-            <p className="text-xs text-secondary truncate mt-0.5">{subtitle}</p>
+            <p className="text-[10pt] text-secondary truncate mt-0.5">{subtitle}</p>
           )}
         </div>
         {renderExpiryChip(expiry)}

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
-import { FileText, LayoutTemplate, Check } from 'lucide-react'
+import { FileText, Check } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { ListItemRow } from '../ListItemRow'
 import { PreviewOverlay } from '../PreviewOverlay'
@@ -114,12 +114,12 @@ function TemplatePreview({ template, expanders, orderSets }: {
           {sections.map(s => (
             <div key={s.label}>
               <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider mb-0.5">{s.label}</p>
-              <p className="text-xs text-primary leading-relaxed whitespace-pre-wrap line-clamp-4">{s.content}</p>
+              <p className="text-[10pt] text-primary leading-relaxed whitespace-pre-wrap line-clamp-4">{s.content}</p>
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-xs text-tertiary">Empty template</p>
+        <p className="text-[10pt] text-tertiary">Empty template</p>
       )}
     </div>
   )
@@ -203,13 +203,7 @@ export function ProviderTemplateList({ templates, onSelect, hideHeader }: Provid
   }, [])
 
   if (!templates.length) {
-    return (
-      <EmptyState
-        icon={<LayoutTemplate size={32} />}
-        title="No Templates"
-        subtitle="No templates. Create in Settings → Note Content."
-      />
-    )
+    return <EmptyState title="No templates — create in Settings → Note Content" />
   }
 
   return (

@@ -141,27 +141,26 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
       {error && <ErrorDisplay message={error} />}
 
       {/* ── Step 1: Email Lookup ─────────────────────────────────── */}
-      <div className="space-y-3">
+      <div className="rounded-2xl bg-themewhite2 overflow-hidden">
         <TextInput
-          label="Email"
           value={email}
           onChange={(v) => { setEmail(v); if (mode !== 'lookup') { setMode('lookup'); setLookupResult(null) } }}
-          placeholder="user@mail.mil"
+          placeholder="Email *"
           type="email"
           required
         />
-
-        {mode === 'lookup' && (
-          <button
-            onClick={handleLookup}
-            disabled={lookupLoading || !email.trim()}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-themeblue3 text-white font-medium text-sm active:scale-95 disabled:opacity-50"
-          >
-            <Search size={14} />
-            {lookupLoading ? 'Searching...' : 'Look Up Email'}
-          </button>
-        )}
       </div>
+
+      {mode === 'lookup' && (
+        <button
+          onClick={handleLookup}
+          disabled={lookupLoading || !email.trim()}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-full bg-themeblue3 text-white font-medium text-sm active:scale-95 disabled:opacity-50"
+        >
+          <Search size={14} />
+          {lookupLoading ? 'Searching...' : 'Look Up Email'}
+        </button>
+      )}
 
       {/* ── Existing User Found ──────────────────────────────────── */}
       {mode === 'existing' && lookupResult?.found && (
@@ -172,7 +171,7 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-primary">User Found</p>
-              <p className="text-xs text-tertiary truncate">
+              <p className="text-[10pt] text-tertiary truncate">
                 {lookupResult.rank && `${lookupResult.rank} `}
                 {lookupResult.last_name}, {lookupResult.first_name}
                 {lookupResult.credential && ` · ${lookupResult.credential}`}
@@ -181,7 +180,7 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
           </div>
 
           {lookupResult.clinic_id && (
-            <p className="text-xs text-themeyellow font-medium">
+            <p className="text-[10pt] text-themeyellow font-medium">
               This user is currently assigned to another clinic. Adding them will reassign them to yours.
             </p>
           )}
@@ -199,81 +198,79 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
 
       {/* ── Create New User Form ─────────────────────────────────── */}
       {mode === 'create' && (
-        <div className="space-y-4">
+        <>
           <div className="rounded-xl bg-themewhite2 p-4">
             <p className="text-sm font-medium text-primary mb-1">No account found</p>
-            <p className="text-xs text-tertiary">Create a new user and assign them to your clinic.</p>
+            <p className="text-[10pt] text-tertiary">Create a new user and assign them to your clinic.</p>
           </div>
 
-          <PasswordInput
-            label="Temporary Password"
-            value={tempPassword}
-            onChange={setTempPassword}
-            placeholder="Min 12 characters"
-            hint={
-              <p className="mt-1 text-[9pt] text-tertiary">
-                Must contain uppercase, lowercase, and a digit.
-              </p>
-            }
-          />
+          <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+            <PasswordInput
+              value={tempPassword}
+              onChange={setTempPassword}
+              placeholder="Temporary password (min 12 chars)"
+              hint="Must contain uppercase, lowercase, and a digit."
+            />
 
-          <div className="grid grid-cols-2 gap-3">
-            <TextInput label="First Name" value={firstName} onChange={setFirstName} required />
-            <TextInput label="Last Name" value={lastName} onChange={setLastName} required />
-          </div>
-
-          <TextInput
-            label="Middle Initial"
-            value={middleInitial}
-            onChange={(v) => setMiddleInitial(v.toUpperCase().slice(0, 1))}
-            maxLength={1}
-          />
-
-          <div className="grid grid-cols-2 gap-3">
-            <PickerInput label="Credential" value={credential} onChange={setCredential} options={credentials} />
-            <PickerInput label="Component" value={component} onChange={handleComponentChange} options={components} />
-          </div>
-          {component && <PickerInput label="Rank" value={rank} onChange={setRank} options={componentRanks} />}
-
-          {/* ── Role Toggles ──────────────────────────────────────── */}
-          <div className="space-y-2">
-            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Roles</p>
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => setIsSupervisor(v => !v)}
-                className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-all active:scale-95 ${
-                  isSupervisor
-                    ? 'bg-themeblue3 text-white'
-                    : 'bg-tertiary/10 text-tertiary'
-                }`}
-              >
-                Supervisor
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsProvider(v => !v)}
-                className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-all active:scale-95 ${
-                  isProvider
-                    ? 'bg-themeblue3 text-white'
-                    : 'bg-tertiary/10 text-tertiary'
-                }`}
-              >
-                Provider
-              </button>
+            <div className="flex items-stretch border-b border-primary/6">
+              <div className="flex-1 min-w-0">
+                <TextInput value={firstName} onChange={setFirstName} placeholder="First name *" required />
+              </div>
+              <div className="flex-1 min-w-0 border-l border-primary/6">
+                <TextInput value={lastName} onChange={setLastName} placeholder="Last name *" required />
+              </div>
             </div>
-            <p className="text-[9pt] text-tertiary">All users receive the Medic role by default.</p>
+
+            <TextInput
+              value={middleInitial}
+              onChange={(v) => setMiddleInitial(v.toUpperCase().slice(0, 1))}
+              placeholder="Middle initial"
+              maxLength={1}
+            />
+
+            <PickerInput value={credential} onChange={setCredential} options={credentials} placeholder="Credential" />
+            <PickerInput value={component} onChange={handleComponentChange} options={components} placeholder="Component" />
+            {component && <PickerInput value={rank} onChange={setRank} options={componentRanks} placeholder="Rank" />}
+
+            {/* ── Role Toggles ──────────────────────────────────────── */}
+            <div className="px-4 py-3">
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsSupervisor(v => !v)}
+                  className={`flex-1 px-3 py-2 rounded-full text-sm font-medium transition-all active:scale-95 ${
+                    isSupervisor
+                      ? 'bg-themeblue3 text-white'
+                      : 'bg-tertiary/10 text-tertiary'
+                  }`}
+                >
+                  Supervisor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsProvider(v => !v)}
+                  className={`flex-1 px-3 py-2 rounded-full text-sm font-medium transition-all active:scale-95 ${
+                    isProvider
+                      ? 'bg-themeblue3 text-white'
+                      : 'bg-tertiary/10 text-tertiary'
+                  }`}
+                >
+                  Provider
+                </button>
+              </div>
+              <p className="mt-2 text-[9pt] text-tertiary">All users receive the Medic role by default.</p>
+            </div>
           </div>
 
           <button
             onClick={handleCreate}
             disabled={submitting}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-themegreen text-white font-medium text-sm active:scale-95 disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-full bg-themegreen text-white font-medium text-sm active:scale-95 disabled:opacity-50"
           >
             <UserPlus size={14} />
             {submitting ? 'Creating...' : 'Create & Add to Clinic'}
           </button>
-        </div>
+        </>
       )}
 
       {/* ── Back ─────────────────────────────────────────────────── */}

@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, useCallback, useEffect } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
 import { CATEGORY_BG_MAP, STATUS_META, DAY_START_HOUR, DAY_END_HOUR, HOUR_HEIGHT_PX, toLocalISOString, toDateKey } from '../../Types/CalendarTypes'
+import { formatHour, getEventPosition, resolveOverlaps } from './timeGrid'
 
 interface DayViewProps {
   date: Date
@@ -24,10 +25,6 @@ interface ActiveDrag {
   scrollOffset: number
 }
 
-function formatHour(h: number): string {
-  return `${String(h).padStart(2, '0')}00`
-}
-
 function minutesToTop(minutes: number): number {
   return ((minutes - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT_PX
 }
@@ -44,65 +41,6 @@ function formatSnappedTime(minutes: number): string {
   const h = Math.floor(minutes / 60)
   const m = minutes % 60
   return `${String(h).padStart(2, '0')}${String(m).padStart(2, '0')}`
-}
-
-function getEventPosition(event: CalendarEvent, dateKey: string) {
-  const start = new Date(event.start_time)
-  const end = new Date(event.end_time)
-
-  // Use local date from stored strings (they're already local ISO, no Z suffix)
-  const startDateKey = event.start_time.slice(0, 10)
-  const endDateKey = event.end_time.slice(0, 10)
-
-  let startMinutes = start.getHours() * 60 + start.getMinutes()
-  let endMinutes = end.getHours() * 60 + end.getMinutes()
-
-  // Clamp multi-day events to the visible day
-  if (startDateKey < dateKey) startMinutes = DAY_START_HOUR * 60
-  if (endDateKey > dateKey) endMinutes = DAY_END_HOUR * 60
-
-  // Handle same-day events where end is midnight (0:00) — treat as end of day
-  if (endDateKey === dateKey && endMinutes === 0 && startMinutes > 0) endMinutes = DAY_END_HOUR * 60
-
-  startMinutes = Math.max(startMinutes, DAY_START_HOUR * 60)
-  endMinutes = Math.min(endMinutes, DAY_END_HOUR * 60)
-
-  const top = ((startMinutes - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT_PX
-  const height = Math.max(((endMinutes - startMinutes) / 60) * HOUR_HEIGHT_PX, 24)
-
-  return { top, height }
-}
-
-function resolveOverlaps(events: CalendarEvent[], dateKey: string) {
-  const positioned = events
-    .filter(e => !e.all_day)
-    .map(e => ({ event: e, ...getEventPosition(e, dateKey) }))
-    .sort((a, b) => a.top - b.top)
-
-  const columns: { event: CalendarEvent; top: number; height: number; col: number; totalCols: number }[] = []
-  const groups: typeof positioned[] = []
-
-  for (const item of positioned) {
-    let placed = false
-    for (const group of groups) {
-      const lastInGroup = group[group.length - 1]
-      if (item.top < lastInGroup.top + lastInGroup.height) {
-        group.push(item)
-        placed = true
-        break
-      }
-    }
-    if (!placed) groups.push([item])
-  }
-
-  for (const group of groups) {
-    const totalCols = group.length
-    group.forEach((item, i) => {
-      columns.push({ ...item, col: i, totalCols })
-    })
-  }
-
-  return columns
 }
 
 export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventContextMenu, onDayContextMenu, onPrevDay, onNextDay, onDateTap }: DayViewProps) {
@@ -261,7 +199,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
               </button>
               <button
                 onClick={onDateTap}
-                className="text-xs font-medium text-tertiary uppercase tracking-wider hover:text-primary transition-colors active:scale-95"
+                className="text-[10pt] font-medium text-tertiary uppercase tracking-wider hover:text-primary transition-colors active:scale-95"
               >
                 {dateLabel}
               </button>
@@ -274,7 +212,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
               </button>
             </div>
           ) : (
-            <p className="px-3 py-2 text-xs font-medium text-tertiary uppercase tracking-wider border-b border-primary/10">
+            <p className="px-3 py-2 text-[10pt] font-medium text-tertiary uppercase tracking-wider border-b border-primary/10">
               {dateLabel}
             </p>
           )}
@@ -291,7 +229,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
                       onEventContextMenu(e.id, ev.clientX, ev.clientY)
                     }
                   }}
-                  className={`w-full text-left text-xs font-normal px-2 py-1 rounded border ${CATEGORY_BG_MAP[e.category]} ${STATUS_META[e.status].opacity} active:scale-95 transition-all duration-200 truncate ${STATUS_META[e.status].strikethrough ? 'line-through' : ''}`}
+                  className={`w-full text-left text-[10pt] font-normal px-2 py-1 rounded border ${CATEGORY_BG_MAP[e.category]} ${STATUS_META[e.status].opacity} active:scale-95 transition-all duration-200 truncate ${STATUS_META[e.status].strikethrough ? 'line-through' : ''}`}
                 >
                   {e.title}
                 </button>
@@ -397,7 +335,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
                 {sm.pulse && (
                   <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-themeblue1 animate-pulse shrink-0" />
                 )}
-                <p className={`text-xs font-normal truncate leading-tight ${sm.strikethrough ? 'line-through opacity-70' : ''}`}>{event.title}</p>
+                <p className={`text-[10pt] font-normal truncate leading-tight ${sm.strikethrough ? 'line-through opacity-70' : ''}`}>{event.title}</p>
                 {height > 36 && (
                   <p className="text-[9pt] opacity-70 truncate">
                     {new Date(event.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', '')}

@@ -203,54 +203,54 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
   }
 
   return (
-    <div className="rounded-xl bg-themewhite2 divide-y divide-tertiary/10">
-      {/* Core fields */}
-      <div className="px-4 py-3 space-y-3">
-        <TextInput value={name} onChange={setName} placeholder="Item name *" required />
-        <TextInput value={nomenclature} onChange={setNomenclature} placeholder="Nomenclature" />
-        <div className="flex gap-2">
-          <div className="flex-1 min-w-0">
-            <TextInput value={nsn} onChange={setNsn} placeholder="NSN" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <TextInput value={lin} onChange={setLin} placeholder="LIN" />
-          </div>
+    <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+      <TextInput value={name} onChange={setName} placeholder="Item name *" required />
+      <TextInput value={nomenclature} onChange={setNomenclature} placeholder="Nomenclature" />
+      <div className="flex items-stretch border-b border-primary/6">
+        <div className="flex-1 min-w-0">
+          <TextInput value={nsn} onChange={setNsn} placeholder="NSN" />
         </div>
+        <div className="flex-1 min-w-0 border-l border-primary/6">
+          <TextInput value={lin} onChange={setLin} placeholder="LIN" />
+        </div>
+      </div>
 
-        <button
-          type="button"
-          onClick={() => setIsSerialized((v) => !v)}
-          className="flex items-center gap-1.5 text-xs text-secondary active:scale-95 transition-all"
-        >
-          {isSerialized ? <CheckSquare size={14} /> : <Square size={14} />}
-          Track individually (serialized)
-        </button>
+      <button
+        type="button"
+        onClick={() => setIsSerialized((v) => !v)}
+        className="w-full flex items-center gap-1.5 px-4 py-3 text-[10pt] text-secondary active:scale-95 transition-all border-b border-primary/6"
+      >
+        {isSerialized ? <CheckSquare size={14} /> : <Square size={14} />}
+        Track individually (serialized)
+      </button>
 
+      <div className="px-4 py-3 border-b border-primary/6">
+        <div className="flex gap-1.5 flex-wrap">
+          {(['serviceable', 'unserviceable', 'damaged', 'missing'] as const).map((code) => (
+            <button
+              key={code}
+              type="button"
+              onClick={() => setConditionCode(code)}
+              className={[
+                'px-3 py-1.5 rounded-full text-[9pt] font-medium capitalize border transition-all active:scale-95',
+                conditionCode === code
+                  ? 'bg-themeblue3 text-white border-themeblue1/30'
+                  : 'bg-themewhite text-secondary border-tertiary/20',
+              ].join(' ')}
+              title={`Condition: ${code}`}
+            >
+              {code}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {isSerialized ? (
         <div>
-          <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-1.5">Condition</p>
-          <div className="flex gap-1.5 flex-wrap">
-            {(['serviceable', 'unserviceable', 'damaged', 'missing'] as const).map((code) => (
-              <button
-                key={code}
-                type="button"
-                onClick={() => setConditionCode(code)}
-                className={[
-                  'px-3 py-1.5 rounded-full text-[9pt] font-medium capitalize border transition-all active:scale-95',
-                  conditionCode === code
-                    ? 'bg-themeblue3 text-white border-themeblue1/30'
-                    : 'bg-themewhite2 text-secondary border-tertiary/20',
-                ].join(' ')}
-              >
-                {code}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {isSerialized ? (
-          <div className="space-y-1.5">
-            {serialNumbers.map((sn, idx) => (
-              <div key={idx} className="flex items-center gap-1.5">
+          {serialNumbers.map((sn, idx) => {
+            const isLast = idx === serialNumbers.length - 1
+            return (
+              <div key={idx} className="flex items-center border-b border-primary/6 last:border-b-0">
                 <div className="flex-1 min-w-0">
                   <TextInput
                     value={sn}
@@ -258,11 +258,11 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
                     placeholder={serialNumbers.length > 1 ? `Serial ${idx + 1}` : 'Serial number'}
                   />
                 </div>
-                {!isEdit && idx === serialNumbers.length - 1 ? (
+                {!isEdit && isLast ? (
                   <button
                     type="button"
                     onClick={addSerial}
-                    className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-themeblue3 text-white active:scale-95 transition-all"
+                    className="shrink-0 w-8 h-8 mr-2 flex items-center justify-center rounded-full bg-themeblue3 text-white active:scale-95 transition-all"
                   >
                     <Plus size={14} />
                   </button>
@@ -270,61 +270,50 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
                   <button
                     type="button"
                     onClick={() => removeSerial(idx)}
-                    className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-tertiary hover:text-tertiary hover:bg-tertiary/10 active:scale-95 transition-all"
+                    className="shrink-0 w-8 h-8 mr-2 flex items-center justify-center rounded-full text-tertiary hover:text-tertiary hover:bg-tertiary/10 active:scale-95 transition-all"
                   >
                     <X size={13} />
                   </button>
                 ) : null}
               </div>
-            ))}
-            {filledSerialCount > 1 && (
-              <p className="text-[9pt] text-tertiary pl-0.5">
-                {filledSerialCount} items will be created
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="w-24">
-            <TextInput type="number" value={quantity} onChange={setQuantity} placeholder="Qty" />
-          </div>
-        )}
-      </div>
-
-      {/* Assignment fields */}
-      {(hasLocations || holderOptions.length > 0 || hasParentItems) && (
-        <div className="px-4 py-3 space-y-3">
-          {hasLocations && (
-            <PickerInput
-              label="Location"
-              value={locationId}
-              onChange={setLocationId}
-              options={locationOptions}
-              placeholder="Select location"
-            />
-          )}
-          {holderOptions.length > 0 && (
-            <PickerInput
-              label="Holder"
-              value={holderId}
-              onChange={setHolderId}
-              options={holderOptions}
-              placeholder="Unassigned"
-            />
-          )}
-          {hasParentItems && (
-            <PickerInput
-              label="Parent Item"
-              value={parentItemId}
-              onChange={setParentItemId}
-              options={parentItemOptions}
-              placeholder="None (top-level)"
-            />
+            )
+          })}
+          {filledSerialCount > 1 && (
+            <p className="px-4 py-2 text-[9pt] text-tertiary border-b border-primary/6">
+              {filledSerialCount} items will be created
+            </p>
           )}
         </div>
+      ) : (
+        <TextInput type="number" value={quantity} onChange={setQuantity} placeholder="Quantity" />
       )}
 
-      {/* Expiry date */}
-      <div className="px-4 py-3 flex items-center gap-2">
+      {hasLocations && (
+        <PickerInput
+          value={locationId}
+          onChange={setLocationId}
+          options={locationOptions}
+          placeholder="Location"
+        />
+      )}
+      {holderOptions.length > 0 && (
+        <PickerInput
+          value={holderId}
+          onChange={setHolderId}
+          options={holderOptions}
+          placeholder="Holder (unassigned)"
+        />
+      )}
+      {hasParentItems && (
+        <PickerInput
+          value={parentItemId}
+          onChange={setParentItemId}
+          options={parentItemOptions}
+          placeholder="Parent item (top-level)"
+        />
+      )}
+
+      <div className="flex items-center border-b border-primary/6">
         <div className="flex-1 min-w-0">
           <DatePickerInput
             value={expiryDate}
@@ -336,40 +325,39 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
           <button
             type="button"
             onClick={() => setExpiryDate('')}
-            className="shrink-0 text-tertiary hover:text-tertiary active:scale-95 transition-all"
+            className="shrink-0 w-8 h-8 mr-2 flex items-center justify-center rounded-full text-tertiary hover:text-tertiary active:scale-95 transition-all"
           >
             <X size={14} />
           </button>
         )}
       </div>
 
-      {/* Notes */}
-      <div className="px-4 py-3">
+      <label className="block border-b border-primary/6">
         <textarea
-          className="w-full px-4 py-2.5 rounded-2xl text-primary text-sm border border-themeblue3/10 shadow-xs bg-themewhite dark:bg-themewhite3 focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all duration-300 placeholder:text-tertiary resize-none"
+          className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
           rows={2}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Notes"
         />
-      </div>
+      </label>
 
       {/* Cancel / Save */}
-      <div className="flex items-center justify-end gap-1.5 px-4 py-2.5">
+      <div className="flex items-center justify-end gap-2 px-3 py-2">
         <button
           type="button"
           onClick={onClose}
-          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary hover:bg-tertiary/10 active:scale-95 transition-all"
+          className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
         >
-          <X size={18} />
+          <X size={16} />
         </button>
         <button
           type="button"
           onClick={handleSave}
-          disabled={!name.trim() || isSaving}
-          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-40 active:scale-95 transition-all"
+          disabled={isSaving}
+          className={`shrink-0 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white overflow-hidden transition-all duration-300 ease-out active:scale-95 disabled:opacity-40 ${name.trim() ? 'w-9 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
         >
-          <Check size={18} />
+          <Check size={16} />
         </button>
       </div>
     </div>

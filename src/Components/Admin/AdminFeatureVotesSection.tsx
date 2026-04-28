@@ -9,20 +9,23 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Lightbulb, Loader2, Lock, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { Check, Lightbulb, Loader2, Lock, Pencil, Plus, Trash2, Users, X } from 'lucide-react'
 import { useAuthStore } from '../../stores/useAuthStore'
 import {
   fetchAllCycles,
   fetchCandidates,
   fetchTally,
+  fetchVoters,
   createCycle,
   closeCycle,
   deleteCycle,
   addCandidate,
   deleteCandidate,
+  updateCandidate,
   type FeatureVoteCycle,
   type FeatureVoteCandidate,
   type VoteTally,
+  type VotersByCandidate,
 } from '../../lib/featureVotingService'
 import { EmptyState } from '../EmptyState'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -30,6 +33,7 @@ import { ErrorDisplay } from '../ErrorDisplay'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { TextInput } from '../FormInputs'
 import { ActionButton } from '../ActionButton'
+import { ActionPill } from '../ActionPill'
 
 const MAX_OPTIONS_PER_CYCLE = 3
 
@@ -53,10 +57,19 @@ export function AdminFeatureVotesSection() {
   const [newCycleTitle, setNewCycleTitle] = useState('')
   const [newCycleOptions, setNewCycleOptions] = useState<string[]>([''])
 
-  const [editingCycleId, setEditingCycleId] = useState<string | null>(null)
   const [confirmDeleteCycle, setConfirmDeleteCycle] = useState<string | null>(null)
   const [confirmCloseCycle, setConfirmCloseCycle] = useState<string | null>(null)
   const [confirmDeleteOption, setConfirmDeleteOption] = useState<{ cycleId: string; candidateId: string } | null>(null)
+
+  // Per-option voters popover state
+  const [voters, setVoters] = useState<Record<string, VotersByCandidate>>({})
+  const [optionPopover, setOptionPopover] = useState<{
+    cycleId: string
+    candidate: FeatureVoteCandidate
+    anchor: DOMRect
+  } | null>(null)
+  const [optionEditMode, setOptionEditMode] = useState(false)
+  const [optionEditTitle, setOptionEditTitle] = useState('')
 
   const loadCycles = useCallback(async () => {
     const result = await fetchAllCycles()
@@ -185,7 +198,6 @@ export function AdminFeatureVotesSection() {
       setError(result.error)
       return
     }
-    if (editingCycleId === cycleId) setEditingCycleId(null)
     await loadCycles()
   }
 
@@ -199,7 +211,6 @@ export function AdminFeatureVotesSection() {
       setError(result.error)
       return
     }
-    if (editingCycleId === cycleId) setEditingCycleId(null)
     setCycleData((prev) => {
       const next = { ...prev }
       delete next[cycleId]
@@ -218,16 +229,63 @@ export function AdminFeatureVotesSection() {
       setError(result.error)
       return
     }
-    await loadCycleData(cycleId)
+    if (optionPopover?.candidate.id === candidateId) closeOptionPopover()
+    await Promise.all([loadCycleData(cycleId), loadVoters(cycleId)])
+  }
+
+  const loadVoters = useCallback(async (cycleId: string) => {
+    const result = await fetchVoters(cycleId)
+    if (result.ok) {
+      setVoters((prev) => ({ ...prev, [cycleId]: result.data }))
+    }
+  }, [])
+
+  const openOptionPopover = (
+    cycleId: string,
+    candidate: FeatureVoteCandidate,
+    target: HTMLElement,
+  ) => {
+    setOptionPopover({ cycleId, candidate, anchor: target.getBoundingClientRect() })
+    setOptionEditMode(false)
+    setOptionEditTitle(candidate.title)
+    if (!voters[cycleId]) loadVoters(cycleId)
+  }
+
+  const closeOptionPopover = () => {
+    setOptionPopover(null)
+    setOptionEditMode(false)
+  }
+
+  const handleSaveOptionTitle = async () => {
+    if (!optionPopover) return
+    const trimmed = optionEditTitle.trim()
+    if (!trimmed || trimmed === optionPopover.candidate.title) {
+      setOptionEditMode(false)
+      return
+    }
+    setBusy(true)
+    setError(null)
+    const result = await updateCandidate(optionPopover.candidate.id, { title: trimmed })
+    setBusy(false)
+    if (!result.success) {
+      setError(result.error)
+      return
+    }
+    setOptionEditMode(false)
+    await loadCycleData(optionPopover.cycleId)
+    setOptionPopover((prev) =>
+      prev ? { ...prev, candidate: { ...prev.candidate, title: trimmed } } : prev,
+    )
   }
 
   if (!isDevRole) {
     return (
       <div className="px-5 py-8">
         <EmptyState
+          variant="gate"
           icon={<Lock size={28} />}
           title="Dev role required"
-          description="Feature voting administration is restricted to developers."
+          subtitle="Feature voting administration is restricted to developers."
         />
       </div>
     )
@@ -255,7 +313,7 @@ export function AdminFeatureVotesSection() {
         <div>
           <div className="flex items-center justify-between mb-2">
             <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Active cycles</p>
-            <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15">
+            <ActionPill>
               <button
                 ref={newCycleBtnRef}
                 onClick={openNewCyclePopover}
@@ -265,12 +323,12 @@ export function AdminFeatureVotesSection() {
               >
                 <Plus size={16} />
               </button>
-            </div>
+            </ActionPill>
           </div>
 
           {activeCycles.length === 0 ? (
             <div className="flex items-center justify-center h-[80px]">
-              <span className="text-xs text-secondary">No active cycles</span>
+              <span className="text-[10pt] text-secondary">No active cycles</span>
             </div>
           ) : (
             <div className="space-y-3">
@@ -279,7 +337,6 @@ export function AdminFeatureVotesSection() {
                 const candidates = data?.candidates ?? []
                 const tally = data?.tally ?? {}
                 const total = totalVotesFor(cycle.id)
-                const isEditing = editingCycleId === cycle.id
 
                 return (
                   <div
@@ -289,7 +346,7 @@ export function AdminFeatureVotesSection() {
                     {/* Options body */}
                     {candidates.length === 0 ? (
                       <div className="flex items-center justify-center h-[60px]">
-                        <span className="text-xs text-secondary">No options in this cycle</span>
+                        <span className="text-[10pt] text-secondary">No options in this cycle</span>
                       </div>
                     ) : (
                       <div className="divide-y divide-themeblue3/10">
@@ -297,7 +354,12 @@ export function AdminFeatureVotesSection() {
                           const voteCount = tally[c.id] ?? 0
                           const pct = total > 0 ? Math.round((voteCount / total) * 100) : 0
                           return (
-                            <div key={c.id} className="relative px-4 py-3">
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={(e) => openOptionPopover(cycle.id, c, e.currentTarget)}
+                              className="relative w-full text-left px-4 py-3 hover:bg-themeblue2/5 active:bg-themeblue2/10 transition-colors"
+                            >
                               <div
                                 className="absolute inset-y-0 left-0 bg-themeblue2/10 pointer-events-none"
                                 style={{ width: `${pct}%` }}
@@ -315,19 +377,12 @@ export function AdminFeatureVotesSection() {
                                 </div>
                                 <div className="text-right shrink-0">
                                   <p className="text-sm font-semibold text-primary">{pct}%</p>
-                                  <p className="text-[9pt] text-tertiary">{voteCount}</p>
+                                  <p className="text-[9pt] text-tertiary flex items-center justify-end gap-1">
+                                    <Users size={10} /> {voteCount}
+                                  </p>
                                 </div>
-                                {isEditing && (
-                                  <button
-                                    onClick={() => setConfirmDeleteOption({ cycleId: cycle.id, candidateId: c.id })}
-                                    className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-themeredred hover:bg-themeredred/10 active:scale-95 transition-all"
-                                    aria-label="Delete option"
-                                  >
-                                    <Trash2 size={13} />
-                                  </button>
-                                )}
                               </div>
-                            </div>
+                            </button>
                           )
                         })}
                       </div>
@@ -341,17 +396,7 @@ export function AdminFeatureVotesSection() {
                           <p className="text-[9pt] text-tertiary mt-0.5 line-clamp-1">{cycle.description}</p>
                         )}
                       </div>
-                      <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15 shrink-0">
-                        <button
-                          onClick={() => setEditingCycleId((prev) => (prev === cycle.id ? null : cycle.id))}
-                          className={`w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all ${
-                            isEditing ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
-                          }`}
-                          aria-label={isEditing ? 'Done editing' : 'Edit options'}
-                          title={isEditing ? 'Done editing' : 'Edit options'}
-                        >
-                          {isEditing ? <Check size={14} /> : <Pencil size={14} />}
-                        </button>
+                      <ActionPill className="shrink-0">
                         <button
                           onClick={() => setConfirmCloseCycle(cycle.id)}
                           className="w-9 h-9 rounded-full flex items-center justify-center bg-themeyellow/15 text-themeyellow active:scale-95 transition-all"
@@ -368,7 +413,7 @@ export function AdminFeatureVotesSection() {
                         >
                           <Trash2 size={14} />
                         </button>
-                      </div>
+                      </ActionPill>
                     </div>
                   </div>
                 )
@@ -425,55 +470,141 @@ export function AdminFeatureVotesSection() {
           </div>
         }
       >
-        <div className="p-4 space-y-3">
-          <div>
+        <div>
+          <TextInput
+            value={newCycleTitle}
+            onChange={setNewCycleTitle}
+            placeholder="Cycle title"
+            maxLength={120}
+          />
+          {newCycleOptions.map((opt, idx) => {
+            const isLast = idx === newCycleOptions.length - 1
+            return (
+              <div key={idx} className="flex items-center border-b border-primary/6 last:border-b-0">
+                <div className="flex-1 min-w-0">
+                  <TextInput
+                    value={opt}
+                    onChange={(v) => updateOptionAt(idx, v)}
+                    placeholder={newCycleOptions.length > 1 ? `Feature ${idx + 1}` : 'Feature'}
+                    maxLength={120}
+                  />
+                </div>
+                {isLast && canAddMoreOptions ? (
+                  <button
+                    type="button"
+                    onClick={addOptionRow}
+                    className="shrink-0 w-8 h-8 mr-2 flex items-center justify-center rounded-full bg-themeblue3 text-white active:scale-95 transition-all"
+                    aria-label="Add option"
+                  >
+                    <Plus size={14} />
+                  </button>
+                ) : newCycleOptions.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => removeOptionRow(idx)}
+                    className="shrink-0 w-8 h-8 mr-2 flex items-center justify-center rounded-full text-tertiary hover:text-tertiary hover:bg-tertiary/10 active:scale-95 transition-all"
+                    aria-label="Remove option"
+                  >
+                    <X size={13} />
+                  </button>
+                ) : null}
+              </div>
+            )
+          })}
+        </div>
+      </PreviewOverlay>
+
+      {/* Voters popover — anchored to the tapped option row */}
+      <PreviewOverlay
+        isOpen={!!optionPopover}
+        onClose={closeOptionPopover}
+        anchorRect={optionPopover?.anchor ?? null}
+        title={optionPopover?.candidate.title ?? ''}
+        maxWidth={340}
+        previewMaxHeight="50dvh"
+        footer={
+          optionPopover ? (
+            <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+              <ActionButton
+                icon={optionEditMode ? Check : Pencil}
+                label={optionEditMode ? 'Save' : 'Edit option'}
+                variant={
+                  optionEditMode
+                    ? busy || !optionEditTitle.trim()
+                      ? 'disabled'
+                      : 'success'
+                    : 'default'
+                }
+                onClick={() => {
+                  if (optionEditMode) {
+                    handleSaveOptionTitle()
+                  } else {
+                    setOptionEditMode(true)
+                    setOptionEditTitle(optionPopover.candidate.title)
+                  }
+                }}
+              />
+              <ActionButton
+                icon={Trash2}
+                label="Delete option"
+                variant="danger"
+                onClick={() =>
+                  setConfirmDeleteOption({
+                    cycleId: optionPopover.cycleId,
+                    candidateId: optionPopover.candidate.id,
+                  })
+                }
+              />
+            </div>
+          ) : undefined
+        }
+      >
+        {optionPopover && (
+          optionEditMode ? (
             <TextInput
-              value={newCycleTitle}
-              onChange={setNewCycleTitle}
-              placeholder="title"
+              value={optionEditTitle}
+              onChange={setOptionEditTitle}
+              placeholder="Option title"
               maxLength={120}
             />
-          </div>
-
-          <div>
-            <div className="space-y-1.5">
-              {newCycleOptions.map((opt, idx) => {
-                const isLast = idx === newCycleOptions.length - 1
-                return (
-                  <div key={idx} className="flex items-center gap-1.5">
-                    <div className="flex-1 min-w-0">
-                      <TextInput
-                        value={opt}
-                        onChange={(v) => updateOptionAt(idx, v)}
-                        placeholder={newCycleOptions.length > 1 ? `feature ${idx + 1}` : 'feature'}
-                        maxLength={120}
-                      />
+          ) : (
+            <div className="px-4 py-3">
+              {(() => {
+                const list = voters[optionPopover.cycleId]?.[optionPopover.candidate.id] ?? []
+                const loaded = voters[optionPopover.cycleId] !== undefined
+                if (!loaded) {
+                  return (
+                    <div className="flex items-center justify-center py-3 text-tertiary">
+                      <Loader2 size={14} className="animate-spin mr-2" />
+                      <span className="text-[10pt]">Loading voters…</span>
                     </div>
-                    {isLast && canAddMoreOptions ? (
-                      <button
-                        type="button"
-                        onClick={addOptionRow}
-                        className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-themeblue3 text-white active:scale-95 transition-all"
-                        aria-label="Add option"
-                      >
-                        <Plus size={14} />
-                      </button>
-                    ) : newCycleOptions.length > 1 ? (
-                      <button
-                        type="button"
-                        onClick={() => removeOptionRow(idx)}
-                        className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-tertiary hover:text-tertiary hover:bg-tertiary/10 active:scale-95 transition-all"
-                        aria-label="Remove option"
-                      >
-                        <X size={13} />
-                      </button>
-                    ) : null}
+                  )
+                }
+                if (list.length === 0) {
+                  return (
+                    <div className="flex items-center justify-center py-3">
+                      <span className="text-[10pt] text-tertiary">No votes for this option yet</span>
+                    </div>
+                  )
+                }
+                return (
+                  <div>
+                    <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                      <Users size={10} /> {list.length} voter{list.length === 1 ? '' : 's'}
+                    </p>
+                    <div className="divide-y divide-tertiary/10">
+                      {list.map((v) => (
+                        <div key={v.userId} className="py-2">
+                          <p className="text-sm text-primary truncate">{v.displayName}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )
-              })}
+              })()}
             </div>
-          </div>
-        </div>
+          )
+        )}
       </PreviewOverlay>
 
       <ConfirmDialog

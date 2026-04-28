@@ -113,7 +113,7 @@ const AddStepButton = ({ onAdd, onAddBranch, topNodes }: AddStepButtonProps) => 
                                 key={label}
                                 type="button"
                                 onClick={() => handleBranchFieldPick(label)}
-                                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-primary hover:bg-themepurple/8 active:scale-95 transition-all text-left"
+                                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[10pt] text-primary hover:bg-themepurple/8 active:scale-95 transition-all text-left"
                             >
                                 <ChevronDown size={11} className="text-themepurple/50 shrink-0" />
                                 {label}
@@ -611,7 +611,7 @@ const BranchFlow = ({ node, topNodes, onChange, onDelete, onDragStart }: BranchF
                                             key={opt}
                                             type="button"
                                             onClick={() => addCase(opt)}
-                                            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-primary hover:bg-themepurple/8 active:scale-95 transition-all text-left"
+                                            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[10pt] text-primary hover:bg-themepurple/8 active:scale-95 transition-all text-left"
                                         >
                                             <GitBranch size={10} className="text-themepurple/50 shrink-0" />
                                             {opt}

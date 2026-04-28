@@ -205,10 +205,7 @@ export function AdminClinicsList({
         {showLoading ? (
           <AdminListSkeleton />
         ) : filteredClinics.length === 0 ? (
-          <EmptyState
-            icon={<Building2 size={28} />}
-            title={searchQuery ? 'No matches.' : 'No clinics.'}
-          />
+          <EmptyState title={searchQuery ? 'No matches.' : 'No clinics.'} />
         ) : (
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
             {renderClinicItems()}

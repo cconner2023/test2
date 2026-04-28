@@ -511,7 +511,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         onClick={handleCopyMgrs}
         className="absolute left-3 z-[1000] flex items-center gap-1.5
           bg-themewhite2/90 dark:bg-themewhite3/90 backdrop-blur-sm
-          text-primary text-xs font-mono px-2.5 py-1.5 rounded-lg shadow-sm
+          text-primary text-[10pt] font-mono px-2.5 py-1.5 rounded-lg shadow-sm
           active:scale-95 transition-all select-none"
         style={{ top: controlsTopOffset ? `${controlsTopOffset + 12}px` : 12 }}
         aria-label="Copy MGRS coordinate"

@@ -100,7 +100,7 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
           <h2 className={`font-bold text-primary ${isMobile ? 'text-lg' : 'text-sm'}`}>{item.name}</h2>
 
           {item.nomenclature && (
-            <p className={`text-secondary ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.nomenclature}</p>
+            <p className={`text-secondary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{item.nomenclature}</p>
           )}
         </div>
       </SectionCard>
@@ -135,7 +135,7 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
         <SectionCard>
           <div className={isMobile ? 'px-4 py-3' : 'px-3 py-2'}>
             <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Notes</span>
-            <p className={`mt-1 text-secondary whitespace-pre-wrap ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.notes}</p>
+            <p className={`mt-1 text-secondary whitespace-pre-wrap ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{item.notes}</p>
           </div>
         </SectionCard>
       )}
@@ -152,7 +152,7 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
           <SectionCard>
             {subItems.map(sub => (
               <div key={sub.id} className={`flex items-center justify-between ${isMobile ? 'px-4 py-3' : 'px-3 py-2'} border-b border-primary/5 last:border-b-0`}>
-                <span className={`text-primary truncate ${isMobile ? 'text-sm' : 'text-xs'}`}>{sub.name}</span>
+                <span className={`text-primary truncate ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{sub.name}</span>
                 {sub.serial_number && (
                   <span className="text-[9pt] text-tertiary shrink-0 ml-2">{sub.serial_number}</span>
                 )}
@@ -166,7 +166,7 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
       <button
         onClick={onEnroll}
         className={`w-full flex items-center justify-center gap-2 rounded-2xl border border-tertiary/20 bg-themewhite2 font-medium text-secondary active:scale-95 transition-all duration-200 ${
-          isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-xs'
+          isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-[10pt]'
         }`}
       >
         <ScanLine className={isMobile ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
@@ -177,7 +177,7 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
         <button
           onClick={() => { setSplitQty(1); setSplitTargetId(null); setShowSplitSheet(true) }}
           className={`w-full flex items-center justify-center gap-2 rounded-2xl border border-tertiary/20 bg-themewhite2 font-medium text-secondary active:scale-95 transition-all duration-200 ${
-            isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-xs'
+            isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-[10pt]'
           }`}
         >
           <ArrowRightLeft className={isMobile ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
@@ -189,7 +189,7 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
         <button
           onClick={() => setShowMergeSheet(true)}
           className={`w-full flex items-center justify-center gap-2 rounded-2xl border border-tertiary/20 bg-themewhite2 font-medium text-secondary active:scale-95 transition-all duration-200 ${
-            isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-xs'
+            isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-[10pt]'
           }`}
         >
           <GitMerge className={isMobile ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
@@ -231,7 +231,7 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
                   >
                     <Plus size={16} />
                   </button>
-                  <span className="text-xs text-tertiary">of {item.quantity}</span>
+                  <span className="text-[10pt] text-tertiary">of {item.quantity}</span>
                 </div>
               </div>
             )}
@@ -261,7 +261,7 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
             </div>
 
             {splitMergeTarget && (
-              <p className="text-xs text-secondary shrink-0">
+              <p className="text-[10pt] text-secondary shrink-0">
                 Will merge into existing <span className="font-medium">{splitMergeTarget.name}</span> (×{splitMergeTarget.quantity}) at that location
               </p>
             )}
@@ -290,7 +290,7 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
                 <X size={18} />
               </button>
             </div>
-            <p className="text-xs text-secondary shrink-0">
+            <p className="text-[10pt] text-secondary shrink-0">
               Select an item to absorb into <span className="font-medium">{item.name}</span> (×{item.quantity}). The selected item will be deleted.
             </p>
             <div className="flex-1 overflow-y-auto min-h-0">
@@ -305,7 +305,7 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
                     >
                       <div>
                         <p className="text-sm text-primary">{candidate.name}</p>
-                        {candidateLoc && <p className="text-xs text-tertiary">{candidateLoc.name}</p>}
+                        {candidateLoc && <p className="text-[10pt] text-tertiary">{candidateLoc.name}</p>}
                       </div>
                       <span className="text-sm font-medium px-2 py-1 rounded-full bg-tertiary/10 text-tertiary shrink-0 ml-2">
                         ×{candidate.quantity}

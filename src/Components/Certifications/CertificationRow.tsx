@@ -4,7 +4,7 @@ import { getExpirationStatus, statusLabel, formatCertDate } from './certHelpers'
 
 interface CertificationRowProps {
   cert: Certification
-  onClick?: () => void
+  onClick?: (e: React.MouseEvent<HTMLDivElement>) => void
 }
 
 export function CertificationRow({ cert, onClick }: CertificationRowProps) {
@@ -49,11 +49,11 @@ export function CertificationRow({ cert, onClick }: CertificationRowProps) {
       <div
         role="button"
         tabIndex={0}
-        onClick={onClick}
+        onClick={(e) => onClick(e)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            onClick()
+            ;(e.currentTarget as HTMLDivElement).click()
           }
         }}
         className="px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"

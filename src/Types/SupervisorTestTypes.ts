@@ -25,6 +25,8 @@ export interface ClinicMedic {
   rank: string | null
   credential: string | null
   avatarId: string | null
+  /** Profile roles array — 'medic' | 'supervisor' | 'dev' | 'provider'. Used to identify providers in clinic-scoped UIs (e.g. Huddle view). */
+  roles?: string[]
   clinicId?: string
   clinicName?: string
 }

@@ -332,96 +332,74 @@ export function RequestCard({
           className="border-t border-tertiary/10 px-4 pb-4 pt-3"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className={`space-y-3 ${processing ? 'opacity-50 pointer-events-none' : ''}`}>
-            {error && <ErrorDisplay message={error} />}
+          <div className={processing ? 'opacity-50 pointer-events-none' : undefined}>
+            {error && <div className="mb-3"><ErrorDisplay message={error} /></div>}
 
             {/* User justification */}
-            <div className="rounded-xl bg-themeblue2/5 border border-themeblue2/10 px-3.5 py-2.5">
+            <div className="rounded-xl bg-themeblue2/5 border border-themeblue2/10 px-3.5 py-2.5 mb-3">
               <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-1">Justification</p>
               <p className={`text-sm whitespace-pre-wrap ${request.notes ? 'text-primary' : 'text-tertiary italic'}`}>
                 {request.notes || 'No justification provided'}
               </p>
             </div>
 
-            {/* Profile — mirrors AccountRequestForm layout */}
-            <div className="space-y-3">
-                <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Edit Account</p>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <TextInput value={firstName} onChange={setFirstName} placeholder="First Name *" required />
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 min-w-0">
-                      <TextInput value={lastName} onChange={setLastName} placeholder="Last Name *" required />
-                    </div>
-                    <div className="w-11 shrink-0">
-                      <TextInput value={middleInitial} onChange={(v) => setMiddleInitial(v.toUpperCase().slice(0, 1))} placeholder="MI" maxLength={1} />
-                    </div>
-                  </div>
+            <div className="rounded-2xl bg-themewhite overflow-hidden">
+              <TextInput value={firstName} onChange={setFirstName} placeholder="First Name *" required />
+              <div className="flex items-stretch border-b border-primary/6">
+                <div className="flex-1 min-w-0">
+                  <TextInput value={lastName} onChange={setLastName} placeholder="Last Name *" required />
                 </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <PickerInput value={credential} onChange={setCredential} options={credentials} placeholder="Credential" />
-                  <PickerInput value={component} onChange={handleComponentChange} options={components} placeholder="Component" />
+                <div className="w-16 shrink-0 border-l border-primary/6">
+                  <TextInput value={middleInitial} onChange={(v) => setMiddleInitial(v.toUpperCase().slice(0, 1))} placeholder="MI" maxLength={1} />
                 </div>
-
-                {component && (
-                  <PickerInput value={rank} onChange={setRank} options={componentRanks} placeholder="Rank" />
-                )}
-
-                <div>
-                  <div className="flex items-baseline justify-between mb-1.5">
-                    <span className="text-[9pt] font-semibold text-primary uppercase tracking-wider">UIC</span>
-                    <span className={`text-[9pt] tabular-nums ${uic.length === 6 ? 'text-themegreen' : 'text-tertiary'}`}>
-                      {uic.length}/6
-                    </span>
-                  </div>
-                  <UicPinInput value={uic} onChange={setUic} spread />
-                </div>
-
-                <PickerInput value={selectedClinicId} onChange={setSelectedClinicId} options={clinicOptions} placeholder="Clinic" />
-                {formMatchedClinic && selectedClinicId === formMatchedClinic.id && (
-                  <p className="-mt-2 text-[9pt] text-themegreen flex items-center gap-1">
-                    <Building2 size={12} />
-                    Auto-matched from UIC
-                  </p>
-                )}
-
-                <MultiPickerInput
-                  label="Roles"
-                  value={roles}
-                  onChange={setRoles}
-                  options={AVAILABLE_ROLES.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))}
-                  placeholder="Roles"
-                  required
-                />
-
+              </div>
+              <PickerInput value={credential} onChange={setCredential} options={credentials} placeholder="Credential" />
+              <PickerInput value={component} onChange={handleComponentChange} options={components} placeholder="Component" />
+              {component && (
+                <PickerInput value={rank} onChange={setRank} options={componentRanks} placeholder="Rank" />
+              )}
+              <UicPinInput value={uic} onChange={setUic} spread />
+              <PickerInput value={selectedClinicId} onChange={setSelectedClinicId} options={clinicOptions} placeholder="Clinic" />
+              {formMatchedClinic && selectedClinicId === formMatchedClinic.id && (
+                <p className="px-4 py-2 text-[9pt] text-themegreen flex items-center gap-1 border-b border-primary/6">
+                  <Building2 size={12} />
+                  Auto-matched from UIC
+                </p>
+              )}
+              <MultiPickerInput
+                value={roles}
+                onChange={setRoles}
+                options={AVAILABLE_ROLES.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))}
+                placeholder="Roles *"
+                required
+              />
             </div>
 
             {/* Action buttons */}
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex items-center justify-end gap-2 mt-2">
               <a
                 href={`mailto:${request.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(`${[request.rank, request.last_name].filter(Boolean).join(' ')},\n\n`)}`}
-                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-themeblue2 active:scale-95 transition-all"
+                className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-themeblue2 active:scale-95 transition-all"
                 aria-label="Email"
                 title="Email"
               >
-                <Mail size={18} />
+                <Mail size={16} />
               </a>
               <button
                 onClick={() => setConfirmReject(true)}
                 disabled={processing}
                 aria-label="Reject"
-                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-themeredred active:scale-95 transition-all disabled:opacity-30"
+                className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-themeredred active:scale-95 transition-all disabled:opacity-30"
               >
-                <Trash2 size={18} />
+                <Trash2 size={16} />
               </button>
               <button
                 onClick={handleApprove}
                 disabled={processing}
                 aria-label="Approve"
-                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+                className={`shrink-0 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white overflow-hidden transition-all duration-300 ease-out active:scale-95 disabled:opacity-30 ${uic.length === 6 && roles.length > 0 ? 'w-9 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
               >
-                {processing ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
+                {processing ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
               </button>
             </div>
           </div>

@@ -1180,15 +1180,15 @@ export function PhysicalExam({
                                                 value={vitals['bpSys'] || ''}
                                                 onChange={(e) => setVitalValue('bpSys', e.target.value)}
                                                 placeholder="BP sys"
-                                                className="w-1/2 text-xs px-2.5 py-2 rounded-lg border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary transition-all duration-300"
+                                                className="w-1/2 text-[10pt] px-2.5 py-2 rounded-lg border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary transition-all duration-300"
                                             />
-                                            <span className="text-xs text-tertiary">/</span>
+                                            <span className="text-[10pt] text-tertiary">/</span>
                                             <input
                                                 type="text"
                                                 value={vitals['bpDia'] || ''}
                                                 onChange={(e) => setVitalValue('bpDia', e.target.value)}
                                                 placeholder="dia"
-                                                className="w-1/2 text-xs px-2.5 py-2 rounded-lg border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary transition-all duration-300"
+                                                className="w-1/2 text-[10pt] px-2.5 py-2 rounded-lg border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary transition-all duration-300"
                                             />
                                         </div>
                                     );
@@ -1199,13 +1199,13 @@ export function PhysicalExam({
                                                 value={vitals[v.key] || ''}
                                                 onChange={(e) => setVitalValue(v.key, e.target.value)}
                                                 placeholder={`${v.shortLabel} (${v.unit})`}
-                                                className="w-full text-xs px-2.5 py-2 rounded-lg border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary transition-all duration-300"
+                                                className="w-full text-[10pt] px-2.5 py-2 rounded-lg border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary transition-all duration-300"
                                             />
                                             {v.key === 'ht' && vitals[v.key]?.trim() && !isNaN(parseFloat(vitals[v.key])) && (
-                                                <span className="text-xs text-secondary mt-0.5 block">{(parseFloat(vitals[v.key]) * 2.54).toFixed(1)} cm</span>
+                                                <span className="text-[10pt] text-secondary mt-0.5 block">{(parseFloat(vitals[v.key]) * 2.54).toFixed(1)} cm</span>
                                             )}
                                             {v.key === 'wt' && vitals[v.key]?.trim() && !isNaN(parseFloat(vitals[v.key])) && (
-                                                <span className="text-xs text-secondary mt-0.5 block">{(parseFloat(vitals[v.key]) * 0.453592).toFixed(1)} kg</span>
+                                                <span className="text-[10pt] text-secondary mt-0.5 block">{(parseFloat(vitals[v.key]) * 0.453592).toFixed(1)} kg</span>
                                             )}
                                         </div>
                                     );
@@ -1213,8 +1213,8 @@ export function PhysicalExam({
                             </div>
                             {bmiInfo && (
                                 <div className="flex items-center gap-2 mt-1.5">
-                                    <span className="text-xs text-secondary">BMI:</span>
-                                    <span className={`text-xs font-medium ${
+                                    <span className="text-[10pt] text-secondary">BMI:</span>
+                                    <span className={`text-[10pt] font-medium ${
                                         bmiInfo.value < 18.5 ? 'text-amber-500'
                                         : bmiInfo.value < 25 ? 'text-themegreen'
                                         : bmiInfo.value < 30 ? 'text-amber-500'
@@ -1222,7 +1222,7 @@ export function PhysicalExam({
                                     }`}>
                                         {bmiInfo.display}
                                     </span>
-                                    <span className="text-xs text-secondary">
+                                    <span className="text-[10pt] text-secondary">
                                         {bmiInfo.value < 18.5 ? 'Underweight'
                                         : bmiInfo.value < 25 ? 'Normal'
                                         : bmiInfo.value < 30 ? 'Overweight'
@@ -1258,7 +1258,7 @@ export function PhysicalExam({
                                                 }`}>
                                                     {selected && <Check size={12} strokeWidth={2.5} />}
                                                 </span>
-                                                <span className="text-xs font-medium text-primary">{block.label}</span>
+                                                <span className="text-[10pt] font-medium text-primary">{block.label}</span>
                                             </button>
                                             {block.key === 'msk' && selected && MSK_CHILD_KEYS
                                                 .filter(k => !lc || MASTER_BLOCK_LIBRARY[k]?.label.toLowerCase().includes(lc))
@@ -1341,11 +1341,11 @@ export function PhysicalExam({
                                         <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10 text-tertiary">
                                             <Plus size={10} />
                                         </span>
-                                        <span className="text-xs font-medium text-primary">{block.label}</span>
+                                        <span className="text-[10pt] font-medium text-primary">{block.label}</span>
                                     </button>
                                 ))}
                                 {filtered.length === 0 && (
-                                    <p className="text-xs text-tertiary px-3 py-3">No additional systems available</p>
+                                    <p className="text-[10pt] text-tertiary px-3 py-3">No additional systems available</p>
                                 )}
                             </div>
                         );

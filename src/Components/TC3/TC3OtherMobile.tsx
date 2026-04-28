@@ -15,7 +15,7 @@ const CheckBox = ({ label, checked, onChange }: { label: string; checked: boolea
         </svg>
       )}
     </div>
-    <span className={`text-xs font-medium ${checked ? 'text-primary' : 'text-tertiary'}`}>{label}</span>
+    <span className={`text-[10pt] font-medium ${checked ? 'text-primary' : 'text-tertiary'}`}>{label}</span>
   </button>
 )
 
@@ -44,7 +44,7 @@ export const OtherSectionMobile = memo(function OtherSectionMobile() {
               <button
                 key={side}
                 onClick={() => updateOther({ eyeShield: { ...other.eyeShield, side } })}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all
+                className={`px-3 py-1.5 rounded-lg text-[10pt] font-medium border transition-all
                   ${other.eyeShield.side === side
                     ? 'border-themeredred/25 bg-themeredred/10 text-primary'
                     : 'border-tertiary/15 text-tertiary hover:bg-tertiary/5'
@@ -72,7 +72,7 @@ export const OtherSectionMobile = memo(function OtherSectionMobile() {
               value={other.hypothermiaPrevention.type}
               onChange={(e) => updateOther({ hypothermiaPrevention: { ...other.hypothermiaPrevention, type: e.target.value } })}
               placeholder="Method (Blanket, HPMK, Ready-Heat...)"
-              className="w-full text-xs px-3 py-2 rounded-lg border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
+              className="w-full text-[10pt] px-3 py-2 rounded-lg border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
             />
           </div>
         )}

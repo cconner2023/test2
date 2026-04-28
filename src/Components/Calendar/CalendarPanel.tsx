@@ -7,6 +7,7 @@ import { EventForm } from './EventForm'
 import type { EventFormHandle } from './EventForm'
 import { EventDetailPanel } from './EventDetailPanel'
 import { DayView } from './DayView'
+import { TripleDayView } from './TripleDayView'
 import { TroopsToTaskView } from './TroopsToTaskView'
 import { InfiniteScrollCalendar } from './InfiniteScrollCalendar'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -18,19 +19,22 @@ import { useCalendarStore } from '../../stores/useCalendarStore'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
+import { useClinicRooms } from '../../Hooks/useClinicRooms'
+import { useClinicHuddleTasks } from '../../Hooks/useClinicHuddleTasks'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useCalendarSync } from '../../Hooks/useCalendarSync'
 import { useCalendarWrite } from '../../Hooks/useCalendarWrite'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { useAuth } from '../../Hooks/useAuth'
 import { getOverlays } from '../../lib/mapOverlayService'
-import type { OverlayOption } from './EventForm'
+import type { OverlayOption, RoomOption, HuddleTaskOption } from './EventForm'
 import { MissionBoard } from '../Mission/MissionBoard'
 import type { ResourceAllocation } from '../../Types/MissionTypes'
 import { getInitials } from '../../Utilities/nameUtils'
 import type { CalendarEvent, EventFormData, EventStatus } from '../../Types/CalendarTypes'
 import {
   eventToFormData, toDateKey, eventFallsOnDate, generateId, createEmptyFormData,
+  PROVIDER_HUDDLE_TASK_ID,
 } from '../../Types/CalendarTypes'
 import { shareCalendar } from '../../lib/calendarExport'
 
@@ -84,6 +88,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const [contextMenu, setContextMenu] = useState<{ eventId: string; x: number; y: number } | null>(null)
   const [dayContextMenu, setDayContextMenu] = useState<{ dateKey: string; x: number; y: number } | null>(null)
   const [newEventDateKey, setNewEventDateKey] = useState<string | undefined>(undefined)
+  const [newEventHuddleTaskId, setNewEventHuddleTaskId] = useState<string | null>(null)
+  const [duplicateHuddle, setDuplicateHuddle] = useState<{ eventId: string; rowName: string; medicLabel: string } | null>(null)
 
   const [showDayDrawer, setShowDayDrawer] = useState(false)
   const [dayDrawerView, setDayDrawerView] = useState<DayDrawerView>('detail')
@@ -91,6 +97,23 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
   const { medics: allMedics } = useClinicMedics()
   const { ownClinicMedics } = useClinicGroupedMedics(allMedics)
+  const clinicRooms = useClinicRooms()
+  const activeRooms = useMemo(() => clinicRooms.filter(r => !r.archived_at), [clinicRooms])
+  const roomFormOptions: RoomOption[] = useMemo(
+    () => [...activeRooms]
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map(r => ({ id: r.id, name: r.name })),
+    [activeRooms],
+  )
+  const huddleTasks = useClinicHuddleTasks()
+  const sortedHuddleTasks = useMemo(
+    () => [...huddleTasks].sort((a, b) => a.sort_order - b.sort_order),
+    [huddleTasks],
+  )
+  const huddleTaskFormOptions: HuddleTaskOption[] = useMemo(
+    () => sortedHuddleTasks.map(t => ({ id: t.id, name: t.name })),
+    [sortedHuddleTasks],
+  )
 
   // Medic name resolver — shared across detail panel and form
   const medicLookup = useMemo(() => {
@@ -148,6 +171,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     selectedDateStr, storeSetSelectedDate,
     vaultReplayDone,
     hydrationError, clearHydrationError,
+    daySpan,
   } = useCalendarStore(useShallow(s => ({
     viewMode: s.currentView,
     setViewMode: s.setView,
@@ -163,6 +187,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     vaultReplayDone: s.vaultReplayDone,
     hydrationError: s.hydrationError,
     clearHydrationError: s.clearHydrationError,
+    daySpan: s.daySpan,
   })))
 
   // Deep-link from external sources (e.g. Mission Board) — open specific event in detail view
@@ -241,8 +266,126 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const handleNewEvent = useCallback((forDateKey?: string) => {
     setEditingEvent(null)
     setNewEventDateKey(forDateKey ?? selectedDateStr)
+    setNewEventHuddleTaskId(null)
     setPanelView('form')
   }, [selectedDateStr])
+
+  const handleNewHuddleEvent = useCallback((forDateKey: string, taskId?: string) => {
+    setEditingEvent(null)
+    setNewEventDateKey(forDateKey)
+    setNewEventHuddleTaskId(taskId ?? null)
+    setPanelView('form')
+  }, [])
+
+  const handleAssignMedicToHuddle = useCallback(async (medicId: string, taskId: string, forDateKey: string, providerId?: string) => {
+    if (!clinicId) return
+    const medic = ownClinicMedics.find(m => m.id === medicId)
+    const medicLabel = medic ? `${medic.lastName ?? ''}${medic.firstName ? ', ' + medic.firstName.charAt(0) + '.' : ''}`.trim() || 'Medic' : 'Medic'
+    const provider = providerId ? ownClinicMedics.find(m => m.id === providerId) : null
+    const rowName = taskId === PROVIDER_HUDDLE_TASK_ID
+      ? (provider ? `${provider.lastName ?? 'Provider'} huddle` : 'Providers')
+      : sortedHuddleTasks.find(t => t.id === taskId)?.name ?? 'Huddle'
+
+    const allEvents = useCalendarStore.getState().events
+
+    // Provider rows: pair the medic with the provider's existing huddle event for the day,
+    // or create a new event with both [providerId, medicId]. Never create a standalone medic-only
+    // entry — the medic is always coupled to the provider whose row was tapped.
+    if (taskId === PROVIDER_HUDDLE_TASK_ID && providerId) {
+      const providerEvent = allEvents.find(e =>
+        e.category === 'huddle' &&
+        (e.huddle_task_id ?? null) === PROVIDER_HUDDLE_TASK_ID &&
+        e.start_time.slice(0, 10) === forDateKey &&
+        e.assigned_to.includes(providerId)
+      )
+      if (providerEvent) {
+        if (providerEvent.assigned_to.includes(medicId)) {
+          setDuplicateHuddle({ eventId: providerEvent.id, rowName, medicLabel })
+          return
+        }
+        const updated: CalendarEvent = {
+          ...providerEvent,
+          assigned_to: [...providerEvent.assigned_to, medicId],
+          updated_at: new Date().toISOString(),
+        }
+        await writeEvent(updated)
+        return
+      }
+      const now = new Date().toISOString()
+      const newEvent: CalendarEvent = {
+        id: generateId(),
+        clinic_id: clinicId,
+        title: rowName,
+        description: null,
+        category: 'huddle',
+        status: 'pending',
+        start_time: `${forDateKey}T00:00`,
+        end_time: `${forDateKey}T23:59`,
+        all_day: true,
+        location: null,
+        opord_notes: null,
+        uniform: null,
+        report_time: null,
+        assigned_to: providerId === medicId ? [providerId] : [providerId, medicId],
+        property_item_ids: [],
+        structured_location: null,
+        room_id: null,
+        huddle_task_id: PROVIDER_HUDDLE_TASK_ID,
+        created_by: user?.id ?? '',
+        created_at: now,
+        updated_at: now,
+      }
+      await writeEvent(newEvent)
+      return
+    }
+
+    // Task rows: same medic, same task, same date is a duplicate.
+    const existing = allEvents.find(e =>
+      e.category === 'huddle' &&
+      (e.huddle_task_id ?? null) === taskId &&
+      e.start_time.slice(0, 10) === forDateKey &&
+      e.assigned_to.includes(medicId)
+    )
+    if (existing) {
+      setDuplicateHuddle({ eventId: existing.id, rowName, medicLabel })
+      return
+    }
+
+    const now = new Date().toISOString()
+    const newEvent: CalendarEvent = {
+      id: generateId(),
+      clinic_id: clinicId,
+      title: rowName,
+      description: null,
+      category: 'huddle',
+      status: 'pending',
+      start_time: `${forDateKey}T00:00`,
+      end_time: `${forDateKey}T23:59`,
+      all_day: true,
+      location: null,
+      opord_notes: null,
+      uniform: null,
+      report_time: null,
+      assigned_to: [medicId],
+      property_item_ids: [],
+      structured_location: null,
+      room_id: null,
+      huddle_task_id: taskId,
+      created_by: user?.id ?? '',
+      created_at: now,
+      updated_at: now,
+    }
+    await writeEvent(newEvent)
+  }, [clinicId, ownClinicMedics, sortedHuddleTasks, user, writeEvent])
+
+  /** Initial form data for a NEW event — pre-populates category/task when launched from the huddle band. */
+  const newEventInitialData = useMemo(() => {
+    const base = createEmptyFormData(newEventDateKey)
+    if (newEventHuddleTaskId !== null) {
+      return { ...base, category: 'huddle' as const, huddle_task_id: newEventHuddleTaskId }
+    }
+    return base
+  }, [newEventDateKey, newEventHuddleTaskId])
 
   const handleEditEvent = useCallback((id: string) => {
     const event = events.find(e => e.id === id)
@@ -272,6 +415,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           assigned_to: data.assigned_to,
           property_item_ids: data.property_item_ids,
           structured_location: data.structured_location ?? null,
+          room_id: data.room_id ?? null,
+          huddle_task_id: data.category === 'huddle' ? (data.huddle_task_id ?? null) : null,
           updated_at: now,
         }
         await writeEvent(updatedEvent)
@@ -293,6 +438,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           assigned_to: data.assigned_to,
           property_item_ids: data.property_item_ids,
           structured_location: data.structured_location ?? null,
+          room_id: data.room_id ?? null,
+          huddle_task_id: data.category === 'huddle' ? (data.huddle_task_id ?? null) : null,
           created_by: user?.id ?? '',
           created_at: now,
           updated_at: now,
@@ -503,12 +650,12 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
         {!vaultReplayDone && (
           <div className="absolute top-0 inset-x-0 z-30 flex items-center gap-2 px-3 py-2 bg-themeblue2/10 border-b border-themeblue2/20">
             <div className="w-3 h-3 border-2 border-themeblue2 border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs text-themeblue2 font-medium">Syncing calendar…</span>
+            <span className="text-[10pt] text-themeblue2 font-medium">Syncing calendar…</span>
           </div>
         )}
         {/* Vault hydration error banner */}
         {hydrationError && (
-          <div className="absolute top-0 inset-x-0 z-30 flex items-center justify-between gap-2 px-3 py-2 bg-amber-100 border-b border-amber-300 text-amber-900 text-xs">
+          <div className="absolute top-0 inset-x-0 z-30 flex items-center justify-between gap-2 px-3 py-2 bg-amber-100 border-b border-amber-300 text-amber-900 text-[10pt]">
             <span>Some calendar events could not be decrypted. They may appear after the next sync.</span>
             <button onClick={clearHydrationError} className="shrink-0 text-amber-700 hover:text-amber-900 font-medium">
               Dismiss
@@ -533,7 +680,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               />
             )}
 
-            {viewMode === 'day' && (
+            {viewMode === 'day' && daySpan === 1 && (
               <DayView
                 date={selectedDate}
                 events={dayEvents}
@@ -549,15 +696,34 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               />
             )}
 
+            {viewMode === 'day' && daySpan === 3 && (
+              <TripleDayView
+                date={selectedDate}
+                events={filteredEvents}
+                onSelectEvent={handleSelectEvent}
+                onEventContextMenu={handleEventContextMenu}
+                onDayContextMenu={handleDayContextMenu}
+                {...(isMobile ? {
+                  onPrevDay: handlePrevDay,
+                  onNextDay: handleNextDay,
+                  onDateTap: onOpenControls,
+                } : {})}
+              />
+            )}
+
             {viewMode === 'troops' && (
               <TroopsToTaskView
                 date={selectedDate}
                 events={filteredEvents}
                 medics={ownClinicMedics}
+                rooms={activeRooms}
+                huddleTasks={sortedHuddleTasks}
                 onSelectEvent={handleSelectEvent}
                 onAssign={assignPersonnel}
                 onUnassign={unassignPersonnel}
                 onDateChange={setSelectedDate}
+                onNewHuddleEvent={handleNewHuddleEvent}
+                onAssignMedicToHuddle={handleAssignMedicToHuddle}
               />
             )}
           </div>
@@ -636,12 +802,14 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             <div className="relative h-full">
               <EventForm
                 ref={eventFormRef}
-                initialData={editingEvent ? eventToFormData(editingEvent) : createEmptyFormData(newEventDateKey)}
+                initialData={editingEvent ? eventToFormData(editingEvent) : newEventInitialData}
                 onSave={handleSaveEvent}
                 isEditing={!!editingEvent}
                 medics={medicList}
                 propertyItems={propertyItems}
                 overlayOptions={overlayOptions}
+                roomOptions={roomFormOptions}
+                huddleTaskOptions={huddleTaskFormOptions}
               />
               {(isFormPending || isWriting || isDeleting) && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-xl">
@@ -714,6 +882,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   onSave={handleDayDrawerSave}
                   isEditing
                   medics={medicList}
+                  roomOptions={roomFormOptions}
+                huddleTaskOptions={huddleTaskFormOptions}
                 />
               )}
 
@@ -780,11 +950,13 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   <div className="flex-1 min-h-0 overflow-y-auto">
                     <EventForm
                       ref={eventFormRef}
-                      initialData={editingEvent ? eventToFormData(editingEvent) : createEmptyFormData(newEventDateKey)}
+                      initialData={editingEvent ? eventToFormData(editingEvent) : newEventInitialData}
                       onSave={handleSaveEvent}
                       isEditing={!!editingEvent}
                       medics={medicList}
                       propertyItems={propertyItems}
+                      roomOptions={roomFormOptions}
+                huddleTaskOptions={huddleTaskFormOptions}
                     />
                   </div>
                   {(isFormPending || isWriting || isDeleting) && (
@@ -831,7 +1003,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
         title="Calendar"
         options={[
           { key: 'new', label: 'New Event', onAction: () => handleNewEvent() },
-          { key: 'import', label: 'Import CSV', onAction: () => setShowImportSheet(true) },
+          { key: 'import', label: 'Import CSV', onAction: () => setShowImportSheet(true), tourTag: 'calendar-export-import' },
           { key: 'export', label: 'Export .ics', onAction: () => shareCalendar(events).catch(() => {}) },
         ]}
         onClose={() => setShowAddSheet(false)}
@@ -847,6 +1019,20 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       )}
 
       {deleteConfirmDialog}
+      <ConfirmDialog
+        visible={!!duplicateHuddle}
+        title="Already assigned"
+        subtitle={duplicateHuddle ? `${duplicateHuddle.medicLabel} is already on ${duplicateHuddle.rowName} for this day. Remove the existing assignment?` : ''}
+        confirmLabel="Remove"
+        cancelLabel="Keep"
+        variant="danger"
+        onConfirm={async () => {
+          const id = duplicateHuddle?.eventId
+          setDuplicateHuddle(null)
+          if (id) await calendarDeleteEvent(id)
+        }}
+        onCancel={() => setDuplicateHuddle(null)}
+      />
 
       {contextMenu && (() => {
         const ctxEvent = events.find(e => e.id === contextMenu.eventId)

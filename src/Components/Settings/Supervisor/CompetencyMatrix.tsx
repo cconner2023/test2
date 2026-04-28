@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { ChevronDown, ChevronRight, Users } from 'lucide-react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { EmptyState } from '../../EmptyState'
 import { SearchInput } from '../../SearchInput'
 import { formatMedicName } from './supervisorHelpers'
@@ -81,12 +81,7 @@ export function CompetencyMatrix({
   }
 
   if (matrix.length === 0) {
-    return (
-      <EmptyState
-        icon={<Users size={28} />}
-        title="No personnel data available"
-      />
-    )
+    return <EmptyState title="No personnel data available" />
   }
 
   return (
@@ -147,7 +142,7 @@ export function CompetencyMatrix({
                   <span className="text-sm font-medium text-primary flex-1 min-w-0 truncate">
                     {formatMedicName(sc.medic)}
                   </span>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${readinessColor(pct)}`}>
+                  <span className={`text-[10pt] font-medium px-2 py-0.5 rounded-full ${readinessColor(pct)}`}>
                     {pct}%
                   </span>
                 </button>
@@ -161,7 +156,7 @@ export function CompetencyMatrix({
                           <span className="text-tertiary">
                             {subjectAreaIcons[area.areaName]}
                           </span>
-                          <span className="text-xs font-medium text-primary flex-1 min-w-0 truncate">
+                          <span className="text-[10pt] font-medium text-primary flex-1 min-w-0 truncate">
                             {area.areaName}
                           </span>
                           <span className="text-[9pt] text-tertiary">

@@ -418,7 +418,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
               <ContentWrapper slideDirection="" swipeHandlers={undefined}>
                 {barcodeImport.error && (
                   <div className="px-4 pt-2">
-                    <div className="text-xs text-themeredred">{barcodeImport.error}</div>
+                    <div className="text-[10pt] text-themeredred">{barcodeImport.error}</div>
                   </div>
                 )}
                 <div className="p-5 pt-14 pb-8">
@@ -463,7 +463,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
             >
               {barcodeImport.error && (
                 <div className="px-4 pt-2">
-                  <div className="text-xs text-themeredred">{barcodeImport.error}</div>
+                  <div className="text-[10pt] text-themeredred">{barcodeImport.error}</div>
                 </div>
               )}
               <div className="px-5 py-3 pb-[max(2rem,var(--sab,0px))]">

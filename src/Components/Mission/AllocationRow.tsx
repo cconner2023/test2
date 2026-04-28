@@ -31,7 +31,7 @@ export function AllocationRow({
         onClick={() => onEdit(allocation.item_id)}
         className="flex-1 min-w-0 text-left"
       >
-        <span className="text-xs font-semibold text-primary truncate block">
+        <span className="text-[10pt] font-semibold text-primary truncate block">
           {itemName}
         </span>
         {personnelName && (

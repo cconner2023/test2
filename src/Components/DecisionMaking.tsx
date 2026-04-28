@@ -3,7 +3,8 @@ import { useState } from 'react'
 import type { AlgorithmOptions, decisionMakingType, dispositionType } from '../Types/AlgorithmTypes'
 import type { CardState } from '../Hooks/useAlgorithm'
 import { DecisionMakingItem } from './DecisionMakingItem'
-import { MedicationPage } from './MedicationPage'
+import { MedicationSections } from './MedicationPage'
+import { PreviewOverlay } from './PreviewOverlay'
 import type { medListTypes } from '../Data/MedData'
 
 interface DecisionMakingProps {
@@ -20,6 +21,7 @@ export function DecisionMaking({
     dispositionType,
 }: DecisionMakingProps) {
     const [selectedMedication, setSelectedMedication] = useState<medListTypes | null>(null)
+    const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
 
     const findTriggeringDecisionMaking = (): decisionMakingType[] => {
         const results: decisionMakingType[] = [];
@@ -53,7 +55,8 @@ export function DecisionMaking({
 
     const decisionMakingContent = findTriggeringDecisionMaking()
 
-    const handleMedicationClick = (medication: medListTypes) => {
+    const handleMedicationClick = (medication: medListTypes, rect: DOMRect) => {
+        setAnchorRect(rect)
         setSelectedMedication(medication)
     }
 
@@ -63,33 +66,29 @@ export function DecisionMaking({
 
     return (
         <div className="h-full w-full">
-            <div className="h-full">
-                {selectedMedication ? (
-                    <div className="h-full flex flex-col">
-                        <div className="flex-none px-4 py-3 border-b border-tertiary/10">
-                            <button
-                                onClick={handleCloseMedication}
-                                className="flex items-center gap-1 text-[10pt] text-themeblue2 hover:text-themeblue1 active:scale-95 transition-transform"
-                            >
-                                ← Back
-                            </button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto">
-                            <MedicationPage medication={selectedMedication} />
-                        </div>
-                    </div>
-                ) : (
-                    <div className="h-full overflow-y-auto space-y-4">
-                        {decisionMakingContent.map((item, index) => (
-                            <DecisionMakingItem
-                                key={index}
-                                item={item}
-                                onMedicationClick={handleMedicationClick}
-                            />
-                        ))}
+            <div className="h-full overflow-y-auto space-y-4">
+                {decisionMakingContent.map((item, index) => (
+                    <DecisionMakingItem
+                        key={index}
+                        item={item}
+                        onMedicationClick={handleMedicationClick}
+                    />
+                ))}
+            </div>
+
+            <PreviewOverlay
+                isOpen={!!selectedMedication}
+                onClose={handleCloseMedication}
+                anchorRect={anchorRect}
+                title={selectedMedication?.text}
+                previewMaxHeight="60dvh"
+            >
+                {selectedMedication && (
+                    <div className="px-4 py-3">
+                        <MedicationSections medication={selectedMedication} />
                     </div>
                 )}
-            </div>
+            </PreviewOverlay>
         </div>
     )
 }

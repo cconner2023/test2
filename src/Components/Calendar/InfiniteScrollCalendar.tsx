@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
 import { getCategoryMeta, STATUS_META, toDateKey } from '../../Types/CalendarTypes'
 import { useLongPressDrag } from '../../Hooks/useLongPressDrag'
+import { useCalendarStore } from '../../stores/useCalendarStore'
 
 interface InfiniteScrollCalendarProps {
   events: CalendarEvent[]
@@ -44,16 +45,17 @@ function getMonday(d: Date): Date {
   return date
 }
 
-function generateWeeks(centerDate: Date, countBefore: number, countAfter: number): WeekData[] {
+function generateWeeks(centerDate: Date, countBefore: number, countAfter: number, hideWeekends: boolean): WeekData[] {
   const monday = getMonday(centerDate)
   const weeks: WeekData[] = []
+  const dayCount = hideWeekends ? 5 : 7
 
   for (let w = -countBefore; w <= countAfter; w++) {
     const weekStart = new Date(monday)
     weekStart.setDate(weekStart.getDate() + w * 7)
     const days: DayData[] = []
 
-    for (let d = 0; d < 7; d++) {
+    for (let d = 0; d < dayCount; d++) {
       const date = new Date(weekStart)
       date.setDate(date.getDate() + d)
       days.push({
@@ -87,8 +89,9 @@ interface MultiDaySegment {
 }
 
 function computeMultiDaySegments(week: WeekData, multiDayEvents: CalendarEvent[]): MultiDaySegment[] {
+  const lastIdx = week.days.length - 1
   const weekStartKey = week.days[0].dateKey
-  const weekEndKey = week.days[6].dateKey
+  const weekEndKey = week.days[lastIdx].dateKey
   const seen = new Set<string>()
   const segments: MultiDaySegment[] = []
 
@@ -100,9 +103,9 @@ function computeMultiDaySegments(week: WeekData, multiDayEvents: CalendarEvent[]
     seen.add(event.id)
 
     const startCol = es < weekStartKey ? 0 : week.days.findIndex(d => d.dateKey >= es)
-    const endCol = ee > weekEndKey ? 6 : week.days.findIndex(d => d.dateKey >= ee)
+    const endCol = ee > weekEndKey ? lastIdx : week.days.findIndex(d => d.dateKey >= ee)
     const sc = startCol === -1 ? 0 : startCol
-    const ec = endCol === -1 ? 6 : endCol
+    const ec = endCol === -1 ? lastIdx : endCol
 
     segments.push({
       event, startCol: sc, span: ec - sc + 1, lane: 0,
@@ -177,11 +180,18 @@ export function InfiniteScrollCalendar({
   scrollTargetDate,
   scrollNonce,
 }: InfiniteScrollCalendarProps) {
+  const hideWeekends = useCalendarStore(s => s.hideWeekends)
   const scrollRef = useRef<HTMLDivElement>(null)
   const weekRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const dayLongPressRef = useRef<{ timer: ReturnType<typeof setTimeout>; dateKey: string; fired: boolean } | null>(null)
-  const [weeks, setWeeks] = useState(() => generateWeeks(new Date(), WEEKS_BUFFER, WEEKS_BUFFER))
+  const [weeks, setWeeks] = useState(() => generateWeeks(new Date(), WEEKS_BUFFER, WEEKS_BUFFER, hideWeekends))
   const [rowMinHeight, setRowMinHeight] = useState(88)
+
+  // Regenerate weeks when hideWeekends toggles, anchored on the currently selected date
+  useEffect(() => {
+    setWeeks(generateWeeks(selectedDate, WEEKS_BUFFER, WEEKS_BUFFER, hideWeekends))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hideWeekends])
 
   // Dynamically size rows so ~5 weeks fill the visible area
   useEffect(() => {
@@ -255,9 +265,9 @@ export function InfiniteScrollCalendar({
       }
     } else {
       const targetDate = new Date(dateKey + 'T00:00:00')
-      setWeeks(generateWeeks(targetDate, WEEKS_BUFFER, WEEKS_BUFFER))
+      setWeeks(generateWeeks(targetDate, WEEKS_BUFFER, WEEKS_BUFFER, hideWeekends))
     }
-  }, [weeks])
+  }, [weeks, hideWeekends])
 
   // Scroll on mount — delayed so ResizeObserver can update rowMinHeight,
   // React re-renders rows with correct heights, and DOM measurements are stable.
@@ -294,7 +304,7 @@ export function InfiniteScrollCalendar({
             const weekKey = entry.target.getAttribute('data-week-key')
             const week = weeks.find(w => w.key === weekKey)
             if (week) {
-              const midDay = week.days[3]
+              const midDay = week.days[Math.floor(week.days.length / 2)]
               const label = new Date(midDay.year, midDay.month).toLocaleDateString('en-US', { month: 'long' })
               onMonthChange(label)
             }
@@ -325,7 +335,7 @@ export function InfiniteScrollCalendar({
       const firstWeek = weeks[0]
       const firstDate = new Date(firstWeek.days[0].date)
       firstDate.setDate(firstDate.getDate() - 7 * WEEKS_BUFFER)
-      const newWeeks = generateWeeks(firstDate, 0, WEEKS_BUFFER - 1)
+      const newWeeks = generateWeeks(firstDate, 0, WEEKS_BUFFER - 1, hideWeekends)
       setWeeks(prev => [...newWeeks, ...prev])
       requestAnimationFrame(() => {
         container.scrollTop += weekHeight * newWeeks.length
@@ -334,12 +344,12 @@ export function InfiniteScrollCalendar({
 
     if (scrollTop + clientHeight > scrollHeight - weekHeight * LOAD_THRESHOLD) {
       const lastWeek = weeks[weeks.length - 1]
-      const lastDate = new Date(lastWeek.days[6].date)
+      const lastDate = new Date(lastWeek.days[lastWeek.days.length - 1].date)
       lastDate.setDate(lastDate.getDate() + 1)
-      const newWeeks = generateWeeks(lastDate, 0, WEEKS_BUFFER - 1)
+      const newWeeks = generateWeeks(lastDate, 0, WEEKS_BUFFER - 1, hideWeekends)
       setWeeks(prev => [...prev, ...newWeeks])
     }
-  }, [weeks, dragState.isDragging])
+  }, [weeks, dragState.isDragging, hideWeekends])
 
   const setWeekRef = useCallback((key: string, el: HTMLDivElement | null) => {
     if (el) weekRefs.current.set(key, el)
@@ -373,6 +383,7 @@ export function InfiniteScrollCalendar({
                 const cat = getCategoryMeta(seg.event.category)
                 const isDrag = dragState.draggedEventId === seg.event.id
                 const sm = STATUS_META[seg.event.status]
+                const colCount = week.days.length
                 return (
                   <div
                     key={seg.event.id}
@@ -393,8 +404,8 @@ export function InfiniteScrollCalendar({
                     } ${seg.isEnd ? 'rounded-r' : ''} ${isDrag ? 'opacity-30' : sm.opacity} ${sm.pulse ? 'animate-pulse' : ''}`}
                     style={{
                       top: DAY_NUM_HEIGHT + seg.lane * LANE_HEIGHT + 1,
-                      left: `${(seg.startCol / 7) * 100}%`,
-                      width: `${(seg.span / 7) * 100}%`,
+                      left: `${(seg.startCol / colCount) * 100}%`,
+                      width: `${(seg.span / colCount) * 100}%`,
                       height: LANE_HEIGHT - 2,
                     }}
                   >
@@ -404,8 +415,12 @@ export function InfiniteScrollCalendar({
                 )
               })}
 
-              <div className="grid grid-cols-7 border-b border-primary/8">
+              <div
+                className="grid border-b border-primary/8"
+                style={{ gridTemplateColumns: `repeat(${week.days.length}, minmax(0, 1fr))` }}
+              >
                 {week.days.map((day, i) => {
+                  const lastCol = week.days.length - 1
                   const isToday = day.dateKey === today
                   const isSelected = day.dateKey === selectedKey
                   const isDropTarget = dragState.dropTargetDate === day.dateKey
@@ -462,13 +477,13 @@ export function InfiniteScrollCalendar({
                       }}
                       style={{ minHeight: rowMinHeight }}
                       className={`flex flex-col items-start px-0.5 py-1 transition-all duration-150 hover:bg-primary/3 active:scale-[0.97] cursor-pointer ${
-                        i < 6 ? 'border-r border-primary/8' : ''
+                        i < lastCol ? 'border-r border-primary/8' : ''
                       } ${isDropTarget ? 'ring-2 ring-themeblue3 ring-inset bg-themeblue3/5' : ''} ${
                         isToday && !isDropTarget && !isSelected ? 'bg-themeblue3/8 border border-themeblue2/30' : ''
                       } ${isSelected && !isDropTarget ? 'bg-themeblue3/20 border border-themeblue2/30' : ''}`}
                     >
-                      <div className="flex items-center justify-start w-full mb-0.5">
-                        <span className={`w-6 h-6 flex items-center justify-center text-xs font-semibold rounded-full ${
+                      <div className="flex items-center justify-start gap-1 w-full mb-0.5">
+                        <span className={`w-6 h-6 flex items-center justify-center text-[10pt] font-semibold rounded-full ${
                           day.day === 1
                             ? 'text-primary font-bold'
                             : day.month === selectedDate.getMonth()
@@ -477,6 +492,11 @@ export function InfiniteScrollCalendar({
                         }`}>
                           {day.day}
                         </span>
+                        {day.day === 1 && (
+                          <span className="text-[9pt] font-bold text-primary uppercase tracking-wide">
+                            {new Date(day.year, day.month).toLocaleDateString('en-US', { month: 'short' })}
+                          </span>
+                        )}
                       </div>
 
                       {/* Spacer for multi-day lanes so single-day pills sit below */}

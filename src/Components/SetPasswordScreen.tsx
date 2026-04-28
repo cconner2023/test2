@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { KeyRound } from 'lucide-react'
+import { KeyRound, X, Check, RefreshCw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/useAuthStore'
 import { deriveAndStoreBackupKey, createBackup } from '../lib/signal/backupService'
@@ -69,7 +69,7 @@ export const SetPasswordScreen = ({ mode = 'recovery' }: SetPasswordScreenProps)
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-themewhite overflow-y-auto select-none"
+      className="fixed inset-0 z-30 bg-themewhite overflow-y-auto select-none"
       style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}
     >
       <div className="min-h-full flex flex-col items-center justify-center py-8 px-6">
@@ -89,37 +89,40 @@ export const SetPasswordScreen = ({ mode = 'recovery' }: SetPasswordScreenProps)
 
         <ErrorDisplay message={error} centered />
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <PasswordInput
-            label="New Password"
-            value={password}
-            onChange={setPassword}
-            placeholder="Min 12 characters"
-            autoComplete="new-password"
-            hint={password.length > 0 && password.length < 12 && (
-              <p className="text-xs text-themeredred mt-1">Password must be at least 12 characters</p>
-            )}
-          />
-
-          <PasswordInput
-            label="Confirm Password"
-            value={confirm}
-            onChange={setConfirm}
-            placeholder="Re-enter password"
-            autoComplete="new-password"
-            hint={confirm.length > 0 && password !== confirm && (
-              <p className="text-xs text-themeredred mt-1">Passwords do not match</p>
-            )}
-          />
-
-          <button
-            type="submit"
-            disabled={!isValid || submitting}
-            className="w-full px-4 py-3 rounded-lg bg-themeblue3 text-white font-medium
-                       hover:bg-themeblue3/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {submitting ? 'Setting Password...' : isSetup ? 'Set Password' : 'Update Password'}
-          </button>
+        <form onSubmit={handleSubmit}>
+          <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+            <PasswordInput
+              value={password}
+              onChange={setPassword}
+              placeholder="New password (min 12 characters)"
+              autoComplete="new-password"
+              hint={password.length > 0 && password.length < 12 ? 'Password must be at least 12 characters' : undefined}
+            />
+            <PasswordInput
+              value={confirm}
+              onChange={setConfirm}
+              placeholder="Confirm password"
+              autoComplete="new-password"
+              hint={confirm.length > 0 && password !== confirm ? 'Passwords do not match' : undefined}
+            />
+            <div className={`flex items-center justify-end gap-2 px-3 overflow-hidden transition-all duration-300 ease-out ${password || confirm ? 'max-h-14 py-2 opacity-100' : 'max-h-0 py-0 opacity-0'
+            }`}>
+              <button
+                type="button"
+                onClick={() => { setPassword(''); setConfirm(''); setError(null) }}
+                className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+              >
+                <X size={16} />
+              </button>
+              <button
+                type="submit"
+                disabled={!isValid || submitting}
+                className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+              >
+                {submitting ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
+              </button>
+            </div>
+          </div>
         </form>
       </div>
       </div>

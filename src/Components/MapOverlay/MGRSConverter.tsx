@@ -117,7 +117,7 @@ export function MGRSConverter({ onCoordinateSelect }: MGRSConverterProps) {
   return (
     <div className="flex flex-col gap-4 p-4 rounded-xl bg-themewhite dark:bg-themewhite3 border border-tertiary/10">
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-tertiary uppercase tracking-wide">MGRS</span>
+        <span className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">MGRS</span>
         <div className="relative">
           <input
             type="text"
@@ -140,13 +140,13 @@ export function MGRSConverter({ onCoordinateSelect }: MGRSConverterProps) {
           </button>
         </div>
         {copiedField === 'mgrs' && (
-          <span className="text-xs text-themegreen font-medium">Copied!</span>
+          <span className="text-[10pt] text-themegreen font-medium">Copied!</span>
         )}
         <ErrorDisplay message={mgrsError} />
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-tertiary uppercase tracking-wide">Lat / Lng</span>
+        <span className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Lat / Lng</span>
         <div className="relative">
           <input
             type="text"
@@ -169,7 +169,7 @@ export function MGRSConverter({ onCoordinateSelect }: MGRSConverterProps) {
           </button>
         </div>
         {copiedField === 'latlng' && (
-          <span className="text-xs text-themegreen font-medium">Copied!</span>
+          <span className="text-[10pt] text-themegreen font-medium">Copied!</span>
         )}
         <ErrorDisplay message={latLngError} />
       </div>

@@ -7,8 +7,10 @@ export interface ReleaseNoteTypes {
 }
 
 export const ReleaseNotes: ReleaseNoteTypes[] = [
-    { version: '2.6.6', type: 'added', text: 'device permissions visible in Settings > Security — view and grant camera and location access from within the app' },
-    { version: '2.6.6', type: 'added', text: 'MASCAL queue — manage multiple casualties simultaneously, toggle between patients to update vitals and interventions' },
+    { version: '2.6.7', type: 'added', text: 'Calendar view settings. Manage weekend visibility, single vs. triple for day view' },
+    { version: '2.6.7', type: 'added', text: 'Calendar Huddle in Troops to Task. Manage custom daily positions for your clinic and match assignments' },
+    { version: '2.6.7', type: 'changed', text: 'TC3 UX update. Manage VS and Treatment across time to match prolonged field care cards' },
+    { version: '2.6.7', type: 'changed', text: 'Heat Index with location services. For range coverage requirements' },
     { version: '2.6.6', type: 'added', text: '9-line MEDEVAC request builder with export / import' },
     { version: '2.6.6', type: 'added', text: 'extend messaging to all users, find by user email or share your id to another user' },
     { version: '2.6.6', type: 'added', text: 'change your visual theme in settings' },
@@ -19,15 +21,4 @@ export const ReleaseNotes: ReleaseNoteTypes[] = [
     { version: '2.6.4', type: 'added', text: 'encrypted calendar events with troops to task view' },
     { version: '2.6.4', type: 'added', text: 'training assignment from supervisor panel' },
     { version: '2.6.4', type: 'changed', text: 'provider view. append medic notes' },
-    { version: '2.6.3', type: 'changed', text: 'WhisperNet — offline mesh messaging and guardian node relay' },
-    { version: '2.6.3', type: 'added', text: 'manage users in your clinic, and associate your clinic with others via QR' },
-    { version: '2.6.3', type: 'added', text: 'extend comms to outside units and parent clinics' },
-    { version: '2.6.3', type: 'added', text: 'User credentials managed and updated by supervisors' },
-    { version: '2.6.3', type: 'added', text: 'Messaging system architecture for units - ratcheting using signal open-source. Messages persist across devices' },
-    { version: '2.6.3', type: 'changed', text: 'text expander for HPI and physical exams. Make your own templates' },
-    { version: '2.6.3', type: 'changed', text: 'DD FORM 689 export' },
-    { version: '2.6.2', type: 'added', text: 'Note Content toggled in settings' },
-    { version: '2.6.2', type: 'started', text: 'Training list and evaluation through the supervisor role' },
-    { version: '2.6.1', type: 'added', text: 'biometric/pin for timeout (optional)' },
-    { version: '2.6.1', type: 'added', text: 'User login and UIC assignment for training validation' },
 ]

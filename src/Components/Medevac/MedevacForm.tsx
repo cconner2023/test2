@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useState, useRef } from 'react'
-import { MapPin, Check, ChevronRight, ChevronLeft, Trash2, Loader, X, Plus } from 'lucide-react'
+import { MapPin, Check, ChevronRight, ChevronLeft, RefreshCw, Loader, X, Plus } from 'lucide-react'
 import { forward } from 'mgrs'
 import { SectionCard } from '../Section'
 import { TextInput } from '../FormInputs'
@@ -26,10 +26,20 @@ import {
   medevacPatientTotal,
   medevacNationalityTotal,
 } from '../../Types/MedevacTypes'
+import { ActionPill } from '../ActionPill'
 
 interface MedevacFormProps {
   value?: MedevacRequest | null
   onChange: (req: MedevacRequest) => void
+}
+
+const SMOKE_COLOR_HEX: Record<typeof SMOKE_COLORS[number], string> = {
+  Violet: '#7B2D8E',
+  Green:  '#00A651',
+  Yellow: '#FFD300',
+  Red:    '#ED1C24',
+  Orange: '#F7941D',
+  White:  '#FFFFFF',
 }
 
 // ── Line metadata ──────────────────────────────────────────────────────────
@@ -193,9 +203,8 @@ function MedevacFormInner({
     <div className="space-y-3">
 
       {/* Mode toggle */}
-      <div className="flex items-center justify-between">
-        <span className={`font-semibold text-tertiary uppercase tracking-wider ${isMobile ? 'text-xs' : 'text-[9pt]'}`}>Context</span>
-        <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15">
+      <div className="flex items-center justify-end">
+        <ActionPill>
           {(['wartime', 'peacetime'] as MedevacMode[]).map(m => {
             const isActive = req.mode === m
             return (
@@ -205,7 +214,7 @@ function MedevacFormInner({
                 aria-label={m === 'wartime' ? 'Wartime' : 'Peacetime'}
                 title={m === 'wartime' ? 'Wartime' : 'Peacetime'}
                 onClick={() => update({ mode: m })}
-                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 text-xs font-bold ${
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 text-[10pt] font-bold ${
                   isActive ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
                 }`}
               >
@@ -213,7 +222,7 @@ function MedevacFormInner({
               </button>
             )
           })}
-        </div>
+        </ActionPill>
       </div>
 
       {/* 9-row master list */}
@@ -228,14 +237,14 @@ function MedevacFormInner({
               className={rowCx}
             >
               <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                <span className="text-xs font-bold text-tertiary">{line}</span>
+                <span className="text-[10pt] font-bold text-tertiary">{line}</span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className={`${isMobile ? 'text-sm' : 'text-xs'} font-medium text-secondary`}>
+                <p className={`${isMobile ? 'text-sm' : 'text-[10pt]'} font-medium text-secondary`}>
                   {getLineTitle(line, req.mode)}
                 </p>
               </div>
-              <p className={`${isMobile ? 'text-sm' : 'text-xs'} text-right max-w-[45%] truncate ${
+              <p className={`${isMobile ? 'text-sm' : 'text-[10pt]'} text-right max-w-[45%] truncate ${
                 blank ? 'text-tertiary' : 'text-primary font-medium'
               }`}>
                 {text}
@@ -285,7 +294,7 @@ function MedevacFormInner({
               {
                 key: 'clear',
                 label: 'Clear line',
-                icon: Trash2,
+                icon: RefreshCw,
                 variant: 'danger' as const,
                 closesOnAction: false,
                 onAction: () => clearLine(activeLine),
@@ -394,7 +403,7 @@ function LineEditor({
   }
 
   const inputCx = `w-full rounded-full border border-themeblue3/10 bg-themewhite2 text-primary placeholder:text-tertiary focus:border-themeblue1/30 focus:outline-none transition-all duration-200 ${
-    isMobile ? 'py-2.5 px-4 text-sm' : 'py-2 px-3 text-xs'
+    isMobile ? 'py-2.5 px-4 text-sm' : 'py-2 px-3 text-[10pt]'
   }`
 
   const rowCx = `flex items-center justify-between border-b border-primary/6 last:border-0 ${
@@ -415,7 +424,7 @@ function LineEditor({
       >
         <div>
           <span className="text-[9pt] font-bold text-tertiary mr-2">{code}</span>
-          <span className={`${isMobile ? 'text-sm' : 'text-xs'} ${
+          <span className={`${isMobile ? 'text-sm' : 'text-[10pt]'} ${
             selected
               ? danger ? 'text-themeredred font-medium' : 'text-primary font-medium'
               : 'text-secondary'
@@ -436,7 +445,7 @@ function LineEditor({
       <div className={rowCx}>
         <div>
           {code && <span className="text-[9pt] font-bold text-tertiary mr-2">{code}</span>}
-          <span className={`text-secondary ${isMobile ? 'text-sm' : 'text-xs'}`}>{label}</span>
+          <span className={`text-secondary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{label}</span>
           {hint && <span className="text-[9pt] text-tertiary ml-2">{hint}</span>}
         </div>
         <input
@@ -445,8 +454,8 @@ function LineEditor({
           value={val || ''}
           placeholder="0"
           onChange={e => onChg(Math.max(0, parseInt(e.target.value) || 0))}
-          className={`w-14 text-center rounded-full border border-themeblue3/10 bg-themewhite3 text-primary focus:border-themeblue1/30 focus:outline-none transition-all ${
-            isMobile ? 'py-1.5 text-sm' : 'py-1 text-xs'
+          className={`w-14 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none ${
+            isMobile ? 'text-base' : 'text-[10pt]'
           }`}
         />
       </div>
@@ -495,7 +504,7 @@ function LineEditor({
               value={req.l1d ?? ''}
               onChange={e => update({ l1d: e.target.value })}
               placeholder="Description (optional)"
-              className={`flex-1 bg-transparent text-primary placeholder:text-tertiary focus:outline-none ${isMobile ? 'text-sm' : 'text-xs'}`}
+              className={`flex-1 bg-transparent text-primary placeholder:text-tertiary focus:outline-none ${isMobile ? 'text-sm' : 'text-[10pt]'}`}
             />
           </div>
         </div>
@@ -510,7 +519,7 @@ function LineEditor({
               value={req.l2f}
               onChange={e => update({ l2f: e.target.value })}
               placeholder="46.50"
-              className={`flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none ${isMobile ? 'text-sm' : 'text-xs'}`}
+              className={`flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none ${isMobile ? 'text-sm' : 'text-[10pt]'}`}
             />
           </InlineRow>
           <InlineRow label="Call Sign">
@@ -519,7 +528,7 @@ function LineEditor({
               value={req.l2c}
               onChange={e => update({ l2c: e.target.value.toUpperCase() })}
               placeholder="DUSTOFF 6"
-              className={`flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none ${isMobile ? 'text-sm' : 'text-xs'}`}
+              className={`flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none ${isMobile ? 'text-sm' : 'text-[10pt]'}`}
             />
           </InlineRow>
           <InlineRow label="Suffix">
@@ -528,7 +537,7 @@ function LineEditor({
               value={req.l2s ?? ''}
               onChange={e => update({ l2s: e.target.value.toUpperCase() })}
               placeholder="Alpha"
-              className={`flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none ${isMobile ? 'text-sm' : 'text-xs'}`}
+              className={`flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none ${isMobile ? 'text-sm' : 'text-[10pt]'}`}
             />
           </InlineRow>
         </div>
@@ -587,13 +596,6 @@ function LineEditor({
               update({ l5l: Math.max(0, l3total - newA), l5a: newA })
             }}
           />
-          {l3total > 0 && (
-            <div className="px-4 py-2">
-              <span className="text-[9pt] text-tertiary">
-                Total from L3: {l3total} patient{l3total !== 1 ? 's' : ''}
-              </span>
-            </div>
-          )}
         </div>
       )
 
@@ -633,21 +635,28 @@ function LineEditor({
             />
           ))}
           {req.l7 === 'C' && (
-            <div className="flex flex-wrap gap-1.5 px-4 py-3">
-              {SMOKE_COLORS.map(color => (
-                <button
-                  key={color}
-                  type="button"
-                  onClick={() => update({ l7c: color })}
-                  className={`px-2.5 py-1 rounded-full border text-xs font-medium transition-all active:scale-95 ${
-                    req.l7c === color
-                      ? 'bg-tertiary/10 border-tertiary/20 text-primary'
-                      : 'bg-themewhite2 border-themeblue3/10 text-secondary'
-                  }`}
-                >
-                  {color}
-                </button>
-              ))}
+            <div className="flex justify-center px-4 py-3">
+              <ActionPill>
+                {SMOKE_COLORS.map(color => {
+                  const isActive = req.l7c === color
+                  const isWhite = color === 'White'
+                  return (
+                    <button
+                      key={color}
+                      type="button"
+                      aria-label={color}
+                      title={color}
+                      onClick={() => update({ l7c: color })}
+                      style={{ backgroundColor: SMOKE_COLOR_HEX[color] }}
+                      className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
+                        isWhite ? 'border border-tertiary/20' : ''
+                      } ${
+                        isActive ? 'ring-2 ring-themeblue2 ring-offset-2 ring-offset-themewhite' : ''
+                      }`}
+                    />
+                  )
+                })}
+              </ActionPill>
             </div>
           )}
           {req.l7 === 'E' && (
@@ -687,13 +696,6 @@ function LineEditor({
               }}
             />
           ))}
-          {l3total > 0 && (
-            <div className="px-4 py-2">
-              <span className="text-[9pt] text-tertiary">
-                Total from L3: {l3total} patient{l3total !== 1 ? 's' : ''}
-              </span>
-            </div>
-          )}
         </div>
       )
 
@@ -706,7 +708,7 @@ function LineEditor({
               onChange={e => update({ l9p: e.target.value })}
               placeholder="Detailed terrain feature description at pickup site"
               rows={4}
-              className={`w-full rounded-xl border border-themeblue3/10 bg-themewhite2 text-primary placeholder:text-tertiary focus:border-themeblue1/30 focus:outline-none transition-all duration-200 resize-none px-3 py-2 ${isMobile ? 'text-sm' : 'text-xs'}`}
+              className={`w-full rounded-xl border border-themeblue3/10 bg-themewhite2 text-primary placeholder:text-tertiary focus:border-themeblue1/30 focus:outline-none transition-all duration-200 resize-none px-3 py-2 ${isMobile ? 'text-sm' : 'text-[10pt]'}`}
             />
           </div>
         )

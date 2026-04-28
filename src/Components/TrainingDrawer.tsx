@@ -102,7 +102,7 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
                             {isOverdue ? 'Overdue' : 'Due'}: {formatDueDate(assignment.dueDate)}
                         </span>
                         {assignment.supervisorNotes && (
-                            <span className="text-xs text-tertiary ml-auto truncate max-w-[50%]">
+                            <span className="text-[10pt] text-tertiary ml-auto truncate max-w-[50%]">
                                 {assignment.supervisorNotes}
                             </span>
                         )}

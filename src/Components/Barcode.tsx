@@ -40,7 +40,7 @@ export function BarcodeDisplay({ encodedText, layout }: BarcodeDisplayProps) {
                     />
                 </div>
                 <div className={`text-secondary ${isRow ? 'flex-1 min-w-0' : 'w-full'}`}>
-                    <code className="text-xs break-all bg-themewhite3 p-2 rounded block max-h-24 overflow-y-auto">
+                    <code className="text-[10pt] break-all bg-themewhite3 p-2 rounded block max-h-24 overflow-y-auto">
                         {encodedText}
                     </code>
                 </div>

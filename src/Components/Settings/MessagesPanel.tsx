@@ -348,7 +348,7 @@ function ConversationPane({
       {!signalReady && (
         <div className="flex items-center gap-2 px-3 py-2 bg-themeblue2/10 border-b border-themeblue2/20">
           <div className="w-3 h-3 border-2 border-themeblue2 border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs text-themeblue2 font-medium">Setting up encryption…</span>
+          <span className="text-[10pt] text-themeblue2 font-medium">Setting up encryption…</span>
         </div>
       )}
       <div className="pt-1 pb-10">
@@ -356,11 +356,11 @@ function ConversationPane({
         {searchResults ? (
           <div>
             {searchResults.groups.length === 0 && searchResults.medics.length === 0 && searchResults.messages.length === 0 && globalResults !== null && !globalSearchLoading && globalResults.length === 0 && (
-              <p className="text-xs text-tertiary px-3 py-4 text-center">No results for &ldquo;{searchQuery}&rdquo;</p>
+              <p className="text-[10pt] text-tertiary px-3 py-4 text-center">No results for &ldquo;{searchQuery}&rdquo;</p>
             )}
             {searchResults.groups.length > 0 && (
               <>
-                <p className="text-xs text-tertiary px-3 mb-1 uppercase tracking-wider font-semibold">Groups</p>
+                <p className="text-[10pt] text-tertiary px-3 mb-1 uppercase tracking-wider font-semibold">Groups</p>
                 {searchResults.groups.map(group => (
                   <GroupListItem
                     key={group.groupId}
@@ -374,7 +374,7 @@ function ConversationPane({
             )}
             {searchResults.medics.length > 0 && (
               <>
-                <p className="text-xs text-tertiary px-3 mb-1 mt-2 uppercase tracking-wider font-semibold">Contacts</p>
+                <p className="text-[10pt] text-tertiary px-3 mb-1 mt-2 uppercase tracking-wider font-semibold">Contacts</p>
                 {searchResults.medics.map(medic => (
                   <ContactListItem
                     key={medic.id}
@@ -390,7 +390,7 @@ function ConversationPane({
             )}
             {searchResults.messages.length > 0 && (
               <>
-                <p className="text-xs text-tertiary px-3 mb-1 mt-2 uppercase tracking-wider font-semibold">Messages</p>
+                <p className="text-[10pt] text-tertiary px-3 mb-1 mt-2 uppercase tracking-wider font-semibold">Messages</p>
                 {searchResults.messages.map(match => {
                   if (match.type === 'group' && match.group) {
                     return (
@@ -427,7 +427,7 @@ function ConversationPane({
               ) : globalResults !== null ? (
                 globalResults.length > 0 ? (
                   <>
-                    <p className="text-xs text-tertiary px-3 mb-1 mt-2 uppercase tracking-wider font-semibold">All Users</p>
+                    <p className="text-[10pt] text-tertiary px-3 mb-1 mt-2 uppercase tracking-wider font-semibold">All Users</p>
                     {globalResults.map(result => (
                       <ContactListItem
                         key={result.id}
@@ -445,7 +445,7 @@ function ConversationPane({
                   onClick={handleGlobalSearchClick}
                 >
                   <Search className="w-4 h-4 text-tertiary shrink-0" />
-                  <span className="text-xs text-tertiary">Search all users for &ldquo;{searchQuery}&rdquo;</span>
+                  <span className="text-[10pt] text-tertiary">Search all users for &ldquo;{searchQuery}&rdquo;</span>
                 </button>
               )
             )}
@@ -477,7 +477,7 @@ function ConversationPane({
             )}
             {recentEntries.length > 0 && (
               <>
-                <p className="text-xs text-tertiary px-3 mb-1 mt-1 uppercase tracking-wider font-semibold">Recent</p>
+                <p className="text-[10pt] text-tertiary px-3 mb-1 mt-1 uppercase tracking-wider font-semibold">Recent</p>
                 {recentEntries.map(entry => {
                   const msgs = conversations[entry.key]
                   const lastMsg = msgs?.filter(m => m.messageType !== 'request-accepted' && !m.threadId).at(-1)
@@ -562,7 +562,7 @@ function ConversationPane({
                 return filtered.length > 0 ? (
                   <>
                     <div className="flex items-center gap-1.5 px-3 py-1.5">
-                      <p className="text-xs text-tertiary uppercase tracking-wider font-semibold">My Clinic</p>
+                      <p className="text-[10pt] text-tertiary uppercase tracking-wider font-semibold">My Clinic</p>
                     </div>
                     {filtered.map(medic => isMobile ? (
                       <LongPressRow
@@ -596,7 +596,7 @@ function ConversationPane({
                 return (
                   <div key={clinicName}>
                     <div className="flex items-center gap-1.5 px-3 py-1.5">
-                      <p className="text-xs text-tertiary uppercase tracking-wider font-semibold">{clinicName}</p>
+                      <p className="text-[10pt] text-tertiary uppercase tracking-wider font-semibold">{clinicName}</p>
                     </div>
                     {filtered.map(medic => isMobile ? (
                       <LongPressRow
@@ -634,7 +634,7 @@ function ConversationPane({
               return filtered.length > 0 ? (
                 <>
                   <div className="mx-3 my-2 border-b border-primary/10" />
-                  <p className="text-xs text-tertiary px-3 mb-1 uppercase tracking-wider font-semibold">Groups</p>
+                  <p className="text-[10pt] text-tertiary px-3 mb-1 uppercase tracking-wider font-semibold">Groups</p>
                   {filtered.map(group => isMobile ? (
                     <LongPressRow
                       key={group.groupId}
@@ -1296,7 +1296,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
           if (qrScanOpen) {
             return (
               <div className="px-4 py-3 space-y-2">
-                <p className="text-xs text-tertiary">
+                <p className="text-[10pt] text-tertiary">
                   Scan another user's QR code to open a conversation.
                 </p>
                 <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black/5 border border-tertiary/10">
@@ -1308,16 +1308,16 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
                   />
                   {!qrIsScanning && !qrScanError && (
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <p className="text-xs text-tertiary">Starting camera…</p>
+                      <p className="text-[10pt] text-tertiary">Starting camera…</p>
                     </div>
                   )}
                 </div>
                 {(qrScanError || qrLookupError) && (
-                  <p className="text-xs text-themeredred">{qrScanError || qrLookupError}</p>
+                  <p className="text-[10pt] text-themeredred">{qrScanError || qrLookupError}</p>
                 )}
                 <button
                   onClick={() => { qrStopScanning(); setQrScanOpen(false); qrClearResult(); setQrLookupError(null) }}
-                  className="w-full py-2 text-xs text-tertiary active:opacity-70 transition-opacity"
+                  className="w-full py-2 text-[10pt] text-tertiary active:opacity-70 transition-opacity"
                 >
                   Cancel
                 </button>
@@ -1365,7 +1365,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
                 )
               ))}
               {filtered.length === 0 && (
-                <p className="text-xs text-tertiary text-center py-6">No contacts found</p>
+                <p className="text-[10pt] text-tertiary text-center py-6">No contacts found</p>
               )}
             </div>
           )

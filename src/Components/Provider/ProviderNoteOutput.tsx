@@ -14,6 +14,7 @@ import { PdfPreviewModal } from '../PdfPreviewModal';
 
 import type { ImportedMedicNote } from '../ProviderDrawer'
 import type { PEState } from '../../Types/PETypes'
+import { ActionPill } from '../ActionPill'
 
 export interface ProviderNoteOutputProps {
     hpiNote: string;
@@ -180,7 +181,7 @@ export function ProviderNoteOutput({
             <div>
                 <div className="pb-2 flex items-center justify-between">
                     <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Note Preview</p>
-                    <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15">
+                    <ActionPill>
                         <ActionIconButton
                             onClick={() => handleCopy(previewNote, 'preview')}
                             status={copiedTarget === 'preview' ? 'done' : 'idle'}
@@ -193,7 +194,7 @@ export function ProviderNoteOutput({
                             variant="pdf"
                             title="Export SF600 PDF"
                         />
-                    </div>
+                    </ActionPill>
                 </div>
                 <div className="rounded-xl bg-themewhite2 overflow-hidden">
                     <div className="px-4 py-3 text-tertiary text-[9pt] whitespace-pre-wrap max-h-48 md:max-h-80 overflow-y-auto">
@@ -208,7 +209,7 @@ export function ProviderNoteOutput({
             <div>
                 <div className="pb-2 flex items-center justify-between">
                     <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Encoded Note</p>
-                    <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15">
+                    <ActionPill>
                         <ActionIconButton
                             onClick={handleShare}
                             status={shareBtnStatus}
@@ -221,7 +222,7 @@ export function ProviderNoteOutput({
                             variant="copy"
                             title="Copy encoded text"
                         />
-                    </div>
+                    </ActionPill>
                 </div>
                 <div>
                     <BarcodeDisplay
@@ -230,7 +231,7 @@ export function ProviderNoteOutput({
                     />
                 </div>
                 {encodedValue.length > 2000 && (
-                    <div className="text-xs text-themeyellow mt-2 px-1">
+                    <div className="text-[10pt] text-themeyellow mt-2 px-1">
                         Note is large ({encodedValue.length} chars) — barcode may not scan reliably. Consider shortening text fields.
                     </div>
                 )}

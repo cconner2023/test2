@@ -48,7 +48,8 @@ export function useClinicMedics() {
         } else if (rpcData && rpcData.length > 0) {
           const medicProfiles: ClinicMedic[] = rpcData.map((p: {
             id: string; first_name: string; last_name: string; middle_initial: string;
-            rank: string; credential: string; avatar_id: string; clinic_id: string; clinic_name: string
+            rank: string; credential: string; avatar_id: string; clinic_id: string; clinic_name: string;
+            roles?: string[]
           }) => ({
             id: p.id,
             firstName: p.first_name,
@@ -57,6 +58,7 @@ export function useClinicMedics() {
             rank: p.rank,
             credential: p.credential,
             avatarId: p.avatar_id ?? null,
+            roles: p.roles ?? [],
             clinicId: p.clinic_id,
             clinicName: p.clinic_name,
           }))
@@ -110,6 +112,7 @@ export function useClinicMedics() {
           rank: p.rank,
           credential: p.credential,
           avatarId: p.avatar_id ?? null,
+          roles: (p as { roles?: string[] }).roles ?? [],
         }))
 
       logger.info(`Fallback returned ${medicProfiles.length} medics`)

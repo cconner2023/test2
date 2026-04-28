@@ -216,7 +216,7 @@ export function CoverageTasksView({
   if (preSelectedSoldier) {
     return (
       <div>
-        <p className="text-xs text-tertiary mb-3">
+        <p className="text-[10pt] text-tertiary mb-3">
           Select a task for <span className="font-medium text-primary">{formatMedicName(preSelectedSoldier)}</span>:
         </p>
 

@@ -1,10 +1,21 @@
-import { useState, useCallback, useMemo } from 'react'
-import { Building2, ChevronRight, ClipboardList, Calendar } from 'lucide-react'
+import { useState, useCallback, useMemo, useRef } from 'react'
+import { Building2, ChevronRight, ClipboardList, Calendar, Plus, Check, Trash2, Loader2 } from 'lucide-react'
 import { ActionButton } from '../../ActionButton'
+import { ConfirmDialog } from '../../ConfirmDialog'
+import { PreviewOverlay } from '../../PreviewOverlay'
 import { getTaskData, isTaskTestable } from '../../../Data/TrainingData'
 import { deleteCompletion as deleteCompletionApi } from '../../../lib/trainingService'
+import {
+  adminAddCertification,
+  updateCertification,
+  adminDeleteCertification,
+  syncPrimaryToProfile,
+  type CertInput,
+} from '../../../lib/certificationService'
+import { CertOverlayFields } from '../../Certifications/CertOverlayFields'
+import { useIsMobile } from '../../../Hooks/useIsMobile'
 import { formatMedicName, getLatestTestByTask } from './supervisorHelpers'
-import { getExpirationStatus } from '../../Certifications/certHelpers'
+import { getExpirationStatus, emptyCertForm, type CertFormData } from '../../Certifications/certHelpers'
 import type { FlatTask } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { Certification } from '../../../Data/User'
@@ -12,6 +23,7 @@ import type { TrainingCompletionUI } from '../../../lib/trainingService'
 import type { CalendarEvent } from '../../../Types/CalendarTypes'
 import { getCategoryMeta } from '../../../Types/CalendarTypes'
 import { createLogger } from '../../../Utilities/Logger'
+import { ActionPill } from '../../ActionPill'
 
 function formatEventDate(evt: CalendarEvent): string {
   const start = new Date(evt.start_time)
@@ -53,12 +65,16 @@ interface SoldierProfileProps {
   compliancePercent: number
   currentUserId: string
   resolveName: (id: string | null) => string
-  onNavigateToCert?: (certId: string) => void
+  onUpdateCert: (certId: string, updates: Partial<Certification>) => void
+  onAddCert?: (cert: Certification) => void
+  onRemoveCert?: (certId: string) => void
   onRemoveTest: (testId: string) => void
   testableTaskMap: Map<string, FlatTask[]>
   onNavigateToArea?: (areaName: string) => void
   calendarEvents: CalendarEvent[]
   onOpenCalendar: () => void
+  /** When provided, the soldier card becomes tap-to-edit (rank/roles/delete via popover) */
+  onEditMember?: (memberId: string, anchorRect: DOMRect) => void
 }
 
 export function SoldierProfile({
@@ -70,16 +86,116 @@ export function SoldierProfile({
   compliancePercent,
   currentUserId,
   resolveName,
-  onNavigateToCert,
+  onUpdateCert,
+  onAddCert,
+  onRemoveCert,
   onRemoveTest,
   testableTaskMap,
   onNavigateToArea,
   calendarEvents,
   onOpenCalendar,
+  onEditMember,
 }: SoldierProfileProps) {
+  const isMobile = useIsMobile()
   const now = useMemo(() => new Date(), [])
   const [expandedTestId, setExpandedTestId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  // ─── Cert popover state (tap-to-edit, immediate save) ────────────────
+  const certFabRef = useRef<HTMLDivElement | null>(null)
+  const [certPopover, setCertPopover] = useState<{ mode: 'edit' | 'new'; anchor: DOMRect; cert?: Certification } | null>(null)
+  const [certForm, setCertForm] = useState<CertFormData>(emptyCertForm)
+  const [certSaving, setCertSaving] = useState(false)
+  const [confirmDeleteCert, setConfirmDeleteCert] = useState<Certification | null>(null)
+
+  const closeCertPopover = useCallback(() => {
+    setCertPopover(null)
+    setCertForm(emptyCertForm)
+    setCertSaving(false)
+  }, [])
+
+  const openCertEditPopover = useCallback((cert: Certification, target: HTMLElement) => {
+    setCertPopover({ mode: 'edit', anchor: target.getBoundingClientRect(), cert })
+    setCertForm({
+      title: cert.title,
+      cert_number: cert.cert_number ?? '',
+      issue_date: cert.issue_date ?? '',
+      exp_date: cert.exp_date ?? '',
+      is_primary: cert.is_primary,
+    })
+  }, [])
+
+  const openCertNewPopover = useCallback(() => {
+    if (!certFabRef.current) return
+    setCertPopover({ mode: 'new', anchor: certFabRef.current.getBoundingClientRect() })
+    setCertForm(emptyCertForm)
+  }, [])
+
+  const handleSaveCert = useCallback(async () => {
+    if (!certPopover || !certForm.title.trim()) return
+    setCertSaving(true)
+    const input: CertInput = {
+      title: certForm.title.trim(),
+      cert_number: certForm.cert_number || null,
+      issue_date: certForm.issue_date || null,
+      exp_date: certForm.exp_date || null,
+      is_primary: certForm.is_primary,
+    }
+
+    if (certPopover.mode === 'new') {
+      const result = await adminAddCertification(soldier.id, input)
+      if (result.success) {
+        const nowIso = new Date().toISOString()
+        const synthetic: Certification = {
+          id: crypto.randomUUID(),
+          user_id: soldier.id,
+          title: input.title,
+          cert_number: input.cert_number,
+          issue_date: input.issue_date,
+          exp_date: input.exp_date,
+          is_primary: input.is_primary,
+          verified: false,
+          verified_by: null,
+          verified_at: null,
+          created_at: nowIso,
+          updated_at: nowIso,
+        }
+        onAddCert?.(synthetic)
+        if (input.is_primary) await syncPrimaryToProfile(soldier.id)
+        closeCertPopover()
+      } else {
+        setCertSaving(false)
+      }
+    } else if (certPopover.cert) {
+      const target = certPopover.cert
+      const result = await updateCertification(target.id, input)
+      if (result.success) {
+        onUpdateCert(target.id, {
+          title: input.title,
+          cert_number: input.cert_number,
+          issue_date: input.issue_date,
+          exp_date: input.exp_date,
+          is_primary: input.is_primary,
+        })
+        if (input.is_primary) await syncPrimaryToProfile(soldier.id)
+        closeCertPopover()
+      } else {
+        setCertSaving(false)
+      }
+    }
+  }, [certPopover, certForm, soldier.id, onAddCert, onUpdateCert, closeCertPopover])
+
+  const handleConfirmDeleteCert = useCallback(async () => {
+    if (!confirmDeleteCert) return
+    setCertSaving(true)
+    const result = await adminDeleteCertification(confirmDeleteCert.id, soldier.id, confirmDeleteCert.is_primary)
+    setCertSaving(false)
+    if (result.success) {
+      onRemoveCert?.(confirmDeleteCert.id)
+      setConfirmDeleteCert(null)
+      closeCertPopover()
+    }
+  }, [confirmDeleteCert, soldier.id, onRemoveCert, closeCertPopover])
 
   const handleDelete = useCallback(async (testId: string) => {
     try {
@@ -134,8 +250,14 @@ export function SoldierProfile({
 
   return (
     <div className="space-y-5">
-      {/* Soldier Card */}
-      <div data-tour="supervisor-soldier-card" className="rounded-xl bg-themewhite2 px-4 py-3">
+      {/* Soldier Card — tap-to-edit (rank/roles/delete) when onEditMember provided */}
+      <button
+        type="button"
+        data-tour="supervisor-soldier-card"
+        disabled={!onEditMember}
+        onClick={(e) => onEditMember?.(soldier.id, e.currentTarget.getBoundingClientRect())}
+        className="w-full text-left rounded-xl bg-themewhite2 px-4 py-3 enabled:hover:bg-secondary/5 enabled:active:scale-[0.99] disabled:cursor-default transition-all"
+      >
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
             <Building2 size={16} className="text-tertiary" />
@@ -163,7 +285,7 @@ export function SoldierProfile({
             <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(compliancePercent)}`}>{compliancePercent}%</span>
           </div>
         </div>
-      </div>
+      </button>
 
       {/* Assignments */}
       {assignments.length > 0 && (
@@ -229,9 +351,9 @@ export function SoldierProfile({
           {calendarEvents.length === 0 ? (
             <div className="flex items-center gap-3 px-4 py-3">
               <p className="text-sm text-tertiary flex-1">No events in the next 14 days</p>
-              <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
+              <ActionPill shadow="sm">
                 <ActionButton icon={Calendar} label="Open full calendar" onClick={onOpenCalendar} />
-              </div>
+              </ActionPill>
             </div>
           ) : (
             <>
@@ -253,9 +375,9 @@ export function SoldierProfile({
                 )
               })}
               <div className="flex items-center justify-end gap-3 px-4 py-2 border-t border-tertiary/8">
-                <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
+                <ActionPill shadow="sm">
                   <ActionButton icon={Calendar} label="View in calendar" onClick={onOpenCalendar} />
-                </div>
+                </ActionPill>
               </div>
             </>
           )}
@@ -267,42 +389,47 @@ export function SoldierProfile({
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Certifications
         </p>
-        {certs.length === 0 ? (
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden px-4 py-4">
-            <p className="text-sm text-tertiary">No certifications on file</p>
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-            {sortedCerts.map((cert) => {
-              const status = getExpirationStatus(cert.exp_date)
-              return (
-                <button
-                  key={cert.id}
-                  onClick={() => onNavigateToCert?.(cert.id)}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-themeblue2/5 active:scale-95 transition-all"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-primary truncate">{cert.title}</p>
-                      {cert.is_primary && (
-                        <span className="text-[9pt] md:text-[9pt] font-medium text-themeblue2 bg-themeblue2/10 px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0">Primary</span>
-                      )}
+        <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden pb-12">
+          {certs.length === 0 ? (
+            <div className="px-4 py-4">
+              <p className="text-sm text-tertiary">No certifications on file</p>
+            </div>
+          ) : (
+            <div>
+              {sortedCerts.map((cert) => {
+                const status = getExpirationStatus(cert.exp_date)
+                return (
+                  <button
+                    key={cert.id}
+                    onClick={(e) => openCertEditPopover(cert, e.currentTarget)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-themeblue2/5 active:scale-95 transition-all"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-primary truncate">{cert.title}</p>
+                        {cert.is_primary && (
+                          <span className="text-[9pt] md:text-[9pt] font-medium text-themeblue2 bg-themeblue2/10 px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0">Primary</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-0.5 text-[10pt] text-tertiary">
+                        {cert.cert_number && <span>#{cert.cert_number}</span>}
+                        {cert.exp_date && <span>Exp: {new Date(cert.exp_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 mt-0.5 text-xs text-tertiary">
-                      {cert.cert_number && <span>#{cert.cert_number}</span>}
-                      {cert.exp_date && <span>Exp: {new Date(cert.exp_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>}
-                    </div>
-                  </div>
-                  <span className={`text-[9pt] font-medium shrink-0 ${
-                    status === 'valid' ? 'text-themegreen' : status === 'expiring' ? 'text-themeyellow' : status === 'expired' ? 'text-themeredred' : 'text-tertiary'
-                  }`}>
-                    {status === 'valid' ? 'Valid' : status === 'expiring' ? 'Expiring' : status === 'expired' ? 'Expired' : 'No Date'}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        )}
+                    <span className={`text-[9pt] font-medium shrink-0 ${
+                      status === 'valid' ? 'text-themegreen' : status === 'expiring' ? 'text-themeyellow' : status === 'expired' ? 'text-themeredred' : 'text-tertiary'
+                    }`}>
+                      {status === 'valid' ? 'Valid' : status === 'expiring' ? 'Expiring' : status === 'expired' ? 'Expired' : 'No Date'}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          <ActionPill ref={certFabRef} shadow="sm" className="absolute bottom-2 right-2">
+            <ActionButton icon={Plus} label="Add certification" onClick={openCertNewPopover} />
+          </ActionPill>
+        </div>
       </div>
 
       {/* Training Competency by Category */}
@@ -371,7 +498,7 @@ export function SoldierProfile({
                         {new Date(record.updatedAt).toLocaleDateString()}
                       </p>
                     </div>
-                    <span className={`shrink-0 ml-2 px-3 py-1 rounded-full text-xs font-bold ${
+                    <span className={`shrink-0 ml-2 px-3 py-1 rounded-full text-[10pt] font-bold ${
                       overallResult === 'PASS' ? 'bg-themegreen/15 text-themegreen' : 'bg-themeredred/15 text-themeredred'
                     }`}>
                       {overallResult}
@@ -382,7 +509,7 @@ export function SoldierProfile({
                     <div className="px-4 pb-3 border-t border-tertiary/10">
                       <div className="mt-3 mb-2">
                         <p className="text-[9pt] text-tertiary font-mono">{record.trainingItemId}</p>
-                        <p className="text-xs text-tertiary mt-1">
+                        <p className="text-[10pt] text-tertiary mt-1">
                           Supervisor: {resolveName(record.supervisorId)} &middot; {new Date(record.updatedAt).toLocaleString()}
                         </p>
                       </div>
@@ -435,7 +562,7 @@ export function SoldierProfile({
                       ) : (
                         <button
                           onClick={() => setDeletingId(record.id)}
-                          className="mt-3 text-xs text-themeredred hover:underline"
+                          className="mt-3 text-[10pt] text-themeredred hover:underline"
                         >
                           Delete record
                         </button>
@@ -448,6 +575,55 @@ export function SoldierProfile({
           </div>
         )}
       </div>
+
+      {/* Cert popover — tap row to edit, FAB to add (immediate save) */}
+      <PreviewOverlay
+        isOpen={!!certPopover}
+        onClose={closeCertPopover}
+        anchorRect={certPopover?.anchor ?? null}
+        title={certPopover?.mode === 'new' ? 'New certification' : 'Edit certification'}
+        maxWidth={380}
+        footer={
+          certPopover ? (
+            <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+              <ActionButton
+                icon={certSaving ? Loader2 : Check}
+                label={certSaving ? 'Saving…' : 'Save'}
+                variant={certSaving || !certForm.title.trim() ? 'disabled' : 'success'}
+                onClick={handleSaveCert}
+              />
+              {certPopover.mode === 'edit' && (
+                <ActionButton
+                  icon={Trash2}
+                  label="Delete"
+                  variant="danger"
+                  onClick={() => certPopover.cert && setConfirmDeleteCert(certPopover.cert)}
+                />
+              )}
+            </div>
+          ) : undefined
+        }
+      >
+        {certPopover && (
+          <CertOverlayFields
+            form={certForm}
+            setForm={setCertForm}
+            isMobile={isMobile}
+            datalistId="soldier-cert-title-suggestions"
+          />
+        )}
+      </PreviewOverlay>
+
+      <ConfirmDialog
+        visible={!!confirmDeleteCert}
+        title="Delete this certification?"
+        subtitle={confirmDeleteCert?.is_primary ? 'This is the primary credential — the soldier profile will fall back to no credential.' : undefined}
+        confirmLabel="Delete"
+        variant="danger"
+        processing={certSaving}
+        onConfirm={handleConfirmDeleteCert}
+        onCancel={() => setConfirmDeleteCert(null)}
+      />
     </div>
   )
 }

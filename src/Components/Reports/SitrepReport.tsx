@@ -5,6 +5,7 @@ import { Section, SectionCard } from '../Section'
 import type { Sitrep } from '../../Types/ReportTypes'
 import { emptySitrep } from '../../Types/ReportTypes'
 import { sitrepToText, copyToClipboard, downloadAsText, printReport } from '../../lib/reportExport'
+import { ActionPill } from '../ActionPill'
 
 const rowCx = 'flex items-center justify-between border-b border-primary/6 last:border-0 px-4 py-3'
 
@@ -101,7 +102,7 @@ export function SitrepReport() {
                 <button
                   key={opt}
                   onClick={() => update({ enemyContact: opt === 'Yes' })}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all active:scale-95 ${
+                  className={`px-3 py-1 rounded-full text-[10pt] font-medium transition-all active:scale-95 ${
                     report.enemyContact === (opt === 'Yes')
                       ? 'bg-themeblue2/15 text-themeblue2'
                       : 'bg-themewhite2 text-tertiary'
@@ -123,7 +124,7 @@ export function SitrepReport() {
                     <button
                       key={value}
                       onClick={() => update({ enemyType: value })}
-                      className={`px-3 py-1 rounded-full text-xs font-medium transition-all active:scale-95 ${
+                      className={`px-3 py-1 rounded-full text-[10pt] font-medium transition-all active:scale-95 ${
                         report.enemyType === value
                           ? 'bg-themeblue2/15 text-themeblue2'
                           : 'bg-themewhite2 text-tertiary'
@@ -143,7 +144,7 @@ export function SitrepReport() {
                     <button
                       key={dir}
                       onClick={() => update({ enemyDirection: dir })}
-                      className={`px-2 py-1 rounded-full text-xs font-medium transition-all active:scale-95 text-center ${
+                      className={`px-2 py-1 rounded-full text-[10pt] font-medium transition-all active:scale-95 text-center ${
                         report.enemyDirection === dir
                           ? 'bg-themeblue2/15 text-themeblue2'
                           : 'bg-themewhite2 text-tertiary'
@@ -208,7 +209,7 @@ export function SitrepReport() {
             <div className="flex gap-1">
               <button
                 onClick={() => update({ morale: 'good' })}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-all active:scale-95 ${
+                className={`px-3 py-1 rounded-full text-[10pt] font-medium transition-all active:scale-95 ${
                   report.morale === 'good'
                     ? 'bg-themegreen/15 text-themegreen'
                     : 'bg-themewhite2 text-tertiary'
@@ -218,7 +219,7 @@ export function SitrepReport() {
               </button>
               <button
                 onClick={() => update({ morale: 'fair' })}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-all active:scale-95 ${
+                className={`px-3 py-1 rounded-full text-[10pt] font-medium transition-all active:scale-95 ${
                   report.morale === 'fair'
                     ? 'bg-themeyellow/15 text-themeyellow'
                     : 'bg-themewhite2 text-tertiary'
@@ -228,7 +229,7 @@ export function SitrepReport() {
               </button>
               <button
                 onClick={() => update({ morale: 'poor' })}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-all active:scale-95 ${
+                className={`px-3 py-1 rounded-full text-[10pt] font-medium transition-all active:scale-95 ${
                   report.morale === 'poor'
                     ? 'bg-themeredred/15 text-themeredred'
                     : 'bg-themewhite2 text-tertiary'
@@ -292,11 +293,11 @@ export function SitrepReport() {
             />
           </div>
           <div className="border-t border-primary/6 flex items-center justify-end px-3 py-2">
-            <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15">
+            <ActionPill>
               <ActionButton icon={copied ? Check : Copy} label="Copy" onClick={onCopy} variant={copied ? 'success' : 'default'} />
               <ActionButton icon={Download} label="Download" onClick={onDownload} />
               <ActionButton icon={Printer} label="Print" onClick={onPrint} />
-            </div>
+            </ActionPill>
           </div>
         </SectionCard>
       </Section>

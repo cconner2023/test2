@@ -335,16 +335,16 @@ export function AdminUserDetail({
       {error && <div className="mb-4"><ErrorDisplay message={error} /></div>}
 
       {/* Main card — compact card in view, form inputs in edit */}
-      <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+      <div className="rounded-2xl bg-themewhite2 overflow-hidden">
         {editing ? (
-          <div className="px-4 py-3.5 space-y-3">
+          <div>
             {isCreateMode ? (
               <>
                 <TextInput value={createEmail} onChange={setCreateEmail} placeholder="Email *" type="email" required />
                 <PasswordInput value={createPassword} onChange={setCreatePassword} placeholder="Temporary password (min 12 chars)" />
               </>
             ) : (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 px-4 py-3 border-b border-primary/6">
                 <UserAvatar
                   avatarId={user!.avatar_id}
                   firstName={user!.first_name}
@@ -356,38 +356,25 @@ export function AdminUserDetail({
                 </div>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-2">
-              <TextInput value={editFirstName} onChange={setEditFirstName} placeholder="First Name *" required />
-              <div className="flex items-center gap-2">
-                <div className="flex-1 min-w-0">
-                  <TextInput value={editLastName} onChange={setEditLastName} placeholder="Last Name *" required />
-                </div>
-                <div className="w-11 shrink-0">
-                  <TextInput value={editMiddleInitial} onChange={v => setEditMiddleInitial(v.toUpperCase().slice(0, 1))} placeholder="MI" maxLength={1} />
-                </div>
+            <TextInput value={editFirstName} onChange={setEditFirstName} placeholder="First Name *" required />
+            <div className="flex items-stretch border-b border-primary/6">
+              <div className="flex-1 min-w-0">
+                <TextInput value={editLastName} onChange={setEditLastName} placeholder="Last Name *" required />
+              </div>
+              <div className="w-16 shrink-0 border-l border-primary/6">
+                <TextInput value={editMiddleInitial} onChange={v => setEditMiddleInitial(v.toUpperCase().slice(0, 1))} placeholder="MI" maxLength={1} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <PickerInput value={editCredential} onChange={setEditCredential} options={credentials} placeholder="Credential" />
-              <PickerInput value={editComponent} onChange={handleComponentChange} options={components} placeholder="Component" />
-            </div>
+            <PickerInput value={editCredential} onChange={setEditCredential} options={credentials} placeholder="Credential" />
+            <PickerInput value={editComponent} onChange={handleComponentChange} options={components} placeholder="Component" />
             {editComponent && <PickerInput value={editRank} onChange={setEditRank} options={componentRanks} placeholder="Rank" />}
-            <div>
-              <div className="flex items-baseline justify-between mb-1.5">
-                <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">UIC</span>
-                <span className={`text-[9pt] tabular-nums ${editUic.length === 6 ? 'text-themegreen' : 'text-tertiary'}`}>
-                  {editUic.length}/6
-                </span>
-              </div>
-              <UicPinInput value={editUic} onChange={setEditUic} spread />
-            </div>
+            <UicPinInput value={editUic} onChange={setEditUic} spread />
             <ClinicPickerInput value={editClinicId} onChange={setEditClinicId} allClinics={clinics} placeholder="Clinic" />
             <MultiPickerInput
-              label="Roles"
               value={editRoles}
               onChange={setEditRoles}
               options={AVAILABLE_ROLES.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))}
-              placeholder="Roles"
+              placeholder="Roles *"
               required
             />
           </div>

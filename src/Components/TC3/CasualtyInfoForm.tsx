@@ -3,6 +3,8 @@ import { Plus, Check, RotateCcw, User, ChevronRight } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { TextInput, DatePickerInput, PickerInput } from '../FormInputs'
+import { ActionButton } from '../ActionButton'
+import { ActionPill } from '../ActionPill'
 import type { EvacPriority, BloodType } from '../../Types/TC3Types'
 
 /** 30-min military time options: "0000", "0030", … "2330" */
@@ -60,7 +62,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
 
   const [popoverVisible, setPopoverVisible] = useState(false)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
-  const btnRef = useRef<HTMLButtonElement>(null)
+  const btnRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
 
   const [draft, setDraft] = useState({ ...EMPTY_CASUALTY })
@@ -109,63 +111,48 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
           onClick={() => openPopover(cardRef)}
           className="w-full rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden text-left active:scale-95 transition-all hover:bg-themeblue2/5"
         >
-          <div className="flex items-start gap-3 px-4 py-3.5">
+          <div className="flex items-center gap-3 px-4 py-3">
             {evacuation.priority ? (
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-tertiary/10`}>
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10`}>
                 <span className="text-[14pt] font-medium text-tertiary">
                   {evacuation.priority === 'Urgent' ? 'U' : evacuation.priority === 'Priority' ? 'P' : 'R'}
                 </span>
               </div>
             ) : (
-              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10 mt-0.5">
+              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
                 <User size={18} className="text-tertiary" />
               </div>
             )}
             <div className="flex-1 min-w-0">
-              {/* Name + chevron */}
               <div className="flex items-center gap-1.5">
                 <p className="flex-1 min-w-0 text-sm font-medium text-primary truncate">
                   {[casualty.lastName, casualty.firstName].filter(Boolean).join(', ') || '—'}
                 </p>
                 <ChevronRight size={16} className="text-tertiary shrink-0" />
               </div>
-              {/* Detail grid */}
-              <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1">
-                <p className="text-[9pt] text-secondary flex flex-wrap items-center gap-x-2">
-                  {casualty.battleRosterNo && <span className="font-medium uppercase">{casualty.battleRosterNo}</span>}
-                  {casualty.sex && <span>{casualty.sex}</span>}
-                  {casualty.service && <span>{casualty.service}</span>}
-                  {casualty.unit && <span>{casualty.unit}</span>}
-                </p>
-                <p className="text-[9pt] text-secondary truncate">
-                  {casualty.allergies
-                    ? <><span className="font-medium">Allergies:</span> {casualty.allergies}</>
-                    : null}
-                </p>
-                <p className="text-[9pt] text-secondary">
-                  {casualty.dateTimeOfInjury
-                    ? <><span className="font-medium">Inj</span> {formatDT(casualty.dateTimeOfInjury)}</>
-                    : null}
-                </p>
-                <p className="text-[9pt] text-secondary">
-                  {casualty.dateTimeOfTreatment ? formatDT(casualty.dateTimeOfTreatment) : null}
-                </p>
-              </div>
+              <p className="text-[9pt] text-secondary truncate mt-0.5">
+                {[
+                  casualty.battleRosterNo?.toUpperCase(),
+                  casualty.sex,
+                  casualty.service,
+                  casualty.unit,
+                  casualty.allergies && `Allergies: ${casualty.allergies}`,
+                  casualty.dateTimeOfInjury && `Inj ${formatDT(casualty.dateTimeOfInjury)}`,
+                  casualty.dateTimeOfTreatment && `Tx ${formatDT(casualty.dateTimeOfTreatment)}`,
+                ].filter(Boolean).join(' · ')}
+              </p>
             </div>
           </div>
         </button>
       ) : (
         /* ── Empty state ── */
-        <div className="flex flex-col items-center gap-2 py-6">
-          <button
-            ref={btnRef}
-            type="button"
-            onClick={() => openPopover(btnRef)}
-            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary"
-          >
-            <Plus size={14} />
-          </button>
-          <p className="text-[9pt] text-tertiary">Add casualty details</p>
+        <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          <div className="px-4 py-3">
+            <p className="text-sm text-tertiary py-4 text-center">No casualty details</p>
+          </div>
+          <ActionPill ref={btnRef} shadow="sm" className="absolute top-2 right-2">
+            <ActionButton icon={Plus} label="Add casualty details" onClick={() => openPopover(btnRef)} />
+          </ActionPill>
         </div>
       )}
 
@@ -176,21 +163,21 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
         anchorRect={anchorRect}
         maxWidth={380}
         preview={
-          <div className="px-4 py-3 space-y-3">
+          <div>
             {/* EVAC Priority */}
-            <div>
-              <span className="text-xs font-medium text-tertiary uppercase tracking-wide">EVAC Priority</span>
-              <div className="flex gap-1.5 mt-1.5">
+            <div className="px-4 py-3 border-b border-primary/6">
+              <div className="flex gap-1.5 flex-wrap">
                 {EVAC_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
                     onClick={() => setDraftEvac(prev => prev === opt.value ? '' : opt.value)}
-                    className={`w-9 h-9 rounded-full text-xs font-bold transition-all border active:scale-95 ${
+                    className={`w-9 h-9 rounded-full text-[10pt] font-bold transition-all border active:scale-95 ${
                       draftEvac === opt.value
                         ? `${opt.color} text-white border-transparent`
                         : 'border-tertiary/15 text-tertiary hover:bg-tertiary/5'
                     }`}
+                    title={`EVAC: ${opt.label}`}
                   >
                     {opt.label}
                   </button>
@@ -199,43 +186,44 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
             </div>
 
             {/* Name */}
-            <div className="grid grid-cols-2 gap-2">
-              <TextInput
-                label="Last Name"
-                value={draft.lastName}
-                onChange={(v) => updateDraft({ lastName: v })}
-                placeholder="Last name"
-              />
-              <TextInput
-                label="First Name"
-                value={draft.firstName}
-                onChange={(v) => updateDraft({ firstName: v })}
-                placeholder="First name"
-              />
+            <div className="flex items-stretch border-b border-primary/6">
+              <div className="flex-1 min-w-0">
+                <TextInput
+                  value={draft.lastName}
+                  onChange={(v) => updateDraft({ lastName: v })}
+                  placeholder="Last name"
+                />
+              </div>
+              <div className="flex-1 min-w-0 border-l border-primary/6">
+                <TextInput
+                  value={draft.firstName}
+                  onChange={(v) => updateDraft({ firstName: v })}
+                  placeholder="First name"
+                />
+              </div>
             </div>
 
             {/* Battle Roster */}
             <TextInput
-              label="Battle Roster No."
               value={draft.battleRosterNo}
               onChange={(v) => updateDraft({ battleRosterNo: v })}
-              placeholder="Roster number"
+              placeholder="Battle roster no."
             />
 
             {/* Sex */}
-            <div>
-              <span className="text-xs font-medium text-tertiary uppercase tracking-wide">Sex</span>
-              <div className="flex gap-1.5 mt-1.5">
+            <div className="px-4 py-3 border-b border-primary/6">
+              <div className="flex gap-1.5">
                 {SEX_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
                     onClick={() => updateDraft({ sex: draft.sex === opt.value ? '' : opt.value })}
-                    className={`w-9 h-9 rounded-full text-xs font-bold transition-all border active:scale-95 ${
+                    className={`w-9 h-9 rounded-full text-[10pt] font-bold transition-all border active:scale-95 ${
                       draft.sex === opt.value
                         ? 'bg-themeblue2 text-white border-transparent'
                         : 'border-tertiary/15 text-tertiary hover:bg-tertiary/5'
                     }`}
+                    title={`Sex: ${opt.label}`}
                   >
                     {opt.label}
                   </button>
@@ -244,19 +232,19 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
             </div>
 
             {/* Blood Type */}
-            <div>
-              <span className="text-xs font-medium text-tertiary uppercase tracking-wide">Blood Type</span>
-              <div className="flex flex-wrap gap-1 mt-1.5">
+            <div className="px-4 py-3 border-b border-primary/6">
+              <div className="flex flex-wrap gap-1">
                 {BLOOD_TYPE_OPTIONS.map((bt) => (
                   <button
                     key={bt}
                     type="button"
                     onClick={() => updateDraft({ bloodType: draft.bloodType === bt ? '' : bt })}
-                    className={`min-w-[2.25rem] h-9 px-2 rounded-full text-xs font-bold transition-all border active:scale-95 ${
+                    className={`min-w-[2.25rem] h-9 px-2 rounded-full text-[10pt] font-bold transition-all border active:scale-95 ${
                       draft.bloodType === bt
                         ? 'bg-themeblue2 text-white border-transparent'
                         : 'border-tertiary/15 text-tertiary hover:bg-tertiary/5'
                     }`}
+                    title={`Blood type: ${bt}`}
                   >
                     {bt}
                   </button>
@@ -265,41 +253,43 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
             </div>
 
             {/* Unit + Service */}
-            <div className="grid grid-cols-2 gap-2">
-              <TextInput
-                label="Unit"
-                value={draft.unit}
-                onChange={(v) => updateDraft({ unit: v })}
-                placeholder="Unit designation"
-              />
-              <TextInput
-                label="Service"
-                value={draft.service}
-                onChange={(v) => updateDraft({ service: v })}
-                placeholder="Branch"
-              />
+            <div className="flex items-stretch border-b border-primary/6">
+              <div className="flex-1 min-w-0">
+                <TextInput
+                  value={draft.unit}
+                  onChange={(v) => updateDraft({ unit: v })}
+                  placeholder="Unit designation"
+                />
+              </div>
+              <div className="flex-1 min-w-0 border-l border-primary/6">
+                <TextInput
+                  value={draft.service}
+                  onChange={(v) => updateDraft({ service: v })}
+                  placeholder="Branch"
+                />
+              </div>
             </div>
 
             {/* Allergies */}
             <TextInput
-              label="Allergies"
               value={draft.allergies}
               onChange={(v) => updateDraft({ allergies: v })}
-              placeholder="NKDA if none"
+              placeholder="Allergies (NKDA if none)"
             />
 
             {/* DTG Injury */}
-            <div>
-              <span className="text-xs font-medium text-tertiary uppercase tracking-wide">DTG Injury</span>
-              <div className="grid grid-cols-2 gap-2 mt-1">
+            <div className="flex items-stretch border-b border-primary/6">
+              <div className="flex-1 min-w-0">
                 <DatePickerInput
                   value={draft.dateTimeOfInjury.slice(0, 10)}
                   onChange={(date) => {
                     const time = draft.dateTimeOfInjury.slice(11) || '08:00'
                     updateDraft({ dateTimeOfInjury: `${date}T${time}` })
                   }}
-                  placeholder="Date"
+                  placeholder="Injury date"
                 />
+              </div>
+              <div className="flex-1 min-w-0 border-l border-primary/6">
                 <PickerInput
                   value={draft.dateTimeOfInjury.slice(11) ? hhmmToMilitary(draft.dateTimeOfInjury.slice(11)) : ''}
                   onChange={(mil) => {
@@ -307,23 +297,24 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
                     updateDraft({ dateTimeOfInjury: `${date}T${militaryToHHMM(mil)}` })
                   }}
                   options={TIME_OPTIONS}
-                  placeholder="Time"
+                  placeholder="Injury time"
                 />
               </div>
             </div>
 
             {/* DTG Treatment */}
-            <div>
-              <span className="text-xs font-medium text-tertiary uppercase tracking-wide">DTG Treatment</span>
-              <div className="grid grid-cols-2 gap-2 mt-1">
+            <div className="flex items-stretch">
+              <div className="flex-1 min-w-0">
                 <DatePickerInput
                   value={draft.dateTimeOfTreatment.slice(0, 10)}
                   onChange={(date) => {
                     const time = draft.dateTimeOfTreatment.slice(11) || '08:00'
                     updateDraft({ dateTimeOfTreatment: `${date}T${time}` })
                   }}
-                  placeholder="Date"
+                  placeholder="Treatment date"
                 />
+              </div>
+              <div className="flex-1 min-w-0 border-l border-primary/6">
                 <PickerInput
                   value={draft.dateTimeOfTreatment.slice(11) ? hhmmToMilitary(draft.dateTimeOfTreatment.slice(11)) : ''}
                   onChange={(mil) => {
@@ -331,7 +322,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
                     updateDraft({ dateTimeOfTreatment: `${date}T${militaryToHHMM(mil)}` })
                   }}
                   options={TIME_OPTIONS}
-                  placeholder="Time"
+                  placeholder="Treatment time"
                 />
               </div>
             </div>

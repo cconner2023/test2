@@ -173,7 +173,7 @@ export function ScreenerDrawer({
         >
             <div>
                 {/* Instruction */}
-                <p className="text-xs text-secondary py-3 border-b border-tertiary/10">
+                <p className="text-[10pt] text-secondary py-3 border-b border-tertiary/10">
                     {screenerConfig.instruction}
                 </p>
 
@@ -185,7 +185,7 @@ export function ScreenerDrawer({
                             <span className="text-tertiary">/{maxScore}</span>
                         </div>
                         {interpretation && (
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            <span className={`text-[10pt] px-2 py-0.5 rounded-full ${
                                 (activeScreener.invertThreshold
                                     ? activeScore <= activeScreener.threshold
                                     : activeScore >= activeScreener.threshold)
@@ -232,7 +232,7 @@ export function ScreenerDrawer({
                                 {/* Check type — multi-select chips */}
                                 {q.type === 'check' && (
                                     <div className="py-2 px-1">
-                                        <p className="text-xs text-primary mb-1.5">{q.text}</p>
+                                        <p className="text-[10pt] text-primary mb-1.5">{q.text}</p>
                                         <div className="flex flex-wrap gap-1.5">
                                             {q.options?.map((opt, optIdx) => {
                                                 const isSelected = ((baseResponses[qIdx] ?? 0) & (1 << optIdx)) !== 0;
@@ -268,7 +268,7 @@ export function ScreenerDrawer({
 
                                 {/* Gate banner — rendered right after the last pre-gate question */}
                                 {gate && qIdx === gate.gatedFromIndex - 1 && gateEvaluated && (
-                                    <div className={`mx-1 my-3 px-3 py-2.5 rounded-md text-xs font-medium text-center ${
+                                    <div className={`mx-1 my-3 px-3 py-2.5 rounded-md text-[10pt] font-medium text-center ${
                                         gateOpen
                                             ? 'bg-themegreen/10 text-themegreen border border-themegreen/20'
                                             : 'bg-themeyellow/15 text-secondary border border-themeyellow/30'
@@ -309,7 +309,7 @@ export function ScreenerDrawer({
                 {/* Follow-up question (GAD-7 difficulty) */}
                 {screenerConfig.followUp && (
                     <div className="mt-4 pt-3 border-t border-tertiary/10">
-                        <p className="text-xs text-secondary mb-2">
+                        <p className="text-[10pt] text-secondary mb-2">
                             {screenerConfig.followUp.text}
                         </p>
                         <div className="space-y-1.5">
@@ -317,7 +317,7 @@ export function ScreenerDrawer({
                                 <button
                                     key={idx}
                                     onClick={() => setFollowUpIdx(idx)}
-                                    className={`w-full text-left text-xs px-3 py-2 rounded-md transition-all ${
+                                    className={`w-full text-left text-[10pt] px-3 py-2 rounded-md transition-all ${
                                         followUpIdx === idx
                                             ? 'bg-themeblue2/15 text-themeblue2 font-medium'
                                             : 'bg-themewhite2 text-tertiary hover:bg-themewhite'
@@ -367,7 +367,7 @@ export function QuestionRow({
 }) {
     return (
         <div className="py-2 px-1">
-            <p className="text-xs text-primary mb-1.5">
+            <p className="text-[10pt] text-primary mb-1.5">
                 <span className="text-tertiary mr-1">{index}.</span>
                 {text}
             </p>

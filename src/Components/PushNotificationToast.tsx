@@ -78,7 +78,7 @@ export function PushNotificationToast({ notification, onDismiss }: Props) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-primary truncate">{current.title}</p>
-            <p className="text-xs text-secondary truncate mt-0.5">
+            <p className="text-[10pt] text-secondary truncate mt-0.5">
               {current.body.length > 80 ? current.body.slice(0, 80) + '\u2026' : current.body}
             </p>
           </div>

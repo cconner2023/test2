@@ -47,32 +47,35 @@ export function HeatCategoryCalculator() {
       </div>
 
       {/* Input fields */}
-      {!estimated ? (
-        <TextInput
-          label="WBGT (°F)"
-          value={wbgtInput}
-          onChange={setWbgtInput}
-          placeholder="e.g. 86.5"
-          inputMode="decimal"
-        />
-      ) : (
-        <div className="grid grid-cols-2 gap-3">
+      <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+        {!estimated ? (
           <TextInput
-            label="Temp (°F)"
-            value={tempInput}
-            onChange={setTempInput}
-            placeholder="e.g. 95"
+            value={wbgtInput}
+            onChange={setWbgtInput}
+            placeholder="WBGT °F (e.g. 86.5)"
             inputMode="decimal"
           />
-          <TextInput
-            label="Humidity (%)"
-            value={rhInput}
-            onChange={setRhInput}
-            placeholder="e.g. 70"
-            inputMode="numeric"
-          />
-        </div>
-      )}
+        ) : (
+          <div className="flex items-stretch">
+            <div className="flex-1 min-w-0">
+              <TextInput
+                value={tempInput}
+                onChange={setTempInput}
+                placeholder="Temp °F (e.g. 95)"
+                inputMode="decimal"
+              />
+            </div>
+            <div className="flex-1 min-w-0 border-l border-primary/6">
+              <TextInput
+                value={rhInput}
+                onChange={setRhInput}
+                placeholder="Humidity % (e.g. 70)"
+                inputMode="numeric"
+              />
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Estimated WBGT echo */}
       {estimated && wbgtNum !== null && (

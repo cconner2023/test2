@@ -7,7 +7,9 @@ import type {
 } from '../../Types/TC3Types'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { SectionHeader } from '../Section'
+import { Section, SectionHeader } from '../Section'
+import { ActionButton } from '../ActionButton'
+import { ActionPill } from '../ActionPill'
 import { getBodyRegion, getRegionLabel, getRegionCenter } from '../../Utilities/bodyRegionMap'
 import { TC3BodyDiagramSvg } from './TC3BodyDiagramSvg'
 
@@ -137,7 +139,7 @@ function MarchBadge({ cat }: { cat: MarchCat }) {
 function MarchIcon({ cat }: { cat: MarchCat }) {
   return (
     <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-      <span className="text-xs font-bold text-tertiary">{MARCH_LABELS[cat]}</span>
+      <span className="text-[10pt] font-bold text-tertiary">{MARCH_LABELS[cat]}</span>
     </div>
   )
 }
@@ -425,7 +427,7 @@ export const MARCHForm = memo(function MARCHForm() {
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [addMenuPopover, setAddMenuPopover] = useState<string | null>(null) // for med/fluid/blood add popovers
   const anchorRef = useRef<DOMRect | null>(null)
-  const fabRef = useRef<HTMLButtonElement>(null)
+  const fabRef = useRef<HTMLDivElement>(null)
 
   // --- Draft state for C items ---
   const [draftIV, setDraftIV] = useState<TC3IVAccess>({ id: '', type: 'IV', site: '', gauge: '18g', time: '' })
@@ -820,7 +822,7 @@ export const MARCHForm = memo(function MARCHForm() {
   }
 
   // --- Add menu popovers (for C items that need forms) ---
-  const chipCls = 'px-3 py-1.5 text-xs font-medium rounded-full border border-themeblue3/10 bg-themewhite2 text-primary hover:bg-themeredred/5 hover:border-themeredred/20 transition-all active:scale-95'
+  const chipCls = 'px-3 py-1.5 text-[10pt] font-medium rounded-full border border-themeblue3/10 bg-themewhite2 text-primary hover:bg-themeredred/5 hover:border-themeredred/20 transition-all active:scale-95'
 
   if (addMenuPopover === 'iv') {
     popoverPreview = (
@@ -946,7 +948,7 @@ export const MARCHForm = memo(function MARCHForm() {
   })
 
   // --- Render row ---
-  function renderRow(row: RowKind, idx: number) {
+  function renderRow(row: RowKind, idx: number, isLast: boolean) {
     const isC = row.kind === 'iv' || row.kind === 'med' || row.kind === 'fluid' || row.kind === 'blood'
     const onClick = isC ? (e: React.MouseEvent) => openEditC(row, e) : (e: React.MouseEvent) => openEdit(row, e)
 
@@ -1006,49 +1008,39 @@ export const MARCHForm = memo(function MARCHForm() {
 
     return (
       <button key={idx} type="button" onClick={onClick}
-        className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-themeblue2/5 active:scale-[0.98] transition-all">
+        className={`w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-themeblue2/5 active:scale-[0.98] transition-all border-b border-primary/6 last:border-0 ${isLast ? 'pr-32' : ''}`}>
         <MarchIcon cat={icon} />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-primary truncate">{primary}</p>
           {secondary && <p className="text-[9pt] text-secondary mt-0.5 truncate">{secondary}</p>}
         </div>
-        {trailing && <span className="text-[9pt] text-secondary shrink-0">{trailing}</span>}
-        <ChevronRight size={16} className="text-tertiary shrink-0" />
+        {!isLast && trailing && <span className="text-[9pt] text-secondary shrink-0">{trailing}</span>}
+        {!isLast && <ChevronRight size={16} className="text-tertiary shrink-0" />}
       </button>
     )
   }
 
   return (
     <div data-tour="tc3-march">
-      {/* Header */}
-      <div className="mb-2">
-        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
-          Interventions
-        </p>
-      </div>
-
-      {/* Unified list */}
-      {rows.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 py-6">
-          <button ref={fabRef} type="button" onClick={handleFab}
-            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary">
-            <Plus size={14} />
-          </button>
-          <p className="text-[9pt] text-tertiary">Add intervention</p>
+      <Section title="Interventions">
+        <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          {rows.length === 0 ? (
+            <p className="text-sm text-tertiary py-7 text-center">No interventions added</p>
+          ) : (
+            rows.map((row, idx) => renderRow(row, idx, idx === rows.length - 1))
+          )}
+          <div
+            ref={fabRef}
+            onClick={handleFab}
+            className="absolute right-0 bottom-0 w-32 h-full flex items-center justify-end pr-2 pb-2 z-10 cursor-pointer"
+            aria-hidden
+          >
+            <ActionPill shadow="sm">
+              <ActionButton icon={Plus} label="Add intervention" onClick={handleFab} />
+            </ActionPill>
+          </div>
         </div>
-      ) : (
-        <>
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
-            {rows.map((row, idx) => renderRow(row, idx))}
-          </div>
-          <div className="flex justify-center items-center gap-2 pt-1">
-            <button ref={fabRef} type="button" onClick={handleFab}
-              className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary">
-              <Plus size={14} />
-            </button>
-          </div>
-        </>
-      )}
+      </Section>
 
       {/* Add menu popover */}
       <PreviewOverlay
@@ -1056,23 +1048,27 @@ export const MARCHForm = memo(function MARCHForm() {
         onClose={closeAll}
         anchorRect={anchorRef.current}
         preview={
-          <div className="px-4 py-3 space-y-3">
+          <div className="py-1">
             {(['H', 'A', 'B', 'C'] as MarchCat[]).map(cat => {
               const items = filteredAddMenu.filter(i => i.cat === cat)
               if (items.length === 0) return null
               return (
-                <div key={cat} className="space-y-1.5">
-                  <div className="flex items-center gap-1.5">
+                <div key={cat}>
+                  <div className="flex items-center gap-2 px-4 pt-2 pb-1">
                     <MarchBadge cat={cat} />
-                    <span className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
+                    <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider">
                       {cat === 'H' ? 'Hemorrhage' : cat === 'A' ? 'Airway' : cat === 'B' ? 'Breathing' : 'Circulation'}
-                    </span>
+                    </p>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="px-2 pb-1 space-y-0.5">
                     {items.map(item => (
-                      <button key={item.action} onClick={() => handleAddAction(item.action)}
-                        className="px-3 py-1.5 text-xs font-medium rounded-full border border-themeblue3/10 bg-themewhite2 text-primary hover:bg-themeredred/5 hover:border-themeredred/20 transition-all active:scale-95">
-                        {item.label}
+                      <button
+                        key={item.action}
+                        type="button"
+                        onClick={() => handleAddAction(item.action)}
+                        className="flex items-center w-full text-left py-1.5 px-2 rounded-lg transition-colors active:scale-[0.98] hover:bg-tertiary/5"
+                      >
+                        <span className="text-sm text-primary min-w-0 truncate">{item.label}</span>
                       </button>
                     ))}
                   </div>

@@ -25,7 +25,7 @@ export function DisambiguationCard({ candidates, items, onSelect, onManual }: Di
 
   return (
     <div className="flex flex-col gap-2 w-full">
-      <p className="text-xs font-semibold text-secondary tracking-wider uppercase px-1 mb-1">
+      <p className="text-[10pt] font-semibold text-secondary tracking-wider uppercase px-1 mb-1">
         Multiple matches found
       </p>
 

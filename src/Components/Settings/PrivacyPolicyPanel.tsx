@@ -26,7 +26,7 @@ export const PrivacyPolicyPanel = () => (
 
       {/* ── Intro ── */}
       <div className="px-1">
-        <p className="text-xs text-tertiary leading-relaxed">
+        <p className="text-[10pt] text-tertiary leading-relaxed">
           We are committed to protecting your privacy. This policy explains what information we collect, how we use it, and your rights regarding your data.
         </p>
         <p className="text-[9pt] text-tertiary mt-1">Last updated: April 2026</p>

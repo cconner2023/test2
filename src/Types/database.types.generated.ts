@@ -1493,6 +1493,10 @@ export type Database = {
         Args: { p_email: string }
         Returns: Json
       }
+      supervisor_get_member_profile: {
+        Args: { p_user_id: string }
+        Returns: Json
+      }
       supervisor_get_my_clinics: { Args: never; Returns: Json }
       supervisor_list_clinic_members: {
         Args: { p_clinic_id: string }

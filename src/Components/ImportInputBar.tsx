@@ -1,5 +1,6 @@
 import { useRef, useCallback } from 'react';
 import { Camera, ImagePlus, Check, X } from 'lucide-react';
+import { ErrorPill } from './ErrorPill';
 
 export interface ImportInputBarProps {
     value: string;
@@ -111,9 +112,7 @@ export function ImportInputBar({
                 <div className={`absolute left-0 right-0 top-full mt-1.5 transition-all duration-300 ease-out ${
                     error ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1 pointer-events-none'
                 }`}>
-                    <p className="text-xs font-medium text-themeredred bg-themeredred/5 rounded-full px-4 py-1.5 text-center">
-                        {error}
-                    </p>
+                    <ErrorPill>{error}</ErrorPill>
                 </div>
             )}
             {onImage && (

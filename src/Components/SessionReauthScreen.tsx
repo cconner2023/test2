@@ -175,7 +175,7 @@ export function SessionReauthScreen({ email }: SessionReauthScreenProps) {
 
   if (phase === 'restoring') {
     return (
-      <div className="fixed inset-0 z-[100] bg-themewhite flex flex-col items-center justify-center gap-3"
+      <div className="fixed inset-0 z-30 bg-themewhite flex flex-col items-center justify-center gap-3"
            style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}>
         <LoadingSpinner className="text-themeblue2/50" />
         <p className="text-sm text-tertiary">Restoring session…</p>
@@ -198,7 +198,7 @@ export function SessionReauthScreen({ email }: SessionReauthScreenProps) {
 
   // ── Bio or PIN shell ──────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 z-[100] bg-themewhite overflow-y-auto select-none"
+    <div className="fixed inset-0 z-30 bg-themewhite overflow-y-auto select-none"
          style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}>
       <div className="min-h-full flex flex-col items-center justify-center py-8 px-6">
 
@@ -217,14 +217,14 @@ export function SessionReauthScreen({ email }: SessionReauthScreenProps) {
 
         {/* Email */}
         <div className="mb-4 w-full max-w-[270px]">
-          <span className="text-xs font-medium text-tertiary uppercase tracking-wide">Account</span>
+          <span className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Account</span>
           <p className="text-sm text-primary mt-0.5 truncate">{email}</p>
         </div>
 
         {phase === 'bio' && (
           <div className="w-[270px] flex flex-col items-center gap-4">
             {bioError && (
-              <p className="text-xs text-themeredred text-center">{bioError}</p>
+              <p className="text-[10pt] text-themeredred text-center">{bioError}</p>
             )}
             <button
               onClick={handleBiometric}
@@ -234,7 +234,7 @@ export function SessionReauthScreen({ email }: SessionReauthScreenProps) {
             </button>
             <button
               onClick={() => setPhase('password')}
-              className="text-xs text-themeblue2 hover:text-themeblue2/80 transition-colors"
+              className="text-[10pt] text-themeblue2 hover:text-themeblue2/80 transition-colors"
             >
               Use password instead
             </button>
@@ -252,7 +252,7 @@ export function SessionReauthScreen({ email }: SessionReauthScreenProps) {
               extraContent={
                 <button
                   onClick={() => setPhase('password')}
-                  className="text-xs text-themeblue2 hover:text-themeblue2/80 transition-colors w-full text-center mt-1"
+                  className="text-[10pt] text-themeblue2 hover:text-themeblue2/80 transition-colors w-full text-center mt-1"
                 >
                   Use password instead
                 </button>

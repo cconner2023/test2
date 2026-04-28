@@ -6,6 +6,40 @@ import { createLogger } from '../Utilities/Logger'
 const logger = createLogger('CalendarPersist')
 
 type CalendarViewMode = 'month' | 'day' | 'troops'
+export type CalendarDaySpan = 1 | 3
+
+const PREFS_KEY = 'beacon.calendar.prefs'
+
+interface CalendarPrefs {
+  daySpan: CalendarDaySpan
+  hideWeekends: boolean
+}
+
+const DEFAULT_PREFS: CalendarPrefs = { daySpan: 1, hideWeekends: false }
+
+function loadPrefs(): CalendarPrefs {
+  if (typeof window === 'undefined') return DEFAULT_PREFS
+  try {
+    const raw = window.localStorage.getItem(PREFS_KEY)
+    if (!raw) return DEFAULT_PREFS
+    const parsed = JSON.parse(raw) as Partial<CalendarPrefs>
+    return {
+      daySpan: parsed.daySpan === 3 ? 3 : 1,
+      hideWeekends: !!parsed.hideWeekends,
+    }
+  } catch {
+    return DEFAULT_PREFS
+  }
+}
+
+function savePrefs(prefs: CalendarPrefs): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(PREFS_KEY, JSON.stringify(prefs))
+  } catch (e) {
+    logger.warn('prefs save failed:', e)
+  }
+}
 
 interface CalendarState {
   currentView: CalendarViewMode
@@ -19,6 +53,10 @@ interface CalendarState {
   showRosterMobile: boolean
   personnelFilter: string[]
   monthLabel: string
+  /** Day view span — 1 for single-day, 3 for triple-day. Persisted to localStorage. */
+  daySpan: CalendarDaySpan
+  /** Hide Sat/Sun in month + day views. Persisted to localStorage. */
+  hideWeekends: boolean
   /** True once the initial IDB hydration is complete. */
   hydrated: boolean
   /** True once the clinic vault replay has finished (or been skipped). */
@@ -49,6 +87,8 @@ interface CalendarActions {
   setHydrated: (h: boolean) => void
   setVaultReplayDone: (done: boolean) => void
   clearHydrationError: () => void
+  setDaySpan: (span: CalendarDaySpan) => void
+  setHideWeekends: (hide: boolean) => void
 }
 
 export type CalendarStore = CalendarState & CalendarActions
@@ -120,6 +160,8 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   showRosterMobile: false,
   personnelFilter: [],
   monthLabel: new Date().toLocaleDateString('en-US', { month: 'long' }),
+  daySpan: loadPrefs().daySpan,
+  hideWeekends: loadPrefs().hideWeekends,
   hydrated: false,
   vaultReplayDone: false,
   hydrationError: false,
@@ -188,4 +230,12 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   setHydrated: (h) => set({ hydrated: h }),
   setVaultReplayDone: (done) => set({ vaultReplayDone: done }),
   clearHydrationError: () => set({ hydrationError: false }),
+  setDaySpan: (span) => set((s) => {
+    savePrefs({ daySpan: span, hideWeekends: s.hideWeekends })
+    return { daySpan: span }
+  }),
+  setHideWeekends: (hide) => set((s) => {
+    savePrefs({ daySpan: s.daySpan, hideWeekends: hide })
+    return { hideWeekends: hide }
+  }),
 })))

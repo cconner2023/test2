@@ -47,6 +47,7 @@ function DrawerHeader({
     const verticalPad = isMobile
         ? (mobileFullScreen ? 'pt-[max(0.75rem,var(--sat,0px))] pb-2' : 'pb-2')
         : 'py-2.5';
+    const horizontalPad = isMobile && mobileFullScreen ? 'px-3' : 'px-5';
     return (
         <div className="shrink-0">
             {/* Drag handle — visible on mobile, hidden for full-screen drawers */}
@@ -68,7 +69,7 @@ function DrawerHeader({
                     transformOrigin: 'top center',
                 }}
             >
-                <div className={`px-5 ${verticalPad} ${headerFaded ? '' : 'border-b border-tertiary/10'}`}>
+                <div className={`${horizontalPad} ${verticalPad} ${headerFaded ? '' : 'border-b border-tertiary/10'}`}>
                     <div className="flex items-center justify-between">
                         <div className={`flex items-center gap-2 min-w-0 transition-all duration-200${rightContentFill ? ' w-0 overflow-hidden' : ''}`}>
                             {leftContent && <div className="shrink-0">{leftContent}</div>}

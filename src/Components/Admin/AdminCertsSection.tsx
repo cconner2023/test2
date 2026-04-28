@@ -19,6 +19,7 @@ import { CertificationRow } from '../Certifications/CertificationRow'
 import { CertificationForm } from '../Certifications/CertificationForm'
 import { emptyCertForm } from '../Certifications/certHelpers'
 import type { CertFormData } from '../Certifications/certHelpers'
+import { EmptyState } from '../EmptyState'
 
 interface AdminCertsSectionProps {
   userId: string
@@ -159,14 +160,12 @@ export function AdminCertsSection({ userId, certs, editing, onChanged }: AdminCe
         </div>
       )}
 
-      {!showList && (
-        <p className="text-sm text-tertiary py-2">No certifications</p>
-      )}
+      {!showList && <EmptyState title="No certifications" />}
 
       {editing && mode === 'view' && (
         <button
           onClick={() => { setMode('adding'); setForm(emptyCertForm) }}
-          className="w-full flex items-center justify-center gap-1.5 py-2.5 mt-2 rounded-lg border border-dashed border-tertiary/20 text-xs text-tertiary hover:border-themeblue2 hover:text-themeblue2 transition-colors active:scale-95"
+          className="w-full flex items-center justify-center gap-1.5 py-2.5 mt-2 rounded-lg border border-dashed border-tertiary/20 text-[10pt] text-tertiary hover:border-themeblue2 hover:text-themeblue2 transition-colors active:scale-95"
         >
           <Plus size={14} />
           Add Certification

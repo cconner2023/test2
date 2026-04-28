@@ -70,7 +70,7 @@ function NotePreviewContent({ preview }: { preview: ImportPreview }) {
         )}
       </div>
       {/* Author */}
-      <div className="flex items-center gap-1.5 text-xs text-tertiary">
+      <div className="flex items-center gap-1.5 text-[10pt] text-tertiary">
         {authorAvatarSvg
           ? <span className="w-4 h-4 rounded-full overflow-hidden shrink-0">{authorAvatarSvg}</span>
           : <User size={12} className="shrink-0" />
@@ -79,7 +79,7 @@ function NotePreviewContent({ preview }: { preview: ImportPreview }) {
       </div>
       {/* Note text */}
       <div data-tour="import-note-preview" className="rounded-xl bg-themewhite2 overflow-hidden">
-        <div className="px-3 py-2 text-tertiary text-[9pt] whitespace-pre-wrap max-h-36 overflow-y-auto">
+        <div className="px-3 py-2 text-tertiary text-[10pt] whitespace-pre-wrap max-h-36 overflow-y-auto">
           {preview.fullNote
             ? preview.fullNote.split('\n').filter(l => !l.startsWith('Signed:')).join('\n').trim()
             : 'No content'}
@@ -201,7 +201,7 @@ export function ImportResultPopover({
           <div className="absolute inset-x-4 top-1/2 h-0.5 bg-themeblue2 animate-pulse" />
           <ScanLine className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 text-white/50" />
         </div>
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-[10pt] px-3 py-1.5 rounded-full">
           Looking for barcode...
         </div>
       </div>

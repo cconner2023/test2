@@ -148,19 +148,15 @@ export function encodeTC3Card(card: TC3Card, userId?: string): string {
     parts.push(`D${compressText(mStrs.join(';'))}`)
   }
 
-  // W: Vitals — now includes pulseLocation
+  // W: Vitals — pulseLocation + per-set AVPU/GCS (eye, verbal, motor)
   if (card.vitals.length > 0) {
-    const vStrs = card.vitals.map(v =>
-      `${v.time},${v.pulse},${v.bp},${v.rr},${v.spo2},${v.avpu},${v.painScale},${v.pulseLocation}`
-    )
+    const vStrs = card.vitals.map(v => {
+      const e = v.gcs?.eye ?? ''
+      const ve = v.gcs?.verbal ?? ''
+      const m = v.gcs?.motor ?? ''
+      return `${v.time},${v.pulse},${v.bp},${v.rr},${v.spo2},${v.avpu},${v.painScale},${v.pulseLocation},${e},${ve},${m}`
+    })
     parts.push(`W${compressText(vStrs.join(';'))}`)
-  }
-
-  // G: Mental status (AVPU + GCS)
-  if (card.avpu || card.gcs) {
-    let seg = `G${card.avpu || '-'}`
-    if (card.gcs) seg += `,${card.gcs.eye},${card.gcs.verbal},${card.gcs.motor}`
-    parts.push(seg)
   }
 
   // E: Evacuation
@@ -234,8 +230,6 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
     },
     medications: [],
     vitals: [],
-    avpu: '',
-    gcs: null,
     evacuation: { priority: '' },
     other: {
       combatPillPack: false,
@@ -424,6 +418,12 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
         const vStrs = decompressText(value).split(';')
         card.vitals = vStrs.map(s => {
           const segs = s.split(',')
+          const eye = segs[8] ? parseInt(segs[8], 10) : NaN
+          const verbal = segs[9] ? parseInt(segs[9], 10) : NaN
+          const motor = segs[10] ? parseInt(segs[10], 10) : NaN
+          const gcs = (!isNaN(eye) || !isNaN(verbal) || !isNaN(motor))
+            ? { eye: eye || 0, verbal: verbal || 0, motor: motor || 0 }
+            : null
           return {
             id: crypto.randomUUID(),
             time: segs[0] ?? '',
@@ -431,18 +431,32 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
             bp: segs[2] ?? '',
             rr: segs[3] ?? '',
             spo2: segs[4] ?? '',
-            avpu: (segs[5] || 'A') as AVPU,
+            avpu: (segs[5] || '') as AVPU | '',
             painScale: segs[6] ?? '',
             pulseLocation: segs[7] ?? '',
+            temp: '',
+            gcs,
           }
         })
         break
       }
       case 'G': {
+        // Legacy: card-level AVPU/GCS — apply to the last vital set, or synthesize one.
         const gParts = value.split(',')
-        card.avpu = (gParts[0] === '-' ? '' : gParts[0]) as AVPU | ''
-        if (gParts.length >= 4) {
-          card.gcs = { eye: parseInt(gParts[1], 10) || 0, verbal: parseInt(gParts[2], 10) || 0, motor: parseInt(gParts[3], 10) || 0 }
+        const legacyAvpu = (gParts[0] === '-' ? '' : gParts[0]) as AVPU | ''
+        const legacyGcs = gParts.length >= 4
+          ? { eye: parseInt(gParts[1], 10) || 0, verbal: parseInt(gParts[2], 10) || 0, motor: parseInt(gParts[3], 10) || 0 }
+          : null
+        if (card.vitals.length > 0) {
+          const last = card.vitals[card.vitals.length - 1]
+          last.avpu = legacyAvpu
+          last.gcs = legacyGcs
+        } else if (legacyAvpu || legacyGcs) {
+          card.vitals.push({
+            id: crypto.randomUUID(),
+            time: '', pulse: '', pulseLocation: '', bp: '', rr: '', spo2: '',
+            avpu: legacyAvpu, painScale: '', temp: '', gcs: legacyGcs,
+          })
         }
         break
       }

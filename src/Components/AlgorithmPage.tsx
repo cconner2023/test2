@@ -15,6 +15,7 @@ import { ALGORITHM_TIMING } from '../Utilities/constants';
 import { useNavigationStore } from '../stores/useNavigationStore';
 import { useTourContext } from './Tour/TourProvider';
 import type { SearchResultType } from '../Types/CatTypes';
+import { ActionPill } from './ActionPill'
 
 interface AlgorithmPageProps {
     searchInput?: string
@@ -196,15 +197,15 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
     // Early returns
     if (!selectedSymptom) {
         return (
-            <div className="w-full h-full flex items-center justify-center">
-                <p className="text-primary">No symptom selected.</p>
+            <div className="w-full h-full flex items-center justify-center px-4">
+                <p className="text-sm text-tertiary">No symptom selected</p>
             </div>
         );
     }
     if (!algorithm || algorithmOptions.length === 0) {
         return (
-            <div className="p-4 text-center w-full text-themeblue2">
-                <p>No algorithm found for: {selectedSymptom.text}</p>
+            <div className="w-full h-full flex items-center justify-center px-4">
+                <p className="text-sm text-tertiary">No algorithm found for "{selectedSymptom.text}"</p>
             </div>
         );
     }
@@ -270,20 +271,22 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
                                                             {currentDisposition.text}
                                                         </p>
                                                         {currentDisposition.modifier && (
-                                                            <p className="text-xs text-secondary mt-1 wrap-break-word">
+                                                            <p className="text-[10pt] text-secondary mt-1 wrap-break-word">
                                                                 {currentDisposition.modifier}
                                                             </p>
                                                         )}
                                                     </div>
                                                 </div>
-                                                <button
-                                                    data-tour="algorithm-expand-note"
-                                                    onClick={handleExpandNote}
-                                                    className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all ${colors.buttonClass}`}
-                                                    aria-label="Continue"
-                                                >
-                                                    <ChevronRight className="w-5 h-5" />
-                                                </button>
+                                                <ActionPill>
+                                                    <button
+                                                        data-tour="algorithm-expand-note"
+                                                        onClick={handleExpandNote}
+                                                        className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all ${colors.buttonClass}`}
+                                                        aria-label="Continue"
+                                                    >
+                                                        <ChevronRight className="w-5 h-5" />
+                                                    </button>
+                                                </ActionPill>
                                             </div>
                                         </div>
                                     </div>

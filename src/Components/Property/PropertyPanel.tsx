@@ -314,10 +314,10 @@ export const PropertyPanel = memo(function PropertyPanel({
                           >
                             <span className="flex-1 text-sm font-medium text-primary truncate">{item.name}</span>
                             {item.serial_number && (
-                              <span className="text-xs text-secondary truncate max-w-[120px]">{item.serial_number}</span>
+                              <span className="text-[10pt] text-secondary truncate max-w-[120px]">{item.serial_number}</span>
                             )}
                             {item.quantity > 1 && (
-                              <span className="text-xs font-medium px-1.5 py-0.5 rounded-full shrink-0 bg-tertiary/10 text-tertiary">
+                              <span className="text-[10pt] font-medium px-1.5 py-0.5 rounded-full shrink-0 bg-tertiary/10 text-tertiary">
                                 {item.quantity}
                               </span>
                             )}

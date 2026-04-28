@@ -56,7 +56,7 @@ export function LoRaPanel() {
               <h3 className="text-sm font-medium text-primary">Radio Status</h3>
               <div className="flex items-center gap-2 mt-0.5">
                 <span className={`inline-block w-2 h-2 rounded-full ${STATE_COLORS[state]}`} />
-                <span className="text-xs text-tertiary">{STATE_LABELS[state]}</span>
+                <span className="text-[10pt] text-tertiary">{STATE_LABELS[state]}</span>
               </div>
             </div>
             <ToggleSwitch checked={isConnected || isConnecting} />
@@ -73,11 +73,11 @@ export function LoRaPanel() {
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-themewhite rounded-lg p-3 text-center">
                 <p className="text-2xl font-semibold text-primary">{witnessCount}</p>
-                <p className="text-xs text-tertiary mt-0.5">Guardians</p>
+                <p className="text-[10pt] text-tertiary mt-0.5">Guardians</p>
               </div>
               <div className="bg-themewhite rounded-lg p-3 text-center">
                 <p className="text-2xl font-semibold text-primary">{routeCount}</p>
-                <p className="text-xs text-tertiary mt-0.5">Routes</p>
+                <p className="text-[10pt] text-tertiary mt-0.5">Routes</p>
               </div>
             </div>
           </div>
@@ -86,10 +86,10 @@ export function LoRaPanel() {
         {/* Info section */}
         <div className="bg-themewhite2 rounded-xl p-4 border border-tertiary/10">
           <h3 className="text-sm font-medium text-primary mb-2">About WhisperNet</h3>
-          <p className="text-xs text-tertiary leading-relaxed">
+          <p className="text-[10pt] text-tertiary leading-relaxed">
             WhisperNet enables offline, encrypted messaging by combining a bluetooth LoRa external radio with custom signal-protocol messaging. Your device becomes a witness node in a network of all authenticated users — relaying messages through nearby nodes when the internet is unavailable. <br></br><br></br> Currently this feature is in beta because it requires external hardware. For users who do have a LoRa external device (meshtastic etc.), you can toggle this to offline message through nearby WhisperNet nodes.
           </p>
-          <p className="text-xs text-tertiary leading-relaxed mt-2">
+          <p className="text-[10pt] text-tertiary leading-relaxed mt-2">
             To get started, power on your radio module and toggle the
             radio switch above. Your browser will prompt you to select
             the Bluetooth device.

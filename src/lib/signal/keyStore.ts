@@ -165,6 +165,31 @@ export async function removePreKey(keyId: number): Promise<void> {
   }
 }
 
+/**
+ * Atomically load and remove a pre-key in a single IDB transaction.
+ * Two concurrent callers with the same keyId will serialize on the
+ * object-store transaction; the loser sees null and falls back to 3DH.
+ * Without this, load+remove split across two transactions allows both
+ * callers to read the key before either deletes it (double-consume race).
+ */
+export async function consumePreKeyAtomic(keyId: number): Promise<StoredPreKey | null> {
+  try {
+    const db = await getDb()
+    const tx = db.transaction('preKeys', 'readwrite')
+    const preKey = await tx.store.get(keyId)
+    if (!preKey) {
+      await tx.done
+      return null
+    }
+    await tx.store.delete(keyId)
+    await tx.done
+    return preKey
+  } catch (err) {
+    logger.warn(`Failed to atomically consume pre-key ${keyId}:`, err)
+    return null
+  }
+}
+
 export async function getAllPreKeyIds(): Promise<number[]> {
   try {
     const db = await getDb()

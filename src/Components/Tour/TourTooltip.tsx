@@ -10,6 +10,7 @@ interface TourTooltipProps {
   isPlaying: boolean
   isPausePoint: boolean
   progressPercent: number
+  hideStepperDots?: boolean
   isLastStep: boolean
   onNext: () => void
   onPrev: () => void
@@ -43,6 +44,7 @@ export function TourTooltip({
   isPlaying,
   isPausePoint,
   progressPercent,
+  hideStepperDots = false,
   isLastStep,
   onNext,
   onPrev,
@@ -178,20 +180,26 @@ export function TourTooltip({
             >
               {isPlaying && !isPausePoint ? <Pause size={13} /> : <Play size={13} />}
             </button>
-            <div className="flex items-center gap-1">
-              {Array.from({ length: totalSteps }).map((_, i) => (
-                <div
-                  key={i}
-                  className={`rounded-full transition-all duration-200 ${
-                    i === currentStep
-                      ? 'w-2 h-2 bg-themeblue3'
-                      : i < currentStep
-                        ? 'w-1.5 h-1.5 bg-themeblue3/40'
-                        : 'w-1.5 h-1.5 bg-tertiary/20'
-                  }`}
-                />
-              ))}
-            </div>
+            {hideStepperDots ? (
+              <span className="text-[10px] tabular-nums text-tertiary/70">
+                {currentStep + 1} / {totalSteps}
+              </span>
+            ) : (
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalSteps }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={`rounded-full transition-all duration-200 ${
+                      i === currentStep
+                        ? 'w-2 h-2 bg-themeblue3'
+                        : i < currentStep
+                          ? 'w-1.5 h-1.5 bg-themeblue3/40'
+                          : 'w-1.5 h-1.5 bg-tertiary/20'
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Right: < > nav */}

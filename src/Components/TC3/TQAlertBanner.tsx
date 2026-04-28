@@ -16,7 +16,7 @@ export const TQAlertBanner = memo(function TQAlertBanner() {
 
   return (
     <div
-      className={`flex items-center justify-center px-3 h-9 text-white text-xs font-semibold tracking-wide shrink-0 ${
+      className={`flex items-center justify-center px-3 h-9 text-white text-[10pt] font-semibold tracking-wide shrink-0 ${
         hasCritical ? 'bg-themeredred' : 'bg-amber-500'
       }`}
     >

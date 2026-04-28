@@ -6,6 +6,7 @@ import { Section, SectionCard } from '../Section'
 import { emptyLaceReport, DEFAULT_AMMO_TYPES } from '../../Types/ReportTypes'
 import type { LaceReport as LaceReportType, LaceEquipmentLine } from '../../Types/ReportTypes'
 import { laceToText, copyToClipboard, downloadAsText, printReport } from '../../lib/reportExport'
+import { ActionPill } from '../ActionPill'
 
 const rowCx = 'flex items-center justify-between border-b border-primary/6 last:border-0 px-4 py-3'
 
@@ -31,7 +32,7 @@ function PillToggle({
       <button
         type="button"
         onClick={() => onChange(true)}
-        className={`px-3 py-1 rounded-full text-xs font-medium transition-all active:scale-95 ${
+        className={`px-3 py-1 rounded-full text-[10pt] font-medium transition-all active:scale-95 ${
           on
             ? 'bg-themegreen/15 text-themegreen'
             : 'bg-themewhite2 text-tertiary'
@@ -42,7 +43,7 @@ function PillToggle({
       <button
         type="button"
         onClick={() => onChange(false)}
-        className={`px-3 py-1 rounded-full text-xs font-medium transition-all active:scale-95 ${
+        className={`px-3 py-1 rounded-full text-[10pt] font-medium transition-all active:scale-95 ${
           !on
             ? 'bg-themeredred/15 text-themeredred'
             : 'bg-themewhite2 text-tertiary'
@@ -66,7 +67,7 @@ function StatusPill({ status, selected, onSelect }: { status: EquipStatus; selec
     <button
       type="button"
       onClick={onSelect}
-      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all active:scale-95 ${
+      className={`px-2.5 py-1 rounded-full text-[10pt] font-medium transition-all active:scale-95 ${
         selected ? selectedCx[status] : 'bg-themewhite2 text-tertiary'
       }`}
     >
@@ -156,7 +157,7 @@ export function LaceReport() {
                 onChange={e => update({ waterLiters: Math.max(0, parseInt(e.target.value) || 0) })}
                 className={numberInputCx}
               />
-              <span className="text-xs text-tertiary">L</span>
+              <span className="text-[10pt] text-tertiary">L</span>
             </div>
           </div>
           <div className={rowCx}>
@@ -170,7 +171,7 @@ export function LaceReport() {
                 onChange={e => update({ waterHours: Math.max(0, parseInt(e.target.value) || 0) })}
                 className={numberInputCx}
               />
-              <span className="text-xs text-tertiary">hrs</span>
+              <span className="text-[10pt] text-tertiary">hrs</span>
             </div>
           </div>
           <div className={rowCx}>
@@ -195,7 +196,7 @@ export function LaceReport() {
                   onChange={e => updateAmmo(i, 'onHand', Math.max(0, parseInt(e.target.value) || 0))}
                   className={numberInputCx}
                 />
-                <span className="text-xs text-tertiary">rds</span>
+                <span className="text-[10pt] text-tertiary">rds</span>
                 <input
                   type="number"
                   min={0}
@@ -205,7 +206,7 @@ export function LaceReport() {
                   onChange={e => updateAmmo(i, 'pct', Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
                   className={numberInputCx}
                 />
-                <span className="text-xs text-tertiary">%</span>
+                <span className="text-[10pt] text-tertiary">%</span>
               </div>
             </div>
           ))}
@@ -270,7 +271,7 @@ export function LaceReport() {
       <Section title="E — Equipment" className="mb-0">
         <SectionCard>
           {report.equipment.length === 0 && (
-            <div className="px-4 py-3 text-xs text-tertiary">No equipment added</div>
+            <div className="px-4 py-3 text-[10pt] text-tertiary">No equipment added</div>
           )}
           {report.equipment.map((eq, i) => (
             <div key={i} className="border-b border-primary/6 last:border-0 px-4 py-2.5 space-y-1.5">
@@ -305,7 +306,7 @@ export function LaceReport() {
                 value={eq.notes ?? ''}
                 onChange={e => updateEquipment(i, { notes: e.target.value })}
                 placeholder="Notes (optional)"
-                className="w-full bg-transparent text-xs text-tertiary placeholder:text-tertiary focus:outline-none pl-0"
+                className="w-full bg-transparent text-[10pt] text-tertiary placeholder:text-tertiary focus:outline-none pl-0"
               />
             </div>
           ))}
@@ -313,7 +314,7 @@ export function LaceReport() {
         <button
           type="button"
           onClick={addEquipment}
-          className="flex items-center gap-1.5 text-xs text-themeblue2/60 px-1 mt-2 active:scale-95 transition-all hover:text-themeblue2"
+          className="flex items-center gap-1.5 text-[10pt] text-themeblue2/60 px-1 mt-2 active:scale-95 transition-all hover:text-themeblue2"
         >
           <Plus size={12} /> Add item
         </button>
@@ -332,11 +333,11 @@ export function LaceReport() {
             />
           </div>
           <div className="border-t border-primary/6 flex items-center justify-end px-3 py-2">
-            <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15">
+            <ActionPill>
               <ActionButton icon={copied ? Check : Copy} label="Copy" onClick={handleCopy} variant={copied ? 'success' : 'default'} />
               <ActionButton icon={Download} label="Download" onClick={handleDownload} />
               <ActionButton icon={Printer} label="Print" onClick={handlePrint} />
-            </div>
+            </ActionPill>
           </div>
         </SectionCard>
       </Section>

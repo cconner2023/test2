@@ -272,6 +272,21 @@ export interface ClinicDetails {
   uics: string[]
   location: string | null
   associatedClinicIds: string[]
+  rooms: ClinicRoom[]
+  huddleTasks: ClinicHuddleTask[]
+}
+
+export interface ClinicRoom {
+  id: string
+  name: string
+  sort_order: number
+}
+
+/** Supervisor-defined huddle station (e.g. "Front Desk", "Triage"). Same shape as ClinicRoom. */
+export interface ClinicHuddleTask {
+  id: string
+  name: string
+  sort_order: number
 }
 
 export async function getClinicDetails(
@@ -280,11 +295,11 @@ export async function getClinicDetails(
   try {
     const { data } = await supabase
       .from('clinics')
-      .select('name, uics, location, encryption_key, associated_clinic_ids')
+      .select('name, uics, location, encryption_key, associated_clinic_ids, rooms, huddle_tasks')
       .eq('id', clinicId)
       .single()
 
-    if (!data) return { name: null, uics: [], location: null, associatedClinicIds: [] }
+    if (!data) return { name: null, uics: [], location: null, associatedClinicIds: [], rooms: [], huddleTasks: [] }
 
     let location: string | null = data.location ?? null
     if (location && data.encryption_key) {
@@ -300,9 +315,49 @@ export async function getClinicDetails(
       uics: data.uics ?? [],
       location,
       associatedClinicIds: data.associated_clinic_ids ?? [],
+      rooms: (data.rooms as ClinicRoom[]) ?? [],
+      huddleTasks: ((data as { huddle_tasks?: ClinicHuddleTask[] }).huddle_tasks as ClinicHuddleTask[]) ?? [],
     }
   } catch {
-    return { name: null, uics: [], location: null, associatedClinicIds: [] }
+    return { name: null, uics: [], location: null, associatedClinicIds: [], rooms: [], huddleTasks: [] }
+  }
+}
+
+// ─── Update Clinic Rooms (dedicated RPC) ───────────────────────────────────
+
+export async function updateSupervisorClinicRooms(
+  clinicId: string,
+  rooms: ClinicRoom[],
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('supervisor_update_clinic_rooms', {
+      p_clinic_id: clinicId,
+      p_rooms: rooms,
+    })
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to update clinic rooms:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+// ─── Update Clinic Huddle Tasks (dedicated RPC) ────────────────────────────
+
+export async function updateSupervisorClinicHuddleTasks(
+  clinicId: string,
+  tasks: ClinicHuddleTask[],
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('supervisor_update_clinic_huddle_tasks', {
+      p_clinic_id: clinicId,
+      p_tasks: tasks,
+    })
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to update clinic huddle tasks:', error)
+    return fail(getErrorMessage(error))
   }
 }
 
@@ -323,24 +378,33 @@ export async function getMemberProfile(
   userId: string
 ): Promise<ServiceResult<MemberProfileData>> {
   try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('first_name, last_name, middle_initial, credential, component, rank, uic, roles')
-      .eq('id', userId)
-      .single()
+    const { data, error } = await supabase.rpc('supervisor_get_member_profile', {
+      p_user_id: userId,
+    })
 
     if (error) return fail(error.message)
     if (!data) return fail('Profile not found')
 
+    const row = data as {
+      first_name: string | null
+      last_name: string | null
+      middle_initial: string | null
+      credential: string | null
+      component: string | null
+      rank: string | null
+      uic: string | null
+      roles: string[] | null
+    }
+
     return succeed({
-      firstName: data.first_name,
-      lastName: data.last_name,
-      middleInitial: data.middle_initial,
-      credential: data.credential,
-      component: data.component,
-      rank: data.rank,
-      uic: data.uic,
-      roles: (data.roles as string[]) ?? ['medic'],
+      firstName: row.first_name,
+      lastName: row.last_name,
+      middleInitial: row.middle_initial,
+      credential: row.credential,
+      component: row.component,
+      rank: row.rank,
+      uic: row.uic,
+      roles: row.roles ?? ['medic'],
     })
   } catch (error) {
     logger.error('Failed to get member profile:', error)

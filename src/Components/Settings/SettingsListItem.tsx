@@ -33,7 +33,7 @@ export const SettingsListItem = ({
                     : <ChevronRight size={13} className="text-tertiary shrink-0" />
                 : null
             }
-            <span className="text-xs font-medium text-primary truncate flex-1 min-w-0">
+            <span className="text-[10pt] font-medium text-primary truncate flex-1 min-w-0">
                 {label}
             </span>
             {badge && (

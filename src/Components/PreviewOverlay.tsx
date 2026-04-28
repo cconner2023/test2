@@ -3,7 +3,7 @@ import { Plus, Check, X, ChevronLeft } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { SearchInput } from './SearchInput'
-import { BaseOverlay } from './BaseOverlay'
+import { BaseOverlay, Z } from './BaseOverlay'
 import { ActionButton } from './ActionButton'
 
 export interface ContextMenuAction {
@@ -55,6 +55,8 @@ interface PreviewOverlayProps {
   actions?: ContextMenuAction[]
   /** Custom footer content (left side of footer row). Use instead of `actions` for Popover-style pill buttons. */
   footer?: ReactNode
+  /** Right-side footer slot — replaces the default dismiss X. Use for scope/category pills (mirror of `footer`). */
+  rightFooter?: ReactNode
   /** Title shown in the outer shell header alongside the X close button */
   title?: string
   /** When provided, shows a back chevron to the left of the title */
@@ -78,6 +80,9 @@ interface PreviewOverlayProps {
   /** When provided, scopes the popover to this container (absolute instead of fixed).
    *  The container element must have `position: relative` and a defined height. */
   containerRef?: React.RefObject<HTMLElement | null>
+  /** Override the z-index tier. Backdrop sits at this value, content at `zIndex + 15`.
+   *  Bump above Z.POPOVER (80) when nesting a popover inside another popover. */
+  zIndex?: number
 }
 
 
@@ -100,6 +105,8 @@ export function PreviewOverlay({
   addPlaceholder = 'New item...',
   addPrefix,
   containerRef,
+  rightFooter,
+  zIndex = Z.POPOVER,
 }: PreviewOverlayProps) {
   const [filter, setFilter] = useState('')
   const [addOpen, setAddOpen] = useState(false)
@@ -161,8 +168,8 @@ export function PreviewOverlay({
   const trailing = onAdd && actions.length > 0 ? actions[actions.length - 1] : null
 
   return (
-    <BaseOverlay isOpen={isOpen} onClose={onClose} zIndex={95} containerRef={containerRef}>
-      {(visible) => {
+    <BaseOverlay isOpen={isOpen} onClose={onClose} zIndex={zIndex} containerRef={containerRef}>
+      {(visible, baseZ) => {
         const containerRect = scoped ? containerRef!.current!.getBoundingClientRect() : null
         const originX = anchorRect
           ? (anchorRect.left + anchorRect.width / 2) - (containerRect?.left ?? 0)
@@ -172,7 +179,10 @@ export function PreviewOverlay({
           : (containerRect?.height ?? window.innerHeight) / 2
 
         return (
-          <div className={`${posClass} inset-0 z-[95] flex flex-col items-center justify-center pointer-events-none px-6 py-10`}>
+          <div
+            className={`${posClass} inset-0 flex flex-col items-center justify-center pointer-events-none px-6 py-10`}
+            style={{ zIndex: baseZ + 15 }}
+          >
             <div
               className="pointer-events-auto w-full max-h-full"
               style={{
@@ -278,8 +288,10 @@ export function PreviewOverlay({
                     <div />
                   )}
 
-                  {/* Dismiss — omitted when title provides its own X */}
-                  {!title && (
+                  {/* Right slot — rightFooter wins, otherwise dismiss X (omitted when title provides its own X) */}
+                  {rightFooter ? (
+                    rightFooter
+                  ) : !title ? (
                     <button
                       onClick={onClose}
                       className="w-9 h-9 rounded-full flex items-center justify-center bg-themewhite text-tertiary hover:text-tertiary active:scale-95 transition-all"
@@ -287,7 +299,7 @@ export function PreviewOverlay({
                     >
                       <X size={16} />
                     </button>
-                  )}
+                  ) : null}
                 </div>
 
               </div>

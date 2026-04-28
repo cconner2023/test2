@@ -61,7 +61,7 @@ export const UserAcknowledgment = ({ onAccept, persistent }: UserAcknowledgmentP
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-themewhite overflow-y-auto select-none"
+      className="fixed inset-0 z-30 bg-themewhite overflow-y-auto select-none"
       style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}
     >
       <div className="min-h-full flex flex-col items-center justify-center py-8 px-6">
@@ -86,21 +86,21 @@ export const UserAcknowledgment = ({ onAccept, persistent }: UserAcknowledgmentP
             <AckRow icon={<EyeOff size={16} className="text-tertiary" />}>
               <p>
                 <strong className="text-primary font-medium">No patient data stored on servers.</strong>{' '}
-                Clinical notes are generated and stored on-device only. No PHI or PII is transmitted to or retained on any external server. Do not enter patient names, SSNs, DoD IDs, dates of birth, or other HIPAA Safe Harbor identifiers.
+                Clinical notes are generated on-device only. PHI or PII is not transmitted to or retained on any external server.
               </p>
             </AckRow>
 
             <AckRow icon={<FileText size={16} className="text-tertiary" />}>
               <p>
                 <strong className="text-primary font-medium">You are responsible for shared content.</strong>{' '}
-                When you export or copy a clinical note — barcode, DD Form 689, or plain text — you assume responsibility for handling that information in accordance with HIPAA, DoD 6025.18-R, and your organization's privacy policies.
+                When you export or copy a note — barcode, DD Form 689, or plain text — you assume responsibility for handling that information in accordance with HIPAA, DoD 6025.18-R, and your organization's privacy policies.
               </p>
             </AckRow>
 
             <AckRow icon={<Scale size={16} className="text-tertiary" />}>
               <p>
                 <strong className="text-primary font-medium">Provided as-is.</strong>{' '}
-                This software is provided without warranty. Clinical content is for reference only and may not reflect the most current guidelines. Always verify critical information through authoritative sources.
+                This software is provided without warranty. Clinical content is for reference only. Always verify critical information through authoritative sources.
               </p>
             </AckRow>
           </SectionCard>

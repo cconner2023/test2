@@ -248,7 +248,7 @@ export const InsertFieldButton = ({ onInsert }: InsertFieldButtonProps) => {
                 }`}
                 title="Insert field"
             >
-                <span className="font-mono text-xs">[ ]</span>
+                <span className="font-mono text-[10pt]">[ ]</span>
             </button>
             {popover}
         </>

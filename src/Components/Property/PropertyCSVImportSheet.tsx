@@ -160,7 +160,7 @@ export function PropertyCSVImportSheet({ visible, onClose }: PropertyCSVImportSh
       {step === 'preview' && (
         <div className="flex flex-col gap-4">
           {parseErrors.length > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 p-3 flex gap-2">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl text-[10pt] text-amber-800 p-3 flex gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
               <div className="flex flex-col gap-1">
                 {parseErrors.slice(0, 5).map((err, i) => (
@@ -177,7 +177,7 @@ export function PropertyCSVImportSheet({ visible, onClose }: PropertyCSVImportSh
 
           <Section title="Preview">
             <SectionCard>
-              <table className="w-full text-xs">
+              <table className="w-full text-[10pt]">
                 <thead>
                   <tr className="border-b border-themeblue3/10">
                     <th className="text-left px-3 py-2 text-tertiary font-medium">Name</th>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, BookOpen, Mail, CalendarDays, Settings, Upload } from 'lucide-react';
+import { User, BookOpen, MessageSquare, CalendarDays, Settings, Upload, Package } from 'lucide-react';
 
 interface GettingStartedSceneProps {
   currentStep: number;
@@ -10,11 +10,13 @@ const MOBILE_MENU_ITEMS = [
   { action: 'import', Icon: Upload, label: 'Import Note' },
   { action: 'knowledgebase', Icon: BookOpen, label: 'Knowledge Base' },
   { action: 'calendar', Icon: CalendarDays, label: 'Calendar' },
+  { action: 'property', Icon: Package, label: 'Property Book' },
   { action: 'settings', Icon: Settings, label: 'Settings' },
 ] as const;
 
 const DESKTOP_MENU_ITEMS = [
   { action: 'calendar', Icon: CalendarDays, label: 'Calendar' },
+  { action: 'property', Icon: Package, label: 'Property Book' },
   { action: 'settings', Icon: Settings, label: 'Settings' },
 ] as const;
 
@@ -82,7 +84,7 @@ export default function GettingStartedScene({ currentStep, isMobile }: GettingSt
                 </div>
                 <div className="flex flex-col">
                   <span className="text-sm font-semibold text-primary">SPC Smith</span>
-                  <span className="text-xs text-secondary">68W · Combat Medic</span>
+                  <span className="text-[10pt] text-secondary">68W · Combat Medic</span>
                 </div>
               </div>
 
@@ -145,7 +147,7 @@ export default function GettingStartedScene({ currentStep, isMobile }: GettingSt
                   <span className="text-sm font-bold text-primary tracking-wider">ADTMC</span>
                   <div className="rounded-full bg-themewhite border border-tertiary/20 p-0.5 aspect-square">
                     <button className="w-[2.6875rem] h-[2.6875rem] rounded-full flex items-center justify-center">
-                      <Mail size={20} className="text-primary" />
+                      <MessageSquare size={20} className="text-primary" />
                     </button>
                   </div>
                 </div>
@@ -177,7 +179,7 @@ export default function GettingStartedScene({ currentStep, isMobile }: GettingSt
                       <span className="text-[10pt] text-tertiary ml-2">Import</span>
                     </button>
                     <button className="h-8 flex items-center px-3 py-1.5 bg-themewhite2 rounded-full">
-                      <Mail size={16} className="stroke-themeblue1" />
+                      <MessageSquare size={16} className="stroke-themeblue1" />
                     </button>
                   </div>
                 </div>

@@ -245,7 +245,7 @@ export function ItemScanner({ items, onMatch, onClose }: ItemScannerProps) {
           <div className="w-full max-w-sm bg-themewhite rounded-2xl shadow-lg p-5 flex flex-col gap-4">
             <div className="flex items-center gap-2">
               <CheckCircle2 size={20} className="text-themegreen shrink-0" />
-              <span className="text-xs font-semibold text-secondary uppercase tracking-wider">Match found</span>
+              <span className="text-[10pt] font-semibold text-secondary uppercase tracking-wider">Match found</span>
             </div>
 
             <p className="font-bold text-primary text-base leading-snug">{confirmedItem.name}</p>

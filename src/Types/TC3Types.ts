@@ -131,10 +131,10 @@ export interface TC3VitalSet {
   bp: string
   rr: string
   spo2: string
-  avpu: AVPU
+  avpu: AVPU | ''
   painScale: string
   temp: string        // temperature as entered (°F or °C)
-  gcsTotal?: number   // snapshot of GCS total at this assessment
+  gcs: { eye: number; verbal: number; motor: number } | null
 }
 
 export interface TC3Card {
@@ -201,12 +201,8 @@ export interface TC3Card {
   // Section 5: Medications Administered
   medications: TC3Medication[]
 
-  // Section 6: Vital Signs (time-series)
+  // Section 6: Vital Signs (time-series, includes per-set AVPU + GCS reassessment)
   vitals: TC3VitalSet[]
-
-  // Section 7: Mental Status
-  avpu: AVPU | ''
-  gcs: { eye: number; verbal: number; motor: number } | null
 
   // Section 8: Evacuation
   evacuation: {

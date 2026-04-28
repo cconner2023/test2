@@ -154,7 +154,7 @@ export function CalendarCSVImportSheet({ visible, onClose, clinicId, userId }: C
         {step === 'preview' && (
           <div className="flex flex-col gap-4 pt-4 min-h-0 flex-1">
             {parseErrors.length > 0 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 p-3">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl text-[10pt] text-amber-800 p-3">
                 <p className="font-semibold mb-1">Warning — some rows were skipped:</p>
                 <ul className="space-y-0.5 list-disc list-inside">
                   {visibleErrors.map((e, i) => (
@@ -175,7 +175,7 @@ export function CalendarCSVImportSheet({ visible, onClose, clinicId, userId }: C
               <Section title="Preview" className="flex-1 min-h-0 mb-0">
                 <SectionCard>
                   <div className="overflow-y-auto max-h-[30dvh]">
-                    <table className="w-full text-xs">
+                    <table className="w-full text-[10pt]">
                       <thead className="sticky top-0 bg-themewhite2 border-b border-tertiary/10">
                         <tr>
                           <th className="text-left px-3 py-2 text-tertiary font-medium">Title</th>
@@ -198,7 +198,7 @@ export function CalendarCSVImportSheet({ visible, onClose, clinicId, userId }: C
                       </tbody>
                     </table>
                     {extraRows > 0 && (
-                      <p className="px-3 py-2 text-xs text-tertiary border-t border-tertiary/5">
+                      <p className="px-3 py-2 text-[10pt] text-tertiary border-t border-tertiary/5">
                         + {extraRows} more
                       </p>
                     )}

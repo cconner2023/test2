@@ -1,4 +1,4 @@
-import { LayoutDashboard, ListTodo, Map, LayoutGrid, CalendarDays, MessageSquare, Thermometer } from 'lucide-react'
+import { LayoutDashboard, ListTodo, Map, LayoutGrid, CalendarDays, MessageSquare, Thermometer, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useUserProfile } from '../../Hooks/useUserProfile'
 import type { OverviewWidgetId } from '../../Data/User'
@@ -14,9 +14,10 @@ const WIDGET_ICONS: Record<OverviewWidgetId, LucideIcon> = {
     'week-view':   CalendarDays,
     'messages':    MessageSquare,
     'weather':     Thermometer,
+    'huddle':      Users,
 }
 
-const WIDGET_ORDER: OverviewWidgetId[] = ['task-list', 'map-overlay', 'kanban', 'week-view', 'messages', 'weather']
+const WIDGET_ORDER: OverviewWidgetId[] = ['task-list', 'map-overlay', 'kanban', 'week-view', 'huddle', 'messages', 'weather']
 
 const DEFAULT_WIDGETS: OverviewWidgetId[] = ['kanban', 'messages']
 
@@ -54,7 +55,7 @@ export function OverviewWidgetsPanel() {
     return (
         <div className="h-full overflow-y-auto">
             <div className="px-5 py-4 space-y-5">
-                <p className="text-xs text-tertiary leading-relaxed">
+                <p className="text-[10pt] text-tertiary leading-relaxed">
                     Choose up to 3 widgets shown in the mission overview. Hiding it removes the panel from the home screen.
                 </p>
 

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Lock, Lightbulb } from 'lucide-react'
+import { Lock, Lightbulb, X, Check, RefreshCw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { verifyPasswordLocally, storePasswordHash } from '../lib/authService'
 import { deriveAndStoreBackupKey } from '../lib/signal/backupService'
@@ -159,7 +159,7 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-themewhite overflow-y-auto select-none"
+      className="fixed inset-0 z-30 bg-themewhite overflow-y-auto select-none"
       style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}
     >
       <div className="min-h-full flex flex-col items-center justify-center py-8 px-6">
@@ -179,9 +179,9 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
           </p>
         </div>
 
-        {/* Email display */}
-        <div className="mb-4">
-          <span className="text-xs font-medium text-tertiary uppercase tracking-wide">Account</span>
+        {/* Account */}
+        <div className="mb-3 px-1">
+          <p className="text-[9pt] font-semibold text-secondary tracking-widest uppercase">Account</p>
           <p className="text-sm text-primary mt-0.5 truncate">{email}</p>
         </div>
 
@@ -203,32 +203,41 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
         )}
 
         {/* Password form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <PasswordInput
-            label="Password"
-            value={password}
-            onChange={setPassword}
-            placeholder="Enter your password"
-            autoComplete="current-password"
-            disabled={isLockedOut}
-            inputRef={inputRef}
-          />
-
-          <button
-            type="submit"
-            disabled={!password.trim() || submitting || isLockedOut}
-            className="w-full px-4 py-3 rounded-lg bg-themeblue3 text-white font-medium
-                       hover:bg-themeblue3/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {submitting ? 'Verifying...' : 'Unlock'}
-          </button>
+        <form onSubmit={handleSubmit}>
+          <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+            <PasswordInput
+              value={password}
+              onChange={setPassword}
+              placeholder="Password"
+              autoComplete="current-password"
+              disabled={isLockedOut}
+              inputRef={inputRef}
+            />
+            <div className={`flex items-center justify-end gap-2 px-3 overflow-hidden transition-all duration-300 ease-out ${password.trim() && !isLockedOut ? 'max-h-14 py-2 opacity-100' : 'max-h-0 py-0 opacity-0'
+            }`}>
+              <button
+                type="button"
+                onClick={() => setPassword('')}
+                className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+              >
+                <X size={16} />
+              </button>
+              <button
+                type="submit"
+                disabled={submitting || isLockedOut}
+                className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+              >
+                {submitting ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
+              </button>
+            </div>
+          </div>
         </form>
 
         {/* Forgot password */}
         {isOnline && !resetSent && (
           <button
             onClick={handleForgotPassword}
-            className="w-full mt-3 text-xs text-themeblue2 hover:text-themeblue2/80 transition-colors text-center"
+            className="w-full mt-3 text-[10pt] text-themeblue2 hover:text-themeblue2/80 transition-colors text-center"
           >
             Forgot Password?
           </button>
@@ -238,7 +247,7 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
         {reason !== 'session-expired' && (
           <div className="mt-8 flex items-start gap-2.5 p-3 rounded-lg bg-themeblue2/5 border border-themeblue2/10">
             <Lightbulb size={16} className="text-themeblue2 shrink-0 mt-0.5" />
-            <p className="text-xs text-tertiary leading-relaxed">
+            <p className="text-[10pt] text-tertiary leading-relaxed">
               <span className="font-medium text-primary">Tip:</span> Enable App Lock in Settings &gt; Security for quicker re-entry with a PIN.
             </p>
           </div>

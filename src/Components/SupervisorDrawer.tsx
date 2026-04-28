@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { Ban, X, Pencil } from 'lucide-react'
+import { Ban, X } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from './BaseDrawer'
 import { ContentWrapper } from './ContentWrapper'
 import { HeaderPill, PillButton } from './HeaderPill'
@@ -15,7 +15,6 @@ import { useAuthStore } from '../stores/useAuthStore'
 import { useNavigationStore } from '../stores/useNavigationStore'
 import { useSupervisorData } from './Settings/Supervisor/useSupervisorData'
 import { SoldierProfile } from './Settings/Supervisor/SoldierProfile'
-import { SoldierCertsEditor } from './Settings/Supervisor/SoldierCertsEditor'
 import { EvaluateFlow } from './Settings/Supervisor/EvaluateFlow'
 import { AssignTaskFlow } from './Settings/Supervisor/AssignTaskFlow'
 import { TeamReporting } from './Settings/Supervisor/TeamReporting'
@@ -23,6 +22,11 @@ import { CoverageTasksView } from './Settings/Supervisor/CoverageTasksView'
 import { SupervisorTree, type TreeSelection } from './Settings/Supervisor/SupervisorTree'
 import { LoadingSpinner } from './LoadingSpinner'
 import { useMinLoadTime } from '../Hooks/useMinLoadTime'
+import { ClinicIdentityEditPopover } from './ClinicAdmin/ClinicIdentityEditPopover'
+import { MemberEditPopover } from './ClinicAdmin/MemberEditPopover'
+import { AddMemberPopover } from './ClinicAdmin/AddMemberPopover'
+import { useClinicMedics } from '../Hooks/useClinicMedics'
+import { getClinicDetails } from '../lib/supervisorService'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 import type { StepResult } from '../Types/SupervisorTestTypes'
 import type { CalendarEvent } from '../Types/CalendarTypes'
@@ -31,7 +35,6 @@ import type { CalendarEvent } from '../Types/CalendarTypes'
 
 type SupervisorView =
   | { screen: 'main' }
-  | { screen: 'soldier-certs'; soldier: ClinicMedic }
   | { screen: 'evaluate-select-task'; soldier: ClinicMedic }
   | { screen: 'evaluate-go-nogo'; soldier: ClinicMedic; taskNumber: string; taskTitle: string }
   | { screen: 'coverage-tasks'; areaName: string; soldier?: ClinicMedic }
@@ -50,7 +53,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
   const [taskSearchQuery, setTaskSearchQuery] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
-  const [focusCertId, setFocusCertId] = useState<string | null>(null)
 
   // Clear search when navigating between views (e.g., clicking a search result)
   useEffect(() => { setTaskSearchQuery(''); setSearchFocused(false) }, [view.screen])
@@ -72,8 +74,25 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   const { submitTestEvaluation, assignTask } = useTrainingCompletions()
   const { writeEvent } = useCalendarWrite()
   const user = useAuthStore(s => s.user)
+  const clinicId = useAuthStore(s => s.clinicId)
+  const clinicNameFromAuth = useAuthStore(s => s.profile.clinicName)
   const calendarEvents = useCalendarStore(s => s.events)
   const setShowCalendarDrawer = useNavigationStore(s => s.setShowCalendarDrawer)
+  const { refresh: refreshMedics } = useClinicMedics()
+
+  // ── Clinic-admin popovers (shared with Settings/ClinicPanel) ──────────────
+  const [clinicEditAnchor, setClinicEditAnchor] = useState<DOMRect | null>(null)
+  const [clinicDetails, setClinicDetails] = useState<{ uics: string[]; location: string | null }>({ uics: [], location: null })
+  const [memberEdit, setMemberEdit] = useState<{ memberId: string; anchor: DOMRect } | null>(null)
+  const [addMemberAnchor, setAddMemberAnchor] = useState<DOMRect | null>(null)
+
+  // Fetch clinic UIC/location for the identity-edit popover seed
+  useEffect(() => {
+    if (!clinicId) return
+    getClinicDetails(clinicId).then((d) => {
+      setClinicDetails({ uics: d.uics, location: d.location })
+    })
+  }, [clinicId, isVisible])
 
   const {
     loading: _loading,
@@ -210,19 +229,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     setTreeSelection({ type: 'soldier', soldierId: view.soldier.id })
   }, [view, assignTask, addAssignment, refreshData, writeEvent, user])
 
-  const handleModifyCerts = useCallback((soldier: ClinicMedic) => {
-
-    handleSlideAnimation('left')
-    setFocusCertId(null)
-    setView({ screen: 'soldier-certs', soldier })
-  }, [handleSlideAnimation])
-
-  const handleNavigateToCert = useCallback((soldier: ClinicMedic, certId: string) => {
-    handleSlideAnimation('left')
-    setFocusCertId(certId)
-    setView({ screen: 'soldier-certs', soldier })
-  }, [handleSlideAnimation])
-
   const handleSelectTask = useCallback((taskNumber: string, taskTitle: string) => {
     if (view.screen !== 'evaluate-select-task') return
     setTaskSearchQuery('')
@@ -282,7 +288,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       setTreeSelection({ type: 'soldier', soldierId: view.soldier.id })
     } else if (view.screen !== 'main') {
       handleSlideAnimation('right')
-      setFocusCertId(null)
       setTaskSearchQuery('')
       setView({ screen: 'main' })
     } else if (isMobile && treeSelection.type !== 'all-personnel') {
@@ -295,6 +300,9 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     setView({ screen: 'main' })
     setTreeSelection({ type: 'all-personnel' })
     setSlideDirection('')
+    setClinicEditAnchor(null)
+    setMemberEdit(null)
+    setAddMemberAnchor(null)
 
     onClose()
   }, [onClose])
@@ -324,13 +332,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
 
   // ── Header Actions ─────────────────────────────────────────────────────────
 
-  const selectedSoldier = useMemo(() => {
-    if (view.screen === 'main' && treeSelection.type === 'soldier') {
-      return medics.find(m => m.id === treeSelection.soldierId) ?? null
-    }
-    return null
-  }, [view, treeSelection, medics])
-
   const mainHeaderActions = useMemo(() => {
     if (view.screen !== 'main') return undefined
 
@@ -343,23 +344,13 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       )
     }
 
-    // Soldier selected: Edit Certs + Close
-    if (selectedSoldier) {
-      return (
-        <HeaderPill>
-          <PillButton icon={Pencil} iconSize={20} onClick={() => handleModifyCerts(selectedSoldier)} label="Edit Certs" />
-          <PillButton icon={X} onClick={handleClose} label="Close" />
-        </HeaderPill>
-      )
-    }
-
-    // Default: single close pill
+    // Default: single close pill (cert editing now happens in row-tap popover)
     return (
       <HeaderPill>
         <PillButton icon={X} onClick={handleClose} label="Close" />
       </HeaderPill>
     )
-  }, [view, treeSelection, isMobile, handleClose, selectedSoldier, handleModifyCerts])
+  }, [view, treeSelection, isMobile, handleClose])
 
   // ── Header Config ──────────────────────────────────────────────────────────
 
@@ -386,12 +377,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
           hideDefaultClose: !!mainHeaderActions,
         }
       }
-      case 'soldier-certs':
-        return {
-          title: 'Certifications',
-          showBack: true,
-          onBack: handleBack,
-        }
       case 'evaluate-select-task':
         return {
           title: 'Select Task',
@@ -461,6 +446,8 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
               onNavigateToArea={handleNavigateToArea}
               teamEvents={windowedEvents}
               onOpenCalendar={handleOpenCalendar}
+              onEditClinic={isSupervisor && clinicId ? setClinicEditAnchor : undefined}
+              onAddMember={isSupervisor && clinicId ? setAddMemberAnchor : undefined}
             />
           </div>
         )
@@ -478,7 +465,9 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
             compliancePercent={teamMetrics.soldierReadiness.find(s => s.soldierId === soldier.id)?.compliancePercent ?? 100}
             currentUserId={currentUserId}
             resolveName={resolveName}
-            onNavigateToCert={(certId) => handleNavigateToCert(soldier, certId)}
+            onUpdateCert={updateCert}
+            onAddCert={addCert}
+            onRemoveCert={removeCert}
             onRemoveTest={removeTest}
             testableTaskMap={testableTaskMap}
             onNavigateToArea={(areaName) => {
@@ -487,6 +476,9 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
             }}
             calendarEvents={windowedEvents.filter(e => e.assigned_to.includes(soldier.id))}
             onOpenCalendar={handleOpenCalendar}
+            onEditMember={isSupervisor && clinicId
+              ? (memberId, anchor) => setMemberEdit({ memberId, anchor })
+              : undefined}
           />
         )
       }
@@ -515,21 +507,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
 
     // Detail screens (overlay on top of any tree selection)
     switch (view.screen) {
-      case 'soldier-certs':
-        return currentUserId ? (
-          <ScrollPane className="px-4 py-3 md:p-5 pb-8 min-h-full">
-            <SoldierCertsEditor
-              soldier={view.soldier}
-              certs={certsForSoldier(view.soldier.id)}
-              currentUserId={currentUserId}
-              onUpdateCert={updateCert}
-              onAddCert={addCert}
-              onRemoveCert={removeCert}
-              initialEditCertId={focusCertId}
-            />
-          </ScrollPane>
-        ) : null
-
       case 'evaluate-select-task':
         return (
           <MobileSearchBar variant="supervisor"
@@ -626,41 +603,95 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  const memberFallback = useMemo(() => {
+    if (!memberEdit) return undefined
+    const m = medics.find(x => x.id === memberEdit.memberId)
+    if (!m) return undefined
+    return {
+      firstName: m.firstName ?? null,
+      lastName: m.lastName ?? null,
+      middleInitial: m.middleInitial ?? null,
+      credential: m.credential ?? null,
+      component: null,
+      rank: m.rank ?? null,
+      uic: null,
+      roles: ['medic'] as ('medic' | 'supervisor' | 'provider')[],
+    }
+  }, [memberEdit, medics])
+
+  const handleMemberChanged = useCallback(() => {
+    refreshMedics()
+    refreshData()
+  }, [refreshMedics, refreshData])
+
   return (
-    <BaseDrawer
-      isVisible={isVisible}
-      onClose={handleClose}
-      fullHeight="90dvh"
-      desktopPosition="left"
-      desktopWidth="w-[90%]"
-      header={headerConfig}
-      headerFaded={searchFocused}
-      scrollDisabled
-    >
-      <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && canSwipeBack ? swipeHandlers : undefined}>
-        <div className="h-full relative">
-          {/* Desktop: split pane layout */}
-          {!isMobile && !loading && isSupervisor ? (
-            <div className="flex h-full">
-              <div className="w-65 shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50">
-                <div className="flex-1 min-h-0">
-                  <SupervisorTree
-                    medics={medics}
-                    selection={treeSelection}
-                    onSelect={handleTreeSelect}
-                    readinessForSoldier={readinessForSoldier}
-                  />
+    <>
+      <BaseDrawer
+        isVisible={isVisible}
+        onClose={handleClose}
+        fullHeight="90dvh"
+        desktopPosition="left"
+        desktopWidth="w-[90%]"
+        header={headerConfig}
+        headerFaded={searchFocused}
+        scrollDisabled
+      >
+        <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && canSwipeBack ? swipeHandlers : undefined}>
+          <div className="h-full relative">
+            {/* Desktop: split pane layout */}
+            {!isMobile && !loading && isSupervisor ? (
+              <div className="flex h-full">
+                <div className="w-65 shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50">
+                  <div className="flex-1 min-h-0">
+                    <SupervisorTree
+                      medics={medics}
+                      selection={treeSelection}
+                      onSelect={handleTreeSelect}
+                      readinessForSoldier={readinessForSoldier}
+                      onAddMember={isSupervisor && clinicId ? setAddMemberAnchor : undefined}
+                    />
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0 overflow-y-auto">
+                  {renderContent()}
                 </div>
               </div>
-              <div className="flex-1 min-w-0 overflow-y-auto">
-                {renderContent()}
-              </div>
-            </div>
-          ) : (
-            renderContent()
-          )}
-        </div>
-      </ContentWrapper>
-    </BaseDrawer>
+            ) : (
+              renderContent()
+            )}
+          </div>
+        </ContentWrapper>
+      </BaseDrawer>
+
+      {/* Clinic-admin popovers — shared with Settings/ClinicPanel */}
+      <ClinicIdentityEditPopover
+        isOpen={!!clinicEditAnchor}
+        anchorRect={clinicEditAnchor}
+        clinicId={clinicId}
+        initialName={clinicNameFromAuth ?? clinicName ?? ''}
+        initialLocation={clinicDetails.location}
+        initialUics={clinicDetails.uics}
+        onClose={() => setClinicEditAnchor(null)}
+        onSaved={(next) => {
+          setClinicDetails({ uics: next.uics, location: next.location })
+        }}
+      />
+      <MemberEditPopover
+        isOpen={!!memberEdit}
+        anchorRect={memberEdit?.anchor ?? null}
+        memberId={memberEdit?.memberId ?? null}
+        clinicId={clinicId}
+        fallbackProfile={memberFallback}
+        onClose={() => setMemberEdit(null)}
+        onChanged={handleMemberChanged}
+      />
+      <AddMemberPopover
+        isOpen={!!addMemberAnchor}
+        anchorRect={addMemberAnchor}
+        clinicId={clinicId}
+        onClose={() => setAddMemberAnchor(null)}
+        onAdded={handleMemberChanged}
+      />
+    </>
   )
 }

@@ -5,6 +5,7 @@ import { ErrorDisplay } from '../ErrorDisplay'
 import { TextInput } from '../FormInputs'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useFeatureVotesStore } from '../../stores/useFeatureVotesStore'
+import { ActionPill } from '../ActionPill'
 
 export const FeedbackPanel = () => {
   const [rating, setRating] = useState(0)
@@ -68,7 +69,7 @@ export const FeedbackPanel = () => {
     <div className="h-full overflow-y-auto">
       <div className="px-5 py-4 space-y-4">
 
-        <p className="text-xs text-primary leading-relaxed px-1">
+        <p className="text-[10pt] text-primary leading-relaxed px-1">
           Help us improve by sharing your experience and suggestions.
         </p>
 
@@ -100,74 +101,62 @@ export const FeedbackPanel = () => {
           </div>
 
           {/* Details card */}
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden px-4 py-3">
-            <div className="space-y-3">
+          <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+            <TextInput
+              value={mostUseful}
+              onChange={setMostUseful}
+              placeholder="Most useful feature?"
+            />
 
-              <TextInput
-                value={mostUseful}
-                onChange={setMostUseful}
-                placeholder="Most useful feature?"
+            <TextInput
+              value={desiredFeature}
+              onChange={setDesiredFeature}
+              placeholder="Feature you'd like to see added?"
+            />
+
+            <TextInput
+              value={needsImprovement}
+              onChange={setNeedsImprovement}
+              placeholder="What needs improvement?"
+            />
+
+            <label className="block border-b border-primary/6">
+              <textarea
+                value={comments}
+                onChange={(e) => setComments(e.target.value)}
+                placeholder="Additional comments"
+                rows={3}
+                className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
               />
+            </label>
 
-              <TextInput
-                value={desiredFeature}
-                onChange={setDesiredFeature}
-                placeholder="Feature you'd like to see added?"
+            {/* Contact consent */}
+            <label className="flex items-start gap-2.5 cursor-pointer px-4 py-3 border-b border-primary/6 active:scale-[0.98] transition-transform select-none">
+              <input
+                type="checkbox"
+                checked={contactConsent}
+                onChange={(e) => setContactConsent(e.target.checked)}
+                className="sr-only peer"
               />
-
-              <TextInput
-                value={needsImprovement}
-                onChange={setNeedsImprovement}
-                placeholder="What needs improvement?"
-              />
-
-              {/* Comments */}
-              <div>
-                <span className="block text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-1">
-                  Additional comments
-                </span>
-                <textarea
-                  value={comments}
-                  onChange={(e) => setComments(e.target.value)}
-                  placeholder="Share your thoughts..."
-                  rows={3}
-                  className="w-full px-4 py-2.5 rounded-2xl text-sm bg-themewhite dark:bg-themewhite3 text-primary
-                           border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2
-                           focus:outline-none transition-all duration-300 placeholder:text-tertiary resize-none"
-                />
+              <div className={`relative w-5 h-5 shrink-0 mt-0.5 rounded border transition-colors duration-200 ${
+                contactConsent ? 'bg-themeblue3 border-themeblue3' : 'border-themeblue3/20 bg-themewhite'
+              }`}>
+                {contactConsent && <Check size={14} className="absolute inset-0 m-auto text-white" />}
               </div>
+              <span className="text-[9pt] text-primary leading-tight">
+                The developer can contact me regarding this feedback.
+              </span>
+            </label>
 
-              {/* Contact consent */}
-              <label className="flex items-start gap-2.5 cursor-pointer pt-1 active:scale-[0.98] transition-transform select-none">
-                <input
-                  type="checkbox"
-                  checked={contactConsent}
-                  onChange={(e) => setContactConsent(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className={`relative w-5 h-5 shrink-0 mt-0.5 rounded border transition-colors duration-200 ${
-                  contactConsent ? 'bg-themeblue3 border-themeblue3' : 'border-themeblue3/20 bg-themewhite'
-                }`}>
-                  {contactConsent && <Check size={14} className="absolute inset-0 m-auto text-white" />}
-                </div>
-                <span className="text-[9pt] text-primary leading-tight">
-                  The developer can contact me regarding this feedback.
-                </span>
-              </label>
-
-              {/* Submit */}
-              <div className="flex items-center justify-end pt-1">
-                <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15">
-                  <button
-                    type="submit"
-                    disabled={rating === 0 || submitting}
-                    className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
-                  >
-                    {submitting ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
-                  </button>
-                </div>
-              </div>
-
+            {/* Submit */}
+            <div className="flex items-center justify-end gap-2 px-3 py-2">
+              <button
+                type="submit"
+                disabled={submitting}
+                className={`shrink-0 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white overflow-hidden transition-all duration-300 ease-out active:scale-95 disabled:opacity-30 ${rating > 0 ? 'w-9 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
+              >
+                {submitting ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
+              </button>
             </div>
           </div>
 

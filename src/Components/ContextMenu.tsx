@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { LucideIcon } from 'lucide-react'
 import { ActionButton } from './ActionButton'
+import { ActionPill } from './ActionPill'
 
 export interface ContextMenuItem {
   key: string
@@ -65,10 +66,10 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
         onMouseDown={onClose}
         onTouchStart={onClose}
       />
-      <div
+      <ActionPill
         ref={menuRef}
         style={style}
-        className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15 transform-gpu"
+        className="transform-gpu"
       >
         {items.map((item) => (
           <ActionButton
@@ -80,7 +81,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
             onClick={() => { item.onAction(); onClose() }}
           />
         ))}
-      </div>
+      </ActionPill>
     </>,
     document.body,
   )

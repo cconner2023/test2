@@ -33,7 +33,7 @@ export function MissionBoard({ event, medics, onClose, onSave }: MissionBoardPro
     .filter(item => !item.parent_item_id)
     .map(item => ({ id: item.id, name: item.name, nsn: item.nsn }))
 
-  const textSize = isMobile ? 'text-sm' : 'text-xs'
+  const textSize = isMobile ? 'text-sm' : 'text-[10pt]'
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-themewhite2 rounded-2xl overflow-hidden border border-themeblue3/10">

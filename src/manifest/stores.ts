@@ -182,7 +182,7 @@ export const stores = {
       'addBloodProduct', 'removeBloodProduct',
       'addMedication', 'updateMedication', 'removeMedication',
       'addVitalSet', 'updateVitalSet', 'removeVitalSet',
-      'setAVPU', 'setGCS', 'updateEvacuation', 'updateOther',
+      'updateEvacuation', 'updateOther',
       'updateFirstResponder', 'setNotes',
     ],
     middleware: [],

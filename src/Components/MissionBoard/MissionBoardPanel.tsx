@@ -8,11 +8,12 @@ import { useAuthStore } from '../../stores/useAuthStore'
 import { getOverlay } from '../../lib/mapOverlayService'
 import type { OverlayFeature } from '../../Types/MapOverlayTypes'
 import type { CalendarEvent, EventStatus } from '../../Types/CalendarTypes'
-import { toDateKey, eventFallsOnDate } from '../../Types/CalendarTypes'
+import { toDateKey, eventFallsOnDate, formatShortDayLabel } from '../../Types/CalendarTypes'
 import type { OverviewWidgetId } from '../../Data/User'
 import { GESTURE_THRESHOLDS } from '../../Utilities/GestureUtils'
 import { useMessagingStore } from '../../stores/useMessagingStore'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
+import { useClinicHuddleTasks } from '../../Hooks/useClinicHuddleTasks'
 import { useLongPress } from '../../Hooks/useLongPress'
 import { getDisplayName } from '../../Utilities/nameUtils'
 import { UserAvatar } from '../Settings/UserAvatar'
@@ -23,12 +24,13 @@ import { MissionMapCard } from './MissionMapCard'
 import { WeatherWidget } from './WeatherWidget'
 import {
   TaskRow, statusMenuItems,
-  formatDateLabel, offsetDate, CATEGORY_STRIPE,
+  offsetDate, CATEGORY_STRIPE,
 } from './MissionGantt'
 import { DatePickerCalendar } from '../FormInputs'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ContextMenu } from '../ContextMenu'
 import { ActionButton } from '../ActionButton'
+import { ActionPill } from '../ActionPill'
 
 const TASK_PREVIEW_LIMIT = 4
 
@@ -75,7 +77,7 @@ function ConvRow({ entry, lastText, unread, isPinned, onTap, onContext }: {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1">
           {isPinned && <Pin size={9} className="text-themeblue2 shrink-0" />}
-          <p className="text-xs font-medium text-primary truncate">{name}</p>
+          <p className="text-[10pt] font-medium text-primary truncate">{name}</p>
         </div>
         {lastText && <p className="text-[9pt] text-secondary truncate">{lastText}</p>}
       </div>
@@ -157,9 +159,9 @@ function MessagesWidget() {
     return (
       <div className="flex items-center gap-3 px-4 py-3">
         <p className="text-sm text-tertiary flex-1">No conversations</p>
-        <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
+        <ActionPill shadow="sm">
           <ActionButton icon={MessageSquare} label="Open Messages" onClick={() => setShowMessagesDrawer(true)} />
-        </div>
+        </ActionPill>
       </div>
     )
   }
@@ -258,6 +260,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   const isDevRole = useAuthStore(s => s.isDevRole)
   const overviewWidgets = useAuthStore(s => s.profile?.overviewWidgets)
   const { sendEvent: vaultSendEvent, deleteEvents: vaultDeleteEvents } = useCalendarVault()
+  const huddleTasks = useClinicHuddleTasks()
 
   const [missionOverlayFeatures, setMissionOverlayFeatures] = useState<OverlayFeature[]>([])
   const [missionOverlayId, setMissionOverlayId] = useState<string | undefined>(undefined)
@@ -267,7 +270,6 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   const [contextMenu, setContextMenu] = useState<{ event: CalendarEvent; x: number; y: number } | null>(null)
 
   const dateBtnRef = useRef<HTMLButtonElement>(null)
-  const outerRef = useRef<HTMLDivElement>(null)
   const weekViewElRef = useRef<HTMLDivElement | null>(null)
   const [weekViewMounted, setWeekViewMounted] = useState(false)
   const weekViewRef = useCallback((el: HTMLDivElement | null) => {
@@ -340,18 +342,6 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
     }
   }, [weekViewMounted]) // re-run when week-view widget mounts/unmounts
 
-  // Block the parent ColumnA carousel from claiming any touch that starts within
-  // the mission board. stopPropagation prevents @use-gesture/react on the parent
-  // from seeing pointerdown — native overflow scroll on child elements (gantt) is
-  // unaffected because stopPropagation does not call preventDefault.
-  useEffect(() => {
-    const el = outerRef.current
-    if (!el) return
-    const onPointerDown = (e: PointerEvent) => { e.stopPropagation() }
-    el.addEventListener('pointerdown', onPointerDown)
-    return () => el.removeEventListener('pointerdown', onPointerDown)
-  }, [])
-
   const dateKey = toDateKey(selectedDate)
   const isToday = dateKey === toDateKey(new Date())
   const allDayEvents = events.filter(e => eventFallsOnDate(e, dateKey))
@@ -389,7 +379,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   if (overviewWidgets === null) return null
 
   const DEFAULT_WIDGETS: OverviewWidgetId[] = ['kanban', 'messages']
-  const VALID_IDS: OverviewWidgetId[] = ['task-list', 'map-overlay', 'kanban', 'week-view', 'messages', 'weather']
+  const VALID_IDS: OverviewWidgetId[] = ['task-list', 'map-overlay', 'kanban', 'week-view', 'messages', 'weather', 'huddle']
   const widgets: OverviewWidgetId[] = Array.from(new Set(
     (overviewWidgets ?? DEFAULT_WIDGETS)
       .map(id => (id as string) === 'gantt' ? 'kanban' : id)
@@ -404,9 +394,9 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
             {myTasks.length === 0 ? (
               <div className="flex items-center gap-3 -mx-2.5 px-4 py-3">
                 <p className="text-sm text-tertiary flex-1">No tasks today</p>
-                <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
+                <ActionPill shadow="sm">
                   <ActionButton icon={Calendar} label="Open Calendar" onClick={() => setShowCalendarDrawer(true)} />
-                </div>
+                </ActionPill>
               </div>
             ) : (
               <>
@@ -465,9 +455,9 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
             {allDayEvents.length === 0 ? (
               <div className="flex items-center gap-3 px-4 py-3">
                 <p className="text-sm text-tertiary flex-1">No events {isToday ? 'today' : 'this day'}</p>
-                <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
+                <ActionPill shadow="sm">
                   <ActionButton icon={Calendar} label="Open Calendar" onClick={() => setShowCalendarDrawer(true)} />
-                </div>
+                </ActionPill>
               </div>
             ) : (
               <div className="flex divide-x divide-themeblue3/8 min-h-[70px]">
@@ -516,26 +506,26 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
                 const isTodayDay = key === todayKey
                 const isSelected = key === dateKey
                 return (
-                  <button
-                    key={key}
-                    onClick={() => setSelectedDate(day)}
-                    className="flex flex-col items-center gap-1 py-px active:opacity-60 transition-opacity"
-                  >
-                    <div className={`w-8 h-8 flex items-center justify-center rounded-full ${
-                      isSelected ? 'bg-themeblue3' : isTodayDay ? 'ring-1 ring-themeblue3' : ''
-                    }`}>
+                  <div key={key} className="flex flex-col items-center gap-1 py-px">
+                    <button
+                      onClick={() => setSelectedDate(day)}
+                      className={`w-8 h-8 flex items-center justify-center rounded-full active:opacity-60 transition-opacity ${
+                        isSelected ? 'bg-themeblue3' : isTodayDay ? 'ring-1 ring-themeblue3' : ''
+                      }`}
+                    >
                       <span className={`text-base font-medium tabular-nums leading-none ${
                         isSelected ? 'text-white' : 'text-primary'
                       }`}>
                         {day.getDate()}
                       </span>
-                    </div>
+                    </button>
                     <div className="flex flex-col gap-px w-full px-0.1 mt-1">
                       {dayEvents.slice(0, 3).map(e => (
-                        <div
+                        <button
                           key={e.id}
+                          type="button"
                           className="flex items-center gap-1 w-full overflow-hidden py-0.5 px-0.5 rounded bg-themewhite2/60 active:opacity-60"
-                          onClick={(ev) => { ev.stopPropagation(); handleEventClick(e.id) }}
+                          onClick={() => handleEventClick(e.id)}
                         >
                           <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                             e.status === 'completed'   ? 'bg-themegreen' :
@@ -544,22 +534,22 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
                             'bg-secondary/50'
                           }`} />
                           <span className="text-[9pt] md:text-[9pt] leading-tight text-primary truncate">{e.title}</span>
-                        </div>
+                        </button>
                       ))}
                       {dayEvents.length > 3 && (
                         <span className="text-[9pt] leading-tight text-secondary pl-1">+{dayEvents.length - 3}</span>
                       )}
                     </div>
-                  </button>
+                  </div>
                 )
               })}
             </div>
             {!weekHasEvents && (
               <div className="flex items-center gap-3 -mx-3 px-4 py-3">
                 <p className="text-sm text-tertiary flex-1">No events this week</p>
-                <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
+                <ActionPill shadow="sm">
                   <ActionButton icon={Calendar} label="Open Calendar" onClick={() => setShowCalendarDrawer(true)} />
-                </div>
+                </ActionPill>
               </div>
             )}
           </div>
@@ -576,13 +566,63 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
       case 'weather':
         return <WeatherWidget key="weather" />
 
+      case 'huddle': {
+        const huddleEvents = allDayEvents
+          .filter(e => e.category === 'huddle')
+          .sort((a, b) => a.start_time.localeCompare(b.start_time))
+        if (huddleEvents.length === 0) {
+          return (
+            <div key="huddle" className="flex items-center gap-3 px-4 py-3">
+              <p className="text-sm text-tertiary flex-1">No huddle {isToday ? 'today' : 'this day'}</p>
+              <ActionPill shadow="sm">
+                <ActionButton icon={Calendar} label="Open Calendar" onClick={() => setShowCalendarDrawer(true)} />
+              </ActionPill>
+            </div>
+          )
+        }
+        const taskOrder = new Map(huddleTasks.map((t, i) => [t.id, { name: t.name, sort: t.sort_order ?? i }]))
+        const groups = new Map<string, { label: string; sort: number; events: CalendarEvent[] }>()
+        for (const ev of huddleEvents) {
+          const tid = ev.huddle_task_id ?? null
+          if (tid && taskOrder.has(tid)) {
+            const { name, sort } = taskOrder.get(tid)!
+            if (!groups.has(tid)) groups.set(tid, { label: name, sort, events: [] })
+            groups.get(tid)!.events.push(ev)
+          } else {
+            const key = '__pairing__'
+            if (!groups.has(key)) groups.set(key, { label: 'Provider pairing', sort: -1, events: [] })
+            groups.get(key)!.events.push(ev)
+          }
+        }
+        const ordered = Array.from(groups.values()).sort((a, b) => a.sort - b.sort)
+        return (
+          <div key="huddle" className="px-2.5 py-2 flex flex-col gap-2">
+            {ordered.map((g, gi) => (
+              <div key={gi} className="flex flex-col gap-0.5">
+                <div className="text-[9pt] font-semibold uppercase tracking-wide text-secondary px-0.5">{g.label}</div>
+                {g.events.map(ev => (
+                  <button
+                    key={ev.id}
+                    onClick={() => handleEventClick(ev.id)}
+                    className="flex items-center gap-2 text-left rounded px-1.5 py-1 active:bg-themeblue2/10"
+                  >
+                    <span className="text-[9pt] text-secondary tabular-nums shrink-0">{ev.start_time.slice(11, 16)}</span>
+                    <span className="text-[10pt] text-primary truncate">{ev.title}</span>
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        )
+      }
+
       default:
         return null
     }
   }
 
   return (
-    <div ref={outerRef} className="rounded-xl overflow-hidden border border-themeblue3/10 bg-themewhite2" data-tour="mission-overview-panel">
+    <div className="rounded-xl overflow-hidden border border-themeblue3/10 bg-themewhite2" data-tour="mission-overview-panel">
 
       {/* Header */}
       <div className="flex items-center px-2 py-1.5 border-b border-themeblue3/8">
@@ -592,10 +632,10 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
           </button>
           <button
             ref={dateBtnRef}
-            className="text-xs font-medium text-primary py-0.5 px-1 rounded active:bg-themeblue2/10 whitespace-nowrap"
+            className="text-[10pt] font-medium text-primary py-0.5 px-1 rounded active:bg-themeblue2/10 whitespace-nowrap"
             onClick={openPicker}
           >
-            {isToday ? 'Today' : formatDateLabel(selectedDate)}
+            {isToday ? 'Today' : formatShortDayLabel(selectedDate)}
           </button>
           <button className="p-1 rounded active:bg-themeblue2/10 text-tertiary" onClick={() => navigate(1)}>
             <ChevronRight size={13} />
@@ -605,7 +645,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
 
       {widgets.length === 0 ? (
         <div className="flex items-center justify-center h-[80px]">
-          <span className="text-xs text-secondary">No widgets selected</span>
+          <span className="text-[10pt] text-secondary">No widgets selected</span>
         </div>
       ) : (
         <div className="divide-y divide-themeblue3/8" data-tour="mission-overview-widgets">

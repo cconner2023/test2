@@ -1,7 +1,9 @@
-import { memo, useState, useCallback } from 'react'
-import { X, Check, ChevronRight, Plus } from 'lucide-react'
+import { memo, useState, useRef, useCallback } from 'react'
+import { X, Check, ChevronRight, Syringe, Pill, Droplet, HeartPulse } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { PreviewOverlay } from '../PreviewOverlay'
+import { ActionButton } from '../ActionButton'
+import { ActionPill } from '../ActionPill'
 import type { TC3Medication, TC3IVAccess, MedRoute, MedCategory } from '../../Types/TC3Types'
 
 // ---------------------------------------------------------------------------
@@ -102,10 +104,17 @@ export const MedicationsForm = memo(function MedicationsForm() {
   const [draftBlood, setDraftBlood] = useState({ type: '', volume: '', route: 'IV' as MedRoute, time: '' })
   const [draftIV, setDraftIV] = useState<TC3IVAccess>({ id: '', type: 'IV', site: '', gauge: '18g' })
 
-  // --- Helpers to capture anchor rect from click event ---
-  const captureRect = useCallback((e: React.MouseEvent) => {
-    setAnchorRect((e.currentTarget as HTMLElement).getBoundingClientRect())
+  // --- Single top-of-card ActionPill ref (used for both empty + populated FAB) ---
+  const topPillRef = useRef<HTMLDivElement>(null)
+
+  // --- Helpers to capture anchor rect from any HTMLElement ---
+  const captureRectFromEl = useCallback((el: HTMLElement | null) => {
+    setAnchorRect(el?.getBoundingClientRect() ?? null)
   }, [])
+
+  const captureRect = useCallback((e: React.MouseEvent) => {
+    captureRectFromEl(e.currentTarget as HTMLElement)
+  }, [captureRectFromEl])
 
   // --- Close popover ---
   const closePopover = useCallback(() => {
@@ -116,30 +125,30 @@ export const MedicationsForm = memo(function MedicationsForm() {
   }, [])
 
   // --- Add handlers ---
-  const handleAddIV = useCallback((e: React.MouseEvent) => {
-    captureRect(e)
+  const handleAddIV = useCallback((anchor: HTMLElement | null) => {
+    captureRectFromEl(anchor)
     const iv: TC3IVAccess = { id: crypto.randomUUID(), type: 'IV', site: '', gauge: '18g', time: nowHHMM() }
     setDraftIV(iv)
     setAddingType('iv')
-  }, [captureRect])
+  }, [captureRectFromEl])
 
-  const handleAddMed = useCallback((e: React.MouseEvent) => {
-    captureRect(e)
+  const handleAddMed = useCallback((anchor: HTMLElement | null) => {
+    captureRectFromEl(anchor)
     setDraftMed({ id: '', name: '', dose: '', route: 'IV', time: nowHHMM(), category: 'Other' })
     setAddingType('med')
-  }, [captureRect])
+  }, [captureRectFromEl])
 
-  const handleAddFluid = useCallback((e: React.MouseEvent) => {
-    captureRect(e)
+  const handleAddFluid = useCallback((anchor: HTMLElement | null) => {
+    captureRectFromEl(anchor)
     setDraftFluid({ type: '', volume: '', route: 'IV', time: nowHHMM() })
     setAddingType('fluid')
-  }, [captureRect])
+  }, [captureRectFromEl])
 
-  const handleAddBlood = useCallback((e: React.MouseEvent) => {
-    captureRect(e)
+  const handleAddBlood = useCallback((anchor: HTMLElement | null) => {
+    captureRectFromEl(anchor)
     setDraftBlood({ type: '', volume: '', route: 'IV', time: nowHHMM() })
     setAddingType('blood')
-  }, [captureRect])
+  }, [captureRectFromEl])
 
   // --- Edit handlers (tap existing chip) ---
   const handleEditIV = useCallback((iv: TC3IVAccess, e: React.MouseEvent) => {
@@ -282,7 +291,7 @@ export const MedicationsForm = memo(function MedicationsForm() {
           <select
             value={draftIV.type}
             onChange={(e) => setDraftIV(d => ({ ...d, type: e.target.value as 'IV' | 'IO' }))}
-            className="text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary"
+            className="text-[10pt] px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary"
           >
             {ROUTE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
@@ -344,7 +353,7 @@ export const MedicationsForm = memo(function MedicationsForm() {
           <select
             value={draftMed.route}
             onChange={(e) => setDraftMed(d => ({ ...d, route: e.target.value as MedRoute }))}
-            className="text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary"
+            className="text-[10pt] px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary"
           >
             {MED_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
@@ -352,7 +361,7 @@ export const MedicationsForm = memo(function MedicationsForm() {
         <select
           value={draftMed.category}
           onChange={(e) => setDraftMed(d => ({ ...d, category: e.target.value as MedCategory }))}
-          className="text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary"
+          className="text-[10pt] px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary"
         >
           <option value="Analgesic">Analgesic</option>
           <option value="Antibiotic">Antibiotic</option>
@@ -383,7 +392,7 @@ export const MedicationsForm = memo(function MedicationsForm() {
         <select
           value={draftMed.route}
           onChange={(e) => setDraftMed(d => ({ ...d, route: e.target.value as MedRoute }))}
-          className="text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary"
+          className="text-[10pt] px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary"
         >
           {MED_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
         </select>
@@ -391,7 +400,7 @@ export const MedicationsForm = memo(function MedicationsForm() {
       <select
         value={draftMed.category}
         onChange={(e) => setDraftMed(d => ({ ...d, category: e.target.value as MedCategory }))}
-        className="text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary"
+        className="text-[10pt] px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary"
       >
         <option value="Analgesic">Analgesic</option>
         <option value="Antibiotic">Antibiotic</option>
@@ -461,7 +470,7 @@ export const MedicationsForm = memo(function MedicationsForm() {
       <select
         value={draftFluid.route}
         onChange={(e) => setDraftFluid(d => ({ ...d, route: e.target.value as MedRoute }))}
-        className="text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary"
+        className="text-[10pt] px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary"
       >
         {MED_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
       </select>
@@ -512,7 +521,7 @@ export const MedicationsForm = memo(function MedicationsForm() {
       <select
         value={draftBlood.route}
         onChange={(e) => setDraftBlood(d => ({ ...d, route: e.target.value as MedRoute }))}
-        className="text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary"
+        className="text-[10pt] px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none text-tertiary"
       >
         {MED_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
       </select>
@@ -558,6 +567,19 @@ export const MedicationsForm = memo(function MedicationsForm() {
   const hasFluids = fluids.length > 0
   const hasBlood = bloodProducts.length > 0
 
+  // First populated section determines where the top FAB lives
+  const firstSection: 'iv' | 'meds' | 'fluids' | 'blood' | null =
+    hasIV ? 'iv' : hasMeds ? 'meds' : hasFluids ? 'fluids' : hasBlood ? 'blood' : null
+
+  const topFAB = (
+    <ActionPill ref={topPillRef} shadow="sm" className="absolute top-2 right-2 z-10">
+      <ActionButton icon={Syringe} label="Add IV/IO" onClick={() => handleAddIV(topPillRef.current)} />
+      <ActionButton icon={Pill} label="Add medication" onClick={() => handleAddMed(topPillRef.current)} />
+      <ActionButton icon={Droplet} label="Add fluid" onClick={() => handleAddFluid(topPillRef.current)} />
+      <ActionButton icon={HeartPulse} label="Add blood product" onClick={() => handleAddBlood(topPillRef.current)} />
+    </ActionPill>
+  )
+
   return (
     <div className="space-y-5">
       {/* Section header */}
@@ -570,6 +592,8 @@ export const MedicationsForm = memo(function MedicationsForm() {
       {hasIV && (
         <div className="space-y-1.5">
           <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">IV/IO Access</p>
+          <div className="relative">
+            {firstSection === 'iv' && topFAB}
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
             {ivAccess.map((iv) => (
               <button
@@ -578,52 +602,61 @@ export const MedicationsForm = memo(function MedicationsForm() {
                 className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-themeblue2/5 active:scale-95 transition-colors"
               >
                 <span className="w-2 h-2 rounded-full bg-themegreen shrink-0" />
-                <span className="text-xs font-medium text-primary">{iv.type}</span>
-                <span className="text-xs text-tertiary">{iv.gauge}</span>
-                <span className="text-xs text-tertiary truncate">{iv.site || 'No site'}</span>
+                <span className="text-[10pt] font-medium text-primary">{iv.type}</span>
+                <span className="text-[10pt] text-tertiary">{iv.gauge}</span>
+                <span className="text-[10pt] text-tertiary truncate">{iv.site || 'No site'}</span>
                 <ChevronRight size={14} className="text-tertiary ml-auto shrink-0" />
               </button>
             ))}
+          </div>
           </div>
         </div>
       )}
 
       {/* Medications chips — grouped by category */}
-      {hasMeds && (
-        <div className="space-y-1.5">
-          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Medications</p>
-          {(['Analgesic', 'Antibiotic', 'Other'] as MedCategory[]).map(cat => {
-            const meds = groupedMeds[cat]
-            if (!meds || meds.length === 0) return null
-            return (
-              <div key={cat} className="space-y-1">
-                <p className="text-[9pt] md:text-[9pt] font-semibold text-themeredred/60 tracking-wider uppercase pl-1">{cat}</p>
-                <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
-                  {meds.map((med) => (
-                    <button
-                      key={med.id}
-                      onClick={(e) => handleEditMed(med, e)}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-themeblue2/5 active:scale-95 transition-colors"
-                    >
-                      <span className="w-2 h-2 rounded-full bg-themeblue2 shrink-0" />
-                      <span className="text-xs font-medium text-primary truncate">{med.name}</span>
-                      <span className="text-xs text-tertiary">{med.dose}</span>
-                      <span className="text-xs text-tertiary">{med.route}</span>
-                      <span className="text-[9pt] text-tertiary">{med.time}</span>
-                      <ChevronRight size={14} className="text-tertiary ml-auto shrink-0" />
-                    </button>
-                  ))}
+      {hasMeds && (() => {
+        const visibleCats = (['Analgesic', 'Antibiotic', 'Other'] as MedCategory[])
+          .filter(cat => (groupedMeds[cat]?.length ?? 0) > 0)
+        return (
+          <div className="space-y-1.5">
+            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Medications</p>
+            {visibleCats.map((cat, catIdx) => {
+              const meds = groupedMeds[cat]!
+              return (
+                <div key={cat} className="space-y-1">
+                  <p className="text-[9pt] md:text-[9pt] font-semibold text-themeredred/60 tracking-wider uppercase pl-1">{cat}</p>
+                  <div className="relative">
+                    {firstSection === 'meds' && catIdx === 0 && topFAB}
+                  <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
+                    {meds.map((med) => (
+                      <button
+                        key={med.id}
+                        onClick={(e) => handleEditMed(med, e)}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-themeblue2/5 active:scale-95 transition-colors"
+                      >
+                        <span className="w-2 h-2 rounded-full bg-themeblue2 shrink-0" />
+                        <span className="text-[10pt] font-medium text-primary truncate">{med.name}</span>
+                        <span className="text-[10pt] text-tertiary">{med.dose}</span>
+                        <span className="text-[10pt] text-tertiary">{med.route}</span>
+                        <span className="text-[9pt] text-tertiary">{med.time}</span>
+                        <ChevronRight size={14} className="text-tertiary ml-auto shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+              )
+            })}
+          </div>
+        )
+      })()}
 
       {/* Fluids chips */}
       {hasFluids && (
         <div className="space-y-1.5">
           <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Fluids</p>
+          <div className="relative">
+            {firstSection === 'fluids' && topFAB}
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
             {fluids.map((f, i) => (
               <button
@@ -632,13 +665,14 @@ export const MedicationsForm = memo(function MedicationsForm() {
                 className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-themeblue2/5 active:scale-95 transition-colors"
               >
                 <span className="w-2 h-2 rounded-full bg-teal-400 shrink-0" />
-                <span className="text-xs font-medium text-primary truncate">{f.type}</span>
-                <span className="text-xs text-tertiary">{f.volume}</span>
-                <span className="text-xs text-tertiary">{f.route}</span>
+                <span className="text-[10pt] font-medium text-primary truncate">{f.type}</span>
+                <span className="text-[10pt] text-tertiary">{f.volume}</span>
+                <span className="text-[10pt] text-tertiary">{f.route}</span>
                 <span className="text-[9pt] text-tertiary">{f.time}</span>
                 <ChevronRight size={14} className="text-tertiary ml-auto shrink-0" />
               </button>
             ))}
+          </div>
           </div>
         </div>
       )}
@@ -647,6 +681,8 @@ export const MedicationsForm = memo(function MedicationsForm() {
       {hasBlood && (
         <div className="space-y-1.5">
           <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Blood Products</p>
+          <div className="relative">
+            {firstSection === 'blood' && topFAB}
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
             {bloodProducts.map((b, i) => (
               <button
@@ -655,51 +691,32 @@ export const MedicationsForm = memo(function MedicationsForm() {
                 className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-themeblue2/5 active:scale-95 transition-colors"
               >
                 <span className="w-2 h-2 rounded-full bg-themeredred shrink-0" />
-                <span className="text-xs font-medium text-primary truncate">{b.type}</span>
-                <span className="text-xs text-tertiary">{b.volume}</span>
-                <span className="text-xs text-tertiary">{b.route}</span>
+                <span className="text-[10pt] font-medium text-primary truncate">{b.type}</span>
+                <span className="text-[10pt] text-tertiary">{b.volume}</span>
+                <span className="text-[10pt] text-tertiary">{b.route}</span>
                 <span className="text-[9pt] text-tertiary">{b.time}</span>
                 <ChevronRight size={14} className="text-tertiary ml-auto shrink-0" />
               </button>
             ))}
           </div>
+          </div>
         </div>
       )}
 
-      {/* Empty state */}
+      {/* Empty state — all four sections empty */}
       {!hasIV && !hasMeds && !hasFluids && !hasBlood && (
-        <div className="rounded-2xl border border-dashed border-tertiary/15 bg-themewhite2/50 py-6 flex flex-col items-center gap-1.5">
-          <p className="text-[9pt] text-tertiary">No items added yet</p>
+        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          <div className="flex items-center gap-3 px-4 py-3">
+            <p className="text-sm text-tertiary flex-1">No items added yet</p>
+            <ActionPill ref={topPillRef} shadow="sm">
+              <ActionButton icon={Syringe} label="Add IV/IO" onClick={() => handleAddIV(topPillRef.current)} />
+              <ActionButton icon={Pill} label="Add medication" onClick={() => handleAddMed(topPillRef.current)} />
+              <ActionButton icon={Droplet} label="Add fluid" onClick={() => handleAddFluid(topPillRef.current)} />
+              <ActionButton icon={HeartPulse} label="Add blood product" onClick={() => handleAddBlood(topPillRef.current)} />
+            </ActionPill>
+          </div>
         </div>
       )}
-
-      {/* Add buttons */}
-      <div className="flex flex-wrap gap-3">
-        <button onClick={handleAddIV} className="flex items-center gap-1.5 text-[9pt] text-tertiary hover:text-primary transition-colors">
-          <span className="w-6 h-6 rounded-full flex items-center justify-center bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary shrink-0">
-            <Plus size={11} />
-          </span>
-          IV/IO
-        </button>
-        <button onClick={handleAddMed} className="flex items-center gap-1.5 text-[9pt] text-tertiary hover:text-primary transition-colors">
-          <span className="w-6 h-6 rounded-full flex items-center justify-center bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary shrink-0">
-            <Plus size={11} />
-          </span>
-          Medication
-        </button>
-        <button onClick={handleAddFluid} className="flex items-center gap-1.5 text-[9pt] text-tertiary hover:text-primary transition-colors">
-          <span className="w-6 h-6 rounded-full flex items-center justify-center bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary shrink-0">
-            <Plus size={11} />
-          </span>
-          Fluid
-        </button>
-        <button onClick={handleAddBlood} className="flex items-center gap-1.5 text-[9pt] text-tertiary hover:text-primary transition-colors">
-          <span className="w-6 h-6 rounded-full flex items-center justify-center bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary shrink-0">
-            <Plus size={11} />
-          </span>
-          Blood Product
-        </button>
-      </div>
 
       {/* Unified popover */}
       <PreviewOverlay

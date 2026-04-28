@@ -21,7 +21,6 @@ import type {
   TC3InjuryTreatmentLink,
   TC3QueueEntry,
   MechanismType,
-  AVPU,
   EvacPriority,
   NeedleDecompSide,
   MedRoute,
@@ -277,8 +276,6 @@ function createEmptyCard(): TC3Card {
     },
     medications: [],
     vitals: [],
-    avpu: '',
-    gcs: null,
     evacuation: {
       priority: '',
     },
@@ -387,10 +384,6 @@ interface TC3Actions {
   addVitalSet: (vitals: TC3VitalSet) => void
   updateVitalSet: (id: string, fields: Partial<TC3VitalSet>) => void
   removeVitalSet: (id: string) => void
-
-  // Mental Status
-  setAVPU: (avpu: AVPU | '') => void
-  setGCS: (gcs: TC3Card['gcs']) => void
 
   // Evacuation
   updateEvacuation: (fields: Partial<TC3Card['evacuation']>) => void
@@ -764,16 +757,6 @@ export const useTC3Store = create<TC3Store>()((set, get) => ({
   },
   removeVitalSet: (id) => {
     set((s) => ({ card: { ...s.card, vitals: s.card.vitals.filter(v => v.id !== id) } }))
-    saveActiveCard(get().card)
-  },
-
-  // Mental Status
-  setAVPU: (avpu) => {
-    set((s) => ({ card: { ...s.card, avpu } }))
-    saveActiveCard(get().card)
-  },
-  setGCS: (gcs) => {
-    set((s) => ({ card: { ...s.card, gcs } }))
     saveActiveCard(get().card)
   },
 

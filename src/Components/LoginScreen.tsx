@@ -40,7 +40,7 @@ function DeviceLinkQrView() {
         {channelState === 'error' && (
           <button
             onClick={regenerate}
-            className="text-xs text-tertiary active:opacity-70 transition-opacity"
+            className="text-[10pt] text-tertiary active:opacity-70 transition-opacity"
           >
             Tap to retry
           </button>
@@ -55,14 +55,14 @@ function DeviceLinkQrView() {
         <canvas ref={qrCanvasRef} className="block w-full border border-themegreen/30 bg-white rounded-xl" />
       </div>
       <p className="text-sm font-semibold text-primary mb-1.5">Link This Device</p>
-      <p className="text-xs text-secondary leading-relaxed">
+      <p className="text-[10pt] text-secondary leading-relaxed">
         Open the application on another logged-in device, go to <span className="font-medium text-primary">Settings → Linked Devices</span>, and scan this code to log in.
       </p>
       {status === 'receiving' && (
-        <p className="text-xs text-themegreen font-medium mt-1.5">Linking device…</p>
+        <p className="text-[10pt] text-themegreen font-medium mt-1.5">Linking device…</p>
       )}
       {status === 'error' && error && (
-        <p className="text-xs text-themeredred mt-1.5">{error}</p>
+        <p className="text-[10pt] text-themeredred mt-1.5">{error}</p>
       )}
     </div>
   )
@@ -160,7 +160,7 @@ export function LoginScreen() {
   }
 
   return (
-    <div className="fixed inset-0 z-[90] bg-themewhite dark:bg-themewhite3 overflow-y-auto"
+    <div className="fixed inset-0 z-30 bg-themewhite dark:bg-themewhite3 overflow-y-auto"
       style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}>
       <style>{`
         @keyframes login-orbit {
@@ -200,37 +200,38 @@ export function LoginScreen() {
               <div className="pb-2">
                 <p className="text-[9pt] font-semibold text-secondary tracking-widest uppercase">Sign In</p>
               </div>
-              <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
-                <form onSubmit={handleSignIn}>
+              <form onSubmit={handleSignIn}>
+                <div className="rounded-2xl bg-themewhite2 overflow-hidden">
                   <div className="relative">
 
                     {/* ── Main login content ── */}
-                    <div className={`transition-all duration-300 ease-out space-y-3 ${forgotStep === null
+                    <div className={`transition-all duration-300 ease-out ${forgotStep === null
                       ? 'relative opacity-100 translate-y-0'
                       : 'absolute inset-x-0 top-0 opacity-0 -translate-y-2 pointer-events-none'
                     }`}>
-                      {/* Pill selector */}
-                      <div className="relative flex p-0.5 rounded-full bg-themewhite dark:bg-themewhite3 border border-themeblue3/10">
-                        {/* Sliding indicator */}
-                        <div className={`absolute inset-y-0.5 left-0.5 w-[calc(50%-2px)] rounded-full bg-themeblue3 shadow-sm transition-transform duration-200 ease-out ${mode === 'qr' ? 'translate-x-full' : 'translate-x-0'}`} />
-                        {(['password', 'qr'] as LoginMode[]).map(m => (
-                          <button
-                            key={m}
-                            type="button"
-                            onClick={() => switchMode(m)}
-                            className={`relative flex-1 py-1.5 text-[9pt] font-medium rounded-full transition-colors duration-200 active:scale-95 ${mode === m
-                              ? 'text-white'
-                              : 'text-tertiary hover:text-tertiary'
-                            }`}
-                          >
-                            {m === 'password' ? 'Password' : 'Link Device'}
-                          </button>
-                        ))}
+                      {/* Pill selector row */}
+                      <div className="px-3 pt-3 pb-2 border-b border-primary/6">
+                        <div className="relative flex p-0.5 rounded-full bg-themewhite dark:bg-themewhite3">
+                          <div className={`absolute inset-y-0.5 left-0.5 w-[calc(50%-2px)] rounded-full bg-themeblue3 shadow-sm transition-transform duration-200 ease-out ${mode === 'qr' ? 'translate-x-full' : 'translate-x-0'}`} />
+                          {(['password', 'qr'] as LoginMode[]).map(m => (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => switchMode(m)}
+                              className={`relative flex-1 py-1.5 text-[9pt] font-medium rounded-full transition-colors duration-200 active:scale-95 ${mode === m
+                                ? 'text-white'
+                                : 'text-tertiary hover:text-tertiary'
+                              }`}
+                            >
+                              {m === 'password' ? 'Password' : 'Link Device'}
+                            </button>
+                          ))}
+                        </div>
                       </div>
 
                       {/* Content panels — active is in flow, inactive is absolute */}
                       <div className="relative">
-                        <div className={`transition-all duration-300 ease-out space-y-3 ${mode === 'password'
+                        <div className={`transition-all duration-300 ease-out ${mode === 'password'
                           ? 'relative opacity-100 translate-x-0'
                           : 'absolute inset-x-0 top-0 opacity-0 -translate-x-3 pointer-events-none'
                         }`}>
@@ -238,29 +239,29 @@ export function LoginScreen() {
                             value={email}
                             onChange={setEmail}
                             type="email"
-                            placeholder="your.email@mail.mil"
+                            placeholder="your.email@mail.mil *"
                             required
                           />
                           <PasswordInput
                             value={password}
                             onChange={setPassword}
-                            placeholder="Password"
+                            placeholder="Password *"
                           />
-                          <div className={`flex items-center justify-end gap-2 overflow-hidden transition-all duration-300 ease-out ${email.trim() && password ? 'max-h-12 opacity-100 pt-1' : 'max-h-0 opacity-0'
+                          <div className={`flex items-center justify-end gap-2 px-3 overflow-hidden transition-all duration-300 ease-out ${email.trim() && password ? 'max-h-14 py-2 opacity-100' : 'max-h-0 py-0 opacity-0'
                           }`}>
                             <button
                               type="button"
                               onClick={() => { setEmail(''); setPassword(''); setError(null) }}
-                              className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                              className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
                             >
-                              <X size={18} />
+                              <X size={16} />
                             </button>
                             <button
                               type="submit"
                               disabled={loading}
-                              className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+                              className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
                             >
-                              {loading ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
+                              {loading ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
                             </button>
                           </div>
                         </div>
@@ -269,7 +270,9 @@ export function LoginScreen() {
                           ? 'relative opacity-100 translate-x-0'
                           : 'absolute inset-x-0 top-0 opacity-0 translate-x-3 pointer-events-none'
                         }`}>
-                          <DeviceLinkQrView />
+                          <div className="px-4 py-3">
+                            <DeviceLinkQrView />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -281,11 +284,11 @@ export function LoginScreen() {
                     }`}>
                       <div className="relative">
                         {/* Step 1 — email */}
-                        <div className={`transition-all duration-300 ease-out space-y-3 ${forgotStep === 'email'
+                        <div className={`transition-all duration-300 ease-out ${forgotStep === 'email'
                           ? 'relative opacity-100 translate-x-0'
                           : 'absolute inset-x-0 top-0 opacity-0 -translate-x-3 pointer-events-none'
                         }`}>
-                          <p className="text-xs text-secondary leading-relaxed">
+                          <p className="px-4 pt-3 pb-2 text-[10pt] text-secondary leading-relaxed border-b border-primary/6">
                             Enter your email - if an account exists you'll receive an 8 digit password reset pin.
                           </p>
                           <TextInput
@@ -294,55 +297,56 @@ export function LoginScreen() {
                             type="email"
                             placeholder="your.email@mail.mil"
                           />
-                          <div className="flex items-center justify-end gap-2 pt-1">
+                          <div className="flex items-center justify-end gap-2 px-3 py-2">
                             <button
                               type="button"
                               onClick={closeForgot}
-                              className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                              className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
                             >
-                              <X size={18} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleSendResetToken}
-                              disabled={loading || !email.trim()}
-                              className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
-                            >
-                              {loading ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Step 2 — token entry */}
-                        <div className={`transition-all duration-300 ease-out space-y-3 ${forgotStep === 'token'
-                          ? 'relative opacity-100 translate-x-0'
-                          : 'absolute inset-x-0 top-0 opacity-0 translate-x-3 pointer-events-none'
-                        }`}>
-                          <p className="text-xs text-secondary leading-relaxed">
-                            Check <span className="font-medium text-primary">{email}</span> for an 8-digit reset token and enter it below.
-                          </p>
-                          <PinCodeInput
-                            length={8}
-                            onSubmit={handleTokenSubmit}
-                            label={loading ? 'Verifying...' : undefined}
-                            error={error ?? undefined}
-                            disabled={loading}
-                          />
-                          <div className="flex items-center justify-end gap-2 pt-1">
-                            <button
-                              type="button"
-                              onClick={closeForgot}
-                              className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white active:scale-95 transition-all"
-                            >
-                              <ArrowLeft size={18} />
+                              <X size={16} />
                             </button>
                             <button
                               type="button"
                               onClick={handleSendResetToken}
                               disabled={loading}
-                              className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+                              className={`shrink-0 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white overflow-hidden transition-all duration-300 ease-out active:scale-95 ${email.trim() ? 'w-9 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
                             >
-                              <RefreshCw size={16} />
+                              {loading ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Step 2 — token entry */}
+                        <div className={`transition-all duration-300 ease-out ${forgotStep === 'token'
+                          ? 'relative opacity-100 translate-x-0'
+                          : 'absolute inset-x-0 top-0 opacity-0 translate-x-3 pointer-events-none'
+                        }`}>
+                          <p className="px-4 pt-3 pb-2 text-[10pt] text-secondary leading-relaxed border-b border-primary/6">
+                            Check <span className="font-medium text-primary">{email}</span> for an 8-digit reset token and enter it below.
+                          </p>
+                          <PinCodeInput
+                            length={8}
+                            onSubmit={handleTokenSubmit}
+                            placeholder="Reset code"
+                            label={loading ? 'Verifying...' : undefined}
+                            error={error ?? undefined}
+                            disabled={loading}
+                          />
+                          <div className="flex items-center justify-end gap-2 px-3 py-2">
+                            <button
+                              type="button"
+                              onClick={closeForgot}
+                              className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white active:scale-95 transition-all"
+                            >
+                              <ArrowLeft size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleSendResetToken}
+                              disabled={loading}
+                              className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+                            >
+                              <RefreshCw size={14} />
                             </button>
                           </div>
                         </div>
@@ -350,14 +354,14 @@ export function LoginScreen() {
                     </div>
 
                   </div>
-                </form>
-              </div>
+                </div>
+              </form>
 
               {forgotStep === null && mode === 'password' && (
                 <div className="flex items-center justify-center mt-2 px-1">
                   <button
                     onClick={openForgot}
-                    className="text-xs text-themeblue2 dark:text-themeblue1 hover:underline active:scale-95 transition-transform"
+                    className="text-[10pt] text-themeblue2 dark:text-themeblue1 hover:underline active:scale-95 transition-transform"
                   >
                     Forgot password?
                   </button>
@@ -368,7 +372,7 @@ export function LoginScreen() {
                 <div className="absolute inset-0 flex items-center">
                   <div className="w-full border-t border-themeblue3/10" />
                 </div>
-                <div className="relative flex justify-center text-xs">
+                <div className="relative flex justify-center text-[10pt]">
                   <span className="px-3 bg-themewhite dark:bg-themewhite3 text-secondary">or</span>
                 </div>
               </div>
@@ -392,12 +396,12 @@ export function LoginScreen() {
 
               <button
                 onClick={() => switchView('help')}
-                className="w-full text-xs text-center text-themeblue2 dark:text-themeblue1 hover:underline mt-1.5 active:scale-95 transition-transform"
+                className="w-full text-[10pt] text-center text-themeblue2 dark:text-themeblue1 hover:underline mt-1.5 active:scale-95 transition-transform"
               >
                 Need help? Contact support
               </button>
 
-              <p className="mt-6 text-xs text-center text-secondary leading-relaxed max-w-xs mx-auto">
+              <p className="mt-6 text-[10pt] text-center text-secondary leading-relaxed max-w-xs mx-auto">
                 Not affiliated with or endorsed by the Department of Defense. Clinical references derived from publicly available U.S. Army doctrine.
               </p>
             </div>
@@ -410,17 +414,17 @@ export function LoginScreen() {
               {helpSubmitted ? (
                 <>
                   <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
-                    <p className="text-xs text-secondary">
+                    <p className="text-[10pt] text-secondary">
                       We'll review your message and get back to you at {helpEmail}.
                     </p>
                   </div>
-                  <button onClick={() => switchView('main')} className="w-full text-xs text-themeblue2 dark:text-themeblue1 hover:underline mt-3 active:scale-95 transition-transform">
+                  <button onClick={() => switchView('main')} className="w-full text-[10pt] text-themeblue2 dark:text-themeblue1 hover:underline mt-3 active:scale-95 transition-transform">
                     Back to sign in
                   </button>
                 </>
               ) : (
-                <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
-                  <form onSubmit={handleSupportSubmit} className="space-y-3">
+                <form onSubmit={handleSupportSubmit}>
+                  <div className="rounded-2xl bg-themewhite2 overflow-hidden">
                     <TextInput
                       value={helpName}
                       onChange={setHelpName}
@@ -434,34 +438,34 @@ export function LoginScreen() {
                       placeholder="your.email@mail.mil *"
                       required
                     />
-                    <textarea
-                      value={helpNotes}
-                      onChange={(e) => setHelpNotes(e.target.value)}
-                      placeholder="How can we help? *"
-                      required
-                      rows={3}
-                      className="w-full px-4 py-2.5 rounded-2xl bg-themewhite dark:bg-themewhite3 text-primary text-sm
-                             border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2
-                             focus:outline-none transition-all duration-300 placeholder:text-tertiary resize-none"
-                    />
-                    <div className="flex items-center justify-end gap-2 pt-1">
+                    <label className="block border-b border-primary/6">
+                      <textarea
+                        value={helpNotes}
+                        onChange={(e) => setHelpNotes(e.target.value)}
+                        placeholder="How can we help? *"
+                        required
+                        rows={3}
+                        className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
+                      />
+                    </label>
+                    <div className="flex items-center justify-end gap-2 px-3 py-2">
                       <button
                         type="button"
                         onClick={() => switchView('main')}
-                        className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                        className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
                       >
-                        <X size={18} />
+                        <X size={16} />
                       </button>
                       <button
                         type="submit"
-                        disabled={loading || !helpName.trim() || !helpEmail.trim() || !helpNotes.trim()}
-                        className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+                        disabled={loading}
+                        className={`shrink-0 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white overflow-hidden transition-all duration-300 ease-out active:scale-95 ${helpName.trim() && helpEmail.trim() && helpNotes.trim() ? 'w-9 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
                       >
-                        {loading ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
+                        {loading ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
                       </button>
                     </div>
-                  </form>
-                </div>
+                  </div>
+                </form>
               )}
             </div>
 

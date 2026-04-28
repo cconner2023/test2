@@ -1,29 +1,22 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { X, ListFilter, Check, ChevronLeft, ChevronRight } from 'lucide-react'
+import { X, Settings as SettingsIcon, Check, ChevronLeft, ChevronRight, CalendarDays, CalendarOff, Square, Columns3 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { PreviewOverlay } from './PreviewOverlay'
 import { CalendarPanel } from './Calendar/CalendarPanel'
-import { RosterPane } from './Calendar/RosterPane'
 import { MiniCalendar } from './Calendar/MiniCalendar'
 import { SearchInput } from './SearchInput'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { useIsMobile } from '../Hooks/useIsMobile'
+import { useAuth } from '../Hooks/useAuth'
 import { useClinicMedics } from '../Hooks/useClinicMedics'
 import { useClinicGroupedMedics } from '../Hooks/useClinicGroupedMedics'
 import { UserAvatar } from './Settings/UserAvatar'
-
-function formatMedicName(m: { rank?: string | null; firstName?: string | null; lastName?: string | null }): string {
-    const parts: string[] = []
-    if (m.rank) parts.push(m.rank)
-    if (m.lastName) {
-        let name = m.lastName
-        if (m.firstName) name += ', ' + m.firstName.charAt(0) + '.'
-        parts.push(name)
-    }
-    return parts.join(' ') || 'Unknown'
-}
+import { getDisplayName } from '../Utilities/nameUtils'
+import { ActionPill } from './ActionPill'
+import { CalendarClinicEditor } from './Calendar/CalendarClinicEditor'
 
 interface CalendarDrawerProps {
     isVisible: boolean
@@ -32,16 +25,14 @@ interface CalendarDrawerProps {
 
 export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
     const isMobile = useIsMobile()
+    const { isSupervisorRole } = useAuth()
 
     const {
-        selectedEventId, assignPersonnel, unassignPersonnel,
         events, personnelFilter, togglePersonnelFilter, clearPersonnelFilter,
         monthLabel, viewMode, rosterSearchQuery, setRosterSearchQuery,
         selectedDate, setSelectedDate,
+        daySpan, setDaySpan, hideWeekends, setHideWeekends,
     } = useCalendarStore(useShallow(s => ({
-        selectedEventId: s.selectedEventId,
-        assignPersonnel: s.assignPersonnel,
-        unassignPersonnel: s.unassignPersonnel,
         events: s.events,
         personnelFilter: s.personnelFilter,
         togglePersonnelFilter: s.togglePersonnelFilter,
@@ -52,6 +43,10 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         setRosterSearchQuery: s.setRosterSearchQuery,
         selectedDate: s.selectedDate,
         setSelectedDate: s.setSelectedDate,
+        daySpan: s.daySpan,
+        setDaySpan: s.setDaySpan,
+        hideWeekends: s.hideWeekends,
+        setHideWeekends: s.setHideWeekends,
     })))
 
     const [scrollNonce, setScrollNonce] = useState(1)
@@ -67,10 +62,10 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         }
     }, [isVisible, setSelectedDate])
 
-    // Tour events — open/close the mobile filter drawer programmatically
+    // Tour events — open/close the mobile settings drawer programmatically
     useEffect(() => {
-        const openHandler = () => setShowFilterDrawer(true)
-        const closeHandler = () => setShowFilterDrawer(false)
+        const openHandler = () => setShowSettings(true)
+        const closeHandler = () => setShowSettings(false)
         window.addEventListener('tour:calendar-open-controls', openHandler)
         window.addEventListener('tour:calendar-close-controls', closeHandler)
         return () => {
@@ -80,7 +75,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
     }, [])
 
     const [showDatePopover, setShowDatePopover] = useState(false)
-    const [showFilterDrawer, setShowFilterDrawer] = useState(false)
+    const [showSettings, setShowSettings] = useState(false)
     const [controlsDisplayMonth, setControlsDisplayMonth] = useState(() => {
         const [y, m] = selectedDate.split('-').map(Number)
         return new Date(y, m - 1, 1)
@@ -119,76 +114,6 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         </div>
     )
 
-    const [searchFocused, setSearchFocused] = useState(false)
-    const sidebarScrollRef = useRef<HTMLDivElement>(null)
-    const searchWrapperRef = useRef<HTMLDivElement>(null)
-    const searchInnerRef = useRef<HTMLDivElement>(null)
-    const searchFocusedRef = useRef(false)
-    searchFocusedRef.current = searchFocused
-    const hasSearch = rosterSearchQuery.trim().length > 0
-    const hasSearchRef = useRef(false)
-    hasSearchRef.current = hasSearch
-
-    const SEARCH_BAR_HEIGHT = 48
-
-    // Scroll-collapse animation for search bar — matches ColumnA pattern
-    useEffect(() => {
-        const el = sidebarScrollRef.current
-        const wrapper = searchWrapperRef.current
-        if (!el || !wrapper) return
-
-        let rafId: number | null = null
-        const onScroll = () => {
-            if (rafId !== null) return
-            rafId = requestAnimationFrame(() => {
-                rafId = null
-                if (searchFocusedRef.current || hasSearchRef.current) {
-                    wrapper.style.height = `${SEARCH_BAR_HEIGHT}px`
-                    wrapper.style.opacity = '1'
-                    if (searchInnerRef.current) searchInnerRef.current.style.transform = 'translateY(0px)'
-                    return
-                }
-                const scrollTop = el.scrollTop
-                const collapsed = Math.max(0, Math.min(scrollTop, SEARCH_BAR_HEIGHT))
-                wrapper.style.height = `${SEARCH_BAR_HEIGHT - collapsed}px`
-                wrapper.style.opacity = String(1 - (collapsed / SEARCH_BAR_HEIGHT) * 0.6)
-                if (searchInnerRef.current) {
-                    searchInnerRef.current.style.transform = `translateY(${-collapsed}px)`
-                }
-            })
-        }
-        el.addEventListener('scroll', onScroll, { passive: true })
-        return () => { el.removeEventListener('scroll', onScroll); if (rafId !== null) cancelAnimationFrame(rafId) }
-    }, [isMobile, viewMode])
-
-    // Keep search bar expanded when focused or has value
-    useEffect(() => {
-        if (!searchWrapperRef.current) return
-        if (hasSearch || searchFocused) {
-            searchWrapperRef.current.style.height = `${SEARCH_BAR_HEIGHT}px`
-            searchWrapperRef.current.style.opacity = '1'
-        }
-    }, [hasSearch, searchFocused])
-
-    const handleSearchFocus = useCallback(() => {
-        setSearchFocused(true)
-        sidebarScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
-    }, [])
-
-    const handleSearchBlur = useCallback(() => {
-        if (!hasSearchRef.current) {
-            setSearchFocused(false)
-            // Let the scroll position re-collapse the bar naturally
-            const el = sidebarScrollRef.current
-            const wrapper = searchWrapperRef.current
-            if (el && wrapper) {
-                const collapsed = Math.max(0, Math.min(el.scrollTop, SEARCH_BAR_HEIGHT))
-                wrapper.style.height = `${SEARCH_BAR_HEIGHT - collapsed}px`
-                wrapper.style.opacity = String(1 - (collapsed / SEARCH_BAR_HEIGHT) * 0.6)
-            }
-        }
-    }, [])
-
     const { medics } = useClinicMedics()
     const { ownClinicMedics } = useClinicGroupedMedics(medics)
 
@@ -197,24 +122,76 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         setShowDatePopover(false)
     }, [setSelectedDate])
 
-    const handleRosterAssign = useCallback((userId: string) => {
-        if (!selectedEventId) return
-        const event = events.find(e => e.id === selectedEventId)
-        if (!event) return
-        if (event.assigned_to.includes(userId)) {
-            unassignPersonnel(selectedEventId, userId)
-        } else {
-            assignPersonnel(selectedEventId, userId)
-        }
-    }, [selectedEventId, events, assignPersonnel, unassignPersonnel])
+    // Layout prefs — two cards, each with icon-action-item toggle (mirrors ThemePickerPanel light/dark toggle)
+    const renderIconToggleCard = <T extends string | number | boolean>(
+        label: string,
+        tagline: string,
+        options: { value: T; icon: LucideIcon; ariaLabel: string }[],
+        current: T,
+        onPick: (v: T) => void,
+    ) => (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-themeblue3/10 bg-themewhite2">
+            <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-primary">{label}</p>
+                <p className="text-[9pt] text-tertiary mt-0.5">{tagline}</p>
+            </div>
+            <ActionPill className="shrink-0">
+                {options.map(opt => {
+                    const isActive = current === opt.value
+                    const Icon = opt.icon
+                    return (
+                        <button
+                            key={String(opt.value)}
+                            onClick={() => onPick(opt.value)}
+                            aria-label={opt.ariaLabel}
+                            aria-pressed={isActive}
+                            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
+                                isActive
+                                    ? 'bg-themeblue2 text-white'
+                                    : 'bg-themeblue2/8 text-primary'
+                            }`}
+                        >
+                            <Icon size={16} />
+                        </button>
+                    )
+                })}
+            </ActionPill>
+        </div>
+    )
+
+    const layoutSection = (
+        <div className="px-5 py-4 space-y-3">
+            {renderIconToggleCard<boolean>(
+                'Weekends',
+                hideWeekends ? 'Mon — Fri' : 'Mon — Sun',
+                [
+                    { value: false, icon: CalendarDays, ariaLabel: 'Show weekends' },
+                    { value: true, icon: CalendarOff, ariaLabel: 'Hide weekends' },
+                ],
+                hideWeekends,
+                setHideWeekends,
+            )}
+            {renderIconToggleCard<typeof daySpan>(
+                'Day view',
+                daySpan === 3 ? 'Three days at a time' : 'One day at a time',
+                [
+                    { value: 1, icon: Square, ariaLabel: 'Single day' },
+                    { value: 3, icon: Columns3, ariaLabel: 'Triple day' },
+                ],
+                daySpan,
+                setDaySpan,
+            )}
+            {isSupervisorRole && <CalendarClinicEditor />}
+        </div>
+    )
 
     // Personnel filter sidebar panel — matches SupervisorTree pattern
     const personnelFilterPanel = (
         <div data-tour="calendar-personnel-filter" className="flex flex-col min-h-0">
             <div className="shrink-0 px-4 py-3 border-t border-primary/10 flex items-center justify-between">
-                <p className="text-xs font-medium text-tertiary uppercase tracking-wide">Filter Personnel</p>
+                <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Filter Personnel</p>
                 {ownClinicMedics.length > 0 && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
+                    <span className="text-[10pt] px-2 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
                         {personnelFilter.length > 0 ? `${personnelFilter.length}/${ownClinicMedics.length}` : ownClinicMedics.length}
                     </span>
                 )}
@@ -229,12 +206,19 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                 }`}
                 onClick={clearPersonnelFilter}
             >
-                <span className="text-xs font-medium text-primary truncate flex-1">All Personnel</span>
+                <span className="text-[10pt] font-medium text-primary truncate flex-1">All Personnel</span>
             </button>
 
             {/* Personnel list */}
             <div>
-                {ownClinicMedics.map(medic => {
+                {ownClinicMedics
+                    .filter(medic => {
+                        const q = rosterSearchQuery.trim().toLowerCase()
+                        if (!q) return true
+                        return getDisplayName(medic).toLowerCase().includes(q)
+                            || (medic.credential?.toLowerCase().includes(q) ?? false)
+                    })
+                    .map(medic => {
                     const isSelected = personnelFilter.includes(medic.id)
                     return (
                         <button
@@ -248,8 +232,8 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                         >
                             <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
                             <div className="flex-1 min-w-0">
-                                <p className="text-xs font-medium text-primary truncate">
-                                    {formatMedicName(medic)}
+                                <p className="text-[10pt] font-medium text-primary truncate">
+                                    {getDisplayName(medic)}
                                 </p>
                                 {medic.credential && (
                                     <p className="text-[9pt] text-tertiary truncate">{medic.credential}</p>
@@ -275,9 +259,9 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                 title: isMobile ? '' : 'Calendar',
                 rightContentFill: isMobile,
                 rightContent: isMobile ? (
-                    <div className="flex items-center w-full gap-2 px-1">
+                    <div className="flex items-center w-full gap-2">
                         <HeaderPill>
-                            <PillButton data-tour="calendar-mobile-filter" icon={ListFilter} onClick={() => setShowFilterDrawer(true)} label="Filter" />
+                            <PillButton data-tour="calendar-mobile-filter" icon={SettingsIcon} onClick={() => setShowSettings(true)} label="Settings" />
                         </HeaderPill>
                         <button
                             onClick={() => setShowDatePopover(true)}
@@ -292,8 +276,11 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                 ) : undefined,
                 hideDefaultClose: isMobile,
                 extraRow: isMobile && viewMode === 'month' ? (
-                    <div className="grid grid-cols-7">
-                        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((label, i) => (
+                    <div
+                        className="grid"
+                        style={{ gridTemplateColumns: `repeat(${hideWeekends ? 5 : 7}, minmax(0, 1fr))` }}
+                    >
+                        {(hideWeekends ? ['M', 'T', 'W', 'T', 'F'] : ['M', 'T', 'W', 'T', 'F', 'S', 'S']).map((label, i) => (
                             <div key={i} className="text-center text-[9pt] font-semibold text-tertiary py-1 uppercase">
                                 {label}
                             </div>
@@ -307,38 +294,39 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                 <div className="flex absolute inset-0 overflow-hidden">
                     {/* Contextual sidebar — desktop only, hidden for troops-to-task (has its own personnel column) */}
                     {!isMobile && viewMode !== 'troops' && (
-                        <div ref={sidebarScrollRef} data-tour="calendar-desktop-sidebar" className={`shrink-0 overflow-y-auto border-r border-primary/10 transition-all duration-300 ${rightPanelOpen ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-60'}`}>
-                            <div
-                                ref={searchWrapperRef}
-                                className="overflow-hidden transition-[height,opacity] duration-200"
-                                style={{ height: SEARCH_BAR_HEIGHT }}
-                            >
-                                <div ref={searchInnerRef} className="px-3 pt-2 pb-1"
-                                    onFocusCapture={handleSearchFocus}
-                                    onBlurCapture={handleSearchBlur}
-                                >
+                        <div data-tour="calendar-desktop-sidebar" className={`shrink-0 flex flex-col border-r border-primary/10 transition-all duration-300 ${rightPanelOpen ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-60'}`}>
+                            <div className="shrink-0 flex items-center gap-1.5 px-3 pt-2 pb-1">
+                                <div className="flex-1 min-w-0">
                                     <SearchInput
                                         value={rosterSearchQuery}
                                         onChange={setRosterSearchQuery}
                                         placeholder="Search personnel"
                                     />
                                 </div>
+                                <button
+                                    data-tour="calendar-settings"
+                                    onClick={() => setShowSettings(true)}
+                                    className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors active:scale-95 ${
+                                        hideWeekends || daySpan !== 1
+                                            ? 'bg-themeblue3/10 text-themeblue3'
+                                            : 'text-tertiary hover:text-primary'
+                                    }`}
+                                    aria-label="Calendar settings"
+                                    title="Calendar settings"
+                                >
+                                    <SettingsIcon className="w-4 h-4" />
+                                </button>
                             </div>
-                            <MiniCalendar
-                                selectedDate={selectedDate}
-                                onSelectDate={setSelectedDate}
-                                events={events}
-                            />
-                            {personnelFilterPanel}
-                            {viewMode === 'day' && (
-                                <div className="border-t border-primary/10">
-                                    <RosterPane
-                                        onAssignToEvent={handleRosterAssign}
-                                        assignableEventId={selectedEventId}
-                                        compact
-                                    />
-                                </div>
-                            )}
+                            <div className="shrink-0">
+                                <MiniCalendar
+                                    selectedDate={selectedDate}
+                                    onSelectDate={setSelectedDate}
+                                    events={events}
+                                />
+                            </div>
+                            <div className="flex-1 min-h-0 overflow-y-auto">
+                                {personnelFilterPanel}
+                            </div>
                         </div>
                     )}
 
@@ -371,19 +359,34 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                     </div>
                 </PreviewOverlay>
 
-                {/* Mobile filter drawer — personnel filter only */}
-                <BaseDrawer
-                    isVisible={showFilterDrawer}
-                    onClose={() => setShowFilterDrawer(false)}
-                    mobileOnly
-                    fullHeight="60dvh"
-                    zIndex="z-50"
-                    header={{ title: 'Filter Personnel', hideDefaultClose: false }}
-                >
-                    <div data-tour="calendar-controls-drawer" className="pb-[max(1rem,var(--sab,0px))]">
-                        {personnelFilterPanel}
-                    </div>
-                </BaseDrawer>
+                {/* Calendar settings — mobile drawer + desktop popover, both share content */}
+                {isMobile ? (
+                    <BaseDrawer
+                        isVisible={showSettings}
+                        onClose={() => setShowSettings(false)}
+                        mobileOnly
+                        fullHeight="75dvh"
+                        zIndex="z-50"
+                        header={{ title: 'Calendar Settings', hideDefaultClose: false }}
+                    >
+                        <div data-tour="calendar-controls-drawer" className="pb-[max(1rem,var(--sab,0px))]">
+                            {layoutSection}
+                            {personnelFilterPanel}
+                        </div>
+                    </BaseDrawer>
+                ) : (
+                    <PreviewOverlay
+                        isOpen={showSettings}
+                        onClose={() => setShowSettings(false)}
+                        anchorRect={null}
+                        title="Calendar Settings"
+                        maxWidth={360}
+                    >
+                        <div data-tour="calendar-controls-drawer" className="max-h-[70vh] overflow-y-auto">
+                            {layoutSection}
+                        </div>
+                    </PreviewOverlay>
+                )}
             </div>
         </BaseDrawer>
     )

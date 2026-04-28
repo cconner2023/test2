@@ -3,6 +3,8 @@ import { Plus, X, Check, ChevronRight, Activity, TrendingUp } from 'lucide-react
 import { useTC3Store } from '../../stores/useTC3Store'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { TextInput } from '../FormInputs'
+import { ActionButton } from '../ActionButton'
+import { ActionPill } from '../ActionPill'
 import type { TC3VitalSet, AVPU } from '../../Types/TC3Types'
 
 const AVPU_OPTIONS: AVPU[] = ['A', 'V', 'P', 'U']
@@ -119,7 +121,7 @@ function VitalsTrend({ sets }: { sets: TC3VitalSet[] }) {
       if (!isNaN(hr) && hr > 0 && sbp !== null && sbp > 0) return hr / sbp
       return null
     }
-    if (key === 'GCS') return vs.gcsTotal ?? null
+    if (key === 'GCS') return vs.gcs ? vs.gcs.eye + vs.gcs.verbal + vs.gcs.motor : null
     if (key === 'Temp') { const n = parseFloat(vs.temp ?? ''); return isNaN(n) ? null : n }
     if (key === 'Pain') { const n = parseInt(vs.painScale); return isNaN(n) ? null : n }
     return null
@@ -213,30 +215,26 @@ function VitalsTrend({ sets }: { sets: TC3VitalSet[] }) {
 function VitalSetPreviewContent({ id }: { id: string }) {
   const vs = useTC3Store((s) => s.card.vitals.find((v) => v.id === id))
   const updateVitalSet = useTC3Store((s) => s.updateVitalSet)
-  const avpu = useTC3Store((s) => s.card.avpu)
-  const gcs = useTC3Store((s) => s.card.gcs)
-  const setAVPU = useTC3Store((s) => s.setAVPU)
-  const setGCS = useTC3Store((s) => s.setGCS)
 
   if (!vs) return null
+
+  const avpu = vs.avpu
+  const gcs = vs.gcs
 
   const handleChange = (field: keyof TC3VitalSet, value: string) => {
     updateVitalSet(id, { [field]: value })
   }
 
-  // AVPU → auto-fill GCS defaults, snapshot into set
+  // AVPU → auto-fill GCS defaults, both stored on this set
   const handleAVPU = (opt: AVPU) => {
     if (avpu === opt) {
-      setAVPU('')
+      updateVitalSet(id, { avpu: '', gcs: null })
       return
     }
-    setAVPU(opt)
-    setGCS(AVPU_GCS_DEFAULTS[opt])
-    const defaults = AVPU_GCS_DEFAULTS[opt]
-    updateVitalSet(id, { gcsTotal: defaults.eye + defaults.verbal + defaults.motor })
+    updateVitalSet(id, { avpu: opt, gcs: AVPU_GCS_DEFAULTS[opt] })
   }
 
-  // GCS change → auto-update AVPU from total, snapshot into set
+  // GCS change → auto-update AVPU from total
   const handleGCS = (field: 'eye' | 'verbal' | 'motor', raw: string) => {
     const v = parseInt(raw) || 0
     const next = {
@@ -244,12 +242,8 @@ function VitalSetPreviewContent({ id }: { id: string }) {
       verbal: field === 'verbal' ? v : gcs?.verbal ?? 0,
       motor: field === 'motor' ? v : gcs?.motor ?? 0,
     }
-    setGCS(next)
     const total = next.eye + next.verbal + next.motor
-    if (total > 0) {
-      setAVPU(gcsToAVPU(total))
-      updateVitalSet(id, { gcsTotal: total })
-    }
+    updateVitalSet(id, total > 0 ? { gcs: next, avpu: gcsToAVPU(total) } : { gcs: next })
   }
 
   const gcsTotal = gcs ? gcs.eye + gcs.verbal + gcs.motor : null
@@ -266,7 +260,7 @@ function VitalSetPreviewContent({ id }: { id: string }) {
             key={opt}
             type="button"
             onClick={() => handleAVPU(opt)}
-            className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all active:scale-95 ${
+            className={`w-9 h-9 rounded-full flex items-center justify-center text-[10pt] font-bold transition-all active:scale-95 ${
               avpu === opt
                 ? 'bg-themeredred text-white'
                 : 'bg-tertiary/10 text-tertiary hover:bg-tertiary/15'
@@ -283,7 +277,7 @@ function VitalSetPreviewContent({ id }: { id: string }) {
         <GCSStepperRow label="Verbal" value={gcs?.verbal ?? 0} max={5} labels={VERBAL_LABELS} onChange={(v) => handleGCS('verbal', String(v))} />
         <GCSStepperRow label="Motor"  value={gcs?.motor  ?? 0} max={6} labels={MOTOR_LABELS}  onChange={(v) => handleGCS('motor',  String(v))} />
         {gcsTotal !== null && gcsTotal > 0 && (
-          <p className="text-xs font-medium text-tertiary uppercase tracking-wide pl-1 pt-0.5">GCS — {gcsTotal}</p>
+          <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide pl-1 pt-0.5">GCS — {gcsTotal}</p>
         )}
       </div>
 
@@ -297,7 +291,7 @@ function VitalSetPreviewContent({ id }: { id: string }) {
       <div className="grid grid-cols-2 gap-2">
         <TextInput label="Pulse" value={vs.pulse} onChange={(v) => handleChange('pulse', v)} placeholder="HR" inputMode="numeric" />
         <div>
-          <span className="text-xs font-medium text-tertiary uppercase tracking-wide">Location</span>
+          <span className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Location</span>
           <div className="flex gap-1.5 mt-1.5">
             {PULSE_LOCATION_OPTIONS.map((opt) => (
               <button
@@ -314,7 +308,7 @@ function VitalSetPreviewContent({ id }: { id: string }) {
                   }
                   updateVitalSet(id, updates)
                 }}
-                className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all active:scale-95 ${
+                className={`w-9 h-9 rounded-full flex items-center justify-center text-[10pt] font-bold transition-all active:scale-95 ${
                   vs.pulseLocation === opt
                     ? 'bg-themeblue3 text-white'
                     : 'bg-tertiary/10 text-tertiary hover:bg-tertiary/15'
@@ -329,7 +323,7 @@ function VitalSetPreviewContent({ id }: { id: string }) {
 
       {/* BP — side-by-side with / separator (VS calculator pattern) */}
       <div>
-        <span className="text-xs font-medium text-tertiary uppercase tracking-wide">BP (mmHg)</span>
+        <span className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">BP (mmHg)</span>
         <div className="flex items-center gap-1.5 mt-1">
           <input
             type="text" inputMode="numeric"
@@ -338,7 +332,7 @@ function VitalSetPreviewContent({ id }: { id: string }) {
             placeholder="120"
             className={BP_INPUT_CLASS}
           />
-          <span className="text-xs text-secondary shrink-0">/</span>
+          <span className="text-[10pt] text-secondary shrink-0">/</span>
           <input
             type="text" inputMode="numeric"
             value={bpDia}
@@ -370,26 +364,20 @@ function buildChipSummary(vs: TC3VitalSet): string {
 }
 
 function vitalSetHasData(vs: TC3VitalSet): boolean {
-  return !!(vs.pulse || vs.pulseLocation || vs.bp || vs.rr || vs.spo2 || vs.painScale)
+  return !!(vs.pulse || vs.pulseLocation || vs.bp || vs.rr || vs.spo2 || vs.painScale || vs.avpu || vs.gcs)
 }
 
 export const VitalsForm = memo(function VitalsForm() {
   const vitals = useTC3Store((s) => s.card.vitals)
   const addVitalSet = useTC3Store((s) => s.addVitalSet)
   const removeVitalSet = useTC3Store((s) => s.removeVitalSet)
-  const avpu = useTC3Store((s) => s.card.avpu)
-  const gcs = useTC3Store((s) => s.card.gcs)
-  const setAVPU = useTC3Store((s) => s.setAVPU)
-  const setGCS = useTC3Store((s) => s.setGCS)
 
   const [editingId, setEditingId] = useState<string | null>(null)
 
-  // Only consider populated if real data exists — not just empty shell sets
   const populatedSets = vitals.filter(vitalSetHasData)
-  const hasData = populatedSets.length > 0 || !!avpu || !!gcs
+  const hasData = populatedSets.length > 0
 
   const handleAddVitals = () => {
-    const currentGcsTotal = gcs ? gcs.eye + gcs.verbal + gcs.motor : undefined
     const newSet: TC3VitalSet = {
       id: crypto.randomUUID(),
       time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
@@ -398,10 +386,10 @@ export const VitalsForm = memo(function VitalsForm() {
       bp: '',
       rr: '',
       spo2: '',
-      avpu: 'A',
+      avpu: '',
       painScale: '',
       temp: '',
-      gcsTotal: currentGcsTotal,
+      gcs: null,
     }
     addVitalSet(newSet)
     setEditingId(newSet.id)
@@ -411,27 +399,20 @@ export const VitalsForm = memo(function VitalsForm() {
   const handleClose = () => {
     if (editingId) {
       const closing = vitals.find((v) => v.id === editingId)
-      if (closing && !vitalSetHasData(closing) && !avpu && !gcs) {
+      if (closing && !vitalSetHasData(closing)) {
         removeVitalSet(editingId)
       }
     }
     setEditingId(null)
   }
 
-  // Remove set + clear AVPU/GCS if it was the last one
   const handleRemove = () => {
     if (!editingId) return
     removeVitalSet(editingId)
-    const remaining = vitals.filter((v) => v.id !== editingId)
-    if (remaining.filter(vitalSetHasData).length === 0) {
-      setAVPU('')
-      setGCS(null)
-    }
     setEditingId(null)
   }
 
   const editingSet = editingId ? vitals.find((v) => v.id === editingId) : null
-  const gcsTotal = gcs ? gcs.eye + gcs.verbal + gcs.motor : null
 
   return (
     <div data-tour="tc3-vitals">
@@ -442,82 +423,54 @@ export const VitalsForm = memo(function VitalsForm() {
         </p>
       </div>
 
-      {/* Empty state */}
-      {!hasData && (
-        <div className="flex flex-col items-center gap-2 py-6">
-          <button type="button" onClick={handleAddVitals}
-            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary">
-            <Plus size={14} />
-          </button>
-          <p className="text-[9pt] text-tertiary">Add vital signs</p>
-        </div>
-      )}
-
-      {/* Populated card */}
-      {hasData && (
-        <>
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-            {populatedSets.length > 0 ? populatedSets.map((vs, idx) => (
+      {/* Section card */}
+      <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+        {!hasData ? (
+          <p className="text-sm text-tertiary py-7 text-center">No vital signs recorded</p>
+        ) : (
+          populatedSets.map((vs, idx) => {
+            const isLast = idx === populatedSets.length - 1
+            const setGcsTotal = vs.gcs ? vs.gcs.eye + vs.gcs.verbal + vs.gcs.motor : null
+            return (
               <button
                 key={vs.id}
                 type="button"
                 onClick={() => setEditingId(vs.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-themeblue2/5 active:scale-95 transition-colors ${idx > 0 ? 'border-t border-tertiary/6' : ''}`}
+                className={`w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-themeblue2/5 active:scale-95 transition-colors ${idx > 0 ? 'border-t border-tertiary/6' : ''} ${isLast ? 'pr-32' : ''}`}
               >
                 <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10 font-bold text-sm text-tertiary">
-                  {avpu || <Activity size={18} />}
+                  {vs.avpu || <Activity size={18} />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  {gcsTotal !== null && gcsTotal > 0 && idx === 0 && (
+                  {setGcsTotal !== null && setGcsTotal > 0 && (
                     <p className="text-sm font-medium text-primary truncate">
-                      GCS {gcsTotal} (E{gcs!.eye} V{gcs!.verbal} M{gcs!.motor})
+                      GCS {setGcsTotal} (E{vs.gcs!.eye} V{vs.gcs!.verbal} M{vs.gcs!.motor})
                     </p>
                   )}
-                  <p className={`text-[9pt] text-secondary truncate ${gcsTotal && idx === 0 ? 'mt-0.5' : ''}`}>
+                  <p className={`text-[9pt] text-secondary truncate ${setGcsTotal ? 'mt-0.5' : ''}`}>
                     {buildChipSummary(vs)}
                   </p>
                 </div>
-                <span className="text-[9pt] text-secondary shrink-0">{vs.time}</span>
-                <ChevronRight size={16} className="text-tertiary shrink-0" />
+                {!isLast && <span className="text-[9pt] text-secondary shrink-0">{vs.time}</span>}
+                {!isLast && <ChevronRight size={16} className="text-tertiary shrink-0" />}
               </button>
-            )) : (
-              /* AVPU/GCS only — no vital sets yet */
-              <button
-                type="button"
-                onClick={handleAddVitals}
-                className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-themeblue2/5 active:scale-95 transition-colors"
-              >
-                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10 font-bold text-sm text-tertiary">
-                  {avpu || <Activity size={18} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  {gcsTotal !== null && gcsTotal > 0 && (
-                    <p className="text-sm font-medium text-primary truncate">
-                      GCS {gcsTotal} (E{gcs!.eye} V{gcs!.verbal} M{gcs!.motor})
-                    </p>
-                  )}
-                </div>
-                <ChevronRight size={16} className="text-tertiary shrink-0" />
-              </button>
-            )}
-          </div>
+            )
+          })
+        )}
+        <div
+          onClick={handleAddVitals}
+          className="absolute right-0 bottom-0 w-32 h-full flex items-center justify-end pr-2 pb-2 z-10 cursor-pointer"
+          aria-hidden
+        >
+          <ActionPill shadow="sm">
+            <ActionButton icon={Plus} label="Add vital signs" onClick={handleAddVitals} />
+          </ActionPill>
+        </div>
+      </div>
 
-          {/* Vitals trend table — shown when 2+ populated sets */}
-          {populatedSets.length >= 2 && (
-            <VitalsTrend sets={populatedSets} />
-          )}
-
-          {/* Standalone add FAB */}
-          <div className="flex justify-end mt-2">
-            <button
-              type="button"
-              onClick={handleAddVitals}
-              className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary hover:text-primary hover:bg-themeblue2/5"
-            >
-              <Plus size={14} />
-            </button>
-          </div>
-        </>
+      {/* Vitals trend table — shown when 2+ populated sets */}
+      {hasData && populatedSets.length >= 2 && (
+        <VitalsTrend sets={populatedSets} />
       )}
 
       {/* Popover for editing a vital set (includes AVPU + GCS + vitals) */}

@@ -6,6 +6,7 @@ import type { CardState } from '../Hooks/useAlgorithm';
 import { getScreenerMaxScore, getScreenerScore, isScreenerGateOpen } from '../Data/SpecTesting';
 import { Check, ClipboardList, X } from 'lucide-react';
 import { ConnectorDots } from './ConnectorDots';
+import { ActionPill } from './ActionPill';
 
 interface QuestionCardProps {
     algorithmOptions: AlgorithmOptions[];
@@ -90,15 +91,15 @@ export const QuestionCard = memo(function QuestionCard({
                                         <div className="flex items-center justify-between bg-themeblue2/8 rounded-md px-3 py-2 mb-2">
                                             <div className="flex items-center gap-2">
                                                 <Check size={14} className="text-themeblue2" />
-                                                <span className="text-xs font-medium text-themeblue2">Completed</span>
+                                                <span className="text-[10pt] font-medium text-themeblue2">Completed</span>
                                             </div>
-                                            <span className="text-xs text-themeblue2 font-semibold">
+                                            <span className="text-[10pt] text-themeblue2 font-semibold">
                                                 {gateClosed ? 'Negative Screen' : `${totalScore}/${maxScore} — ${interp}`}
                                             </span>
                                         </div>
                                         <button
                                             onClick={() => onOpenScreener?.(card.index)}
-                                            className="w-full py-2 text-xs text-themeblue2 bg-themeblue2/8 rounded-md font-medium active:scale-95 transition-all"
+                                            className="w-full py-2 text-[10pt] text-themeblue2 bg-themeblue2/8 rounded-md font-medium active:scale-95 transition-all"
                                         >
                                             View / Edit Results
                                         </button>
@@ -107,7 +108,7 @@ export const QuestionCard = memo(function QuestionCard({
                                     <div className="px-4 pb-3">
                                         <button
                                             onClick={() => onOpenScreener?.(card.index)}
-                                            className="w-full py-2.5 text-xs text-white bg-themeblue3 rounded-md font-medium flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+                                            className="w-full py-2.5 text-[10pt] text-white bg-themeblue3 rounded-md font-medium flex items-center justify-center gap-1.5 active:scale-95 transition-all"
                                         >
                                             <ClipboardList size={14} />
                                             Start Screening
@@ -123,16 +124,15 @@ export const QuestionCard = memo(function QuestionCard({
                     );
                 }
 
-                // Non-screener action card — Performed / Deferred buttons
+                // Non-screener action card — Performed / Deferred toggle
                 if (isAction) {
                     const isPerformed = card.actionStatus === 'performed';
                     const isDeferred = card.actionStatus === 'deferred';
-                    const hasStatus = isPerformed || isDeferred;
 
                     return (
                         <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardAppearIn' : ''}`}>
-                            <div className={`flex flex-col rounded-2xl w-full overflow-hidden shadow-sm bg-themewhite2 border-3 border-dashed ${isDeferred ? 'border-themered/30' : 'border-themeblue2/30'}`}>
-                                <div className="px-4 py-3 text-center">
+                            <div className={`relative flex flex-col rounded-2xl w-full overflow-hidden shadow-sm bg-themewhite2 border-3 border-dashed ${isDeferred ? 'border-themered/30' : 'border-themeblue2/30'}`}>
+                                <div className="px-12 py-3 text-center">
                                     <div className={`text-[9pt] font-semibold mb-1 uppercase tracking-wider ${isDeferred ? 'text-themered' : 'text-themeblue2'}`}>
                                         Action Required
                                     </div>
@@ -148,7 +148,7 @@ export const QuestionCard = memo(function QuestionCard({
                                             {question.questionOptions.map((opt, optIndex) => (
                                                 <div
                                                     key={optIndex}
-                                                    className="text-xs p-2 rounded-md bg-themewhite3 text-tertiary cursor-default"
+                                                    className="text-[10pt] p-2 rounded-md bg-themewhite3 text-tertiary cursor-default"
                                                 >
                                                     <div className="font-normal flex items-center">
                                                         {opt.text}
@@ -159,39 +159,33 @@ export const QuestionCard = memo(function QuestionCard({
                                     </div>
                                 )}
 
-                                {/* Performed / Deferred buttons or status badge */}
-                                {hasStatus ? (
-                                    <div className="px-4 pb-3 pt-1">
-                                        {isPerformed ? (
-                                            <div className="flex items-center justify-center gap-2 bg-themegreen/10 rounded-md px-3 py-2.5">
-                                                <Check size={14} className="text-themegreen" />
-                                                <span className="text-xs font-medium text-themegreen">Performed</span>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center justify-center gap-2 bg-themered/10 rounded-md px-3 py-2.5">
-                                                <X size={14} className="text-themered" />
-                                                <span className="text-xs font-medium text-themered">Deferred/Not Indicated</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <div className="px-4 pb-3 pt-1 flex gap-2">
-                                        <button
-                                            onClick={() => onActionStatus?.(card.index, 'performed')}
-                                            disabled={isTransitioning}
-                                            className="flex-1 py-2.5 text-xs text-white bg-themegreen rounded-md font-medium active:scale-95 transition-all"
-                                        >
-                                            Performed
-                                        </button>
-                                        <button
-                                            onClick={() => onActionStatus?.(card.index, 'deferred')}
-                                            disabled={isTransitioning}
-                                            className="flex-1 py-2.5 text-xs text-themered border border-themered rounded-md font-medium active:scale-95 transition-all"
-                                        >
-                                            Deferred/Not Indicated
-                                        </button>
-                                    </div>
-                                )}
+                                {/* Performed / Deferred toggle — overlays card content; never adds height */}
+                                <ActionPill shadow="sm" className="absolute top-2 right-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => onActionStatus?.(card.index, 'performed')}
+                                        disabled={isTransitioning}
+                                        aria-label="Performed"
+                                        title="Performed"
+                                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 ${
+                                            isPerformed ? 'bg-themegreen text-white' : 'bg-themegreen/8 text-themegreen'
+                                        }`}
+                                    >
+                                        <Check className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => onActionStatus?.(card.index, 'deferred')}
+                                        disabled={isTransitioning}
+                                        aria-label="Deferred / Not Indicated"
+                                        title="Deferred / Not Indicated"
+                                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 ${
+                                            isDeferred ? 'bg-themered text-white' : 'bg-themered/8 text-themered'
+                                        }`}
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </ActionPill>
                             </div>
 
                             {hasNext && (
@@ -240,7 +234,7 @@ export const QuestionCard = memo(function QuestionCard({
                                                         }
                                                     }}
                                                     className={`
-                                                text-xs p-2 rounded-md transition-all duration-200
+                                                text-[10pt] p-2 rounded-md transition-all duration-200
                                                 ${isSelected
                                                             ? isRF
                                                                 ? 'bg-themeredred text-white'

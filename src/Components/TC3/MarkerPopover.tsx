@@ -13,6 +13,7 @@ import type {
   TQCategory,
   DressingType,
 } from '../../Types/TC3Types'
+import { ActionPill } from '../ActionPill'
 
 /* ── Static data ─────────────────────────────────────────────────────────── */
 
@@ -74,7 +75,7 @@ function SelectList<T extends string>({
   accentClass: string
 }) {
   return (
-    <div className="mx-3 rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
+    <div>
       {options.map((opt) => {
         const isSelected = selected.includes(opt.value)
         return (
@@ -82,7 +83,7 @@ function SelectList<T extends string>({
             key={opt.value}
             type="button"
             onClick={() => onToggle(opt.value)}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-themeblue2/5 transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-themeblue2/5 transition-colors border-b border-primary/6 last:border-0"
           >
             <span className={`w-2 h-2 rounded-full shrink-0 transition-colors ${isSelected ? accentClass : 'bg-tertiary/20'}`} />
             <span className={`text-sm flex-1 ${isSelected ? 'font-medium text-primary' : 'text-tertiary'}`}>
@@ -206,78 +207,74 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
         <div className="mx-3 mb-3 mt-1 space-y-3">
 
           {hasIVIO && (
-            <div>
-              <div className="px-1 pb-1.5">
-                <SectionHeader>Gauge</SectionHeader>
-              </div>
+            <div className="flex items-center justify-between border-b border-primary/6 px-1 py-2">
+              <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">Gauge</span>
               <input
                 type="text"
                 value={marker.gauge}
                 onChange={(e) => updateMarker(marker.id, { gauge: e.target.value })}
-                placeholder="Gauge (e.g. 18g)"
-                className="w-full text-sm px-4 py-2.5 rounded-2xl border border-themeblue3/10 bg-themewhite2 outline-none focus:border-themeblue1/30 text-primary placeholder:text-tertiary transition-all"
+                placeholder="e.g. 18g"
+                className="flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-base md:text-[10pt]"
               />
             </div>
           )}
 
           {hasTourniquet && (
             <div className="space-y-2">
-              <div className="px-1 pb-0.5">
+              <div className="flex items-center justify-between gap-2 px-1">
                 <SectionHeader>TQ Type</SectionHeader>
+                <ActionPill className="inline-">
+                  {TQ_TYPES.map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => updateMarker(marker.id, { tqType: t })}
+                      className={`px-3 py-1.5 text-[9pt] font-semibold rounded-full transition-all active:scale-95 ${
+                        marker.tqType === t ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </ActionPill>
               </div>
-              <div className="flex gap-1.5">
-                {TQ_TYPES.map(t => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => updateMarker(marker.id, { tqType: t })}
-                    className={`px-3 py-1.5 text-[9pt] font-semibold rounded-full transition-all ${
-                      marker.tqType === t ? 'bg-themeblue3 text-white' : 'bg-tertiary/8 text-tertiary hover:bg-tertiary/12'
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-              <div className="px-1 pb-0.5 pt-1">
+              <div className="flex items-center justify-between gap-2 px-1">
                 <SectionHeader>TQ Category</SectionHeader>
-              </div>
-              <div className="flex gap-1.5">
-                {TQ_CATEGORIES.map(c => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => updateMarker(marker.id, { tqCategory: c })}
-                    className={`px-3 py-1.5 text-[9pt] font-semibold rounded-full transition-all ${
-                      marker.tqCategory === c ? 'bg-themeblue3 text-white' : 'bg-tertiary/8 text-tertiary hover:bg-tertiary/12'
-                    }`}
-                  >
-                    {c}
-                  </button>
-                ))}
+                <ActionPill className="inline-">
+                  {TQ_CATEGORIES.map(c => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => updateMarker(marker.id, { tqCategory: c })}
+                      className={`px-3 py-1.5 text-[9pt] font-semibold rounded-full transition-all active:scale-95 ${
+                        marker.tqCategory === c ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </ActionPill>
               </div>
             </div>
           )}
 
           {hasHemostatic && (
-            <div>
-              <div className="px-1 pb-1.5">
-                <SectionHeader>Dressing Type</SectionHeader>
-              </div>
-              <div className="flex gap-1.5">
+            <div className="flex items-center justify-between gap-2 px-1">
+              <SectionHeader>Dressing Type</SectionHeader>
+              <ActionPill className="inline-">
                 {DRESSING_TYPES.map(d => (
                   <button
                     key={d}
                     type="button"
                     onClick={() => updateMarker(marker.id, { dressingType: d })}
-                    className={`px-3 py-1.5 text-[9pt] font-semibold rounded-full transition-all ${
-                      marker.dressingType === d ? 'bg-themeblue3 text-white' : 'bg-tertiary/8 text-tertiary hover:bg-tertiary/12'
+                    className={`px-3 py-1.5 text-[9pt] font-semibold rounded-full transition-all active:scale-95 ${
+                      marker.dressingType === d ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
                     }`}
                   >
                     {d}
                   </button>
                 ))}
-              </div>
+              </ActionPill>
             </div>
           )}
         </div>

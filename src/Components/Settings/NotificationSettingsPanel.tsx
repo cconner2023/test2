@@ -67,7 +67,7 @@ export const NotificationSettingsPanel = () => {
   return (
     <div className="h-full overflow-y-auto">
       <div className="px-5 py-4 space-y-5">
-        <p className="text-xs text-tertiary leading-relaxed">
+        <p className="text-[10pt] text-tertiary leading-relaxed">
           Manage your push notification subscription and preferences for this device.
         </p>
 
@@ -110,7 +110,7 @@ export const NotificationSettingsPanel = () => {
               {isSubscribed ? (
                 <button
                   onClick={handleUnsubscribe}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-themeredred bg-themeredred/10 active:scale-95 transition-all"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10pt] font-medium text-themeredred bg-themeredred/10 active:scale-95 transition-all"
                 >
                   <Trash2 size={14} />
                   Remove
@@ -118,7 +118,7 @@ export const NotificationSettingsPanel = () => {
               ) : (
                 <button
                   onClick={handleSubscribe}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-themeblue2 bg-themeblue2/10 active:scale-95 transition-all"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10pt] font-medium text-themeblue2 bg-themeblue2/10 active:scale-95 transition-all"
                 >
                   <Plus size={14} />
                   Add

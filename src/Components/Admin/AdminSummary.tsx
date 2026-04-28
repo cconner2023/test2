@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Inbox, ChevronRight, ChevronDown, AlertTriangle, User, Building2 } from 'lucide-react'
-import { ActionButton } from '../ActionButton'
 import { listClinics, listAllUsers, getAllAccountRequests } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import { useInvalidation } from '../../stores/useInvalidationStore'
 import { AdminSummarySkeleton } from './AdminSkeletons'
+import { EmptyState } from '../EmptyState'
 
 interface AdminSummaryProps {
   onSelectClinic: (clinic: AdminClinic) => void
@@ -177,14 +177,10 @@ export function AdminSummary({
   if (clinics.length === 0 && users.length === 0) {
     return (
       <div className="px-4 py-4">
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-          <div className="flex items-center gap-3 px-4 py-3">
-            <p className="text-sm text-tertiary flex-1">No users or clinics yet</p>
-            <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
-              <ActionButton icon={Building2} label="Open clinics" onClick={() => onSwitchTab('clinics')} />
-            </div>
-          </div>
-        </div>
+        <EmptyState
+          title="No users or clinics yet"
+          action={{ icon: Building2, label: 'Open clinics', onClick: () => onSwitchTab('clinics') }}
+        />
       </div>
     )
   }

@@ -5,6 +5,7 @@ import { Section, SectionCard } from '../Section'
 import type { Opord, OpordTask } from '../../Types/ReportTypes'
 import { emptyOpord } from '../../Types/ReportTypes'
 import { opordToText, copyToClipboard, downloadAsText, printReport } from '../../lib/reportExport'
+import { ActionPill } from '../ActionPill'
 
 const rowCx = 'flex items-center justify-between border-b border-primary/6 last:border-0 px-4 py-3'
 
@@ -256,7 +257,7 @@ export function OpordReport() {
 
           <button
             onClick={addTask}
-            className="flex items-center gap-1 text-xs text-themeblue2 px-4 py-2.5 active:scale-95 transition-all"
+            className="flex items-center gap-1 text-[10pt] text-themeblue2 px-4 py-2.5 active:scale-95 transition-all"
           >
             <Plus size={12} /> Add Task
           </button>
@@ -409,11 +410,11 @@ export function OpordReport() {
             />
           </div>
           <div className="border-t border-primary/6 flex items-center justify-end px-3 py-2">
-            <div className="flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15">
+            <ActionPill>
               <ActionButton icon={copied ? Check : Copy} label="Copy" onClick={onCopy} variant={copied ? 'success' : 'default'} />
               <ActionButton icon={Download} label="Download" onClick={onDownload} />
               <ActionButton icon={Printer} label="Print" onClick={onPrint} />
-            </div>
+            </ActionPill>
           </div>
         </SectionCard>
       </Section>

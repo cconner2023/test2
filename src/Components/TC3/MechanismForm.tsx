@@ -1,8 +1,10 @@
 import { memo, useState, useRef, useCallback } from 'react'
-import { Plus, Check, RotateCcw, ChevronRight, Crosshair } from 'lucide-react'
+import { Plus, Check, RotateCcw, Crosshair } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { SectionHeader } from '../Section'
+import { ActionButton } from '../ActionButton'
+import { ActionPill } from '../ActionPill'
 import type { MechanismType } from '../../Types/TC3Types'
 
 const MECHANISM_OPTIONS: { type: MechanismType; label: string }[] = [
@@ -26,7 +28,7 @@ export const MechanismForm = memo(function MechanismForm() {
 
   const [popoverVisible, setPopoverVisible] = useState(false)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
-  const btnRef = useRef<HTMLButtonElement>(null)
+  const fabRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLButtonElement>(null)
 
   const [draftTypes, setDraftTypes] = useState<MechanismType[]>([])
@@ -76,43 +78,43 @@ export const MechanismForm = memo(function MechanismForm() {
       </div>
 
       {/* Section card */}
-      {populated ? (
-        <button
-          ref={cardRef}
-          type="button"
-          onClick={() => openPopover(cardRef)}
-          className="w-full rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden text-left active:scale-95 transition-all hover:bg-themeblue2/5"
-        >
-          <div className="flex items-center gap-3 px-4 py-3.5">
-            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-              <Crosshair size={18} className="text-tertiary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-primary">
-                {mechanism.types.join(', ')}
-              </p>
-              {mechanism.types.includes('Other') && mechanism.otherDescription && (
-                <p className="text-[9pt] text-tertiary mt-0.5 truncate">
-                  {mechanism.otherDescription}
-                </p>
-              )}
-            </div>
-            <ChevronRight size={16} className="text-tertiary shrink-0" />
-          </div>
-        </button>
-      ) : (
-        <div className="flex flex-col items-center gap-2 py-6">
+      <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+        {populated ? (
           <button
-            ref={btnRef}
+            ref={cardRef}
             type="button"
-            onClick={() => openPopover(btnRef)}
-            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary"
+            onClick={() => openPopover(cardRef)}
+            className="w-full text-left active:scale-95 transition-all hover:bg-themeblue2/5"
           >
-            <Plus size={14} />
+            <div className="flex items-center gap-3 px-4 py-3.5 pr-12">
+              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                <Crosshair size={18} className="text-tertiary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-primary">
+                  {mechanism.types.join(', ')}
+                </p>
+                {mechanism.types.includes('Other') && mechanism.otherDescription && (
+                  <p className="text-[9pt] text-tertiary mt-0.5 truncate">
+                    {mechanism.otherDescription}
+                  </p>
+                )}
+              </div>
+            </div>
           </button>
-          <p className="text-[9pt] text-tertiary">Add mechanism of injury</p>
-        </div>
-      )}
+        ) : (
+          <div className="px-4 py-3">
+            <p className="text-sm text-tertiary py-4 text-center">No mechanism recorded</p>
+          </div>
+        )}
+        <ActionPill ref={fabRef} shadow="sm" className="absolute top-2 right-2 z-10">
+          <ActionButton
+            icon={Plus}
+            label={populated ? 'Edit mechanism' : 'Add mechanism'}
+            onClick={() => openPopover(fabRef)}
+          />
+        </ActionPill>
+      </div>
 
       {/* Edit popover */}
       <PreviewOverlay
@@ -146,7 +148,7 @@ export const MechanismForm = memo(function MechanismForm() {
             {/* Other description */}
             {draftTypes.includes('Other') && (
               <div className="space-y-1 pt-1">
-                <span className="text-xs font-medium text-tertiary uppercase tracking-wide">Describe Other</span>
+                <span className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Describe Other</span>
                 <input
                   type="text"
                   value={draftOther}

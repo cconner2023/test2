@@ -44,7 +44,7 @@ function SelectTaskForAssignment({
 
   return (
     <div>
-      <p className="text-xs text-tertiary mb-3">
+      <p className="text-[10pt] text-tertiary mb-3">
         Assigning to <span className="font-medium text-primary">{medicName}</span> &mdash; select a task:
       </p>
 
@@ -140,31 +140,22 @@ function AssignmentDetails({
       <div>
         <p className="text-[9pt] text-tertiary font-mono">{taskNumber}</p>
         <h3 className="text-base font-semibold text-primary">{taskTitle}</h3>
-        <p className="text-xs text-tertiary mt-1">
+        <p className="text-[10pt] text-tertiary mt-1">
           Assigning to <span className="font-medium text-primary">{medicName}</span>
         </p>
       </div>
 
-      <div>
-        <span className="text-xs font-medium text-tertiary uppercase tracking-wide">
-          Due Date <span className="text-themeredred">*</span>
-        </span>
-        <div className="mt-1">
-          <DatePickerInput
-            value={dueDate}
-            onChange={setDueDate}
-            placeholder="Select due date"
-            minDate={minDate}
-          />
-        </div>
-      </div>
-
-      <div>
+      <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+        <DatePickerInput
+          value={dueDate}
+          onChange={setDueDate}
+          placeholder="Due date *"
+          minDate={minDate}
+        />
         <TextInput
-          label="Notes (Optional)"
           value={notes}
           onChange={setNotes}
-          placeholder="Study chapters 3-5, focus on airway management..."
+          placeholder="Notes (e.g. study chapters 3-5)"
         />
       </div>
 

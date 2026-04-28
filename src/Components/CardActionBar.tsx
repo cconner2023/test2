@@ -21,7 +21,7 @@ export function CardActionBar({ selectedCount, onClear, actions }: CardActionBar
       <div className="flex items-center justify-between">
         <button
           onClick={onClear}
-          className="text-xs text-tertiary hover:text-primary transition-colors"
+          className="text-[10pt] text-tertiary hover:text-primary transition-colors"
         >
           {selectedCount} selected — Clear
         </button>

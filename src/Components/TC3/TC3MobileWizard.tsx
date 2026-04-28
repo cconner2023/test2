@@ -208,7 +208,7 @@ export const TC3MobileWizard = memo(function TC3MobileWizard() {
           { key: 'clear', label: 'Clear card', icon: Trash2, onAction: handleReset, variant: 'danger' },
         ]}
       >
-        <p className="px-4 pb-4 text-xs text-secondary">Current entries will be lost.</p>
+        <p className="px-4 pb-4 text-[10pt] text-secondary">Current entries will be lost.</p>
       </PreviewOverlay>
     </div>
   )

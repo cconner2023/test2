@@ -101,7 +101,7 @@ export function MessageNotificationToast({ notification, onDismiss, onTap }: Pro
           {/* Text */}
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-primary truncate">{title}</p>
-            <p className="text-xs text-secondary truncate mt-0.5">
+            <p className="text-[10pt] text-secondary truncate mt-0.5">
               {subtitle.length > 60 ? subtitle.slice(0, 60) + '\u2026' : subtitle}
             </p>
           </div>

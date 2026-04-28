@@ -23,16 +23,23 @@ export interface TourStep {
   desktopOnly?: boolean
 }
 
+export type TourCategory = 'getting-started' | 'reference-network' | 'customization' | 'advanced'
+
 export interface TourDefinition {
   id: string
   name: string
+  /** Role gate — controls who can see this tour. Medics see only 'medic' tours unless they hold the higher role. */
   tier: 'medic' | 'supervisor' | 'provider'
+  /** Functional grouping in the Guided Tours panel. Independent of role gating. */
+  category: TourCategory
   description: string
   steps: TourStep[]
   /** Scene-based tours render their own mock UI instead of manipulating the live app */
   scene?: string
   /** If true, only visible to dev-role users (tour not yet production-ready) */
   devOnly?: boolean
+  /** Suppress the per-step dot row in the tooltip (use for long tours where the dots would push nav off the card). Replaced with a compact `n / total` label. */
+  hideStepperDots?: boolean
 }
 
 // ─── Action Keys ─────────────────────────────────────────────────────────────
@@ -71,16 +78,20 @@ export interface TourDefinition {
 //   'calendar:view:month'     — switch to month view
 //   'calendar:view:day'       — switch to day view
 //   'calendar:view:troops'    — switch to troops-to-task view
+//   'calendar:view:huddle'    — switch to huddle view
 //   'calendar:open-controls'   — open mobile controls drawer
 //   'calendar:close-controls'  — close mobile controls drawer
 //   'calendar:open-event-form' — click add button, wait for event form
+//   'calendar:select-huddle-category' — set event category to 'huddle' so the huddle-task picker reveals
+//   'calendar:open-export-import' — open the calendar export/import controls
 //   'calendar:cleanup'         — delete mock event, return to guided tours
+//   'note:open-ddx'            — open the differential diagnoses picker on WriteNotePage
+//   'note:select-ddx-demo'     — select 1-2 demo differentials inside the DDX picker
+//   'note:close-ddx'           — dismiss the differential picker overlay
 //   'supervisor:open-first-area'  — navigate into first coverage area in supervisor panel
 //   'supervisor:cleanup'          — reset to base state, close supervisor, return to guided tours
 //   'clinic:open'                 — close all, open Settings → Clinic panel
-//   'clinic:enable-edit'          — click the clinic edit button
-//   'clinic:stage-demo-clinic'    — stage a demo clinic code (TEST CDID)
-//   'clinic:cleanup'              — cancel edit mode, return to guided tours
+//   'clinic:cleanup'              — reset clinic state, return to guided tours
 //   'planorderset:setup'          — open Settings → Plan panel, enable edit mode
 //   'planorderset:add-med-1'      — stage Tylenol 325mg tab tag
 //   'planorderset:add-med-2'      — stage Mucinex 500mg tab tag
@@ -105,6 +116,7 @@ const gettingStarted: TourDefinition = {
   id: 'getting-started',
   name: 'Getting Started',
   tier: 'medic',
+  category: 'getting-started',
   scene: 'getting-started',
   description: 'Learn the basics — navigation, menu, and core features.',
   steps: [
@@ -134,6 +146,11 @@ const gettingStarted: TourDefinition = {
       placement: 'bottom',
     },
     {
+      target: 'sidenav-property',
+      text: 'Property Book — track clinic equipment, serialized gear, and consumables by location.',
+      placement: 'bottom',
+    },
+    {
       target: 'sidenav-settings',
       text: 'Settings — theme, PIN lock, notifications, and your clinical preferences.',
       placement: 'top',
@@ -147,6 +164,7 @@ const algorithmNavTour: TourDefinition = {
   id: 'algorithm-nav',
   name: 'Algorithm Navigation',
   tier: 'medic',
+  category: 'getting-started',
   description: 'Navigate categories, view symptom info, and walk through an algorithm.',
   steps: [
     {
@@ -257,14 +275,29 @@ const noteLifecycleTour: TourDefinition = {
   id: 'note-lifecycle',
   name: 'Write Note & Export',
   tier: 'medic',
+  category: 'getting-started',
   description: 'SOAP, preview, encode, and import.',
+  hideStepperDots: true,
   steps: [
+    // ── Section toggles ──
+    {
+      target: 'writenote-section-toggles',
+      text: 'Full Note toggle — on for a complete SOAP note, off for a quick decision-only note as the situation calls for.',
+      placement: 'bottom',
+      beforeStep: 'setup:writenote-demo',
+      delay: 600,
+      duration: 5000,
+    },
+    {
+      target: 'writenote-decision-toggle',
+      text: 'Decision Making toggle — captures the algorithm path and disposition you walked through. Pair with Full Note, or send on its own.',
+      placement: 'bottom',
+      duration: 5000,
+    },
     {
       target: 'writenote-hpi',
       text: "The History of Present Illness (HPI) — Subjective information. This is what the patient TELLS you.",
       placement: 'bottom',
-      beforeStep: 'setup:writenote-demo',
-      delay: 600,
       duration: 5000,
     },
     {
@@ -332,6 +365,32 @@ const noteLifecycleTour: TourDefinition = {
       duration: 5000,
       afterStep: 'inject:note-pe',
     },
+    // ── Differential Diagnoses picker ──
+    {
+      target: 'writenote-ddx',
+      text: 'Differentials — pick from the suggested list for this algorithm or add your own. Captures what else you considered, then ruled out.',
+      placement: 'bottom',
+      beforeStep: 'scroll-to:writenote-ddx',
+      delay: 400,
+      duration: 6000,
+    },
+    {
+      target: 'writenote-ddx',
+      text: 'Tap to open the picker. Suggestions come from the algorithm cards you walked through.',
+      placement: 'bottom',
+      beforeStep: 'note:open-ddx',
+      delay: 400,
+      duration: 5000,
+    },
+    {
+      target: 'writenote-ddx',
+      text: 'Selected differentials roll up into the note. Tap done to commit.',
+      placement: 'bottom',
+      beforeStep: 'note:select-ddx-demo',
+      delay: 400,
+      duration: 5000,
+      afterStep: 'note:close-ddx',
+    },
     {
       target: 'writenote-plan',
       text: 'The Plan (P) — what\'s your treatment: medications, instructions, and follow-up. You can make order sets in your settings and apply common bundles in one tap.',
@@ -362,6 +421,20 @@ const noteLifecycleTour: TourDefinition = {
       placement: 'bottom',
       duration: 5000,
     },
+    // ── Log to calendar (note → calendar bridge) ──
+    {
+      target: 'writenote-log-calendar',
+      text: 'Log this encounter to the calendar — drops a timestamped entry on your day so the visit is tracked. No PHI is logged, just that an encounter occurred.',
+      placement: 'bottom',
+      duration: 6000,
+    },
+    // ── SF600 PDF export ──
+    {
+      target: 'writenote-export-sf600',
+      text: 'Export the note as an SF600 PDF — the standard chronological record form. Useful when a printed copy needs to land in someone\'s record.',
+      placement: 'bottom',
+      duration: 6000,
+    },
     {
       target: 'writenote-encoded',
       text: 'The encoded note compresses everything into a scannable barcode. A provider can import it instantly.',
@@ -373,6 +446,13 @@ const noteLifecycleTour: TourDefinition = {
       text: 'Share as a barcode image, or copy the encoded text',
       placement: 'top',
       duration: 5000,
+    },
+    // ── DD689 export ──
+    {
+      target: 'writenote-export-dd689',
+      text: 'Export a DD689 sick slip alongside the encoded note — what the soldier carries when they go to a higher level of care.',
+      placement: 'top',
+      duration: 6000,
       pausePoint: true,
       afterStep: 'restore:note-sections',
     },
@@ -399,6 +479,7 @@ const textExpanderTour: TourDefinition = {
   id: 'text-expanders',
   name: 'Text Expanders',
   tier: 'medic',
+  category: 'customization',
   description: 'Build a reusable shortcut from scratch — fields, selections, and static text.',
   steps: [
     {
@@ -417,8 +498,8 @@ const textExpanderTour: TourDefinition = {
       duration: 5000,
     },
     {
-      target: 'expander-input-bar',
-      text: "Edit mode was turned on in the header. Our shortcut name is 'ABCCD' — confirm to open the editor.",
+      target: 'expander-fab',
+      text: "Tap the New Template button (top-right of the list) to open the editor for our shortcut 'ABCCD'.",
       placement: 'bottom',
       beforeStep: 'expander:demo:open-and-type',
       delay: 600,
@@ -484,6 +565,7 @@ const plansOrderSetsTour: TourDefinition = {
   id: 'plans-order-sets',
   name: 'Plans & Order Sets',
   tier: 'medic',
+  category: 'customization',
   description: 'Build plan tags and compose a reusable order set from scratch.',
   steps: [
     {
@@ -571,6 +653,7 @@ const tc3Tour: TourDefinition = {
   id: 'tc3',
   name: 'TC3 Casualty Card',
   tier: 'medic',
+  category: 'getting-started',
   description: 'Digital DD Form 1380 — casualty tracking, MARCH interventions, and export.',
   steps: [
     {
@@ -633,6 +716,7 @@ const knowledgeBaseTour: TourDefinition = {
   id: 'knowledge-base',
   name: 'Knowledge Base',
   tier: 'medic',
+  category: 'reference-network',
   description: 'Medications, STP tasks, screeners, calculators, and burn assessment.',
   steps: [
     {
@@ -694,6 +778,7 @@ const messagingTour: TourDefinition = {
   id: 'messaging',
   name: 'Messaging',
   tier: 'medic',
+  category: 'reference-network',
   description: 'Self-notes, encrypted conversations, threaded replies, and message management.',
   steps: [
     {
@@ -750,6 +835,7 @@ const calendarTour: TourDefinition = {
   id: 'calendar',
   name: 'Calendar',
   tier: 'medic',
+  category: 'reference-network',
   description: 'Events, views, personnel filters, and troops-to-task.',
   steps: [
     // ── Setup: inject mock event, open calendar, land on month view ──
@@ -763,7 +849,7 @@ const calendarTour: TourDefinition = {
     },
     {
       target: 'calendar-view-switcher',
-      text: 'Switch between Month, Day, and Troops to Task here.',
+      text: 'Switch between Month, Day, Troops to Task, and Huddle here.',
       placement: 'top',
       duration: 4000,
     },
@@ -784,6 +870,15 @@ const calendarTour: TourDefinition = {
       beforeStep: 'calendar:view:troops',
       delay: 400,
       duration: 5000,
+    },
+    // ── Huddle band (inline above medic timeline rows) ──
+    {
+      target: 'calendar-huddle-band',
+      text: 'Huddle band — provider/medic pairings sit above the medic rows, anchored to each day. Pan horizontally to see other days; manage rooms in clinic settings.',
+      placement: 'bottom',
+      beforeStep: 'calendar:view:troops',
+      delay: 400,
+      duration: 6000,
     },
     // ── Filter: desktop sidebar ──
     {
@@ -834,7 +929,7 @@ const calendarTour: TourDefinition = {
     // ── Event form ──
     {
       target: 'event-form-title',
-      text: 'New event form — give it a title and pick a category: Training, Duty, Range, Appointment, Mission, or MEDEVAC.',
+      text: 'New event form — give it a title and pick a category: Training, Duty, Range, Appointment, Mission, MEDEVAC, or Huddle.',
       placement: 'bottom',
       beforeStep: 'calendar:open-event-form',
       delay: 400,
@@ -844,7 +939,40 @@ const calendarTour: TourDefinition = {
       target: 'event-form-datetime',
       text: 'Set start and end date/time. Toggle All Day for full-day events — times collapse automatically.',
       placement: 'top',
-      duration: 4000,
+      duration: 5000,
+    },
+    // ── Room picker ──
+    {
+      target: 'event-form-room',
+      text: 'Tag a clinic room so the event shows on that room\'s schedule. Rooms are managed in clinic settings.',
+      placement: 'top',
+      duration: 5000,
+    },
+    // ── Huddle category → huddle task picker ──
+    {
+      target: 'event-form-category',
+      text: 'Pick the Huddle category to assign someone to a huddle station — like Front Desk or an on-shift provider block.',
+      placement: 'bottom',
+      beforeStep: 'calendar:select-huddle-category',
+      delay: 400,
+      duration: 5000,
+    },
+    {
+      target: 'event-form-huddle-task',
+      text: 'Leave blank for a generic provider block, or pick a station task to assign someone there for that window.',
+      placement: 'top',
+      duration: 5000,
+      pausePoint: true,
+      afterStep: 'calendar:cleanup',
+    },
+    // ── Export / Import ──
+    {
+      target: 'calendar-export-import',
+      text: 'Export your calendar to share with another medic, or import one from a teammate. Useful for offline handoffs and pre-op planning.',
+      placement: 'bottom',
+      beforeStep: 'calendar:open-export-import',
+      delay: 400,
+      duration: 5000,
       pausePoint: true,
       afterStep: 'calendar:cleanup',
     },
@@ -855,6 +983,7 @@ const settingsTour: TourDefinition = {
   id: 'settings',
   name: 'Settings & Preferences',
   tier: 'medic',
+  category: 'customization',
   description: 'Profile, security, notifications, and where to find tours.',
   steps: [
     {
@@ -935,6 +1064,7 @@ const missionOverviewTour: TourDefinition = {
   id: 'mission-overview',
   name: 'Mission Overview',
   tier: 'medic',
+  category: 'getting-started',
   description: 'Your home screen dashboard — widgets, visibility, and customization.',
   steps: [
     {
@@ -970,6 +1100,7 @@ const supervisorTour: TourDefinition = {
   id: 'supervisor-panel',
   name: 'Supervisor Panel',
   tier: 'supervisor',
+  category: 'advanced',
   description: 'Clinic stats, soldier readiness, coverage gaps, and task evaluation.',
   steps: [
     // ── Overview: clinic stats card ──
@@ -1026,7 +1157,8 @@ const clinicManagementTour: TourDefinition = {
   id: 'clinic-management',
   name: 'Clinic Management',
   tier: 'supervisor',
-  description: 'Edit clinic details, manage associations, and add personnel.',
+  category: 'advanced',
+  description: 'Edit clinic details, manage associations, rooms, huddle tasks, and personnel.',
   steps: [
     // ── Navigate to Settings → Clinic ──
     {
@@ -1035,52 +1167,48 @@ const clinicManagementTour: TourDefinition = {
       placement: 'bottom',
       beforeStep: 'clinic:open',
       delay: 600,
-      duration: 5000,
+      duration: 5500,
     },
-    // ── Highlight edit button ──
+    // ── Tap-to-edit hint on identity card ──
     {
-      target: 'clinic-edit-button',
-      text: 'Tap edit to modify clinic details, manage associations, and add, edit, or remove personnel. All changes are staged until you confirm.',
+      target: 'clinic-identity-card',
+      text: 'Tap the card to edit name, location, and UICs. Each section below has its own "+" button — every change saves immediately, no batch save.',
       placement: 'bottom',
-      pausePoint: true,
+      duration: 6000,
     },
     // ── Associated Clinics section ──
     {
       target: 'clinic-associated',
-      text: 'Associated clinics share personnel visibility. Scan a QR code, upload an image, or type an invite code to stage a new association.',
+      text: 'Associated clinics share personnel visibility across nearby teams. Tap "+" to scan a QR code, upload an image, or type an 8-character invite code.',
       placement: 'bottom',
-      beforeStep: 'clinic:enable-edit',
-      delay: 400,
       duration: 6000,
     },
-    // ── Stage a demo clinic code ──
+    // ── Rooms section ──
     {
-      target: 'clinic-join-input',
-      text: 'Enter a clinic invite code here. Staged associations appear with a dashed border — nothing is final until you save.',
-      placement: 'bottom',
-      beforeStep: 'clinic:stage-demo-clinic',
-      delay: 400,
-      duration: 5000,
+      target: 'clinic-rooms',
+      text: 'Rooms are the physical spaces in your clinic — exam rooms, triage bays, the SCA. They tag calendar events and notes so the team knows where care happens. Tap "+" to add one.',
+      placement: 'top',
+      duration: 7000,
+    },
+    // ── Huddle Tasks section ──
+    {
+      target: 'clinic-huddle-tasks',
+      text: 'Huddle tasks are the recurring stations on your daily shift — sick call, immunizations, walk-ins. They appear as rows in the calendar\'s huddle band so you can drag medics onto each station every morning. Tap "+" to add one.',
+      placement: 'top',
+      duration: 8000,
     },
     // ── Personnel section ──
     {
       target: 'clinic-personnel',
-      text: 'Your assigned personnel. In edit mode, tap a member to open their profile card — edit name, credentials, rank, roles, and UIC. Changes stage with a blue indicator.',
+      text: 'Your assigned personnel. Tap a member to edit their rank and roles (medic / supervisor / provider) or remove them from the clinic.',
       placement: 'top',
       duration: 6000,
     },
-    // ── Add member ──
+    // ── Add member overlay ──
     {
       target: 'clinic-add-member',
-      text: 'Look up an existing user by email, or create a new account with a temporary password. New members stage with a dashed border.',
+      text: 'Tap "+" to add a member. Enter their email — if an account exists, they\'re added immediately. If not, the panel falls through to a create-user form so you can onboard them in one step.',
       placement: 'top',
-      duration: 6000,
-    },
-    // ── Save / confirm ──
-    {
-      target: 'clinic-save-button',
-      text: 'All changes are batched — profile edits, role changes, member adds, clinic associations, and removals commit together when you save. Nothing is permanent until you confirm.',
-      placement: 'bottom',
       pausePoint: true,
       afterStep: 'clinic:cleanup',
     },
@@ -1093,6 +1221,7 @@ const providerTour: TourDefinition = {
   id: 'provider-notes',
   name: 'Provider Notes',
   tier: 'provider',
+  category: 'advanced',
   description: 'Quick note templates and clinical documentation — import, template apply, export.',
   steps: [
     {
@@ -1159,6 +1288,7 @@ const propertyTour: TourDefinition = {
   id: 'property-book',
   name: 'Property Book',
   tier: 'medic',
+  category: 'reference-network',
   description: 'Track clinic equipment, supplies, and serialized gear by location.',
   steps: [
     {

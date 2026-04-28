@@ -69,7 +69,7 @@ export const PhysicalExamPanel = () => {
     return (
         <div className="h-full overflow-y-auto">
             <div className="px-5 py-4 space-y-5">
-                <p className="text-xs text-tertiary leading-relaxed">
+                <p className="text-[10pt] text-tertiary leading-relaxed">
                     Create reusable PE exam templates for quick provider note setup.
                 </p>
 
@@ -106,7 +106,7 @@ export const PhysicalExamPanel = () => {
                                                 key={block.key}
                                                 type="button"
                                                 onClick={() => toggleBlock(block.key)}
-                                                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all active:scale-95 ${
+                                                className={`px-3 py-1.5 rounded-full text-[10pt] font-medium transition-all active:scale-95 ${
                                                     selected
                                                         ? 'bg-themegreen/15 text-themegreen ring-1 ring-inset ring-themegreen/20'
                                                         : 'bg-tertiary/8 text-tertiary hover:bg-tertiary/12'

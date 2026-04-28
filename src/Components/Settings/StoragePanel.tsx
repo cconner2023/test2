@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import { RefreshCw, Trash2, ArrowUpDown, Calendar, Archive, Map, MessageSquare, Loader2 } from 'lucide-react'
 import { ActionButton } from '../ActionButton'
+import { ActionPill } from '../ActionPill'
 import { getStorageStats, type StorageStats } from '../../lib/storageService'
 import { clearTileCache, resetAllFailedItems } from '../../lib/offlineDb'
 import { useAuth } from '../../Hooks/useAuth'
@@ -36,9 +37,9 @@ function StorageCard({ preview, icon, label, tagline, action, indicator }: Stora
                     <p className="text-[9pt] text-tertiary mt-0.5">{tagline}</p>
                 </div>
                 {action && (
-                    <div className="flex items-center px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15 shrink-0">
+                    <ActionPill shadow="sm" className="gap-0 shrink-0">
                         {action}
-                    </div>
+                    </ActionPill>
                 )}
                 {!action && indicator && (
                     <div className="w-1.5 h-1.5 rounded-full bg-themeblue2 shrink-0" />

@@ -14,7 +14,7 @@ import { kbCategories } from '../Data/KnowledgeBaseCategories'
 
 // Badge configuration map for cleaner lookup
 const BADGE_CONFIG: Record<string, { label: string; className: string }> = {
-    category: { label: 'CATEGORY', className: 'bg-themeblue3 text-primary' },
+    category: { label: 'CATEGORY', className: 'bg-themeblue3/15 text-themeblue1' },
     CC: { label: 'COMPLAINT', className: 'bg-themewhite2 text-secondary' },
     medication: { label: 'MEDICATION', className: 'bg-themeyellowlow/30 text-secondary' },
     training: { label: 'GUIDELINE', className: 'bg-themewhite2 text-themeblue1' },
@@ -94,7 +94,7 @@ export function SearchResults({
     // Results state
     return (
         <div className="flex flex-col h-full">
-            <div className="px-3 py-2 text-xs text-tertiary border-b border-themewhite2">
+            <div className="px-3 py-2 text-[10pt] text-tertiary border-b border-themewhite2">
                 Found {results.length} result{results.length !== 1 ? 's' : ''}
             </div>
             <div className="flex-1 overflow-y-auto pb-4">
@@ -117,22 +117,22 @@ export function SearchResults({
 
                                 {/* Breadcrumb for symptoms, guidelines, and training tasks */}
                                 {(result.type === 'CC' || result.type === 'DDX') && result.data?.categoryRef && (
-                                    <div className="text-[9pt] text-themeblue1/70 mt-1">
+                                    <div className="text-[9pt] text-secondary mt-1">
                                         {result.data.categoryRef.text}
                                     </div>
                                 )}
                                 {result.type === 'training' && result.data?.guidelineType === 'stp-task' && result.data.skillLevel && (
-                                    <div className="text-[9pt] text-themeblue1/70 mt-1">
+                                    <div className="text-[9pt] text-secondary mt-1">
                                         {result.data.skillLevel} &gt; {result.data.subjectArea}
                                     </div>
                                 )}
                                 {result.type === 'training' && result.data?.guidelineType === 'medcom' && result.data?.categoryRef && (
-                                    <div className="text-[9pt] text-themeblue1/70 mt-1">
+                                    <div className="text-[9pt] text-secondary mt-1">
                                         {result.data.categoryRef.text}
                                     </div>
                                 )}
                                 {(result.type === 'screener' || result.type === 'calculator') && result.data?.kbCategoryId && (
-                                    <div className="text-[9pt] text-themeblue1/70 mt-1">
+                                    <div className="text-[9pt] text-secondary mt-1">
                                         {kbCategories.find(c => c.id === result.data!.kbCategoryId)?.description}
                                     </div>
                                 )}

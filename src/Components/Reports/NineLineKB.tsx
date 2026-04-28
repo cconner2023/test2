@@ -1,14 +1,14 @@
 // src/Components/Reports/NineLineKB.tsx
 import { useState, useRef } from 'react'
-import { Copy, Check, Printer, X, Image } from 'lucide-react'
+import { Copy, Check, ChevronRight, Printer, RefreshCw, Image } from 'lucide-react'
 import { MedevacForm } from '../Medevac/MedevacForm'
 import { ActionButton } from '../ActionButton'
 import { BarcodeDisplay } from '../Barcode'
 
-const PILL = 'flex items-center gap-1 px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-lg border border-tertiary/15'
 import type { MedevacRequest } from '../../Types/MedevacTypes'
 import { medevacPatientTotal } from '../../Types/MedevacTypes'
 import { medevacToText, medevacToCompact, copyToClipboard, printReport } from '../../lib/reportExport'
+import { ActionPill } from '../ActionPill'
 
 function hasContent(req: MedevacRequest): boolean {
   return !!(req.l1 || req.l2f || req.l2c || medevacPatientTotal(req) > 0)
@@ -27,8 +27,17 @@ export function NineLineKB({ req, onChange, onReview }: NineLineKBProps) {
     <div className="px-4 py-4 space-y-4">
       <MedevacForm value={req} onChange={onChange} />
       {hasContent(req) && (
-        <div className="flex justify-center pb-2">
-          <ActionButton icon={Check} label="Review" onClick={onReview} />
+        <div className="flex justify-end pb-2">
+          <ActionPill>
+            <button
+              type="button"
+              onClick={onReview}
+              aria-label="Review"
+              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all bg-themeblue2 text-white"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </ActionPill>
         </div>
       )}
     </div>
@@ -81,38 +90,26 @@ export function NineLineExport({ req, onClear }: NineLineExportProps) {
   return (
     <div className="px-4 py-4 space-y-4">
       {/* Text Preview */}
-      <div>
-        <div className="pb-2 flex items-center justify-between">
-          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">9-Line Preview</p>
-          <div className={PILL}>
-            <ActionButton icon={copiedText ? Check : Copy} label="Copy text" onClick={handleCopyText} variant={copiedText ? 'success' : 'default'} iconSize={14} />
-            <ActionButton icon={Printer} label="Print" onClick={handlePrint} iconSize={14} />
-          </div>
+      <div className="relative rounded-xl bg-themewhite2 overflow-hidden">
+        <div className="px-4 py-3 pt-14 text-tertiary text-[10pt] whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto">
+          {text}
         </div>
-        <div className="rounded-xl bg-themewhite2 overflow-hidden">
-          <div className="px-4 py-3 text-tertiary text-[9pt] whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto">
-            {text}
-          </div>
-        </div>
+        <ActionPill shadow="sm" className="absolute top-2 right-2">
+          <ActionButton icon={copiedText ? Check : Copy} label="Copy text" onClick={handleCopyText} variant={copiedText ? 'success' : 'default'} iconSize={14} />
+          <ActionButton icon={Printer} label="Print" onClick={handlePrint} iconSize={14} />
+          <ActionButton icon={RefreshCw} label="Clear form" variant="danger" onClick={onClear} iconSize={14} />
+        </ActionPill>
       </div>
 
       {/* Data Matrix — compact encoding, not prose text */}
-      <div>
-        <div className="pb-2 flex items-center justify-between">
-          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Data Matrix</p>
-          <div className={PILL}>
-            <ActionButton icon={copiedDm === 'image' ? Check : Image} label="Copy image" onClick={handleCopyImage} variant={copiedDm === 'image' ? 'success' : 'default'} iconSize={14} />
-            <ActionButton icon={copiedDm === 'code' ? Check : Copy} label="Copy code" onClick={handleCopyCode} variant={copiedDm === 'code' ? 'success' : 'default'} iconSize={14} />
-          </div>
-        </div>
-        <div ref={barcodeRef} className="rounded-xl overflow-hidden">
+      <div ref={barcodeRef} className="relative rounded-xl bg-themewhite2 overflow-hidden">
+        <div className="pt-14">
           <BarcodeDisplay encodedText={compact} layout="col" />
         </div>
-      </div>
-
-      {/* Clear */}
-      <div className="flex justify-center pb-2">
-        <ActionButton icon={X} label="Clear form" variant="danger" onClick={onClear} />
+        <ActionPill shadow="sm" className="absolute top-2 right-2">
+          <ActionButton icon={copiedDm === 'image' ? Check : Image} label="Copy image" onClick={handleCopyImage} variant={copiedDm === 'image' ? 'success' : 'default'} iconSize={14} />
+          <ActionButton icon={copiedDm === 'code' ? Check : Copy} label="Copy code" onClick={handleCopyCode} variant={copiedDm === 'code' ? 'success' : 'default'} iconSize={14} />
+        </ActionPill>
       </div>
     </div>
   )

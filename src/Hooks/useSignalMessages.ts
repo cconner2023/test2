@@ -442,9 +442,15 @@ export function useSignalMessages({
         trackProcessed(row.id)
         const decrypted = await decryptRow(row, userId)
         // Null return means non-visible (sender-key-distribution) or decrypt failure.
-        // Either way, mark as read to prevent infinite re-fetch on every catch-up.
+        // Only mark-read for non-recoverable types — leave handshake/session failures
+        // unread so the next session's catch-up retries after pre-keys replenish,
+        // sessions restore from backup, etc. Without this, a transient X3DH failure
+        // (e.g. recipient on a fresh provisional tab) permanently loses the row,
+        // which is exactly how request-accepted disappears and the gate sticks.
         if (!decrypted) {
-          processedRowIds.push(row.id)
+          if (row.message_type === 'sender-key-distribution') {
+            processedRowIds.push(row.id)
+          }
           continue
         }
         processedRowIds.push(row.id)
@@ -625,9 +631,14 @@ export function useSignalMessages({
 
       decryptRow(row, myUuid).then((decrypted) => {
         if (!decrypted) {
-          // Null means non-visible (sender-key-distribution) or decrypt failure —
-          // mark as read so the server can purge and we don't retry forever
-          markMessagesRead([row.id]).catch(() => {})
+          // Null means non-visible (sender-key-distribution) or decrypt failure.
+          // Only mark-read for non-recoverable types — handshake/session failures
+          // stay unread so catch-up retries on the next session (after sessions
+          // restore from backup, pre-keys replenish, etc.). Marking them read here
+          // is how request-accepted rows on fresh-X3DH paths disappear permanently.
+          if (row.message_type === 'sender-key-distribution') {
+            markMessagesRead([row.id]).catch(() => {})
+          }
           return
         }
         if (decrypted.messageType === 'delete') {

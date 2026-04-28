@@ -1,6 +1,7 @@
 import { useMemo, useState, useCallback, useRef } from 'react'
 import { Pin } from 'lucide-react'
 import { MedicationPage } from './MedicationPage'
+import { Section, SectionCard } from './Section'
 import { medList, type medListTypes } from '../Data/MedData'
 import { tc3MedList } from '../Data/TC3MedData'
 import { useNavPreferencesStore } from '../stores/useNavPreferencesStore'
@@ -19,7 +20,7 @@ function MedicationListItem({ medication, onClick, isPinned, onContextMenu, onTo
 }) {
     return (
         <div
-            className="flex items-center py-3 px-2 w-full border-b border-themewhite2/70 cursor-pointer rounded-md"
+            className="flex items-center py-3 px-4 w-full border-b border-primary/6 last:border-0 cursor-pointer transition-colors active:bg-themeblue2/5"
             onClick={onClick}
             onContextMenu={onContextMenu}
             onTouchStart={onTouchStart}
@@ -130,47 +131,38 @@ export function MedicationContent({
     return (
         <div className="px-4 pb-4">
             {pinnedMeds.length > 0 && (
-                <>
-                    <div className="flex items-center gap-2 mt-1 mb-1 px-1">
-                        <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider">
-                            Pinned
-                        </span>
-                        <div className="h-px flex-1 bg-tertiary/10" />
-                    </div>
-                    {pinnedMeds.map(medication => (
+                <Section title="Pinned" count={pinnedMeds.length}>
+                    <SectionCard>
+                        {pinnedMeds.map(medication => (
+                            <MedicationListItem
+                                key={`pin-${medication.icon}`}
+                                medication={medication}
+                                onClick={() => handleMedClick(medication)}
+                                isPinned
+                                onContextMenu={(e) => handleContextMenu('med:' + medication.icon, e)}
+                                onTouchStart={(e) => handleTouchStart('med:' + medication.icon, e)}
+                                onTouchEnd={handleTouchEnd}
+                            />
+                        ))}
+                    </SectionCard>
+                </Section>
+            )}
+
+            {otherMeds.length > 0 && (
+                <SectionCard>
+                    {otherMeds.map(medication => (
                         <MedicationListItem
-                            key={`pin-${medication.icon}`}
+                            key={`med-${medication.icon}`}
                             medication={medication}
                             onClick={() => handleMedClick(medication)}
-                            isPinned
+                            isPinned={false}
                             onContextMenu={(e) => handleContextMenu('med:' + medication.icon, e)}
                             onTouchStart={(e) => handleTouchStart('med:' + medication.icon, e)}
                             onTouchEnd={handleTouchEnd}
                         />
                     ))}
-                </>
+                </SectionCard>
             )}
-
-            {pinnedMeds.length > 0 && otherMeds.length > 0 && (
-                <div className="flex items-center gap-2 mt-3 mb-1 px-1">
-                    <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider">
-                        All Medications
-                    </span>
-                    <div className="h-px flex-1 bg-tertiary/10" />
-                </div>
-            )}
-
-            {otherMeds.map(medication => (
-                <MedicationListItem
-                    key={`med-${medication.icon}`}
-                    medication={medication}
-                    onClick={() => handleMedClick(medication)}
-                    isPinned={false}
-                    onContextMenu={(e) => handleContextMenu('med:' + medication.icon, e)}
-                    onTouchStart={(e) => handleTouchStart('med:' + medication.icon, e)}
-                    onTouchEnd={handleTouchEnd}
-                />
-            ))}
 
             {contextMenu && (
                 <ContextMenu

@@ -37,7 +37,7 @@ export function ContactListItem({ medic, lastMessage, unreadCount, onClick, unav
                 <p className="text-[9pt] text-tertiary">{medic.credential}</p>
               )}
               {lastMessage && (
-                <p className="text-xs text-tertiary truncate mt-0.5">{lastMessage}</p>
+                <p className="text-[10pt] text-tertiary truncate mt-0.5">{lastMessage}</p>
               )}
             </>
           )}

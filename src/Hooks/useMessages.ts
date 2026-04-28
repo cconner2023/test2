@@ -103,10 +103,14 @@ export function getRequestStatus(
     if (m.messageType === 'request' && m.senderId === userId) weSentRequest = true
     if (m.messageType === 'request' && m.senderId !== userId) peerSentRequest = true
   }
-  // Implicit acceptance: peer replied with a regular message after our request
+  // Implicit acceptance: peer replied with a regular message after our request.
+  // Match both 'message' and 'initial' — peer replies arrive as 'initial' on the
+  // wire whenever they need a fresh X3DH (e.g. peer is on a provisional tab with
+  // no persisted session state, so every send is a new handshake). Mirrors the
+  // isUserMessage definition in useSignalMessages.ts.
   if (weSentRequest) {
     for (const m of msgs) {
-      if (m.senderId !== userId && m.messageType === 'message') return 'accepted'
+      if (m.senderId !== userId && (m.messageType === 'message' || m.messageType === 'initial')) return 'accepted'
     }
     return 'sent'
   }

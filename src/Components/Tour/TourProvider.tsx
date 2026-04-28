@@ -207,7 +207,7 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       window.__tourNoteOverride = true
       clickTarget('algorithm-expand-note')
       // Wait for WriteNotePage to mount (HPI is the first page)
-      await waitForTarget('writenote-hpi', 3000)
+      await waitForTarget('writenote-edit-page', 3000)
       await new Promise(r => setTimeout(r, 300))
       return
     }
@@ -279,10 +279,6 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
     // ── expander:demo:* — text expander tour interactive demo ──
     if (action === 'expander:demo:open-and-type') {
       window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'text-templates' }))
-      await new Promise(r => setTimeout(r, 400))
-      window.dispatchEvent(new CustomEvent('tour:expander-enable-edit'))
-      await new Promise(r => setTimeout(r, 150))
-      window.dispatchEvent(new CustomEvent('tour:expander-set-abbr', { detail: 'ABCCD' }))
       return
     }
     if (action === 'expander:demo:submit') {
@@ -349,12 +345,47 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
 
     // ── calendar:view:* — switch calendar view ──
     if (action.startsWith('calendar:view:')) {
-      const view = action.replace('calendar:view:', '') as 'month' | 'day' | 'troops'
+      const view = action.replace('calendar:view:', '') as 'month' | 'day' | 'troops' | 'huddle'
       const { useCalendarStore } = await import('../../stores/useCalendarStore')
-      useCalendarStore.getState().setView(view)
-      const targetMap = { month: 'calendar-month-grid', day: 'calendar-day-view', troops: 'calendar-troops-view' }
+      // Huddle band lives inside troops view — switching to 'huddle' just routes there
+      const storeView = view === 'huddle' ? 'troops' : view
+      useCalendarStore.getState().setView(storeView)
+      const targetMap = { month: 'calendar-month-grid', day: 'calendar-day-view', troops: 'calendar-troops-view', huddle: 'calendar-huddle-band' }
       await waitForTarget(targetMap[view], 3000)
       await new Promise(r => setTimeout(r, 200))
+      return
+    }
+
+    // ── calendar:select-huddle-category — set form category to huddle ──
+    if (action === 'calendar:select-huddle-category') {
+      window.dispatchEvent(new CustomEvent('tour:calendar-select-category', { detail: 'huddle' }))
+      await waitForTarget('event-form-huddle-task', 3000)
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+
+    // ── calendar:open-export-import — open the calendar add menu ──
+    if (action === 'calendar:open-export-import') {
+      clickTarget('calendar-add-event')
+      await waitForTarget('calendar-export-import', 3000)
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+
+    // ── note:open-ddx — open differential picker on WriteNotePage ──
+    if (action === 'note:open-ddx') {
+      window.dispatchEvent(new CustomEvent('tour:open-ddx'))
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+    if (action === 'note:select-ddx-demo') {
+      window.dispatchEvent(new CustomEvent('tour:select-ddx-demo'))
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+    if (action === 'note:close-ddx') {
+      window.dispatchEvent(new CustomEvent('tour:close-ddx'))
+      await new Promise(r => setTimeout(r, 300))
       return
     }
 
@@ -492,7 +523,7 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
         cardStates,
         selectedSymptom: { icon: 'A-1', text: 'Sore Throat/Hoarseness' },
       })
-      await waitForTarget('writenote-hpi', 3000)
+      await waitForTarget('writenote-edit-page', 3000)
       await new Promise(r => setTimeout(r, 300))
       return
     }
@@ -550,21 +581,7 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       return
     }
 
-    // ── clinic:enable-edit — click the clinic edit button ──
-    if (action === 'clinic:enable-edit') {
-      clickTarget('clinic-edit-button')
-      await new Promise(r => setTimeout(r, 400))
-      return
-    }
-
-    // ── clinic:stage-demo-clinic — stage a TEST CDID code ──
-    if (action === 'clinic:stage-demo-clinic') {
-      window.dispatchEvent(new CustomEvent('tour:clinic-stage-demo'))
-      await new Promise(r => setTimeout(r, 300))
-      return
-    }
-
-    // ── clinic:cleanup — cancel edit, return to guided tours ──
+    // ── clinic:cleanup — reset clinic state, return to guided tours ──
     if (action === 'clinic:cleanup') {
       window.dispatchEvent(new CustomEvent('tour:clinic-cancel-edit'))
       await new Promise(r => setTimeout(r, 300))
@@ -911,6 +928,7 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
             isPlaying={tour.isPlaying}
             isPausePoint={tour.isPausePoint}
             progressPercent={tour.progressPercent}
+            hideStepperDots={tour.activeTour?.hideStepperDots}
             hidden={tooltipHidden}
             onNext={tour.nextStep}
             onPrev={tour.prevStep}

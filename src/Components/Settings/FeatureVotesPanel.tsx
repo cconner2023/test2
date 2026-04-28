@@ -65,9 +65,10 @@ export const FeatureVotesPanel = ({ onOpenFeedback }: Props) => {
       <div className="h-full overflow-y-auto">
         <div className="px-5 py-8">
           <EmptyState
+            variant="gate"
             icon={<MessageCircleQuestion size={28} />}
             title="Sign in to vote"
-            description="Feature voting is available to signed-in users."
+            subtitle="Feature voting is available to signed-in users."
           />
         </div>
       </div>
@@ -90,9 +91,10 @@ export const FeatureVotesPanel = ({ onOpenFeedback }: Props) => {
       <div className="h-full overflow-y-auto">
         <div className="px-5 py-8">
           <EmptyState
+            variant="gate"
             icon={<MessageCircleQuestion size={28} />}
             title="No active voting cycle"
-            description="Check back soon — new voting opens up regularly."
+            subtitle="Check back soon — new voting opens up regularly."
           />
         </div>
       </div>

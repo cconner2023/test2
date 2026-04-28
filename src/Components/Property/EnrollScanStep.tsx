@@ -81,7 +81,7 @@ export function EnrollScanStep({ itemName, onEnrolled, onSkip }: EnrollScanStepP
 
         <div className="text-center">
           <p className="font-bold text-primary text-sm">{itemName}</p>
-          <p className="text-xs text-secondary mt-1">Scan item to enable visual ID</p>
+          <p className="text-[10pt] text-secondary mt-1">Scan item to enable visual ID</p>
         </div>
 
         <div className="flex flex-col gap-2 w-full max-w-xs">

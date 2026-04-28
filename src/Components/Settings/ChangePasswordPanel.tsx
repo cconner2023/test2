@@ -76,7 +76,7 @@ export const ChangePasswordPanel = () => {
                 <form onSubmit={handleSubmit}>
                     <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
                         <div className="px-4 py-3 space-y-2">
-                            <p className="text-xs text-tertiary leading-relaxed">Enter your current password and choose a new one.</p>
+                            <p className="text-[10pt] text-tertiary leading-relaxed">Enter your current password and choose a new one.</p>
 
                             {/* Current password */}
                             <div>
@@ -119,7 +119,7 @@ export const ChangePasswordPanel = () => {
                                     </button>
                                 </div>
                                 {newPassword.length > 0 && newPassword.length < 12 && (
-                                    <p className="text-xs text-themeredred mt-1">Password must be at least 12 characters</p>
+                                    <p className="text-[10pt] text-themeredred mt-1">Password must be at least 12 characters</p>
                                 )}
                             </div>
 
@@ -143,7 +143,7 @@ export const ChangePasswordPanel = () => {
                                     </button>
                                 </div>
                                 {confirm.length > 0 && newPassword !== confirm && (
-                                    <p className="text-xs text-themeredred mt-1">Passwords do not match</p>
+                                    <p className="text-[10pt] text-themeredred mt-1">Passwords do not match</p>
                                 )}
                             </div>
 

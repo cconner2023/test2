@@ -670,7 +670,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                   <button
                     type="button"
                     onClick={handleBack}
-                    className="text-xs font-medium text-primary truncate max-w-[6rem] pr-2 pl-0.5 active:opacity-60 transition-opacity"
+                    className="text-[10pt] font-medium text-primary truncate max-w-[6rem] pr-2 pl-0.5 active:opacity-60 transition-opacity"
                   >
                     {overlayName || 'New Overlay'}
                   </button>
@@ -881,7 +881,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                   <button
                     type="button"
                     onClick={() => setIsSharing(prev => !prev)}
-                    className={`mt-1.5 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium
+                    className={`mt-1.5 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10pt] font-medium
                       shadow-sm active:scale-95 transition-all
                       ${isSharing
                         ? 'bg-themegreen text-white'
@@ -898,7 +898,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                 <button
                   type="button"
                   onClick={() => setShowGrid(prev => !prev)}
-                  className={`mt-1.5 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium
+                  className={`mt-1.5 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10pt] font-medium
                     shadow-sm active:scale-95 transition-all
                     ${showGrid
                       ? 'bg-themeblue3 text-white'
@@ -1004,7 +1004,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                     type="button"
                     onClick={handleUndoVertex}
                     className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-themewhite border border-tertiary/20
-                      text-tertiary text-xs font-medium shadow-sm active:scale-95 transition-all"
+                      text-tertiary text-[10pt] font-medium shadow-sm active:scale-95 transition-all"
                   >
                     <Undo2 size={12} />
                     Undo
@@ -1012,7 +1012,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                   <button
                     type="button"
                     onClick={finishRoute}
-                    className="px-3 py-1.5 rounded-full bg-themeblue3 text-white text-xs font-medium
+                    className="px-3 py-1.5 rounded-full bg-themeblue3 text-white text-[10pt] font-medium
                       shadow-sm active:scale-95 transition-all"
                   >
                     Done
@@ -1042,10 +1042,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                 <div className="absolute bottom-3 left-3 z-[1000] flex items-center gap-2
                   bg-themewhite2/90 dark:bg-themewhite3/90 backdrop-blur-sm
                   px-3 py-2 rounded-lg shadow-sm">
-                  <span className="text-xs font-medium text-primary truncate max-w-32">
+                  <span className="text-[10pt] font-medium text-primary truncate max-w-32">
                     {selectedFeature.label || 'Unnamed'}
                   </span>
-                  <span className="text-xs font-mono text-themeblue2">
+                  <span className="text-[10pt] font-mono text-themeblue2">
                     {featureMgrs(selectedFeature)}
                   </span>
                 </div>
@@ -1056,12 +1056,12 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                 <div className="absolute bottom-3 left-3 z-[1000] flex items-center gap-3
                   bg-themewhite2/90 dark:bg-themewhite3/90 backdrop-blur-sm
                   px-3 py-2 rounded-lg shadow-sm">
-                  <span className="text-xs font-medium text-primary">
+                  <span className="text-[10pt] font-medium text-primary">
                     {measureResult.distanceM >= 1000
                       ? `${(measureResult.distanceM / 1000).toFixed(2)} km`
                       : `${Math.round(measureResult.distanceM)} m`}
                   </span>
-                  <span className="text-xs font-mono text-themeblue2">
+                  <span className="text-[10pt] font-mono text-themeblue2">
                     {Math.round(measureResult.bearing)}° bearing
                   </span>
                 </div>

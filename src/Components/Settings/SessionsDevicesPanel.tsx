@@ -196,13 +196,7 @@ export function SessionsDevicesPanel() {
 
   // --- Empty state ---
   if (devices.length === 0) {
-    return (
-      <EmptyState
-        icon={<Smartphone size={28} />}
-        title="No devices registered"
-        className="h-full"
-      />
-    )
+    return <EmptyState title="No devices registered" className="h-full" />
   }
 
   return (
@@ -228,7 +222,7 @@ export function SessionsDevicesPanel() {
         {addPhase === 'scanning' && (
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
             <div className="px-4 py-3 space-y-2">
-              <p className="text-xs text-tertiary">
+              <p className="text-[10pt] text-tertiary">
                 Scan the QR code shown on the new device's login screen.
               </p>
               <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black/5 border border-tertiary/10">
@@ -240,16 +234,16 @@ export function SessionsDevicesPanel() {
                 />
                 {!qrIsScanning && !qrScanError && (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <p className="text-xs text-tertiary">Starting camera…</p>
+                    <p className="text-[10pt] text-tertiary">Starting camera…</p>
                   </div>
                 )}
               </div>
               {qrScanError && (
-                <p className="text-xs text-themeredred">{qrScanError}</p>
+                <p className="text-[10pt] text-themeredred">{qrScanError}</p>
               )}
               <button
                 onClick={() => { qrStopScanning(); setAddPhase('idle'); qrClearResult() }}
-                className="w-full py-2 text-xs text-tertiary active:opacity-70 transition-opacity"
+                className="w-full py-2 text-[10pt] text-tertiary active:opacity-70 transition-opacity"
               >
                 Cancel
               </button>
@@ -262,7 +256,7 @@ export function SessionsDevicesPanel() {
             <Camera size={24} className="text-themeblue2" />
             <div className="text-center">
               <p className="text-sm font-semibold text-primary">Link this device?</p>
-              <p className="text-xs text-tertiary mt-1">
+              <p className="text-[10pt] text-tertiary mt-1">
                 Device code: <span className="font-mono">{pendingChannelId.slice(0, 8).toUpperCase()}</span>
               </p>
             </div>
@@ -288,7 +282,7 @@ export function SessionsDevicesPanel() {
           </div>
         )}
 
-        <p className="text-xs text-tertiary leading-relaxed">
+        <p className="text-[10pt] text-tertiary leading-relaxed">
           Devices registered to your account. Tap a device to remove it.
         </p>
 

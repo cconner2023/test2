@@ -1,5 +1,6 @@
 import { Check, Play, RotateCcw } from 'lucide-react'
 import { useTourContext } from '../Tour/TourProvider'
+import type { TourCategory } from '../../Data/tourDefinitions'
 
 export function GuidedToursPanel({ onClose }: { onClose: () => void }) {
   const tour = useTourContext()
@@ -8,11 +9,11 @@ export function GuidedToursPanel({ onClose }: { onClose: () => void }) {
 
   const { availableTours, isCompleted, startTour, resetAllTours } = tour
 
-  // Group by tier
-  const tiers: { label: string; key: string }[] = [
-    { label: 'Basics', key: 'medic' },
-    { label: 'Supervisor', key: 'supervisor' },
-    { label: 'Provider', key: 'provider' },
+  const categories: { label: string; key: TourCategory }[] = [
+    { label: 'Getting started', key: 'getting-started' },
+    { label: 'Reference & network', key: 'reference-network' },
+    { label: 'Customization', key: 'customization' },
+    { label: 'Advanced', key: 'advanced' },
   ]
 
   const handleStart = (tourId: string) => {
@@ -34,14 +35,14 @@ export function GuidedToursPanel({ onClose }: { onClose: () => void }) {
           Interactive walkthroughs that highlight features and auto-play through each step. Tap any tour to start.
         </p>
 
-        {tiers.map(tier => {
-          const tours = availableTours.filter(t => t.tier === tier.key)
+        {categories.map(category => {
+          const tours = availableTours.filter(t => t.category === category.key)
           if (tours.length === 0) return null
 
           return (
-            <div key={tier.key}>
+            <div key={category.key}>
               <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
-                {tier.label}
+                {category.label}
               </p>
               <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
                 {tours.map(t => {

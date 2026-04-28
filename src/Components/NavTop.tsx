@@ -1,5 +1,5 @@
 // NavTop.tsx - Simplified version with grouped props
-import { X, ChevronLeft, Info, Mail, Upload, BookOpen } from "lucide-react";
+import { X, ChevronLeft, Info, MessageSquare, Upload, BookOpen } from "lucide-react";
 import { ImportInputBar } from "./ImportInputBar";
 import { HeaderPill, PillButton } from "./HeaderPill";
 import { useState, useRef, useEffect, useCallback } from "react";
@@ -214,7 +214,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                                 />
                                             ) : isInitials ? (
                                                 <div className="w-full h-full rounded-full bg-themeblue2/15 flex items-center justify-center">
-                                                    <span className="text-xs font-semibold text-themeblue2">
+                                                    <span className="text-[10pt] font-semibold text-themeblue2">
                                                         {getInitials(profile.firstName, profile.lastName)}
                                                     </span>
                                                 </div>
@@ -249,7 +249,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                         <img src={customImage} alt="Profile" className="w-full h-full object-cover rounded-full" />
                                     ) : isInitials ? (
                                         <div className="w-full h-full rounded-full bg-themeblue2/15 flex items-center justify-center">
-                                            <span className="text-xs font-semibold text-themeblue2">
+                                            <span className="text-[10pt] font-semibold text-themeblue2">
                                                 {getInitials(profile.firstName, profile.lastName)}
                                             </span>
                                         </div>
@@ -307,7 +307,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                 <div className={`flex-1 min-w-0 px-2 transition-opacity duration-200${isSearchFocused ? ' opacity-0 pointer-events-none' : ''}`}>
                     <div className="truncate whitespace-nowrap text-center">
                         <span className="text-[9pt] text-primary font-normal">
-                            {dynamicTitle || `${__APP_VERSION__}`}
+                            {dynamicTitle || 'ADTMC'}
                         </span>
                     </div>
                 </div>
@@ -347,7 +347,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                             aria-label="Messages"
                                             title="Messages"
                                         >
-                                            <Mail style={{ width: 26, height: 26 }} />
+                                            <MessageSquare style={{ width: 20, height: 20 }} />
                                             {totalUnread > 0 && (
                                                 <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-themeredred text-white text-[9pt] font-bold leading-none">
                                                     {totalUnread > 99 ? '99+' : totalUnread}
@@ -430,7 +430,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                             aria-label="Messages"
                             title="Messages"
                         >
-                            <Mail className="w-4 h-4 stroke-themeblue1" />
+                            <MessageSquare className="w-4 h-4 stroke-themeblue1" />
                             {totalUnread > 0 && (
                                 <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-themeredred text-white text-[9pt] font-bold leading-none">
                                     {totalUnread > 99 ? '99+' : totalUnread}

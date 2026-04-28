@@ -1,5 +1,6 @@
 import { RotateCcw, Users } from 'lucide-react'
 import { ActionButton } from '../ActionButton'
+import { ActionPill } from '../ActionPill'
 
 interface TC3CardToolbarProps {
   totalCount: number
@@ -16,7 +17,7 @@ export function TC3CardToolbar({ totalCount, onOpenQueue, onClearCard }: TC3Card
   const isMASCAL = totalCount > 1
 
   return (
-    <div className="flex items-center px-1.5 py-1.5 rounded-2xl bg-themewhite shadow-sm border border-tertiary/15">
+    <ActionPill shadow="sm" className="gap-0">
       {/* MASCAL queue — shows total count when active, Users icon when idle */}
       <button
         onClick={onOpenQueue}
@@ -42,6 +43,6 @@ export function TC3CardToolbar({ totalCount, onOpenQueue, onClearCard }: TC3Card
         onClick={onClearCard}
         variant="danger"
       />
-    </div>
+    </ActionPill>
   )
 }

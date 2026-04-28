@@ -1,13 +1,11 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Pencil, Check, Radio, Compass, LayoutDashboard, HardDrive } from 'lucide-react';
+import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Check, Radio, Compass, LayoutDashboard, HardDrive } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import { useAvatar } from '../../Utilities/AvatarContext';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { useSwipeBack } from '../../Hooks/useSwipeBack';
 import { ReleaseNotesPanel } from './ReleaseNotesPanel';
-import { UserProfileDisplay } from './UserProfileDisplay';
-import { ProfileChangeRequestForm } from './ProfileChangeRequestForm';
 import { PinSetupPanel } from './PinSetupPanel';
 import { NotificationSettingsPanel } from './NotificationSettingsPanel';
 import { FeedbackPanel } from './FeedbackPanel';
@@ -19,7 +17,6 @@ import { TextTemplatesPanel } from './TextTemplatesPanel';
 import { ProviderTemplatesPanel } from './ProviderTemplatesPanel';
 import { ProfilePage } from './ProfilePage';
 import { ChangePasswordPanel } from './ChangePasswordPanel';
-import { CertificationsPanel } from './CertificationsPanel';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../Hooks/useAuth';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -49,7 +46,7 @@ import { useTheme } from '../../Utilities/ThemeContext';
 interface SettingsDrawerProps {
     isVisible: boolean;
     onClose: () => void;
-    initialPanel?: 'main' | 'release-notes' | 'user-profile' | 'feedback' | 'feature-votes';
+    initialPanel?: 'main' | 'release-notes' | 'user-profile' | 'feedback' | 'feature-votes' | 'clinic';
 }
 
 export const Settings = ({
@@ -59,22 +56,13 @@ export const Settings = ({
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
     const { themeName } = useTheme();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'guided-tours' | 'overview-widgets' | 'theme-picker' | 'storage' | 'feature-votes'>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'guided-tours' | 'overview-widgets' | 'theme-picker' | 'storage' | 'feature-votes'>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const prevVisibleRef = useRef(false);
     const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
     const { user, signOut, isAuthenticated, isDevRole, isSupervisorRole, clinicId } = useAuth();
     const hasUnvotedCycle = useFeatureVotesStore(selectHasUnvotedActiveCycle);
-    const [planEditing, setPlanEditing] = useState(false);
-    const [planSaveRequested, setPlanSaveRequested] = useState(false);
-    const [planHasPending, setPlanHasPending] = useState(false);
-    const [templatesEditing, setTemplatesEditing] = useState(false);
-    const [templatesSaveRequested, setTemplatesSaveRequested] = useState(false);
-    const [templatesHasPending, setTemplatesHasPending] = useState(false);
-    const [provTemplatesEditing, setProvTemplatesEditing] = useState(false);
-    const [provTemplatesSaveRequested, setProvTemplatesSaveRequested] = useState(false);
-    const [provTemplatesHasPending, setProvTemplatesHasPending] = useState(false);
     const [clinicEditing, setClinicEditing] = useState(false);
     const [clinicSaveRequested, setClinicSaveRequested] = useState(false);
     const [clinicDeleteSelection, setClinicDeleteSelection] = useState<Set<string>>(new Set());
@@ -178,39 +166,7 @@ export const Settings = ({
         };
     }, [profile.textExpanders, updateProfile]);
 
-    // Tour system: enable/disable editing mode for text expander demo
-    useEffect(() => {
-        const enableEdit = () => setTemplatesEditing(true);
-        const disableEdit = () => {
-            setTemplatesEditing(false);
-            setTemplatesHasPending(false);
-            setTemplatesSaveRequested(false);
-        };
-        window.addEventListener('tour:expander-enable-edit', enableEdit);
-        window.addEventListener('tour:expander-cleanup', disableEdit);
-        return () => {
-            window.removeEventListener('tour:expander-enable-edit', enableEdit);
-            window.removeEventListener('tour:expander-cleanup', disableEdit);
-        };
-    }, []);
-
-    // Tour system: enable/disable editing mode for plan & order sets demo
-    useEffect(() => {
-        const enableEdit = () => setPlanEditing(true);
-        const cancelEdit = () => {
-            setPlanEditing(false);
-            setPlanHasPending(false);
-            setPlanSaveRequested(false);
-        };
-        window.addEventListener('tour:plan-enable-edit', enableEdit);
-        window.addEventListener('tour:plan-cancel-edit', cancelEdit);
-        return () => {
-            window.removeEventListener('tour:plan-enable-edit', enableEdit);
-            window.removeEventListener('tour:plan-cancel-edit', cancelEdit);
-        };
-    }, []);
-
-    const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
+const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         if (id === PANEL.CLOSE) { closeDrawer(); return; }
         if (id === PANEL.BACK_TO_MAIN) { handleSlideAnimation('right'); setActivePanel('main'); return; }
 
@@ -281,11 +237,8 @@ export const Settings = ({
         useMemo(() => {
             if (activePanel === 'main') return undefined;
             // Sub-panels of the profile hub go back to user-profile
-            if (activePanel === 'user-profile-details' || activePanel === 'change-password' || activePanel === 'certifications') {
+            if (activePanel === 'change-password') {
                 return () => { handleSlideAnimation('right'); setActivePanel('user-profile'); };
-            }
-            if (activePanel === 'profile-change-request') {
-                return () => { handleSlideAnimation('right'); setActivePanel('user-profile-details'); };
             }
             // Sessions/Devices is nested under Security
             if (activePanel === 'sessions-devices') {
@@ -304,13 +257,13 @@ export const Settings = ({
                 return () => { handleSlideAnimation('right'); setActivePanel('main'); };
             }
             if (activePanel === 'plan-settings') {
-                return () => { handleSlideAnimation('right'); setPlanEditing(false); setActivePanel('note-content'); };
+                return () => { handleSlideAnimation('right'); setActivePanel('note-content'); };
             }
             if (activePanel === 'text-templates') {
-                return () => { handleSlideAnimation('right'); setTemplatesEditing(false); setActivePanel('note-content'); };
+                return () => { handleSlideAnimation('right'); setActivePanel('note-content'); };
             }
             if (activePanel === 'provider-templates') {
-                return () => { handleSlideAnimation('right'); setProvTemplatesEditing(false); setProvTemplatesHasPending(false); setActivePanel('note-content'); };
+                return () => { handleSlideAnimation('right'); setActivePanel('note-content'); };
             }
             return () => { handleSlideAnimation('right'); setActivePanel('main'); };
         }, [activePanel, handleSlideAnimation, guardedClinicAction]),
@@ -321,15 +274,6 @@ export const Settings = ({
         setActivePanel('main');
         setSlideDirection('');
 
-        setPlanEditing(false);
-        setPlanSaveRequested(false);
-        setPlanHasPending(false);
-        setTemplatesEditing(false);
-        setTemplatesSaveRequested(false);
-        setTemplatesHasPending(false);
-        setProvTemplatesEditing(false);
-        setProvTemplatesSaveRequested(false);
-        setProvTemplatesHasPending(false);
         setClinicEditing(false);
         setClinicDeleteSelection(new Set());
         onClose();
@@ -353,12 +297,8 @@ export const Settings = ({
                     ),
                     hideDefaultClose: true,
                 };
-            case 'profile-change-request':
-                return { title: 'Request Changes', ...backTo('user-profile-details') };
-            // Sub-panels of the profile hub go back to user-profile
-            case 'user-profile-details': return { title: 'User Information', ...backTo('user-profile') };
-            case 'change-password':     return { title: 'Change Password', ...backTo('user-profile') };
-            case 'certifications':      return { title: 'Certifications', ...backTo('user-profile') };
+            // Sub-panel of the profile hub goes back to user-profile
+            case 'change-password':     return { title: 'Reset Password', ...backTo('user-profile') };
             // All panels below slide right back to main
             case 'release-notes':       return { title: 'Release Notes', ...backTo() };
             case 'feature-votes':       return { title: 'Feature Votes', ...backTo() };
@@ -376,90 +316,27 @@ export const Settings = ({
             case 'theme-picker':            return { title: 'Appearance', ...backTo() };
             case 'storage':                 return { title: 'Local Storage', ...backTo() };
             case 'text-templates': {
-                const doTemplatesBack = () => { handleSlideAnimation('right'); setTemplatesEditing(false); setTemplatesHasPending(false); setActivePanel('note-content'); };
-                const templatesPills = (
-                    <HeaderPill>
-                        <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
-                            templatesEditing ? 'max-w-16 opacity-100' : 'max-w-0 opacity-0'
-                        }`}>
-                            <PillButton icon={X} iconSize={18} onClick={() => setTemplatesEditing(false)} label="Cancel" />
-                        </div>
-                        <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
-                            !templatesEditing ? 'max-w-22 opacity-100' : 'max-w-0 opacity-0'
-                        }`}>
-                            <PillButton icon={Pencil} iconSize={18} onClick={() => setTemplatesEditing(true)} label="Edit" />
-                        </div>
-                        {templatesEditing ? (
-                            <PillButton icon={Check} iconSize={18} circleBg="bg-themegreen text-white" onClick={() => setTemplatesSaveRequested(true)} label="Save" />
-                        ) : (
-                            <PillButton icon={X} onClick={handleClose} label="Close" />
-                        )}
-                    </HeaderPill>
-                );
+                const doTemplatesBack = () => { handleSlideAnimation('right'); setActivePanel('note-content'); };
                 return {
                     title: 'Text Templates',
                     showBack: true as const,
                     onBack: doTemplatesBack,
-                    rightContent: templatesPills,
-                    hideDefaultClose: true,
                 };
             }
             case 'provider-templates': {
-                const doProvTemplatesBack = () => { handleSlideAnimation('right'); setProvTemplatesEditing(false); setProvTemplatesHasPending(false); setActivePanel('note-content'); };
-                const provTemplatesPills = (
-                    <HeaderPill>
-                        <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
-                            provTemplatesEditing ? 'max-w-16 opacity-100' : 'max-w-0 opacity-0'
-                        }`}>
-                            <PillButton icon={X} iconSize={18} onClick={() => setProvTemplatesEditing(false)} label="Cancel" />
-                        </div>
-                        <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
-                            !provTemplatesEditing ? 'max-w-22 opacity-100' : 'max-w-0 opacity-0'
-                        }`}>
-                            <PillButton icon={Pencil} iconSize={18} onClick={() => setProvTemplatesEditing(true)} label="Edit" />
-                        </div>
-                        {provTemplatesEditing ? (
-                            <PillButton icon={Check} iconSize={18} circleBg="bg-themegreen text-white" onClick={() => setProvTemplatesSaveRequested(true)} label="Save" />
-                        ) : (
-                            <PillButton icon={X} onClick={handleClose} label="Close" />
-                        )}
-                    </HeaderPill>
-                );
+                const doProvTemplatesBack = () => { handleSlideAnimation('right'); setActivePanel('note-content'); };
                 return {
                     title: 'Provider Templates',
                     showBack: true as const,
                     onBack: doProvTemplatesBack,
-                    rightContent: provTemplatesPills,
-                    hideDefaultClose: true,
                 };
             }
             case 'plan-settings': {
-                const doPlanBack = () => { handleSlideAnimation('right'); setPlanEditing(false); setPlanHasPending(false); setActivePanel('note-content'); };
-                const planPills = (
-                    <HeaderPill>
-                        <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
-                            planEditing ? 'max-w-16 opacity-100' : 'max-w-0 opacity-0'
-                        }`}>
-                            <PillButton icon={X} iconSize={18} onClick={() => setPlanEditing(false)} label="Cancel" />
-                        </div>
-                        <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
-                            !planEditing ? 'max-w-22 opacity-100' : 'max-w-0 opacity-0'
-                        }`}>
-                            <PillButton icon={Pencil} iconSize={18} onClick={() => setPlanEditing(true)} label="Edit" />
-                        </div>
-                        {planEditing ? (
-                            <PillButton icon={Check} iconSize={18} circleBg="bg-themegreen text-white" onClick={() => setPlanSaveRequested(true)} label="Save" />
-                        ) : (
-                            <PillButton icon={X} onClick={handleClose} label="Close" />
-                        )}
-                    </HeaderPill>
-                );
+                const doPlanBack = () => { handleSlideAnimation('right'); setActivePanel('note-content'); };
                 return {
                     title: 'Plan',
                     showBack: true as const,
                     onBack: doPlanBack,
-                    rightContent: planPills,
-                    hideDefaultClose: true,
                 };
             }
             case 'clinic': {
@@ -475,17 +352,6 @@ export const Settings = ({
                                 clinicEditing ? 'max-w-16 opacity-100' : 'max-w-0 opacity-0'
                             }`}>
                                 <PillButton icon={X} iconSize={18} onClick={() => guardedClinicAction(() => { setClinicEditing(false); setClinicDeleteSelection(new Set()); setClinicAddingMember(false); })} label="Cancel" />
-                            </div>
-                            <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
-                                !clinicEditing ? 'max-w-22 opacity-100' : 'max-w-0 opacity-0'
-                            }`}>
-                                <PillButton
-                                    icon={Pencil}
-                                    iconSize={18}
-                                    onClick={() => setClinicEditing(true)}
-                                    label="Edit"
-                                    data-tour="clinic-edit-button"
-                                />
                             </div>
                             {clinicEditing ? (
                                 <PillButton
@@ -512,7 +378,7 @@ export const Settings = ({
             }
 
         }
-    }, [activePanel, backTo, handleClose, isSupervisorRole, clinicEditing, planEditing, planSaveRequested, planHasPending, templatesEditing, templatesSaveRequested, templatesHasPending, provTemplatesEditing, provTemplatesSaveRequested, provTemplatesHasPending, handleSlideAnimation, guardedClinicAction]);
+    }, [activePanel, backTo, handleClose, isSupervisorRole, clinicEditing, handleSlideAnimation, guardedClinicAction]);
 
     return (<>
         <BaseDrawer
@@ -581,14 +447,7 @@ export const Settings = ({
                                     }}
                                 />
                             ),
-                            'user-profile-details': (
-                                <UserProfileDisplay
-                                    onRequestChange={() => handleItemClick(PANEL.PROFILE_CHANGE_REQUEST, handleClose)}
-                                />
-                            ),
                             'change-password':      <ChangePasswordPanel />,
-                            'certifications':       <CertificationsPanel />,
-                            'profile-change-request': <ProfileChangeRequestForm />,
                             'avatar-picker': (
                                 <AvatarPickerPanel
                                     onSelect={(id) => {
@@ -628,30 +487,9 @@ export const Settings = ({
                             'overview-widgets': <OverviewWidgetsPanel />,
                             'theme-picker':     <ThemePickerPanel />,
                             'storage':          <StoragePanel />,
-                            'plan-settings': (
-                                <PlanPanel
-                                    editing={planEditing}
-                                    saveRequested={planSaveRequested}
-                                    onSaveComplete={() => { setPlanSaveRequested(false); setPlanEditing(false); }}
-                                    onPendingChangesChange={setPlanHasPending}
-                                />
-                            ),
-                            'provider-templates': (
-                                <ProviderTemplatesPanel
-                                    editing={provTemplatesEditing}
-                                    saveRequested={provTemplatesSaveRequested}
-                                    onSaveComplete={() => { setProvTemplatesSaveRequested(false); setProvTemplatesEditing(false); }}
-                                    onPendingChangesChange={setProvTemplatesHasPending}
-                                />
-                            ),
-                            'text-templates': (
-                                <TextTemplatesPanel
-                                    editing={templatesEditing}
-                                    saveRequested={templatesSaveRequested}
-                                    onSaveComplete={() => { setTemplatesSaveRequested(false); setTemplatesEditing(false); }}
-                                    onPendingChangesChange={setTemplatesHasPending}
-                                />
-                            ),
+                            'plan-settings':    <PlanPanel />,
+                            'provider-templates': <ProviderTemplatesPanel />,
+                            'text-templates': <TextTemplatesPanel />,
                             'notification-settings': <NotificationSettingsPanel />,
                             'sessions-devices':     <SessionsDevicesPanel />,
                             'lora':                 <LoRaPanel />,
