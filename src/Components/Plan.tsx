@@ -36,6 +36,10 @@ interface PlanProps {
     initialText?: string;
     onChange: (text: string) => void;
     expanders?: TextExpander[];
+    /** Bump to imperatively open the FAB popover. Anchor read from pickerOpenAnchor. */
+    pickerOpenSignal?: number;
+    /** Anchor rect used the next time pickerOpenSignal increments. */
+    pickerOpenAnchor?: DOMRect | null;
 }
 
 // ── Parsing ──────────────────────────────────────────────────
@@ -263,6 +267,7 @@ function ActiveItemsCard({ items, onToggle, onReorder }: {
 // ── Main component ───────────────────────────────────────────
 
 export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, onChange, expanders = [],
+    pickerOpenSignal, pickerOpenAnchor = null,
 }: PlanProps) => {
     // Custom tags added inline via popover — merged with profile tags
     const [customTags, setCustomTags] = useState<Record<PlanBlockKey, string[]>>({
@@ -319,6 +324,19 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
         setInputValue('');
         setShowFabPopover(true);
     }, []);
+
+    // Imperatively open the FAB popover each time pickerOpenSignal increments.
+    const lastPickerSignalRef = useRef<number | undefined>(pickerOpenSignal);
+    useEffect(() => {
+        if (pickerOpenSignal === undefined) return;
+        if (lastPickerSignalRef.current === pickerOpenSignal) return;
+        lastPickerSignalRef.current = pickerOpenSignal;
+        if (pickerOpenAnchor) setFabAnchorRect(pickerOpenAnchor);
+        setActiveTab(null);
+        setAddCategory(null);
+        setInputValue('');
+        setShowFabPopover(true);
+    }, [pickerOpenSignal, pickerOpenAnchor]);
 
     useEffect(() => {
         onChange(generateText(states, blockOrder ?? undefined));

@@ -13,7 +13,7 @@ import { BurnCalculator } from './BurnCalculator'
 import { HeatCategoryCalculator } from './HeatCategoryCalculator'
 import { BloodProductsReference } from './BloodProductsReference'
 import { NineLineKB, NineLineExport } from './Reports/NineLineKB'
-import { KBOverlay } from './KBOverlay'
+import { BottomSheet } from './BottomSheet'
 import { PreviewOverlay } from './PreviewOverlay'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import { useAuthStore } from '../stores/useAuthStore'
@@ -355,9 +355,9 @@ export function KnowledgeBaseDrawer({
             >
                 <VitalSignsCalculator ref={vsRef} />
             </PreviewOverlay>
-<KBOverlay title="Blood Products" isOpen={bloodOpen} onClose={() => setBloodOpen(false)}>
+<BottomSheet title="Blood Products" isOpen={bloodOpen} onClose={() => setBloodOpen(false)} maxHeight="60dvh" draggable={false}>
                 <BloodProductsReference />
-            </KBOverlay>
+            </BottomSheet>
         </BaseDrawer>
     )
 }

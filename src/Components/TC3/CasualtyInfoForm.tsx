@@ -5,22 +5,9 @@ import { PreviewOverlay } from '../PreviewOverlay'
 import { TextInput, DatePickerInput, PickerInput } from '../FormInputs'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
+import { EmptyState } from '../EmptyState'
 import type { EvacPriority, BloodType } from '../../Types/TC3Types'
-
-/** 30-min military time options: "0000", "0030", … "2330" */
-const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
-  const h = String(Math.floor(i / 2)).padStart(2, '0')
-  const m = i % 2 === 0 ? '00' : '30'
-  return `${h}${m}`
-})
-
-function militaryToHHMM(mil: string): string {
-  return `${mil.slice(0, 2)}:${mil.slice(2)}`
-}
-
-function hhmmToMilitary(hhmm: string): string {
-  return hhmm.replace(':', '')
-}
+import { MILITARY_TIME_OPTIONS, militaryToHHMM, hhmmToMilitary } from '../../Types/CalendarTypes'
 
 const EVAC_OPTIONS: { value: EvacPriority; label: string; color: string }[] = [
   { value: 'Urgent', label: 'U', color: 'bg-themeredred' },
@@ -62,7 +49,6 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
 
   const [popoverVisible, setPopoverVisible] = useState(false)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
-  const btnRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
 
   const [draft, setDraft] = useState({ ...EMPTY_CASUALTY })
@@ -145,15 +131,14 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
           </div>
         </button>
       ) : (
-        /* ── Empty state ── */
-        <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-          <div className="px-4 py-3">
-            <p className="text-sm text-tertiary py-4 text-center">No casualty details</p>
-          </div>
-          <ActionPill ref={btnRef} shadow="sm" className="absolute top-2 right-2">
-            <ActionButton icon={Plus} label="Add casualty details" onClick={() => openPopover(btnRef)} />
-          </ActionPill>
-        </div>
+        <EmptyState
+          title="No casualty details"
+          action={{
+            icon: Plus,
+            label: 'Add casualty details',
+            onClick: (anchor) => openPopover({ current: anchor }),
+          }}
+        />
       )}
 
       {/* ── Edit popover ── */}
@@ -296,7 +281,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
                     const date = draft.dateTimeOfInjury.slice(0, 10) || new Date().toISOString().slice(0, 10)
                     updateDraft({ dateTimeOfInjury: `${date}T${militaryToHHMM(mil)}` })
                   }}
-                  options={TIME_OPTIONS}
+                  options={MILITARY_TIME_OPTIONS}
                   placeholder="Injury time"
                 />
               </div>
@@ -321,7 +306,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
                     const date = draft.dateTimeOfTreatment.slice(0, 10) || new Date().toISOString().slice(0, 10)
                     updateDraft({ dateTimeOfTreatment: `${date}T${militaryToHHMM(mil)}` })
                   }}
-                  options={TIME_OPTIONS}
+                  options={MILITARY_TIME_OPTIONS}
                   placeholder="Treatment time"
                 />
               </div>

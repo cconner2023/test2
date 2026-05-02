@@ -5,6 +5,7 @@ import { PreviewOverlay } from '../PreviewOverlay'
 import { SectionHeader } from '../Section'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
+import { EmptyState } from '../EmptyState'
 import type { MechanismType } from '../../Types/TC3Types'
 
 const MECHANISM_OPTIONS: { type: MechanismType; label: string }[] = [
@@ -78,8 +79,8 @@ export const MechanismForm = memo(function MechanismForm() {
       </div>
 
       {/* Section card */}
-      <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-        {populated ? (
+      {populated ? (
+        <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
           <button
             ref={cardRef}
             type="button"
@@ -102,19 +103,20 @@ export const MechanismForm = memo(function MechanismForm() {
               </div>
             </div>
           </button>
-        ) : (
-          <div className="px-4 py-3">
-            <p className="text-sm text-tertiary py-4 text-center">No mechanism recorded</p>
-          </div>
-        )}
-        <ActionPill ref={fabRef} shadow="sm" className="absolute top-2 right-2 z-10">
-          <ActionButton
-            icon={Plus}
-            label={populated ? 'Edit mechanism' : 'Add mechanism'}
-            onClick={() => openPopover(fabRef)}
-          />
-        </ActionPill>
-      </div>
+          <ActionPill ref={fabRef} shadow="sm" className="absolute top-2 right-2 z-10">
+            <ActionButton icon={Plus} label="Edit mechanism" onClick={() => openPopover(fabRef)} />
+          </ActionPill>
+        </div>
+      ) : (
+        <EmptyState
+          title="No mechanism recorded"
+          action={{
+            icon: Plus,
+            label: 'Add mechanism',
+            onClick: (anchor) => openPopover({ current: anchor }),
+          }}
+        />
+      )}
 
       {/* Edit popover */}
       <PreviewOverlay

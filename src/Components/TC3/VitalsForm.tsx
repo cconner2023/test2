@@ -5,6 +5,7 @@ import { PreviewOverlay } from '../PreviewOverlay'
 import { TextInput } from '../FormInputs'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
+import { EmptyState } from '../EmptyState'
 import type { TC3VitalSet, AVPU } from '../../Types/TC3Types'
 
 const AVPU_OPTIONS: AVPU[] = ['A', 'V', 'P', 'U']
@@ -424,11 +425,14 @@ export const VitalsForm = memo(function VitalsForm() {
       </div>
 
       {/* Section card */}
-      <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-        {!hasData ? (
-          <p className="text-sm text-tertiary py-7 text-center">No vital signs recorded</p>
-        ) : (
-          populatedSets.map((vs, idx) => {
+      {!hasData ? (
+        <EmptyState
+          title="No vital signs recorded"
+          action={{ icon: Plus, label: 'Add vital signs', onClick: handleAddVitals }}
+        />
+      ) : (
+        <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          {populatedSets.map((vs, idx) => {
             const isLast = idx === populatedSets.length - 1
             const setGcsTotal = vs.gcs ? vs.gcs.eye + vs.gcs.verbal + vs.gcs.motor : null
             return (
@@ -455,18 +459,18 @@ export const VitalsForm = memo(function VitalsForm() {
                 {!isLast && <ChevronRight size={16} className="text-tertiary shrink-0" />}
               </button>
             )
-          })
-        )}
-        <div
-          onClick={handleAddVitals}
-          className="absolute right-0 bottom-0 w-32 h-full flex items-center justify-end pr-2 pb-2 z-10 cursor-pointer"
-          aria-hidden
-        >
-          <ActionPill shadow="sm">
-            <ActionButton icon={Plus} label="Add vital signs" onClick={handleAddVitals} />
-          </ActionPill>
+          })}
+          <div
+            onClick={handleAddVitals}
+            className="absolute right-0 bottom-0 w-32 h-full flex items-center justify-end pr-2 pb-2 z-10 cursor-pointer"
+            aria-hidden
+          >
+            <ActionPill shadow="sm">
+              <ActionButton icon={Plus} label="Add vital signs" onClick={handleAddVitals} />
+            </ActionPill>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Vitals trend table — shown when 2+ populated sets */}
       {hasData && populatedSets.length >= 2 && (

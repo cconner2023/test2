@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react'
-import { Pencil, X, CalendarPlus, Map, Copy, Check, Printer, Image } from 'lucide-react'
+import { Pencil, X, Share2, Map, Copy, Check, Printer, Image, Ban } from 'lucide-react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
-import { getCategoryMeta, formatShortDayLabel } from '../../Types/CalendarTypes'
+import { getCategoryMeta, formatShortDayLabel, isEventEditable, isUnscheduledTemplate } from '../../Types/CalendarTypes'
+import { useAuthStore } from '../../stores/useAuthStore'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { shareSingleEvent } from '../../lib/calendarExport'
@@ -29,6 +30,12 @@ interface EventDetailPanelProps {
   onClose: () => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  /** Revert a templated event's title back to its appointment-type name (cancel without deleting). */
+  onCancelTemplate?: (id: string) => void
+  /** Names of the clinic's appointment types — drives unscheduled-vs-scheduled detection. */
+  apptTypeNames?: readonly string[]
+  /** Supervisor flag forwarded from CalendarPanel — gates the Delete affordance for templated events. */
+  canDeleteTemplate?: boolean
   onOpenMissionBoard?: () => void
   assignedNames?: AssignedPerson[]
   linkedPropertyItems?: LinkedPropertyItem[]
@@ -44,9 +51,13 @@ function formatDateTime(iso: string, allDay: boolean): string {
     ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
-export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, onOpenMissionBoard, assignedNames = [], linkedPropertyItems = [], hideHeader }: EventDetailPanelProps) {
+export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, onCancelTemplate, apptTypeNames = [], canDeleteTemplate, onOpenMissionBoard, assignedNames = [], linkedPropertyItems = [], hideHeader }: EventDetailPanelProps) {
   const isMobile = useIsMobile()
   const cat = getCategoryMeta(event.category)
+  const isSupervisor = useAuthStore(s => s.isSupervisorRole)
+  const editable = isEventEditable(event, isSupervisor)
+  const showCancelTemplate = event.category === 'templated' && !!onCancelTemplate && !isUnscheduledTemplate(event, apptTypeNames)
+  void canDeleteTemplate
   const [copied, setCopied] = useState(false)
   const [copiedDm, setCopiedDm] = useState<'image' | 'code' | null>(null)
   const barcodeRef = useRef<HTMLDivElement>(null)
@@ -89,7 +100,11 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
         <div className="flex items-center justify-between px-3 py-2 border-b border-primary/10 shrink-0">
           <div />
           <HeaderPill>
-            <PillButton icon={Pencil} iconSize={16} onClick={() => onEdit(event.id)} label="Edit" />
+            <PillButton icon={Share2} iconSize={16} onClick={() => shareSingleEvent(event).catch(() => {})} label="Add to phone calendar" />
+            {showCancelTemplate && (
+              <PillButton icon={Ban} iconSize={16} onClick={() => onCancelTemplate?.(event.id)} label="Cancel appointment" />
+            )}
+            {editable && <PillButton icon={Pencil} iconSize={16} onClick={() => onEdit(event.id)} label="Edit" />}
             <PillButton icon={X} iconSize={16} onClick={onClose} label="Close" />
           </HeaderPill>
         </div>
@@ -124,6 +139,24 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
             {event.report_time && (
               <p className="text-secondary">Report: {event.report_time}</p>
             )}
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {assignedNames.length === 0 ? (
+                <span className="text-tertiary">Unassigned</span>
+              ) : (
+                assignedNames.map((person) => (
+                  <span key={person.id} className="inline-flex items-center gap-1.5">
+                    <UserAvatar
+                      avatarId={person.avatarId}
+                      firstName={person.firstName}
+                      lastName={person.lastName}
+                      className={isMobile ? 'w-6 h-6' : 'w-5 h-5'}
+                    />
+                    <span className="font-medium text-primary">{person.name}</span>
+                  </span>
+                ))
+              )}
+            </div>
           </div>
 
           {event.description && (
@@ -131,33 +164,6 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
               <p className={`text-secondary whitespace-pre-wrap ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{event.description}</p>
             </div>
           )}
-        </div>
-
-        {/* Personnel card */}
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Personnel</span>
-            <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
-              {assignedNames.length}
-            </span>
-          </div>
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-            {assignedNames.length === 0 ? (
-              <p className={`text-tertiary ${isMobile ? 'text-sm px-4 py-4' : 'text-[10pt] px-3 py-3'}`}>Unassigned</p>
-            ) : (
-              assignedNames.map((person) => (
-                <div key={person.id} className={`flex items-center ${isMobile ? 'gap-3 px-4 py-3' : 'gap-2 px-3 py-2'}`}>
-                  <UserAvatar
-                    avatarId={person.avatarId}
-                    firstName={person.firstName}
-                    lastName={person.lastName}
-                    className={isMobile ? 'w-10 h-10' : 'w-7 h-7'}
-                  />
-                  <span className={`font-medium text-primary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{person.name}</span>
-                </div>
-              ))
-            )}
-          </div>
         </div>
 
         {/* Equipment card */}
@@ -254,17 +260,6 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
             Open Mission Board
           </button>
         )}
-
-        {/* Add to phone calendar */}
-        <button
-          onClick={() => shareSingleEvent(event).catch(() => {})}
-          className={`w-full flex items-center justify-center gap-2 rounded-2xl border border-themeblue2/20 bg-themewhite2 font-medium text-themeblue2 active:scale-95 transition-all duration-200 ${
-            isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-[10pt]'
-          }`}
-        >
-          <CalendarPlus className={isMobile ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
-          Add to Phone Calendar
-        </button>
 
         <div className={isMobile ? 'h-16 shrink-0' : 'h-8 shrink-0'} />
       </div>

@@ -415,6 +415,53 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       return
     }
 
+    // ── calendar:open-template-panel — open calendar drawer + template generator ──
+    if (action === 'calendar:open-template-panel') {
+      closeAllDrawers()
+      store.closeMenu()
+      await new Promise(r => setTimeout(r, 50))
+      store.setShowCalendarDrawer(true)
+      await waitForTarget('calendar-month-grid', 5000)
+      await new Promise(r => setTimeout(r, 200))
+      window.dispatchEvent(new CustomEvent('tour:calendar-set-panel-view', { detail: 'template' }))
+      await waitForTarget('template-form', 3000)
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+
+    // ── calendar:open-block-panel — open calendar drawer + block-templates panel ──
+    if (action === 'calendar:open-block-panel') {
+      closeAllDrawers()
+      store.closeMenu()
+      await new Promise(r => setTimeout(r, 50))
+      store.setShowCalendarDrawer(true)
+      await waitForTarget('calendar-month-grid', 5000)
+      await new Promise(r => setTimeout(r, 200))
+      window.dispatchEvent(new CustomEvent('tour:calendar-set-panel-view', { detail: 'block' }))
+      await waitForTarget('block-form', 3000)
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+
+    // ── calendar:close-template-panel — return to base calendar view, then guided tours ──
+    if (action === 'calendar:close-template-panel') {
+      window.dispatchEvent(new CustomEvent('tour:calendar-set-panel-view', { detail: 'calendar' }))
+      await new Promise(r => setTimeout(r, 250))
+
+      setTooltipHidden(true)
+      await new Promise(r => setTimeout(r, 250))
+      setCurtainVisible(true)
+      await new Promise(r => setTimeout(r, 350))
+      closeAllDrawers()
+      store.closeMenu()
+      store.setShowSettings(true)
+      await new Promise(r => setTimeout(r, 350))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'guided-tours' }))
+      setCurtainVisible(false)
+      await new Promise(r => setTimeout(r, 350))
+      return
+    }
+
     // ── calendar:cleanup — remove mock event, return to guided tours ──
     if (action === 'calendar:cleanup') {
       const { CALENDAR_TOUR_EVENT_PREFIX } = await import('../../Data/GuidedTourData')

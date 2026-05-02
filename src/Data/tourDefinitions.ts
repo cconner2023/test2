@@ -109,6 +109,9 @@ export interface TourDefinition {
 //   'tc3:cleanup'                 — exit TC3 mode, reset wizard step, return to guided tours
 //   'open:property'               — open the Property Book drawer
 //   'property:cleanup'            — close property drawer, return to guided tours
+//   'calendar:open-template-panel' — open calendar drawer + provider-template generator
+//   'calendar:open-block-panel'    — open calendar drawer + clear-templates panel
+//   'calendar:close-template-panel' — close template/block panel, return to guided tours
 
 // ─── Tier 1: Medic Tours ─────────────────────────────────────────────────────
 
@@ -1215,6 +1218,100 @@ const clinicManagementTour: TourDefinition = {
   ],
 }
 
+const providerTemplateCreateTour: TourDefinition = {
+  id: 'provider-template-create',
+  name: 'Provider Templates — Generate',
+  tier: 'supervisor',
+  category: 'advanced',
+  description: 'Lay down a provider\'s recurring appointment slots across a date range.',
+  steps: [
+    {
+      target: 'template-form',
+      text: 'Provider Template — generates a block of templated appointment slots for one provider over a date range. Slots become normal calendar events the moment they\'re created.',
+      placement: 'bottom',
+      beforeStep: 'calendar:open-template-panel',
+      delay: 600,
+      duration: 6500,
+    },
+    {
+      target: 'template-provider',
+      text: 'Pick the provider these slots belong to. The slots are assigned to them from generation onward — medics get paired in later.',
+      placement: 'bottom',
+      duration: 5500,
+    },
+    {
+      target: 'template-appt-type',
+      text: 'Choose the appointment type — each type carries its own duration (20-min virt, 40-min in-person, etc.). Manage types in Settings → Clinic → Appointment Types.',
+      placement: 'bottom',
+      duration: 6500,
+    },
+    {
+      target: 'template-date-time',
+      text: 'Set the date range and the daily start/end window. Slots fill the window back-to-back on every day in the range.',
+      placement: 'bottom',
+      duration: 6000,
+    },
+    {
+      target: 'template-slot-preview',
+      text: 'Preview shows every slot that will be generated. Tap a slot to remove it before generating — useful for skipping a specific day or hour.',
+      placement: 'top',
+      duration: 6500,
+    },
+    {
+      target: 'template-generate',
+      text: 'Generate writes each slot as a real calendar event. They show up immediately on the calendar and in Troops to Task under the provider.',
+      placement: 'bottom',
+      duration: 6000,
+      pausePoint: true,
+      afterStep: 'calendar:close-template-panel',
+    },
+  ],
+}
+
+const providerTemplateClearTour: TourDefinition = {
+  id: 'provider-template-clear',
+  name: 'Provider Templates — Clear',
+  tier: 'supervisor',
+  category: 'advanced',
+  description: 'Bulk-clear a provider\'s templated slots across a date range.',
+  steps: [
+    {
+      target: 'block-form',
+      text: 'Clear Templates — bulk-deletes templated slots for one or more providers across a date range. Use it to wipe a Tuesday or close a clinic week.',
+      placement: 'bottom',
+      beforeStep: 'calendar:open-block-panel',
+      delay: 600,
+      duration: 6500,
+    },
+    {
+      target: 'block-provider',
+      text: 'Pick one provider, or select several to clear them all in one pass. Only templated slots assigned to the selected providers are touched.',
+      placement: 'bottom',
+      duration: 6000,
+    },
+    {
+      target: 'block-date-range',
+      text: 'Set the From/To window. Anything outside this range — and any non-templated event — is left alone.',
+      placement: 'bottom',
+      duration: 6000,
+    },
+    {
+      target: 'block-match',
+      text: 'Match preview shows exactly what will be deleted, with a count and a sample of timestamps. Verify before committing.',
+      placement: 'top',
+      duration: 6000,
+    },
+    {
+      target: 'block-clear',
+      text: 'Clear opens a destructive-action confirm with the count and date span. Confirming deletes each slot through the normal calendar pipeline — this cannot be undone.',
+      placement: 'bottom',
+      duration: 6500,
+      pausePoint: true,
+      afterStep: 'calendar:close-template-panel',
+    },
+  ],
+}
+
 // ─── Tier 3: Provider Tours ──────────────────────────────────────────────────
 
 const providerTour: TourDefinition = {
@@ -1342,6 +1439,8 @@ export const allTours: TourDefinition[] = [
   // Tier 2: Supervisor
   supervisorTour,
   clinicManagementTour,
+  providerTemplateCreateTour,
+  providerTemplateClearTour,
   // Tier 3: Provider
   providerTour,
 ]

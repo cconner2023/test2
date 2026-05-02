@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Clock, Plus, Users2, CalendarDays, X, Check, Pencil, Trash2, CalendarPlus, Play, CheckCircle2, Ban } from 'lucide-react'
+import { Clock, Plus, Users2, CalendarDays, X, Check, Pencil, Trash2, CalendarPlus, Play, CheckCircle2, Ban, Share2 } from 'lucide-react'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { useShallow } from 'zustand/react/shallow'
 import { useIsMobile } from '../../Hooks/useIsMobile'
@@ -14,6 +14,9 @@ import { ConfirmDialog } from '../ConfirmDialog'
 import { ActionSheet } from '../ActionSheet'
 import { BaseDrawer } from '../BaseDrawer'
 import { CalendarCSVImportSheet } from './CalendarCSVImportSheet'
+import { TemplateGeneratorPanel, type TemplateGeneratorHandle } from './TemplateGeneratorPanel'
+import { BlockTemplatedPanel, type BlockTemplatedHandle } from './BlockTemplatedPanel'
+import { useAuthStore } from '../../stores/useAuthStore'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { useNavigationStore } from '../../stores/useNavigationStore'
@@ -34,11 +37,12 @@ import { getInitials } from '../../Utilities/nameUtils'
 import type { CalendarEvent, EventFormData, EventStatus } from '../../Types/CalendarTypes'
 import {
   eventToFormData, toDateKey, eventFallsOnDate, generateId, createEmptyFormData,
-  PROVIDER_HUDDLE_TASK_ID,
+  PROVIDER_HUDDLE_TASK_ID, isEventEditable, isTemplateStructureMutable,
 } from '../../Types/CalendarTypes'
-import { shareCalendar } from '../../lib/calendarExport'
+import { useClinicAppointmentTypes } from '../../Hooks/useClinicAppointmentTypes'
+import { shareCalendar, shareSingleEvent } from '../../lib/calendarExport'
 
-type PanelView = 'calendar' | 'detail' | 'form'
+type PanelView = 'calendar' | 'detail' | 'form' | 'template' | 'block'
 type DayDrawerView = 'detail' | 'edit'
 
 interface CalendarPanelProps {
@@ -59,10 +63,25 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   useEffect(() => {
     onPanelStateChange?.(panelView !== 'calendar')
   }, [panelView, onPanelStateChange])
+
+  // Tour-driven panel view override (used by provider-template guided tours).
+  useEffect(() => {
+    const onSet = (e: Event) => {
+      const detail = (e as CustomEvent<PanelView>).detail
+      if (!detail) return
+      if (detail === 'template') setTemplateNonce(n => n + 1)
+      if (detail === 'block') setBlockNonce(n => n + 1)
+      setPanelView(detail)
+    }
+    window.addEventListener('tour:calendar-set-panel-view', onSet)
+    return () => window.removeEventListener('tour:calendar-set-panel-view', onSet)
+  }, [])
   const eventFormRef = useRef<EventFormHandle>(null)
 
   const { clinicId, user } = useAuth()
   const { writeEvent, vaultUpdate, deleteEvent: calendarDeleteEvent, isWriting, isDeleting } = useCalendarWrite()
+  const apptTypes = useClinicAppointmentTypes()
+  const apptTypeNames = useMemo(() => apptTypes.map(t => t.name), [apptTypes])
   const [isFormPending, setIsFormPending] = useState(false)
 
   // Kick off IDB hydration + vault subscription
@@ -83,6 +102,11 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
   const [showAddSheet, setShowAddSheet] = useState(false)
   const [showImportSheet, setShowImportSheet] = useState(false)
+  const isSupervisor = useAuthStore(s => s.isSupervisorRole)
+  const templatePanelRef = useRef<TemplateGeneratorHandle>(null)
+  const blockPanelRef = useRef<BlockTemplatedHandle>(null)
+  const [templateNonce, setTemplateNonce] = useState(0)
+  const [blockNonce, setBlockNonce] = useState(0)
 
   const [confirmDeleteEvent, setConfirmDeleteEvent] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ eventId: string; x: number; y: number } | null>(null)
@@ -389,11 +413,11 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
   const handleEditEvent = useCallback((id: string) => {
     const event = events.find(e => e.id === id)
-    if (event) {
+    if (event && isEventEditable(event, isSupervisor)) {
       setEditingEvent(event)
       setPanelView('form')
     }
-  }, [events])
+  }, [events, isSupervisor])
 
   const handleSaveEvent = useCallback(async (data: EventFormData) => {
     const now = new Date().toISOString()
@@ -457,6 +481,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     const events = useCalendarStore.getState().events
     const event = events.find(e => e.id === eventId)
     if (!event) return
+    if (!isEventEditable(event, isSupervisor)) return
     const originalStart = new Date(event.start_time)
     const originalEnd = new Date(event.end_time)
     const durationMs = originalEnd.getTime() - originalStart.getTime()
@@ -470,12 +495,13 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     }
     useCalendarStore.getState().updateEvent(eventId, movedEvent)
     vaultUpdate(movedEvent)
-  }, [vaultUpdate])
+  }, [vaultUpdate, isSupervisor])
 
   const handleMoveEventToDate = useCallback((eventId: string, targetDateKey: string) => {
     const events = useCalendarStore.getState().events
     const event = events.find(e => e.id === eventId)
     if (!event) return
+    if (!isEventEditable(event, isSupervisor)) return
     const originalStart = new Date(event.start_time)
     const originalEnd = new Date(event.end_time)
     const durationMs = originalEnd.getTime() - originalStart.getTime()
@@ -493,15 +519,41 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     }
     useCalendarStore.getState().updateEvent(eventId, movedEvent)
     vaultUpdate(movedEvent)
-  }, [vaultUpdate])
+  }, [vaultUpdate, isSupervisor])
 
   const handleDeleteEvent = useCallback(async (id: string) => {
+    const event = useCalendarStore.getState().events.find(e => e.id === id)
+    if (event && !isTemplateStructureMutable(event, isSupervisor)) return
     await calendarDeleteEvent(id)
     setPanelView('calendar')
     setShowDayDrawer(false)
     setDayDrawerEventId(null)
     setDayDrawerView('detail')
-  }, [calendarDeleteEvent])
+  }, [calendarDeleteEvent, isSupervisor])
+
+  /**
+   * Cancel a scheduled templated slot without deleting it: revert the title back to the
+   * matching appointment-type name so the slot reads as "unscheduled" again. We pick the
+   * apptType whose duration matches the event's slot length; if none match (type was
+   * deleted/edited after generation), fall back to the first apptType so the slot still
+   * recovers a valid open state. Available to all auth users.
+   */
+  const handleCancelTemplate = useCallback(async (id: string) => {
+    const event = useCalendarStore.getState().events.find(e => e.id === id)
+    if (!event || event.category !== 'templated') return
+    if (apptTypes.length === 0) return
+    const durationMs = new Date(event.end_time).getTime() - new Date(event.start_time).getTime()
+    const durationMin = Math.round(durationMs / 60000)
+    const match = apptTypes.find(t => t.duration_min === durationMin) ?? apptTypes[0]
+    if (event.title === match.name) return
+    const reverted: CalendarEvent = {
+      ...event,
+      title: match.name,
+      status: 'pending',
+      updated_at: new Date().toISOString(),
+    }
+    await writeEvent(reverted)
+  }, [apptTypes, writeEvent])
 
   const handleFormCancel = useCallback(() => {
     setEditingEvent(null)
@@ -539,11 +591,12 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const handleStatusChange = useCallback((eventId: string, status: EventStatus) => {
     const event = useCalendarStore.getState().events.find(e => e.id === eventId)
     if (!event) return
+    if (!isEventEditable(event, isSupervisor)) return
     const updatedEvent: CalendarEvent = { ...event, status, updated_at: new Date().toISOString() }
     useCalendarStore.getState().updateEvent(eventId, updatedEvent)
     vaultUpdate(updatedEvent)
     setContextMenu(null)
-  }, [vaultUpdate])
+  }, [vaultUpdate, isSupervisor])
 
   const handleEventContextMenu = useCallback((eventId: string, x: number, y: number) => {
     if (isMobile) return
@@ -641,7 +694,9 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   // ── Calendar views ──
 
   const showFormDrawer = isMobile && panelView === 'form'
-  const showDesktopPanel = !isMobile && (panelView === 'detail' || panelView === 'form' || !!missionBoardEventId)
+  const showTemplateDrawer = isMobile && panelView === 'template'
+  const showBlockDrawer = isMobile && panelView === 'block'
+  const showDesktopPanel = !isMobile && (panelView === 'detail' || panelView === 'form' || panelView === 'template' || panelView === 'block' || !!missionBoardEventId)
 
   return (
     <>
@@ -819,6 +874,82 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             </div>
           </BaseDrawer>
 
+          {/* Mobile template drawer — supervisor provider-template generator */}
+          {clinicId && user && isSupervisor && (
+            <BaseDrawer
+              isVisible={showTemplateDrawer}
+              onClose={() => setPanelView('calendar')}
+              mobileOnly
+              fullHeight="85dvh"
+              zIndex="z-50"
+              header={{
+                title: 'Provider Template',
+                rightContent: (
+                  <HeaderPill>
+                    <PillButton icon={X} iconSize={18} onClick={() => setPanelView('calendar')} label="Cancel" />
+                    <PillButton
+                      icon={Check}
+                      iconSize={18}
+                      circleBg="bg-themegreen text-white"
+                      onClick={() => templatePanelRef.current?.submit()}
+                      label="Generate"
+                      data-tour="template-generate"
+                    />
+                  </HeaderPill>
+                ),
+                hideDefaultClose: true,
+              }}
+            >
+              <div className="relative h-full">
+                <TemplateGeneratorPanel
+                  key={templateNonce}
+                  ref={templatePanelRef}
+                  clinicId={clinicId}
+                  userId={user.id}
+                  onDone={() => setPanelView('calendar')}
+                />
+              </div>
+            </BaseDrawer>
+          )}
+
+          {/* Mobile block-templates drawer — supervisor bulk-clear */}
+          {clinicId && isSupervisor && (
+            <BaseDrawer
+              isVisible={showBlockDrawer}
+              onClose={() => setPanelView('calendar')}
+              mobileOnly
+              fullHeight="85dvh"
+              zIndex="z-50"
+              header={{
+                title: 'Clear Templates',
+                rightContent: (
+                  <HeaderPill>
+                    <PillButton icon={X} iconSize={18} onClick={() => setPanelView('calendar')} label="Cancel" />
+                    <PillButton
+                      icon={Trash2}
+                      iconSize={18}
+                      circleBg="bg-themeredred text-white"
+                      onClick={() => blockPanelRef.current?.submit()}
+                      label="Clear"
+                      variant="danger"
+                      data-tour="block-clear"
+                    />
+                  </HeaderPill>
+                ),
+                hideDefaultClose: true,
+              }}
+            >
+              <div className="relative h-full">
+                <BlockTemplatedPanel
+                  key={blockNonce}
+                  ref={blockPanelRef}
+                  clinicId={clinicId}
+                  onDone={() => setPanelView('calendar')}
+                />
+              </div>
+            </BaseDrawer>
+          )}
+
           {/* Mobile event drawer — tap an event to view/edit */}
           <BaseDrawer
             isVisible={showDayDrawer}
@@ -848,6 +979,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               title: dayDrawerEvent?.title ?? '',
               rightContent: dayDrawerEvent ? (
                 <HeaderPill>
+                  <PillButton icon={Share2} iconSize={16} onClick={() => shareSingleEvent(dayDrawerEvent).catch(() => {})} label="Add to phone calendar" />
                   <PillButton icon={Pencil} iconSize={16} onClick={() => handleDayDrawerEdit(dayDrawerEvent.id)} label="Edit" />
                   <PillButton icon={X} iconSize={16} onClick={handleDayDrawerDetailBack} label="Close" />
                 </HeaderPill>
@@ -865,6 +997,9 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     handleDeleteEvent(id)
                     handleDayDrawerClose()
                   }}
+                  onCancelTemplate={handleCancelTemplate}
+                  apptTypeNames={apptTypeNames}
+                  canDeleteTemplate={isSupervisor}
                   onOpenMissionBoard={() => {
                     handleDayDrawerClose()
                     handleOpenMissionBoard(dayDrawerEvent.id)
@@ -972,6 +1107,9 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     onClose={handleDetailBack}
                     onEdit={handleEditEvent}
                     onDelete={handleDeleteEvent}
+                    onCancelTemplate={handleCancelTemplate}
+                    apptTypeNames={apptTypeNames}
+                    canDeleteTemplate={isSupervisor}
                     onOpenMissionBoard={() => handleOpenMissionBoard(selectedEvent.id)}
                     assignedNames={resolveAssigned(selectedEvent.assigned_to)}
                     linkedPropertyItems={resolvePropertyItems(selectedEvent.property_item_ids ?? [])}
@@ -981,6 +1119,58 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                       <LoadingSpinner size="md" />
                     </div>
                   )}
+                </div>
+              ) : panelView === 'template' && clinicId && user && isSupervisor ? (
+                <div className="relative flex flex-col flex-1 min-h-0">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-tertiary/10">
+                    <h2 className="text-sm font-semibold text-primary whitespace-nowrap">Provider Template</h2>
+                    <HeaderPill>
+                      <PillButton icon={X} iconSize={18} onClick={() => setPanelView('calendar')} label="Cancel" />
+                      <PillButton
+                        icon={Check}
+                        iconSize={18}
+                        circleBg="bg-themegreen text-white"
+                        onClick={() => templatePanelRef.current?.submit()}
+                        label="Generate"
+                        data-tour="template-generate"
+                      />
+                    </HeaderPill>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    <TemplateGeneratorPanel
+                      key={templateNonce}
+                      ref={templatePanelRef}
+                      clinicId={clinicId}
+                      userId={user.id}
+                      onDone={() => setPanelView('calendar')}
+                    />
+                  </div>
+                </div>
+              ) : panelView === 'block' && clinicId && isSupervisor ? (
+                <div className="relative flex flex-col flex-1 min-h-0">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-tertiary/10">
+                    <h2 className="text-sm font-semibold text-primary whitespace-nowrap">Clear Templates</h2>
+                    <HeaderPill>
+                      <PillButton icon={X} iconSize={18} onClick={() => setPanelView('calendar')} label="Cancel" />
+                      <PillButton
+                        icon={Trash2}
+                        iconSize={18}
+                        circleBg="bg-themeredred text-white"
+                        onClick={() => blockPanelRef.current?.submit()}
+                        label="Clear"
+                        variant="danger"
+                        data-tour="block-clear"
+                      />
+                    </HeaderPill>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    <BlockTemplatedPanel
+                      key={blockNonce}
+                      ref={blockPanelRef}
+                      clinicId={clinicId}
+                      onDone={() => setPanelView('calendar')}
+                    />
+                  </div>
                 </div>
               ) : panelView === 'detail' && missionBoardEventId ? (() => {
                 const missionEvent = events.find(e => e.id === missionBoardEventId)
@@ -1003,6 +1193,10 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
         title="Calendar"
         options={[
           { key: 'new', label: 'New Event', onAction: () => handleNewEvent() },
+          ...(isSupervisor ? [
+            { key: 'template', label: 'Provider Template…', onAction: () => { setTemplateNonce(n => n + 1); setPanelView('template') } },
+            { key: 'clear-templates', label: 'Clear Templates…', onAction: () => { setBlockNonce(n => n + 1); setPanelView('block') } },
+          ] : []),
           { key: 'import', label: 'Import CSV', onAction: () => setShowImportSheet(true), tourTag: 'calendar-export-import' },
           { key: 'export', label: 'Export .ics', onAction: () => shareCalendar(events).catch(() => {}) },
         ]}
@@ -1017,6 +1211,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           userId={user.id}
         />
       )}
+
 
       {deleteConfirmDialog}
       <ConfirmDialog
@@ -1036,22 +1231,28 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
       {contextMenu && (() => {
         const ctxEvent = events.find(e => e.id === contextMenu.eventId)
-        const statusItems: ContextMenuItem[] = ctxEvent ? [
+        const ctxEditable = ctxEvent ? isEventEditable(ctxEvent, isSupervisor) : false
+        const ctxDeletable = ctxEvent ? isTemplateStructureMutable(ctxEvent, isSupervisor) : false
+        const statusItems: ContextMenuItem[] = ctxEvent && ctxEditable ? [
           ...(ctxEvent.status !== 'pending'     ? [{ key: 'status-pending',     label: 'Pending',      icon: Clock,        onAction: () => handleStatusChange(contextMenu.eventId, 'pending') }] : []),
           ...(ctxEvent.status !== 'in_progress' ? [{ key: 'status-inprogress',  label: 'Active',       icon: Play,         onAction: () => handleStatusChange(contextMenu.eventId, 'in_progress') }] : []),
           ...(ctxEvent.status !== 'completed'   ? [{ key: 'status-completed',   label: 'Done',         icon: CheckCircle2, onAction: () => handleStatusChange(contextMenu.eventId, 'completed') }] : []),
           ...(ctxEvent.status !== 'cancelled'   ? [{ key: 'status-cancelled',   label: 'Cancel',       icon: Ban,          onAction: () => handleStatusChange(contextMenu.eventId, 'cancelled'), destructive: true }] : []),
         ] : []
+        const editItems: ContextMenuItem[] = [
+          ...(ctxEditable ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => handleEditEvent(contextMenu.eventId) }] : []),
+          ...(ctxDeletable ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteEvent(contextMenu.eventId) }] : []),
+        ]
+        if (statusItems.length === 0 && editItems.length === 0) {
+          setContextMenu(null)
+          return null
+        }
         return (
           <ContextMenu
             x={contextMenu.x}
             y={contextMenu.y}
             onClose={() => setContextMenu(null)}
-            items={[
-              ...statusItems,
-              { key: 'edit',   label: 'Edit',   icon: Pencil, onAction: () => handleEditEvent(contextMenu.eventId) },
-              { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteEvent(contextMenu.eventId) },
-            ]}
+            items={[...statusItems, ...editItems]}
           />
         )
       })()}

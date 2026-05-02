@@ -289,6 +289,14 @@ export interface ClinicHuddleTask {
   sort_order: number
 }
 
+/** Supervisor-defined provider appointment type (e.g. "20-min in-person"). Drives templated-slot generation. */
+export interface ClinicAppointmentType {
+  id: string
+  name: string
+  duration_min: number
+  sort_order: number
+}
+
 export async function getClinicDetails(
   clinicId: string
 ): Promise<ClinicDetails> {
@@ -357,6 +365,25 @@ export async function updateSupervisorClinicHuddleTasks(
     return succeed()
   } catch (error) {
     logger.error('Failed to update clinic huddle tasks:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+// ─── Update Clinic Appointment Types (dedicated RPC) ───────────────────────
+
+export async function updateSupervisorClinicAppointmentTypes(
+  clinicId: string,
+  types: ClinicAppointmentType[],
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('supervisor_update_clinic_appointment_types', {
+      p_clinic_id: clinicId,
+      p_types: types,
+    })
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to update clinic appointment types:', error)
     return fail(getErrorMessage(error))
   }
 }

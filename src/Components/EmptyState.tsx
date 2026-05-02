@@ -1,9 +1,9 @@
 /** Shared empty state placeholder. Two variants:
- *  - `card` (default): rounded-xl bg-themewhite2 card with centered tertiary text and an
- *    optional ActionPill at absolute top-2 right-2 (canonical exemplar: OrderSetManager,
- *    PlanTagManager). The ActionPill is the canonical actionItem container — rendered
- *    identically on populated cards, overlaid on the first item. Use bottom-2 right-2
- *    only when the top-right is occupied (e.g., a QR code pinned there).
+ *  - `card` (default): matches SectionCard chrome (rounded-2xl + border + bg-themewhite2)
+ *    sized to a populated card with one item. When `action` is provided, the ActionPill
+ *    renders centered as the focal element of the empty state. When populated (caller's
+ *    own render path), the ActionPill moves to absolute top-2 right-2 overlying the
+ *    first item.
  *  - `gate`: centered icon + title + subtitle for access gates (sign-in, role-required).
  */
 import type { ReactNode } from 'react'
@@ -50,19 +50,19 @@ export const EmptyState = ({
     }
 
     return (
-        <div className={`relative rounded-xl bg-themewhite2 overflow-hidden ${className}`}>
-            <div className="px-4 py-3">
-                <p className="text-sm text-tertiary py-4 text-center">{title}</p>
+        <div className={`relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden ${className}`}>
+            <div className="flex items-center gap-3 px-4 py-3 min-h-[3.75rem]">
+                <p className={`text-sm text-tertiary ${action ? 'flex-1' : 'flex-1 text-center'}`}>{title}</p>
+                {action && (
+                    <ActionPill ref={anchorRef} shadow="sm">
+                        <ActionButton
+                            icon={action.icon}
+                            label={action.label}
+                            onClick={() => anchorRef.current && action.onClick(anchorRef.current)}
+                        />
+                    </ActionPill>
+                )}
             </div>
-            {action && (
-                <ActionPill ref={anchorRef} shadow="sm" className="absolute top-2 right-2">
-                    <ActionButton
-                        icon={action.icon}
-                        label={action.label}
-                        onClick={() => anchorRef.current && action.onClick(anchorRef.current)}
-                    />
-                </ActionPill>
-            )}
         </div>
     )
 }

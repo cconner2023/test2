@@ -179,9 +179,14 @@ export function ProviderNoteOutput({
         <div className="space-y-4" data-tour="provider-output">
             {/* Note Preview */}
             <div>
-                <div className="pb-2 flex items-center justify-between">
-                    <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Note Preview</p>
-                    <ActionPill>
+                <p className="pb-2 text-[9pt] font-semibold text-primary uppercase tracking-wider">Note Preview</p>
+                <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                    <div className="px-4 py-3 pt-14 text-tertiary text-[9pt] whitespace-pre-wrap max-h-48 md:max-h-80 overflow-y-auto">
+                        {previewNote
+                            ? previewNote.split('\n').filter(l => !l.startsWith('Signed:')).join('\n').trim()
+                            : 'No content available'}
+                    </div>
+                    <ActionPill shadow="sm" className="absolute top-2 right-2">
                         <ActionIconButton
                             onClick={() => handleCopy(previewNote, 'preview')}
                             status={copiedTarget === 'preview' ? 'done' : 'idle'}
@@ -196,20 +201,19 @@ export function ProviderNoteOutput({
                         />
                     </ActionPill>
                 </div>
-                <div className="rounded-xl bg-themewhite2 overflow-hidden">
-                    <div className="px-4 py-3 text-tertiary text-[9pt] whitespace-pre-wrap max-h-48 md:max-h-80 overflow-y-auto">
-                        {previewNote
-                            ? previewNote.split('\n').filter(l => !l.startsWith('Signed:')).join('\n').trim()
-                            : 'No content available'}
-                    </div>
-                </div>
             </div>
 
             {/* Encoded Note */}
             <div>
-                <div className="pb-2 flex items-center justify-between">
-                    <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Encoded Note</p>
-                    <ActionPill>
+                <p className="pb-2 text-[9pt] font-semibold text-primary uppercase tracking-wider">Encoded Note</p>
+                <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                    <div className="pt-14">
+                        <BarcodeDisplay
+                            encodedText={encodedValue}
+                            layout={encodedValue.length > 300 ? 'col' : 'row'}
+                        />
+                    </div>
+                    <ActionPill shadow="sm" className="absolute top-2 right-2">
                         <ActionIconButton
                             onClick={handleShare}
                             status={shareBtnStatus}
@@ -223,12 +227,6 @@ export function ProviderNoteOutput({
                             title="Copy encoded text"
                         />
                     </ActionPill>
-                </div>
-                <div>
-                    <BarcodeDisplay
-                        encodedText={encodedValue}
-                        layout={encodedValue.length > 300 ? 'col' : 'row'}
-                    />
                 </div>
                 {encodedValue.length > 2000 && (
                     <div className="text-[10pt] text-themeyellow mt-2 px-1">

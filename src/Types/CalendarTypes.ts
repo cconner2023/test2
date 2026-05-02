@@ -1,5 +1,5 @@
 export type EventCategory =
-  | 'training' | 'duty' | 'range' | 'appointment' | 'mission' | 'medevac' | 'huddle' | 'leave' | 'other'
+  | 'training' | 'duty' | 'range' | 'appointment' | 'mission' | 'medevac' | 'huddle' | 'leave' | 'other' | 'templated'
 
 export type EventStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
 
@@ -79,7 +79,7 @@ export interface EventFormData {
   medevac_data?: MedevacRequest | null
 }
 
-export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: string; solidColor: string }[] = [
+export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: string; solidColor: string; hidden?: boolean }[] = [
   { value: 'training',    label: 'Training',    color: 'bg-themeyellow/20',  solidColor: 'bg-themeyellow' },
   { value: 'duty',        label: 'Duty',        color: 'bg-themeredred/20',  solidColor: 'bg-themeredred' },
   { value: 'range',       label: 'Range',       color: 'bg-themeblue2/20',   solidColor: 'bg-themeblue2' },
@@ -89,6 +89,7 @@ export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: str
   { value: 'huddle',      label: 'Huddle',      color: 'bg-themeblue3/20',   solidColor: 'bg-themeblue3' },
   { value: 'leave',       label: 'Leave',       color: 'bg-tertiary/15',     solidColor: 'bg-tertiary' },
   { value: 'other',       label: 'Other',       color: 'bg-tertiary/20',     solidColor: 'bg-tertiary' },
+  { value: 'templated',   label: 'Templated',   color: 'bg-themeblue1/15',   solidColor: 'bg-themeblue1', hidden: true },
 ]
 
 export const CATEGORY_BG_MAP: Record<EventCategory, string> = {
@@ -101,10 +102,38 @@ export const CATEGORY_BG_MAP: Record<EventCategory, string> = {
   huddle: 'bg-themeblue3/20 border-themeblue3/30 text-primary',
   leave: 'bg-tertiary/10 border-tertiary/20 text-tertiary',
   other: 'bg-tertiary/20 border-tertiary/20 text-secondary',
+  templated: 'bg-themeblue1/10 border-themeblue1/25 text-primary',
 }
 
 export function getCategoryMeta(category: EventCategory) {
   return EVENT_CATEGORIES.find(c => c.value === category) ?? EVENT_CATEGORIES[EVENT_CATEGORIES.length - 1]
+}
+
+/**
+ * Edit/move gate. Templated events are open to all auth users (medics schedule into slots
+ * by editing the title and may reschedule via drag). Delete is gated separately via
+ * isTemplateStructureMutable so the underlying template grid stays intact.
+ */
+export function isEventEditable(_event: Pick<CalendarEvent, 'category'>, _isSupervisor: boolean): boolean {
+  return true
+}
+
+/** Delete/structural-mutation gate. Templated events are supervisor-only here. */
+export function isTemplateStructureMutable(event: Pick<CalendarEvent, 'category'>, isSupervisor: boolean): boolean {
+  if (event.category === 'templated') return isSupervisor
+  return true
+}
+
+/**
+ * A templated event is "unscheduled" (an open slot) when its title still matches one of the
+ * clinic's appointment-type names. Once a user edits the title (typically to a patient
+ * identifier), the slot is considered "scheduled".
+ */
+export function isUnscheduledTemplate(
+  event: Pick<CalendarEvent, 'category' | 'title'>,
+  apptTypeNames: readonly string[],
+): boolean {
+  return event.category === 'templated' && apptTypeNames.includes(event.title)
 }
 
 export function createEmptyFormData(forDateKey?: string): EventFormData {
@@ -168,6 +197,23 @@ export function toLocalISOString(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
+
+/** "0630" → "06:30" — military to datetime-local time string */
+export function militaryToHHMM(mil: string): string {
+  return `${mil.slice(0, 2)}:${mil.slice(2)}`
+}
+
+/** "06:30" → "0630" — datetime-local time to military display */
+export function hhmmToMilitary(hhmm: string): string {
+  return hhmm.replace(':', '')
+}
+
+/** 30-min military options: "0000", "0030", … "2330" */
+export const MILITARY_TIME_OPTIONS: readonly string[] = Array.from({ length: 48 }, (_, i) => {
+  const h = String(Math.floor(i / 2)).padStart(2, '0')
+  const m = i % 2 === 0 ? '00' : '30'
+  return `${h}${m}`
+})
 
 export function toDateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`

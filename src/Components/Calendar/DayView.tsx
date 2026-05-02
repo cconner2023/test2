@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, useCallback, useEffect } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
-import { CATEGORY_BG_MAP, STATUS_META, DAY_START_HOUR, DAY_END_HOUR, HOUR_HEIGHT_PX, toLocalISOString, toDateKey } from '../../Types/CalendarTypes'
+import { getCategoryMeta, STATUS_META, DAY_START_HOUR, DAY_END_HOUR, HOUR_HEIGHT_PX, toLocalISOString, toDateKey } from '../../Types/CalendarTypes'
 import { formatHour, getEventPosition, resolveOverlaps } from './timeGrid'
 
 interface DayViewProps {
@@ -219,21 +219,26 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
 
           {allDayEvents.length > 0 && (
             <div className="px-3 py-2 border-b border-primary/10 space-y-1">
-              {allDayEvents.map(e => (
-                <button
-                  key={e.id}
-                  onClick={() => onSelectEvent(e.id)}
-                  onContextMenu={(ev) => {
-                    if (onEventContextMenu) {
-                      ev.preventDefault()
-                      onEventContextMenu(e.id, ev.clientX, ev.clientY)
-                    }
-                  }}
-                  className={`w-full text-left text-[10pt] font-normal px-2 py-1 rounded border ${CATEGORY_BG_MAP[e.category]} ${STATUS_META[e.status].opacity} active:scale-95 transition-all duration-200 truncate ${STATUS_META[e.status].strikethrough ? 'line-through' : ''}`}
-                >
-                  {e.title}
-                </button>
-              ))}
+              {allDayEvents.map(e => {
+                const cat = getCategoryMeta(e.category)
+                const sm = STATUS_META[e.status]
+                return (
+                  <button
+                    key={e.id}
+                    onClick={() => onSelectEvent(e.id)}
+                    onContextMenu={(ev) => {
+                      if (onEventContextMenu) {
+                        ev.preventDefault()
+                        onEventContextMenu(e.id, ev.clientX, ev.clientY)
+                      }
+                    }}
+                    className={`w-full text-left rounded flex items-stretch gap-1 overflow-hidden bg-primary/5 ${sm.opacity} active:scale-95 transition-all duration-200`}
+                  >
+                    <div className={`w-0.5 shrink-0 rounded-full ${cat.solidColor}`} />
+                    <span className={`flex-1 truncate text-[10pt] text-primary py-1 pr-2 ${sm.strikethrough ? 'line-through' : ''}`}>{e.title}</span>
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>
@@ -298,6 +303,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
             const isDimmed = isDragging && dragEventId !== event.id
             const resolvedTop = isBeingDragged ? minutesToTop(snappedMinutes) : top
             const sm = STATUS_META[event.status]
+            const cat = getCategoryMeta(event.category)
 
             return (
               <div
@@ -315,8 +321,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleEventClick(event.id) }}
-                className={`absolute rounded-lg border px-2 py-1 overflow-hidden text-left select-none cursor-pointer
-                  ${CATEGORY_BG_MAP[event.category]}
+                className={`absolute rounded-lg overflow-hidden flex items-stretch gap-1 text-left select-none cursor-pointer bg-primary/5
                   ${isBeingDragged
                     ? 'shadow-xl z-30 scale-[1.02]'
                     : 'transition-all duration-200 active:scale-[0.98]'
@@ -332,18 +337,21 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
                   transition: isBeingDragged ? 'none' : undefined,
                 }}
               >
-                {sm.pulse && (
-                  <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-themeblue1 animate-pulse shrink-0" />
-                )}
-                <p className={`text-[10pt] font-normal truncate leading-tight ${sm.strikethrough ? 'line-through opacity-70' : ''}`}>{event.title}</p>
-                {height > 36 && (
-                  <p className="text-[9pt] opacity-70 truncate">
-                    {new Date(event.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', '')}
-                  </p>
-                )}
-                {height > 52 && event.location && (
-                  <p className="text-[9pt] opacity-60 truncate">{event.location}</p>
-                )}
+                <div className={`w-0.5 shrink-0 rounded-full ${cat.solidColor}`} />
+                <div className="flex-1 min-w-0 px-1.5 py-1 relative">
+                  {sm.pulse && (
+                    <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-themeblue1 animate-pulse shrink-0" />
+                  )}
+                  <p className={`text-[10pt] font-normal truncate leading-tight text-primary ${sm.strikethrough ? 'line-through opacity-70' : ''}`}>{event.title}</p>
+                  {height > 36 && (
+                    <p className="text-[9pt] text-tertiary truncate">
+                      {new Date(event.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', '')}
+                    </p>
+                  )}
+                  {height > 52 && event.location && (
+                    <p className="text-[9pt] text-tertiary truncate">{event.location}</p>
+                  )}
+                </div>
               </div>
             )
           })}

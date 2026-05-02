@@ -15,6 +15,8 @@ interface ExpandableInputProps {
     /** Render as <textarea> instead of <input> */
     multiline?: boolean;
     onClick?: (e: React.MouseEvent) => void;
+    /** Suppress the trailing clear (X) button — use when matching a plain text-input look. */
+    hideClear?: boolean;
 }
 
 export function ExpandableInput({
@@ -25,6 +27,7 @@ export function ExpandableInput({
     className,
     multiline = false,
     onClick,
+    hideClear = false,
 }: ExpandableInputProps) {
     const [cursorPosition, setCursorPosition] = useState(0);
     const [focused, setFocused] = useState(false);
@@ -201,19 +204,21 @@ export function ExpandableInput({
                         {...sharedProps}
                     />
                 )}
-                <div className={`transition-all duration-200 overflow-hidden ${
-                    showClose ? 'w-9 opacity-100' : 'w-0 opacity-0'
-                }`}>
-                    <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={handleClose}
-                        className="w-9 h-9 rounded-full flex items-center justify-center bg-tertiary/10 active:scale-95 shrink-0"
-                        aria-label="Clear"
-                    >
-                        <X size={16} className="text-tertiary" />
-                    </button>
-                </div>
+                {!hideClear && (
+                    <div className={`transition-all duration-200 overflow-hidden ${
+                        showClose ? 'w-9 opacity-100' : 'w-0 opacity-0'
+                    }`}>
+                        <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={handleClose}
+                            className="w-9 h-9 rounded-full flex items-center justify-center bg-tertiary/10 active:scale-95 shrink-0"
+                            aria-label="Clear"
+                        >
+                            <X size={16} className="text-tertiary" />
+                        </button>
+                    </div>
+                )}
             </div>
             {hasSuggestions && (
                 <TextExpanderSuggestion

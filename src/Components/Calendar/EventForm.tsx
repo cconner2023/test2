@@ -1,8 +1,8 @@
 import { useState, useCallback, useImperativeHandle, forwardRef, useEffect } from 'react'
 import { Package } from 'lucide-react'
 import type { EventFormData, EventCategory, EventStatus } from '../../Types/CalendarTypes'
-import { createEmptyFormData, EVENT_CATEGORIES } from '../../Types/CalendarTypes'
-import { TextInput, PickerInput, DatePickerInput } from '../FormInputs'
+import { createEmptyFormData, EVENT_CATEGORIES, MILITARY_TIME_OPTIONS, militaryToHHMM, hhmmToMilitary } from '../../Types/CalendarTypes'
+import { TextInput, PickerInput, DatePickerInput, TimeInput } from '../FormInputs'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { MedevacForm } from '../Medevac/MedevacForm'
@@ -15,23 +15,6 @@ const STATUS_OPTIONS: { value: EventStatus; label: string; activeClass: string }
   { value: 'completed',   label: 'Done',      activeClass: 'bg-themegreen/15 text-themegreen' },
   { value: 'cancelled',   label: 'Cancelled', activeClass: 'bg-themeredred/15 text-themeredred' },
 ]
-
-/** Generate 30-min military time options: "0000", "0030", … "2330" */
-const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
-  const h = String(Math.floor(i / 2)).padStart(2, '0')
-  const m = i % 2 === 0 ? '00' : '30'
-  return `${h}${m}`
-})
-
-/** "0630" → "06:30" for datetime-local string */
-function militaryToHHMM(mil: string): string {
-  return `${mil.slice(0, 2)}:${mil.slice(2)}`
-}
-
-/** "06:30" → "0630" for display */
-function hhmmToMilitary(hhmm: string): string {
-  return hhmm.replace(':', '')
-}
 
 export interface EventFormHandle {
   submit: () => void
@@ -183,22 +166,24 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
             />
           </div>
 
-          <div data-tour="event-form-category">
-            <PickerInput
-              value={categoryLabel}
-              onChange={v => {
-                const cat = EVENT_CATEGORIES.find(c => c.label === v)
-                if (!cat) return
-                updateField('category', cat.value as EventCategory)
-                if (cat.value === 'medevac' && !form.medevac_data) {
-                  updateField('medevac_data', emptyMedevacRequest())
-                }
-              }}
-              options={EVENT_CATEGORIES.map(c => c.label)}
-              placeholder="Category *"
-              required
-            />
-          </div>
+          {form.category !== 'templated' && (
+            <div data-tour="event-form-category">
+              <PickerInput
+                value={categoryLabel}
+                onChange={v => {
+                  const cat = EVENT_CATEGORIES.find(c => c.label === v)
+                  if (!cat) return
+                  updateField('category', cat.value as EventCategory)
+                  if (cat.value === 'medevac' && !form.medevac_data) {
+                    updateField('medevac_data', emptyMedevacRequest())
+                  }
+                }}
+                options={EVENT_CATEGORIES.filter(c => !c.hidden).map(c => c.label)}
+                placeholder="Category *"
+                required
+              />
+            </div>
+          )}
 
           {isEditing && (
             <div className="px-4 py-3 border-b border-primary/6">
@@ -263,9 +248,16 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                   <PickerInput
                     value={startTime ? hhmmToMilitary(startTime) : ''}
                     onChange={handleStartTimeChange}
-                    options={TIME_OPTIONS}
+                    options={MILITARY_TIME_OPTIONS}
                     placeholder="Start time"
                     required
+                    header={
+                      <TimeInput
+                        value={startTime ? hhmmToMilitary(startTime) : ''}
+                        onChange={handleStartTimeChange}
+                        label="Start"
+                      />
+                    }
                   />
                 </div>
               )}
@@ -288,9 +280,16 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                 <PickerInput
                   value={endTime ? hhmmToMilitary(endTime) : ''}
                   onChange={handleEndTimeChange}
-                  options={TIME_OPTIONS}
+                  options={MILITARY_TIME_OPTIONS}
                   placeholder="End time"
                   required
+                  header={
+                    <TimeInput
+                      value={endTime ? hhmmToMilitary(endTime) : ''}
+                      onChange={handleEndTimeChange}
+                      label="End"
+                    />
+                  }
                 />
               </div>
             )}

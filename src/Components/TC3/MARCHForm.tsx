@@ -10,6 +10,7 @@ import { PreviewOverlay } from '../PreviewOverlay'
 import { Section, SectionHeader } from '../Section'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
+import { EmptyState } from '../EmptyState'
 import { getBodyRegion, getRegionLabel, getRegionCenter } from '../../Utilities/bodyRegionMap'
 import { TC3BodyDiagramSvg } from './TC3BodyDiagramSvg'
 
@@ -474,8 +475,9 @@ export const MARCHForm = memo(function MARCHForm() {
   }, [])
 
   // --- FAB opens add menu ---
-  const handleFab = useCallback(() => {
-    if (fabRef.current) anchorRef.current = fabRef.current.getBoundingClientRect()
+  const handleFab = useCallback((anchor?: HTMLElement) => {
+    const el = anchor ?? fabRef.current
+    if (el) anchorRef.current = el.getBoundingClientRect()
     setShowAddMenu(true)
     setEditing(null)
     setAddMenuPopover(null)
@@ -1023,23 +1025,26 @@ export const MARCHForm = memo(function MARCHForm() {
   return (
     <div data-tour="tc3-march">
       <Section title="Interventions">
-        <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-          {rows.length === 0 ? (
-            <p className="text-sm text-tertiary py-7 text-center">No interventions added</p>
-          ) : (
-            rows.map((row, idx) => renderRow(row, idx, idx === rows.length - 1))
-          )}
-          <div
-            ref={fabRef}
-            onClick={handleFab}
-            className="absolute right-0 bottom-0 w-32 h-full flex items-center justify-end pr-2 pb-2 z-10 cursor-pointer"
-            aria-hidden
-          >
-            <ActionPill shadow="sm">
-              <ActionButton icon={Plus} label="Add intervention" onClick={handleFab} />
-            </ActionPill>
+        {rows.length === 0 ? (
+          <EmptyState
+            title="No interventions added"
+            action={{ icon: Plus, label: 'Add intervention', onClick: (anchor) => handleFab(anchor) }}
+          />
+        ) : (
+          <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+            {rows.map((row, idx) => renderRow(row, idx, idx === rows.length - 1))}
+            <div
+              ref={fabRef}
+              onClick={() => handleFab()}
+              className="absolute right-0 bottom-0 w-32 h-full flex items-center justify-end pr-2 pb-2 z-10 cursor-pointer"
+              aria-hidden
+            >
+              <ActionPill shadow="sm">
+                <ActionButton icon={Plus} label="Add intervention" onClick={() => handleFab()} />
+              </ActionPill>
+            </div>
           </div>
-        </div>
+        )}
       </Section>
 
       {/* Add menu popover */}

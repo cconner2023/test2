@@ -1,7 +1,57 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
 import { Eye, EyeOff, ChevronDown, Check, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { PreviewOverlay } from './PreviewOverlay'
 import { ActionButton } from './ActionButton'
+import { useIsMobile } from '../Hooks/useIsMobile'
+
+/** Free-form 4-digit military time input (0000–2359). Borderless / transparent, matches form-row style.
+ *  Current selected value is shown as the placeholder hint, not the input value, so users can type fresh
+ *  digits without having to clear an already-filled field first. */
+export const TimeInput = ({
+  value,
+  onChange,
+  label,
+}: {
+  value: string
+  onChange: (val: string) => void
+  label?: string
+}) => {
+  const isMobile = useIsMobile()
+  const [draft, setDraft] = useState('')
+
+  const commit = () => {
+    const digits = draft.replace(/\D/g, '').slice(0, 4)
+    if (digits.length === 0) return
+    const padded = digits.padStart(4, '0')
+    let hh = parseInt(padded.slice(0, 2), 10)
+    let mm = parseInt(padded.slice(2), 10)
+    if (hh > 23) hh = 23
+    if (mm > 59) mm = 59
+    const norm = `${String(hh).padStart(2, '0')}${String(mm).padStart(2, '0')}`
+    setDraft('')
+    onChange(norm)
+  }
+
+  return (
+    <div className={`flex items-center justify-between border-b border-primary/6 last:border-0 ${isMobile ? 'px-4 py-3' : 'px-3 py-2.5'}`}>
+      {label && (
+        <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">{label}</span>
+      )}
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value.replace(/\D/g, '').slice(0, 4))}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit() } }}
+        placeholder={value || 'HHMM'}
+        maxLength={4}
+        className={`flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none font-mono tracking-wider tabular-nums ${isMobile ? 'text-base' : 'text-xs'}`}
+      />
+    </div>
+  )
+}
 
 export const TextInput = ({
   label,
@@ -70,6 +120,7 @@ export const PickerInput = ({
   placeholder,
   required = false,
   label,
+  header,
 }: {
   value: string
   onChange: (val: string) => void
@@ -77,6 +128,7 @@ export const PickerInput = ({
   placeholder?: string
   required?: boolean
   label?: string
+  header?: ReactNode
 }) => {
   const [visible, setVisible] = useState(false)
   const close = useCallback(() => setVisible(false), [])
@@ -120,6 +172,9 @@ export const PickerInput = ({
           </div>
         }
       >
+        {header && (
+          <div className="border-b border-primary/6">{header}</div>
+        )}
         <div className="max-h-60 overflow-y-auto py-1" role="listbox" aria-label={placeholder}>
           {options.map((opt) => {
             const optVal = getOptionValue(opt)

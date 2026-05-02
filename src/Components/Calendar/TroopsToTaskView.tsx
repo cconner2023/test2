@@ -1,7 +1,7 @@
 import { useMemo, useCallback, useRef, useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
-import { CATEGORY_BG_MAP, PROVIDER_HUDDLE_TASK_ID, toDateKey, formatShortDayLabel } from '../../Types/CalendarTypes'
+import { getCategoryMeta, PROVIDER_HUDDLE_TASK_ID, toDateKey, formatShortDayLabel } from '../../Types/CalendarTypes'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useIsMobile } from '../../Hooks/useIsMobile'
@@ -174,9 +174,11 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
     })
   }, [events, days])
 
-  // Huddle events render in their own band, not in medic lanes — exclude them here
+  // Huddle + templated events render in their own band, not in medic lanes — exclude them here.
+  // Templated provider slots are category-tagged 'templated' (so block-clear queries can filter
+  // them) but route through the huddle band's PROVIDER row, alongside provider huddles.
   const nonHuddleEvents = useMemo(
-    () => visibleEvents.filter(e => e.category !== 'huddle'),
+    () => visibleEvents.filter(e => e.category !== 'huddle' && e.category !== 'templated'),
     [visibleEvents],
   )
 
@@ -221,7 +223,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
     const localMedicById = new Map<string, ClinicMedic>()
     for (const m of medics) localMedicById.set(m.id, m)
     for (const e of visibleEvents) {
-      if (e.category !== 'huddle') continue
+      if (e.category !== 'huddle' && e.category !== 'templated') continue
       if (e.huddle_task_id === PROVIDER_HUDDLE_TASK_ID) {
         providerOnly.push(e)
         continue
@@ -282,7 +284,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
   const activeProviderIdsForVisibleDay = useMemo(() => {
     const set = new Set<string>()
     for (const e of visibleEvents) {
-      if (e.category !== 'huddle') continue
+      if (e.category !== 'huddle' && e.category !== 'templated') continue
       if (e.start_time.slice(0, 10) > visibleDateKey) continue
       if (e.end_time.slice(0, 10) < visibleDateKey) continue
       for (const id of e.assigned_to) {
@@ -771,34 +773,39 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
                 )).flat()}
 
                 {/* Event blocks — stacked in lanes */}
-                {positioned.map(({ event, left, width, lane }) => (
-                  <button
-                    key={event.id}
-                    onClick={() => onSelectEvent(event.id)}
-                    className={`absolute rounded border text-left overflow-hidden transition-all duration-150 active:scale-[0.98] ${CATEGORY_BG_MAP[event.category]}`}
-                    style={{
-                      left,
-                      width,
-                      top: ROW_PAD + lane * (LANE_HEIGHT + LANE_GAP),
-                      height: LANE_HEIGHT,
-                    }}
-                  >
-                    <p
-                      className="absolute inset-y-0 right-0 text-[9pt] font-normal truncate px-1.5"
+                {positioned.map(({ event, left, width, lane }) => {
+                  const cat = getCategoryMeta(event.category)
+                  return (
+                    <button
+                      key={event.id}
+                      onClick={() => onSelectEvent(event.id)}
+                      className="absolute rounded text-left overflow-hidden transition-all duration-150 active:scale-[0.98] bg-primary/5 flex items-stretch gap-1"
                       style={{
-                        left: `clamp(0px, calc(var(--sl, 0) * 1px - ${left}px), ${Math.max(0, width - 40)}px)`,
-                        lineHeight: `${LANE_HEIGHT}px`,
+                        left,
+                        width,
+                        top: ROW_PAD + lane * (LANE_HEIGHT + LANE_GAP),
+                        height: LANE_HEIGHT,
                       }}
                     >
-                      {event.title}
-                      {width > 80 && (
-                        <span className="text-[9pt] md:text-[9pt] opacity-60 ml-1.5">
-                          {new Date(event.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
-                        </span>
-                      )}
-                    </p>
-                  </button>
-                ))}
+                      <div className={`w-0.5 shrink-0 rounded-full ${cat.solidColor}`} />
+                      <p
+                        className="absolute inset-y-0 right-0 text-[9pt] font-normal truncate text-primary pr-1.5"
+                        style={{
+                          left: `clamp(2px, calc(var(--sl, 0) * 1px - ${left}px), ${Math.max(2, width - 40)}px)`,
+                          lineHeight: `${LANE_HEIGHT}px`,
+                          paddingLeft: 6,
+                        }}
+                      >
+                        {event.title}
+                        {width > 80 && (
+                          <span className="text-[9pt] md:text-[9pt] text-tertiary ml-1.5">
+                            {new Date(event.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                          </span>
+                        )}
+                      </p>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )

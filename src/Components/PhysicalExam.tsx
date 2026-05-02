@@ -4,6 +4,8 @@ import { PreviewOverlay } from './PreviewOverlay';
 import type { ContextMenuAction } from './PreviewOverlay';
 import { ExamBlockPreview } from './ExamBlockPreview';
 import { ListItemRow } from './ListItemRow';
+import { ActionPill } from './ActionPill';
+import { ActionButton } from './ActionButton';
 import type { getColorClasses } from '../Utilities/ColorUtilities';
 import {
     getCategoryFromSymptomCode,
@@ -51,6 +53,10 @@ interface PhysicalExamProps {
     templateBlockKeys?: string[];
     onBlockKeysChange?: (keys: string[]) => void;
     expanders?: TextExpander[];
+    /** Template mode: bump to imperatively open the block picker. Anchor read from pickerOpenAnchor. */
+    pickerOpenSignal?: number;
+    /** Template mode: anchor rect used the next time pickerOpenSignal increments. */
+    pickerOpenAnchor?: DOMRect | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -468,6 +474,8 @@ export function PhysicalExam({
     templateBlockKeys,
     onBlockKeysChange,
     expanders = [],
+    pickerOpenSignal,
+    pickerOpenAnchor = null,
 }: PhysicalExamProps) {
     const categoryLetter = (getCategoryFromSymptomCode(symptomCode) || 'A') as CategoryLetter;
     const isBack = isBackPainCode(symptomCode);
@@ -560,11 +568,18 @@ export function PhysicalExam({
     // ── Block picker (template mode) ─────────────────────────
     const [showBlockPicker, setShowBlockPicker] = useState(false);
     const [blockPickerAnchorRect, setBlockPickerAnchorRect] = useState<DOMRect | null>(null);
+    const cardActionPillRef = useRef<HTMLDivElement>(null);
 
-    const openBlockPicker = useCallback((e: React.MouseEvent) => {
-        setBlockPickerAnchorRect((e.currentTarget as HTMLElement).getBoundingClientRect());
+    // Imperatively open the block picker each time pickerOpenSignal increments.
+    const lastPickerSignalRef = useRef<number | undefined>(pickerOpenSignal);
+    useEffect(() => {
+        if (mode !== 'template') return;
+        if (pickerOpenSignal === undefined) return;
+        if (lastPickerSignalRef.current === pickerOpenSignal) return;
+        lastPickerSignalRef.current = pickerOpenSignal;
+        if (pickerOpenAnchor) setBlockPickerAnchorRect(pickerOpenAnchor);
         setShowBlockPicker(true);
-    }, []);
+    }, [mode, pickerOpenSignal, pickerOpenAnchor]);
 
     // ── Add block picker (focused mode) ──────────────────────
     const [showAddPicker, setShowAddPicker] = useState(false);
@@ -1039,39 +1054,11 @@ export function PhysicalExam({
         <div className="space-y-4">
             {/* ── Exam Blocks ──────────────────────────────────────── */}
             {mode === 'template' && flatBlockList.length === 0 ? (
-                /* Empty state — provider hasn't selected any blocks yet */
-                <div className="flex flex-col items-center gap-2 py-6">
-                    <button
-                        type="button"
-                        onClick={openBlockPicker}
-                        className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary"
-                    >
-                        <Plus size={14} />
-                    </button>
-                    <p className="text-[9pt] text-tertiary">Add exam systems</p>
-                </div>
+                /* Empty state owned by parent — picker is auto-opened via initialPickerAnchor. */
+                null
             ) : (
-                <div className="rounded-xl bg-themewhite2 overflow-hidden">
-                    <div className="px-4 py-3 relative">
-                        <button
-                            onClick={cycleExamStatus}
-                            className={`absolute top-3 right-4 w-11 h-11 md:w-8 md:h-8 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all z-10 ${
-                                examStatus === 'all-normal'
-                                    ? 'bg-themegreen text-white'
-                                    : examStatus === 'all-abnormal'
-                                    ? 'bg-themeredred text-white'
-                                    : examStatus === 'has-abnormal'
-                                    ? 'bg-themeredred/20 text-themeredred'
-                                    : 'bg-tertiary/10 text-tertiary'
-                            }`}
-                        >
-                            {examStatus === 'all-normal'
-                                ? <Check size={20} strokeWidth={2.5} />
-                                : examStatus === 'all-abnormal' || examStatus === 'has-abnormal'
-                                ? <AlertTriangle size={18} strokeWidth={2.5} />
-                                : <Check size={20} strokeWidth={2.5} />
-                            }
-                        </button>
+                <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                    <div className="px-4 py-3">
                         <div className="flex flex-col gap-2 mb-2">
                             {/* MSK laterality / spine region selector (focused mode, category B) */}
                             {mode === 'focused' && categoryLetter === 'B' && (
@@ -1130,6 +1117,38 @@ export function PhysicalExam({
                         </div>
 
                     </div>
+                    <ActionPill ref={cardActionPillRef} shadow="sm" className="absolute top-2 right-2">
+                        <button
+                            type="button"
+                            onClick={cycleExamStatus}
+                            aria-label="Cycle exam status"
+                            className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all ${
+                                examStatus === 'all-normal'
+                                    ? 'bg-themegreen text-white'
+                                    : examStatus === 'all-abnormal'
+                                    ? 'bg-themeredred text-white'
+                                    : examStatus === 'has-abnormal'
+                                    ? 'bg-themeredred/20 text-themeredred'
+                                    : 'bg-tertiary/10 text-tertiary'
+                            }`}
+                        >
+                            {examStatus === 'all-abnormal' || examStatus === 'has-abnormal'
+                                ? <AlertTriangle size={18} strokeWidth={2.5} />
+                                : <Check size={18} strokeWidth={2.5} />}
+                        </button>
+                        {mode === 'template' && onBlockKeysChange && (
+                            <ActionButton
+                                icon={Plus}
+                                label="Add system"
+                                onClick={() => {
+                                    if (cardActionPillRef.current) {
+                                        setBlockPickerAnchorRect(cardActionPillRef.current.getBoundingClientRect());
+                                    }
+                                    setShowBlockPicker(true);
+                                }}
+                            />
+                        )}
+                    </ActionPill>
                 </div>
             )}
 
@@ -1354,18 +1373,8 @@ export function PhysicalExam({
                 />
             )}
 
-            {/* ── Add button ── */}
-            {mode === 'template' && flatBlockList.length > 0 ? (
-                <div className="flex justify-center pt-1">
-                    <button
-                        type="button"
-                        onClick={openBlockPicker}
-                        className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary"
-                    >
-                        <Plus size={14} />
-                    </button>
-                </div>
-            ) : mode === 'focused' && availableToAdd.length > 0 ? (
+            {/* ── Add button (focused mode only — template mode uses in-card ActionPill) ── */}
+            {mode === 'focused' && availableToAdd.length > 0 && (
                 <div className="flex justify-center pt-1">
                     <button
                         type="button"
@@ -1375,7 +1384,7 @@ export function PhysicalExam({
                         <Plus size={14} />
                     </button>
                 </div>
-            ) : null}
+            )}
         </div>
     );
 }

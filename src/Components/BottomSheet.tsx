@@ -21,7 +21,7 @@ interface BottomSheetProps {
 /**
  * BottomSheet — slides up from the bottom of the viewport.
  * Card chrome: bg-themewhite rounded-t-2xl shadow-xl.
- * Replaces ad-hoc bottom-drawer patterns in KBOverlay, mobile ActionSheet, etc.
+ * Replaces ad-hoc bottom-drawer patterns and mobile ActionSheet variants.
  */
 export function BottomSheet({
   isOpen,
