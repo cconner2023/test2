@@ -1,5 +1,5 @@
 export type EventCategory =
-  | 'training' | 'duty' | 'range' | 'appointment' | 'mission' | 'medevac' | 'huddle' | 'leave' | 'other' | 'templated'
+  | 'training' | 'duty' | 'range' | 'appointment' | 'mission' | 'medevac' | 'huddle' | 'leave' | 'other' | 'templated' | 'task'
 
 export type EventStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
 
@@ -90,6 +90,7 @@ export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: str
   { value: 'leave',       label: 'Leave',       color: 'bg-tertiary/15',     solidColor: 'bg-tertiary' },
   { value: 'other',       label: 'Other',       color: 'bg-tertiary/20',     solidColor: 'bg-tertiary' },
   { value: 'templated',   label: 'Templated',   color: 'bg-themeblue1/15',   solidColor: 'bg-themeblue1', hidden: true },
+  { value: 'task',        label: 'Task',        color: 'bg-themepurple/20',  solidColor: 'bg-themepurple' },
 ]
 
 export const CATEGORY_BG_MAP: Record<EventCategory, string> = {
@@ -103,6 +104,7 @@ export const CATEGORY_BG_MAP: Record<EventCategory, string> = {
   leave: 'bg-tertiary/10 border-tertiary/20 text-tertiary',
   other: 'bg-tertiary/20 border-tertiary/20 text-secondary',
   templated: 'bg-themeblue1/10 border-themeblue1/25 text-primary',
+  task: 'bg-themepurple/15 border-themepurple/30 text-primary',
 }
 
 export function getCategoryMeta(category: EventCategory) {

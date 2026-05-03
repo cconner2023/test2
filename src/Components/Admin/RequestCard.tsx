@@ -1,8 +1,11 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Clock, Building2, Trash2, UserCheck, X, HelpCircle, Check, RefreshCw, Mail } from 'lucide-react'
 import { TextInput, PickerInput, MultiPickerInput, UicPinInput } from '../FormInputs'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { ErrorDisplay } from '../ErrorDisplay'
+import { PreviewOverlay } from '../PreviewOverlay'
+import { ActionPill } from '../ActionPill'
+import { ActionButton } from '../ActionButton'
 import { useLongPress } from '../../Hooks/useLongPress'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import type { Component } from '../../Data/User'
@@ -62,6 +65,10 @@ export function RequestCard({
   const isRejected = request.status === 'rejected'
   const hasActions = isSupport ? true : (isPending || isRejected)
   const isExpanded = expandedId === request.id
+
+  // Anchor for PreviewOverlay positioning
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
 
   // ── Form state (only used when expanded + pending) ──────
   const [firstName, setFirstName] = useState(request.first_name || '')
@@ -204,8 +211,18 @@ export function RequestCard({
 
   const handleTap = useCallback(() => {
     if (!hasActions) return
+    setAnchorRect(cardRef.current?.getBoundingClientRect() ?? null)
     setExpandedId(isExpanded ? null : request.id)
   }, [hasActions, isExpanded, setExpandedId, request.id])
+
+  const handleClose = useCallback(() => setExpandedId(null), [setExpandedId])
+
+  const mailtoHref = `mailto:${request.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(
+    `${(isSupport
+      ? [request.first_name, request.last_name]
+      : [request.rank, request.last_name]
+    ).filter(Boolean).join(' ')},\n\n`
+  )}`
 
   // ── Icon styling ────────────────────────────────────────
   const iconBg = isSupport
@@ -227,123 +244,166 @@ export function RequestCard({
     : request.status === 'approved' ? 'text-themegreen'
     : 'text-themeredred'
 
+  const overlayTitle = isSupport
+    ? 'Support request'
+    : isPending
+      ? 'Approve request'
+      : 'Rejected request'
+
+  const canApprove = uic.length === 6 && roles.length > 0 && !processing
+
+  const overlayFooter = (
+    <ActionPill>
+      <a
+        href={mailtoHref}
+        onClick={(e) => e.stopPropagation()}
+        className="w-9 h-9 rounded-full flex items-center justify-center bg-themeblue2/8 text-primary active:scale-95 transition-all"
+        aria-label="Email"
+        title="Email"
+      >
+        <Mail size={16} />
+      </a>
+      {isSupport && (
+        <ActionButton
+          icon={Trash2}
+          label="Dismiss"
+          variant="danger"
+          onClick={() => setConfirmDeleteId(request.id)}
+        />
+      )}
+      {isPending && !isSupport && (
+        <>
+          <ActionButton
+            icon={Trash2}
+            label="Reject"
+            variant="danger"
+            onClick={() => setConfirmReject(true)}
+          />
+          <ActionButton
+            icon={processing ? RefreshCw : Check}
+            label="Approve"
+            variant={canApprove ? 'success' : 'disabled'}
+            onClick={handleApprove}
+          />
+        </>
+      )}
+      {isRejected && !isSupport && (
+        <ActionButton
+          icon={processing ? RefreshCw : Check}
+          label="Reopen"
+          variant={processing ? 'disabled' : 'success'}
+          onClick={handleReopen}
+        />
+      )}
+    </ActionPill>
+  )
+
   return (
-    <div
-      {...longPress}
-      onContextMenu={hasActions ? (e) => {
-        e.preventDefault()
-        setContextMenu({ requestId: request.id, x: e.clientX, y: e.clientY })
-      } : undefined}
-      onClick={handleTap}
-      className={`transition-all hover:bg-themeblue2/5 cursor-pointer select-none ${isPressing ? 'opacity-60' : ''}`}
-    >
-      {/* Row 1: icon + name/subtitle + status badge */}
-      <div className="flex items-center gap-3 px-4 py-3.5">
-        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
-          <IconComponent size={16} className={iconColor} />
+    <>
+      <div
+        ref={cardRef}
+        {...longPress}
+        onContextMenu={hasActions ? (e) => {
+          e.preventDefault()
+          setContextMenu({ requestId: request.id, x: e.clientX, y: e.clientY })
+        } : undefined}
+        onClick={handleTap}
+        className={`transition-all hover:bg-themeblue2/5 cursor-pointer select-none ${isPressing ? 'opacity-60' : ''}`}
+      >
+        {/* Row 1: icon + name/subtitle + status badge */}
+        <div className="flex items-center gap-3 px-4 py-3.5">
+          <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
+            <IconComponent size={16} className={iconColor} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-primary truncate">
+              {isSupport ? (
+                `${request.first_name}${request.last_name ? ` ${request.last_name}` : ''}`
+              ) : (
+                <>
+                  {request.rank ? `${request.rank} ` : ''}
+                  {request.first_name}
+                  {request.middle_initial ? ` ${request.middle_initial}` : ''}{' '}
+                  {request.last_name}
+                </>
+              )}
+            </p>
+            <p className="text-[9pt] text-tertiary mt-0.5 truncate">
+              {isSupport
+                ? request.email
+                : [request.credential, request.email].filter(Boolean).join(' · ')}
+            </p>
+          </div>
+          <span className={`text-[9pt] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0 ${getRequestStatusColor(request.status)}`}>
+            {isSupport ? 'Help' : request.status}
+          </span>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-primary truncate">
-            {isSupport ? (
-              `${request.first_name}${request.last_name ? ` ${request.last_name}` : ''}`
+
+        {/* Row 2: UIC + clinic */}
+        {!isSupport && request.uic && (
+          <div className="flex items-center gap-2 flex-wrap px-4 pb-2">
+            <span className="text-[10pt] font-normal text-tertiary">{request.uic}</span>
+            {cardMatchedClinic ? (
+              <span className="inline-flex items-center gap-1 text-[10pt] font-normal text-tertiary">
+                <Building2 size={12} />
+                {cardMatchedClinic.name}
+              </span>
             ) : (
-              <>
-                {request.rank ? `${request.rank} ` : ''}
-                {request.first_name}
-                {request.middle_initial ? ` ${request.middle_initial}` : ''}{' '}
-                {request.last_name}
-              </>
+              <span className="text-[10pt] font-normal text-tertiary">No clinic match</span>
             )}
-          </p>
-          <p className="text-[9pt] text-tertiary mt-0.5 truncate">
-            {isSupport
-              ? request.email
-              : [request.credential, request.email].filter(Boolean).join(' · ')}
-          </p>
-        </div>
-        <span className={`text-[9pt] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0 ${getRequestStatusColor(request.status)}`}>
-          {isSupport ? 'Help' : request.status}
-        </span>
+          </div>
+        )}
+
+        {/* Notes/justification preview */}
+        {!isSupport && request.notes && (
+          <p className="text-[10pt] font-normal text-tertiary italic px-4 pb-2 line-clamp-2">{request.notes}</p>
+        )}
+
+        {/* Support request: show message preview */}
+        {isSupport && request.notes && (
+          <p className="text-[10pt] font-normal text-tertiary px-4 pb-2 line-clamp-2">{request.notes}</p>
+        )}
+
+        {/* Already a user note */}
+        {isExistingUser && (
+          <p className="text-[10pt] font-normal text-tertiary px-4 pb-2">Already a user — safe to clear this request</p>
+        )}
       </div>
 
-      {/* Row 2: UIC + clinic (hidden when expanded — form has these fields) */}
-      {!isSupport && !isExpanded && request.uic && (
-        <div className="flex items-center gap-2 flex-wrap px-4 pb-2">
-          <span className="text-[10pt] font-normal text-tertiary">{request.uic}</span>
-          {cardMatchedClinic ? (
-            <span className="inline-flex items-center gap-1 text-[10pt] font-normal text-tertiary">
-              <Building2 size={12} />
-              {cardMatchedClinic.name}
-            </span>
-          ) : (
-            <span className="text-[10pt] font-normal text-tertiary">No clinic match</span>
-          )}
-        </div>
-      )}
+      {/* ── Edit overlay ─────────────────────────────────────── */}
+      <PreviewOverlay
+        isOpen={isExpanded}
+        onClose={handleClose}
+        anchorRect={anchorRect}
+        title={overlayTitle}
+        maxWidth={420}
+        previewMaxHeight="65dvh"
+        footer={overlayFooter}
+      >
+        <div className={processing ? 'opacity-50 pointer-events-none' : undefined} onClick={(e) => e.stopPropagation()}>
+          {error && <div className="px-4 pt-3"><ErrorDisplay message={error} /></div>}
 
-      {/* Notes/justification preview (collapsed only) */}
-      {!isSupport && !isExpanded && request.notes && (
-        <p className="text-[10pt] font-normal text-tertiary italic px-4 pb-2 line-clamp-2">{request.notes}</p>
-      )}
-
-      {/* Support request: show message preview (collapsed only) */}
-      {isSupport && !isExpanded && request.notes && (
-        <p className="text-[10pt] font-normal text-tertiary px-4 pb-2 line-clamp-2">{request.notes}</p>
-      )}
-
-      {/* Already a user note */}
-      {!isExpanded && isExistingUser && (
-        <p className="text-[10pt] font-normal text-tertiary px-4 pb-2">Already a user — safe to clear this request</p>
-      )}
-
-      {/* ── Expanded: support request (simple) ─────────────── */}
-      {isExpanded && isSupport && (
-        <div className="px-4 pb-3.5 pt-3 border-t border-tertiary/10 space-y-2" onClick={(e) => e.stopPropagation()}>
-          {request.notes && (
-            <p className="text-[10pt] font-normal text-primary whitespace-pre-wrap">{request.notes}</p>
-          )}
-          <p className="text-[10pt] font-normal text-tertiary">
-            Submitted: {new Date(request.requested_at).toLocaleString()}
-          </p>
-          <div className="flex items-center gap-3 pt-1">
-            <a
-              href={`mailto:${request.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(`${[request.first_name, request.last_name].filter(Boolean).join(' ')},\n\n`)}`}
-              className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-themeblue2 active:scale-95 transition-all"
-              aria-label="Email"
-              title="Email"
-            >
-              <Mail size={16} />
-            </a>
-            <button
-              onClick={() => setConfirmDeleteId(request.id)}
-              className="shrink-0 w-10 h-10 rounded-full text-themeredred flex items-center justify-center active:scale-95 transition-all"
-              aria-label="Dismiss"
-              title="Dismiss"
-            >
-              <Trash2 size={16} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Expanded: pending request (full edit form) ──────── */}
-      {isExpanded && isPending && !isSupport && (
-        <div
-          className="border-t border-tertiary/10 px-4 pb-4 pt-3"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className={processing ? 'opacity-50 pointer-events-none' : undefined}>
-            {error && <div className="mb-3"><ErrorDisplay message={error} /></div>}
-
-            {/* User justification */}
-            <div className="rounded-xl bg-themeblue2/5 border border-themeblue2/10 px-3.5 py-2.5 mb-3">
-              <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-1">Justification</p>
-              <p className={`text-sm whitespace-pre-wrap ${request.notes ? 'text-primary' : 'text-tertiary italic'}`}>
-                {request.notes || 'No justification provided'}
+          {/* Support request body */}
+          {isSupport && (
+            <div className="px-4 py-3 space-y-2">
+              {request.notes && (
+                <p className="text-[10pt] font-normal text-primary whitespace-pre-wrap">{request.notes}</p>
+              )}
+              <p className="text-[10pt] font-normal text-tertiary">
+                Submitted: {new Date(request.requested_at).toLocaleString()}
               </p>
             </div>
+          )}
 
-            <div className="rounded-2xl bg-themewhite overflow-hidden">
+          {/* Pending request: full edit form */}
+          {isPending && !isSupport && (
+            <>
+              <div className="px-4 py-3 border-b border-primary/6">
+                <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-1">Justification</p>
+                <p className={`text-sm whitespace-pre-wrap ${request.notes ? 'text-primary' : 'text-tertiary italic'}`}>
+                  {request.notes || 'No justification provided'}
+                </p>
+              </div>
               <TextInput value={firstName} onChange={setFirstName} placeholder="First Name *" required />
               <div className="flex items-stretch border-b border-primary/6">
                 <div className="flex-1 min-w-0">
@@ -373,38 +433,28 @@ export function RequestCard({
                 placeholder="Roles *"
                 required
               />
-            </div>
+            </>
+          )}
 
-            {/* Action buttons */}
-            <div className="flex items-center justify-end gap-2 mt-2">
-              <a
-                href={`mailto:${request.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(`${[request.rank, request.last_name].filter(Boolean).join(' ')},\n\n`)}`}
-                className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-themeblue2 active:scale-95 transition-all"
-                aria-label="Email"
-                title="Email"
-              >
-                <Mail size={16} />
-              </a>
-              <button
-                onClick={() => setConfirmReject(true)}
-                disabled={processing}
-                aria-label="Reject"
-                className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-themeredred active:scale-95 transition-all disabled:opacity-30"
-              >
-                <Trash2 size={16} />
-              </button>
-              <button
-                onClick={handleApprove}
-                disabled={processing}
-                aria-label="Approve"
-                className={`shrink-0 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white overflow-hidden transition-all duration-300 ease-out active:scale-95 disabled:opacity-30 ${uic.length === 6 && roles.length > 0 ? 'w-9 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
-              >
-                {processing ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
-              </button>
+          {/* Rejected request: read-only + reopen */}
+          {isRejected && !isSupport && (
+            <div className="px-4 py-3 space-y-3">
+              <div>
+                <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-1">Justification</p>
+                <p className={`text-sm whitespace-pre-wrap ${request.notes ? 'text-primary' : 'text-tertiary italic'}`}>
+                  {request.notes || 'No justification provided'}
+                </p>
+              </div>
+              {request.rejection_reason && (
+                <div className="rounded-xl border border-themeredred/10 bg-themeredred/5 px-3.5 py-2.5">
+                  <p className="text-[9pt] font-semibold text-themeredred/60 tracking-widest uppercase mb-1">Rejection Reason</p>
+                  <p className="text-sm text-themeredred">{request.rejection_reason}</p>
+                </div>
+              )}
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </PreviewOverlay>
 
       <ConfirmDialog
         visible={confirmReject}
@@ -416,52 +466,6 @@ export function RequestCard({
         onConfirm={handleReject}
         onCancel={() => setConfirmReject(false)}
       />
-
-      {/* ── Expanded: rejected request (read-only + reopen) ── */}
-      {isExpanded && isRejected && !isSupport && (
-        <div
-          className="border-t border-tertiary/10 px-4 pb-4 pt-3"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className={`space-y-3 ${processing ? 'opacity-50 pointer-events-none' : ''}`}>
-            {error && <ErrorDisplay message={error} />}
-
-            {/* User justification */}
-            <div className="rounded-xl bg-themeblue2/5 border border-themeblue2/10 px-3.5 py-2.5">
-              <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-1">Justification</p>
-              <p className={`text-sm whitespace-pre-wrap ${request.notes ? 'text-primary' : 'text-tertiary italic'}`}>
-                {request.notes || 'No justification provided'}
-              </p>
-            </div>
-
-            {request.rejection_reason && (
-              <div className="rounded-xl border border-themeredred/10 bg-themeredred/5 px-3.5 py-2.5">
-                <p className="text-[9pt] font-semibold text-themeredred/60 tracking-widest uppercase mb-1">Rejection Reason</p>
-                <p className="text-sm text-themeredred">{request.rejection_reason}</p>
-              </div>
-            )}
-
-            <div className="flex items-center justify-end gap-2">
-              <a
-                href={`mailto:${request.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(`${[request.rank, request.last_name].filter(Boolean).join(' ')},\n\n`)}`}
-                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-themeblue2 active:scale-95 transition-all"
-                aria-label="Email"
-                title="Email"
-              >
-                <Mail size={18} />
-              </a>
-              <button
-                onClick={handleReopen}
-                disabled={processing}
-                aria-label="Reopen"
-                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
-              >
-                {processing ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   )
 }

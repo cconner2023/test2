@@ -20,10 +20,10 @@ import { TextInput, PickerInput, MultiPickerInput, UicPinInput, PasswordInput } 
 import { ErrorDisplay } from '../ErrorDisplay'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { formatLastActive, RoleBadge, SupervisorCreatedBadge } from './adminUtils'
+import { useResetPasswordFlow } from '../../Hooks/useResetPasswordFlow'
 import {
   listAllUsers,
   listClinics,
-  resetUserPassword,
   forceLogoutUser,
   updateUserProfile,
   setUserRoles,
@@ -80,8 +80,7 @@ export function AdminUserDetail({
 
   // Reset password inline
   const [resetPwActive, setResetPwActive] = useState(false)
-  const [resetPwValue, setResetPwValue] = useState('')
-  const [resetPwProcessing, setResetPwProcessing] = useState(false)
+  const resetPw = useResetPasswordFlow()
 
   // Force logout
   const [forceLogoutProcessing, setForceLogoutProcessing] = useState(false)
@@ -289,15 +288,10 @@ export function AdminUserDetail({
     }
   }, [saveRequested, handleSave, onSaveComplete])
 
-  const handleResetPassword = async () => {
-    if (!user || resetPwValue.length < 12) return
-    setResetPwProcessing(true)
-    const result = await resetUserPassword(user.id, resetPwValue)
-    setResetPwProcessing(false)
-
+  const handleResetPasswordConfirm = async () => {
+    const result = await resetPw.submit()
     if (result.success) {
       setResetPwActive(false)
-      setResetPwValue('')
       setNotify({ type: 'success', message: 'Password reset.' })
     } else {
       setNotify({ type: 'error', message: result.error || 'Failed to reset password' })
@@ -323,7 +317,7 @@ export function AdminUserDetail({
 
   const openResetPassword = () => {
     setResetPwActive(true)
-    setResetPwValue('')
+    resetPw.reset()
   }
 
   // ── Full name helper ────────────────────────────────────────────────
@@ -475,13 +469,13 @@ export function AdminUserDetail({
                   <p className="text-[9pt] text-tertiary mt-0.5">Set a new password for this user</p>
                 </div>
               </button>
-              {resetPwActive && (
+              {resetPwActive && user && (
                 <ResetPasswordForm
-                  value={resetPwValue}
-                  onChange={setResetPwValue}
-                  onSubmit={handleResetPassword}
-                  onCancel={() => { setResetPwActive(false); setResetPwValue('') }}
-                  processing={resetPwProcessing}
+                  value={resetPw.value}
+                  onChange={resetPw.setValue}
+                  onSubmit={() => resetPw.requestConfirm(user.id)}
+                  onCancel={() => { setResetPwActive(false); resetPw.reset() }}
+                  processing={resetPw.processing}
                 />
               )}
             </div>
@@ -507,6 +501,17 @@ export function AdminUserDetail({
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        visible={!!resetPw.confirmingUserId}
+        title={`Reset password for ${user?.first_name ?? ''} ${user?.last_name ?? 'user'}?`}
+        subtitle="The new password takes effect immediately. The user is not notified."
+        confirmLabel="Reset"
+        variant="danger"
+        processing={resetPw.processing}
+        onConfirm={handleResetPasswordConfirm}
+        onCancel={resetPw.cancelConfirm}
+      />
 
       <ConfirmDialog
         visible={confirmForceLogout}

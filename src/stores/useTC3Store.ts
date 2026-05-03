@@ -7,6 +7,7 @@
  */
 
 import { create } from 'zustand'
+import type { MedevacRequest } from '../Types/MedevacTypes'
 import type {
   TC3Card,
   TC3Section,
@@ -223,7 +224,7 @@ function removeMarkerFromMarch(markerId: string, march: TC3Card['march']): TC3Ca
 
 // ── Empty card ───────────────────────────────────────────────────────────
 
-function createEmptyCard(): TC3Card {
+export function createEmptyCard(): TC3Card {
   return {
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
@@ -304,6 +305,8 @@ interface TC3State {
   exportCard: TC3Card | null
   exportCards: TC3Card[]
   casualtyQueue: TC3QueueEntry[]
+  /** Per-MASCAL-session 9-line overrides (medic input over derived projection). In-memory; resets when queue cleared. */
+  medevacOverrides: Partial<MedevacRequest>
 }
 
 interface TC3Actions {
@@ -403,6 +406,9 @@ interface TC3Actions {
   discardFromQueue: (cardId: string) => void
   discardActive: () => void
   clearQueue: () => void
+  pushBlankCasualties: (count: number) => void
+  setMedevacOverride: <K extends keyof MedevacRequest>(field: K, value: MedevacRequest[K] | undefined) => void
+  clearMedevacOverrides: () => void
   hydrateFromIDB: () => Promise<void>
   hydrateQueueFromIDB: () => Promise<void>
 }
@@ -419,6 +425,7 @@ export const useTC3Store = create<TC3Store>()((set, get) => ({
   exportCard: null,
   exportCards: [],
   casualtyQueue: [],
+  medevacOverrides: {},
 
   // Section navigation
   setSelectedSection: (section) => set({ selectedSection: section }),
@@ -835,9 +842,31 @@ export const useTC3Store = create<TC3Store>()((set, get) => ({
   },
 
   clearQueue: () => {
-    set({ casualtyQueue: [] })
+    set({ casualtyQueue: [], medevacOverrides: {} })
     clearQueueIdb()
   },
+
+  pushBlankCasualties: (count) => {
+    if (count <= 0) return
+    const now = new Date().toISOString()
+    const blanks: TC3QueueEntry[] = []
+    for (let i = 0; i < count; i++) {
+      blanks.push({ card: createEmptyCard(), queuedAt: now })
+    }
+    set((s) => ({ casualtyQueue: [...blanks, ...s.casualtyQueue] }))
+    blanks.forEach(saveQueueEntry)
+  },
+
+  setMedevacOverride: (field, value) => {
+    set((s) => {
+      const next = { ...s.medevacOverrides }
+      if (value === undefined) delete next[field]
+      else next[field] = value
+      return { medevacOverrides: next }
+    })
+  },
+
+  clearMedevacOverrides: () => set({ medevacOverrides: {} }),
 
   hydrateFromIDB: async () => {
     const card = await loadActiveCard()

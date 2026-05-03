@@ -188,8 +188,9 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
 
   if (newItemId) {
     return (
-      <div className="rounded-xl bg-themewhite2">
-        <EnrollScanStep
+      <div className="px-4 py-4">
+        <div className="rounded-2xl overflow-hidden">
+          <EnrollScanStep
           itemId={newItemId}
           itemName={name.trim()}
           onEnrolled={async (fp) => {
@@ -198,12 +199,14 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
           }}
           onSkip={onClose}
         />
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+    <div className="px-4 py-4">
+      <div className="rounded-2xl overflow-hidden">
       <TextInput value={name} onChange={setName} placeholder="Item name *" required />
       <TextInput value={nomenclature} onChange={setNomenclature} placeholder="Nomenclature" />
       <div className="flex items-stretch border-b border-primary/6">
@@ -359,6 +362,7 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
         >
           <Check size={16} />
         </button>
+      </div>
       </div>
     </div>
   )

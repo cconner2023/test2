@@ -1,5 +1,7 @@
 import { Check, X } from 'lucide-react'
 import { PasswordInput } from '../FormInputs'
+import { ActionPill } from '../ActionPill'
+import { ActionButton } from '../ActionButton'
 
 interface ResetPasswordFormProps {
   value: string
@@ -20,7 +22,7 @@ export function ResetPasswordForm({
   minLength = 12,
 }: ResetPasswordFormProps) {
   const tooShort = value.length > 0 && value.length < minLength
-  const disabled = processing || value.length < minLength
+  const canSubmit = !processing && value.length >= minLength
 
   return (
     <div className="bg-tertiary/5" onClick={(e) => e.stopPropagation()}>
@@ -33,22 +35,24 @@ export function ResetPasswordForm({
             hint={tooShort ? `Minimum ${minLength} characters.` : undefined}
           />
         </div>
-        <div className="flex items-center gap-2 pr-3 shrink-0">
-          <button
-            onClick={onCancel}
-            aria-label="Cancel"
-            className="w-9 h-9 rounded-full text-tertiary flex items-center justify-center active:scale-95 transition-all"
-          >
-            <X size={16} />
-          </button>
-          <button
-            onClick={onSubmit}
-            disabled={disabled}
-            aria-label="Reset password"
-            className={`h-9 rounded-full bg-themeyellow text-white flex items-center justify-center overflow-hidden transition-all duration-300 ease-out active:scale-95 disabled:opacity-30 ${value.trim() ? 'w-9 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
-          >
-            <Check size={16} />
-          </button>
+        <div
+          className="grid pr-2 transition-[grid-template-columns,opacity] duration-300 ease-out"
+          style={{
+            gridTemplateColumns: value.trim() ? '1fr' : '0fr',
+            opacity: value.trim() ? 1 : 0,
+          }}
+        >
+          <div className="overflow-hidden">
+            <ActionPill shadow="sm">
+              <ActionButton icon={X} label="Cancel" onClick={onCancel} />
+              <ActionButton
+                icon={Check}
+                label="Reset password"
+                variant={canSubmit ? 'success' : 'disabled'}
+                onClick={onSubmit}
+              />
+            </ActionPill>
+          </div>
         </div>
       </div>
     </div>

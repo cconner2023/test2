@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Clock, Plus, Users2, CalendarDays, X, Check, Pencil, Trash2, CalendarPlus, Play, CheckCircle2, Ban, Share2 } from 'lucide-react'
+import { Clock, Plus, Users2, CalendarDays, X, Check, Pencil, Trash2, CalendarPlus, Play, CheckCircle2, Ban, Share2, CircleDashed } from 'lucide-react'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { useShallow } from 'zustand/react/shallow'
 import { useIsMobile } from '../../Hooks/useIsMobile'
@@ -58,7 +58,10 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
 
   const calendarDrawerEventId = useNavigationStore(s => s.calendarDrawerEventId)
+  const calendarDrawerEventEditMode = useNavigationStore(s => s.calendarDrawerEventEditMode)
   const clearCalendarDrawerEventId = useNavigationStore(s => s.clearCalendarDrawerEventId)
+  const pendingCalendarAction = useNavigationStore(s => s.pendingCalendarAction)
+  const clearPendingCalendarAction = useNavigationStore(s => s.clearPendingCalendarAction)
 
   useEffect(() => {
     onPanelStateChange?.(panelView !== 'calendar')
@@ -113,6 +116,9 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const [dayContextMenu, setDayContextMenu] = useState<{ dateKey: string; x: number; y: number } | null>(null)
   const [newEventDateKey, setNewEventDateKey] = useState<string | undefined>(undefined)
   const [newEventHuddleTaskId, setNewEventHuddleTaskId] = useState<string | null>(null)
+  const [newEventCategory, setNewEventCategory] = useState<'task' | null>(null)
+  const formIsTask = editingEvent ? editingEvent.category === 'task' : newEventCategory === 'task'
+
   const [duplicateHuddle, setDuplicateHuddle] = useState<{ eventId: string; rowName: string; medicLabel: string } | null>(null)
 
   const [showDayDrawer, setShowDayDrawer] = useState(false)
@@ -196,6 +202,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     vaultReplayDone,
     hydrationError, clearHydrationError,
     daySpan,
+    categoryFilter, setCategoryFilter,
   } = useCalendarStore(useShallow(s => ({
     viewMode: s.currentView,
     setViewMode: s.setView,
@@ -212,14 +219,39 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     hydrationError: s.hydrationError,
     clearHydrationError: s.clearHydrationError,
     daySpan: s.daySpan,
+    categoryFilter: s.categoryFilter,
+    setCategoryFilter: s.setCategoryFilter,
   })))
 
-  // Deep-link from external sources (e.g. Mission Board) — open specific event in detail view
+  const handleEventStatusChange = useCallback(async (id: string, next: import('../../Types/CalendarTypes').EventStatus) => {
+    const event = events.find(e => e.id === id)
+    if (!event) return
+    await writeEvent({ ...event, status: next, updated_at: new Date().toISOString() })
+  }, [events, writeEvent])
+
+  // Deep-link from external sources (e.g. Mission Board) — open specific event in detail or edit view
   useEffect(() => {
     if (!calendarDrawerEventId) return
-    selectEvent(calendarDrawerEventId)
+    const eventId = calendarDrawerEventId
+    const editMode = calendarDrawerEventEditMode
+    selectEvent(eventId)
+    if (editMode) {
+      const ev = useCalendarStore.getState().events.find(e => e.id === eventId)
+      if (ev && isEventEditable(ev, isSupervisor)) {
+        setEditingEvent(ev)
+        if (isMobile) {
+          setDayDrawerEventId(eventId)
+          setDayDrawerView('edit')
+          setShowDayDrawer(true)
+        } else {
+          setPanelView('form')
+        }
+        clearCalendarDrawerEventId()
+        return
+      }
+    }
     if (isMobile) {
-      setDayDrawerEventId(calendarDrawerEventId)
+      setDayDrawerEventId(eventId)
       setDayDrawerView('detail')
       setShowDayDrawer(true)
     } else {
@@ -234,11 +266,17 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const selectedDateKey = toDateKey(selectedDate)
 
   const filteredEvents = useMemo(() => {
-    if (personnelFilter.length === 0) return events
-    return events.filter(e =>
-      e.assigned_to.length === 0 || e.assigned_to.some(id => personnelFilter.includes(id))
-    )
-  }, [events, personnelFilter])
+    let out = events
+    if (personnelFilter.length > 0) {
+      out = out.filter(e =>
+        e.assigned_to.length === 0 || e.assigned_to.some(id => personnelFilter.includes(id))
+      )
+    }
+    if (categoryFilter !== null) {
+      out = out.filter(e => categoryFilter.includes(e.category))
+    }
+    return out
+  }, [events, personnelFilter, categoryFilter])
 
   const dayEvents = useMemo(() =>
     filteredEvents
@@ -287,12 +325,20 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     }
   }, [isMobile, selectEvent])
 
-  const handleNewEvent = useCallback((forDateKey?: string) => {
+  const handleNewEvent = useCallback((forDateKey?: string, category?: 'task') => {
     setEditingEvent(null)
     setNewEventDateKey(forDateKey ?? selectedDateStr)
     setNewEventHuddleTaskId(null)
+    setNewEventCategory(category ?? null)
     setPanelView('form')
   }, [selectedDateStr])
+
+  // Deep-link from external sources (e.g. Mission Board "+") — open the new-event form on mount
+  useEffect(() => {
+    if (pendingCalendarAction !== 'new') return
+    handleNewEvent()
+    clearPendingCalendarAction()
+  }, [pendingCalendarAction, handleNewEvent, clearPendingCalendarAction])
 
   const handleNewHuddleEvent = useCallback((forDateKey: string, taskId?: string) => {
     setEditingEvent(null)
@@ -408,8 +454,11 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     if (newEventHuddleTaskId !== null) {
       return { ...base, category: 'huddle' as const, huddle_task_id: newEventHuddleTaskId }
     }
+    if (newEventCategory === 'task') {
+      return { ...base, category: 'task' as const }
+    }
     return base
-  }, [newEventDateKey, newEventHuddleTaskId])
+  }, [newEventDateKey, newEventHuddleTaskId, newEventCategory])
 
   const handleEditEvent = useCallback((id: string) => {
     const event = events.find(e => e.id === id)
@@ -774,6 +823,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 rooms={activeRooms}
                 huddleTasks={sortedHuddleTasks}
                 onSelectEvent={handleSelectEvent}
+                onEventContextMenu={handleEventContextMenu}
                 onAssign={assignPersonnel}
                 onUnassign={unassignPersonnel}
                 onDateChange={setSelectedDate}
@@ -835,7 +885,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             fullHeight="85dvh"
             zIndex="z-50"
             header={{
-              title: editingEvent ? 'Edit Event' : 'New Event',
+              title: editingEvent ? (formIsTask ? 'Edit Task' : 'Edit Event') : (formIsTask ? 'New Task' : 'New Event'),
               rightContent: (
                 <HeaderPill>
                   {editingEvent && (
@@ -958,7 +1008,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             fullHeight="85dvh"
             zIndex="z-50"
             header={dayDrawerView === 'edit' ? {
-              title: 'Edit Event',
+              title: formIsTask ? 'Edit Task' : 'Edit Event',
               rightContent: (
                 <HeaderPill>
                   {editingEvent && (
@@ -1000,6 +1050,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   onCancelTemplate={handleCancelTemplate}
                   apptTypeNames={apptTypeNames}
                   canDeleteTemplate={isSupervisor}
+                  onStatusChange={handleEventStatusChange}
                   onOpenMissionBoard={() => {
                     handleDayDrawerClose()
                     handleOpenMissionBoard(dayDrawerEvent.id)
@@ -1066,7 +1117,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 <div className="relative flex flex-col flex-1 min-h-0">
                   <div className="flex items-center justify-between px-3 py-2 border-b border-tertiary/10">
                     <h2 className="text-sm font-semibold text-primary whitespace-nowrap">
-                      {editingEvent ? 'Edit Event' : 'New Event'}
+                      {editingEvent ? (formIsTask ? 'Edit Task' : 'Edit Event') : (formIsTask ? 'New Task' : 'New Event')}
                     </h2>
                     <HeaderPill>
                       {editingEvent && (
@@ -1110,6 +1161,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     onCancelTemplate={handleCancelTemplate}
                     apptTypeNames={apptTypeNames}
                     canDeleteTemplate={isSupervisor}
+                    onStatusChange={handleEventStatusChange}
                     onOpenMissionBoard={() => handleOpenMissionBoard(selectedEvent.id)}
                     assignedNames={resolveAssigned(selectedEvent.assigned_to)}
                     linkedPropertyItems={resolvePropertyItems(selectedEvent.property_item_ids ?? [])}
@@ -1193,6 +1245,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
         title="Calendar"
         options={[
           { key: 'new', label: 'New Event', onAction: () => handleNewEvent() },
+          { key: 'new-task', label: 'New Task', onAction: () => handleNewEvent(undefined, 'task') },
           ...(isSupervisor ? [
             { key: 'template', label: 'Provider Template…', onAction: () => { setTemplateNonce(n => n + 1); setPanelView('template') } },
             { key: 'clear-templates', label: 'Clear Templates…', onAction: () => { setBlockNonce(n => n + 1); setPanelView('block') } },
@@ -1233,12 +1286,18 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
         const ctxEvent = events.find(e => e.id === contextMenu.eventId)
         const ctxEditable = ctxEvent ? isEventEditable(ctxEvent, isSupervisor) : false
         const ctxDeletable = ctxEvent ? isTemplateStructureMutable(ctxEvent, isSupervisor) : false
-        const statusItems: ContextMenuItem[] = ctxEvent && ctxEditable ? [
+        const statusSubmenu: ContextMenuItem[] = ctxEvent && ctxEditable ? [
           ...(ctxEvent.status !== 'pending'     ? [{ key: 'status-pending',     label: 'Pending',      icon: Clock,        onAction: () => handleStatusChange(contextMenu.eventId, 'pending') }] : []),
           ...(ctxEvent.status !== 'in_progress' ? [{ key: 'status-inprogress',  label: 'Active',       icon: Play,         onAction: () => handleStatusChange(contextMenu.eventId, 'in_progress') }] : []),
           ...(ctxEvent.status !== 'completed'   ? [{ key: 'status-completed',   label: 'Done',         icon: CheckCircle2, onAction: () => handleStatusChange(contextMenu.eventId, 'completed') }] : []),
           ...(ctxEvent.status !== 'cancelled'   ? [{ key: 'status-cancelled',   label: 'Cancel',       icon: Ban,          onAction: () => handleStatusChange(contextMenu.eventId, 'cancelled'), destructive: true }] : []),
         ] : []
+        const STATUS_TRIGGER: Record<string, typeof Clock> = {
+          pending: CircleDashed, in_progress: Play, completed: CheckCircle2, cancelled: Ban,
+        }
+        const statusItems: ContextMenuItem[] = statusSubmenu.length > 0 && ctxEvent
+          ? [{ key: 'status', label: 'Status', icon: STATUS_TRIGGER[ctxEvent.status] ?? CircleDashed, submenu: statusSubmenu }]
+          : []
         const editItems: ContextMenuItem[] = [
           ...(ctxEditable ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => handleEditEvent(contextMenu.eventId) }] : []),
           ...(ctxDeletable ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteEvent(contextMenu.eventId) }] : []),

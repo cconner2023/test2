@@ -17,6 +17,14 @@ import { UserAvatar } from './Settings/UserAvatar'
 import { getDisplayName } from '../Utilities/nameUtils'
 import { ActionPill } from './ActionPill'
 import { CalendarClinicEditor } from './Calendar/CalendarClinicEditor'
+import type { EventCategory } from '../Types/CalendarTypes'
+
+const CATEGORY_GROUPS: { key: 'huddle' | 'calendar' | 'tasks'; label: string; categories: EventCategory[] }[] = [
+  { key: 'huddle',   label: 'Huddle',   categories: ['huddle', 'templated'] },
+  { key: 'calendar', label: 'Calendar', categories: ['training', 'duty', 'range', 'appointment', 'mission', 'medevac', 'leave', 'other'] },
+  { key: 'tasks',    label: 'Tasks',    categories: ['task'] },
+]
+const ALL_FILTERABLE_CATEGORIES: EventCategory[] = CATEGORY_GROUPS.flatMap(g => g.categories)
 
 interface CalendarDrawerProps {
     isVisible: boolean
@@ -32,6 +40,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         monthLabel, viewMode, rosterSearchQuery, setRosterSearchQuery,
         selectedDate, setSelectedDate,
         daySpan, setDaySpan, hideWeekends, setHideWeekends,
+        categoryFilter, setCategoryFilter,
     } = useCalendarStore(useShallow(s => ({
         events: s.events,
         personnelFilter: s.personnelFilter,
@@ -47,7 +56,22 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         setDaySpan: s.setDaySpan,
         hideWeekends: s.hideWeekends,
         setHideWeekends: s.setHideWeekends,
+        categoryFilter: s.categoryFilter,
+        setCategoryFilter: s.setCategoryFilter,
     })))
+
+    const categoryActiveSet = categoryFilter === null ? new Set(ALL_FILTERABLE_CATEGORIES) : new Set(categoryFilter)
+    const isCategoryGroupOn = (cats: EventCategory[]) => cats.some(c => categoryActiveSet.has(c))
+    const toggleCategoryGroup = (cats: EventCategory[]) => {
+        const next = new Set(categoryActiveSet)
+        if (isCategoryGroupOn(cats)) {
+            for (const c of cats) next.delete(c)
+        } else {
+            for (const c of cats) next.add(c)
+        }
+        const arr = ALL_FILTERABLE_CATEGORIES.filter(c => next.has(c))
+        setCategoryFilter(arr.length === ALL_FILTERABLE_CATEGORIES.length ? null : arr)
+    }
 
     const [scrollNonce, setScrollNonce] = useState(1)
     const [rightPanelOpen, setRightPanelOpen] = useState(false)
@@ -185,16 +209,55 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         </div>
     )
 
+    // Category filter panel — list-item UI matching personnelFilterPanel
+    const categoryFilterPanel = (
+        <div data-tour="calendar-category-filter" className="flex flex-col min-h-0">
+            <div className="shrink-0 px-4 py-3 border-t border-primary/10">
+                <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Filter Categories</p>
+            </div>
+
+            {/* All Categories — clears filter to null */}
+            <button
+                className={`w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 ${
+                    categoryFilter === null
+                        ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
+                        : 'hover:bg-secondary/5'
+                }`}
+                onClick={() => setCategoryFilter(null)}
+            >
+                <span className="text-[10pt] font-medium text-primary truncate flex-1">All Categories</span>
+            </button>
+
+            {/* Group rows */}
+            <div>
+                {CATEGORY_GROUPS.map(g => {
+                    const isSelected = isCategoryGroupOn(g.categories)
+                    return (
+                        <button
+                            key={g.key}
+                            onClick={() => toggleCategoryGroup(g.categories)}
+                            className={`w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 ${
+                                isSelected
+                                    ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
+                                    : 'hover:bg-secondary/5'
+                            }`}
+                        >
+                            <span className="text-[10pt] font-medium text-primary truncate flex-1">{g.label}</span>
+                            {isSelected && (
+                                <Check size={14} className="text-themeblue2 shrink-0" />
+                            )}
+                        </button>
+                    )
+                })}
+            </div>
+        </div>
+    )
+
     // Personnel filter sidebar panel — matches SupervisorTree pattern
     const personnelFilterPanel = (
         <div data-tour="calendar-personnel-filter" className="flex flex-col min-h-0">
-            <div className="shrink-0 px-4 py-3 border-t border-primary/10 flex items-center justify-between">
+            <div className="shrink-0 px-4 py-3 border-t border-primary/10">
                 <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Filter Personnel</p>
-                {ownClinicMedics.length > 0 && (
-                    <span className="text-[10pt] px-2 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
-                        {personnelFilter.length > 0 ? `${personnelFilter.length}/${ownClinicMedics.length}` : ownClinicMedics.length}
-                    </span>
-                )}
             </div>
 
             {/* All Personnel — clears filter to show all events */}
@@ -325,6 +388,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                                 />
                             </div>
                             <div className="flex-1 min-h-0 overflow-y-auto">
+                                {categoryFilterPanel}
                                 {personnelFilterPanel}
                             </div>
                         </div>
@@ -371,6 +435,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                     >
                         <div data-tour="calendar-controls-drawer" className="pb-[max(1rem,var(--sab,0px))]">
                             {layoutSection}
+                            {categoryFilterPanel}
                             {personnelFilterPanel}
                         </div>
                     </BaseDrawer>

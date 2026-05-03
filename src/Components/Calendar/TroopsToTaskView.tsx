@@ -1,7 +1,7 @@
 import { useMemo, useCallback, useRef, useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
-import { getCategoryMeta, PROVIDER_HUDDLE_TASK_ID, toDateKey, formatShortDayLabel } from '../../Types/CalendarTypes'
+import { getCategoryMeta, PROVIDER_HUDDLE_TASK_ID, toDateKey, formatShortDayLabel, STATUS_META } from '../../Types/CalendarTypes'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useIsMobile } from '../../Hooks/useIsMobile'
@@ -19,6 +19,7 @@ interface TroopsToTaskViewProps {
   /** Supervisor-defined huddle stations, sorted by sort_order. One band row per task. */
   huddleTasks: ClinicHuddleTask[]
   onSelectEvent: (id: string) => void
+  onEventContextMenu?: (eventId: string, x: number, y: number) => void
   onAssign: (eventId: string, userId: string) => void
   onUnassign: (eventId: string, userId: string) => void
   onDateChange: (date: Date) => void
@@ -120,7 +121,14 @@ function assignLanes(assignments: CalendarEvent[], days: DaySlot[]): PositionedE
   return positioned
 }
 
-export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onSelectEvent, onDateChange, onNewHuddleEvent, onAssignMedicToHuddle }: TroopsToTaskViewProps) {
+export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onSelectEvent, onEventContextMenu, onDateChange, onNewHuddleEvent, onAssignMedicToHuddle }: TroopsToTaskViewProps) {
+  const eventContextHandler = useCallback((eventId: string) => onEventContextMenu
+    ? (e: { preventDefault: () => void; stopPropagation: () => void; clientX: number; clientY: number }) => {
+        e.preventDefault()
+        e.stopPropagation()
+        onEventContextMenu(eventId, e.clientX, e.clientY)
+      }
+    : undefined, [onEventContextMenu])
   const isMobile = useIsMobile()
   const [armedMedicId, setArmedMedicId] = useState<string | null>(null)
   const armedMedic = useMemo(
@@ -177,9 +185,18 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
   // Huddle + templated events render in their own band, not in medic lanes — exclude them here.
   // Templated provider slots are category-tagged 'templated' (so block-clear queries can filter
   // them) but route through the huddle band's PROVIDER row, alongside provider huddles.
+  // Tasks render in their own strip — same exclusion rule as huddle/templated.
   const nonHuddleEvents = useMemo(
-    () => visibleEvents.filter(e => e.category !== 'huddle' && e.category !== 'templated'),
+    () => visibleEvents.filter(e => e.category !== 'huddle' && e.category !== 'templated' && e.category !== 'task'),
     [visibleEvents],
+  )
+
+  // Task-category events lane-stacked across the visible range using the same
+  // primitive as orphan-huddle / provider lanes — so tasks render with the
+  // identical bar geometry as any other all-day event in this view.
+  const taskCategoryLanes = useMemo(
+    () => assignLanes(visibleEvents.filter(e => e.category === 'task'), days),
+    [visibleEvents, days],
   )
 
   // Assignments per medic — lane-resolved
@@ -562,6 +579,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
                         key={event.id}
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onSelectEvent(event.id) }}
+                        onContextMenu={eventContextHandler(event.id)}
                         className="absolute rounded-md bg-themeblue3/15 border border-themeblue3/40 hover:bg-themeblue3/25 transition-colors text-left overflow-hidden"
                         style={{
                           left,
@@ -652,6 +670,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
                         key={event.id}
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onSelectEvent(event.id) }}
+                        onContextMenu={eventContextHandler(event.id)}
                         className="absolute rounded-md bg-themeblue3/15 border border-themeblue3/40 hover:bg-themeblue3/25 transition-colors text-left overflow-hidden"
                         style={{
                           left,
@@ -712,6 +731,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
                       key={event.id}
                       type="button"
                       onClick={() => onSelectEvent(event.id)}
+                      onContextMenu={eventContextHandler(event.id)}
                       className="absolute rounded-md border bg-themeblue3/10 border-themeblue3/30 hover:bg-themeblue3/20 transition-colors text-left overflow-hidden flex items-center gap-1.5 px-1.5"
                       style={{
                         left,
@@ -728,6 +748,65 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
             )
           })()}
         </div>
+
+        {/* Tasks strip — reuses assignLanes geometry so each task bar matches
+            the orphan-huddle / provider bar shape exactly. */}
+        {taskCategoryLanes.length > 0 && (() => {
+          const laneCount = Math.max(...taskCategoryLanes.map(p => p.lane)) + 1
+          const stripHeight = ROW_PAD * 2 + laneCount * (LANE_HEIGHT + LANE_GAP)
+          return (
+            <div className="relative flex border-b border-themepurple/20 bg-themewhite3" style={{ height: stripHeight }}>
+              <div className="sticky left-0 z-[7] shrink-0 flex items-center px-2 border-r border-primary/10 bg-themewhite3" style={{ width: NAME_COL_WIDTH }}>
+                <span className="text-[9pt] font-semibold uppercase tracking-wider text-tertiary truncate">Tasks</span>
+              </div>
+              <div className="flex-1 relative">
+                {/* Hour grid lines with day dividers — matches medic-lane background */}
+                {days.map((day, dayIdx) => (
+                  Array.from({ length: HOURS_PER_DAY }, (_, h) => (
+                    <div
+                      key={`${day.dateKey}-${h}`}
+                      className={`absolute top-0 bottom-0 ${
+                        h === 0 ? 'border-l-2 border-l-primary/20' : 'border-l border-l-primary/5'
+                      }`}
+                      style={{ left: dayIdx * DAY_WIDTH + h * HOUR_COL_WIDTH, width: HOUR_COL_WIDTH }}
+                    />
+                  ))
+                )).flat()}
+
+                {/* Event blocks — same shape as medic-lane events; title sticks on horizontal scroll via --sl */}
+                {taskCategoryLanes.map(({ event, left, width, lane }) => {
+                  const cat = getCategoryMeta(event.category)
+                  return (
+                    <button
+                      key={event.id}
+                      onClick={() => onSelectEvent(event.id)}
+                      onContextMenu={eventContextHandler(event.id)}
+                      className="absolute rounded text-left overflow-hidden transition-all duration-150 active:scale-[0.98] bg-primary/5 flex items-stretch gap-1"
+                      style={{
+                        left,
+                        width,
+                        top: ROW_PAD + lane * (LANE_HEIGHT + LANE_GAP),
+                        height: LANE_HEIGHT,
+                      }}
+                    >
+                      <div className={`w-0.5 shrink-0 rounded-full ${cat.solidColor}`} />
+                      <p
+                        className="absolute inset-y-0 right-0 text-[9pt] font-normal truncate text-primary pr-1.5"
+                        style={{
+                          left: `clamp(2px, calc(var(--sl, 0) * 1px - ${left}px), ${Math.max(2, width - 40)}px)`,
+                          lineHeight: `${LANE_HEIGHT}px`,
+                          paddingLeft: 6,
+                        }}
+                      >
+                        {event.title || 'Task'}
+                      </p>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Personnel rows */}
         {medics.map(medic => {
@@ -779,6 +858,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
                     <button
                       key={event.id}
                       onClick={() => onSelectEvent(event.id)}
+                      onContextMenu={eventContextHandler(event.id)}
                       className="absolute rounded text-left overflow-hidden transition-all duration-150 active:scale-[0.98] bg-primary/5 flex items-stretch gap-1"
                       style={{
                         left,
@@ -837,6 +917,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
                   <button
                     key={event.id}
                     onClick={() => onSelectEvent(event.id)}
+                    onContextMenu={eventContextHandler(event.id)}
                     className="absolute rounded border-2 border-dashed overflow-hidden transition-all duration-150 active:scale-[0.98] border-themeredred/30 bg-themeredred/5 text-themeredred"
                     style={{
                       left,

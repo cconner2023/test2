@@ -13,6 +13,7 @@ import { waypointIconSvg } from './WaypointIcon';
 export interface MapViewHandle {
   flyTo: (lat: number, lng: number, zoom?: number) => void;
   fitBounds: (bbox: [number, number, number, number]) => void;
+  invalidateSize: () => void;
 }
 
 export interface PresenceMarker {
@@ -31,6 +32,13 @@ interface MapViewProps {
   selectedFeatureId: string | null;
   onMapClick: (lat: number, lng: number) => void;
   onFeatureClick: (featureId: string) => void;
+  onFeatureGeometryChange?: (featureId: string, geometry: [number, number][]) => void;
+  /**
+   * Fired when the user clicks an already-selected route's polyline (not a
+   * vertex). The point is inserted between the two nearest existing vertices
+   * to shape the line.
+   */
+  onFeatureVertexInsert?: (featureId: string, latlng: [number, number]) => void;
   gpsPosition: { lat: number; lng: number; accuracy: number } | null;
   showGrid?: boolean;
   center?: [number, number];
@@ -68,12 +76,34 @@ const GPS_ACCURACY_STYLE = {
 
 const SELECTED_WEIGHT_BOOST = 3;
 
+function addVertexHandles(
+  group: L.LayerGroup,
+  featureId: string,
+  geometry: [number, number][],
+  color: string,
+  onChange: (featureId: string, geometry: [number, number][]) => void,
+) {
+  geometry.forEach(([lat, lng], idx) => {
+    const html = `<div style="width:12px;height:12px;border-radius:50%;background:#FFFFFF;border:2px solid ${color};box-shadow:0 1px 2px rgba(0,0,0,0.35);"></div>`;
+    const icon = L.divIcon({ html, className: '', iconSize: [12, 12], iconAnchor: [6, 6] });
+    const handle = L.marker([lat, lng], { icon, draggable: true });
+    handle.on('dragend', () => {
+      const p = handle.getLatLng();
+      const next = geometry.map(([la, ln], i) => i === idx ? [p.lat, p.lng] as [number, number] : [la, ln] as [number, number]);
+      onChange(featureId, next);
+    });
+    group.addLayer(handle);
+  });
+}
+
 export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView({
   features,
   drawMode,
   selectedFeatureId,
   onMapClick,
   onFeatureClick,
+  onFeatureGeometryChange,
+  onFeatureVertexInsert,
   gpsPosition,
   showGrid = true,
   center = DEFAULT_CENTER,
@@ -233,8 +263,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     const el = containerRef.current;
     if (!el) return;
     el.style.cursor = drawMode === 'pin' || drawMode === 'route' || drawMode === 'area' || drawMode === 'measure' ? 'crosshair'
-      : drawMode === 'delete' ? 'not-allowed'
-      : drawMode === 'edit' ? 'pointer'
+      : drawMode === 'drag' ? 'grab'
       : '';
   }, [drawMode]);
 
@@ -251,6 +280,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       const opacity = feature.style.opacity ?? 1;
       const dashArray = feature.style.dash;
 
+      const isDraggable = isSelected && drawMode === 'drag';
+
       if (feature.type === 'waypoint' && feature.geometry.length > 0) {
         const [lat, lng] = feature.geometry[0];
         const wptType = feature.waypoint_type ?? 'generic';
@@ -264,7 +295,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
           iconAnchor: [iconSize / 2, iconSize / 2],
         });
 
-        const marker = L.marker([lat, lng], { icon });
+        const marker = L.marker([lat, lng], { icon, draggable: isDraggable });
 
         if (feature.label) {
           marker.bindTooltip(feature.label, {
@@ -280,28 +311,51 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
           onFeatureClick(feature.id);
         });
 
+        if (isDraggable && onFeatureGeometryChange) {
+          marker.on('dragend', () => {
+            const p = marker.getLatLng();
+            onFeatureGeometryChange(feature.id, [[p.lat, p.lng]]);
+          });
+        }
+
         group.addLayer(marker);
       }
 
-      if (feature.type === 'route' && feature.geometry.length >= 2) {
-        const latlngs = feature.geometry.map(([lat, lng]) => [lat, lng] as [number, number]);
-        const line = L.polyline(latlngs, {
-          color,
-          weight,
-          opacity,
-          dashArray: dashArray ?? undefined,
-        });
+      if (feature.type === 'route' && feature.geometry.length >= 1) {
+        // Render the polyline once we have at least two points; below that
+        // the single starting vertex is shown via the draggable handle so
+        // the first tap leaves a visible mark.
+        if (feature.geometry.length >= 2) {
+          const latlngs = feature.geometry.map(([lat, lng]) => [lat, lng] as [number, number]);
+          const line = L.polyline(latlngs, {
+            color,
+            weight,
+            opacity,
+            dashArray: dashArray ?? undefined,
+          });
 
-        if (feature.label) {
-          line.bindTooltip(feature.label, { sticky: true, className: 'leaflet-tooltip-tactical' });
+          if (feature.label) {
+            line.bindTooltip(feature.label, { sticky: true, className: 'leaflet-tooltip-tactical' });
+          }
+
+          line.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            // While the route is selected in drag/edit mode, taps on the
+            // line itself insert a new shaping vertex at the click point.
+            // Otherwise treat as a normal selection tap.
+            if (isDraggable && onFeatureVertexInsert) {
+              onFeatureVertexInsert(feature.id, [e.latlng.lat, e.latlng.lng]);
+            } else {
+              onFeatureClick(feature.id);
+            }
+          });
+
+          group.addLayer(line);
         }
 
-        line.on('click', (e) => {
-          L.DomEvent.stopPropagation(e);
-          onFeatureClick(feature.id);
-        });
-
-        group.addLayer(line);
+        if (isDraggable && onFeatureGeometryChange) {
+          addVertexHandles(group, feature.id, feature.geometry, color, onFeatureGeometryChange);
+        }
       }
 
       if (feature.type === 'area' && feature.geometry.length >= 3) {
@@ -325,9 +379,13 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         });
 
         group.addLayer(polygon);
+
+        if (isDraggable && onFeatureGeometryChange) {
+          addVertexHandles(group, feature.id, feature.geometry, color, onFeatureGeometryChange);
+        }
       }
     }
-  }, [features, selectedFeatureId, onFeatureClick]);
+  }, [features, selectedFeatureId, drawMode, onFeatureClick, onFeatureGeometryChange, onFeatureVertexInsert]);
 
   // Sync read-only features (visible but non-active overlays)
   useEffect(() => {
@@ -492,6 +550,9 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     fitBounds: (bbox: [number, number, number, number]) => {
       const [west, south, east, north] = bbox;
       mapRef.current?.fitBounds([[south, west], [north, east]], { padding: [40, 40], maxZoom: 15 });
+    },
+    invalidateSize: () => {
+      mapRef.current?.invalidateSize();
     },
   }), []);
 

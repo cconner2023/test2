@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react'
-import { Pencil, X, Share2, Map, Copy, Check, Printer, Image, Ban } from 'lucide-react'
-import type { CalendarEvent } from '../../Types/CalendarTypes'
+import { Pencil, X, Share2, Map, Copy, Check, Printer, Image, Ban, CircleDashed, Play, CheckCircle2, Clock } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import type { CalendarEvent, EventStatus } from '../../Types/CalendarTypes'
+import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { getCategoryMeta, formatShortDayLabel, isEventEditable, isUnscheduledTemplate } from '../../Types/CalendarTypes'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { HeaderPill, PillButton } from '../HeaderPill'
@@ -37,6 +39,8 @@ interface EventDetailPanelProps {
   /** Supervisor flag forwarded from CalendarPanel — gates the Delete affordance for templated events. */
   canDeleteTemplate?: boolean
   onOpenMissionBoard?: () => void
+  /** Tap-to-cycle status writer — wired in CalendarPanel via useCalendarWrite. Only consumed by the task status pill today. */
+  onStatusChange?: (id: string, next: EventStatus) => void
   assignedNames?: AssignedPerson[]
   linkedPropertyItems?: LinkedPropertyItem[]
   hideHeader?: boolean
@@ -51,12 +55,35 @@ function formatDateTime(iso: string, allDay: boolean): string {
     ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
-export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, onCancelTemplate, apptTypeNames = [], canDeleteTemplate, onOpenMissionBoard, assignedNames = [], linkedPropertyItems = [], hideHeader }: EventDetailPanelProps) {
+const STATUS_TRIGGER_ICON: Record<EventStatus, LucideIcon> = {
+  pending:     CircleDashed,
+  in_progress: Play,
+  completed:   CheckCircle2,
+  cancelled:   Ban,
+}
+
+const STATUS_TRIGGER_COLOR: Record<EventStatus, string> = {
+  pending:     'text-tertiary',
+  in_progress: 'text-themeblue1',
+  completed:   'text-themegreen',
+  cancelled:   'text-themeredred',
+}
+
+export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, onCancelTemplate, apptTypeNames = [], canDeleteTemplate, onOpenMissionBoard, onStatusChange, assignedNames = [], linkedPropertyItems = [], hideHeader }: EventDetailPanelProps) {
   const isMobile = useIsMobile()
   const cat = getCategoryMeta(event.category)
   const isSupervisor = useAuthStore(s => s.isSupervisorRole)
   const editable = isEventEditable(event, isSupervisor)
   const showCancelTemplate = event.category === 'templated' && !!onCancelTemplate && !isUnscheduledTemplate(event, apptTypeNames)
+  const isTask = event.category === 'task'
+  const StatusIcon = STATUS_TRIGGER_ICON[event.status]
+  const [statusMenu, setStatusMenu] = useState<{ x: number; y: number } | null>(null)
+  const statusBtnRef = useRef<HTMLDivElement>(null)
+  const openStatusMenu = () => {
+    const rect = statusBtnRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setStatusMenu({ x: rect.left, y: rect.bottom + 4 })
+  }
   void canDeleteTemplate
   const [copied, setCopied] = useState(false)
   const [copiedDm, setCopiedDm] = useState<'image' | 'code' | null>(null)
@@ -100,6 +127,11 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
         <div className="flex items-center justify-between px-3 py-2 border-b border-primary/10 shrink-0">
           <div />
           <HeaderPill>
+            {isTask && onStatusChange && (
+              <div ref={statusBtnRef} className={STATUS_TRIGGER_COLOR[event.status]}>
+                <PillButton icon={StatusIcon} iconSize={16} onClick={openStatusMenu} label="Status" />
+              </div>
+            )}
             <PillButton icon={Share2} iconSize={16} onClick={() => shareSingleEvent(event).catch(() => {})} label="Add to phone calendar" />
             {showCancelTemplate && (
               <PillButton icon={Ban} iconSize={16} onClick={() => onCancelTemplate?.(event.id)} label="Cancel appointment" />
@@ -263,6 +295,19 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
 
         <div className={isMobile ? 'h-16 shrink-0' : 'h-8 shrink-0'} />
       </div>
+
+      {statusMenu && onStatusChange && (() => {
+        const apply = (next: EventStatus) => { onStatusChange(event.id, next); setStatusMenu(null) }
+        const items: ContextMenuItem[] = []
+        if (event.status !== 'pending')     items.push({ key: 'pending',    label: 'Pending', icon: Clock,        onAction: () => apply('pending') })
+        if (event.status !== 'in_progress') items.push({ key: 'inprogress', label: 'Active',  icon: Play,         onAction: () => apply('in_progress') })
+        if (event.status !== 'completed')   items.push({ key: 'completed',  label: 'Done',    icon: CheckCircle2, onAction: () => apply('completed') })
+        if (event.status !== 'cancelled')   items.push({ key: 'cancelled',  label: 'Cancel',  icon: Ban,          onAction: () => apply('cancelled'), destructive: true })
+        if (items.length === 0) { setStatusMenu(null); return null }
+        return (
+          <ContextMenu x={statusMenu.x} y={statusMenu.y} onClose={() => setStatusMenu(null)} items={items} />
+        )
+      })()}
     </div>
   )
 }

@@ -54,6 +54,8 @@ const CLOSE_ALL_DRAWERS = {
     mapOverlayDrawerOverlayId: null as string | null,
     showCalendarDrawer: false,
     calendarDrawerEventId: null as string | null,
+    calendarDrawerEventEditMode: false,
+    pendingCalendarAction: null as 'new' | null,
     showAdminDrawer: false,
     showSupervisorDrawer: false,
     showProviderDrawer: false,
@@ -92,6 +94,8 @@ interface NavigationState {
     mapOverlayDrawerOverlayId: string | null
     showCalendarDrawer: boolean
     calendarDrawerEventId: string | null
+    calendarDrawerEventEditMode: boolean
+    pendingCalendarAction: 'new' | null
     showAdminDrawer: boolean
     showSupervisorDrawer: boolean
     showProviderDrawer: boolean
@@ -127,7 +131,10 @@ interface NavigationActions {
     setShowMapOverlayDrawer: (show: boolean, overlayId?: string | null) => void
     setShowCalendarDrawer: (show: boolean) => void
     openCalendarEvent: (eventId: string) => void
+    openCalendarEventForEdit: (eventId: string) => void
     clearCalendarDrawerEventId: () => void
+    requestNewCalendarEvent: () => void
+    clearPendingCalendarAction: () => void
     setShowAdminDrawer: (show: boolean) => void
     setShowSupervisorDrawer: (show: boolean) => void
     setShowProviderDrawer: (show: boolean) => void
@@ -166,6 +173,8 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     mapOverlayDrawerOverlayId: null,
     showCalendarDrawer: false,
     calendarDrawerEventId: null,
+    calendarDrawerEventEditMode: false,
+    pendingCalendarAction: null,
     showAdminDrawer: false,
     showSupervisorDrawer: false,
     showProviderDrawer: false,
@@ -380,9 +389,27 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         ...PRESERVED_FIELDS(s),
         showCalendarDrawer: true,
         calendarDrawerEventId: eventId,
+        calendarDrawerEventEditMode: false,
     })),
 
-    clearCalendarDrawerEventId: () => set({ calendarDrawerEventId: null }),
+    openCalendarEventForEdit: (eventId) => set((s) => ({
+        ...CLOSE_ALL_DRAWERS,
+        ...PRESERVED_FIELDS(s),
+        showCalendarDrawer: true,
+        calendarDrawerEventId: eventId,
+        calendarDrawerEventEditMode: true,
+    })),
+
+    clearCalendarDrawerEventId: () => set({ calendarDrawerEventId: null, calendarDrawerEventEditMode: false }),
+
+    requestNewCalendarEvent: () => set((s) => ({
+        ...CLOSE_ALL_DRAWERS,
+        ...PRESERVED_FIELDS(s),
+        showCalendarDrawer: true,
+        pendingCalendarAction: 'new',
+    })),
+
+    clearPendingCalendarAction: () => set({ pendingCalendarAction: null }),
 
     setShowAdminDrawer: (show) => set((s) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),

@@ -8,11 +8,11 @@ import { AdminListSkeleton } from './AdminSkeletons'
 import { ResetPasswordForm } from './ResetPasswordForm'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useLongPress } from '../../Hooks/useLongPress'
+import { useResetPasswordFlow } from '../../Hooks/useResetPasswordFlow'
 import { formatLastActive, RoleBadge, SupervisorCreatedBadge } from './adminUtils'
 import {
   listAllUsers,
   deleteUser,
-  resetUserPassword,
   forceLogoutUser,
 } from '../../lib/adminService'
 import type { AdminUser } from '../../lib/adminService'
@@ -101,8 +101,7 @@ export function AdminUsersList({
 
   // Inline reset password
   const [resetPwUserId, setResetPwUserId] = useState<string | null>(null)
-  const [resetPwValue, setResetPwValue] = useState('')
-  const [resetPwProcessing, setResetPwProcessing] = useState(false)
+  const resetPw = useResetPasswordFlow()
 
   // Confirm dialog
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
@@ -175,26 +174,18 @@ export function AdminUsersList({
     [loadUsers],
   )
 
-  const handleResetPassword = useCallback(
-    async (userId: string) => {
-      if (resetPwValue.length < 12) return
-      setResetPwProcessing(true)
-      const result = await resetUserPassword(userId, resetPwValue)
-      setResetPwProcessing(false)
-
-      if (result.success) {
-        setResetPwUserId(null)
-        setResetPwValue('')
-        setNotify({ type: 'success', message: 'Password reset.' })
-      } else {
-        setNotify({
-          type: 'error',
-          message: result.error || 'Failed to reset password',
-        })
-      }
-    },
-    [resetPwValue],
-  )
+  const handleResetPasswordConfirm = useCallback(async () => {
+    const result = await resetPw.submit()
+    if (result.success) {
+      setResetPwUserId(null)
+      setNotify({ type: 'success', message: 'Password reset.' })
+    } else {
+      setNotify({
+        type: 'error',
+        message: result.error || 'Failed to reset password',
+      })
+    }
+  }, [resetPw])
 
   const handleForceLogout = useCallback(async (userId: string) => {
     setLogoutProcessing(true)
@@ -248,7 +239,7 @@ export function AdminUsersList({
           icon: KeyRound,
           onAction: () => {
             setResetPwUserId(user.id)
-            setResetPwValue('')
+            resetPw.reset()
           },
         },
         {
@@ -307,11 +298,11 @@ export function AdminUsersList({
 
         {resetPwUserId === user.id && (
           <ResetPasswordForm
-            value={resetPwValue}
-            onChange={setResetPwValue}
-            onSubmit={() => handleResetPassword(user.id)}
-            onCancel={() => { setResetPwUserId(null); setResetPwValue('') }}
-            processing={resetPwProcessing}
+            value={resetPw.value}
+            onChange={resetPw.setValue}
+            onSubmit={() => resetPw.requestConfirm(user.id)}
+            onCancel={() => { setResetPwUserId(null); resetPw.reset() }}
+            processing={resetPw.processing}
           />
         )}
       </UserCard>
@@ -345,6 +336,20 @@ export function AdminUsersList({
           if (confirmDeleteId) handleDeleteUser(confirmDeleteId)
         }}
         onCancel={() => setConfirmDeleteId(null)}
+      />
+
+      <ConfirmDialog
+        visible={!!resetPw.confirmingUserId}
+        title={`Reset password for ${(() => {
+          const u = users.find(u => u.id === resetPw.confirmingUserId)
+          return [u?.first_name, u?.last_name].filter(Boolean).join(' ') || 'this user'
+        })()}?`}
+        subtitle="The new password takes effect immediately. The user is not notified."
+        confirmLabel="Reset"
+        variant="danger"
+        processing={resetPw.processing}
+        onConfirm={handleResetPasswordConfirm}
+        onCancel={resetPw.cancelConfirm}
       />
 
       <ConfirmDialog

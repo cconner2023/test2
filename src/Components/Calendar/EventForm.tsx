@@ -61,6 +61,8 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
     const [form, setForm] = useState<EventFormData>(initialData ?? createEmptyFormData())
     const [errors, setErrors] = useState<Record<string, string>>({})
 
+    const isTask = form.category === 'task'
+
     const updateField = useCallback(<K extends keyof EventFormData>(key: K, value: EventFormData[K]) => {
       setForm(prev => ({ ...prev, [key]: value }))
       setErrors(prev => {
@@ -73,7 +75,10 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
     const validate = useCallback((): boolean => {
       const errs: Record<string, string> = {}
       if (!form.title.trim()) errs.title = 'Title required.'
-      if (!form.all_day) {
+      if (isTask) {
+        // Tasks need only a start date — end mirrors start at submit.
+        if (!form.start_time) errs.start_time = 'Date required.'
+      } else if (!form.all_day) {
         if (!form.start_time) errs.start_time = 'Start time required.'
         if (!form.end_time) errs.end_time = 'End time required.'
         if (form.start_time && form.end_time && form.start_time >= form.end_time) {
@@ -82,11 +87,20 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
       }
       setErrors(errs)
       return Object.keys(errs).length === 0
-    }, [form])
+    }, [form, isTask])
 
     const handleSubmit = useCallback(() => {
-      if (validate()) onSave(form)
-    }, [form, validate, onSave])
+      if (!validate()) return
+      // Tasks are inherently all-day events on their assigned day — anchor to T00:00–T23:59
+      // so they ride the existing all-day band in DayView / TripleDayView.
+      const payload: EventFormData = isTask
+        ? (() => {
+            const dateKey = (form.start_time.slice(0, 10)) || new Date().toISOString().slice(0, 10)
+            return { ...form, all_day: true, start_time: `${dateKey}T00:00`, end_time: `${dateKey}T23:59` }
+          })()
+        : form
+      onSave(payload)
+    }, [form, validate, onSave, isTask])
 
     useImperativeHandle(ref, () => ({ submit: handleSubmit }), [handleSubmit])
 
@@ -160,13 +174,13 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
             <TextInput
               value={form.title}
               onChange={v => updateField('title', v)}
-              placeholder="Event title *"
+              placeholder={isTask ? 'Task title *' : 'Event title *'}
               required
               hint={errors.title}
             />
           </div>
 
-          {form.category !== 'templated' && (
+          {form.category !== 'templated' && !isTask && (
             <div data-tour="event-form-category">
               <PickerInput
                 value={categoryLabel}
@@ -208,7 +222,8 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
             </div>
           )}
 
-          {/* All-day toggle row */}
+          {/* All-day toggle row — hidden for tasks (zero-duration, single-day) */}
+          {!isTask && (
           <label
             className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer border-b border-primary/6"
             onClick={() => {
@@ -232,8 +247,10 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                 }`} />
             </div>
           </label>
+          )}
 
-          {/* Start date + time */}
+          {/* Start date + time — fully hidden for tasks (implied day of creation) */}
+          {!isTask && (
           <div data-tour="event-form-datetime">
             <div className="flex items-stretch border-b border-primary/6">
               <div className="flex-1 min-w-0">
@@ -243,7 +260,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                   placeholder="Start date"
                 />
               </div>
-              {!form.all_day && (
+              {!form.all_day && !isTask && (
                 <div className="flex-1 min-w-0 border-l border-primary/6">
                   <PickerInput
                     value={startTime ? hhmmToMilitary(startTime) : ''}
@@ -264,8 +281,11 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
             </div>
             {errors.start_time && <p className="px-4 py-2 text-[10pt] text-themeredred border-b border-primary/6">{errors.start_time}</p>}
           </div>
+          )}
 
-          {/* End date + time */}
+          {/* End date + time — hidden for tasks (mirrors start at submit) */}
+          {!isTask && (
+          <>
           <div className="flex items-stretch border-b border-primary/6">
             <div className="flex-1 min-w-0">
               <DatePickerInput
@@ -295,8 +315,10 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
             )}
           </div>
           {errors.end_time && <p className="px-4 py-2 text-[10pt] text-themeredred border-b border-primary/6">{errors.end_time}</p>}
+          </>
+          )}
 
-          {form.category !== 'medevac' && (
+          {form.category !== 'medevac' && !isTask && (
             <TextInput
               value={form.location}
               onChange={v => updateField('location', v)}
@@ -304,7 +326,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
             />
           )}
 
-          {form.category !== 'medevac' && roomOptions && roomOptions.length > 0 && (
+          {form.category !== 'medevac' && !isTask && roomOptions && roomOptions.length > 0 && (
             <div data-tour="event-form-room">
               <PickerInput
                 value={form.room_id ?? ''}
@@ -329,7 +351,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
             </div>
           )}
 
-          {overlayOptions && overlayOptions.length > 0 && (
+          {!isTask && overlayOptions && overlayOptions.length > 0 && (
             <PickerInput
               value={form.structured_location?.overlay_id ?? ''}
               onChange={v => {
@@ -407,7 +429,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           </div>
         )}
 
-        {propertyItems && propertyItems.length > 0 && (
+        {!isTask && propertyItems && propertyItems.length > 0 && (
           <div className="mt-3">
             <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
               Equipment ({form.property_item_ids.length})

@@ -1,5 +1,6 @@
 import { type RefObject, useState, useEffect, useRef, useLayoutEffect } from 'react'
-import { Clock, Play, CheckCircle2, Ban } from 'lucide-react'
+import { Clock, Play, CheckCircle2, Ban, CircleDashed } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { toDateKey, formatShortDayLabel } from '../../Types/CalendarTypes'
 import type { CalendarEvent, EventCategory, EventStatus } from '../../Types/CalendarTypes'
 import { MissionEventBar } from './MissionEventBar'
@@ -66,12 +67,17 @@ function assignLanesAbs(events: CalendarEvent[]): number[] {
 // ─── Task list constants ─────────────────────────────────────────────────────
 
 export const CATEGORY_STRIPE: Record<EventCategory, string> = {
-  training: 'bg-themeyellow',
-  duty:     'bg-themeredred',
-  range:    'bg-themeblue2',
+  training:    'bg-themeyellow',
+  duty:        'bg-themeredred',
+  range:       'bg-themeblue2',
   appointment: 'bg-themeblue1',
-  mission:  'bg-themegreen',
-  other:    'bg-tertiary/50',
+  mission:     'bg-themegreen',
+  medevac:     'bg-themeredred',
+  huddle:      'bg-themeblue3',
+  task:        'bg-themepurple',
+  leave:       'bg-tertiary/60',
+  templated:   'bg-themeblue1/60',
+  other:       'bg-tertiary/50',
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -114,13 +120,21 @@ function assignLanes(events: CalendarEvent[]): number[] {
 
 // ─── Status context menu items ────────────────────────────────────────────────
 
+const STATUS_TRIGGER_ICON: Record<EventStatus, LucideIcon> = {
+  pending: CircleDashed,
+  in_progress: Play,
+  completed: CheckCircle2,
+  cancelled: Ban,
+}
+
 export function statusMenuItems(event: CalendarEvent, onStatusChange: (status: EventStatus) => void): ContextMenuItem[] {
-  const items: ContextMenuItem[] = []
-  if (event.status !== 'pending')     items.push({ key: 'pending',     label: 'Pending',  icon: Clock,        onAction: () => onStatusChange('pending') })
-  if (event.status !== 'in_progress') items.push({ key: 'inprogress',  label: 'Active',   icon: Play,         onAction: () => onStatusChange('in_progress') })
-  if (event.status !== 'completed')   items.push({ key: 'completed',   label: 'Done',     icon: CheckCircle2, onAction: () => onStatusChange('completed') })
-  if (event.status !== 'cancelled')   items.push({ key: 'cancelled',   label: 'Cancel',   icon: Ban,          onAction: () => onStatusChange('cancelled'), destructive: true })
-  return items
+  const submenu: ContextMenuItem[] = []
+  if (event.status !== 'pending')     submenu.push({ key: 'pending',    label: 'Pending', icon: Clock,        onAction: () => onStatusChange('pending') })
+  if (event.status !== 'in_progress') submenu.push({ key: 'inprogress', label: 'Active',  icon: Play,         onAction: () => onStatusChange('in_progress') })
+  if (event.status !== 'completed')   submenu.push({ key: 'completed',  label: 'Done',    icon: CheckCircle2, onAction: () => onStatusChange('completed') })
+  if (event.status !== 'cancelled')   submenu.push({ key: 'cancelled',  label: 'Cancel',  icon: Ban,          onAction: () => onStatusChange('cancelled'), destructive: true })
+  if (submenu.length === 0) return []
+  return [{ key: 'status', label: 'Status', icon: STATUS_TRIGGER_ICON[event.status], submenu }]
 }
 
 // ─── Status helpers ───────────────────────────────────────────────────────────

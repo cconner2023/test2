@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { ChevronRight, Plus } from 'lucide-react';
+import { ChevronRight, Plus, RotateCcw, Check } from 'lucide-react';
 import { detectPII } from '../../lib/piiDetector';
 import { PIIWarningBanner } from '../PIIWarningBanner';
 import { ExpandableInput } from '../ExpandableInput';
@@ -103,6 +103,22 @@ function TextSectionCard({ addLabel, value, onChange, expanders, placeholder, da
         anchorRect={anchor}
         title={addLabel}
         previewMaxHeight="50dvh"
+        actions={[
+          {
+            key: 'reset',
+            label: 'Reset',
+            icon: RotateCcw,
+            onAction: () => onChange(''),
+            closesOnAction: false,
+          },
+          {
+            key: 'done',
+            label: 'Done',
+            icon: Check,
+            onAction: () => setIsOpen(false),
+            closesOnAction: false,
+          },
+        ]}
       >
         <ExpandableInput
           value={value}

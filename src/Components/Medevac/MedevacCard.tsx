@@ -1,3 +1,4 @@
+import type React from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { SectionCard } from '../Section'
 import { useIsMobile } from '../../Hooks/useIsMobile'
@@ -15,18 +16,35 @@ import {
   type MedevacNationality,
 } from '../../Types/MedevacTypes'
 
+export type MedevacLine = 'l1' | 'l2' | 'l3' | 'l4' | 'l5' | 'l6' | 'l7' | 'l8' | 'l9'
+
 interface MedevacCardProps {
   data: MedevacRequest
+  /** When provided, each line row becomes tappable and emits the line key + bounding rect for editor anchoring. */
+  onLineClick?: (line: MedevacLine, rect: DOMRect) => void
 }
 
-export function MedevacCard({ data }: MedevacCardProps) {
+export function MedevacCard({ data, onLineClick }: MedevacCardProps) {
   const isMobile = useIsMobile()
   const isHot = data.mode !== 'peacetime' && (data.l6 === 'E' || data.l6 === 'X')
   const hasNBC = data.mode !== 'peacetime' && data.l9 !== 'N'
   const highest = medevacHighestPrecedence(data)
   const total = medevacPatientTotal(data)
 
-  const rowCx = `flex items-start justify-between gap-4 ${isMobile ? 'px-4 py-2.5' : 'px-3 py-2'} border-b border-primary/6 last:border-0`
+  const rowCx = `flex items-start justify-between gap-4 ${isMobile ? 'px-4 py-2.5' : 'px-3 py-2'} border-b border-primary/6 last:border-0${onLineClick ? ' cursor-pointer hover:bg-themewhite3/60 transition-colors' : ''}`
+  const rowProps = (line: MedevacLine) => onLineClick
+    ? {
+        role: 'button',
+        tabIndex: 0,
+        onClick: (e: React.MouseEvent<HTMLDivElement>) => onLineClick(line, e.currentTarget.getBoundingClientRect()),
+        onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onLineClick(line, e.currentTarget.getBoundingClientRect())
+          }
+        },
+      }
+    : {}
   const labelCx = 'text-[9pt] font-semibold text-tertiary tracking-widest uppercase shrink-0'
   const valueCx = `font-medium text-primary text-right ${isMobile ? 'text-sm' : 'text-[10pt]'}`
 
@@ -64,7 +82,7 @@ export function MedevacCard({ data }: MedevacCardProps) {
       </div>
 
       {/* Line 1 */}
-      <div className={rowCx}>
+      <div className={rowCx} {...rowProps('l1')}>
         <span className={labelCx}>L1 Pickup</span>
         <div className="text-right">
           <p className={`${valueCx} font-mono tracking-wider`}>{data.l1 || '—'}</p>
@@ -73,7 +91,7 @@ export function MedevacCard({ data }: MedevacCardProps) {
       </div>
 
       {/* Line 2 */}
-      <div className={rowCx}>
+      <div className={rowCx} {...rowProps('l2')}>
         <span className={labelCx}>L2 Radio</span>
         <p className={valueCx}>
           {[data.l2f, data.l2c, data.l2s].filter(Boolean).join(' / ') || '—'}
@@ -81,19 +99,19 @@ export function MedevacCard({ data }: MedevacCardProps) {
       </div>
 
       {/* Line 3 */}
-      <div className={rowCx}>
+      <div className={rowCx} {...rowProps('l3')}>
         <span className={labelCx}>L3 Patients ({total})</span>
         <p className={valueCx}>{l3Summary}</p>
       </div>
 
       {/* Line 4 */}
-      <div className={rowCx}>
+      <div className={rowCx} {...rowProps('l4')}>
         <span className={labelCx}>L4 Equipment</span>
         <p className={valueCx}>{data.l4.map(e => `${e} — ${MEDEVAC_EQUIPMENT_LABELS[e]}`).join(', ')}</p>
       </div>
 
       {/* Line 5 */}
-      <div className={rowCx}>
+      <div className={rowCx} {...rowProps('l5')}>
         <span className={labelCx}>L5 Type</span>
         <p className={valueCx}>
           {[data.l5l > 0 && `${data.l5l}L`, data.l5a > 0 && `${data.l5a}A`].filter(Boolean).join(' / ') || '0'}
@@ -102,7 +120,7 @@ export function MedevacCard({ data }: MedevacCardProps) {
 
       {/* Line 6 */}
       {data.mode === 'peacetime' ? (
-        <div className={rowCx}>
+        <div className={rowCx} {...rowProps('l6')}>
           <span className={labelCx}>L6 Wounds</span>
           <div className="text-right max-w-[55%]">
             {(data.l6wounds ?? []).length === 0
@@ -114,14 +132,14 @@ export function MedevacCard({ data }: MedevacCardProps) {
           </div>
         </div>
       ) : (
-        <div className={rowCx}>
+        <div className={rowCx} {...rowProps('l6')}>
           <span className={labelCx}>L6 Security</span>
           <p className={`${valueCx} ${isHot ? 'text-themeredred' : ''}`}>{data.l6} — {MEDEVAC_SECURITY_LABELS[data.l6]}</p>
         </div>
       )}
 
       {/* Line 7 */}
-      <div className={rowCx}>
+      <div className={rowCx} {...rowProps('l7')}>
         <span className={labelCx}>L7 Marking</span>
         <div className="text-right">
           <p className={valueCx}>{data.l7} — {MEDEVAC_MARKING_LABELS[data.l7]}</p>
@@ -135,7 +153,7 @@ export function MedevacCard({ data }: MedevacCardProps) {
       </div>
 
       {/* Line 8 */}
-      <div className={rowCx}>
+      <div className={rowCx} {...rowProps('l8')}>
         <span className={labelCx}>L8 Nationality</span>
         <p className={`${valueCx} max-w-[55%]`}>
           {(['A','B','C','D','E'] as MedevacNationality[])
@@ -146,7 +164,7 @@ export function MedevacCard({ data }: MedevacCardProps) {
       </div>
 
       {/* Line 9 */}
-      <div className={rowCx}>
+      <div className={rowCx} {...rowProps('l9')}>
         <span className={labelCx}>{data.mode === 'peacetime' ? 'L9 Terrain' : 'L9 NBC'}</span>
         {data.mode === 'peacetime'
           ? <p className={`${valueCx} max-w-[55%] whitespace-pre-wrap text-right`}>{data.l9p || '—'}</p>

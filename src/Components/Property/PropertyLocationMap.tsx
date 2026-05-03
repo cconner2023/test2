@@ -10,7 +10,7 @@
  */
 import { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle, forwardRef, memo } from 'react'
 import { flushSync } from 'react-dom'
-import { Pencil, Check, PenTool, ZoomIn, ZoomOut, Scissors, Merge, X, Copy, Camera, Trash2, Maximize2, Move, ChevronRight, Plus, Package } from 'lucide-react'
+import { Pencil, Check, PenTool, ZoomIn, ZoomOut, Scissors, Merge, X, Copy, Camera, Trash2, Maximize2, Move, ChevronLeft, ChevronRight, Plus, Package } from 'lucide-react'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { fetchAllLocationTags, fetchLocationTags, upsertLocationTags } from '../../lib/propertyService'
@@ -1414,7 +1414,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
         {/* Floating zone popover — right side, below FAB toolbar, visible when a zone is selected */}
         {store.selectedZoneId && (!isEditing || !!inlinePrompt) && (
-          <div className="absolute top-[72px] right-3 z-10 w-52 max-h-[60%] flex flex-col rounded-xl border border-tertiary/15 bg-themewhite shadow-md overflow-hidden">
+          <div className="absolute top-[72px] right-3 z-40 w-52 max-h-[60%] flex flex-col rounded-xl border border-tertiary/15 bg-themewhite shadow-md overflow-hidden">
             {/* Header: zone title (tap to rename) + dismiss */}
             <div className="shrink-0 flex items-center gap-1 px-3 py-2 bg-themewhite3/50 border-b border-primary/10">
               {inlinePrompt ? (
@@ -1449,6 +1449,15 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                 </>
               ) : (
                 <>
+                  {locations.find((l) => l.id === store.selectedZoneId)?.parent_id && (
+                    <button
+                      onClick={drillUp}
+                      className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                      aria-label="Back to parent zone"
+                    >
+                      <ChevronLeft size={12} />
+                    </button>
+                  )}
                   <span
                     className="text-[9pt] font-medium text-primary truncate flex-1 cursor-text"
                     onClick={() => setInlinePrompt({ mode: 'rename', value: selectedZoneLabel ?? '' })}

@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect, useRef, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Pin, Trash2, Users, MessageSquare, Calendar } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pencil, Pin, Plus, Trash2, Users, MessageSquare } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useCalendarStore } from '../../stores/useCalendarStore'
@@ -8,7 +8,9 @@ import { useAuthStore } from '../../stores/useAuthStore'
 import { getOverlay } from '../../lib/mapOverlayService'
 import type { OverlayFeature } from '../../Types/MapOverlayTypes'
 import type { CalendarEvent, EventStatus } from '../../Types/CalendarTypes'
-import { toDateKey, eventFallsOnDate, formatShortDayLabel } from '../../Types/CalendarTypes'
+import { toDateKey, eventFallsOnDate, formatShortDayLabel, isEventEditable, isTemplateStructureMutable } from '../../Types/CalendarTypes'
+import { useCalendarWrite } from '../../Hooks/useCalendarWrite'
+import { ConfirmDialog } from '../ConfirmDialog'
 import type { OverviewWidgetId } from '../../Data/User'
 import { GESTURE_THRESHOLDS } from '../../Utilities/GestureUtils'
 import { useMessagingStore } from '../../stores/useMessagingStore'
@@ -157,7 +159,7 @@ function MessagesWidget() {
 
   if (displayed.length === 0) {
     return (
-      <div className="flex items-center gap-3 px-4 py-3">
+      <div className="flex items-center gap-3 pl-4 pr-2 py-3">
         <p className="text-sm text-tertiary flex-1">No conversations</p>
         <ActionPill shadow="sm">
           <ActionButton icon={MessageSquare} label="Open Messages" onClick={() => setShowMessagesDrawer(true)} />
@@ -253,14 +255,19 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   const { isAuthenticated } = useAuth()
   const setShowCalendarDrawer = useNavigationStore(s => s.setShowCalendarDrawer)
   const openCalendarEvent = useNavigationStore(s => s.openCalendarEvent)
+  const openCalendarEventForEdit = useNavigationStore(s => s.openCalendarEventForEdit)
+  const requestNewCalendarEvent = useNavigationStore(s => s.requestNewCalendarEvent)
   const setShowMapOverlayDrawer = useNavigationStore(s => s.setShowMapOverlayDrawer)
   const events = useCalendarStore(s => s.events)
   const updateEvent = useCalendarStore(s => s.updateEvent)
   const userId = useAuthStore(s => s.user?.id)
   const isDevRole = useAuthStore(s => s.isDevRole)
+  const isSupervisor = useAuthStore(s => s.isSupervisorRole)
   const overviewWidgets = useAuthStore(s => s.profile?.overviewWidgets)
   const { sendEvent: vaultSendEvent, deleteEvents: vaultDeleteEvents } = useCalendarVault()
+  const { deleteEvent: calendarDeleteEvent } = useCalendarWrite()
   const huddleTasks = useClinicHuddleTasks()
+  const [confirmDeleteEvent, setConfirmDeleteEvent] = useState<string | null>(null)
 
   const [missionOverlayFeatures, setMissionOverlayFeatures] = useState<OverlayFeature[]>([])
   const [missionOverlayId, setMissionOverlayId] = useState<string | undefined>(undefined)
@@ -392,11 +399,8 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
         return (
           <div key="task-list" className="px-2.5 py-2 flex flex-col gap-1.5 min-h-[90px]">
             {myTasks.length === 0 ? (
-              <div className="flex items-center gap-3 -mx-2.5 px-4 py-3">
-                <p className="text-sm text-tertiary flex-1">No tasks today</p>
-                <ActionPill shadow="sm">
-                  <ActionButton icon={Calendar} label="Open Calendar" onClick={() => setShowCalendarDrawer(true)} />
-                </ActionPill>
+              <div className="-mx-2.5 px-4 py-3">
+                <p className="text-sm text-tertiary text-center">No tasks today</p>
               </div>
             ) : (
               <>
@@ -453,11 +457,8 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
               ))}
             </div>
             {allDayEvents.length === 0 ? (
-              <div className="flex items-center gap-3 px-4 py-3">
-                <p className="text-sm text-tertiary flex-1">No events {isToday ? 'today' : 'this day'}</p>
-                <ActionPill shadow="sm">
-                  <ActionButton icon={Calendar} label="Open Calendar" onClick={() => setShowCalendarDrawer(true)} />
-                </ActionPill>
+              <div className="px-4 py-3">
+                <p className="text-sm text-tertiary text-center">No events {isToday ? 'today' : 'this day'}</p>
               </div>
             ) : (
               <div className="flex divide-x divide-themeblue3/8 min-h-[70px]">
@@ -488,68 +489,108 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
       case 'week-view': {
         const weekDays = getWeekDays(selectedDate)
         const todayKey = toDateKey(new Date())
-        const weekHasEvents = weekDays.some(day => events.some(e => eventFallsOnDate(e, toDateKey(day))))
+
+        type WeekEvent = { event: CalendarEvent; startCol: number; span: number }
+        const weekEvents: WeekEvent[] = []
+        for (const e of events) {
+          let startCol = -1, endCol = -1
+          for (let i = 0; i < 7; i++) {
+            if (eventFallsOnDate(e, toDateKey(weekDays[i]))) {
+              if (startCol === -1) startCol = i
+              endCol = i
+            }
+          }
+          if (startCol === -1) continue
+          weekEvents.push({ event: e, startCol: startCol + 1, span: endCol - startCol + 1 })
+        }
+        weekEvents.sort((a, b) =>
+          a.startCol - b.startCol ||
+          b.span - a.span ||
+          a.event.start_time.localeCompare(b.event.start_time)
+        )
+
+        const lanes: WeekEvent[][] = []
+        for (const we of weekEvents) {
+          const weEnd = we.startCol + we.span - 1
+          let laneIdx = 0
+          while (
+            lanes[laneIdx]?.some(o => we.startCol <= o.startCol + o.span - 1 && o.startCol <= weEnd)
+          ) laneIdx++
+          if (!lanes[laneIdx]) lanes[laneIdx] = []
+          lanes[laneIdx].push(we)
+        }
+
+        const weekHasEvents = weekEvents.length > 0
+
         return (
-          <div key="week-view" ref={weekViewRef} className="px-3 pt-1.5 pb-2">
-            <div className="grid grid-cols-7 mb-1">
-              {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map((d, i) => (
-                <div key={i} className="flex justify-center">
-                  <span className="text-[9pt] md:text-[9pt] font-semibold uppercase text-secondary">{d}</span>
-                </div>
-              ))}
-            </div>
-            <div className="border-t border-themeblue3/10 mb-1.5" />
-            <div className="grid grid-cols-7">
-              {weekDays.map((day) => {
-                const key = toDateKey(day)
-                const dayEvents = events.filter(e => eventFallsOnDate(e, key))
-                const isTodayDay = key === todayKey
-                const isSelected = key === dateKey
+          <div key="week-view" ref={weekViewRef} className="px-3 pt-0.5 pb-3.5">
+            <div className="grid grid-cols-7 mb-0.5">
+              {weekDays.map((day, i) => {
+                const isWeekend = i >= 5
                 return (
-                  <div key={key} className="flex flex-col items-center gap-1 py-px">
-                    <button
-                      onClick={() => setSelectedDate(day)}
-                      className={`w-8 h-8 flex items-center justify-center rounded-full active:opacity-60 transition-opacity ${
-                        isSelected ? 'bg-themeblue3' : isTodayDay ? 'ring-1 ring-themeblue3' : ''
-                      }`}
-                    >
-                      <span className={`text-base font-medium tabular-nums leading-none ${
-                        isSelected ? 'text-white' : 'text-primary'
-                      }`}>
-                        {day.getDate()}
-                      </span>
-                    </button>
-                    <div className="flex flex-col gap-px w-full px-0.1 mt-1">
-                      {dayEvents.slice(0, 3).map(e => (
-                        <button
-                          key={e.id}
-                          type="button"
-                          className="flex items-center gap-1 w-full overflow-hidden py-0.5 px-0.5 rounded bg-themewhite2/60 active:opacity-60"
-                          onClick={() => handleEventClick(e.id)}
-                        >
-                          <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                            e.status === 'completed'   ? 'bg-themegreen' :
-                            e.status === 'in_progress' ? 'bg-themeyellow' :
-                            e.status === 'cancelled'   ? 'bg-themeredred' :
-                            'bg-secondary/50'
-                          }`} />
-                          <span className="text-[9pt] md:text-[9pt] leading-tight text-primary truncate">{e.title}</span>
-                        </button>
-                      ))}
-                      {dayEvents.length > 3 && (
-                        <span className="text-[9pt] leading-tight text-secondary pl-1">+{dayEvents.length - 3}</span>
-                      )}
-                    </div>
+                  <div key={i} className="flex justify-center">
+                    <span className={`text-[9pt] font-semibold uppercase ${isWeekend ? 'text-themeredred/80' : 'text-secondary'}`}>
+                      {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'][i]}
+                    </span>
                   </div>
                 )
               })}
             </div>
-            {!weekHasEvents && (
-              <div className="flex items-center gap-3 -mx-3 px-4 py-3">
-                <p className="text-sm text-tertiary flex-1">No events this week</p>
-                <ActionPill shadow="sm">
-                  <ActionButton icon={Calendar} label="Open Calendar" onClick={() => setShowCalendarDrawer(true)} />
-                </ActionPill>
+            <div className="border-t border-themeblue3/10 mb-0.5" />
+            <div className="grid grid-cols-7 mb-2.5">
+              {weekDays.map((day, i) => {
+                const key = toDateKey(day)
+                const isTodayDay = key === todayKey
+                const isSelected = key === dateKey
+                const isWeekend = i >= 5
+                return (
+                  <div key={key} className="flex justify-center">
+                    <button
+                      onClick={() => setSelectedDate(day)}
+                      className={`w-6 h-6 flex items-center justify-center rounded-full active:opacity-60 transition-opacity ${
+                        isSelected ? 'bg-themeblue3' : isTodayDay ? 'ring-1 ring-themeblue3' : ''
+                      }`}
+                    >
+                      <span className={`text-[10pt] font-medium tabular-nums leading-none ${
+                        isSelected ? 'text-white' :
+                        isWeekend ? 'text-themeredred' :
+                        'text-primary'
+                      }`}>
+                        {day.getDate()}
+                      </span>
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+            {weekHasEvents ? (
+              <div className="flex flex-col gap-0.5">
+                {lanes.map((lane, li) => (
+                  <div key={li} className="grid grid-cols-7 gap-0.5">
+                    {lane.map(we => {
+                      const stripe = CATEGORY_STRIPE[we.event.category] ?? 'bg-tertiary/50'
+                      const isDone = we.event.status === 'completed' || we.event.status === 'cancelled'
+                      return (
+                        <button
+                          key={we.event.id}
+                          type="button"
+                          onClick={() => handleEventClick(we.event.id)}
+                          onContextMenu={(e) => { e.preventDefault(); setContextMenu({ event: we.event, x: e.clientX, y: e.clientY }) }}
+                          style={{ gridColumn: `${we.startCol} / span ${we.span}` }}
+                          className={`min-w-0 px-1.5 py-0.5 rounded text-left overflow-hidden active:opacity-60 ${stripe} ${isDone ? 'opacity-50' : ''}`}
+                        >
+                          <span className="block text-[9pt] font-normal text-white truncate whitespace-nowrap leading-tight">
+                            {we.event.title}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="-mx-3 px-4 py-3">
+                <p className="text-sm text-tertiary text-center">No events this week</p>
               </div>
             )}
           </div>
@@ -572,11 +613,8 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
           .sort((a, b) => a.start_time.localeCompare(b.start_time))
         if (huddleEvents.length === 0) {
           return (
-            <div key="huddle" className="flex items-center gap-3 px-4 py-3">
-              <p className="text-sm text-tertiary flex-1">No huddle {isToday ? 'today' : 'this day'}</p>
-              <ActionPill shadow="sm">
-                <ActionButton icon={Calendar} label="Open Calendar" onClick={() => setShowCalendarDrawer(true)} />
-              </ActionPill>
+            <div key="huddle" className="px-4 py-3">
+              <p className="text-sm text-tertiary text-center">No huddle {isToday ? 'today' : 'this day'}</p>
             </div>
           )
         }
@@ -604,6 +642,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
                   <button
                     key={ev.id}
                     onClick={() => handleEventClick(ev.id)}
+                    onContextMenu={(e) => { e.preventDefault(); setContextMenu({ event: ev, x: e.clientX, y: e.clientY }) }}
                     className="flex items-center gap-2 text-left rounded px-1.5 py-1 active:bg-themeblue2/10"
                   >
                     <span className="text-[9pt] text-secondary tabular-nums shrink-0">{ev.start_time.slice(11, 16)}</span>
@@ -625,7 +664,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
     <div className="rounded-xl overflow-hidden border border-themeblue3/10 bg-themewhite2" data-tour="mission-overview-panel">
 
       {/* Header */}
-      <div className="flex items-center px-2 py-1.5 border-b border-themeblue3/8">
+      <div className="flex items-center justify-between px-2 py-1.5 border-b border-themeblue3/8">
         <div className="flex items-center gap-0.5">
           <button className="p-1 rounded active:bg-themeblue2/10 text-tertiary" onClick={() => navigate(-1)}>
             <ChevronLeft size={13} />
@@ -641,6 +680,9 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
             <ChevronRight size={13} />
           </button>
         </div>
+        <ActionPill shadow="sm">
+          <ActionButton icon={Plus} label="New Event" onClick={requestNewCalendarEvent} />
+        </ActionPill>
       </div>
 
       {widgets.length === 0 ? (
@@ -661,17 +703,42 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
         />
       </PreviewOverlay>
 
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          onClose={() => setContextMenu(null)}
-          items={statusMenuItems(contextMenu.event, (status) => {
-            handleStatusChange(contextMenu.event.id, status)
+      {contextMenu && (() => {
+        const ev = contextMenu.event
+        const editable = isEventEditable(ev, isSupervisor)
+        const deletable = isTemplateStructureMutable(ev, isSupervisor)
+        const items = [
+          ...(editable ? statusMenuItems(ev, (status) => {
+            handleStatusChange(ev.id, status)
             setContextMenu(null)
-          })}
-        />
-      )}
+          }) : []),
+          ...(editable ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => { openCalendarEventForEdit(ev.id); setContextMenu(null) } }] : []),
+          ...(deletable ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => { setConfirmDeleteEvent(ev.id); setContextMenu(null) } }] : []),
+        ]
+        if (items.length === 0) { setContextMenu(null); return null }
+        return (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            onClose={() => setContextMenu(null)}
+            items={items}
+          />
+        )
+      })()}
+
+      <ConfirmDialog
+        visible={!!confirmDeleteEvent}
+        title="Delete event?"
+        subtitle="Permanent. Removed for all clinic members."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => {
+          const id = confirmDeleteEvent
+          setConfirmDeleteEvent(null)
+          if (id) calendarDeleteEvent(id).catch(() => {})
+        }}
+        onCancel={() => setConfirmDeleteEvent(null)}
+      />
 
       {!standalone && (
         <div className="mt-2 border-t border-themeblue3/8" />

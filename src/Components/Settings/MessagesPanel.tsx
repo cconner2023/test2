@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
-import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, Pin, Search, Users, Check, QrCode } from 'lucide-react'
+import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, Pin, Search, Users, Check, QrCode, Mail, Send } from 'lucide-react'
 import { useSpring, animated, type SpringValue } from '@react-spring/web'
 import { MobileSearchBar } from '../MobileSearchBar'
 import { HeaderPill, PillButton } from '../HeaderPill'
@@ -22,6 +22,7 @@ import { useAuth } from '../../Hooks/useAuth'
 import { useCallActions } from '../../Hooks/CallContext'
 import { useAvatar } from '../../Utilities/AvatarContext'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
+import { TextInput } from '../FormInputs'
 import { SwipeableCard, type SwipeAction as SwipeCardAction } from '../SwipeableCard'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { usePeerAvailability, type UnavailableReason } from '../../Hooks/usePeerAvailability'
@@ -1016,6 +1017,10 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   const [qrScanOpen, setQrScanOpen] = useState(false)
   const [qrLookupError, setQrLookupError] = useState<string | null>(null)
   const qrVideoRef = useRef<HTMLVideoElement>(null)
+  const [emailLookupError, setEmailLookupError] = useState<string | null>(null)
+  const [emailLookupLoading, setEmailLookupLoading] = useState(false)
+  const [emailLookupOpen, setEmailLookupOpen] = useState(false)
+  const [emailValue, setEmailValue] = useState('')
 
   const {
     isScanning: qrIsScanning,
@@ -1064,6 +1069,48 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     setExtraMedics(prev => prev.some(m => m.id === medic.id) ? prev : [...prev, medic])
     onSelectPeer(medic)
   }, [onSelectPeer])
+
+  const handleEmailLookup = useCallback(async () => {
+    const email = emailValue.trim().toLowerCase()
+    setEmailLookupError(null)
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailLookupError('Enter a valid email address')
+      return
+    }
+    setEmailLookupLoading(true)
+    try {
+      const { data, error } = await supabase.rpc('search_users', { query: email })
+      if (error || !data) { setEmailLookupError('Lookup failed'); return }
+      const match = (data as any[]).find(r => r.email?.toLowerCase() === email)
+      if (!match) { setEmailLookupError('No user found with that email'); return }
+      const medic: ClinicMedic = {
+        id: match.id,
+        firstName: match.first_name,
+        lastName: match.last_name,
+        middleInitial: match.middle_initial,
+        rank: match.rank,
+        credential: match.credential,
+        avatarId: match.avatar_id ?? null,
+        clinicId: match.clinic_id,
+        clinicName: match.clinic_name,
+      }
+      setEmailLookupOpen(false)
+      setEmailValue('')
+      setShowNewMsg(false)
+      handleSelectNewPeer(medic)
+    } catch {
+      setEmailLookupError('Lookup failed')
+    } finally {
+      setEmailLookupLoading(false)
+    }
+  }, [emailValue, handleSelectNewPeer])
+
+  const closeEmailLookup = useCallback(() => {
+    setEmailLookupOpen(false)
+    setEmailValue('')
+    setEmailLookupError(null)
+    setEmailLookupLoading(false)
+  }, [])
 
   const toggleGroupMember = useCallback((id: string) => {
     setGroupSelectedIds(prev => {
@@ -1277,13 +1324,32 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
       {/* New Message / New Group overlay */}
       <PreviewOverlay
         isOpen={showNewMsg}
-        onClose={() => { setShowNewMsg(false); setNewMsgMode('contacts'); setQrScanOpen(false); qrStopScanning(); qrClearResult() }}
+        onClose={() => { setShowNewMsg(false); setNewMsgMode('contacts'); setQrScanOpen(false); qrStopScanning(); qrClearResult(); closeEmailLookup() }}
         anchorRect={null}
-        title={newMsgMode === 'contacts' ? 'New Message' : 'New Group'}
-        onBack={newMsgMode === 'group' ? () => { setNewMsgMode('contacts'); setGroupSelectedIds(new Set()) } : undefined}
-        searchPlaceholder="Search contacts..."
+        title={emailLookupOpen ? 'Find by Email' : newMsgMode === 'contacts' ? 'New Message' : 'New Group'}
+        onBack={
+          emailLookupOpen ? closeEmailLookup
+          : newMsgMode === 'group' ? () => { setNewMsgMode('contacts'); setGroupSelectedIds(new Set()) }
+          : undefined
+        }
+        searchPlaceholder={emailLookupOpen ? undefined : 'Search contacts...'}
         previewMaxHeight="50dvh"
         preview={(filter: string) => {
+          if (emailLookupOpen) {
+            return (
+              <div className="px-1 py-1">
+                <TextInput
+                  label="Email"
+                  value={emailValue}
+                  onChange={(v) => { setEmailValue(v); if (emailLookupError) setEmailLookupError(null) }}
+                  placeholder="user@example.com"
+                  type="email"
+                  inputMode="email"
+                  hint={emailLookupLoading ? 'Looking up email…' : emailLookupError}
+                />
+              </div>
+            )
+          }
           const q = filter.toLowerCase()
           const filtered = q
             ? allMedics.filter(m =>
@@ -1371,6 +1437,14 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
           )
         }}
         actions={
+          emailLookupOpen ? [{
+            key: 'submit-email',
+            label: 'Find User',
+            icon: Send,
+            closesOnAction: false,
+            onAction: handleEmailLookup,
+            variant: (!emailValue.trim() || emailLookupLoading) ? 'disabled' : 'default',
+          }] :
           newMsgMode === 'group' ? [{
             key: 'create-group',
             label: 'Create Group',
@@ -1400,9 +1474,21 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
                 })
               },
             },
+            {
+              key: 'find-by-email',
+              label: 'Find by Email',
+              icon: Mail,
+              closesOnAction: false,
+              onAction: () => {
+                setEmailLookupError(null)
+                setEmailValue('')
+                setEmailLookupOpen(true)
+              },
+            },
           ] : []
         }
       />
+
       <ProvisionalDeviceModal />
     </animated.div>
   )

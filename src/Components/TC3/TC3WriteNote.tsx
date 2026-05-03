@@ -9,6 +9,7 @@ import { getRegionLabel } from '../../Utilities/bodyRegionMap'
 import { encodeTC3Card } from '../../Utilities/tc3Codec'
 import { encryptBarcode } from '../../Utilities/barcodeCodec'
 import { TC3BodyDiagramSvg } from './TC3BodyDiagramSvg'
+import { TC3NineLine } from './TC3NineLine'
 import type { TC3Card } from '../../Types/TC3Types'
 import type { UserTypes } from '../../Data/User'
 import { ActionPill } from '../ActionPill'
@@ -150,6 +151,9 @@ function TC3CardSection({ card, profile, userId, isAuthenticated, label }: TC3Ca
           <ActionIconButton onClick={() => handleCopy(noteText, 'preview')} status={copiedTarget === 'preview' ? 'done' : 'idle'} variant="copy" title="Copy note text" />
         </ActionPill>
       </div>
+
+      {/* Auto-derived 9-line MEDEVAC */}
+      <TC3NineLine card={card} />
 
       {/* Encoded barcode */}
       <div className="relative rounded-xl bg-themewhite2 overflow-hidden">

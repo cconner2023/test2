@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Trash2, Eye, Mail, Lightbulb } from 'lucide-react'
+import { Trash2, Eye, Mail } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
+import { SectionCard } from '../Section'
 import { ContextMenu } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { AdminListSkeleton } from './AdminSkeletons'
 import { RequestCard } from './RequestCard'
+import { SuggestionCard } from './SuggestionCard'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import {
   getAllAccountRequests,
@@ -222,55 +224,15 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
     )
   }
 
-  // Suggestion card — mirrors RequestCard's isSupport shape (feedback-item pattern).
-  const renderSuggestionCard = (s: FeatureVoteSuggestion) => {
-    const isExpanded = expandedSuggestionId === s.id
-    return (
-      <div
-        key={`sug-${s.id}`}
-        onClick={() => setExpandedSuggestionId(isExpanded ? null : s.id)}
-        className="transition-all hover:bg-themeblue2/5 cursor-pointer select-none"
-      >
-        <div className="flex items-center gap-3 px-4 py-3.5">
-          <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeyellow/10">
-            <Lightbulb size={16} className="text-themeyellow" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-primary truncate">{s.title}</p>
-            <p className="text-[9pt] text-tertiary mt-0.5 truncate">Feature suggestion</p>
-          </div>
-          <span className="text-[9pt] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0 bg-themeyellow/10 text-themeyellow border-themeyellow/30">
-            Idea
-          </span>
-        </div>
-
-        {!isExpanded && s.description && (
-          <p className="text-[10pt] font-normal text-tertiary px-4 pb-2 line-clamp-2">{s.description}</p>
-        )}
-
-        {isExpanded && (
-          <div className="px-4 pb-3.5 pt-3 border-t border-tertiary/10 space-y-2" onClick={(e) => e.stopPropagation()}>
-            {s.description && (
-              <p className="text-[10pt] font-normal text-primary whitespace-pre-wrap">{s.description}</p>
-            )}
-            <p className="text-[10pt] font-normal text-tertiary">
-              Submitted: {new Date(s.createdAt).toLocaleString()}
-            </p>
-            <div className="flex items-center gap-3 pt-1">
-              <button
-                onClick={() => setConfirmDeleteSuggestionId(s.id)}
-                className="shrink-0 w-10 h-10 rounded-full text-themeredred flex items-center justify-center active:scale-95 transition-all"
-                aria-label="Dismiss"
-                title="Dismiss"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    )
-  }
+  const renderSuggestionCard = (s: FeatureVoteSuggestion) => (
+    <SuggestionCard
+      key={`sug-${s.id}`}
+      suggestion={s}
+      expandedId={expandedSuggestionId}
+      setExpandedId={setExpandedSuggestionId}
+      setConfirmDeleteId={setConfirmDeleteSuggestionId}
+    />
+  )
 
   const renderFeedItem = (item: FeedItem) =>
     item.kind === 'request' ? renderCard(item.data) : renderSuggestionCard(item.data)
@@ -344,9 +306,9 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
         ) : feedItems.length === 0 ? (
           <EmptyState title={searchQuery ? 'No requests match your search' : 'No requests found'} />
         ) : (
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-themeblue3/10">
+          <SectionCard className="divide-y divide-themeblue3/10">
             {feedItems.map(renderFeedItem)}
-          </div>
+          </SectionCard>
         )}
       </div>
 

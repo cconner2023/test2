@@ -18,34 +18,90 @@ import {
 import { ExpandableInput } from './ExpandableInput';
 import { useAlgorithmMetrics } from '../Hooks/useAlgorithmMetrics';
 import { useMergedNoteContent } from '../Hooks/useMergedNoteContent';
-import { X, Plus, Check } from 'lucide-react';
+import { X, Plus, Check, Eye, FileText, RotateCcw } from 'lucide-react';
 import { PreviewOverlay } from './PreviewOverlay';
 import { GUIDED_HPI_EXPANDED, GUIDED_PE_TEXT, GUIDED_PLAN_TEXT } from '../Data/GuidedTourData';
 import { PdfPreviewModal } from './PdfPreviewModal';
 import { ActionButton } from './ActionButton';
 import { ActionPill } from './ActionPill'
+import { EmptyState } from './EmptyState';
+import type { TextExpander } from '../Data/User';
+import { getBlocksForFocusedExam, getCategoryFromSymptomCode } from '../Data/PhysicalExamData';
+import type { CategoryLetter } from '../Data/PhysicalExamData';
 
 type DispositionType = dispositionType['type'];
 
-interface SectionToggleProps {
-    label: string;
-    enabled: boolean;
-    onToggle: () => void;
-    colors: ReturnType<typeof getColorClasses>;
-}
+const SECTION_LABEL_CLASS = 'text-[9pt] font-semibold text-primary uppercase tracking-wider';
+const CARD_CLASS = 'relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden';
+const TEXTAREA_CLASS =
+    'w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary ' +
+    'focus:outline-none resize-none overflow-hidden min-h-[200px]';
 
-const SectionToggle = ({ label, enabled, onToggle, colors }: SectionToggleProps) => (
-    <div className="flex items-center justify-between py-1">
-        <p className="text-[10pt] font-semibold text-primary uppercase tracking-wider">{label}</p>
-        <button
-            type="button"
-            onClick={onToggle}
-            className={`relative w-9 h-5 rounded-full transition-colors ${enabled ? colors.sliderClass : 'bg-tertiary/25'}`}
-        >
-            <div className={`absolute top-[2px] w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${enabled ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} />
-        </button>
-    </div>
-);
+/** Empty → overlay → populated card pattern, mirrors ProviderNote's TextSectionCard. */
+function TextSectionCard({ addLabel, value, onChange, expanders, placeholder, dataTour }: {
+    addLabel: string;
+    value: string;
+    onChange: (v: string) => void;
+    expanders: TextExpander[];
+    placeholder: string;
+    dataTour?: string;
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [anchor, setAnchor] = useState<DOMRect | null>(null);
+    const cardRef = useRef<HTMLDivElement>(null);
+
+    const openFromAnchor = (rect: DOMRect) => { setAnchor(rect); setIsOpen(true); };
+    const openFromCard = () => {
+        if (cardRef.current) openFromAnchor(cardRef.current.getBoundingClientRect());
+    };
+
+    return (
+        <>
+            {value ? (
+                <div
+                    ref={cardRef}
+                    onClick={openFromCard}
+                    data-tour={dataTour}
+                    className={`${CARD_CLASS} cursor-pointer active:scale-[0.99] transition-all`}
+                >
+                    <div className="px-4 py-3 text-sm text-primary whitespace-pre-wrap max-h-64 overflow-y-auto">
+                        {value}
+                    </div>
+                </div>
+            ) : (
+                <EmptyState
+                    title={addLabel}
+                    action={{
+                        icon: Plus,
+                        label: addLabel,
+                        onClick: (a) => openFromAnchor(a.getBoundingClientRect()),
+                    }}
+                />
+            )}
+            <PreviewOverlay
+                isOpen={isOpen}
+                onClose={() => setIsOpen(false)}
+                anchorRect={anchor}
+                title={addLabel}
+                previewMaxHeight="50dvh"
+                actions={[
+                    { key: 'reset', label: 'Reset', icon: RotateCcw, onAction: () => onChange(''), closesOnAction: false },
+                    { key: 'done', label: 'Done', icon: Check, onAction: () => setIsOpen(false), closesOnAction: false },
+                ]}
+            >
+                <ExpandableInput
+                    value={value}
+                    onChange={onChange}
+                    expanders={expanders}
+                    multiline
+                    hideClear
+                    className={TEXTAREA_CLASS}
+                    placeholder={placeholder}
+                />
+            </PreviewOverlay>
+        </>
+    );
+}
 
 type PageId = 'edit' | 'fullnote';
 
@@ -83,8 +139,9 @@ export const WriteNotePage = ({
     const loggedRef = useRef(false);
     const { expanders, orderTags, instructionTags, orderSets } = useMergedNoteContent();
     const colors = getColorClasses(disposition.type);
-    const [includeDecisionMaking, setIncludeDecisionMaking] = useState(true);
-    const [includeFullNote, setIncludeFullNote] = useState(() => !!window.__tourNoteOverride);
+    const [viewMode, setViewMode] = useState<'preview' | 'fullnote'>(
+        () => (window.__tourNoteOverride ? 'fullnote' : 'preview')
+    );
 
     // Tour override: clean up global flag on restore/unmount
     useEffect(() => {
@@ -105,7 +162,7 @@ export const WriteNotePage = ({
         algorithmOptions,
         cardStates,
         includeAlgorithm: true,
-        includeDecisionMaking,
+        includeDecisionMaking: true,
         dispositionType: disposition.type,
         dispositionText: disposition.text,
         selectedSymptom,
@@ -134,6 +191,24 @@ export const WriteNotePage = ({
         profile: editorProfile, authUserId,
     } = editor;
 
+    // ── PE: seed template block keys from symptom-templated focused-exam set ──
+    // Keeps symptom templating while using the Provider-primitive in-card chrome
+    // (template mode shows the cycle+Plus ActionPill at top-right and drops the
+    // bottom focused-mode FAB).
+    const symptomCode = selectedSymptom?.icon || 'A-1';
+    const [selectedBlockKeys, setSelectedBlockKeys] = useState<string[]>(() => {
+        const cat = (getCategoryFromSymptomCode(symptomCode) || 'A') as CategoryLetter;
+        return getBlocksForFocusedExam(cat, symptomCode).blocks.map(b => b.key);
+    });
+    const [pePickerSignal, setPePickerSignal] = useState(0);
+    const [pePickerAnchor, setPePickerAnchor] = useState<DOMRect | null>(null);
+    const peHasContent = !!peNote || selectedBlockKeys.length > 0;
+
+    // ── Plan empty-state picker signal ──────────────────────────────────────
+    const [planPickerSignal, setPlanPickerSignal] = useState(0);
+    const [planPickerAnchor, setPlanPickerAnchor] = useState<DOMRect | null>(null);
+    const planHasContent = !!planNote;
+
     // ── DDx popover state ──────────────────────────────────────────────────
     const [ddxPopoverVisible, setDdxPopoverVisible] = useState(false);
     const [ddxAnchorRect, setDdxAnchorRect] = useState<DOMRect | null>(null);
@@ -145,7 +220,6 @@ export const WriteNotePage = ({
 
     // ── Available DDx from algorithm context ────────────────────────────────
     const availableDdx = useMemo(() => {
-        if (!includeDecisionMaking) return [];
         const ddxSet = new Set<string>();
         for (let i = cardStates.length - 1; i >= 0; i--) {
             const card = cardStates[i];
@@ -163,7 +237,7 @@ export const WriteNotePage = ({
             }
         }
         return Array.from(ddxSet);
-    }, [includeDecisionMaking, algorithmOptions, cardStates, disposition.type, disposition.text]);
+    }, [algorithmOptions, cardStates, disposition.type, disposition.text]);
 
     const toggleDdx = useCallback((dx: string) => {
         if (availableDdx.includes(dx)) {
@@ -244,18 +318,26 @@ export const WriteNotePage = ({
                     {/* Edit Page */}
                     <div data-tour="writenote-edit-page" className={`w-full p-4 ${currentPageId !== 'edit' ? 'hidden' : ''}`}>
                         <div className="space-y-4">
-                                {/* Decision Making toggle */}
-                                <div data-tour="writenote-decision-toggle">
-                                    <SectionToggle
-                                        label="Decision Making"
-                                        enabled={includeDecisionMaking}
-                                        onToggle={() => setIncludeDecisionMaking(v => !v)}
-                                        colors={colors}
-                                    />
+                                {/* View-mode toggle: Preview ↔ Full Note */}
+                                <div data-tour="writenote-view-toggle" className="flex items-center justify-end">
+                                    <ActionPill shadow="sm">
+                                        <ActionButton
+                                            icon={Eye}
+                                            label="Preview"
+                                            onClick={() => setViewMode('preview')}
+                                            variant={viewMode === 'preview' ? 'success' : 'default'}
+                                        />
+                                        <ActionButton
+                                            icon={FileText}
+                                            label="Full Note"
+                                            onClick={() => setViewMode('fullnote')}
+                                            variant={viewMode === 'fullnote' ? 'success' : 'default'}
+                                        />
+                                    </ActionPill>
                                 </div>
 
-                                {includeDecisionMaking && (
-                                    <div className="rounded-xl border border-tertiary/15 bg-themewhite2 overflow-hidden px-2 py-2">
+                                {viewMode === 'preview' && (
+                                    <div data-tour="writenote-decision-making" className="rounded-xl border border-tertiary/15 bg-themewhite2 overflow-hidden px-2 py-2">
                                         <DecisionMaking
                                             algorithmOptions={algorithmOptions}
                                             cardStates={cardStates}
@@ -265,64 +347,82 @@ export const WriteNotePage = ({
                                     </div>
                                 )}
 
-                                {/* Full Note toggle */}
-                                <div data-tour="writenote-section-toggles">
-                                    <SectionToggle
-                                        label="Full Note"
-                                        enabled={includeFullNote}
-                                        onToggle={() => setIncludeFullNote(v => !v)}
-                                        colors={colors}
-                                    />
-                                </div>
-
-                                {includeFullNote && (
+                                {viewMode === 'fullnote' && (
                                 <>
-                                {/* Subjective section */}
-                                <section data-tour="writenote-hpi" className="space-y-2">
-                                    <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Subjective</p>
-                                    <ExpandableInput
+                                {/* HPI */}
+                                <div className="space-y-2" data-tour="writenote-hpi">
+                                    <p className={SECTION_LABEL_CLASS}>History of Present Illness</p>
+                                    <TextSectionCard
+                                        addLabel="Add HPI"
                                         value={note}
                                         onChange={setNote}
                                         expanders={expanders}
-                                        multiline
-                                        className="w-full rounded-xl border border-themegray1/20 bg-themewhite p-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:border-themeblue1/30 focus:outline-none resize-none transition-colors leading-6"
-                                        placeholder="History of present illness..."
+                                        placeholder="Chief complaint, onset, duration, character, associated symptoms..."
                                     />
-                                </section>
+                                </div>
 
-                                {/* PE section */}
-                                <section data-tour="writenote-pe" className="space-y-2">
-                                    <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Physical Exam</p>
-                                    <PhysicalExam
-                                        initialText={peNote}
-                                        onChange={setPeNote}
-                                        onStateChange={setPeState}
-                                        colors={colors}
-                                        symptomCode={selectedSymptom?.icon || 'A-1'}
-                                        expanders={expanders}
-                                    />
-                                </section>
+                                {/* Physical Exam — symptom-templated, typically populated on mount */}
+                                <div className="space-y-2" data-tour="writenote-pe">
+                                    <p className={SECTION_LABEL_CLASS}>Physical Exam</p>
+                                    <div
+                                        className={peHasContent ? CARD_CLASS : undefined}
+                                        style={peHasContent ? undefined : { display: 'none' }}
+                                        aria-hidden={!peHasContent}
+                                    >
+                                        <PhysicalExam
+                                            initialText={peNote}
+                                            initialState={peState}
+                                            onChange={setPeNote}
+                                            onStateChange={setPeState}
+                                            colors={colors}
+                                            symptomCode={symptomCode}
+                                            mode="template"
+                                            templateBlockKeys={selectedBlockKeys}
+                                            onBlockKeysChange={setSelectedBlockKeys}
+                                            expanders={expanders}
+                                            pickerOpenSignal={pePickerSignal}
+                                            pickerOpenAnchor={pePickerAnchor}
+                                        />
+                                    </div>
+                                    {!peHasContent && (
+                                        <EmptyState
+                                            title="Add physical exam"
+                                            action={{
+                                                icon: Plus,
+                                                label: 'Add physical exam',
+                                                onClick: (a) => {
+                                                    setPePickerAnchor(a.getBoundingClientRect());
+                                                    setPePickerSignal(s => s + 1);
+                                                },
+                                            }}
+                                        />
+                                    )}
+                                </div>
 
-                                {/* Differential Diagnoses */}
-                                <div data-tour="writenote-ddx" className="pt-1">
+                                {/* Assessment (DDx) */}
+                                <div className="space-y-2" data-tour="writenote-ddx">
+                                    <p className={SECTION_LABEL_CLASS}>Assessment</p>
                                     {(selectedDdx.length > 0 || customDdx.length > 0) ? (
                                         <div
-                                            className="rounded-xl bg-themewhite2 overflow-hidden cursor-pointer active:scale-[0.98] transition-all"
                                             onClick={openDdxPopover}
+                                            className={`${CARD_CLASS} cursor-pointer active:scale-[0.99] transition-all`}
                                         >
-                                            <div className="px-4 py-3">
-                                                <p className="text-[9pt] text-primary truncate">
-                                                    {[...selectedDdx, ...customDdx].map((d, i) => `${i + 1}. ${d}`).join('; ')}
-                                                </p>
+                                            <div className="px-4 py-3 text-sm text-primary whitespace-pre-wrap max-h-64 overflow-y-auto">
+                                                {[...selectedDdx, ...customDdx].map((d, i) => `${i + 1}. ${d}`).join('; ')}
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="flex items-center gap-3 py-2">
-                                            <p className="text-sm text-tertiary flex-1">No differentials selected</p>
-                                            <ActionPill shadow="sm">
-                                                <ActionButton icon={Plus} label="Add differential" onClick={openDdxPopover} />
-                                            </ActionPill>
-                                        </div>
+                                        <EmptyState
+                                            title="Add assessment"
+                                            action={{
+                                                icon: Plus,
+                                                label: 'Add assessment',
+                                                onClick: (a) => {
+                                                    setDdxAnchorRect(a.getBoundingClientRect());
+                                                    setDdxPopoverVisible(true);
+                                                },
+                                            }}
+                                        />
                                     )}
                                 </div>
 
@@ -395,17 +495,38 @@ export const WriteNotePage = ({
                                 />
 
                                 {/* Plan */}
-                                <section data-tour="writenote-plan" className="space-y-2">
-                                    <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Plan</p>
-                                    <Plan
-                                        orderTags={orderTags}
-                                        instructionTags={instructionTags}
-                                        orderSets={orderSets}
-                                        initialText={planNote}
-                                        onChange={setPlanNote}
-                                        expanders={expanders}
-                                    />
-                                </section>
+                                <div className="space-y-2" data-tour="writenote-plan">
+                                    <p className={SECTION_LABEL_CLASS}>Plan</p>
+                                    <div
+                                        className={planHasContent ? CARD_CLASS : undefined}
+                                        style={planHasContent ? undefined : { display: 'none' }}
+                                        aria-hidden={!planHasContent}
+                                    >
+                                        <Plan
+                                            orderTags={orderTags}
+                                            instructionTags={instructionTags}
+                                            orderSets={orderSets}
+                                            initialText={planNote}
+                                            onChange={setPlanNote}
+                                            expanders={expanders}
+                                            pickerOpenSignal={planPickerSignal}
+                                            pickerOpenAnchor={planPickerAnchor}
+                                        />
+                                    </div>
+                                    {!planHasContent && (
+                                        <EmptyState
+                                            title="Add plan"
+                                            action={{
+                                                icon: Plus,
+                                                label: 'Add plan',
+                                                onClick: (a) => {
+                                                    setPlanPickerAnchor(a.getBoundingClientRect());
+                                                    setPlanPickerSignal(s => s + 1);
+                                                },
+                                            }}
+                                        />
+                                    )}
+                                </div>
                                 </>
                                 )}
 

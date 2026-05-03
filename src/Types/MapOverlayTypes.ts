@@ -13,7 +13,7 @@ export type WaypointType =
 
 export type FeatureType = 'waypoint' | 'route' | 'area'
 
-export type DrawMode = 'pan' | 'pin' | 'route' | 'area' | 'edit' | 'delete' | 'measure'
+export type DrawMode = 'pan' | 'pin' | 'route' | 'area' | 'drag' | 'measure'
 
 export interface FeatureStyle {
   color: string

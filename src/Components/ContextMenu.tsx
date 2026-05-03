@@ -8,9 +8,11 @@ export interface ContextMenuItem {
   key: string
   label: string
   icon: LucideIcon
-  onAction: () => void
+  onAction?: () => void
   destructive?: boolean
   disabled?: boolean
+  /** When set, tapping this item swaps the menu to show these items instead of running onAction. */
+  submenu?: ContextMenuItem[]
 }
 
 interface ContextMenuProps {
@@ -23,6 +25,8 @@ interface ContextMenuProps {
 export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
+  const [submenuItems, setSubmenuItems] = useState<ContextMenuItem[] | null>(null)
+  const activeItems = submenuItems ?? items
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setVisible(true))
@@ -46,7 +50,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
     }
   }, [onClose])
 
-  const pillWidth = items.length * 40 + 8
+  const pillWidth = activeItems.length * 40 + 8
   const style: React.CSSProperties = {
     position: 'fixed',
     left: Math.max(8, Math.min(x, window.innerWidth - pillWidth - 8)),
@@ -71,14 +75,18 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
         style={style}
         className="transform-gpu"
       >
-        {items.map((item) => (
+        {activeItems.map((item) => (
           <ActionButton
             key={item.key}
             icon={item.icon}
             label={item.label}
             variant={item.disabled ? 'disabled' : item.destructive ? 'danger' : 'default'}
             iconSize={14}
-            onClick={() => { item.onAction(); onClose() }}
+            onClick={() => {
+              if (item.submenu) { setSubmenuItems(item.submenu); return }
+              item.onAction?.()
+              onClose()
+            }}
           />
         ))}
       </ActionPill>
