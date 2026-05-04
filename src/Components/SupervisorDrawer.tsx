@@ -74,7 +74,9 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   const { submitTestEvaluation, assignTask } = useTrainingCompletions()
   const { writeEvent } = useCalendarWrite()
   const user = useAuthStore(s => s.user)
-  const clinicId = useAuthStore(s => s.clinicId)
+  // The supervisor toggle picks which clinic this drawer administers.
+  // Defaults to the assigned clinic for single-clinic users.
+  const clinicId = useAuthStore(s => s.supervisingClinicId ?? s.clinicId)
   const clinicNameFromAuth = useAuthStore(s => s.profile.clinicName)
   const calendarEvents = useCalendarStore(s => s.events)
   const setShowCalendarDrawer = useNavigationStore(s => s.setShowCalendarDrawer)

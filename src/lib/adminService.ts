@@ -40,6 +40,8 @@ export interface AdminUser {
   roles: string[]
   clinic_id: string | null
   clinic_name: string | null
+  surrogate_clinic_id: string | null
+  surrogate_clinic_name: string | null
   created_at: string
   last_active_at: string | null
   avatar_id: string | null
@@ -361,15 +363,45 @@ export async function listAllUsers(): Promise<AdminUser[]> {
       return []
     }
 
-    // Merge supervisor_created — the RPC predates this column, so we pull it
-    // via a secondary profiles query and overlay onto the RPC result.
+    // Merge supervisor_created + surrogate_clinic_id — the RPC predates these
+    // columns, so we pull them via a secondary profiles query and overlay
+    // onto the RPC result.
     const { data: flagRows } = await supabase
       .from('profiles')
-      .select('id, supervisor_created')
-    const flagMap = new Map<string, boolean>(
-      (flagRows ?? []).map(r => [r.id as string, Boolean((r as { supervisor_created?: boolean }).supervisor_created)]),
+      .select('id, supervisor_created, surrogate_clinic_id')
+    const flagMap = new Map<string, { supervisor_created: boolean; surrogate_clinic_id: string | null }>(
+      (flagRows ?? []).map(r => [
+        r.id as string,
+        {
+          supervisor_created: Boolean((r as { supervisor_created?: boolean }).supervisor_created),
+          surrogate_clinic_id: (r as { surrogate_clinic_id?: string | null }).surrogate_clinic_id ?? null,
+        },
+      ]),
     )
-    return validated.data.map(u => ({ ...u, supervisor_created: flagMap.get(u.id) ?? false }))
+    // Resolve surrogate_clinic_name by fetching clinic names once.
+    const surrogateIds = Array.from(
+      new Set(
+        Array.from(flagMap.values()).map(v => v.surrogate_clinic_id).filter((id): id is string => !!id),
+      ),
+    )
+    const nameMap = new Map<string, string>()
+    if (surrogateIds.length > 0) {
+      const { data: clinicRows } = await supabase
+        .from('clinics')
+        .select('id, name')
+        .in('id', surrogateIds)
+      for (const c of clinicRows ?? []) nameMap.set(c.id as string, c.name as string)
+    }
+    return validated.data.map(u => {
+      const flags = flagMap.get(u.id)
+      const surrogateClinicId = flags?.surrogate_clinic_id ?? null
+      return {
+        ...u,
+        supervisor_created: flags?.supervisor_created ?? false,
+        surrogate_clinic_id: surrogateClinicId,
+        surrogate_clinic_name: surrogateClinicId ? (nameMap.get(surrogateClinicId) ?? null) : null,
+      }
+    })
   } catch (error) {
     logger.error('Failed to list users:', error)
     return []
@@ -523,7 +555,6 @@ export interface AdminClinic {
   child_clinic_ids: string[]
   associated_clinic_ids: string[]
   location: string | null
-  additional_user_ids: string[]
   rooms: ClinicRoom[]
 }
 
@@ -541,7 +572,7 @@ export async function listClinics(): Promise<AdminClinic[]> {
   try {
     const { data, error } = await supabase
       .from('clinics')
-      .select('id, name, uics, child_clinic_ids, associated_clinic_ids, location, additional_user_ids, rooms, encryption_key')
+      .select('id, name, uics, child_clinic_ids, associated_clinic_ids, location, rooms, encryption_key')
       .order('name')
 
     if (error) throw error
@@ -565,7 +596,6 @@ export async function listClinics(): Promise<AdminClinic[]> {
           name: row.name,
           uics: row.uics || [],
           child_clinic_ids: row.child_clinic_ids || [],
-          additional_user_ids: row.additional_user_ids || [],
           associated_clinic_ids: row.associated_clinic_ids || [],
           location,
           rooms: (row.rooms as ClinicRoom[]) || [],
@@ -594,7 +624,6 @@ export async function createClinic(data: {
   uics?: string[]
   child_clinic_ids?: string[]
   associated_clinic_ids?: string[]
-  additional_user_ids?: string[]
 }): Promise<ServiceResult<{ id?: string; warnings?: string[] }>> {
   try {
     const rawKey = generateClinicKeyBase64()
@@ -610,7 +639,6 @@ export async function createClinic(data: {
         uics: data.uics || [],
         child_clinic_ids: data.child_clinic_ids || [],
         associated_clinic_ids: data.associated_clinic_ids || [],
-        additional_user_ids: data.additional_user_ids || [],
         encryption_key: rawKey,
         vault_chain_key: rawKey,
         vault_iteration: 0,
@@ -708,7 +736,6 @@ export async function updateClinic(
     uics?: string[]
     child_clinic_ids?: string[]
     associated_clinic_ids?: string[]
-    additional_user_ids?: string[]
     rooms?: ClinicRoom[]
   }
 ): Promise<ServiceResult<{ warnings?: string[] }>> {
@@ -795,6 +822,32 @@ export async function setUserClinic(
     return succeed()
   } catch (error) {
     logger.error('Failed to set user clinic:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+/**
+ * Set a user's surrogate clinic (loan to / clear loan from a second clinic).
+ *
+ * Authorization is enforced server-side by `set_user_surrogate`: dev role OR
+ * supervisor at either side of the loan. Pass `null` to clear.
+ *
+ * NOTE: This PR is column-only — no vault attach/detach yet. PR 4 wraps this
+ * call in `surrogateService.setSurrogate` which adds the vault dance.
+ */
+export async function setUserSurrogate(
+  userId: string,
+  surrogateClinicId: string | null,
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('set_user_surrogate', {
+      p_user_id: userId,
+      p_surrogate_clinic_id: surrogateClinicId,
+    })
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to set user surrogate:', error)
     return fail(getErrorMessage(error))
   }
 }

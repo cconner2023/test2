@@ -2,23 +2,25 @@
  * AdminUserDetail -- detailed view for a single user in the admin panel.
  *
  * Displays profile header, metadata grid, certifications, and admin
- * action buttons (reset password, force logout). Edit is inline via
- * the Settings-pattern toolbar (editing/saveRequested props).
- * Delete has moved to the header.
+ * actions (email, reset password, force logout) as an ActionPill in
+ * the user-card corner. Edit is inline via the Settings-pattern
+ * toolbar (editing/saveRequested props). Delete lives in the header.
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { KeyRound, LogOut, Building2, ChevronRight, Mail } from 'lucide-react'
+import { KeyRound, LogOut, Building2, ChevronRight, Mail, Check, RefreshCw, X } from 'lucide-react'
 import type { Certification } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import type { Component } from '../../Data/User'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { UserRow } from '../UserRow'
 import { AdminCertsSection } from './AdminCertsSection'
-import { ResetPasswordForm } from './ResetPasswordForm'
 import { TextInput, PickerInput, MultiPickerInput, UicPinInput, PasswordInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { ConfirmDialog } from '../ConfirmDialog'
+import { ActionPill } from '../ActionPill'
+import { ActionButton } from '../ActionButton'
+import { PreviewOverlay } from '../PreviewOverlay'
 import { formatLastActive, RoleBadge, SupervisorCreatedBadge } from './adminUtils'
 import { useResetPasswordFlow } from '../../Hooks/useResetPasswordFlow'
 import {
@@ -28,6 +30,7 @@ import {
   updateUserProfile,
   setUserRoles,
   setUserClinic,
+  setUserSurrogate,
   createUser,
 } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
@@ -78,8 +81,9 @@ export function AdminUserDetail({
   // ── UI state ────────────────────────────────────────────────────────
   const [notify, setNotify] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
-  // Reset password inline
-  const [resetPwActive, setResetPwActive] = useState(false)
+  // Reset password popover (anchored to KeyRound action button via pill ref)
+  const pillRef = useRef<HTMLDivElement>(null)
+  const [resetPwAnchor, setResetPwAnchor] = useState<DOMRect | null>(null)
   const resetPw = useResetPasswordFlow()
 
   // Force logout
@@ -95,6 +99,7 @@ export function AdminUserDetail({
   const [editRank, setEditRank] = useState('')
   const [editUic, setEditUic] = useState('')
   const [editClinicId, setEditClinicId] = useState('')
+  const [editSurrogateClinicId, setEditSurrogateClinicId] = useState('')
   const [editRoles, setEditRoles] = useState<string[]>([])
 
   const [saving, setSaving] = useState(false)
@@ -151,6 +156,7 @@ export function AdminUserDetail({
       setEditRank(user?.rank || '')
       setEditUic(user?.uic || '')
       setEditClinicId(user?.clinic_id || '')
+      setEditSurrogateClinicId(user?.surrogate_clinic_id || '')
       setEditRoles(user?.roles?.filter(r => AVAILABLE_ROLES.includes(r as typeof AVAILABLE_ROLES[number])) ?? ['medic'])
 
       setCreateEmail('')
@@ -171,10 +177,11 @@ export function AdminUserDetail({
       || editRank !== (user?.rank || '')
       || editUic !== (user?.uic || '')
       || editClinicId !== (user?.clinic_id || '')
+      || editSurrogateClinicId !== (user?.surrogate_clinic_id || '')
       || !sameStringSet(editRoles, user?.roles ?? ['medic'])
 
     onPendingChangesChange?.(changed)
-  }, [editing, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editRoles, user, onPendingChangesChange])
+  }, [editing, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editSurrogateClinicId, editRoles, user, onPendingChangesChange])
 
   // ── Handlers ────────────────────────────────────────────────────────
 
@@ -272,13 +279,27 @@ export function AdminUserDetail({
         setSaving(false)
         return
       }
+      // The DB trigger clears surrogate when clinic_id changes — mirror that
+      // here so the next save diff doesn't try to re-set the stale value.
+    }
+
+    // 4. Update surrogate clinic if changed.
+    // Skip if assigned clinic just changed (cascade trigger already nulled it).
+    const originalSurrogateId = (editClinicId !== originalClinicId ? '' : (user.surrogate_clinic_id || ''))
+    if (editSurrogateClinicId !== originalSurrogateId) {
+      const surrogateResult = await setUserSurrogate(user.id, editSurrogateClinicId || null)
+      if (!surrogateResult.success) {
+        setError(surrogateResult.error || 'Failed to update surrogate clinic')
+        setSaving(false)
+        return
+      }
     }
 
     setSaving(false)
     onEditingChange(false)
     loadData()
     invalidate('users', 'clinics')
-  }, [user, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editRoles, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated])
+  }, [user, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editSurrogateClinicId, editRoles, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated])
 
   // ── Save requested trigger ───────────────────────────────────────────
   useEffect(() => {
@@ -291,7 +312,7 @@ export function AdminUserDetail({
   const handleResetPasswordConfirm = async () => {
     const result = await resetPw.submit()
     if (result.success) {
-      setResetPwActive(false)
+      setResetPwAnchor(null)
       setNotify({ type: 'success', message: 'Password reset.' })
     } else {
       setNotify({ type: 'error', message: result.error || 'Failed to reset password' })
@@ -316,7 +337,13 @@ export function AdminUserDetail({
   }
 
   const openResetPassword = () => {
-    setResetPwActive(true)
+    const rect = pillRef.current?.getBoundingClientRect() ?? null
+    resetPw.reset()
+    setResetPwAnchor(rect)
+  }
+
+  const closeResetPassword = () => {
+    setResetPwAnchor(null)
     resetPw.reset()
   }
 
@@ -329,7 +356,7 @@ export function AdminUserDetail({
       {error && <div className="mb-4"><ErrorDisplay message={error} /></div>}
 
       {/* Main card — compact card in view, form inputs in edit */}
-      <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+      <div className="relative rounded-2xl bg-themewhite2 overflow-hidden">
         {editing ? (
           <div>
             {isCreateMode ? (
@@ -364,6 +391,30 @@ export function AdminUserDetail({
             {editComponent && <PickerInput value={editRank} onChange={setEditRank} options={componentRanks} placeholder="Rank" />}
             <UicPinInput value={editUic} onChange={setEditUic} spread />
             <ClinicPickerInput value={editClinicId} onChange={setEditClinicId} allClinics={clinics} placeholder="Clinic" />
+            {!isCreateMode && (
+              <div className="flex items-stretch border-b border-primary/6">
+                <div className="flex-1 min-w-0">
+                  <ClinicPickerInput
+                    value={editSurrogateClinicId}
+                    onChange={setEditSurrogateClinicId}
+                    allClinics={clinics}
+                    excludeId={editClinicId || undefined}
+                    placeholder="Surrogate clinic (loan)"
+                  />
+                </div>
+                {editSurrogateClinicId && (
+                  <button
+                    type="button"
+                    onClick={() => setEditSurrogateClinicId('')}
+                    className="shrink-0 px-3 text-tertiary hover:text-themeredred transition-colors border-l border-primary/6"
+                    title="Clear surrogate"
+                    aria-label="Clear surrogate clinic"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            )}
             <MultiPickerInput
               value={editRoles}
               onChange={setEditRoles}
@@ -380,7 +431,13 @@ export function AdminUserDetail({
             middleInitial={user.middle_initial}
             rank={user.rank}
             lastActiveAt={user.last_active_at}
-            subtitle={[user.credential, user.uic, user.clinic_name, user.email].filter(Boolean).join(' · ')}
+            subtitle={[
+              user.credential,
+              user.uic,
+              user.clinic_name,
+              user.surrogate_clinic_name ? `Loaned to ${user.surrogate_clinic_name}` : null,
+              user.email,
+            ].filter(Boolean).join(' · ')}
             meta={(user.roles?.length > 0 || user.supervisor_created) && (
               <div className="flex flex-wrap items-center gap-1">
                 {user.roles.map(r => <RoleBadge key={r} role={r} />)}
@@ -392,7 +449,66 @@ export function AdminUserDetail({
             right={<span className="text-[9pt] text-tertiary/50 shrink-0">{formatLastActive(user.last_active_at)}</span>}
           />
         ) : null}
+
+        {/* Corner action pill — view mode, non-self only */}
+        {!editing && !isCreateMode && user && currentUserId !== user.id && (
+          <ActionPill ref={pillRef} shadow="sm" className="absolute top-2 right-2">
+            {user.email && (
+              <a
+                href={`mailto:${user.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(`${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n`)}`}
+                aria-label="Email user"
+                title="Email user"
+                className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 bg-themeblue2/8 text-primary"
+              >
+                <Mail size={16} />
+              </a>
+            )}
+            <ActionButton
+              icon={KeyRound}
+              label="Reset password"
+              onClick={openResetPassword}
+            />
+            <ActionButton
+              icon={LogOut}
+              label={forceLogoutProcessing ? 'Logging out' : 'Force logout'}
+              variant={forceLogoutProcessing ? 'disabled' : 'default'}
+              onClick={() => setConfirmForceLogout(true)}
+            />
+          </ActionPill>
+        )}
       </div>
+
+      {/* Reset password popover — anchored to corner ActionPill, confirmation via ConfirmDialog */}
+      <PreviewOverlay
+        isOpen={!!resetPwAnchor}
+        onClose={closeResetPassword}
+        anchorRect={resetPwAnchor}
+        title="Reset password"
+        maxWidth={340}
+        footer={
+          resetPwAnchor && user ? (
+            <ActionPill shadow="sm">
+              <ActionButton
+                icon={resetPw.processing ? RefreshCw : Check}
+                label={resetPw.processing ? 'Submitting…' : 'Reset password'}
+                variant={resetPw.processing || resetPw.value.length < 12 ? 'disabled' : 'success'}
+                onClick={() => user && resetPw.requestConfirm(user.id)}
+              />
+            </ActionPill>
+          ) : undefined
+        }
+      >
+        {resetPwAnchor && user && (
+          <div>
+            <PasswordInput
+              value={resetPw.value}
+              onChange={resetPw.setValue}
+              placeholder="New password (min 12 chars)"
+              hint={resetPw.value.length > 0 && resetPw.value.length < 12 ? 'Minimum 12 characters.' : undefined}
+            />
+          </div>
+        )}
+      </PreviewOverlay>
 
       {/* Clinic card — view mode only, when user has a clinic */}
       {!editing && !isCreateMode && user?.clinic_id && (() => {
@@ -430,75 +546,6 @@ export function AdminUserDetail({
             editing={editing}
             onChanged={loadData}
           />
-        </div>
-      )}
-
-      {/* Actions section — hidden during edit mode */}
-      {!editing && (
-        <div className="mt-4">
-          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Actions</p>
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/10">
-
-            {/* Email row */}
-            {user?.email && (
-              <a
-                href={`mailto:${user.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(`${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n`)}`}
-                className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5 text-left"
-              >
-                <span className="w-9 h-9 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
-                  <Mail size={18} className="text-themeblue2" />
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-primary">Email User</p>
-                  <p className="text-[9pt] text-tertiary mt-0.5 truncate">{user.email}</p>
-                </div>
-              </a>
-            )}
-
-            {/* Reset Password row */}
-            <div>
-              <button
-                onClick={openResetPassword}
-                className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5 text-left"
-              >
-                <span className="w-9 h-9 rounded-full bg-themeyellow/15 flex items-center justify-center shrink-0">
-                  <KeyRound size={18} className="text-themeyellow" />
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-primary">Reset Password</p>
-                  <p className="text-[9pt] text-tertiary mt-0.5">Set a new password for this user</p>
-                </div>
-              </button>
-              {resetPwActive && user && (
-                <ResetPasswordForm
-                  value={resetPw.value}
-                  onChange={resetPw.setValue}
-                  onSubmit={() => resetPw.requestConfirm(user.id)}
-                  onCancel={() => { setResetPwActive(false); resetPw.reset() }}
-                  processing={resetPw.processing}
-                />
-              )}
-            </div>
-
-            {/* Force Logout row */}
-            {currentUserId !== user?.id && (
-              <button
-                onClick={() => setConfirmForceLogout(true)}
-                disabled={forceLogoutProcessing}
-                className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5 disabled:opacity-50 text-left"
-              >
-                <span className="w-9 h-9 rounded-full bg-tertiary/10 flex items-center justify-center shrink-0">
-                  <LogOut size={18} className="text-tertiary" />
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-primary">
-                    {forceLogoutProcessing ? 'Logging out' : 'Force Logout'}
-                  </p>
-                </div>
-              </button>
-            )}
-
-          </div>
         </div>
       )}
 

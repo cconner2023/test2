@@ -193,15 +193,14 @@ export async function signIn(
 
 /**
  * Associate a user with a clinic based on their UIC.
- * Searches the clinics.uics array for a match, then falls back
- * to checking additional_user_ids.
+ * UIC-match only — the legacy additional_user_ids fallback was retired in PR 7
+ * (surrogate clinic membership replaces it; admin/supervisor-set, never auto).
  */
 async function associateClinic(userId: string, uic: string): Promise<void> {
   if (!uic) return
 
   const upperUic = uic.toUpperCase().trim()
 
-  // Find clinic whose uics array contains this UIC
   const { data: clinic } = await supabase
     .from('clinics')
     .select('id')
@@ -213,22 +212,6 @@ async function associateClinic(userId: string, uic: string): Promise<void> {
     await supabase
       .from('profiles')
       .update({ clinic_id: clinic.id })
-      .eq('id', userId)
-    return
-  }
-
-  // Fall back: check if user is in a clinic's additional_user_ids
-  const { data: attachedClinic } = await supabase
-    .from('clinics')
-    .select('id')
-    .contains('additional_user_ids', [userId])
-    .limit(1)
-    .single()
-
-  if (attachedClinic) {
-    await supabase
-      .from('profiles')
-      .update({ clinic_id: attachedClinic.id })
       .eq('id', userId)
   }
 }

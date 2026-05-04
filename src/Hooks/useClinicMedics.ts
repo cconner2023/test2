@@ -49,7 +49,7 @@ export function useClinicMedics() {
           const medicProfiles: ClinicMedic[] = rpcData.map((p: {
             id: string; first_name: string; last_name: string; middle_initial: string;
             rank: string; credential: string; avatar_id: string; clinic_id: string; clinic_name: string;
-            roles?: string[]
+            roles?: string[]; surrogate_clinic_id?: string | null; is_loaned_in?: boolean
           }) => ({
             id: p.id,
             firstName: p.first_name,
@@ -61,6 +61,8 @@ export function useClinicMedics() {
             roles: p.roles ?? [],
             clinicId: p.clinic_id,
             clinicName: p.clinic_name,
+            surrogateClinicId: p.surrogate_clinic_id ?? null,
+            isLoanedIn: p.is_loaned_in ?? false,
           }))
 
           logger.info(`RPC returned ${medicProfiles.length} medics`)

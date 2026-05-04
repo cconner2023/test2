@@ -29,4 +29,8 @@ export interface ClinicMedic {
   roles?: string[]
   clinicId?: string
   clinicName?: string
+  /** Surrogate clinic id when the medic is loaned to another clinic (their second key ring). */
+  surrogateClinicId?: string | null
+  /** True when the medic's assigned clinic is outside the caller's reach but their surrogate matches one of the caller's clinics. */
+  isLoanedIn?: boolean
 }

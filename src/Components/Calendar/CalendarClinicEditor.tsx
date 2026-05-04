@@ -20,9 +20,13 @@ import { ErrorPill } from '../ErrorPill'
 import { PreviewOverlay } from '../PreviewOverlay'
 
 export function CalendarClinicEditor() {
-  const { clinicId, isSupervisorRole } = useAuth()
-  const clinicRooms = useClinicRooms()
-  const clinicHuddleTasks = useClinicHuddleTasks()
+  // Pivot on the supervisor toggle so editing rooms / huddle tasks /
+  // appointment types targets the active clinic context (assigned by default,
+  // surrogate when toggled).
+  const { clinicId: assignedClinicId, supervisingClinicId, isSupervisorRole } = useAuth()
+  const clinicId = supervisingClinicId ?? assignedClinicId
+  const clinicRooms = useClinicRooms(clinicId)
+  const clinicHuddleTasks = useClinicHuddleTasks(clinicId)
 
   const [error, setError] = useState<string | null>(null)
 
@@ -38,7 +42,7 @@ export function CalendarClinicEditor() {
   const [taskSaving, setTaskSaving] = useState(false)
   const [confirmDeleteTask, setConfirmDeleteTask] = useState<ClinicHuddleTask | null>(null)
 
-  const clinicApptTypes = useClinicAppointmentTypes()
+  const clinicApptTypes = useClinicAppointmentTypes(clinicId)
   const apptFabRef = useRef<HTMLDivElement>(null)
   const [apptPopover, setApptPopover] = useState<{ mode: 'edit' | 'new'; anchor: DOMRect; type?: ClinicAppointmentType } | null>(null)
   const [apptDraftName, setApptDraftName] = useState('')

@@ -15,7 +15,7 @@ import type { AdminUser, AdminClinic, ClinicRoom } from '../../lib/adminService'
 import { formatLastActive } from './adminUtils'
 import { TextInput, UicPinInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
-import { UserPicker, ClinicMultiPickerInput } from './AdminPickers'
+import { ClinicMultiPickerInput } from './AdminPickers'
 import { invalidate } from '../../stores/useInvalidationStore'
 import { sameStringSet } from '../../Utilities/arrayEquals'
 import { ActionPill } from '../ActionPill'
@@ -55,7 +55,6 @@ const AdminClinicDetail = ({
   const [editUics, setEditUics] = useState<string[]>([])
   const [editChildClinicIds, setEditChildClinicIds] = useState<string[]>([])
   const [editAssociatedClinicIds, setEditAssociatedClinicIds] = useState<string[]>([])
-  const [editAdditionalUserIds, setEditAdditionalUserIds] = useState<string[]>([])
   const [editRooms, setEditRooms] = useState<ClinicRoom[]>([])
   const [roomDraft, setRoomDraft] = useState('')
   const [saving, setSaving] = useState(false)
@@ -118,7 +117,6 @@ const AdminClinicDetail = ({
       setEditUics([...(clinic?.uics ?? [])])
       setEditChildClinicIds([...(clinic?.child_clinic_ids ?? [])])
       setEditAssociatedClinicIds([...(clinic?.associated_clinic_ids ?? [])])
-      setEditAdditionalUserIds([...(clinic?.additional_user_ids ?? [])])
       setEditRooms((clinic?.rooms ?? []).map(r => ({ ...r })))
       setRoomDraft('')
       setError(null)
@@ -137,10 +135,9 @@ const AdminClinicDetail = ({
       !sameStringSet(editUics, clinic?.uics ?? []) ||
       !sameStringSet(editChildClinicIds, clinic?.child_clinic_ids ?? []) ||
       !sameStringSet(editAssociatedClinicIds, clinic?.associated_clinic_ids ?? []) ||
-      !sameStringSet(editAdditionalUserIds, clinic?.additional_user_ids ?? []) ||
       roomsChanged
     onPendingChangesChange?.(changed)
-  }, [editing, editName, editLocation, editUics, editChildClinicIds, editAssociatedClinicIds, editAdditionalUserIds, editRooms, clinic, onPendingChangesChange])
+  }, [editing, editName, editLocation, editUics, editChildClinicIds, editAssociatedClinicIds, editRooms, clinic, onPendingChangesChange])
 
   const handleSave = useCallback(async () => {
     if (!editName.trim()) {
@@ -155,7 +152,6 @@ const AdminClinicDetail = ({
       uics: editUics,
       child_clinic_ids: editChildClinicIds,
       associated_clinic_ids: editAssociatedClinicIds,
-      additional_user_ids: editAdditionalUserIds,
       rooms: editRooms,
     }
 
@@ -185,7 +181,7 @@ const AdminClinicDetail = ({
     } else {
       setError(result.error || 'Failed to update clinic')
     }
-  }, [editName, editLocation, editUics, editChildClinicIds, editAssociatedClinicIds, editAdditionalUserIds, editRooms, isCreateMode, clinic, onEditingChange, loadData, onCreated])
+  }, [editName, editLocation, editUics, editChildClinicIds, editAssociatedClinicIds, editRooms, isCreateMode, clinic, onEditingChange, loadData, onCreated])
 
   const handleAddRoom = useCallback(() => {
     const trimmed = roomDraft.trim()
@@ -221,30 +217,24 @@ const AdminClinicDetail = ({
     [users, clinic?.id, isCreateMode],
   )
 
-  /** Users referenced by additional_user_ids (resolved from full user list). */
-  const additionalUsers = useMemo(
-    () => isCreateMode ? [] : users.filter((u) => (clinic?.additional_user_ids ?? []).includes(u.id)),
-    [users, clinic?.additional_user_ids, isCreateMode],
+  /** Users currently loaned IN to this clinic (their surrogate_clinic_id matches). */
+  const loanedInUsers = useMemo(
+    () => isCreateMode ? [] : users.filter((u) => u.surrogate_clinic_id === clinic?.id),
+    [users, clinic?.id, isCreateMode],
   )
 
-  /** Additional users who are NOT already in assignedUsers. */
-  const additionalOnly = useMemo(
-    () => additionalUsers.filter((u) => u.clinic_id !== clinic?.id),
-    [additionalUsers, clinic?.id],
-  )
-
-  /** All users to show (assigned + additional, deduplicated). */
+  /** All users to show (assigned + loaned-in, deduplicated). */
   const allClinicUsers = useMemo(() => {
     const seen = new Set<string>()
     const result: AdminUser[] = []
-    for (const u of [...assignedUsers, ...additionalUsers]) {
+    for (const u of [...assignedUsers, ...loanedInUsers]) {
       if (!seen.has(u.id)) {
         seen.add(u.id)
         result.push(u)
       }
     }
     return result
-  }, [assignedUsers, additionalUsers])
+  }, [assignedUsers, loanedInUsers])
 
   const renderUserRow = (user: AdminUser) => (
     <UserRow
@@ -315,44 +305,32 @@ const AdminClinicDetail = ({
                 )}
               </p>
             )}
-            {/* Users whose self-reported UIC matches one of this clinic's UICs */}
+            {/* Users whose self-reported UIC matches one of this clinic's UICs but
+                aren't assigned here — informational only; admin can click to edit
+                that user's assigned clinic directly. */}
             {editUics.length > 0 && (() => {
               const uicSet = new Set(editUics)
-              const suggested = users.filter(u => u.uic && uicSet.has(u.uic) && !editAdditionalUserIds.includes(u.id))
+              const suggested = users.filter(u => u.uic && uicSet.has(u.uic) && u.clinic_id !== clinic?.id)
               if (suggested.length === 0) return null
               return (
                 <div className="px-4 py-3 bg-themeblue2/5 border-b border-primary/6">
-                  <div className="flex items-baseline justify-between mb-1">
-                    <p className="text-[9pt] text-themeblue2 font-medium">
-                      {suggested.length} user{suggested.length !== 1 ? 's' : ''} match these UICs
-                    </p>
-                    {suggested.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => setEditAdditionalUserIds(prev => [...prev, ...suggested.map(u => u.id)])}
-                        className="text-[9pt] text-themeblue2 font-semibold shrink-0"
-                      >
-                        Add all
-                      </button>
-                    )}
-                  </div>
+                  <p className="text-[9pt] text-themeblue2 font-medium mb-1">
+                    {suggested.length} user{suggested.length !== 1 ? 's' : ''} self-report these UICs but aren't assigned here
+                  </p>
                   <p className="text-[9pt] text-tertiary mb-1.5">
-                    Self-reported at signup — add to the Additional Users list below.
+                    Open a user to update their assigned clinic.
                   </p>
                   <div className="space-y-0.5">
                     {suggested.map(u => (
-                      <div key={u.id} className="flex items-center justify-between">
-                        <span className="text-[9pt] text-primary">
-                          {[u.rank, u.first_name, u.last_name].filter(Boolean).join(' ') || u.email}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setEditAdditionalUserIds(prev => [...prev, u.id])}
-                          className="text-[9pt] text-themeblue2 font-medium ml-2 shrink-0"
-                        >
-                          + Add
-                        </button>
-                      </div>
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => onSelectUser?.(u)}
+                        disabled={!onSelectUser}
+                        className="w-full text-left text-[9pt] text-primary hover:text-themeblue2 transition-colors disabled:cursor-default"
+                      >
+                        {[u.rank, u.first_name, u.last_name].filter(Boolean).join(' ') || u.email}
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -361,7 +339,6 @@ const AdminClinicDetail = ({
 
             <ClinicMultiPickerInput selectedIds={editChildClinicIds} allClinics={clinics} excludeId={clinic?.id} onChange={setEditChildClinicIds} placeholder="Add sub-clinic" />
             <ClinicMultiPickerInput selectedIds={editAssociatedClinicIds} allClinics={clinics} excludeId={clinic?.id} onChange={setEditAssociatedClinicIds} placeholder="Add associated clinic" />
-            <UserPicker label="Additional users" selectedIds={editAdditionalUserIds} allUsers={users} onChange={setEditAdditionalUserIds} />
 
             {editRooms.length > 0 && (
               <div className="px-4 py-3 space-y-1.5 border-b border-primary/6">
@@ -461,14 +438,15 @@ const AdminClinicDetail = ({
         </div>
       )}
 
-      {/* Additional Users — view mode only (edit mode has UserPicker in main card) */}
-      {!isCreateMode && !editing && additionalOnly.length > 0 && (
+      {/* Loaned In — read-only reverse view of profiles.surrogate_clinic_id == this.id.
+          Edits happen from the user side (AdminUserDetail surrogate picker). */}
+      {!isCreateMode && !editing && loanedInUsers.length > 0 && (
         <div className="mt-4">
           <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
-            Additional Users ({additionalOnly.length})
+            Loaned In ({loanedInUsers.length})
           </p>
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/10">
-            {additionalOnly.map(renderUserRow)}
+            {loanedInUsers.map(renderUserRow)}
           </div>
         </div>
       )}

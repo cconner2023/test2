@@ -77,6 +77,12 @@ export interface EventFormData {
   structured_location?: StructuredLocation | null
   /** 9-line MEDEVAC request — populated when category is 'medevac'. */
   medevac_data?: MedevacRequest | null
+  /**
+   * Target clinic for new events. Optional: only set on the create path when
+   * the user has a surrogate (loan) and chose a clinic via the picker. On the
+   * edit path we don't carry it (clinic_id is immutable on existing events).
+   */
+  clinic_id?: string | null
 }
 
 export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: string; solidColor: string; hidden?: boolean }[] = [

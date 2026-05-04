@@ -17,6 +17,7 @@ import { UserAvatar } from './Settings/UserAvatar'
 import { getDisplayName } from '../Utilities/nameUtils'
 import { ActionPill } from './ActionPill'
 import { CalendarClinicEditor } from './Calendar/CalendarClinicEditor'
+import { SupervisorClinicFilterPanel } from './SupervisorClinicSwitcher'
 import type { EventCategory } from '../Types/CalendarTypes'
 
 const CATEGORY_GROUPS: { key: 'huddle' | 'calendar' | 'tasks'; label: string; categories: EventCategory[] }[] = [
@@ -33,7 +34,7 @@ interface CalendarDrawerProps {
 
 export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
     const isMobile = useIsMobile()
-    const { isSupervisorRole } = useAuth()
+    const { isSupervisorRole, clinicId, surrogateClinicId, profile } = useAuth()
 
     const {
         events, personnelFilter, togglePersonnelFilter, clearPersonnelFilter,
@@ -41,6 +42,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         selectedDate, setSelectedDate,
         daySpan, setDaySpan, hideWeekends, setHideWeekends,
         categoryFilter, setCategoryFilter,
+        clinicFilter, setClinicFilter,
     } = useCalendarStore(useShallow(s => ({
         events: s.events,
         personnelFilter: s.personnelFilter,
@@ -58,7 +60,31 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         setHideWeekends: s.setHideWeekends,
         categoryFilter: s.categoryFilter,
         setCategoryFilter: s.setCategoryFilter,
+        clinicFilter: s.clinicFilter,
+        setClinicFilter: s.setClinicFilter,
     })))
+
+    // Clinic filter options — only meaningful when the user is loaned to a
+    // surrogate clinic. Single-clinic users never see the panel.
+    const clinicOptions = (() => {
+        if (!surrogateClinicId || !clinicId) return [] as { id: string; name: string }[]
+        return [
+            { id: clinicId, name: profile.clinicName ?? 'Assigned' },
+            { id: surrogateClinicId, name: profile.surrogateClinicName ?? 'Surrogate' },
+        ]
+    })()
+    const clinicFilterAvailable = clinicOptions.length >= 2
+
+    const clinicActiveSet = clinicFilter === null
+        ? new Set(clinicOptions.map(c => c.id))
+        : new Set(clinicFilter)
+    const toggleClinic = (id: string) => {
+        const next = new Set(clinicActiveSet)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        const arr = clinicOptions.filter(c => next.has(c.id)).map(c => c.id)
+        setClinicFilter(arr.length === clinicOptions.length ? null : arr)
+    }
 
     const categoryActiveSet = categoryFilter === null ? new Set(ALL_FILTERABLE_CATEGORIES) : new Set(categoryFilter)
     const isCategoryGroupOn = (cats: EventCategory[]) => cats.some(c => categoryActiveSet.has(c))
@@ -208,6 +234,49 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
             {isSupervisorRole && <CalendarClinicEditor />}
         </div>
     )
+
+    // Clinic filter panel — only rendered for users with a surrogate. Mirrors
+    // categoryFilterPanel: "All Clinics" reset row plus one row per clinic.
+    const clinicFilterPanel = clinicFilterAvailable ? (
+        <div data-tour="calendar-clinic-filter" className="flex flex-col min-h-0">
+            <div className="shrink-0 px-4 py-3 border-t border-primary/10">
+                <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Filter Clinics</p>
+            </div>
+
+            <button
+                className={`w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 ${
+                    clinicFilter === null
+                        ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
+                        : 'hover:bg-secondary/5'
+                }`}
+                onClick={() => setClinicFilter(null)}
+            >
+                <span className="text-[10pt] font-medium text-primary truncate flex-1">All Clinics</span>
+            </button>
+
+            <div>
+                {clinicOptions.map(c => {
+                    const isSelected = clinicActiveSet.has(c.id)
+                    return (
+                        <button
+                            key={c.id}
+                            onClick={() => toggleClinic(c.id)}
+                            className={`w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 ${
+                                isSelected
+                                    ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
+                                    : 'hover:bg-secondary/5'
+                            }`}
+                        >
+                            <span className="text-[10pt] font-medium text-primary truncate flex-1">{c.name}</span>
+                            {isSelected && (
+                                <Check size={14} className="text-themeblue2 shrink-0" />
+                            )}
+                        </button>
+                    )
+                })}
+            </div>
+        </div>
+    ) : null
 
     // Category filter panel — list-item UI matching personnelFilterPanel
     const categoryFilterPanel = (
@@ -388,6 +457,8 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                                 />
                             </div>
                             <div className="flex-1 min-h-0 overflow-y-auto">
+                                <SupervisorClinicFilterPanel />
+                                {clinicFilterPanel}
                                 {categoryFilterPanel}
                                 {personnelFilterPanel}
                             </div>
@@ -435,6 +506,8 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                     >
                         <div data-tour="calendar-controls-drawer" className="pb-[max(1rem,var(--sab,0px))]">
                             {layoutSection}
+                            <SupervisorClinicFilterPanel />
+                            {clinicFilterPanel}
                             {categoryFilterPanel}
                             {personnelFilterPanel}
                         </div>

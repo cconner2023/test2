@@ -155,6 +155,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             roles: configured.roles,
             clinic_id: configured.clinicId,
             clinic_name: null,
+            surrogate_clinic_id: null,
+            surrogate_clinic_name: null,
             created_at: new Date().toISOString(),
             last_active_at: null,
             avatar_id: null,

@@ -200,8 +200,18 @@ export function TeamReporting({
                 className="w-full flex items-center gap-3 px-4 py-3 hover:bg-themeblue2/5 text-left active:scale-95 transition-all"
                 {...(index === 0 && { 'data-tour': 'supervisor-first-soldier' })}
               >
-                <span className="text-sm text-primary min-w-0 truncate shrink-0 w-36">
-                  {formatMedicName(soldier)}
+                <span className="text-sm text-primary min-w-0 truncate shrink-0 w-36 flex items-center gap-1.5">
+                  <span className="truncate">{formatMedicName(soldier)}</span>
+                  {soldier.isLoanedIn && (
+                    <span className="shrink-0 text-[8pt] px-1 py-0.5 rounded bg-themeblue2/10 text-themeblue2 font-medium border border-themeblue2/30" title={`Loaned in from ${soldier.clinicName ?? 'another clinic'}`}>
+                      Loan
+                    </span>
+                  )}
+                  {!soldier.isLoanedIn && soldier.surrogateClinicId && (
+                    <span className="shrink-0 text-[8pt] px-1 py-0.5 rounded bg-themeyellow/15 text-themeyellow font-medium border border-themeyellow/30" title="Loaned out">
+                      Out
+                    </span>
+                  )}
                 </span>
                 <div className="flex-1 min-w-0 flex flex-col gap-1.5">
                   <div className="flex items-center gap-2">

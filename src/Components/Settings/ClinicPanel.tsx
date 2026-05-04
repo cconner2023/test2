@@ -34,6 +34,7 @@ import { CalendarClinicEditor } from '../Calendar/CalendarClinicEditor'
 import { ClinicIdentityEditPopover } from '../ClinicAdmin/ClinicIdentityEditPopover'
 import { MemberEditPopover } from '../ClinicAdmin/MemberEditPopover'
 import { AddMemberPopover } from '../ClinicAdmin/AddMemberPopover'
+import { SupervisorClinicCardAction } from '../SupervisorClinicSwitcher'
 
 
 interface ClinicPanelProps {
@@ -59,7 +60,15 @@ export function ClinicPanel({
   onAddingMemberChange,
   onPendingChangesChange,
 }: ClinicPanelProps) {
-  const { clinicId, profile, isSupervisorRole } = useAuth()
+  const { clinicId: assignedClinicId, surrogateClinicId, supervisingClinicId, profile, isSupervisorRole } = useAuth()
+  // The supervisor toggle picks which clinic this panel administers. For
+  // single-clinic users it stays equal to the assigned clinic. All clinic-
+  // scoped reads, writes, and labels below resolve through `clinicId` and
+  // `clinicName` so the toggle just flips the pointer.
+  const clinicId = supervisingClinicId ?? assignedClinicId
+  const clinicName = clinicId === surrogateClinicId
+    ? (profile.surrogateClinicName ?? null)
+    : (profile.clinicName ?? null)
   const {
     error: hookError,
     activeCode,
@@ -149,11 +158,21 @@ export function ClinicPanel({
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  // Members — uses the same hook as messaging (get_location_medics RPC)
+  // Members — uses the same hook as messaging (get_location_medics RPC).
+  // Include both assigned (m.clinicId === clinicId) and loaned-in
+  // (m.surrogateClinicId === clinicId) members; rendered in separate groups.
   const { medics, loading: medicsLoading, refresh: refreshMedics } = useClinicMedics()
-  const members = useMemo(
+  const assignedMembers = useMemo(
     () => medics.filter((m) => !m.clinicId || m.clinicId === clinicId),
     [medics, clinicId],
+  )
+  const loanedInMembers = useMemo(
+    () => medics.filter((m) => m.surrogateClinicId === clinicId && m.clinicId !== clinicId),
+    [medics, clinicId],
+  )
+  const members = useMemo(
+    () => [...assignedMembers, ...loanedInMembers],
+    [assignedMembers, loanedInMembers],
   )
 
   // Associated clinic popover
@@ -232,13 +251,13 @@ export function ClinicPanel({
 
   useEffect(() => {
     if (clinicEditing) {
-      setEditName(profile.clinicName ?? '')
+      setEditName(clinicName ?? '')
       setEditLocation(clinicLocation ?? '')
       setEditUics(clinicUics.join(', '))
       setError(null)
       setSuccess(null)
     }
-  }, [clinicEditing, profile.clinicName, clinicLocation, clinicUics])
+  }, [clinicEditing, clinicName, clinicLocation, clinicUics])
 
   // ─── Save trigger ─────────────────────────────────────────────────
 
@@ -540,7 +559,7 @@ export function ClinicPanel({
               <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-primary truncate">
-                    {profile.clinicName || (
+                    {clinicName || (
                       <span className="text-tertiary italic">No facility</span>
                     )}
                   </p>
@@ -567,31 +586,38 @@ export function ClinicPanel({
                 )}
               </div>
             </button>
-            {isSupervisorRole && activeCode && (
-              <>
-                <ActionPill shadow="sm" className="absolute bottom-2 right-2">
-                  {/* Copy: raw button styled to match ActionButton default; flips to themegreen tint on success. */}
-                  <button
-                    type="button"
-                    onClick={handleCopy}
-                    aria-label="Copy invite code"
-                    title="Copy invite code"
-                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
-                      copied ? 'bg-themegreen/8 text-themegreen' : 'bg-themeblue2/8 text-primary'
-                    }`}
-                  >
-                    {copied ? <Check size={16} /> : <Copy size={16} />}
-                  </button>
-                  <ActionButton
-                    icon={Share2}
-                    label="Share QR image"
-                    onClick={handleShareInviteImage}
-                  />
-                </ActionPill>
-                {/* Hidden high-res QR canvas — source for navigator.share / clipboard.write. */}
-                <canvas ref={shareCanvasRef} style={{ display: 'none' }} />
-              </>
+            {/* Bottom-right pill — combines clinic-context picker (loaned
+                supervisors) with Copy + Share QR (when an invite code is
+                active). All three render together as a single pill so the QR
+                preview at top-right stays unobstructed. */}
+            {isSupervisorRole && (surrogateClinicId || activeCode) && (
+              <ActionPill shadow="sm" className="absolute bottom-2 right-2">
+                {surrogateClinicId && <SupervisorClinicCardAction />}
+                {activeCode && (
+                  <>
+                    {/* Copy: raw button styled to match ActionButton default; flips to themegreen tint on success. */}
+                    <button
+                      type="button"
+                      onClick={handleCopy}
+                      aria-label="Copy invite code"
+                      title="Copy invite code"
+                      className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
+                        copied ? 'bg-themegreen/8 text-themegreen' : 'bg-themeblue2/8 text-primary'
+                      }`}
+                    >
+                      {copied ? <Check size={16} /> : <Copy size={16} />}
+                    </button>
+                    <ActionButton
+                      icon={Share2}
+                      label="Share QR image"
+                      onClick={handleShareInviteImage}
+                    />
+                  </>
+                )}
+              </ActionPill>
             )}
+            {/* Hidden high-res QR canvas — source for navigator.share / clipboard.write. */}
+            {activeCode && <canvas ref={shareCanvasRef} style={{ display: 'none' }} />}
           </div>
         </section>
 
@@ -661,32 +687,78 @@ export function ClinicPanel({
                     <div className="w-4 h-4 border-2 border-themeblue3 border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : members.length > 0 ? (
-                  <div className="space-y-1">
-                    {members.map((member) => (
-                      <button
-                        key={member.id}
-                        type="button"
-                        onClick={(e) => openMemberPopover(member.id, e.currentTarget)}
-                        className="w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left hover:bg-secondary/5 active:scale-95 transition-all"
-                      >
-                        <UserAvatar
-                          avatarId={member.avatarId}
-                          firstName={member.firstName}
-                          lastName={member.lastName}
-                          className="w-8 h-8"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate text-primary">
-                            {member.rank && <span>{member.rank} </span>}
-                            {member.lastName}, {member.firstName}
-                            {member.middleInitial ? ` ${member.middleInitial}.` : ''}
-                          </p>
-                          <p className="text-[9pt] text-tertiary truncate">
-                            {member.credential || ''}
-                          </p>
+                  <div className="space-y-3">
+                    {assignedMembers.length > 0 && (
+                      <div className="space-y-1">
+                        {assignedMembers.map((member) => (
+                          <button
+                            key={member.id}
+                            type="button"
+                            onClick={(e) => openMemberPopover(member.id, e.currentTarget)}
+                            className="w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left hover:bg-secondary/5 active:scale-95 transition-all"
+                          >
+                            <UserAvatar
+                              avatarId={member.avatarId}
+                              firstName={member.firstName}
+                              lastName={member.lastName}
+                              className="w-8 h-8"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate text-primary">
+                                {member.rank && <span>{member.rank} </span>}
+                                {member.lastName}, {member.firstName}
+                                {member.middleInitial ? ` ${member.middleInitial}.` : ''}
+                              </p>
+                              <p className="text-[9pt] text-tertiary truncate">
+                                {member.credential || ''}
+                              </p>
+                            </div>
+                            {member.surrogateClinicId && (
+                              <span className="shrink-0 text-[9pt] px-1.5 py-0.5 rounded-full bg-themeyellow/15 text-themeyellow font-medium border border-themeyellow/30">
+                                Loaned out
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {loanedInMembers.length > 0 && (
+                      <div>
+                        <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider px-2 mb-1">
+                          Loaned In ({loanedInMembers.length})
+                        </p>
+                        <div className="space-y-1">
+                          {loanedInMembers.map((member) => (
+                            <button
+                              key={member.id}
+                              type="button"
+                              onClick={(e) => openMemberPopover(member.id, e.currentTarget)}
+                              className="w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left hover:bg-secondary/5 active:scale-95 transition-all"
+                            >
+                              <UserAvatar
+                                avatarId={member.avatarId}
+                                firstName={member.firstName}
+                                lastName={member.lastName}
+                                className="w-8 h-8"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate text-primary">
+                                  {member.rank && <span>{member.rank} </span>}
+                                  {member.lastName}, {member.firstName}
+                                  {member.middleInitial ? ` ${member.middleInitial}.` : ''}
+                                </p>
+                                <p className="text-[9pt] text-tertiary truncate">
+                                  {[member.credential, member.clinicName].filter(Boolean).join(' · ')}
+                                </p>
+                              </div>
+                              <span className="shrink-0 text-[9pt] px-1.5 py-0.5 rounded-full bg-themeblue2/10 text-themeblue2 font-medium border border-themeblue2/30">
+                                Loaned in
+                              </span>
+                            </button>
+                          ))}
                         </div>
-                      </button>
-                    ))}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <p className="text-sm text-tertiary py-4 text-center">No members assigned</p>
@@ -719,7 +791,7 @@ export function ClinicPanel({
         isOpen={!!clinicEditAnchor}
         anchorRect={clinicEditAnchor}
         clinicId={clinicId}
-        initialName={profile.clinicName ?? ''}
+        initialName={clinicName ?? ''}
         initialLocation={clinicLocation}
         initialUics={clinicUics}
         onClose={() => setClinicEditAnchor(null)}

@@ -74,7 +74,10 @@ export function useSupervisorData(): SupervisorData {
   const [assignments, setAssignments] = useState<TrainingCompletionUI[]>([])
 
   const { medics: allLocationMedics, loading: medicsLoading } = useClinicMedics()
-  const { user, clinicId: userClinicId, isSupervisorRole, profile: authProfile, loading: authLoading } = useAuth()
+  const { user, clinicId: userClinicId, supervisingClinicId, isSupervisorRole, profile: authProfile, loading: authLoading } = useAuth()
+  // Roster pivots around the supervisor's active clinic context (toggle).
+  // Single-clinic users always see their assigned clinic.
+  const rosterClinicId = supervisingClinicId ?? userClinicId
 
   // Derive auth state from the reactive auth store (no separate Supabase call).
   // authLoading clears on INITIAL_SESSION before refreshProfile() resolves,
@@ -98,13 +101,19 @@ export function useSupervisorData(): SupervisorData {
     }
   }, [user, authProfile.firstName, authProfile.lastName, authProfile.middleInitial, authProfile.rank, authProfile.credential])
 
-  // Filter to own clinic only (excluding self – shown separately via currentUserProfile)
+  // Roster scope: medics whose assigned OR surrogate clinic matches the
+  // supervisor's currently-active clinic context (assigned by default,
+  // surrogate when toggled). Excludes self (shown separately).
   const medics = useMemo(() => {
-    const base = !userClinicId
+    const base = !rosterClinicId
       ? allLocationMedics
-      : allLocationMedics.filter(m => !m.clinicId || m.clinicId === userClinicId)
+      : allLocationMedics.filter(m =>
+          !m.clinicId
+          || m.clinicId === rosterClinicId
+          || m.surrogateClinicId === rosterClinicId
+        )
     return currentUserId ? base.filter(m => m.id !== currentUserId) : base
-  }, [allLocationMedics, userClinicId, currentUserId])
+  }, [allLocationMedics, rosterClinicId, currentUserId])
 
   // All clinic users including self for name resolution
   const allClinicUsers = useMemo(() => {

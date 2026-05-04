@@ -78,7 +78,7 @@ export function useCalendarWrite(): UseCalendarWriteResult {
 
     setIsWriting(true)
     try {
-      if (oldOriginId) deleteEvents([oldOriginId])
+      if (oldOriginId) deleteEvents([oldOriginId], existing?.clinic_id ?? event.clinic_id)
 
       const originId = await sendEvent('c', event)
       const committed = { ...event, ...(originId ? { originId } : {}) }
@@ -106,7 +106,7 @@ export function useCalendarWrite(): UseCalendarWriteResult {
     const existing = useCalendarStore.getState().events.find(e => e.id === event.id)
     const oldOriginId = existing?.originId ?? null
 
-    if (oldOriginId) deleteEvents([oldOriginId])
+    if (oldOriginId) deleteEvents([oldOriginId], existing?.clinic_id ?? event.clinic_id)
 
     sendEvent('c', event).then(originId => {
       if (originId) useCalendarStore.getState().updateEvent(event.id, { originId })
@@ -126,6 +126,7 @@ export function useCalendarWrite(): UseCalendarWriteResult {
     const store = useCalendarStore.getState()
     const event = store.events.find(e => e.id === id)
     const originId = event?.originId ?? null
+    const eventClinicId = event?.clinic_id
 
     // Tombstone first (sync) — resurrection guard before any await.
     getTombstones().add(id)
@@ -136,11 +137,13 @@ export function useCalendarWrite(): UseCalendarWriteResult {
 
     setIsDeleting(true)
     try {
-      // Fan-out 'd' to every clinic device including the vault. The vault
-      // pair-cleans its own 'c'/'d' rows on next processClinicVaultMessages —
-      // no client-side hard-delete RPC needed from this path. sendEvent
-      // swallows its own errors and returns null on failure.
-      await sendEvent('d', { id })
+      // Fan-out 'd' to every clinic device including the vault. Pass the
+      // event's clinic_id so the fan-out targets the right clinic vault
+      // (could be assigned or surrogate). The vault pair-cleans its own
+      // 'c'/'d' rows on next processClinicVaultMessages — no client-side
+      // hard-delete RPC needed from this path. sendEvent swallows its own
+      // errors and returns null on failure.
+      await sendEvent('d', { id, ...(eventClinicId ? { clinic_id: eventClinicId } : {}) })
 
       // Cascade: if this event was a training assignment surface, remove the
       // linked completion row too. Idempotent; no-op when nothing is linked.

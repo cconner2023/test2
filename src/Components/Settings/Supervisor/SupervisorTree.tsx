@@ -4,6 +4,7 @@ import { formatMedicName } from './supervisorHelpers'
 import { UserAvatar } from '../UserAvatar'
 import { ActionPill } from '../../ActionPill'
 import { ActionButton } from '../../ActionButton'
+import { SupervisorClinicFilterPanel } from '../../SupervisorClinicSwitcher'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 
 export type TreeSelection =
@@ -65,6 +66,9 @@ export function SupervisorTree({
         </ActionPill>
       )}
       <div className="flex-1 min-h-0 overflow-y-auto">
+        {/* Clinic-context picker — only renders for loaned supervisors. */}
+        <SupervisorClinicFilterPanel />
+
         <div className="shrink-0 px-4 py-3 border-b border-primary/10 flex items-center gap-2">
           <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Personnel</p>
           {medics.length > 0 && (

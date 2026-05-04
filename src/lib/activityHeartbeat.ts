@@ -24,8 +24,8 @@ let intervalId: ReturnType<typeof setInterval> | null = null
 let lastSentAt = 0
 let currentUserId: string | null = null
 let currentDeviceId: string | null = null
-let currentClinicId: string | null = null
-let currentClinicDeviceId: string | null = null
+/** clinicId → clinicDeviceId. Multi-entry to support dual-clinic membership (surrogate). */
+const currentClinicDevices = new Map<string, string>()
 
 /** Check if the user has opted out of activity tracking */
 export function isActivityTrackingEnabled(): boolean {
@@ -41,10 +41,18 @@ export function setActivityTrackingEnabled(enabled: boolean) {
   if (!enabled) stopHeartbeat()
 }
 
-/** Update clinic device info so heartbeat also pings the clinic device row. */
+/**
+ * Register a clinic device for heartbeat. Multi-entry: callable once per
+ * clinic the user belongs to (assigned + surrogate). Re-registering the
+ * same clinicId updates its device id.
+ */
 export function updateHeartbeatClinicDevice(clinicId: string, clinicDeviceId: string): void {
-  currentClinicId = clinicId
-  currentClinicDeviceId = clinicDeviceId
+  currentClinicDevices.set(clinicId, clinicDeviceId)
+}
+
+/** Drop heartbeat tracking for a clinic (e.g. surrogate revoked). */
+export function clearHeartbeatClinicDevice(clinicId: string): void {
+  currentClinicDevices.delete(clinicId)
 }
 
 async function sendHeartbeat() {
@@ -76,15 +84,16 @@ async function sendHeartbeat() {
         })
     }
 
-    // Also update clinic device last_active_at if registered
-    if (currentClinicId && currentClinicDeviceId) {
+    // Also update clinic device last_active_at for every registered clinic
+    // (assigned + surrogate). One row per clinic; same device_id across them.
+    for (const [clinicId, clinicDeviceId] of currentClinicDevices) {
       supabase
         .from('user_devices')
         .update({ last_active_at: ts })
-        .eq('user_id', currentClinicId)
-        .eq('device_id', currentClinicDeviceId)
+        .eq('user_id', clinicId)
+        .eq('device_id', clinicDeviceId)
         .then(({ error: clinicErr }) => {
-          if (clinicErr) logger.warn('Clinic device heartbeat update failed:', clinicErr.message)
+          if (clinicErr) logger.warn(`Clinic device heartbeat update failed (${clinicId}):`, clinicErr.message)
         })
     }
   } catch {
@@ -123,6 +132,5 @@ export function stopHeartbeat() {
   document.removeEventListener('visibilitychange', handleVisibilityChange)
   currentUserId = null
   currentDeviceId = null
-  currentClinicId = null
-  currentClinicDeviceId = null
+  currentClinicDevices.clear()
 }

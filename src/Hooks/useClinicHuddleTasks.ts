@@ -9,8 +9,9 @@ import { useAuth } from './useAuth'
  * Re-runs on `clinics` invalidation bump so settings edits propagate.
  * Mirrors useClinicRooms.
  */
-export function useClinicHuddleTasks() {
-  const { clinicId } = useAuth()
+export function useClinicHuddleTasks(targetClinicId?: string | null) {
+  const { clinicId: assignedClinicId } = useAuth()
+  const clinicId = targetClinicId ?? assignedClinicId
   const clinicsGen = useInvalidation('clinics')
   const [tasks, setTasks] = useState<ClinicHuddleTask[]>([])
 

@@ -42,6 +42,11 @@ export interface HuddleTaskOption {
   name: string
 }
 
+export interface ClinicOption {
+  id: string
+  name: string
+}
+
 interface EventFormProps {
   initialData?: EventFormData
   onSave: (data: EventFormData) => void
@@ -53,10 +58,12 @@ interface EventFormProps {
   roomOptions?: RoomOption[]
   /** Supervisor-defined huddle tasks (e.g. "Front Desk"). Picker shown only when category === 'huddle'. */
   huddleTaskOptions?: HuddleTaskOption[]
+  /** Clinics the user can write events into (assigned + surrogate when loaned). Picker hidden when length < 2 or editing. */
+  clinicOptions?: ClinicOption[]
 }
 
 export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
-  function EventForm({ initialData, onSave, isEditing, medics, propertyItems, overlayOptions, roomOptions, huddleTaskOptions }, ref) {
+  function EventForm({ initialData, onSave, isEditing, medics, propertyItems, overlayOptions, roomOptions, huddleTaskOptions, clinicOptions }, ref) {
     const isMobile = useIsMobile()
     const [form, setForm] = useState<EventFormData>(initialData ?? createEmptyFormData())
     const [errors, setErrors] = useState<Record<string, string>>({})
@@ -179,6 +186,26 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
               hint={errors.title}
             />
           </div>
+
+          {/* Clinic picker — shown only on create when the user has a surrogate
+              (loan), so dual-clinic medics can choose where the event lives.
+              Edits never show this: clinic_id is immutable on existing events. */}
+          {!isEditing && clinicOptions && clinicOptions.length >= 2 && (() => {
+            const selected = clinicOptions.find(c => c.id === form.clinic_id) ?? clinicOptions[0]
+            return (
+              <div data-tour="event-form-clinic">
+                <PickerInput
+                  value={selected.name}
+                  onChange={name => {
+                    const match = clinicOptions.find(c => c.name === name)
+                    if (match) updateField('clinic_id', match.id)
+                  }}
+                  options={clinicOptions.map(c => c.name)}
+                  placeholder="Clinic"
+                />
+              </div>
+            )
+          })()}
 
           {form.category !== 'templated' && !isTask && (
             <div data-tour="event-form-category">

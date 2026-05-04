@@ -312,7 +312,6 @@ export type Database = {
       }
       clinics: {
         Row: {
-          additional_user_ids: string[]
           associated_clinic_ids: string[]
           child_clinic_ids: string[]
           created_at: string
@@ -331,7 +330,6 @@ export type Database = {
           vault_iteration: number
         }
         Insert: {
-          additional_user_ids?: string[]
           associated_clinic_ids?: string[]
           child_clinic_ids?: string[]
           created_at?: string
@@ -350,7 +348,6 @@ export type Database = {
           vault_iteration?: number
         }
         Update: {
-          additional_user_ids?: string[]
           associated_clinic_ids?: string[]
           child_clinic_ids?: string[]
           created_at?: string
@@ -739,6 +736,7 @@ export type Database = {
           provider_note_templates: Json | null
           rank: string | null
           roles: Database["public"]["Enums"]["user_role"][] | null
+          surrogate_clinic_id: string | null
           text_expander_enabled: boolean | null
           text_expanders: Json | null
           uic: string | null
@@ -770,6 +768,7 @@ export type Database = {
           provider_note_templates?: Json | null
           rank?: string | null
           roles?: Database["public"]["Enums"]["user_role"][] | null
+          surrogate_clinic_id?: string | null
           text_expander_enabled?: boolean | null
           text_expanders?: Json | null
           uic?: string | null
@@ -801,6 +800,7 @@ export type Database = {
           provider_note_templates?: Json | null
           rank?: string | null
           roles?: Database["public"]["Enums"]["user_role"][] | null
+          surrogate_clinic_id?: string | null
           text_expander_enabled?: boolean | null
           text_expanders?: Json | null
           uic?: string | null
@@ -810,6 +810,13 @@ export type Database = {
           {
             foreignKeyName: "profiles_clinic_id_fkey"
             columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_surrogate_clinic_id_fkey"
+            columns: ["surrogate_clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"
             referencedColumns: ["id"]
@@ -1358,10 +1365,17 @@ export type Database = {
           credential: string
           first_name: string
           id: string
+          is_loaned_in: boolean
           last_name: string
           middle_initial: string
           rank: string
+          roles: Database["public"]["Enums"]["user_role"][]
+          surrogate_clinic_id: string
         }[]
+      }
+      set_user_surrogate: {
+        Args: { p_user_id: string; p_surrogate_clinic_id: string | null }
+        Returns: undefined
       }
       get_my_clinic_id: { Args: never; Returns: string }
       get_my_roles: { Args: never; Returns: string[] }

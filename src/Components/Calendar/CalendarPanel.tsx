@@ -81,7 +81,15 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   }, [])
   const eventFormRef = useRef<EventFormHandle>(null)
 
-  const { clinicId, user } = useAuth()
+  const { clinicId, surrogateClinicId, profile, user } = useAuth()
+  // Clinic options for the EventForm picker. Only includes the surrogate when
+  // loaned. EventForm hides the picker entirely when length < 2.
+  const clinicFormOptions = useMemo(() => {
+    const opts: { id: string; name: string }[] = []
+    if (clinicId) opts.push({ id: clinicId, name: profile.clinicName ?? 'Assigned' })
+    if (surrogateClinicId) opts.push({ id: surrogateClinicId, name: profile.surrogateClinicName ?? 'Surrogate' })
+    return opts
+  }, [clinicId, surrogateClinicId, profile.clinicName, profile.surrogateClinicName])
   const { writeEvent, vaultUpdate, deleteEvent: calendarDeleteEvent, isWriting, isDeleting } = useCalendarWrite()
   const apptTypes = useClinicAppointmentTypes()
   const apptTypeNames = useMemo(() => apptTypes.map(t => t.name), [apptTypes])
@@ -203,6 +211,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     hydrationError, clearHydrationError,
     daySpan,
     categoryFilter, setCategoryFilter,
+    clinicFilter, setClinicFilter,
   } = useCalendarStore(useShallow(s => ({
     viewMode: s.currentView,
     setViewMode: s.setView,
@@ -221,6 +230,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     daySpan: s.daySpan,
     categoryFilter: s.categoryFilter,
     setCategoryFilter: s.setCategoryFilter,
+    clinicFilter: s.clinicFilter,
+    setClinicFilter: s.setClinicFilter,
   })))
 
   const handleEventStatusChange = useCallback(async (id: string, next: import('../../Types/CalendarTypes').EventStatus) => {
@@ -275,8 +286,11 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     if (categoryFilter !== null) {
       out = out.filter(e => categoryFilter.includes(e.category))
     }
+    if (clinicFilter !== null) {
+      out = out.filter(e => clinicFilter.includes(e.clinic_id))
+    }
     return out
-  }, [events, personnelFilter, categoryFilter])
+  }, [events, personnelFilter, categoryFilter, clinicFilter])
 
   const dayEvents = useMemo(() =>
     filteredEvents
@@ -448,9 +462,10 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     await writeEvent(newEvent)
   }, [clinicId, ownClinicMedics, sortedHuddleTasks, user, writeEvent])
 
-  /** Initial form data for a NEW event — pre-populates category/task when launched from the huddle band. */
+  /** Initial form data for a NEW event — pre-populates category/task when launched from the huddle band.
+   *  clinic_id defaults to the user's assigned clinic; the EventForm picker may override it on dual-membership users. */
   const newEventInitialData = useMemo(() => {
-    const base = createEmptyFormData(newEventDateKey)
+    const base = { ...createEmptyFormData(newEventDateKey), clinic_id: clinicId ?? null }
     if (newEventHuddleTaskId !== null) {
       return { ...base, category: 'huddle' as const, huddle_task_id: newEventHuddleTaskId }
     }
@@ -458,7 +473,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       return { ...base, category: 'task' as const }
     }
     return base
-  }, [newEventDateKey, newEventHuddleTaskId, newEventCategory])
+  }, [newEventDateKey, newEventHuddleTaskId, newEventCategory, clinicId])
 
   const handleEditEvent = useCallback((id: string) => {
     const event = events.find(e => e.id === id)
@@ -496,7 +511,9 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       } else {
         const newEvent: CalendarEvent = {
           id: generateId(),
-          clinic_id: clinicId ?? '',
+          // Form supplies clinic_id when the user has a surrogate (picker shown);
+          // otherwise falls back to the user's assigned clinic.
+          clinic_id: data.clinic_id ?? clinicId ?? '',
           title: data.title,
           description: data.description || null,
           category: data.category,
@@ -915,6 +932,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 overlayOptions={overlayOptions}
                 roomOptions={roomFormOptions}
                 huddleTaskOptions={huddleTaskFormOptions}
+                clinicOptions={clinicFormOptions}
               />
               {(isFormPending || isWriting || isDeleting) && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-xl">
@@ -1070,6 +1088,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   medics={medicList}
                   roomOptions={roomFormOptions}
                 huddleTaskOptions={huddleTaskFormOptions}
+                clinicOptions={clinicFormOptions}
                 />
               )}
 
@@ -1143,6 +1162,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                       propertyItems={propertyItems}
                       roomOptions={roomFormOptions}
                 huddleTaskOptions={huddleTaskFormOptions}
+                clinicOptions={clinicFormOptions}
                     />
                   </div>
                   {(isFormPending || isWriting || isDeleting) && (

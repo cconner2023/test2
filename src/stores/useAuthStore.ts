@@ -27,6 +27,7 @@ import { secureSet, secureGet, secureRemove, persistSupabaseAuth, destroySecureS
 import { clearOutboundQueue, destroyOutboundQueue } from '../lib/signal/outboundQueue'
 import { clearCalendarEvents, clearAllPendingVaultSends } from '../lib/calendarEventStore'
 import { useCalendarStore } from './useCalendarStore'
+import { invalidate } from './useInvalidationStore'
 import { clearBackupKey, createBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
 import { processVaultMessages, clearVaultKey } from '../lib/signal/vaultDevice'
 import { deriveAndCacheClinicVaultKey, ensureClinicVaultExists, processClinicVaultMessages, clearClinicVaultKey } from '../lib/signal/clinicVaultDevice'
@@ -46,6 +47,8 @@ const ROLES_STORAGE_KEY = 'adtmc_user_roles'
 interface CachedRoles {
   roles: string[]
   clinicId: string | null
+  /** Surrogate (loaned-to) clinic. Optional; older caches won't have it. */
+  surrogateClinicId?: string | null
   isDevRole: boolean
 }
 
@@ -64,6 +67,12 @@ interface AuthState {
   profile: UserTypes
   roles: string[]
   clinicId: string | null
+  /** Loan / dual-membership slot. Null when the user isn't loaned to a second clinic. */
+  surrogateClinicId: string | null
+  /** Which clinic the supervisor is currently administering (Settings/ClinicPanel + SupervisorDrawer).
+   * In-memory only (no persistence) — defaults to clinic_id on every load.
+   * Server doesn't trust this — it gates by role + auth_clinic_ids(). */
+  supervisingClinicId: string | null
   isDevRole: boolean
   isSupervisorRole: boolean
   isProviderRole: boolean
@@ -104,6 +113,8 @@ interface AuthActions {
   setNeedsPasswordSetup: (value: boolean) => void
   /** Clear the reauth flag (e.g. after guest continuation). */
   clearNeedsReauth: () => void
+  /** Set the supervisor's active clinic context. No-op if id is not in caller's reach. */
+  setSupervisingClinic: (clinicId: string) => void
 }
 
 // ---- Local Session helpers ----
@@ -209,10 +220,11 @@ function clearRolesStorage() {
  * Fetch a full profile from Supabase for the given user ID.
  * Returns the UserTypes profile and the roles array.
  */
-async function fetchProfileFromSupabase(userId: string): Promise<{ profile: UserTypes; roles: string[]; clinicId: string | null; needsPasswordSetup: boolean; clinicTextExpanders: TextExpander[] | null; clinicPlanOrderTags: UserTypes['planOrderTags'] | null; clinicPlanInstructionTags: string[] | null; clinicPlanOrderSets: UserTypes['planOrderSets'] | null }> {
+async function fetchProfileFromSupabase(userId: string): Promise<{ profile: UserTypes; roles: string[]; clinicId: string | null; surrogateClinicId: string | null; needsPasswordSetup: boolean; clinicTextExpanders: TextExpander[] | null; clinicPlanOrderTags: UserTypes['planOrderTags'] | null; clinicPlanInstructionTags: string[] | null; clinicPlanOrderSets: UserTypes['planOrderSets'] | null }> {
   const profile: UserTypes = {}
   let roles: string[] = []
   let clinicId: string | null = null
+  let surrogateClinicId: string | null = null
   let needsPasswordSetup = false
   let clinicTextExpanders: TextExpander[] | null = null
   let clinicPlanOrderTags: UserTypes['planOrderTags'] | null = null
@@ -220,16 +232,25 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   let clinicPlanOrderSets: UserTypes['planOrderSets'] | null = null
 
   // Fetch core profile + clinic name.
-  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notify_dev_alerts, text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets, needs_password_setup, favorite_medications, provider_note_templates, overview_widgets, theme'
+  // Disambiguate the embedded clinic relation by FK name — profiles now has
+  // two FKs to clinics (clinic_id + surrogate_clinic_id) and PostgREST
+  // refuses to resolve `clinics(name)` when multiple FKs target the same table.
+  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, surrogate_clinic_id, clinic:clinics!profiles_clinic_id_fkey(name), pin_hash, pin_salt, notify_dev_alerts, text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets, needs_password_setup, favorite_medications, provider_note_templates, overview_widgets, theme'
   const { data, error: fetchError } = await supabase
     .from('profiles')
     .select(PROFILE_SELECT)
     .eq('id', userId)
     .single()
 
+  if (fetchError) {
+    // Surface the failure instead of silently leaving the store empty.
+    // Common cause: schema/embedded-resource changes (multiple FKs to same table).
+    console.error('fetchProfileFromSupabase failed:', fetchError.message)
+  }
   if (data) {
-    const clinicRow = data.clinics as { name: string } | null
+    const clinicRow = (data as { clinic?: { name: string } | null }).clinic ?? null
     clinicId = (data as Record<string, unknown>).clinic_id as string | null
+    surrogateClinicId = ((data as Record<string, unknown>).surrogate_clinic_id as string | null) ?? null
 
     profile.firstName = data.first_name ?? undefined
     profile.lastName = data.last_name ?? undefined
@@ -239,6 +260,16 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     profile.rank = data.rank ?? undefined
     profile.uic = data.uic ?? undefined
     profile.clinicName = clinicRow?.name ?? undefined
+
+    // Resolve surrogate clinic name if loaned out. Single extra fetch.
+    if (surrogateClinicId) {
+      const { data: surrogateRow } = await supabase
+        .from('clinics')
+        .select('name')
+        .eq('id', surrogateClinicId)
+        .single()
+      profile.surrogateClinicName = surrogateRow?.name ?? undefined
+    }
 
     roles = (data.roles as string[]) ?? []
 
@@ -277,7 +308,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     }
   }
 
-  return { profile, roles, clinicId, needsPasswordSetup, clinicTextExpanders, clinicPlanOrderTags, clinicPlanInstructionTags, clinicPlanOrderSets }
+  return { profile, roles, clinicId, surrogateClinicId, needsPasswordSetup, clinicTextExpanders, clinicPlanOrderTags, clinicPlanInstructionTags, clinicPlanOrderSets }
 }
 
 export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
@@ -313,6 +344,8 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       profile: {},
       roles: [],
       clinicId: null,
+      surrogateClinicId: null,
+      supervisingClinicId: null,
       isDevRole: false,
       isSupervisorRole: false,
       isProviderRole: false,
@@ -477,59 +510,63 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
             .then(count => { if (count > 0) createBackup(userId).catch(() => {}) })
             .catch(() => {})
 
-          // Initialize clinic vault device (clinic persona — parallel to personal vault)
-          // Await profile so clinicId is available on new devices (no localStorage cache)
-          try { await profileP } catch { /* profile may have failed — clinicId may still be cached */ }
-          const cId = get().clinicId
-          if (cId) {
+          // Initialize clinic vault devices (clinic persona — parallel to personal vault).
+          // Iterates assigned + surrogate so a loaned medic sees both clinics overlaid.
+          // Await profile so clinic ids are available on new devices (no localStorage cache).
+          try { await profileP } catch { /* profile may have failed — ids may still be cached */ }
+          const { clinicId: assignedId, surrogateClinicId: surrogateId } = get()
+          const clinicIds = [assignedId, surrogateId].filter((x): x is string => !!x)
+          if (clinicIds.length > 0) {
             (async () => {
-              try {
-                // Fetch the clinic's raw encryption key from Supabase
-                const { data: clinicRow } = await supabase
-                  .from('clinics')
-                  .select('encryption_key')
-                  .eq('id', cId)
-                  .single()
-                if (!clinicRow?.encryption_key) {
-                  useCalendarStore.setState({ vaultReplayDone: true })
-                  return
+              // Reset hydration gates ONCE before draining all clinics so the
+              // vault→sync→hydrate pipeline sequences correctly.
+              useCalendarStore.setState({ hydrated: false, vaultReplayDone: false })
+
+              const { initClinicDeviceBundle } = await import('../lib/signal/clinicDeviceInit')
+              const { useMessagingStore } = await import('./useMessagingStore')
+              const { updateHeartbeatClinicDevice } = await import('../lib/activityHeartbeat')
+              const { updateCleanupClinicDeviceId } = await import('../lib/sessionCleanup')
+              const { cleanupStaleClinicDevices } = await import('../lib/signal/signalService')
+
+              let anyFailed = false
+
+              for (const cId of clinicIds) {
+                try {
+                  const { data: clinicRow } = await supabase
+                    .from('clinics')
+                    .select('encryption_key')
+                    .eq('id', cId)
+                    .single()
+                  if (!clinicRow?.encryption_key) {
+                    // Clinic exists but has no key — skip; don't block other clinics.
+                    continue
+                  }
+
+                  // Derive wrapping key + ensure vault peer + drain unread.
+                  // Per-clinic key cache means dual membership doesn't conflict.
+                  await deriveAndCacheClinicVaultKey(cId, clinicRow.encryption_key)
+                  await ensureClinicVaultExists(cId, clinicRow.encryption_key)
+                  await processClinicVaultMessages(cId)
+
+                  // Register this browser as a clinic linked device. clinicDeviceId
+                  // is `clinic-{userId}-{personalDeviceId}` — same value across clinics.
+                  // The same device gets a row under each clinic's user_id.
+                  const { clinicDeviceId } = await initClinicDeviceBundle(userId, cId, initResult.deviceId)
+                  useMessagingStore.getState().setClinicDeviceId(clinicDeviceId)
+                  updateHeartbeatClinicDevice(cId, clinicDeviceId)
+                  updateCleanupClinicDeviceId(clinicDeviceId)
+
+                  // Server-side TTL cleanup of stale clinic devices (per clinic)
+                  cleanupStaleClinicDevices(cId).catch(() => {})
+                } catch (e) {
+                  anyFailed = true
+                  console.error(`Clinic vault init failed for ${cId}:`, e)
                 }
-
-                // Reset hydration gates so vault→sync→hydrate pipeline sequences correctly.
-                // IDB persists across sessions — no longer cleared on login.
-                useCalendarStore.setState({ hydrated: false, vaultReplayDone: false })
-
-                // Derive wrapping key + ensure vault device exists + process unread
-                await deriveAndCacheClinicVaultKey(cId, clinicRow.encryption_key)
-                await ensureClinicVaultExists(cId, clinicRow.encryption_key)
-                await processClinicVaultMessages(cId)
-
-                // Register this browser as a clinic linked device
-                const { initClinicDeviceBundle } = await import('../lib/signal/clinicDeviceInit')
-                const { clinicDeviceId } = await initClinicDeviceBundle(userId, cId, initResult.deviceId)
-                const { useMessagingStore } = await import('./useMessagingStore')
-                useMessagingStore.getState().setClinicDeviceId(clinicDeviceId)
-
-                // Unlock calendar — vault replay + clinicDeviceId are both ready
-                useCalendarStore.setState({ vaultReplayDone: true })
-
-                // Wire clinic device into heartbeat so last_active_at stays fresh
-                const { updateHeartbeatClinicDevice } = await import('../lib/activityHeartbeat')
-                updateHeartbeatClinicDevice(cId, clinicDeviceId)
-
-                // Wire clinic device into browser-close cleanup
-                const { updateCleanupClinicDeviceId } = await import('../lib/sessionCleanup')
-                updateCleanupClinicDeviceId(clinicDeviceId)
-
-                // Server-side TTL cleanup of stale clinic devices (replaces client-side prune)
-                const { cleanupStaleClinicDevices } = await import('../lib/signal/signalService')
-                cleanupStaleClinicDevices(cId).catch(() => {})
-              } catch (e) {
-                // Surface vault replay failures so the user knows events may be missing
-                console.error('Clinic vault init failed:', e)
-                const { useCalendarStore } = await import('./useCalendarStore')
-                useCalendarStore.setState({ hydrationError: true, vaultReplayDone: true })
               }
+
+              // Unlock calendar after all clinics drained. Surface partial failures.
+              if (anyFailed) useCalendarStore.setState({ hydrationError: true })
+              useCalendarStore.setState({ vaultReplayDone: true })
             })()
           } else {
             // No clinic — no vault to replay; unlock calendar immediately
@@ -578,6 +615,8 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
   profile: loadProfileFromStorage(),
   roles: cachedRoles?.roles ?? [],
   clinicId: cachedRoles?.clinicId ?? null,
+  surrogateClinicId: cachedRoles?.surrogateClinicId ?? null,
+  supervisingClinicId: cachedRoles?.clinicId ?? null,
   isDevRole: cachedRoles?.isDevRole ?? false,
   isSupervisorRole: cachedRoles?.roles.includes('supervisor') ?? false,
   isProviderRole: cachedRoles?.roles.includes('provider') ?? false,
@@ -624,6 +663,8 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
           set({
             roles: cached.roles,
             clinicId: cached.clinicId,
+            surrogateClinicId: cached.surrogateClinicId ?? null,
+            supervisingClinicId: get().supervisingClinicId ?? cached.clinicId,
             isDevRole: cached.isDevRole,
             isSupervisorRole: cached.roles.includes('supervisor'),
             isProviderRole: cached.roles.includes('provider'),
@@ -707,15 +748,20 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
             unregisterDevice(userId, deviceId),
             deleteKeyBundle(userId, deviceId),
           ]
-          // Also clean up clinic device registration + key bundle (registered under clinicId)
-          const cId = get().clinicId
-          if (cId) {
+          // Also clean up clinic device registration + key bundle for every clinic
+          // the user belongs to (assigned + surrogate). Same clinicDeviceId across
+          // clinics; one registration row per clinic.
+          const { clinicId: assignedId, surrogateClinicId: surrogateId } = get()
+          const clinicIdsForCleanup = [assignedId, surrogateId].filter((x): x is string => !!x)
+          if (clinicIdsForCleanup.length > 0) {
             const { makeClinicDeviceId } = await import('../lib/signal/clinicKeyManager')
             const clinicDeviceId = makeClinicDeviceId(userId, deviceId)
-            cleanups.push(
-              unregisterDevice(cId, clinicDeviceId),
-              deleteKeyBundle(cId, clinicDeviceId),
-            )
+            for (const cId of clinicIdsForCleanup) {
+              cleanups.push(
+                unregisterDevice(cId, clinicDeviceId),
+                deleteKeyBundle(cId, clinicDeviceId),
+              )
+            }
           }
           await Promise.all(cleanups)
         }
@@ -746,16 +792,32 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     set({ needsReauth: false })
   },
 
+  setSupervisingClinic: (clinicId) => {
+    const { clinicId: assigned, surrogateClinicId: surrogate } = get()
+    if (clinicId !== assigned && clinicId !== surrogate) return
+    set({ supervisingClinicId: clinicId })
+    invalidate('clinics', 'users', 'training')
+  },
+
   refreshProfile: async () => {
     const user = get().user
     if (!user) return
 
     try {
-      const { profile, roles, clinicId, needsPasswordSetup, clinicTextExpanders, clinicPlanOrderTags, clinicPlanInstructionTags, clinicPlanOrderSets } = await fetchProfileFromSupabase(user.id)
+      const { profile, roles, clinicId, surrogateClinicId, needsPasswordSetup, clinicTextExpanders, clinicPlanOrderTags, clinicPlanInstructionTags, clinicPlanOrderSets } = await fetchProfileFromSupabase(user.id)
+      // Keep supervisingClinicId valid against the new reach. If the prior choice
+      // is no longer reachable (surrogate revoked, home clinic changed), fall
+      // back to the assigned clinic.
+      const prevSup = get().supervisingClinicId
+      const validSup = (prevSup === clinicId || prevSup === surrogateClinicId) && prevSup !== null
+        ? prevSup
+        : clinicId
       set({
         profile,
         roles,
         clinicId,
+        surrogateClinicId,
+        supervisingClinicId: validSup,
         isDevRole: roles.includes('dev'),
         isSupervisorRole: roles.includes('supervisor'),
         isProviderRole: roles.includes('provider'),
@@ -766,7 +828,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
         clinicPlanOrderSets: clinicPlanOrderSets ?? null,
       })
       saveProfileToStorage(profile)
-      saveRolesToStorage({ roles, clinicId, isDevRole: roles.includes('dev') })
+      saveRolesToStorage({ roles, clinicId, surrogateClinicId, isDevRole: roles.includes('dev') })
 
       // Prefetch barcode encryption key for offline use (fire-and-forget)
       prefetchBarcodeKey().catch(() => {})

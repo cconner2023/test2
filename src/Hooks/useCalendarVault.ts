@@ -96,12 +96,18 @@ async function encryptForAllClinicDevices(
 // ---- Hook ----
 
 interface UseCalendarVaultResult {
-  /** True when the hook has enough context to send (clinicId + userId + deviceId). */
+  /** True when the hook has enough context to send (clinic + userId + deviceId). */
   ready: boolean
-  /** Encrypt and send a calendar event via Signal fan-out. Returns the originId on success. */
+  /**
+   * Encrypt and send a calendar event via Signal fan-out. Returns the originId on success.
+   *
+   * The fan-out target clinic is `data.clinic_id` when present (edits/deletes
+   * carry the event's own clinic_id, which may be assigned or surrogate);
+   * otherwise falls back to the user's assigned `clinic_id`.
+   */
   sendEvent: (action: 'c' | 'u' | 'd', data: Partial<CalendarEvent> & { id: string }) => Promise<string | null>
-  /** Hard-delete messages by origin ID. */
-  deleteEvents: (originIds: string[]) => Promise<void>
+  /** Hard-delete messages by origin ID. Caller passes the clinic that owns the vault. */
+  deleteEvents: (originIds: string[], clinicId: string) => Promise<void>
 }
 
 export function useCalendarVault(): UseCalendarVaultResult {
@@ -112,7 +118,10 @@ export function useCalendarVault(): UseCalendarVaultResult {
     action: 'c' | 'u' | 'd',
     data: Partial<CalendarEvent> & { id: string },
   ): Promise<string | null> => {
-    if (!clinicId || !userId) return null
+    // Target the event's own clinic vault if known; fall back to the user's
+    // assigned clinic for fresh creates that haven't been tagged yet.
+    const targetClinicId = (data.clinic_id as string | undefined) ?? clinicId
+    if (!targetClinicId || !userId) return null
     const localDeviceId = useMessagingStore.getState().localDeviceId
     const clinicDeviceId = useMessagingStore.getState().clinicDeviceId
     if (!localDeviceId || !clinicDeviceId) return null
@@ -128,7 +137,7 @@ export function useCalendarVault(): UseCalendarVaultResult {
 
     try {
       // Fetch all clinic devices (vault + member clinic devices)
-      const devicesResult = await fetchPeerDevices(clinicId)
+      const devicesResult = await fetchPeerDevices(targetClinicId)
       if (!devicesResult.ok || devicesResult.data.length === 0) {
         logger.warn('No clinic devices found for fan-out')
         return null
@@ -145,9 +154,9 @@ export function useCalendarVault(): UseCalendarVaultResult {
       }
 
       // Encrypt for all clinic devices using clinic session context
-      const inputs = await encryptForAllClinicDevices(clinicId, targetDevices, serialized, userId)
+      const inputs = await encryptForAllClinicDevices(targetClinicId, targetDevices, serialized, userId)
       if (inputs.length > 0) {
-        await sendMessageFanOut(userId, clinicDeviceId, clinicId, inputs, clinicId, originId, true)
+        await sendMessageFanOut(userId, clinicDeviceId, targetClinicId, inputs, targetClinicId, originId, true)
       }
 
       return originId
@@ -157,7 +166,7 @@ export function useCalendarVault(): UseCalendarVaultResult {
     }
   }, [clinicId, userId])
 
-  const deleteEvents = useCallback(async (originIds: string[]): Promise<void> => {
+  const deleteEvents = useCallback(async (originIds: string[], clinicId: string): Promise<void> => {
     if (originIds.length === 0 || !clinicId) return
     try {
       // All copies are under recipient_id = clinicId
@@ -168,13 +177,12 @@ export function useCalendarVault(): UseCalendarVaultResult {
     } catch (e) {
       logger.warn('Failed to delete vault messages:', e instanceof Error ? e.message : e)
     }
-  }, [clinicId])
+  }, [])
 
   // Drain pending vault sends on mount and whenever connectivity returns.
   // Events queued offline (e.g. algorithm metrics) are re-sent here.
-  // Deletes don't need a drain — a 'd' fan-out reaches every clinic device
-  // including the vault, and the vault's cooperative clean during next
-  // processClinicVaultMessages pass handles any lingering 'c'.
+  // Each pending event carries its own clinic_id, so sendEvent fans out to
+  // the right vault.
   useEffect(() => {
     if (!clinicId || !userId) return
     const drain = async () => {
@@ -186,7 +194,7 @@ export function useCalendarVault(): UseCalendarVaultResult {
           // a matching 'd' so the vault pair-cleans the freshly sent 'c' on
           // the next replay pass.
           if (getTombstones().has(item.id)) {
-            sendEvent('d', { id: item.id }).catch(() => {})
+            sendEvent('d', { id: item.id, clinic_id: item.event.clinic_id }).catch(() => {})
             await clearPendingVaultSend(item.id)
           } else {
             await clearPendingVaultSend(item.id)

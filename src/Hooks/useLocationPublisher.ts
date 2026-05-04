@@ -68,7 +68,7 @@ export function useLocationPublisher(
     }
 
     const oldOriginIds = event.originId ? [event.originId] : []
-    if (oldOriginIds.length > 0) deleteEvents(oldOriginIds).catch(() => {})
+    if (oldOriginIds.length > 0) deleteEvents(oldOriginIds, event.clinic_id).catch(() => {})
 
     const newOriginId = await sendEvent('c', updatedEvent).catch(() => null)
     updateEvent(eventId, {
