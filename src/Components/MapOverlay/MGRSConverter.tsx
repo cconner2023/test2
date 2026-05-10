@@ -1,10 +1,13 @@
 import { useState, useRef, useCallback } from 'react'
-import { Copy, ClipboardCheck } from 'lucide-react'
+import { Copy, ClipboardCheck, MapPin } from 'lucide-react'
 import { forward, toPoint } from 'mgrs'
 import { ErrorDisplay } from '../ErrorDisplay'
 
 interface MGRSConverterProps {
   onCoordinateSelect?: (lat: number, lng: number, mgrs: string) => void
+  /** Fires when the user explicitly taps "Go to map." Distinct from
+   *  onCoordinateSelect (which fires on every successful live parse). */
+  onJumpToMap?: (lat: number, lng: number, mgrs: string) => void
 }
 
 const DEBOUNCE_MS = 200
@@ -45,12 +48,13 @@ function toMgrsString(lat: number, lng: number): string {
   return forward([lng, lat], 5)
 }
 
-export function MGRSConverter({ onCoordinateSelect }: MGRSConverterProps) {
+export function MGRSConverter({ onCoordinateSelect, onJumpToMap }: MGRSConverterProps) {
   const [mgrsInput, setMgrsInput] = useState('')
   const [latLngInput, setLatLngInput] = useState('')
   const [mgrsError, setMgrsError] = useState<string | null>(null)
   const [latLngError, setLatLngError] = useState<string | null>(null)
   const [copiedField, setCopiedField] = useState<'mgrs' | 'latlng' | null>(null)
+  const [resolved, setResolved] = useState<{ lat: number; lng: number; mgrs: string } | null>(null)
 
   const mgrsTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const latLngTimerRef = useRef<ReturnType<typeof setTimeout>>()
@@ -71,6 +75,7 @@ export function MGRSConverter({ onCoordinateSelect }: MGRSConverterProps) {
     if (!value.trim()) {
       setLatLngInput('')
       setLatLngError(null)
+      setResolved(null)
       return
     }
 
@@ -78,11 +83,14 @@ export function MGRSConverter({ onCoordinateSelect }: MGRSConverterProps) {
       const result = parseMgrs(value)
       if (typeof result === 'string') {
         setMgrsError(result)
+        setResolved(null)
         return
       }
+      const mgrsClean = value.replace(/\s+/g, '').toUpperCase()
       setLatLngInput(formatLatLng(result.lat, result.lng))
       setLatLngError(null)
-      onCoordinateSelect?.(result.lat, result.lng, value.replace(/\s+/g, '').toUpperCase())
+      setResolved({ lat: result.lat, lng: result.lng, mgrs: mgrsClean })
+      onCoordinateSelect?.(result.lat, result.lng, mgrsClean)
     }, DEBOUNCE_MS)
   }, [onCoordinateSelect])
 
@@ -94,6 +102,7 @@ export function MGRSConverter({ onCoordinateSelect }: MGRSConverterProps) {
     if (!value.trim()) {
       setMgrsInput('')
       setMgrsError(null)
+      setResolved(null)
       return
     }
 
@@ -101,18 +110,26 @@ export function MGRSConverter({ onCoordinateSelect }: MGRSConverterProps) {
       const result = parseLatLng(value)
       if (typeof result === 'string') {
         setLatLngError(result)
+        setResolved(null)
         return
       }
       try {
         const mgrs = toMgrsString(result.lat, result.lng)
         setMgrsInput(mgrs)
         setMgrsError(null)
+        setResolved({ lat: result.lat, lng: result.lng, mgrs })
         onCoordinateSelect?.(result.lat, result.lng, mgrs)
       } catch (e) {
         setLatLngError(e instanceof Error ? e.message : 'Conversion failed')
+        setResolved(null)
       }
     }, DEBOUNCE_MS)
   }, [onCoordinateSelect])
+
+  const handleJump = useCallback(() => {
+    if (!resolved || !onJumpToMap) return
+    onJumpToMap(resolved.lat, resolved.lng, resolved.mgrs)
+  }, [resolved, onJumpToMap])
 
   return (
     <div className="flex flex-col gap-4 p-4 rounded-xl bg-themewhite dark:bg-themewhite3 border border-tertiary/10">
@@ -173,6 +190,21 @@ export function MGRSConverter({ onCoordinateSelect }: MGRSConverterProps) {
         )}
         <ErrorDisplay message={latLngError} />
       </div>
+
+      {onJumpToMap && (
+        <button
+          type="button"
+          onClick={handleJump}
+          disabled={!resolved}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
+                     bg-themeblue3 text-white text-[11pt] font-medium
+                     disabled:opacity-30 disabled:cursor-not-allowed
+                     active:scale-[0.98] transition-all"
+        >
+          <MapPin size={15} />
+          Go to map
+        </button>
+      )}
     </div>
   )
 }

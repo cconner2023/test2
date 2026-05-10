@@ -1,8 +1,10 @@
 import { useCallback, useState, useEffect, useRef, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Pencil, Pin, Plus, Trash2, Users, MessageSquare } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pencil, Pin, Plus, Trash2, Users, MessageSquare, Map as MapIcon } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useCalendarStore } from '../../stores/useCalendarStore'
+import { visibleEventsForRole } from '../../lib/aft/visibility'
 import { useCalendarVault } from '../../Hooks/useCalendarVault'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { getOverlay } from '../../lib/mapOverlayService'
@@ -33,6 +35,7 @@ import { PreviewOverlay } from '../PreviewOverlay'
 import { ContextMenu } from '../ContextMenu'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
+import { EmptyState } from '../EmptyState'
 
 const TASK_PREVIEW_LIMIT = 4
 
@@ -92,7 +95,9 @@ function ConvRow({ entry, lastText, unread, isPinned, onTap, onContext }: {
   )
 }
 
-function MessagesWidget() {
+type WidgetActionDescriptor = { icon: LucideIcon; label: string; onClick: () => void }
+
+function MessagesWidget({ action }: { action: WidgetActionDescriptor | null }) {
   const conversations = useMessagingStore(s => s.conversations)
   const groups = useMessagingStore(s => s.groups)
   const unreadCounts = useMessagingStore(s => s.unreadCounts)
@@ -101,7 +106,6 @@ function MessagesWidget() {
   const deleteConversation = useMessagingStore(s => s.deleteConversation)
   const localUserId = useMessagingStore(s => s.localUserId)
   const openMessagesConversation = useNavigationStore(s => s.openMessagesConversation)
-  const setShowMessagesDrawer = useNavigationStore(s => s.setShowMessagesDrawer)
   const { medics } = useClinicMedics()
   const profile = useAuthStore(s => s.profile)
   const { currentAvatar } = useProfileAvatar(localUserId ?? undefined)
@@ -158,18 +162,16 @@ function MessagesWidget() {
   }, [openMessagesConversation, localUserId])
 
   if (displayed.length === 0) {
-    return (
-      <div className="flex items-center gap-3 pl-4 pr-2 py-3">
-        <p className="text-sm text-tertiary flex-1">No conversations</p>
-        <ActionPill shadow="sm">
-          <ActionButton icon={MessageSquare} label="Open Messages" onClick={() => setShowMessagesDrawer(true)} />
-        </ActionPill>
-      </div>
-    )
+    return <EmptyState title="No conversations" action={action ?? undefined} bordered={false} />
   }
 
   return (
-    <div className="divide-y divide-themeblue3/8">
+    <div className="divide-y divide-themeblue3/8 relative">
+      {action && (
+        <ActionPill shadow="sm" placement="overlay">
+          <ActionButton icon={action.icon} label={action.label} onClick={action.onClick} />
+        </ActionPill>
+      )}
       {displayed.map(entry => {
         const msgs = conversations[entry.key]
         const lastMsg = msgs?.filter(m => m.messageType !== 'request-accepted' && !m.threadId).at(-1)
@@ -258,10 +260,13 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   const openCalendarEventForEdit = useNavigationStore(s => s.openCalendarEventForEdit)
   const requestNewCalendarEvent = useNavigationStore(s => s.requestNewCalendarEvent)
   const setShowMapOverlayDrawer = useNavigationStore(s => s.setShowMapOverlayDrawer)
-  const events = useCalendarStore(s => s.events)
+  const setShowMessagesDrawer = useNavigationStore(s => s.setShowMessagesDrawer)
+  const allEvents = useCalendarStore(s => s.events)
   const updateEvent = useCalendarStore(s => s.updateEvent)
   const userId = useAuthStore(s => s.user?.id)
   const isDevRole = useAuthStore(s => s.isDevRole)
+  // Hide fitness categories from non-dev users at the render layer.
+  const events = useMemo(() => visibleEventsForRole(allEvents, isDevRole), [allEvents, isDevRole])
   const isSupervisor = useAuthStore(s => s.isSupervisorRole)
   const overviewWidgets = useAuthStore(s => s.profile?.overviewWidgets)
   const { sendEvent: vaultSendEvent, deleteEvents: vaultDeleteEvents } = useCalendarVault()
@@ -393,41 +398,49 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
       .filter((id): id is OverviewWidgetId => (VALID_IDS as string[]).includes(id))
   )).filter(id => id !== 'map-overlay' || isDevRole)
 
+  const renderActionOverlay = (id: OverviewWidgetId) => {
+    const action = widgetAction(id)
+    if (!action) return null
+    return (
+      <ActionPill shadow="sm" placement="overlay">
+        <ActionButton icon={action.icon} label={action.label} onClick={action.onClick} />
+      </ActionPill>
+    )
+  }
+
   const renderWidget = (id: OverviewWidgetId) => {
     switch (id) {
-      case 'task-list':
+      case 'task-list': {
+        if (myTasks.length === 0) {
+          const action = widgetAction(id)
+          return <EmptyState key="task-list" title="No tasks today" action={action ?? undefined} bordered={false} />
+        }
         return (
           <div key="task-list" className="px-2.5 py-2 flex flex-col gap-1.5 min-h-[90px]">
-            {myTasks.length === 0 ? (
-              <div className="-mx-2.5 px-4 py-3">
-                <p className="text-sm text-tertiary text-center">No tasks today</p>
-              </div>
-            ) : (
-              <>
-                {previewTasks.map(event => (
-                  <TaskRow
-                    key={event.id}
-                    event={event}
-                    onClick={() => handleEventClick(event.id)}
-                    onContextMenu={(x, y) => setContextMenu({ event, x, y })}
-                  />
-                ))}
-                {extraCount > 0 && (
-                  <button
-                    onClick={() => setShowCalendarDrawer(true)}
-                    className="text-[9pt] font-medium text-secondary text-left pl-2 py-0.5 active:text-themeblue1"
-                  >
-                    +{extraCount} more
-                  </button>
-                )}
-              </>
+            {previewTasks.map(event => (
+              <TaskRow
+                key={event.id}
+                event={event}
+                onClick={() => handleEventClick(event.id)}
+                onContextMenu={(x, y) => setContextMenu({ event, x, y })}
+              />
+            ))}
+            {extraCount > 0 && (
+              <button
+                onClick={() => setShowCalendarDrawer(true)}
+                className="text-[9pt] font-medium text-secondary text-left pl-2 py-0.5 active:text-themeblue1"
+              >
+                +{extraCount} more
+              </button>
             )}
+            {renderActionOverlay(id)}
           </div>
         )
+      }
 
       case 'map-overlay':
         return (
-          <div key="map-overlay" className="h-[120px] p-1.5">
+          <div key="map-overlay" className="h-[120px] p-1.5 relative">
             <div className="w-full h-full rounded-lg overflow-hidden">
               <MissionMapCard
                 overlayFeatures={missionOverlayFeatures}
@@ -435,17 +448,22 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
                 onClick={() => setShowMapOverlayDrawer(true, missionOverlayId)}
               />
             </div>
+            {renderActionOverlay(id)}
           </div>
         )
 
       case 'kanban': {
+        if (allDayEvents.length === 0) {
+          const action = widgetAction(id)
+          return <EmptyState key="kanban" title={`No events ${isToday ? 'today' : 'this day'}`} action={action} bordered={false} />
+        }
         const cols = [
           { id: 'pending', label: 'Pending', events: allDayEvents.filter(e => e.status === 'pending') },
           { id: 'active',  label: 'Active',  events: allDayEvents.filter(e => e.status === 'in_progress') },
           { id: 'done',    label: 'Done',    events: allDayEvents.filter(e => e.status === 'completed' || e.status === 'cancelled') },
         ]
         return (
-          <div key="kanban" className="flex flex-col">
+          <div key="kanban" className="flex flex-col relative">
             <div className="flex divide-x divide-themeblue3/8">
               {cols.map(col => (
                 <div key={col.id} className="flex-1 min-w-0 flex items-center justify-center gap-1 px-2 py-1.5 border-b border-themeblue3/8">
@@ -456,32 +474,27 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
                 </div>
               ))}
             </div>
-            {allDayEvents.length === 0 ? (
-              <div className="px-4 py-3">
-                <p className="text-sm text-tertiary text-center">No events {isToday ? 'today' : 'this day'}</p>
-              </div>
-            ) : (
-              <div className="flex divide-x divide-themeblue3/8 min-h-[70px]">
-                {cols.map(col => (
-                  <div key={col.id} className="flex-1 min-w-0 flex flex-col gap-px p-1 overflow-y-auto" style={{ maxHeight: 160 }}>
-                    {col.events.length === 0 ? (
-                      <div className="flex items-center justify-center py-3">
-                        <span className="text-[9pt] text-tertiary/40">—</span>
-                      </div>
-                    ) : (
-                      col.events.map(event => (
-                        <KanbanCard
-                          key={event.id}
-                          event={event}
-                          onTap={() => handleEventClick(event.id)}
-                          onContext={(x, y) => setContextMenu({ event, x, y })}
-                        />
-                      ))
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="flex divide-x divide-themeblue3/8 min-h-[70px]">
+              {cols.map(col => (
+                <div key={col.id} className="flex-1 min-w-0 flex flex-col gap-px p-1 overflow-y-auto" style={{ maxHeight: 160 }}>
+                  {col.events.length === 0 ? (
+                    <div className="flex items-center justify-center py-3">
+                      <span className="text-[9pt] text-tertiary/40">—</span>
+                    </div>
+                  ) : (
+                    col.events.map(event => (
+                      <KanbanCard
+                        key={event.id}
+                        event={event}
+                        onTap={() => handleEventClick(event.id)}
+                        onContext={(x, y) => setContextMenu({ event, x, y })}
+                      />
+                    ))
+                  )}
+                </div>
+              ))}
+            </div>
+            {renderActionOverlay(id)}
           </div>
         )
       }
@@ -523,7 +536,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
         const weekHasEvents = weekEvents.length > 0
 
         return (
-          <div key="week-view" ref={weekViewRef} className="px-3 pt-0.5 pb-3.5">
+          <div key="week-view" ref={weekViewRef} className="px-3 pt-0.5 pb-3.5 relative">
             <div className="grid grid-cols-7 mb-0.5">
               {weekDays.map((day, i) => {
                 const isWeekend = i >= 5
@@ -589,34 +602,31 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
                 ))}
               </div>
             ) : (
-              <div className="-mx-3 px-4 py-3">
-                <p className="text-sm text-tertiary text-center">No events this week</p>
-              </div>
+              <EmptyState title="No events this week" bordered={false} />
             )}
+            {renderActionOverlay(id)}
           </div>
         )
       }
 
       case 'messages':
-        return (
-          <div key="messages">
-            <MessagesWidget />
-          </div>
-        )
+        return <MessagesWidget key="messages" action={widgetAction(id)} />
 
       case 'weather':
-        return <WeatherWidget key="weather" />
+        return (
+          <div key="weather" className="relative">
+            <WeatherWidget />
+            {renderActionOverlay(id)}
+          </div>
+        )
 
       case 'huddle': {
         const huddleEvents = allDayEvents
           .filter(e => e.category === 'huddle')
           .sort((a, b) => a.start_time.localeCompare(b.start_time))
         if (huddleEvents.length === 0) {
-          return (
-            <div key="huddle" className="px-4 py-3">
-              <p className="text-sm text-tertiary text-center">No huddle {isToday ? 'today' : 'this day'}</p>
-            </div>
-          )
+          const action = widgetAction(id)
+          return <EmptyState key="huddle" title={`No huddle ${isToday ? 'today' : 'this day'}`} action={action} bordered={false} />
         }
         const taskOrder = new Map(huddleTasks.map((t, i) => [t.id, { name: t.name, sort: t.sort_order ?? i }]))
         const groups = new Map<string, { label: string; sort: number; events: CalendarEvent[] }>()
@@ -634,7 +644,8 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
         }
         const ordered = Array.from(groups.values()).sort((a, b) => a.sort - b.sort)
         return (
-          <div key="huddle" className="px-2.5 py-2 flex flex-col gap-2">
+          <div key="huddle" className="px-2.5 py-2 flex flex-col gap-2 relative">
+            {renderActionOverlay(id)}
             {ordered.map((g, gi) => (
               <div key={gi} className="flex flex-col gap-0.5">
                 <div className="text-[9pt] font-semibold uppercase tracking-wide text-secondary px-0.5">{g.label}</div>
@@ -660,38 +671,59 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
     }
   }
 
+  const CALENDAR_DATA_WIDGETS: OverviewWidgetId[] = ['task-list', 'kanban', 'week-view', 'huddle']
+  const firstCalendarWidget = widgets.find(w => CALENDAR_DATA_WIDGETS.includes(w))
+
+  const dateNavRow = (
+    <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-themeblue3/8">
+      <button className="p-1 rounded active:bg-themeblue2/10 text-tertiary" onClick={() => navigate(-1)}>
+        <ChevronLeft size={13} />
+      </button>
+      <button
+        ref={dateBtnRef}
+        className="text-[10pt] font-medium text-primary py-0.5 px-1 rounded active:bg-themeblue2/10 whitespace-nowrap"
+        onClick={openPicker}
+      >
+        {isToday ? 'Today' : formatShortDayLabel(selectedDate)}
+      </button>
+      <button className="p-1 rounded active:bg-themeblue2/10 text-tertiary" onClick={() => navigate(1)}>
+        <ChevronRight size={13} />
+      </button>
+    </div>
+  )
+
+  const widgetAction = (id: OverviewWidgetId): WidgetActionDescriptor | null => {
+    switch (id) {
+      case 'task-list':
+      case 'kanban':
+      case 'week-view':
+      case 'huddle':
+        return { icon: Plus, label: 'New Event', onClick: requestNewCalendarEvent }
+      case 'messages':
+        return { icon: MessageSquare, label: 'Open Messages', onClick: () => setShowMessagesDrawer(true) }
+      case 'map-overlay':
+        return { icon: MapIcon, label: 'Open Map', onClick: () => setShowMapOverlayDrawer(true, missionOverlayId) }
+      case 'weather':
+        return null
+      default:
+        return null
+    }
+  }
+
   return (
     <div className="rounded-xl overflow-hidden border border-themeblue3/10 bg-themewhite2" data-tour="mission-overview-panel">
-
-      {/* Header */}
-      <div className="flex items-center justify-between px-2 py-1.5 border-b border-themeblue3/8">
-        <div className="flex items-center gap-0.5">
-          <button className="p-1 rounded active:bg-themeblue2/10 text-tertiary" onClick={() => navigate(-1)}>
-            <ChevronLeft size={13} />
-          </button>
-          <button
-            ref={dateBtnRef}
-            className="text-[10pt] font-medium text-primary py-0.5 px-1 rounded active:bg-themeblue2/10 whitespace-nowrap"
-            onClick={openPicker}
-          >
-            {isToday ? 'Today' : formatShortDayLabel(selectedDate)}
-          </button>
-          <button className="p-1 rounded active:bg-themeblue2/10 text-tertiary" onClick={() => navigate(1)}>
-            <ChevronRight size={13} />
-          </button>
-        </div>
-        <ActionPill shadow="sm">
-          <ActionButton icon={Plus} label="New Event" onClick={requestNewCalendarEvent} />
-        </ActionPill>
-      </div>
-
       {widgets.length === 0 ? (
         <div className="flex items-center justify-center h-[80px]">
           <span className="text-[10pt] text-secondary">No widgets selected</span>
         </div>
       ) : (
         <div className="divide-y divide-themeblue3/8" data-tour="mission-overview-widgets">
-          {widgets.map(id => renderWidget(id))}
+          {widgets.map(id => (
+            <div key={id}>
+              {id === firstCalendarWidget && dateNavRow}
+              {renderWidget(id)}
+            </div>
+          ))}
         </div>
       )}
 

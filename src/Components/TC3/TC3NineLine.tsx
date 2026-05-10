@@ -151,7 +151,7 @@ export const TC3NineLine = memo(function TC3NineLine({ card, cards }: TC3NineLin
         </div>
       </div>
 
-      <ActionPill shadow="sm" className="absolute top-2 right-2">
+      <ActionPill shadow="sm" placement="overlay">
         <ActionIconButton
           onClick={handleCopy}
           status={copied ? 'done' : 'idle'}

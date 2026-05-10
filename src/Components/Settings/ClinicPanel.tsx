@@ -544,7 +544,7 @@ export function ClinicPanel({
           <div className="pb-2 flex items-center gap-2">
             <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Clinic</p>
           </div>
-          <div ref={clinicCardRef} className="relative rounded-xl bg-themewhite2 overflow-hidden">
+          <div className="relative"><div ref={clinicCardRef} className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
             <button
               type="button"
               disabled={!isSupervisorRole}
@@ -552,24 +552,22 @@ export function ClinicPanel({
                 if (!clinicCardRef.current) return
                 setClinicEditAnchor(clinicCardRef.current.getBoundingClientRect())
               }}
-              className={`w-full text-left px-4 pt-3 hover:bg-secondary/5 active:scale-[0.99] disabled:active:scale-100 transition-all ${
-                isSupervisorRole && activeCode ? 'pb-16' : 'pb-3'
-              }`}
+              className="w-full text-left px-4 py-4 hover:bg-secondary/5 active:scale-[0.99] disabled:active:scale-100 transition-all"
             >
-              <div className="flex items-start gap-3">
+              <div className="flex items-center gap-4">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-primary truncate">
+                  <p className="text-base font-semibold text-primary truncate">
                     {clinicName || (
                       <span className="text-tertiary italic">No facility</span>
                     )}
                   </p>
-                  <p className="text-[9pt] text-tertiary">
+                  <p className="text-[10pt] text-tertiary mt-0.5">
                     {isSupervisorRole
                       ? `${memberCount} personnel`
                       : (profile.uic || 'No UIC')}
                   </p>
                   {(clinicUics.length > 0 || clinicLocation) && (
-                    <p className="text-[9pt] text-tertiary mt-0.5 truncate">
+                    <p className="text-[10pt] text-tertiary mt-0.5 truncate">
                       {[clinicUics.join(', '), clinicLocation].filter(Boolean).join(' · ')}
                     </p>
                   )}
@@ -586,12 +584,13 @@ export function ClinicPanel({
                 )}
               </div>
             </button>
+            </div>
             {/* Bottom-right pill — combines clinic-context picker (loaned
                 supervisors) with Copy + Share QR (when an invite code is
                 active). All three render together as a single pill so the QR
                 preview at top-right stays unobstructed. */}
             {isSupervisorRole && (surrogateClinicId || activeCode) && (
-              <ActionPill shadow="sm" className="absolute bottom-2 right-2">
+              <ActionPill shadow="sm" placement="overlay">
                 {surrogateClinicId && <SupervisorClinicCardAction />}
                 {activeCode && (
                   <>
@@ -629,7 +628,7 @@ export function ClinicPanel({
               {nearbyClinicMap.length}
             </span>
           </div>
-          <div className="relative rounded-xl bg-themewhite2 overflow-hidden">
+          <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
             <div className="px-4 py-3">
               {nearbyClinicMap.length === 0 ? (
                 <p className="text-sm text-tertiary py-4 text-center">No associated clinics</p>
@@ -661,7 +660,8 @@ export function ClinicPanel({
                 </div>
               )}
             </div>
-            <ActionPill ref={assocFabRef} shadow="sm" className="absolute top-2 right-2">
+            </div>
+            <ActionPill ref={assocFabRef} shadow="sm" placement="overlay">
               <ActionButton icon={Plus} label="Associate a clinic" onClick={openAssocAddPopover} />
             </ActionPill>
           </div>
@@ -680,7 +680,7 @@ export function ClinicPanel({
               </span>
             </div>
 
-            <div className="relative rounded-xl bg-themewhite2 overflow-hidden">
+            <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
               <div className="px-4 py-3">
                 {medicsLoading ? (
                   <div className="flex items-center justify-center py-6">
@@ -764,7 +764,8 @@ export function ClinicPanel({
                   <p className="text-sm text-tertiary py-4 text-center">No members assigned</p>
                 )}
               </div>
-              <ActionPill ref={addMemberFabRef} data-tour="clinic-add-member" shadow="sm" className="absolute top-2 right-2">
+              </div>
+              <ActionPill ref={addMemberFabRef} data-tour="clinic-add-member" shadow="sm" placement="overlay">
                 <ActionButton icon={Plus} label="Add member" onClick={openAddMemberPopover} />
               </ActionPill>
             </div>

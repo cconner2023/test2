@@ -5,6 +5,7 @@ import { useGeolocation } from '../../Hooks/useGeolocation'
 import { useTheme } from '../../Utilities/ThemeContext'
 import { createThemedTileLayer, TILE_THEME_LIGHT, TILE_THEME_DARK } from '../MapOverlay/ThemedTileLayer'
 import type { OverlayFeature } from '../../Types/MapOverlayTypes'
+import { resolveColor } from '../../Types/MapOverlayTypes'
 import { waypointIconSvg } from '../MapOverlay/WaypointIcon'
 import { computeOverlayBbox } from '../../lib/mapTileService'
 
@@ -76,21 +77,18 @@ export function MissionMapCard({ onClick, overlayFeatures, overlayId: _overlayId
 
     for (const feature of features) {
       const geom = feature.geometry
-      const color = feature.style?.color ?? '#2563EB'
+      const color = resolveColor(feature.style?.color ?? 'var(--color-themeblue2)')
       const label = feature.label
 
       if (feature.type === 'waypoint' && geom.length > 0) {
         const [lat, lng] = geom[0]
         const icon = L.divIcon({
-          html: waypointIconSvg(feature.waypoint_type ?? 'generic', color, 22),
+          html: waypointIconSvg(feature.waypoint_type, color, 20),
           className: '',
-          iconSize: [22, 22],
-          iconAnchor: [11, 11],
+          iconSize: [20, 20],
+          iconAnchor: [10, 10],
         })
         const marker = L.marker([lat, lng], { icon })
-        if (label) {
-          marker.bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -15] })
-        }
         marker.addTo(featureLayerRef.current)
       } else if (feature.type === 'route' && geom.length >= 2) {
         const line = L.polyline(geom, {

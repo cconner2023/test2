@@ -1,5 +1,7 @@
 import L from 'leaflet';
 import type { ThemeName, ThemeMode } from '../../Utilities/ThemeContext';
+import type { TileSource } from '../../lib/mapTileService';
+import { getTileSource } from '../../lib/mapTileService';
 
 type RGB = [number, number, number];
 
@@ -40,16 +42,16 @@ export function getTileTheme(name: ThemeName, mode: ThemeMode): TileTheme {
 export const TILE_THEME_LIGHT: TileTheme = TILE_THEMES['default-light'];
 export const TILE_THEME_DARK: TileTheme  = TILE_THEMES['default-dark'];
 
-const TILE_SUBDOMAINS = ['a', 'b', 'c'];
-
 type TileCacheFn = (z: number, x: number, y: number) => Promise<Blob | null>;
 
 const ThemedGridLayer = L.GridLayer.extend({
   options: {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    attribution: '',
     maxZoom: 19,
+    minZoom: 0,
     tileTheme: TILE_THEME_LIGHT as TileTheme,
     tileCache: null as TileCacheFn | null,
+    tileSource: null as TileSource | null,
   },
 
   createTile(coords: L.Coords, done: L.DoneCallback): HTMLCanvasElement {
@@ -66,9 +68,18 @@ const ThemedGridLayer = L.GridLayer.extend({
 
     const colors = this.options.tileTheme as TileTheme;
     const tileCache = this.options.tileCache as TileCacheFn | null;
+    const source = (this.options.tileSource as TileSource | null) ?? getTileSource();
 
-    const sub = TILE_SUBDOMAINS[Math.abs(coords.x + coords.y) % TILE_SUBDOMAINS.length];
-    const networkUrl = `https://${sub}.tile.openstreetmap.org/${coords.z}/${coords.x}/${coords.y}.png`;
+    const networkUrl = source.url(coords.z, coords.x, coords.y);
+
+    // Resolution priority for a tile blob:
+    //   1. Imported source's getBlob (IDB-backed — MBTiles / geo-PDF / GeoTIFF)
+    //   2. Per-overlay tileCache (bulk-downloaded network tiles, by sourceId)
+    //   3. Network URL (live fetch from the source's origin)
+    // Imported sources NEVER fall back to network — they have no remote.
+    const sourceBlobFn = typeof source.getBlob === 'function' ? source.getBlob.bind(source) : null;
+
+    const recolor = source.category === 'street';
 
     const renderFromSource = (src: string, isObjectUrl: boolean) => {
       const img = new Image();
@@ -78,12 +89,14 @@ const ThemedGridLayer = L.GridLayer.extend({
       img.onload = () => {
         if (isObjectUrl) URL.revokeObjectURL(src);
         ctx.drawImage(img, 0, 0, size.x, size.y);
-        try {
-          const imageData = ctx.getImageData(0, 0, size.x, size.y);
-          recolorPixels(imageData.data, colors);
-          ctx.putImageData(imageData, 0, 0);
-        } catch {
-          // CORS tainted canvas — show the uncolored tile rather than blank
+        if (recolor) {
+          try {
+            const imageData = ctx.getImageData(0, 0, size.x, size.y);
+            recolorPixels(imageData.data, colors);
+            ctx.putImageData(imageData, 0, 0);
+          } catch {
+            // CORS tainted canvas — show the uncolored tile rather than blank
+          }
         }
         done(undefined, tile);
       };
@@ -96,7 +109,21 @@ const ThemedGridLayer = L.GridLayer.extend({
       };
     };
 
-    if (tileCache) {
+    const renderBlank = () => {
+      ctx.fillStyle = `rgb(${colors.background[0]},${colors.background[1]},${colors.background[2]})`;
+      ctx.fillRect(0, 0, size.x, size.y);
+      done(undefined, tile);
+    };
+
+    if (sourceBlobFn) {
+      // Imported basemap — IDB only, never fall back to network.
+      sourceBlobFn(coords.z, coords.x, coords.y)
+        .then((blob) => {
+          if (blob) renderFromSource(URL.createObjectURL(blob), true);
+          else renderBlank();
+        })
+        .catch(renderBlank);
+    } else if (tileCache) {
       tileCache(coords.z, coords.x, coords.y)
         .then((blob) => {
           if (blob) {
@@ -153,6 +180,15 @@ function recolorPixels(data: Uint8ClampedArray, colors: TileTheme): void {
 export function createThemedTileLayer(
   tileTheme: TileTheme,
   tileCache?: TileCacheFn | null,
+  tileSource?: TileSource | null,
 ): L.GridLayer {
-  return new ThemedGridLayer({ tileTheme, tileCache: tileCache ?? null });
+  const source = tileSource ?? getTileSource();
+  return new ThemedGridLayer({
+    tileTheme,
+    tileCache: tileCache ?? null,
+    tileSource: source,
+    attribution: source.attribution,
+    minZoom: source.minZoom,
+    maxZoom: source.maxZoom,
+  });
 }

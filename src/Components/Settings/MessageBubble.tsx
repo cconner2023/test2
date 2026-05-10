@@ -1,5 +1,6 @@
 import { useRef, useCallback, useState, useEffect } from 'react'
-import { Check, X, Reply, Trash2, Clock, MessageSquare, Play, Pause } from 'lucide-react'
+import { Check, X, Reply, Trash2, Clock, MessageSquare, Play, Pause, Copy, Download } from 'lucide-react'
+import { ActionButton } from '../ActionButton'
 import { GESTURE_THRESHOLDS, isInteractiveTarget } from '../../Utilities/GestureUtils'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import { downloadDecryptedAttachment } from '../../lib/signal/attachmentService'
@@ -492,7 +493,7 @@ export function MessageBubble({
           >
             <div
               className={`rounded-2xl ${isImage && !isVoice ? 'p-1.5' : 'px-3.5 py-2'}
-                         ${isOwn ? 'bg-themeblue2 text-white rounded-br-md' : 'bg-themewhite2 text-primary rounded-bl-md'}
+                         ${isOwn ? 'bg-themeblue3 text-white rounded-br-md' : 'bg-themewhite2 text-primary rounded-bl-md'}
                          ${tapped ? 'scale-[0.97]' : ''} transition-transform duration-150`}
             >
               {/* Sender name label (group chats) */}
@@ -549,6 +550,41 @@ export function MessageBubble({
             className="max-w-full max-h-[85vh] object-contain rounded-lg px-4"
             onClick={e => e.stopPropagation()}
           />
+          <div
+            className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-themewhite/95 rounded-full px-3 py-1.5 shadow-lg"
+            onClick={e => e.stopPropagation()}
+          >
+            <ActionButton
+              icon={Copy}
+              label="Copy image"
+              onClick={async () => {
+                try {
+                  const blob = await (await fetch(fullImageUrl)).blob()
+                  const type = blob.type && blob.type.startsWith('image/') ? blob.type : 'image/png'
+                  const item = new ClipboardItem({ [type]: type === blob.type ? blob : new Blob([blob], { type }) })
+                  await navigator.clipboard.write([item])
+                } catch {}
+              }}
+            />
+            <ActionButton
+              icon={Download}
+              label="Save image"
+              onClick={async () => {
+                try {
+                  const blob = await (await fetch(fullImageUrl)).blob()
+                  const ext = (blob.type.split('/')[1] || 'png').split('+')[0]
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `image-${Date.now()}.${ext}`
+                  document.body.appendChild(a)
+                  a.click()
+                  a.remove()
+                  setTimeout(() => URL.revokeObjectURL(url), 1000)
+                } catch {}
+              }}
+            />
+          </div>
         </div>
       )}
     </>

@@ -356,7 +356,7 @@ export function AdminUserDetail({
       {error && <div className="mb-4"><ErrorDisplay message={error} /></div>}
 
       {/* Main card — compact card in view, form inputs in edit */}
-      <div className="relative rounded-2xl bg-themewhite2 overflow-hidden">
+      <div className="relative"><div className="rounded-2xl bg-themewhite2 overflow-hidden">
         {editing ? (
           <div>
             {isCreateMode ? (
@@ -449,10 +449,11 @@ export function AdminUserDetail({
             right={<span className="text-[9pt] text-tertiary/50 shrink-0">{formatLastActive(user.last_active_at)}</span>}
           />
         ) : null}
+        </div>
 
         {/* Corner action pill — view mode, non-self only */}
         {!editing && !isCreateMode && user && currentUserId !== user.id && (
-          <ActionPill ref={pillRef} shadow="sm" className="absolute top-2 right-2">
+          <ActionPill ref={pillRef} shadow="sm" placement="overlay">
             {user.email && (
               <a
                 href={`mailto:${user.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(`${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n`)}`}

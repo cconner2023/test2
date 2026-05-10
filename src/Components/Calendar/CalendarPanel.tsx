@@ -19,6 +19,7 @@ import { BlockTemplatedPanel, type BlockTemplatedHandle } from './BlockTemplated
 import { useAuthStore } from '../../stores/useAuthStore'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { useCalendarStore } from '../../stores/useCalendarStore'
+import { visibleEventsForRole } from '../../lib/aft/visibility'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
@@ -29,7 +30,7 @@ import { useCalendarSync } from '../../Hooks/useCalendarSync'
 import { useCalendarWrite } from '../../Hooks/useCalendarWrite'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { useAuth } from '../../Hooks/useAuth'
-import { getOverlays } from '../../lib/mapOverlayService'
+import { getOverlays, saveOverlay } from '../../lib/mapOverlayService'
 import type { OverlayOption, RoomOption, HuddleTaskOption } from './EventForm'
 import { MissionBoard } from '../Mission/MissionBoard'
 import type { ResourceAllocation } from '../../Types/MissionTypes'
@@ -109,11 +110,33 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   }, [clinicId])
 
   const [overlayOptions, setOverlayOptions] = useState<OverlayOption[]>([])
+
+  // Phase 4.3a — auto-create an overlay for a field-type event without a binding.
+  // Caller (EventForm button) provides no event metadata at click time, so we
+  // produce a placeholder name; the user can rename in the overlay tree later.
+  const handleCreateOverlayForEvent = useCallback(async (): Promise<string | null> => {
+    if (!clinicId || !user) return null
+    const overlayId = crypto.randomUUID()
+    const today = new Date().toISOString().slice(0, 10)
+    const result = await saveOverlay({
+      overlayId,
+      clinicId,
+      userId: user.id,
+      name: `Field map · ${today}`,
+      center: [0, 0],
+      zoom: 13,
+      features: [],
+    })
+    if (!result.ok) return null
+    setOverlayOptions(prev => [...prev, { id: overlayId, name: `Field map · ${today}` }])
+    return overlayId
+  }, [clinicId, user])
   const [missionBoardEventId, setMissionBoardEventId] = useState<string | null>(null)
 
   const [showAddSheet, setShowAddSheet] = useState(false)
   const [showImportSheet, setShowImportSheet] = useState(false)
   const isSupervisor = useAuthStore(s => s.isSupervisorRole)
+  const isDevRole = useAuthStore(s => s.isDevRole)
   const templatePanelRef = useRef<TemplateGeneratorHandle>(null)
   const blockPanelRef = useRef<BlockTemplatedHandle>(null)
   const [templateNonce, setTemplateNonce] = useState(0)
@@ -277,7 +300,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const selectedDateKey = toDateKey(selectedDate)
 
   const filteredEvents = useMemo(() => {
-    let out = events
+    let out = visibleEventsForRole(events, isDevRole)
     if (personnelFilter.length > 0) {
       out = out.filter(e =>
         e.assigned_to.length === 0 || e.assigned_to.some(id => personnelFilter.includes(id))
@@ -290,7 +313,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       out = out.filter(e => clinicFilter.includes(e.clinic_id))
     }
     return out
-  }, [events, personnelFilter, categoryFilter, clinicFilter])
+  }, [events, isDevRole, personnelFilter, categoryFilter, clinicFilter])
 
   const dayEvents = useMemo(() =>
     filteredEvents
@@ -933,6 +956,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 roomOptions={roomFormOptions}
                 huddleTaskOptions={huddleTaskFormOptions}
                 clinicOptions={clinicFormOptions}
+                onCreateOverlay={handleCreateOverlayForEvent}
               />
               {(isFormPending || isWriting || isDeleting) && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-xl">

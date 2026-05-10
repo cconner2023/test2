@@ -1,6 +1,9 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
-import { ChevronRight, ChevronDown, Eye, EyeOff, Pencil, Trash2, X, Check, ArrowDownToLine, Wifi, Loader2 } from 'lucide-react';
+import { ChevronRight, ChevronDown, Eye, EyeOff, Pencil, Trash2, X, Check, ArrowDownToLine, Wifi, Loader2, Plus } from 'lucide-react';
 import { ContextMenu } from '../ContextMenu';
+import { EmptyState } from '../EmptyState';
+import { ActionPill } from '../ActionPill';
+import { ActionButton } from '../ActionButton';
 import type { LocalMapOverlay, OverlayFeature } from '../../Types/MapOverlayTypes';
 import type { TileMetadata } from '../../lib/mapTileService';
 
@@ -14,6 +17,7 @@ interface MapOverlayTreeProps {
   onRenameOverlay: (overlay: LocalMapOverlay, name: string) => void;
   onDeleteOverlay: (overlayId: string) => void;
   onSelectFeature: (feature: OverlayFeature, overlayId: string) => void;
+  onNewOverlay: () => void;
   tileMeta: Map<string, TileMetadata>;
   downloadingId: string | null;
   onDownloadTiles: (overlay: LocalMapOverlay) => void;
@@ -30,6 +34,7 @@ export function MapOverlayTree({
   onRenameOverlay,
   onDeleteOverlay,
   onSelectFeature,
+  onNewOverlay,
   tileMeta,
   downloadingId,
   onDownloadTiles,
@@ -79,14 +84,20 @@ export function MapOverlayTree({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Tree body */}
-      <div className="flex-1 min-h-0 overflow-y-auto py-1">
+      {/* Tree body — empty state primitive, or populated list with corner action */}
+      <div className="flex-1 min-h-0 overflow-y-auto py-1 relative">
         {sorted.length === 0 ? (
-          <div className="px-6 py-8 text-center text-[10pt] text-tertiary">
-            No overlays yet.
-          </div>
+          <EmptyState
+            title="No overlays yet"
+            bordered={false}
+            action={{ icon: Plus, label: 'New overlay', onClick: () => onNewOverlay() }}
+          />
         ) : (
-          sorted.map((overlay) => {
+          <>
+            <ActionPill shadow="sm" placement="overlay">
+              <ActionButton icon={Plus} label="New overlay" onClick={onNewOverlay} />
+            </ActionPill>
+            {sorted.map((overlay) => {
             const hasChildren = overlay.features.length > 0;
             const isCollapsed = collapsed.has(overlay.id);
             const isActive = activeOverlayId === overlay.id;
@@ -99,7 +110,7 @@ export function MapOverlayTree({
               <div key={overlay.id}>
                 {/* Overlay row */}
                 <div
-                  className={`group flex items-center gap-1.5 py-2 pr-2 transition-colors ${
+                  className={`group flex items-center gap-1.5 py-2 pr-3 transition-colors ${
                     isActive
                       ? 'bg-primary/5 border-l-2 border-l-primary/40'
                       : 'hover:bg-secondary/5 border-l-2 border-l-transparent'
@@ -167,33 +178,33 @@ export function MapOverlayTree({
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={cancelRename}
-                          className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                          className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
                           aria-label="Cancel rename"
                         >
-                          <X size={13} />
+                          <X size={15} />
                         </button>
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={commitRename}
                           disabled={!renameValue.trim()}
-                          className="w-7 h-7 rounded-full flex items-center justify-center text-themeblue2 active:scale-95 transition-all disabled:opacity-30"
+                          className="w-9 h-9 rounded-full flex items-center justify-center text-themeblue2 active:scale-95 transition-all disabled:opacity-30"
                           aria-label="Confirm rename"
                         >
-                          <Check size={13} />
+                          <Check size={15} />
                         </button>
                       </>
                     ) : (
                       <button
                         type="button"
                         onClick={() => onToggleVisible(overlay.id)}
-                        className={`w-7 h-7 rounded-full flex items-center justify-center active:scale-95 transition-all ${
+                        className={`w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all ${
                           isVisible ? 'text-themeblue2' : 'text-tertiary/50'
                         }`}
                         title={isVisible ? 'Hide on map' : 'Show on map'}
                         aria-label={isVisible ? 'Hide on map' : 'Show on map'}
                       >
-                        {isVisible ? <Eye size={13} /> : <EyeOff size={13} />}
+                        {isVisible ? <Eye size={15} /> : <EyeOff size={15} />}
                       </button>
                     )}
                   </div>
@@ -220,7 +231,8 @@ export function MapOverlayTree({
                 })}
               </div>
             );
-          })
+          })}
+          </>
         )}
       </div>
 

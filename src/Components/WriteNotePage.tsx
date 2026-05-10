@@ -365,7 +365,6 @@ export const WriteNotePage = ({
                                 <div className="space-y-2" data-tour="writenote-pe">
                                     <p className={SECTION_LABEL_CLASS}>Physical Exam</p>
                                     <div
-                                        className={peHasContent ? CARD_CLASS : undefined}
                                         style={peHasContent ? undefined : { display: 'none' }}
                                         aria-hidden={!peHasContent}
                                     >
@@ -542,77 +541,91 @@ export const WriteNotePage = ({
                                         <PIIWarningBanner warnings={[...new Set([...piiWarnings, ...pePiiWarnings])]} />
                                     )}
                                     {/* Note Preview */}
-                                    <section data-tour="writenote-preview" className="relative rounded-xl bg-themewhite2 overflow-hidden">
-                                        <div className="px-4 pt-14 pb-3 text-tertiary text-[9pt] whitespace-pre-wrap max-h-48 overflow-y-auto">
-                                            {previewNote || "No content selected"}
+                                    <section data-tour="writenote-preview">
+                                        <div className="pb-2 flex items-center gap-2">
+                                            <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Note Preview</p>
                                         </div>
-                                        <ActionPill shadow="sm" className="absolute top-2 right-2">
-                                            <ActionIconButton
-                                                onClick={handleLog}
-                                                status={logStatus}
-                                                variant="calendar"
-                                                title="Log to calendar"
-                                                tourTag="writenote-log-calendar"
-                                            />
-                                            <ActionIconButton
-                                                onClick={() => handleCopy(previewNote, 'preview')}
-                                                status={copiedTarget === 'preview' ? 'done' : 'idle'}
-                                                variant="copy"
-                                                title="Copy note text"
-                                            />
-                                            <ActionIconButton
-                                                onClick={handleExportSF600}
-                                                status={exportStatusToIconStatus(sf600ExportStatus)}
-                                                variant="pdf"
-                                                title="Export SF600 PDF"
-                                                tourTag="writenote-export-sf600"
-                                            />
-                                        </ActionPill>
+                                        <div className="relative">
+                                            <ActionPill shadow="sm" placement="overlay">
+                                                <ActionIconButton
+                                                    onClick={handleLog}
+                                                    status={logStatus}
+                                                    variant="calendar"
+                                                    title="Log to calendar"
+                                                    tourTag="writenote-log-calendar"
+                                                />
+                                                <ActionIconButton
+                                                    onClick={() => handleCopy(previewNote, 'preview')}
+                                                    status={copiedTarget === 'preview' ? 'done' : 'idle'}
+                                                    variant="copy"
+                                                    title="Copy note text"
+                                                />
+                                                <ActionIconButton
+                                                    onClick={handleExportSF600}
+                                                    status={exportStatusToIconStatus(sf600ExportStatus)}
+                                                    variant="pdf"
+                                                    title="Export SF600 PDF"
+                                                    tourTag="writenote-export-sf600"
+                                                />
+                                            </ActionPill>
+                                            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                                                <div className="px-4 pt-3 pb-3 text-tertiary text-[9pt] whitespace-pre-wrap max-h-48 overflow-y-auto">
+                                                    {previewNote || "No content selected"}
+                                                </div>
+                                            </div>
+                                        </div>
                                     </section>
 
                                     {/* Encoded Note / Barcode */}
-                                    <section data-tour="writenote-encoded" className="relative rounded-xl bg-themewhite2 overflow-hidden">
-                                        <div className="px-4 pt-14 pb-3">
-                                            <NoteBarcodeGenerator
-                                                algorithmOptions={algorithmOptions}
-                                                cardStates={cardStates}
-                                                noteOptions={{
-                                                    includeAlgorithm: true,
-                                                    selectedDdx,
-                                                    customDdx,
-                                                    customNote: note,
-                                                    physicalExamNote: peNote,
-                                                    peState: peState ?? undefined,
-                                                    planNote,
-                                                    user: profile,
-                                                    userId: authUserId,
-                                                }}
-                                                symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
-                                                onEncodedValueChange={setEncodedValue}
-                                                layout={encodedValue.length > 300 ? 'col' : 'row'}
-                                            />
+                                    <section data-tour="writenote-encoded">
+                                        <div className="pb-2 flex items-center gap-2">
+                                            <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Encoded Note</p>
                                         </div>
-                                        <ActionPill shadow="sm" className="absolute top-2 right-2">
-                                            <ActionIconButton
-                                                onClick={() => handleCopy(encodedValue, 'encoded')}
-                                                status={copiedTarget === 'encoded' ? 'done' : 'idle'}
-                                                variant="copy"
-                                                title="Copy encoded text"
-                                            />
-                                            <ActionIconButton
-                                                onClick={handleShare}
-                                                status={shareStatusToIconStatus(shareStatus)}
-                                                variant="share"
-                                                title="Share note as image"
-                                            />
-                                            <ActionIconButton
-                                                onClick={handleExportDD689}
-                                                status={exportStatusToIconStatus(exportStatus)}
-                                                variant="pdf"
-                                                title="Export DD689 PDF"
-                                                tourTag="writenote-export-dd689"
-                                            />
-                                        </ActionPill>
+                                        <div className="relative">
+                                            <ActionPill shadow="sm" placement="overlay">
+                                                <ActionIconButton
+                                                    onClick={() => handleCopy(encodedValue, 'encoded')}
+                                                    status={copiedTarget === 'encoded' ? 'done' : 'idle'}
+                                                    variant="copy"
+                                                    title="Copy encoded text"
+                                                />
+                                                <ActionIconButton
+                                                    onClick={handleShare}
+                                                    status={shareStatusToIconStatus(shareStatus)}
+                                                    variant="share"
+                                                    title="Share note as image"
+                                                />
+                                                <ActionIconButton
+                                                    onClick={handleExportDD689}
+                                                    status={exportStatusToIconStatus(exportStatus)}
+                                                    variant="pdf"
+                                                    title="Export DD689 PDF"
+                                                    tourTag="writenote-export-dd689"
+                                                />
+                                            </ActionPill>
+                                            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                                                <div className="px-4 pt-3 pb-3">
+                                                <NoteBarcodeGenerator
+                                                    algorithmOptions={algorithmOptions}
+                                                    cardStates={cardStates}
+                                                    noteOptions={{
+                                                        includeAlgorithm: true,
+                                                        selectedDdx,
+                                                        customDdx,
+                                                        customNote: note,
+                                                        physicalExamNote: peNote,
+                                                        peState: peState ?? undefined,
+                                                        planNote,
+                                                        user: profile,
+                                                        userId: authUserId,
+                                                    }}
+                                                    symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
+                                                    onEncodedValueChange={setEncodedValue}
+                                                    layout={encodedValue.length > 300 ? 'col' : 'row'}
+                                                />
+                                                </div>
+                                            </div>
+                                        </div>
                                     </section>
 
                             </div>

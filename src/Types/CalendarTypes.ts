@@ -1,10 +1,11 @@
 export type EventCategory =
-  | 'training' | 'duty' | 'range' | 'appointment' | 'mission' | 'medevac' | 'huddle' | 'leave' | 'other' | 'templated' | 'task'
+  | 'training' | 'duty' | 'range' | 'appointment' | 'mission' | 'medevac' | 'huddle' | 'leave' | 'other' | 'templated' | 'task' | 'aft_record' | 'workout'
 
 export type EventStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
 
 import type { ResourceAllocation, StructuredLocation } from './MissionTypes'
 import type { MedevacRequest } from './MedevacTypes'
+import type { AftResult, AftTarget } from '../lib/aft/scoring'
 
 export interface CalendarEvent {
   id: string
@@ -44,6 +45,48 @@ export interface CalendarEvent {
   field_positions?: Record<string, FieldPosition> | null
   /** 9-line MEDEVAC request data — present when category is 'medevac' or when a mission event includes a MEDEVAC request. */
   medevac_data?: MedevacRequest | null
+  /** Soldier-entered AFT raw values + scoring scope. Only meaningful when category === 'aft_record'. */
+  aft_result?: AftResult | null
+  /** Supervisor-set targets for a scheduled record AFT. Compared against aft_result to derive met/missed. */
+  aft_target?: AftTarget | null
+  /** Reference to clinics.workouts[].id. Only meaningful when category === 'workout'. */
+  workout_id?: string | null
+  /** Soldier-entered workout execution log (sets/reps/load/time per block). Snapshot of actuals at time of logging. */
+  workout_log?: WorkoutLog | null
+}
+
+/**
+ * Per-set actuals captured during a workout. Each field maps to the corresponding
+ * block target — only the relevant ones are populated for that exercise type.
+ */
+export interface WorkoutSetLog {
+  reps?: number
+  load_lbs?: number
+  time_sec?: number
+  distance_m?: number
+}
+
+export interface WorkoutLogBlock {
+  /** Snapshot of the template's exercise name at log time. */
+  exercise_name: string
+  sets: WorkoutSetLog[]
+  notes?: string | null
+  /**
+   * Per-block target snapshot. For workouts spawned from a clinics.workouts template,
+   * these mirror the template's targets at log time. For ad-hoc or supervisor-set
+   * single-exercise goals (no template), these carry the goal directly.
+   */
+  target_sets?: number
+  target_reps?: number
+  target_load_lbs?: number
+  target_time_sec?: number
+  target_distance_m?: number
+}
+
+export interface WorkoutLog {
+  /** Snapshot of clinics.workouts[].id at log time. May refer to a deleted template. */
+  workout_id?: string | null
+  blocks: WorkoutLogBlock[]
 }
 
 /** A single user's last-known field position, stored on a CalendarEvent. */
@@ -77,6 +120,14 @@ export interface EventFormData {
   structured_location?: StructuredLocation | null
   /** 9-line MEDEVAC request — populated when category is 'medevac'. */
   medevac_data?: MedevacRequest | null
+  /** AFT result — populated when category is 'aft_record'. */
+  aft_result?: AftResult | null
+  /** AFT target — supervisor-set goal on a future-dated 'aft_record' event. */
+  aft_target?: AftTarget | null
+  /** Selected workout template id (clinics.workouts[].id). Only meaningful when category === 'workout'. */
+  workout_id?: string | null
+  /** Workout execution log. Populated as the soldier checks off sets/reps. */
+  workout_log?: WorkoutLog | null
   /**
    * Target clinic for new events. Optional: only set on the create path when
    * the user has a surrogate (loan) and chose a clinic via the picker. On the
@@ -85,7 +136,7 @@ export interface EventFormData {
   clinic_id?: string | null
 }
 
-export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: string; solidColor: string; hidden?: boolean }[] = [
+export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: string; solidColor: string; hidden?: boolean; devOnly?: boolean }[] = [
   { value: 'training',    label: 'Training',    color: 'bg-themeyellow/20',  solidColor: 'bg-themeyellow' },
   { value: 'duty',        label: 'Duty',        color: 'bg-themeredred/20',  solidColor: 'bg-themeredred' },
   { value: 'range',       label: 'Range',       color: 'bg-themeblue2/20',   solidColor: 'bg-themeblue2' },
@@ -97,6 +148,8 @@ export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: str
   { value: 'other',       label: 'Other',       color: 'bg-tertiary/20',     solidColor: 'bg-tertiary' },
   { value: 'templated',   label: 'Templated',   color: 'bg-themeblue1/15',   solidColor: 'bg-themeblue1', hidden: true },
   { value: 'task',        label: 'Task',        color: 'bg-themepurple/20',  solidColor: 'bg-themepurple' },
+  { value: 'aft_record',  label: 'AFT',         color: 'bg-themepurple/20',  solidColor: 'bg-themepurple', devOnly: true },
+  { value: 'workout',     label: 'Workout',     color: 'bg-themepurple/20',  solidColor: 'bg-themepurple', devOnly: true },
 ]
 
 export const CATEGORY_BG_MAP: Record<EventCategory, string> = {
@@ -111,6 +164,8 @@ export const CATEGORY_BG_MAP: Record<EventCategory, string> = {
   other: 'bg-tertiary/20 border-tertiary/20 text-secondary',
   templated: 'bg-themeblue1/10 border-themeblue1/25 text-primary',
   task: 'bg-themepurple/15 border-themepurple/30 text-primary',
+  aft_record: 'bg-themepurple/20 border-themepurple/30 text-primary',
+  workout: 'bg-themepurple/20 border-themepurple/30 text-primary',
 }
 
 export function getCategoryMeta(category: EventCategory) {
@@ -177,6 +232,10 @@ export function createEmptyFormData(forDateKey?: string): EventFormData {
     huddle_task_id: null,
     structured_location: null,
     medevac_data: null,
+    aft_result: null,
+    aft_target: null,
+    workout_id: null,
+    workout_log: null,
   }
 }
 
@@ -198,6 +257,10 @@ export function eventToFormData(event: CalendarEvent): EventFormData {
     huddle_task_id: event.huddle_task_id ?? null,
     structured_location: event.structured_location ?? null,
     medevac_data: event.medevac_data ?? null,
+    aft_result: event.aft_result ?? null,
+    aft_target: event.aft_target ?? null,
+    workout_id: event.workout_id ?? null,
+    workout_log: event.workout_log ?? null,
   }
 }
 

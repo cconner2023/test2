@@ -12,6 +12,7 @@ import { useCalendarWrite } from '../Hooks/useCalendarWrite'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { updateAssignmentCalendarOriginId } from '../lib/trainingService'
 import { useAuthStore } from '../stores/useAuthStore'
+import { visibleEventsForRole } from '../lib/aft/visibility'
 import { useNavigationStore } from '../stores/useNavigationStore'
 import { useSupervisorData } from './Settings/Supervisor/useSupervisorData'
 import { SoldierProfile } from './Settings/Supervisor/SoldierProfile'
@@ -78,7 +79,9 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   // Defaults to the assigned clinic for single-clinic users.
   const clinicId = useAuthStore(s => s.supervisingClinicId ?? s.clinicId)
   const clinicNameFromAuth = useAuthStore(s => s.profile.clinicName)
-  const calendarEvents = useCalendarStore(s => s.events)
+  const allCalendarEvents = useCalendarStore(s => s.events)
+  const isDevRole = useAuthStore(s => s.isDevRole)
+  const calendarEvents = useMemo(() => visibleEventsForRole(allCalendarEvents, isDevRole), [allCalendarEvents, isDevRole])
   const setShowCalendarDrawer = useNavigationStore(s => s.setShowCalendarDrawer)
   const { refresh: refreshMedics } = useClinicMedics()
 

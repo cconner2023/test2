@@ -535,10 +535,10 @@ export function ChatDetailView({
               : isYesterday ? 'Yesterday'
               : msgDate.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })
             dateSeparator = (
-              <div className="flex items-center gap-3 my-3">
-                <div className="flex-1 border-b border-primary/8" />
-                <span className="text-[9pt] font-medium text-tertiary shrink-0">{label}</span>
-                <div className="flex-1 border-b border-primary/8" />
+              <div className="flex justify-center my-2">
+                <span className="text-[9pt] font-medium text-tertiary px-2.5 py-0.5 rounded-full bg-themewhite/70 backdrop-blur-sm">
+                  {label}
+                </span>
               </div>
             )
           }

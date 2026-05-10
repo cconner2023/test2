@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
-import { LogOut, ChevronRight, Trash2, Calendar, Check, Copy, QrCode, Share2, Pencil, RefreshCw, CheckCircle, Plus, KeyRound } from 'lucide-react';
+import { LogOut, ChevronRight, Trash2, Calendar, Check, Copy, QrCode, Share2, Pencil, RefreshCw, CheckCircle, Plus, KeyRound, Dumbbell, Target } from 'lucide-react';
 import bwipjs from 'bwip-js';
 import { useAuth } from '../../Hooks/useAuth';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -29,6 +29,13 @@ import type { CertInput } from '../../lib/certificationService';
 import { submitProfileChangeRequest } from '../../lib/accountRequestService';
 import { PickerInput } from '../FormInputs';
 import { ErrorDisplay } from '../ErrorDisplay';
+import { aftStatusForSoldier } from '../../lib/aft/status';
+import { openWorkoutGoals, recentWorkoutLogs } from '../../lib/aft/workoutHelpers';
+import { useCalendarWrite } from '../../Hooks/useCalendarWrite';
+import { generateId, toLocalISOString } from '../../Types/CalendarTypes';
+import type { WorkoutLog } from '../../Types/CalendarTypes';
+import { LogWorkoutPopover } from '../Fitness/LogWorkoutPopover';
+import { visibleEventsForRole } from '../../lib/aft/visibility';
 
 function formatEventDate(evt: CalendarEvent): string {
   const start = new Date(evt.start_time)
@@ -65,6 +72,7 @@ export const ProfilePage = ({
     const { profile, user } = useAuth();
     const userEmail = useAuthStore(s => s.user?.email ?? '');
     const deviceRole = useAuthStore(s => s.deviceRole);
+    const isDevRole = useAuthStore(s => s.isDevRole);
     const calendarEvents = useCalendarStore(s => s.events);
     const setShowSettings = useNavigationStore(s => s.setShowSettings);
     const setShowCalendarDrawer = useNavigationStore(s => s.setShowCalendarDrawer);
@@ -77,19 +85,106 @@ export const ProfilePage = ({
         if (!user?.id) return []
         const past7 = new Date(now); past7.setDate(past7.getDate() - 7)
         const future14 = new Date(now); future14.setDate(future14.getDate() + 14)
-        return calendarEvents
+        const filtered = calendarEvents
             .filter(e => {
                 const start = new Date(e.start_time)
                 const end = new Date(e.end_time)
                 return end >= past7 && start <= future14 && e.status !== 'cancelled' && e.assigned_to.includes(user.id)
             })
             .sort((a, b) => a.start_time.localeCompare(b.start_time))
-    }, [calendarEvents, user?.id, now])
+        return visibleEventsForRole(filtered, isDevRole)
+    }, [calendarEvents, user?.id, now, isDevRole])
 
     const handleOpenCalendar = useCallback(() => {
         setShowSettings(false)
         setShowCalendarDrawer(true)
     }, [setShowSettings, setShowCalendarDrawer])
+
+    // Fitness — dev-gated; mirrors aft_record category visibility.
+    const aftStatus = useMemo(() => {
+        if (!isDevRole || !user?.id) return null
+        return aftStatusForSoldier(user.id, calendarEvents, now)
+    }, [isDevRole, user?.id, calendarEvents, now])
+
+    const aftHistory = useMemo(() => {
+        if (!isDevRole || !user?.id) return []
+        return calendarEvents
+            .filter(e => e.category === 'aft_record')
+            .filter(e => e.assigned_to.includes(user.id))
+            .filter(e => e.aft_result != null)
+            .filter(e => new Date(e.start_time) <= now)
+            .sort((a, b) => b.start_time.localeCompare(a.start_time))
+            .slice(0, 6)
+    }, [isDevRole, user?.id, calendarEvents, now])
+
+    const aftGoals = useMemo(() => {
+        if (!isDevRole || !user?.id) return []
+        return calendarEvents
+            .filter(e => e.category === 'aft_record')
+            .filter(e => e.assigned_to.includes(user.id))
+            .filter(e => e.aft_target != null && e.aft_result == null)
+            .filter(e => new Date(e.start_time) >= now)
+            .sort((a, b) => a.start_time.localeCompare(b.start_time))
+    }, [isDevRole, user?.id, calendarEvents, now])
+
+    const workoutGoals = useMemo(() => {
+        if (!isDevRole || !user?.id) return []
+        return openWorkoutGoals(user.id, calendarEvents, now)
+    }, [isDevRole, user?.id, calendarEvents, now])
+
+    const workoutHistory = useMemo(() => {
+        if (!isDevRole || !user?.id) return []
+        return recentWorkoutLogs(user.id, calendarEvents, now, 6)
+    }, [isDevRole, user?.id, calendarEvents, now])
+
+    // ─── Log workout popover ─────────────────────────────────────────────
+    const { writeEvent, isWriting } = useCalendarWrite()
+    const logFabRef = useRef<HTMLDivElement>(null)
+    const [logAnchor, setLogAnchor] = useState<DOMRect | null>(null)
+    const { clinicId } = useAuth()
+
+    const openLogPopover = useCallback(() => {
+        if (!logFabRef.current) return
+        setLogAnchor(logFabRef.current.getBoundingClientRect())
+    }, [])
+
+    const closeLogPopover = useCallback(() => setLogAnchor(null), [])
+
+    const handleLogSubmit = useCallback(async (log: WorkoutLog, title: string) => {
+        if (!user?.id || !clinicId) return
+        const start = new Date()
+        start.setSeconds(0, 0)
+        const end = new Date(start)
+        end.setHours(end.getHours() + 1)
+        const nowIso = new Date().toISOString()
+        await writeEvent({
+            id: generateId(),
+            clinic_id: clinicId,
+            title,
+            description: null,
+            category: 'workout',
+            status: 'completed',
+            start_time: toLocalISOString(start),
+            end_time: toLocalISOString(end),
+            all_day: false,
+            location: null,
+            opord_notes: null,
+            uniform: null,
+            report_time: null,
+            assigned_to: [user.id],
+            property_item_ids: [],
+            room_id: null,
+            huddle_task_id: null,
+            structured_location: null,
+            resource_allocations: null,
+            workout_id: log.workout_id ?? null,
+            workout_log: log,
+            created_by: user.id,
+            created_at: nowIso,
+            updated_at: nowIso,
+        })
+        closeLogPopover()
+    }, [user?.id, clinicId, writeEvent, closeLogPopover])
 
     // Sign out / delete dialogs
     const [showSignOut, setShowSignOut] = useState(false);
@@ -341,8 +436,13 @@ export const ProfilePage = ({
         <div className="h-full overflow-y-auto">
             <div className="px-5 py-4 space-y-5">
                 {/* User Card */}
-                <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-                    <div className={`flex items-center gap-4 px-4 ${user?.id ? 'pt-4 pb-16' : 'py-4'}`}>
+                <section>
+                    <div className="pb-2 flex items-center gap-2">
+                        <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Profile</p>
+                    </div>
+                    <div className="relative">
+                <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                    <div className="flex items-center gap-4 px-4 py-4">
                         <div className="flex flex-col items-center shrink-0">
                             <button
                                 onClick={onAvatarClick}
@@ -387,8 +487,9 @@ export const ProfilePage = ({
                             </div>
                         )}
                     </div>
+                    </div>
                     {user?.id && (
-                        <ActionPill ref={toolbarRef} shadow="sm" className="absolute bottom-2 right-2">
+                        <ActionPill ref={toolbarRef} shadow="sm" placement="overlay">
                             <button
                                 type="button"
                                 onClick={handleCopyId}
@@ -413,10 +514,15 @@ export const ProfilePage = ({
                             </button>
                         </ActionPill>
                     )}
-                </div>
+                    </div>
+                </section>
 
                 {/* Certifications Card */}
-                <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                <section>
+                    <div className="pb-2 flex items-center gap-2">
+                        <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Certifications</p>
+                    </div>
+                    <div className="relative"><div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
                     {showCertsLoading ? (
                         <LoadingSpinner label="Loading certifications..." className="py-12 text-tertiary" />
                     ) : certs.length === 0 ? (
@@ -444,27 +550,199 @@ export const ProfilePage = ({
                             ))}
                         </div>
                     )}
-                    <ActionPill ref={certAddFabRef} shadow="sm" className="absolute top-2 right-2">
+                    </div>
+                    <ActionPill ref={certAddFabRef} shadow="sm" placement="overlay">
                         <ActionButton icon={Plus} label="Add certification" onClick={openCertAdd} />
                     </ActionPill>
-                </div>
+                    </div>
+                </section>
+
+                {/* Fitness — dev-gated */}
+                {isDevRole && aftStatus && (
+                    <div>
+                        <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">
+                            Fitness
+                        </p>
+                        <div className="relative">
+                        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                            <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider px-4 pt-3 pb-1">AFT</p>
+                            {/* Status header */}
+                            {(() => {
+                                const recencyDot =
+                                    aftStatus.recency === 'current'  ? 'bg-themegreen' :
+                                    aftStatus.recency === 'expiring' ? 'bg-themeyellow' :
+                                    aftStatus.recency === 'expired'  ? 'bg-themeredred' :
+                                                                       'bg-tertiary/40'
+                                const recencyLabel =
+                                    aftStatus.recency === 'current'  ? 'Current' :
+                                    aftStatus.recency === 'expiring' ? 'Expiring soon' :
+                                    aftStatus.recency === 'expired'  ? 'Overdue' :
+                                                                       'Never tested'
+                                return (
+                                    <div className="flex items-center gap-3 px-4 py-3 border-b border-tertiary/8">
+                                        <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                                            <Dumbbell size={14} className="text-tertiary" />
+                                        </div>
+                                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                                            <span className={`w-2 h-2 rounded-full shrink-0 ${recencyDot}`} />
+                                            <span className="text-sm text-primary truncate">
+                                                {recencyLabel}
+                                                {aftStatus.daysSinceLastTest != null && ` · ${aftStatus.daysSinceLastTest}d ago`}
+                                            </span>
+                                        </div>
+                                        {aftStatus.lastTest && (
+                                            <>
+                                                <span className="text-[10pt] text-primary tabular-nums shrink-0 font-medium">
+                                                    {aftStatus.lastTest.total}
+                                                </span>
+                                                <span className={`text-[9pt] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                                                    aftStatus.lastTest.allPassing
+                                                        ? 'bg-themegreen/15 text-themegreen'
+                                                        : 'bg-themeredred/15 text-themeredred'
+                                                }`}>
+                                                    {aftStatus.lastTest.allPassing ? 'PASS' : 'FAIL'}
+                                                </span>
+                                            </>
+                                        )}
+                                    </div>
+                                )
+                            })()}
+
+                            {/* Active goals (future-dated targets) */}
+                            {aftGoals.length > 0 && (
+                                <>
+                                    <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider px-4 pt-3 pb-1">
+                                        Active goals ({aftGoals.length})
+                                    </p>
+                                    {aftGoals.map((evt, idx) => (
+                                        <div
+                                            key={evt.id}
+                                            className={`flex items-center gap-3 px-4 py-3 ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
+                                        >
+                                            <Target size={14} className="text-themeyellow shrink-0" />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-primary truncate">{evt.title || 'AFT goal'}</p>
+                                                <p className="text-[9pt] text-tertiary">Due {formatEventDate(evt)}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </>
+                            )}
+
+                            {/* History */}
+                            {aftHistory.length > 0 && (
+                                <>
+                                    <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider px-4 pt-3 pb-1 border-t border-tertiary/8">
+                                        Recent records
+                                    </p>
+                                    {aftHistory.map((evt, idx) => {
+                                        const status = aftStatusForSoldier(user!.id, [evt], new Date(evt.end_time))
+                                        const dateLabel = new Date(evt.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                        return (
+                                            <div
+                                                key={evt.id}
+                                                className={`flex items-center gap-3 px-4 py-3 ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
+                                            >
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-primary truncate">{evt.title || 'AFT record'}</p>
+                                                    <p className="text-[9pt] text-tertiary">{dateLabel}</p>
+                                                </div>
+                                                {status.lastTest ? (
+                                                    <>
+                                                        <span className="text-[10pt] text-primary tabular-nums shrink-0 font-medium">
+                                                            {status.lastTest.total}
+                                                        </span>
+                                                        <span className={`text-[9pt] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                                                            status.lastTest.allPassing
+                                                                ? 'bg-themegreen/15 text-themegreen'
+                                                                : 'bg-themeredred/15 text-themeredred'
+                                                        }`}>
+                                                            {status.lastTest.allPassing ? 'PASS' : 'FAIL'}
+                                                        </span>
+                                                    </>
+                                                ) : (
+                                                    <span className="text-[9pt] text-tertiary shrink-0">—</span>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
+                                </>
+                            )}
+
+                            {/* ── Workouts subsection ─────────────────────────── */}
+                            <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider px-4 pt-4 pb-1 border-t border-tertiary/8">Workouts</p>
+
+                            {workoutGoals.length > 0 && (
+                                <>
+                                    <p className="text-[9pt] text-tertiary px-4 pt-1 pb-1">Assigned ({workoutGoals.length})</p>
+                                    {workoutGoals.map((evt, idx) => (
+                                        <div
+                                            key={evt.id}
+                                            className={`flex items-center gap-3 px-4 py-3 ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
+                                        >
+                                            <Target size={14} className="text-themeyellow shrink-0" />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-primary truncate">{evt.title || 'Workout'}</p>
+                                                <p className="text-[9pt] text-tertiary">Due {formatEventDate(evt)}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </>
+                            )}
+
+                            {workoutHistory.length > 0 && (
+                                <>
+                                    <p className="text-[9pt] text-tertiary px-4 pt-3 pb-1 border-t border-tertiary/8">Recent logs</p>
+                                    {workoutHistory.map((evt, idx) => {
+                                        const setCount = evt.workout_log?.blocks.reduce((s, b) => s + b.sets.length, 0) ?? 0
+                                        const blockCount = evt.workout_log?.blocks.length ?? 0
+                                        const dateLabel = new Date(evt.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                        return (
+                                            <div
+                                                key={evt.id}
+                                                className={`flex items-center gap-3 px-4 py-3 ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
+                                            >
+                                                <Dumbbell size={14} className="text-tertiary shrink-0" />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-primary truncate">{evt.title || 'Workout'}</p>
+                                                    <p className="text-[9pt] text-tertiary">{dateLabel}</p>
+                                                </div>
+                                                <span className="text-[10pt] text-tertiary tabular-nums shrink-0">
+                                                    {blockCount} {blockCount === 1 ? 'block' : 'blocks'} · {setCount} {setCount === 1 ? 'set' : 'sets'}
+                                                </span>
+                                            </div>
+                                        )
+                                    })}
+                                </>
+                            )}
+
+                            {workoutGoals.length === 0 && workoutHistory.length === 0 && (
+                                <p className="text-[10pt] text-tertiary px-4 py-3">No workout activity yet — tap Log workout to start.</p>
+                            )}
+
+                            {aftStatus.lastTest == null && aftGoals.length === 0 && workoutGoals.length === 0 && workoutHistory.length === 0 && (
+                                <p className="text-sm text-tertiary px-4 py-3 border-t border-tertiary/8">No fitness data yet</p>
+                            )}
+                        </div>
+                        <ActionPill ref={logFabRef} shadow="sm" placement="overlay">
+                            <ActionButton icon={Calendar} label="Open full calendar" onClick={handleOpenCalendar} />
+                            <ActionButton icon={Plus} label="Log workout" onClick={openLogPopover} />
+                        </ActionPill>
+                        </div>
+                    </div>
+                )}
 
                 {/* Schedule */}
                 <div>
-                    <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
+                    <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">
                         Schedule
                     </p>
-                    <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-                        {myEvents.length === 0 ? (
-                            <div className="flex items-center gap-3 px-4 py-3">
-                                <p className="text-sm text-tertiary flex-1">No events in the next 14 days</p>
-                                <ActionPill shadow="sm">
-                                    <ActionButton icon={Calendar} label="Open full calendar" onClick={handleOpenCalendar} />
-                                </ActionPill>
-                            </div>
-                        ) : (
-                            <>
-                                {myEvents.map((evt, idx) => {
+                    <div className="relative">
+                        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                            {myEvents.length === 0 ? (
+                                <p className="text-sm text-tertiary px-4 py-3">No events in the next 14 days</p>
+                            ) : (
+                                myEvents.map((evt, idx) => {
                                     const isPast = new Date(evt.end_time) < now
                                     const meta = getCategoryMeta(evt.category)
                                     return (
@@ -480,14 +758,12 @@ export const ProfilePage = ({
                                             <span className="text-[9pt] text-tertiary shrink-0 capitalize">{evt.category}</span>
                                         </div>
                                     )
-                                })}
-                                <div className="flex items-center justify-end gap-3 px-4 py-2 border-t border-tertiary/8">
-                                    <ActionPill shadow="sm">
-                                        <ActionButton icon={Calendar} label="View in calendar" onClick={handleOpenCalendar} />
-                                    </ActionPill>
-                                </div>
-                            </>
-                        )}
+                                })
+                            )}
+                        </div>
+                        <ActionPill shadow="sm" placement="overlay">
+                            <ActionButton icon={Calendar} label="View in calendar" onClick={handleOpenCalendar} />
+                        </ActionPill>
                     </div>
                 </div>
 
@@ -785,6 +1061,14 @@ export const ProfilePage = ({
                     }
                 }}
                 onCancel={() => setPendingDeleteCertId(null)}
+            />
+
+            <LogWorkoutPopover
+                isOpen={logAnchor !== null}
+                anchorRect={logAnchor}
+                onClose={closeLogPopover}
+                onSubmit={handleLogSubmit}
+                saving={isWriting}
             />
         </div>
     );

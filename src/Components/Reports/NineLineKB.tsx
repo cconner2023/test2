@@ -90,25 +90,29 @@ export function NineLineExport({ req, onClear }: NineLineExportProps) {
   return (
     <div className="px-4 py-4 space-y-4">
       {/* Text Preview */}
-      <div className="relative rounded-xl bg-themewhite2 overflow-hidden">
-        <div className="px-4 py-3 pt-14 text-tertiary text-[10pt] whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto">
-          {text}
+      <div className="relative">
+        <div className="rounded-xl bg-themewhite2 overflow-hidden">
+          <div className="px-4 py-3 text-tertiary text-[10pt] whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto">
+            {text}
+          </div>
         </div>
-        <ActionPill shadow="sm" className="absolute top-2 right-2">
-          <ActionButton icon={copiedText ? Check : Copy} label="Copy text" onClick={handleCopyText} variant={copiedText ? 'success' : 'default'} iconSize={14} />
-          <ActionButton icon={Printer} label="Print" onClick={handlePrint} iconSize={14} />
-          <ActionButton icon={RefreshCw} label="Clear form" variant="danger" onClick={onClear} iconSize={14} />
+        <ActionPill shadow="sm" placement="overlay">
+          <ActionButton icon={copiedText ? Check : Copy} label="Copy text" onClick={handleCopyText} variant={copiedText ? 'success' : 'default'} />
+          <ActionButton icon={Printer} label="Print" onClick={handlePrint} />
+          <ActionButton icon={RefreshCw} label="Clear form" variant="danger" onClick={onClear} />
         </ActionPill>
       </div>
 
       {/* Data Matrix — compact encoding, not prose text */}
-      <div ref={barcodeRef} className="relative rounded-xl bg-themewhite2 overflow-hidden">
-        <div className="pt-14">
-          <BarcodeDisplay encodedText={compact} layout="col" />
+      <div ref={barcodeRef} className="relative">
+        <div className="rounded-xl bg-themewhite2 overflow-hidden">
+          <div>
+            <BarcodeDisplay encodedText={compact} layout="col" />
+          </div>
         </div>
-        <ActionPill shadow="sm" className="absolute top-2 right-2">
-          <ActionButton icon={copiedDm === 'image' ? Check : Image} label="Copy image" onClick={handleCopyImage} variant={copiedDm === 'image' ? 'success' : 'default'} iconSize={14} />
-          <ActionButton icon={copiedDm === 'code' ? Check : Copy} label="Copy code" onClick={handleCopyCode} variant={copiedDm === 'code' ? 'success' : 'default'} iconSize={14} />
+        <ActionPill shadow="sm" placement="overlay">
+          <ActionButton icon={copiedDm === 'image' ? Check : Image} label="Copy image" onClick={handleCopyImage} variant={copiedDm === 'image' ? 'success' : 'default'} />
+          <ActionButton icon={copiedDm === 'code' ? Check : Copy} label="Copy code" onClick={handleCopyCode} variant={copiedDm === 'code' ? 'success' : 'default'} />
         </ActionPill>
       </div>
     </div>

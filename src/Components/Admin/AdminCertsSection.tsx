@@ -126,22 +126,24 @@ export function AdminCertsSection({ userId, certs, editing, onChanged }: AdminCe
   return (
     <>
       {certs.length > 0 ? (
-        <SectionCard className="relative">
-          <div className="px-2 py-2 space-y-1">
-            {certs.map((cert) => (
-              <CertificationRow
-                key={cert.id}
-                cert={cert}
-                onClick={editing ? (e) => openEdit(cert, e.currentTarget.getBoundingClientRect()) : undefined}
-              />
-            ))}
-          </div>
+        <div className="relative">
+          <SectionCard>
+            <div className="px-2 py-2 space-y-1">
+              {certs.map((cert) => (
+                <CertificationRow
+                  key={cert.id}
+                  cert={cert}
+                  onClick={editing ? (e) => openEdit(cert, e.currentTarget.getBoundingClientRect()) : undefined}
+                />
+              ))}
+            </div>
+          </SectionCard>
           {editing && (
-            <ActionPill ref={fabRef} shadow="sm" className="absolute top-2 right-2">
+            <ActionPill ref={fabRef} shadow="sm" placement="overlay">
               <ActionButton icon={Plus} label="Add certification" onClick={() => openAdd()} />
             </ActionPill>
           )}
-        </SectionCard>
+        </div>
       ) : (
         <EmptyState
           title="No certifications"

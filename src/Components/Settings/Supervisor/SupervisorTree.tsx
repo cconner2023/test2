@@ -54,7 +54,7 @@ export function SupervisorTree({
   return (
     <div className="relative h-full flex flex-col py-1">
       {onAddMember && (
-        <ActionPill ref={addPillRef} shadow="sm" className="absolute top-2 right-2 z-10">
+        <ActionPill ref={addPillRef} shadow="sm" placement="overlay">
           <ActionButton
             icon={Plus}
             label="Add member"

@@ -80,30 +80,32 @@ export const MechanismForm = memo(function MechanismForm() {
 
       {/* Section card */}
       {populated ? (
-        <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-          <button
-            ref={cardRef}
-            type="button"
-            onClick={() => openPopover(cardRef)}
-            className="w-full text-left active:scale-95 transition-all hover:bg-themeblue2/5"
-          >
-            <div className="flex items-center gap-3 px-4 py-3.5 pr-12">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                <Crosshair size={18} className="text-tertiary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-primary">
-                  {mechanism.types.join(', ')}
-                </p>
-                {mechanism.types.includes('Other') && mechanism.otherDescription && (
-                  <p className="text-[9pt] text-tertiary mt-0.5 truncate">
-                    {mechanism.otherDescription}
+        <div className="relative">
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+            <button
+              ref={cardRef}
+              type="button"
+              onClick={() => openPopover(cardRef)}
+              className="w-full text-left active:scale-95 transition-all hover:bg-themeblue2/5"
+            >
+              <div className="flex items-center gap-3 px-4 py-3.5 pr-12">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                  <Crosshair size={18} className="text-tertiary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-primary">
+                    {mechanism.types.join(', ')}
                   </p>
-                )}
+                  {mechanism.types.includes('Other') && mechanism.otherDescription && (
+                    <p className="text-[9pt] text-tertiary mt-0.5 truncate">
+                      {mechanism.otherDescription}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-          </button>
-          <ActionPill ref={fabRef} shadow="sm" className="absolute top-2 right-2 z-10">
+            </button>
+          </div>
+          <ActionPill ref={fabRef} shadow="sm" placement="overlay">
             <ActionButton icon={Plus} label="Edit mechanism" onClick={() => openPopover(fabRef)} />
           </ActionPill>
         </div>

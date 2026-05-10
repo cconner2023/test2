@@ -142,31 +142,45 @@ function TC3CardSection({ card, profile, userId, isAuthenticated, label }: TC3Ca
       )}
 
       {/* Note text */}
-      <div className="relative rounded-xl bg-themewhite2 overflow-hidden">
-        <pre className="px-4 pt-14 pb-4 text-tertiary text-[9pt] whitespace-pre-wrap">
-          {noteText || 'No content'}
-        </pre>
-        <ActionPill shadow="sm" className="absolute top-2 right-2">
-          <ActionIconButton onClick={handleCopyMist} status={copiedMist ? 'done' : 'idle'} variant="pdf" title="Copy MIST Handoff" />
-          <ActionIconButton onClick={() => handleCopy(noteText, 'preview')} status={copiedTarget === 'preview' ? 'done' : 'idle'} variant="copy" title="Copy note text" />
-        </ActionPill>
-      </div>
+      <section>
+        <div className="pb-2 flex items-center gap-2">
+          <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Note Preview</p>
+        </div>
+        <div className="relative">
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+            <pre className="px-4 pt-3 pb-4 text-tertiary text-[9pt] whitespace-pre-wrap">
+              {noteText || 'No content'}
+            </pre>
+          </div>
+          <ActionPill shadow="sm" placement="overlay">
+            <ActionIconButton onClick={handleCopyMist} status={copiedMist ? 'done' : 'idle'} variant="pdf" title="Copy MIST Handoff" />
+            <ActionIconButton onClick={() => handleCopy(noteText, 'preview')} status={copiedTarget === 'preview' ? 'done' : 'idle'} variant="copy" title="Copy note text" />
+          </ActionPill>
+        </div>
+      </section>
 
       {/* Auto-derived 9-line MEDEVAC */}
       <TC3NineLine card={card} />
 
       {/* Encoded barcode */}
-      <div className="relative rounded-xl bg-themewhite2 overflow-hidden">
-        <div className="px-3 pt-14 pb-4">
-          {encodedText && <BarcodeDisplay encodedText={encodedText} layout={encodedText.length > 300 ? 'col' : 'row'} />}
+      <section>
+        <div className="pb-2 flex items-center gap-2">
+          <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Encoded Note</p>
         </div>
-        <ActionPill shadow="sm" className="absolute top-2 right-2">
-          <ActionIconButton onClick={() => handleCopy(encodedText, 'encoded')} status={copiedTarget === 'encoded' ? 'done' : 'idle'} variant="copy" title="Copy encoded text" />
-          {typeof navigator.share === 'function' && (
-            <ActionIconButton onClick={handleShare} status={shareStatus === 'shared' ? 'done' : shareStatus === 'sharing' ? 'busy' : 'idle'} variant="share" title="Share note" />
-          )}
-        </ActionPill>
-      </div>
+        <div className="relative">
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+            <div className="px-3 pt-3 pb-4">
+              {encodedText && <BarcodeDisplay encodedText={encodedText} layout={encodedText.length > 300 ? 'col' : 'row'} />}
+            </div>
+          </div>
+          <ActionPill shadow="sm" placement="overlay">
+            <ActionIconButton onClick={() => handleCopy(encodedText, 'encoded')} status={copiedTarget === 'encoded' ? 'done' : 'idle'} variant="copy" title="Copy encoded text" />
+            {typeof navigator.share === 'function' && (
+              <ActionIconButton onClick={handleShare} status={shareStatus === 'shared' ? 'done' : shareStatus === 'sharing' ? 'busy' : 'idle'} variant="share" title="Share note" />
+            )}
+          </ActionPill>
+        </div>
+      </section>
     </div>
   )
 }

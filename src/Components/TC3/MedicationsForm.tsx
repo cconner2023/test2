@@ -572,7 +572,7 @@ export const MedicationsForm = memo(function MedicationsForm() {
     hasIV ? 'iv' : hasMeds ? 'meds' : hasFluids ? 'fluids' : hasBlood ? 'blood' : null
 
   const topFAB = (
-    <ActionPill ref={topPillRef} shadow="sm" className="absolute top-2 right-2 z-10">
+    <ActionPill ref={topPillRef} shadow="sm" placement="overlay">
       <ActionButton icon={Syringe} label="Add IV/IO" onClick={() => handleAddIV(topPillRef.current)} />
       <ActionButton icon={Pill} label="Add medication" onClick={() => handleAddMed(topPillRef.current)} />
       <ActionButton icon={Droplet} label="Add fluid" onClick={() => handleAddFluid(topPillRef.current)} />

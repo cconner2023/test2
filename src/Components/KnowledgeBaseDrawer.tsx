@@ -11,6 +11,7 @@ import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { VitalSignsCalculator, type VitalSignsCalculatorHandle } from './VitalSignsCalculator'
 import { BurnCalculator } from './BurnCalculator'
 import { HeatCategoryCalculator } from './HeatCategoryCalculator'
+import { AFTCalculator } from './AFTCalculator'
 import { BloodProductsReference } from './BloodProductsReference'
 import { NineLineKB, NineLineExport } from './Reports/NineLineKB'
 import { BottomSheet } from './BottomSheet'
@@ -26,7 +27,7 @@ import { stp68wTraining } from '../Data/TrainingTaskList'
 import { getTaskData } from '../Data/TrainingData'
 import { Check } from 'lucide-react'
 import { UI_TIMING } from '../Utilities/constants'
-import { BURN_CALCULATOR_ENABLED, BLOOD_PRODUCTS_ENABLED } from '../lib/featureFlags'
+import { BURN_CALCULATOR_ENABLED, BLOOD_PRODUCTS_ENABLED, AFT_CALCULATOR_ENABLED } from '../lib/featureFlags'
 import type { subjectAreaArrayOptions } from '../Types/CatTypes'
 import { medList, type medListTypes } from '../Data/MedData'
 import { tc3MedList } from '../Data/TC3MedData'
@@ -43,6 +44,7 @@ type KBView =
     | 'screener'
     | 'burn'
     | 'heat-category'
+    | 'aft-calculator'
     | 'report-9line'
     | 'report-9line-review'
 
@@ -156,6 +158,11 @@ export function KnowledgeBaseDrawer({
             setView('heat-category')
             return
         }
+        if (category.id === 'aft-calculator') {
+            handleSlideAnimation('left')
+            setView('aft-calculator')
+            return
+        }
         if (category.id === 'blood-products') {
             setBloodOpen(true)
             return
@@ -212,6 +219,7 @@ export function KnowledgeBaseDrawer({
             case 'screener':
             case 'burn':
             case 'heat-category':
+            case 'aft-calculator':
             case 'report-9line':
                 setView('home')
                 setActiveScreener(null)
@@ -264,6 +272,8 @@ export function KnowledgeBaseDrawer({
                 return { title: 'Burn Assessment', showBack: true, onBack: handleBack }
             case 'heat-category':
                 return { title: 'Heat Category', showBack: true, onBack: handleBack }
+            case 'aft-calculator':
+                return { title: 'AFT Score', showBack: true, onBack: handleBack }
             case 'report-9line':
                 return { title: '9-Line MEDEVAC', showBack: true, onBack: handleBack }
             case 'report-9line-review':
@@ -325,6 +335,9 @@ export function KnowledgeBaseDrawer({
                 {view === 'heat-category' && (
                     <HeatCategoryCalculator />
                 )}
+                {view === 'aft-calculator' && (
+                    <AFTCalculator />
+                )}
                 {view === 'report-9line' && (
                     <NineLineKB
                         req={medevacReq}
@@ -379,6 +392,7 @@ type KBSearchResult = {
 const GATED_KB_IDS: Record<string, boolean> = {
     burn: BURN_CALCULATOR_ENABLED,
     'blood-products': BLOOD_PRODUCTS_ENABLED,
+    'aft-calculator': AFT_CALCULATOR_ENABLED,
 }
 
 function KBHome({

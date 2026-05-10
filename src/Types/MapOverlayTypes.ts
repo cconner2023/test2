@@ -1,19 +1,14 @@
 export type WaypointType =
-  | 'hlz'
-  | 'ccp'
-  | 'role1'
-  | 'role2'
-  | 'role3'
-  | 'rp'
-  | 'sp'
-  | 'cp'
-  | 'generic'
+  | 'circle' | 'cross' | 'triangle'
+  | 'friendly' | 'enemy' | 'neutral'
+  | 'lz' | 'pz' | 'dz'
+  | 'ccp' | 'axp' | 'obj' | 'rally'
+  | 'hazard' | 'target' | 'supply' | 'vehicle' | 'medic' | 'comms'
   | 'casualty'
-  | 'contact'
 
 export type FeatureType = 'waypoint' | 'route' | 'area'
 
-export type DrawMode = 'pan' | 'pin' | 'route' | 'area' | 'drag' | 'measure'
+export type DrawMode = 'pan' | 'pin' | 'route' | 'area' | 'drag' | 'measure' | 'track'
 
 export interface FeatureStyle {
   color: string
@@ -34,6 +29,22 @@ export interface OverlayFeature {
   notes?: string
   created_at: string
   updated_at: string
+  /**
+   * Recorded routes (Phase 2.3) flow through type='route' but carry these
+   * extra fields so the UI can distinguish them from hand-drawn polylines
+   * and surface a duration-traveled stat.
+   */
+  recorded?: boolean
+  recorded_started_at?: string
+  recorded_ended_at?: string
+  /**
+   * Phase 4.1 — opaque link to a TC3 card (useTC3Store.card.id or queue
+   * entry id). The OverlayFeature carries ONLY this id. PHI lives device-
+   * side in the TC3 store, never in the overlay's payload, so syncing the
+   * overlay to Supabase / fanning out via Signal does not leak patient
+   * detail. Tap a linked waypoint to open its card.
+   */
+  tc3_card_id?: string
 }
 
 export interface MapOverlay {
@@ -57,31 +68,70 @@ export interface LocalMapOverlay extends MapOverlay {
 }
 
 export const WAYPOINT_LABELS: Record<WaypointType, string> = {
-  hlz: 'HLZ',
+  circle: 'Point',
+  cross: 'Cross',
+  triangle: 'Triangle',
+  friendly: 'Friendly',
+  enemy: 'Enemy',
+  neutral: 'Neutral',
+  lz: 'LZ',
+  pz: 'PZ',
+  dz: 'DZ',
   ccp: 'CCP',
-  role1: 'ROLE 1',
-  role2: 'ROLE 2',
-  role3: 'ROLE 3',
-  rp: 'RP',
-  sp: 'SP',
-  cp: 'CP',
-  generic: 'WPT',
-  casualty: 'CAS',
-  contact: 'ENMY',
+  axp: 'AXP',
+  obj: 'OBJ',
+  rally: 'Rally',
+  hazard: 'Hazard',
+  target: 'Target',
+  supply: 'Supply',
+  vehicle: 'Vehicle',
+  medic: 'Medic',
+  comms: 'Comms',
+  casualty: 'Casualty',
 }
 
+export const WAYPOINT_CATEGORIES: { id: string; label: string; types: WaypointType[] }[] = [
+  { id: 'basic', label: 'Basic', types: ['circle', 'cross', 'triangle'] },
+  { id: 'forces', label: 'Forces', types: ['friendly', 'enemy', 'neutral'] },
+  { id: 'zones', label: 'Zones', types: ['lz', 'pz', 'dz', 'rally'] },
+  { id: 'mission', label: 'Mission', types: ['obj', 'ccp', 'axp', 'target'] },
+  { id: 'assets', label: 'Assets', types: ['supply', 'vehicle', 'medic', 'comms'] },
+  { id: 'caution', label: 'Caution', types: ['hazard'] },
+  { id: 'casualty', label: 'Casualty', types: ['casualty'] },
+]
+
+// Tactical palette references the app's CSS theme tokens so feature colors
+// shift with the active theme (light/dark/sepia/etc.). Stored as `var(--…)`
+// strings — resolved by `resolveColor` before being handed to Leaflet, which
+// sets attributes that don't natively support CSS vars.
 export const TACTICAL_COLORS = [
-  { name: 'Blue', hex: 'rgba(21,142,172,1)' },
-  { name: 'Red', hex: 'rgb(170,65,65)' },
-  { name: 'Green', hex: 'rgba(96,146,92,1)' },
-  { name: 'Yellow', hex: 'rgba(255,194,34,1)' },
-  { name: 'Black', hex: '#000000' },
+  { name: 'Blue', hex: 'var(--color-themeblue2)' },
+  { name: 'Red', hex: 'var(--color-themeredred)' },
+  { name: 'Green', hex: 'var(--color-themegreen)' },
+  { name: 'Yellow', hex: 'var(--color-themeyellow)' },
+  { name: 'Purple', hex: 'var(--color-themepurple)' },
 ] as const
 
 export type TacticalColor = typeof TACTICAL_COLORS[number]
 
 export const DEFAULT_FEATURE_STYLE: FeatureStyle = {
-  color: 'rgba(21,142,172,1)',
+  color: 'var(--color-themeblue2)',
   weight: 3,
   opacity: 1,
+}
+
+/**
+ * Resolves `var(--…)` color strings to their computed rgba via getComputedStyle.
+ * Pre-existing rgba/hex strings pass through unchanged. Used at the boundary
+ * where colors hand off to Leaflet (which sets SVG attributes that don't
+ * understand CSS variables).
+ */
+export function resolveColor(color: string): string {
+  if (typeof window === 'undefined' || !color.startsWith('var(')) return color
+  const match = color.match(/var\(([^),]+)/)
+  if (!match) return color
+  const resolved = getComputedStyle(document.documentElement)
+    .getPropertyValue(match[1].trim())
+    .trim()
+  return resolved || color
 }

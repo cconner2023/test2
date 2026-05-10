@@ -1,8 +1,15 @@
 import { useState, useCallback, useMemo, useRef } from 'react'
-import { Building2, ChevronRight, ClipboardList, Calendar, Plus, Check, Trash2, Loader2 } from 'lucide-react'
+import { Building2, ChevronRight, ClipboardList, Calendar, Plus, Check, Trash2, Loader2, Dumbbell, Target } from 'lucide-react'
 import { ActionButton } from '../../ActionButton'
 import { ConfirmDialog } from '../../ConfirmDialog'
 import { PreviewOverlay } from '../../PreviewOverlay'
+import { DatePickerInput, TextInput } from '../../FormInputs'
+import { useAuthStore } from '../../../stores/useAuthStore'
+import { useAuth } from '../../../Hooks/useAuth'
+import { useCalendarWrite } from '../../../Hooks/useCalendarWrite'
+import { aftStatusForSoldier } from '../../../lib/aft/status'
+import { visibleEventsForRole } from '../../../lib/aft/visibility'
+import { generateId, toLocalISOString } from '../../../Types/CalendarTypes'
 import { getTaskData, isTaskTestable } from '../../../Data/TrainingData'
 import { deleteCompletion as deleteCompletionApi } from '../../../lib/trainingService'
 import {
@@ -100,6 +107,86 @@ export function SoldierProfile({
   const now = useMemo(() => new Date(), [])
   const [expandedTestId, setExpandedTestId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  // Fitness — dev-gated; mirrors aft_record category visibility.
+  const isDevRole = useAuthStore(s => s.isDevRole)
+  const visibleEvents = useMemo(() => visibleEventsForRole(calendarEvents, isDevRole), [calendarEvents, isDevRole])
+  const { clinicId: viewerClinicId } = useAuth()
+  const { writeEvent, isWriting } = useCalendarWrite()
+  const goalFabRef = useRef<HTMLDivElement>(null)
+  const [goalPopover, setGoalPopover] = useState<{ anchor: DOMRect } | null>(null)
+  const [goalTitle, setGoalTitle] = useState('')
+  const [goalDate, setGoalDate] = useState('')
+
+  const soldierAftStatus = useMemo(() => {
+    if (!isDevRole) return null
+    return aftStatusForSoldier(soldier.id, calendarEvents, now)
+  }, [isDevRole, soldier.id, calendarEvents, now])
+
+  const soldierGoals = useMemo(() => {
+    if (!isDevRole) return []
+    return calendarEvents
+      .filter(e => e.category === 'aft_record')
+      .filter(e => e.assigned_to.includes(soldier.id))
+      .filter(e => e.aft_target != null && e.aft_result == null)
+      .filter(e => new Date(e.start_time) >= now)
+      .sort((a, b) => a.start_time.localeCompare(b.start_time))
+  }, [isDevRole, soldier.id, calendarEvents, now])
+
+  const closeGoalPopover = useCallback(() => {
+    setGoalPopover(null)
+    setGoalTitle('')
+    setGoalDate('')
+  }, [])
+
+  const openGoalPopover = useCallback(() => {
+    if (!goalFabRef.current) return
+    setGoalPopover({ anchor: goalFabRef.current.getBoundingClientRect() })
+    // Default due date: 90 days out.
+    const due = new Date()
+    due.setDate(due.getDate() + 90)
+    setGoalDate(due.toISOString().slice(0, 10))
+    setGoalTitle('Record AFT')
+  }, [])
+
+  const handleCreateGoal = useCallback(async () => {
+    const title = goalTitle.trim()
+    if (!title || !goalDate || !viewerClinicId) return
+    const dueStart = new Date(goalDate + 'T08:00')
+    const dueEnd = new Date(goalDate + 'T09:00')
+    const nowIso = new Date().toISOString()
+    try {
+      await writeEvent({
+        id: generateId(),
+        clinic_id: soldier.clinicId ?? viewerClinicId,
+        title,
+        description: null,
+        category: 'aft_record',
+        status: 'pending',
+        start_time: toLocalISOString(dueStart),
+        end_time: toLocalISOString(dueEnd),
+        all_day: false,
+        location: null,
+        opord_notes: null,
+        uniform: null,
+        report_time: null,
+        assigned_to: [soldier.id],
+        property_item_ids: [],
+        room_id: null,
+        huddle_task_id: null,
+        structured_location: null,
+        resource_allocations: null,
+        aft_target: {},
+        aft_result: null,
+        created_by: currentUserId,
+        created_at: nowIso,
+        updated_at: nowIso,
+      })
+      closeGoalPopover()
+    } catch (e) {
+      logger.warn('failed to write fitness goal:', e)
+    }
+  }, [goalTitle, goalDate, viewerClinicId, soldier.clinicId, soldier.id, currentUserId, writeEvent, closeGoalPopover])
 
   // ─── Cert popover state (tap-to-edit, immediate save) ────────────────
   const certFabRef = useRef<HTMLDivElement | null>(null)
@@ -342,22 +429,91 @@ export function SoldierProfile({
         </div>
       )}
 
+      {/* Fitness — dev-gated */}
+      {isDevRole && soldierAftStatus && (
+        <div>
+          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
+            Fitness
+          </p>
+          <div className="relative">
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+
+            {(() => {
+              const recencyDot =
+                soldierAftStatus.recency === 'current'  ? 'bg-themegreen' :
+                soldierAftStatus.recency === 'expiring' ? 'bg-themeyellow' :
+                soldierAftStatus.recency === 'expired'  ? 'bg-themeredred' :
+                                                          'bg-tertiary/40'
+              const recencyLabel =
+                soldierAftStatus.recency === 'current'  ? 'Current' :
+                soldierAftStatus.recency === 'expiring' ? 'Expiring soon' :
+                soldierAftStatus.recency === 'expired'  ? 'Overdue' :
+                                                          'Never tested'
+              return (
+                <div className="flex items-center gap-3 px-4 py-3 pr-32 border-b border-tertiary/8">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                    <Dumbbell size={14} className="text-tertiary" />
+                  </div>
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${recencyDot}`} />
+                    <span className="text-sm text-primary truncate">
+                      {recencyLabel}
+                      {soldierAftStatus.daysSinceLastTest != null && ` · ${soldierAftStatus.daysSinceLastTest}d ago`}
+                    </span>
+                  </div>
+                  {soldierAftStatus.lastTest && (
+                    <>
+                      <span className="text-[10pt] text-primary tabular-nums shrink-0 font-medium">
+                        {soldierAftStatus.lastTest.total}
+                      </span>
+                      <span className={`text-[9pt] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                        soldierAftStatus.lastTest.allPassing
+                          ? 'bg-themegreen/15 text-themegreen'
+                          : 'bg-themeredred/15 text-themeredred'
+                      }`}>
+                        {soldierAftStatus.lastTest.allPassing ? 'PASS' : 'FAIL'}
+                      </span>
+                    </>
+                  )}
+                </div>
+              )
+            })()}
+
+            {soldierGoals.length === 0 ? (
+              <p className="text-sm text-tertiary py-4 text-center">No active goals</p>
+            ) : (
+              soldierGoals.map((evt, idx) => (
+                <div
+                  key={evt.id}
+                  className={`flex items-center gap-3 px-4 py-3 ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
+                >
+                  <Target size={14} className="text-themeyellow shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-primary truncate">{evt.title || 'AFT goal'}</p>
+                    <p className="text-[9pt] text-tertiary">Due {formatEventDate(evt)}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+            <ActionPill ref={goalFabRef} shadow="sm" placement="overlay">
+              <ActionButton icon={Target} label="Set fitness goal" onClick={openGoalPopover} />
+            </ActionPill>
+          </div>
+        </div>
+      )}
+
       {/* Schedule */}
       <div>
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Schedule
         </p>
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-          {calendarEvents.length === 0 ? (
-            <div className="flex items-center gap-3 px-4 py-3">
-              <p className="text-sm text-tertiary flex-1">No events in the next 14 days</p>
-              <ActionPill shadow="sm">
-                <ActionButton icon={Calendar} label="Open full calendar" onClick={onOpenCalendar} />
-              </ActionPill>
-            </div>
-          ) : (
-            <>
-              {calendarEvents.map((evt, idx) => {
+        <div className="relative">
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+            {visibleEvents.length === 0 ? (
+              <p className="text-sm text-tertiary px-4 py-3">No events in the next 14 days</p>
+            ) : (
+              visibleEvents.map((evt, idx) => {
                 const isPast = new Date(evt.end_time) < now
                 const meta = getCategoryMeta(evt.category)
                 return (
@@ -373,14 +529,12 @@ export function SoldierProfile({
                     <span className="text-[9pt] text-tertiary shrink-0 capitalize">{evt.category}</span>
                   </div>
                 )
-              })}
-              <div className="flex items-center justify-end gap-3 px-4 py-2 border-t border-tertiary/8">
-                <ActionPill shadow="sm">
-                  <ActionButton icon={Calendar} label="View in calendar" onClick={onOpenCalendar} />
-                </ActionPill>
-              </div>
-            </>
-          )}
+              })
+            )}
+          </div>
+          <ActionPill shadow="sm" placement="overlay">
+            <ActionButton icon={Calendar} label="View in calendar" onClick={onOpenCalendar} />
+          </ActionPill>
         </div>
       </div>
 
@@ -389,7 +543,7 @@ export function SoldierProfile({
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Certifications
         </p>
-        <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden pb-12">
+        <div className="relative"><div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
           {certs.length === 0 ? (
             <div className="px-4 py-4">
               <p className="text-sm text-tertiary">No certifications on file</p>
@@ -426,7 +580,8 @@ export function SoldierProfile({
               })}
             </div>
           )}
-          <ActionPill ref={certFabRef} shadow="sm" className="absolute bottom-2 right-2">
+          </div>
+          <ActionPill ref={certFabRef} shadow="sm" placement="overlay">
             <ActionButton icon={Plus} label="Add certification" onClick={openCertNewPopover} />
           </ActionPill>
         </div>
@@ -624,6 +779,45 @@ export function SoldierProfile({
         onConfirm={handleConfirmDeleteCert}
         onCancel={() => setConfirmDeleteCert(null)}
       />
+
+      <PreviewOverlay
+        isOpen={!!goalPopover}
+        onClose={closeGoalPopover}
+        anchorRect={goalPopover?.anchor ?? null}
+        title="Set fitness goal"
+        maxWidth={360}
+        footer={
+          goalPopover ? (
+            <ActionPill>
+              <ActionButton
+                icon={isWriting ? Loader2 : Check}
+                label={isWriting ? 'Saving…' : 'Save'}
+                variant={isWriting || !goalTitle.trim() || !goalDate ? 'disabled' : 'success'}
+                onClick={handleCreateGoal}
+              />
+            </ActionPill>
+          ) : undefined
+        }
+      >
+        {goalPopover && (
+          <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+            <TextInput
+              value={goalTitle}
+              onChange={setGoalTitle}
+              placeholder="Goal title (e.g. Q3 Record AFT)"
+            />
+            <DatePickerInput
+              value={goalDate}
+              onChange={setGoalDate}
+              placeholder="Due date"
+              minDate={new Date().toISOString().slice(0, 10)}
+            />
+            <p className="px-4 py-2 text-[9pt] text-tertiary border-t border-primary/6">
+              Creates a future-dated AFT record for this soldier. They&apos;ll log results before the due date; the goal closes when results are entered.
+            </p>
+          </div>
+        )}
+      </PreviewOverlay>
     </div>
   )
 }

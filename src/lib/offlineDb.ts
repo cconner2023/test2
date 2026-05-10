@@ -31,6 +31,61 @@ export interface TileCacheEntry {
   data: Blob
 }
 
+/**
+ * Active GPS recording buffer — persisted so a reload/crash mid-recording
+ * does not lose track data. Cleared by the recorder hook on save or discard.
+ * Keyed by overlayId so each overlay can host one in-progress recording.
+ */
+export interface TrackBufferEntry {
+  overlayId: string  // keyPath
+  startedAt: string
+  /** Each sample: [lat, lng, isoTimestamp]. */
+  points: [number, number, string][]
+  status: 'recording' | 'paused'
+}
+
+/**
+ * Imported basemap metadata (Phase 3: MBTiles, geo-PDF, future GeoTIFF).
+ * Each imported file becomes a TileSource registered at boot. Tile blobs
+ * live in importedBasemapTiles keyed by `${sourceId}/${z}/${x}/${y}` (XYZ
+ * y-axis — TMS y is converted on the way in for MBTiles).
+ */
+export interface ImportedBasemapMeta {
+  sourceId: string  // keyPath — also the TileSource.id; e.g. 'mbtiles:<uuid>'
+  name: string
+  format: 'mbtiles' | 'geopdf' | 'geotiff'
+  /** Tile MIME — driven by the source format ('image/png', 'image/jpeg', 'image/webp'). */
+  tileMime: string
+  bounds?: [number, number, number, number]  // [west, south, east, north]
+  center?: [number, number]  // [lat, lng]
+  minZoom: number
+  maxZoom: number
+  tileCount: number
+  sizeBytes: number
+  importedAt: string
+  attribution?: string
+}
+
+export interface ImportedBasemapTile {
+  key: string   // keyPath — `${sourceId}/${z}/${x}/${y}` (XYZ)
+  blob: Blob
+}
+
+/**
+ * Photo attached to a waypoint feature. DEVICE-ONLY: never enters the sync
+ * queue, never traverses Supabase. Photos may capture identifying or
+ * operational detail; treating them as PHI-adjacent keeps Beacon's no-PHI-
+ * on-the-wire invariant intact. Future explicit-share is a Phase 4 wedge,
+ * not Phase 2.4.
+ */
+export interface MapPhoto {
+  featureId: string  // keyPath — also the OverlayFeature.id
+  blob: Blob
+  capturedAt: string
+  /** Original filename or capture source — purely informational. */
+  sourceName?: string
+}
+
 export interface TileMetadata {
   overlayId: string  // keyPath
   bbox: [number, number, number, number]  // [west, south, east, north]
@@ -39,6 +94,13 @@ export interface TileMetadata {
   cachedAt: string
   zoomMin: number
   zoomMax: number
+  /**
+   * Tile source the cache was downloaded from (e.g. 'osm', 'esri-imagery').
+   * Optional for backwards compatibility — pre-Phase-2 entries are 'osm'.
+   * One overlay caches one source at a time; switching sources requires
+   * re-download.
+   */
+  sourceId?: string
 }
 import { createLogger } from '../Utilities/Logger'
 import { encryptString, decryptString } from './secureStorage'
@@ -217,6 +279,22 @@ interface PackageBackEndDB extends DBSchema {
     key: string  // overlayId
     value: TileMetadata
   }
+  trackBuffer: {
+    key: string  // overlayId — only one active recording per overlay
+    value: TrackBufferEntry
+  }
+  mapPhotos: {
+    key: string  // featureId — at most one photo per waypoint
+    value: MapPhoto
+  }
+  importedBasemapMeta: {
+    key: string  // sourceId, e.g. 'mbtiles:<uuid>'
+    value: ImportedBasemapMeta
+  }
+  importedBasemapTiles: {
+    key: string  // `${sourceId}/${z}/${x}/${y}`
+    value: ImportedBasemapTile
+  }
   featureVoteCycles: {
     key: string
     value: LocalFeatureVoteCycle
@@ -248,7 +326,7 @@ interface PackageBackEndDB extends DBSchema {
 }
 
 const DB_NAME = 'packagebackend-offline'
-const DB_VERSION = 8
+const DB_VERSION = 11
 
 let dbInstance: IDBPDatabase<PackageBackEndDB> | null = null
 
@@ -351,6 +429,30 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
       if (oldVersion < 7) {
         db.createObjectStore('cachedTiles', { keyPath: 'key' })
         db.createObjectStore('tileMetadata', { keyPath: 'overlayId' })
+      }
+
+      // v8 → v9: Track recording buffer (Phase 2.3)
+      if (oldVersion < 9) {
+        if (!db.objectStoreNames.contains('trackBuffer')) {
+          db.createObjectStore('trackBuffer', { keyPath: 'overlayId' })
+        }
+      }
+
+      // v9 → v10: Photo waypoints (Phase 2.4) — DEVICE-ONLY, never synced.
+      if (oldVersion < 10) {
+        if (!db.objectStoreNames.contains('mapPhotos')) {
+          db.createObjectStore('mapPhotos', { keyPath: 'featureId' })
+        }
+      }
+
+      // v10 → v11: Imported basemaps (Phase 3) — MBTiles / geo-PDF / GeoTIFF.
+      if (oldVersion < 11) {
+        if (!db.objectStoreNames.contains('importedBasemapMeta')) {
+          db.createObjectStore('importedBasemapMeta', { keyPath: 'sourceId' })
+        }
+        if (!db.objectStoreNames.contains('importedBasemapTiles')) {
+          db.createObjectStore('importedBasemapTiles', { keyPath: 'key' })
+        }
       }
 
       // v7 → v8: Feature voting stores

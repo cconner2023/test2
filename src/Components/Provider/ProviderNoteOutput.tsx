@@ -180,13 +180,15 @@ export function ProviderNoteOutput({
             {/* Note Preview */}
             <div>
                 <p className="pb-2 text-[9pt] font-semibold text-primary uppercase tracking-wider">Note Preview</p>
-                <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-                    <div className="px-4 py-3 pt-14 text-tertiary text-[9pt] whitespace-pre-wrap max-h-48 md:max-h-80 overflow-y-auto">
-                        {previewNote
-                            ? previewNote.split('\n').filter(l => !l.startsWith('Signed:')).join('\n').trim()
-                            : 'No content available'}
+                <div className="relative">
+                    <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                        <div className="px-4 py-3 text-tertiary text-[9pt] whitespace-pre-wrap max-h-48 md:max-h-80 overflow-y-auto">
+                            {previewNote
+                                ? previewNote.split('\n').filter(l => !l.startsWith('Signed:')).join('\n').trim()
+                                : 'No content available'}
+                        </div>
                     </div>
-                    <ActionPill shadow="sm" className="absolute top-2 right-2">
+                    <ActionPill shadow="sm" placement="overlay">
                         <ActionIconButton
                             onClick={() => handleCopy(previewNote, 'preview')}
                             status={copiedTarget === 'preview' ? 'done' : 'idle'}
@@ -206,14 +208,16 @@ export function ProviderNoteOutput({
             {/* Encoded Note */}
             <div>
                 <p className="pb-2 text-[9pt] font-semibold text-primary uppercase tracking-wider">Encoded Note</p>
-                <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-                    <div className="pt-14">
-                        <BarcodeDisplay
-                            encodedText={encodedValue}
-                            layout={encodedValue.length > 300 ? 'col' : 'row'}
-                        />
+                <div className="relative">
+                    <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                        <div>
+                            <BarcodeDisplay
+                                encodedText={encodedValue}
+                                layout={encodedValue.length > 300 ? 'col' : 'row'}
+                            />
+                        </div>
                     </div>
-                    <ActionPill shadow="sm" className="absolute top-2 right-2">
+                    <ActionPill shadow="sm" placement="overlay">
                         <ActionIconButton
                             onClick={handleShare}
                             status={shareBtnStatus}

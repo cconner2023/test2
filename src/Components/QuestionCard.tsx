@@ -131,7 +131,8 @@ export const QuestionCard = memo(function QuestionCard({
 
                     return (
                         <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardAppearIn' : ''}`}>
-                            <div className={`relative flex flex-col rounded-2xl w-full overflow-hidden shadow-sm bg-themewhite2 border-3 border-dashed ${isDeferred ? 'border-themered/30' : 'border-themeblue2/30'}`}>
+                            <div className="relative w-full">
+                            <div className={`flex flex-col rounded-2xl w-full overflow-hidden shadow-sm bg-themewhite2 border-3 border-dashed ${isDeferred ? 'border-themered/30' : 'border-themeblue2/30'}`}>
                                 <div className="px-12 py-3 text-center">
                                     <div className={`text-[9pt] font-semibold mb-1 uppercase tracking-wider ${isDeferred ? 'text-themered' : 'text-themeblue2'}`}>
                                         Action Required
@@ -159,8 +160,9 @@ export const QuestionCard = memo(function QuestionCard({
                                     </div>
                                 )}
 
+                                </div>
                                 {/* Performed / Deferred toggle — overlays card content; never adds height */}
-                                <ActionPill shadow="sm" className="absolute top-2 right-2">
+                                <ActionPill shadow="sm" placement="overlay">
                                     <button
                                         type="button"
                                         onClick={() => onActionStatus?.(card.index, 'performed')}

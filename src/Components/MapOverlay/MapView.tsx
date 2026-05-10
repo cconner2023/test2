@@ -3,17 +3,24 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { forward } from 'mgrs';
 import { Plus, Minus, Info, Copy, ClipboardCheck, LocateFixed } from 'lucide-react';
+import { PreviewOverlay } from '../PreviewOverlay';
 import { useTheme } from '../../Utilities/ThemeContext';
 import { createThemedTileLayer, getTileTheme } from './ThemedTileLayer';
-import { getTileFromCache } from '../../lib/mapTileService';
+import { getTileFromCache, getTileSource } from '../../lib/mapTileService';
 import { createMGRSGridLayer, getGridTheme } from './MGRSGridLayer';
 import type { OverlayFeature, DrawMode } from '../../Types/MapOverlayTypes';
+import { resolveColor } from '../../Types/MapOverlayTypes';
 import { waypointIconSvg } from './WaypointIcon';
+import { useMapPrefsStore } from '../../stores/useMapPrefsStore';
+import { formatBearing } from '../../lib/declination';
+import { latLngToUTM } from './utmProjection';
 
 export interface MapViewHandle {
   flyTo: (lat: number, lng: number, zoom?: number) => void;
   fitBounds: (bbox: [number, number, number, number]) => void;
   invalidateSize: () => void;
+  /** Pixel distance between two lat/lngs at the current zoom — for waypoint snap. */
+  containerDistancePx: (latA: number, lngA: number, latB: number, lngB: number) => number;
 }
 
 export interface PresenceMarker {
@@ -76,6 +83,25 @@ const GPS_ACCURACY_STYLE = {
 
 const SELECTED_WEIGHT_BOOST = 3;
 
+function legGeometry(lat1: number, lng1: number, lat2: number, lng2: number): { distanceM: number; bearing: number } {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const φ1 = toRad(lat1);
+  const φ2 = toRad(lat2);
+  const Δφ = toRad(lat2 - lat1);
+  const Δλ = toRad(lng2 - lng1);
+  const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+  const distanceM = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  const bearing = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+  return { distanceM, bearing };
+}
+
+function formatLegDistance(m: number): string {
+  return m >= 1000 ? `${(m / 1000).toFixed(2)}km` : `${Math.round(m)}m`;
+}
+
 function addVertexHandles(
   group: L.LayerGroup,
   featureId: string,
@@ -118,6 +144,10 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   readOnlyFeatures,
 }, ref) {
   const { theme, themeName } = useTheme();
+  const bearingReference = useMapPrefsStore(s => s.bearingReference);
+  const coordDisplay = useMapPrefsStore(s => s.coordDisplay);
+  const setCoordDisplay = useMapPrefsStore(s => s.setCoordDisplay);
+  const basemapId = useMapPrefsStore(s => s.basemapId);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const tileLayerRef = useRef<L.GridLayer | null>(null);
@@ -128,9 +158,17 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   const measureLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const presenceLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const [mgrsReadout, setMgrsReadout] = useState('');
-  const [mgrsCopied, setMgrsCopied] = useState(false);
+  const [centerLatLng, setCenterLatLng] = useState<{ lat: number; lng: number } | null>(null);
   const [showAttribution, setShowAttribution] = useState(false);
   const attributionTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  // Coordinate readout overlay state — opened by tapping the MGRS pill.
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [showReadout, setShowReadout] = useState(false);
+  const [readoutAnchor, setReadoutAnchor] = useState<DOMRect | null>(null);
+  const [address, setAddress] = useState('');
+  const [addressLoading, setAddressLoading] = useState(false);
+  const [copiedField, setCopiedField] = useState<'mgrs' | 'utm' | 'latlng' | 'address' | null>(null);
 
   const handleZoomIn = useCallback(() => { mapRef.current?.zoomIn(); }, []);
   const handleZoomOut = useCallback(() => { mapRef.current?.zoomOut(); }, []);
@@ -156,6 +194,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 
   const updateMgrs = useCallback((map: L.Map) => {
     const c = map.getCenter();
+    setCenterLatLng({ lat: c.lat, lng: c.lng });
     try {
       const mgrs = forward([c.lng, c.lat], 5);
       setMgrsReadout(mgrs);
@@ -164,14 +203,49 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     }
   }, []);
 
-  const handleCopyMgrs = useCallback(() => {
-    if (mgrsReadout && mgrsReadout !== '---') {
-      navigator.clipboard.writeText(mgrsReadout).then(() => {
-        setMgrsCopied(true);
-        setTimeout(() => setMgrsCopied(false), 1500);
-      });
-    }
-  }, [mgrsReadout]);
+  const latLngText = centerLatLng
+    ? `${centerLatLng.lat.toFixed(6)}, ${centerLatLng.lng.toFixed(6)}`
+    : '';
+
+  const utmText = centerLatLng
+    ? (() => {
+        try {
+          const u = latLngToUTM(centerLatLng.lat, centerLatLng.lng);
+          const e = Math.round(u.easting).toString().padStart(7, '0');
+          const n = Math.round(u.northing).toString().padStart(7, '0');
+          return `${u.zone}${u.northern ? 'N' : 'S'} ${e} ${n}`;
+        } catch { return ''; }
+      })()
+    : '';
+
+  const activeCoordText = coordDisplay === 'mgrs'
+    ? (mgrsReadout || '---')
+    : coordDisplay === 'utm'
+      ? (utmText || '---')
+      : (latLngText || '---');
+
+  const handleOpenReadout = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    setReadoutAnchor(e.currentTarget.getBoundingClientRect());
+    setShowReadout(true);
+    setAddress('');
+    if (!centerLatLng) return;
+    setAddressLoading(true);
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${centerLatLng.lat}&lon=${centerLatLng.lng}`, {
+      headers: { 'Accept-Language': 'en' },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setAddress(d?.display_name ?? ''))
+      .catch(() => setAddress(''))
+      .finally(() => setAddressLoading(false));
+  }, [centerLatLng]);
+
+  const handleCopyField = useCallback((value: string, field: 'mgrs' | 'utm' | 'latlng' | 'address') => {
+    if (!value) return;
+    navigator.clipboard.writeText(value).then(() => {
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 1500);
+    });
+  }, []);
 
   // Initialize map
   useEffect(() => {
@@ -184,7 +258,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       attributionControl: false,
     });
 
-    const tileLayer = createThemedTileLayer(getTileTheme(themeName, theme));
+    const tileLayer = createThemedTileLayer(getTileTheme(themeName, theme), null, getTileSource(basemapId));
     tileLayer.addTo(map);
     tileLayerRef.current = tileLayer;
 
@@ -230,9 +304,9 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     if (gridLayerRef.current) map.removeLayer(gridLayerRef.current);
 
     const tileCache = (overlayId && tilesCached)
-      ? (z: number, x: number, y: number) => getTileFromCache(overlayId, z, x, y)
+      ? (z: number, x: number, y: number) => getTileFromCache(overlayId, z, x, y, basemapId)
       : null;
-    const tileLayer = createThemedTileLayer(getTileTheme(themeName, theme), tileCache);
+    const tileLayer = createThemedTileLayer(getTileTheme(themeName, theme), tileCache, getTileSource(basemapId));
     tileLayer.addTo(map);
     tileLayerRef.current = tileLayer;
 
@@ -243,7 +317,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     } else {
       gridLayerRef.current = null;
     }
-  }, [theme, themeName, showGrid, overlayId, tilesCached]);
+  }, [theme, themeName, showGrid, overlayId, tilesCached, basemapId]);
 
   // Map click handler
   useEffect(() => {
@@ -276,7 +350,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       const isSelected = feature.id === selectedFeatureId;
       const baseWeight = feature.style.weight ?? 3;
       const weight = isSelected ? baseWeight + SELECTED_WEIGHT_BOOST : baseWeight;
-      const color = feature.style.color;
+      const color = resolveColor(feature.style.color);
       const opacity = feature.style.opacity ?? 1;
       const dashArray = feature.style.dash;
 
@@ -284,9 +358,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 
       if (feature.type === 'waypoint' && feature.geometry.length > 0) {
         const [lat, lng] = feature.geometry[0];
-        const wptType = feature.waypoint_type ?? 'generic';
-        const iconSize = isSelected ? 34 : 28;
-        const svg = waypointIconSvg(wptType, color, iconSize, isSelected);
+        const iconSize = isSelected ? 32 : 24;
+        const svg = waypointIconSvg(feature.waypoint_type, color, iconSize, isSelected, !!feature.tc3_card_id);
 
         const icon = L.divIcon({
           html: svg,
@@ -296,15 +369,6 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         });
 
         const marker = L.marker([lat, lng], { icon, draggable: isDraggable });
-
-        if (feature.label) {
-          marker.bindTooltip(feature.label, {
-            permanent: true,
-            direction: 'top',
-            offset: [0, -iconSize / 2 - 4],
-            className: 'leaflet-tooltip-tactical',
-          });
-        }
 
         marker.on('click', (e) => {
           L.DomEvent.stopPropagation(e);
@@ -351,6 +415,23 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
           });
 
           group.addLayer(line);
+
+          // Per-leg distance + azimuth labels at segment midpoints — selected route only
+          if (isSelected) {
+            for (let i = 0; i < feature.geometry.length - 1; i++) {
+              const [aLat, aLng] = feature.geometry[i];
+              const [bLat, bLng] = feature.geometry[i + 1];
+              const { distanceM, bearing } = legGeometry(aLat, aLng, bLat, bLng);
+              const midLat = (aLat + bLat) / 2;
+              const midLng = (aLng + bLng) / 2;
+              const distLabel = formatLegDistance(distanceM);
+              const bearLabel = formatBearing(bearing, bearingReference, midLat, midLng);
+              const html = `<div style="white-space:nowrap;font:500 10px/1 ui-monospace,monospace;color:#fff;background:rgba(0,0,0,0.55);padding:2px 5px;border-radius:4px;transform:translate(-50%,-50%);">${distLabel} · ${bearLabel}</div>`;
+              const icon = L.divIcon({ html, className: '', iconSize: [0, 0], iconAnchor: [0, 0] });
+              const label = L.marker([midLat, midLng], { icon, interactive: false, keyboard: false });
+              group.addLayer(label);
+            }
+          }
         }
 
         if (isDraggable && onFeatureGeometryChange) {
@@ -385,7 +466,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         }
       }
     }
-  }, [features, selectedFeatureId, drawMode, onFeatureClick, onFeatureGeometryChange, onFeatureVertexInsert]);
+  }, [features, selectedFeatureId, drawMode, onFeatureClick, onFeatureGeometryChange, onFeatureVertexInsert, bearingReference]);
 
   // Sync read-only features (visible but non-active overlays)
   useEffect(() => {
@@ -393,30 +474,21 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     group.clearLayers();
 
     for (const feature of (readOnlyFeatures ?? [])) {
-      const color = feature.style.color;
+      const color = resolveColor(feature.style.color);
       const baseWeight = feature.style.weight ?? 3;
       const dashArray = feature.style.dash;
 
       if (feature.type === 'waypoint' && feature.geometry.length > 0) {
         const [lat, lng] = feature.geometry[0];
-        const wptType = feature.waypoint_type ?? 'generic';
-        const svg = waypointIconSvg(wptType, color, 24, false);
+        const svg = waypointIconSvg(feature.waypoint_type, color, 22, false, !!feature.tc3_card_id);
         const icon = L.divIcon({
           html: svg,
           className: '',
-          iconSize: [24, 24],
-          iconAnchor: [12, 12],
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
         });
         const marker = L.marker([lat, lng], { icon });
         marker.setOpacity(0.4);
-        if (feature.label) {
-          marker.bindTooltip(feature.label, {
-            permanent: true,
-            direction: 'top',
-            offset: [0, -16],
-            className: 'leaflet-tooltip-tactical',
-          });
-        }
         group.addLayer(marker);
       }
 
@@ -531,7 +603,9 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       const distLabel = measureResult.distanceM >= 1000
         ? `${(measureResult.distanceM / 1000).toFixed(2)} km`
         : `${Math.round(measureResult.distanceM)} m`;
-      const bearLabel = `${Math.round(measureResult.bearing)}°`;
+      const midLat = (measurePoints[0][0] + measurePoints[1][0]) / 2;
+      const midLng = (measurePoints[0][1] + measurePoints[1][1]) / 2;
+      const bearLabel = formatBearing(measureResult.bearing, bearingReference, midLat, midLng);
 
       line.bindTooltip(`${distLabel} · ${bearLabel}`, {
         permanent: true,
@@ -541,7 +615,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 
       group.addLayer(line);
     }
-  }, [measurePoints, measureResult]);
+  }, [measurePoints, measureResult, bearingReference]);
 
   useImperativeHandle(ref, () => ({
     flyTo: (lat: number, lng: number, z?: number) => {
@@ -554,36 +628,79 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     invalidateSize: () => {
       mapRef.current?.invalidateSize();
     },
+    containerDistancePx: (latA, lngA, latB, lngB) => {
+      const m = mapRef.current;
+      if (!m) return Infinity;
+      const a = m.latLngToContainerPoint([latA, lngA]);
+      const b = m.latLngToContainerPoint([latB, lngB]);
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    },
   }), []);
 
   const CTRL_BTN = 'w-9 h-9 rounded-lg flex items-center justify-center bg-themewhite2/90 dark:bg-themewhite3/90 text-primary shadow-sm active:scale-95 transition-all backdrop-blur-sm';
 
   return (
-    <div className="relative w-full h-full">
+    <div ref={wrapperRef} className="relative w-full h-full">
       <div
         ref={containerRef}
         className="w-full h-full"
         style={{ backgroundColor: theme === 'dark' ? 'rgb(15, 25, 35)' : 'rgb(240, 242, 245)' }}
       />
 
-      {/* MGRS readout — top-left pill */}
+      {/* MGRS readout — top-left pill, opens coordinate detail overlay */}
       <button
         type="button"
-        onClick={handleCopyMgrs}
+        onClick={handleOpenReadout}
         className="absolute left-3 z-[1000] flex items-center gap-1.5
           bg-themewhite2/90 dark:bg-themewhite3/90 backdrop-blur-sm
           text-primary text-[10pt] font-mono px-2.5 py-1.5 rounded-lg shadow-sm
           active:scale-95 transition-all select-none"
         style={{ top: controlsTopOffset ? `${controlsTopOffset + 12}px` : 12 }}
-        aria-label="Copy MGRS coordinate"
-        role="status"
+        aria-label="Show coordinate detail"
       >
-        <span>{mgrsReadout || '---'}</span>
-        {mgrsCopied
-          ? <ClipboardCheck size={12} className="text-themegreen shrink-0" />
-          : <Copy size={12} className="text-tertiary shrink-0" />
-        }
+        <span>{activeCoordText}</span>
+        <Copy size={12} className="text-tertiary shrink-0" />
       </button>
+
+      <PreviewOverlay
+        isOpen={showReadout}
+        onClose={() => setShowReadout(false)}
+        anchorRect={readoutAnchor}
+        title="Coordinates"
+        maxWidth={340}
+        containerRef={wrapperRef}
+        zIndex={1100}
+      >
+        <div className="flex flex-col gap-2 p-1">
+          {([
+            { label: 'MGRS', value: mgrsReadout && mgrsReadout !== '---' ? mgrsReadout : '', key: 'mgrs' as const },
+            { label: 'UTM', value: utmText, key: 'utm' as const },
+            { label: 'Lat / Lng', value: latLngText, key: 'latlng' as const },
+            { label: 'Address', value: addressLoading ? '' : address, key: 'address' as const, loading: addressLoading },
+          ]).map(row => (
+            <div key={row.key} className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-themewhite2/60 dark:bg-themewhite3/60">
+              <div className="flex-1 min-w-0">
+                <div className="text-[9pt] font-medium text-tertiary uppercase tracking-wide">{row.label}</div>
+                <div className="text-[10pt] font-mono text-primary truncate" title={row.value || undefined}>
+                  {row.loading ? 'Loading…' : (row.value || '—')}
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={!row.value}
+                onClick={() => handleCopyField(row.value, row.key)}
+                className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-30"
+                aria-label={`Copy ${row.label}`}
+                title={`Copy ${row.label}`}
+              >
+                {copiedField === row.key
+                  ? <ClipboardCheck size={16} className="text-themegreen" />
+                  : <Copy size={16} />}
+              </button>
+            </div>
+          ))}
+        </div>
+      </PreviewOverlay>
 
       {/* Zoom + GPS controls — right side, vertically stacked */}
       <div className="absolute right-3 bottom-16 z-[1000] flex flex-col gap-1.5">
@@ -615,12 +732,10 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         <button
           type="button"
           onClick={toggleAttribution}
-          className="w-6 h-6 rounded-full flex items-center justify-center
-            bg-themewhite2/60 dark:bg-themewhite3/60 text-tertiary
-            hover:text-tertiary transition-colors"
+          className={CTRL_BTN}
           aria-label="Map attribution"
         >
-          <Info size={12} />
+          <Info size={16} />
         </button>
       </div>
     </div>

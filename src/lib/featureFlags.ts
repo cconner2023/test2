@@ -29,3 +29,10 @@ export const BURN_CALCULATOR_ENABLED = true;
  * (MTP, DCR, transfusion protocols) is available in the Knowledge Base.
  */
 export const BLOOD_PRODUCTS_ENABLED = false;
+
+/**
+ * AFT_CALCULATOR_ENABLED: When true, the Army Fitness Test scoring calculator
+ * is visible in the Knowledge Base calculators section. While false, only
+ * dev-role users see it (per GATED_KB_IDS in KnowledgeBaseDrawer).
+ */
+export const AFT_CALCULATOR_ENABLED = false;

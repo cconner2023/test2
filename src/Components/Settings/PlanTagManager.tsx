@@ -53,7 +53,7 @@ export const PlanTagManager = ({
             <div className="pb-2">
                 <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Plan Tags</p>
             </div>
-            <div className="relative rounded-xl bg-themewhite2 overflow-hidden">
+            <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
                 {visibleCategories.length > 0 ? (
                     <div className="p-2 space-y-2">
                         {visibleCategories.map(key => {
@@ -109,7 +109,8 @@ export const PlanTagManager = ({
                         </p>
                     </div>
                 )}
-                <ActionPill ref={fabRef} data-tour="plan-tag-input" shadow="sm" className="absolute top-2 right-2">
+                </div>
+                <ActionPill ref={fabRef} data-tour="plan-tag-input" shadow="sm" placement="overlay">
                     <ActionButton icon={Plus} label="New tag" onClick={() => fabRef.current && onTapNew(fabRef.current)} />
                 </ActionPill>
             </div>

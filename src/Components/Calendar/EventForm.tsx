@@ -5,8 +5,11 @@ import { createEmptyFormData, EVENT_CATEGORIES, MILITARY_TIME_OPTIONS, militaryT
 import { TextInput, PickerInput, DatePickerInput, TimeInput } from '../FormInputs'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useIsMobile } from '../../Hooks/useIsMobile'
+import { useAuthStore } from '../../stores/useAuthStore'
 import { MedevacForm } from '../Medevac/MedevacForm'
 import { emptyMedevacRequest } from '../../Types/MedevacTypes'
+import { AftEventSubForm } from './AftEventSubForm'
+import { WorkoutEventSubForm } from './WorkoutEventSubForm'
 
 
 const STATUS_OPTIONS: { value: EventStatus; label: string; activeClass: string }[] = [
@@ -60,11 +63,18 @@ interface EventFormProps {
   huddleTaskOptions?: HuddleTaskOption[]
   /** Clinics the user can write events into (assigned + surrogate when loaned). Picker hidden when length < 2 or editing. */
   clinicOptions?: ClinicOption[]
+  /**
+   * Phase 4.3a — when present, surfaces a "Create map" button for field
+   * events (mission/training/range) without an attached overlay. Returns
+   * the new overlay's id for the form to bind via structured_location.
+   */
+  onCreateOverlay?: () => Promise<string | null>
 }
 
 export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
-  function EventForm({ initialData, onSave, isEditing, medics, propertyItems, overlayOptions, roomOptions, huddleTaskOptions, clinicOptions }, ref) {
+  function EventForm({ initialData, onSave, isEditing, medics, propertyItems, overlayOptions, roomOptions, huddleTaskOptions, clinicOptions, onCreateOverlay }, ref) {
     const isMobile = useIsMobile()
+    const isDevRole = useAuthStore(s => s.isDevRole)
     const [form, setForm] = useState<EventFormData>(initialData ?? createEmptyFormData())
     const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -219,7 +229,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                     updateField('medevac_data', emptyMedevacRequest())
                   }
                 }}
-                options={EVENT_CATEGORIES.filter(c => !c.hidden).map(c => c.label)}
+                options={EVENT_CATEGORIES.filter(c => !c.hidden && (!c.devOnly || isDevRole)).map(c => c.label)}
                 placeholder="Category *"
                 required
               />
@@ -394,6 +404,27 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
             />
           )}
 
+          {/* Phase 4.3a — auto-create overlay for field-type events without
+              a binding. Visible only when the parent supplies onCreateOverlay
+              AND the event category is mission/training/range AND no overlay
+              is linked yet. */}
+          {!isTask
+            && onCreateOverlay
+            && !form.structured_location?.overlay_id
+            && (form.category === 'mission' || form.category === 'training' || form.category === 'range') && (
+            <button
+              type="button"
+              onClick={async () => {
+                const id = await onCreateOverlay()
+                if (id) updateField('structured_location', { overlay_id: id })
+              }}
+              className="w-full flex items-center justify-between px-4 py-3 text-left text-[11pt] text-themeblue3 border-b border-primary/6 hover:bg-themeblue3/5 active:bg-themeblue3/10 transition-colors"
+            >
+              <span>+ Create field map for this event</span>
+              <span className="text-[9pt] text-tertiary">auto-named</span>
+            </button>
+          )}
+
           {form.category !== 'medevac' && (
             <label className="block">
               <textarea
@@ -413,6 +444,30 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
             <MedevacForm
               value={form.medevac_data}
               onChange={req => updateField('medevac_data', req)}
+            />
+          </div>
+        )}
+
+        {/* AFT record — shown when category is aft_record (dev-gated category) */}
+        {form.category === 'aft_record' && (
+          <div className="mt-3">
+            <AftEventSubForm
+              result={form.aft_result ?? null}
+              target={form.aft_target ?? null}
+              onResultChange={r => updateField('aft_result', r)}
+              onTargetChange={t => updateField('aft_target', t)}
+            />
+          </div>
+        )}
+
+        {/* Workout — shown when category is workout (dev-gated category) */}
+        {form.category === 'workout' && (
+          <div className="mt-3">
+            <WorkoutEventSubForm
+              workoutId={form.workout_id ?? null}
+              log={form.workout_log ?? null}
+              onWorkoutIdChange={id => updateField('workout_id', id)}
+              onLogChange={log => updateField('workout_log', log)}
             />
           </div>
         )}

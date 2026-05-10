@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react'
-import { AlertTriangle, Building2, Calendar, Plus } from 'lucide-react'
+import { AlertTriangle, Building2, Calendar, Dumbbell, Plus } from 'lucide-react'
 import { formatMedicName } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { TeamMetrics } from './supervisorHelpers'
@@ -7,6 +7,9 @@ import type { CalendarEvent } from '../../../Types/CalendarTypes'
 import { getCategoryMeta } from '../../../Types/CalendarTypes'
 import { ActionButton } from '../../ActionButton'
 import { ActionPill } from '../../ActionPill'
+import { useAuthStore } from '../../../stores/useAuthStore'
+import { aftStatusForSoldier, type AftStatus } from '../../../lib/aft/status'
+import { visibleEventsForRole } from '../../../lib/aft/visibility'
 
 function formatEventDate(evt: CalendarEvent): string {
   const start = new Date(evt.start_time)
@@ -70,9 +73,24 @@ export function TeamReporting({
 }: TeamReportingProps) {
   const now = useMemo(() => new Date(), [])
   const addMemberPillRef = useRef<HTMLDivElement>(null)
+  const isDevRole = useAuthStore(s => s.isDevRole)
+  const visibleTeamEvents = useMemo(() => visibleEventsForRole(teamEvents, isDevRole), [teamEvents, isDevRole])
   const sortedSoldiers = useMemo(() => {
     return [...metrics.soldierReadiness].sort((a, b) => a.readinessPercent - b.readinessPercent)
   }, [metrics.soldierReadiness])
+
+  const aftRows = useMemo(() => {
+    if (!isDevRole) return []
+    return medics
+      .map(m => ({ medic: m, status: aftStatusForSoldier(m.id, teamEvents, now) }))
+      // Sort: never (none) first, then expired, then expiring, then current. Within each, oldest first.
+      .sort((a, b) => {
+        const order: Record<AftStatus['recency'], number> = { none: 0, expired: 1, expiring: 2, current: 3 }
+        const d = order[a.status.recency] - order[b.status.recency]
+        if (d !== 0) return d
+        return (b.status.daysSinceLastTest ?? -1) - (a.status.daysSinceLastTest ?? -1)
+      })
+  }, [isDevRole, medics, teamEvents, now])
 
   const sortedGaps = useMemo(() => {
     return [...metrics.subjectAreaGaps].sort((a, b) => a.coveragePercent - b.coveragePercent)
@@ -129,17 +147,12 @@ export function TeamReporting({
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Team Schedule
         </p>
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-          {teamEvents.length === 0 ? (
-            <div className="flex items-center gap-3 px-4 py-3">
-              <p className="text-sm text-tertiary flex-1">No events in the next 14 days</p>
-              <ActionPill shadow="sm">
-                <ActionButton icon={Calendar} label="Open full calendar" onClick={onOpenCalendar} />
-              </ActionPill>
-            </div>
-          ) : (
-            <>
-              {teamEvents.map((evt, idx) => {
+        <div className="relative">
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+            {visibleTeamEvents.length === 0 ? (
+              <p className="text-sm text-tertiary px-4 py-3">No events in the next 14 days</p>
+            ) : (
+              visibleTeamEvents.map((evt, idx) => {
                 const isPast = new Date(evt.end_time) < now
                 const meta = getCategoryMeta(evt.category)
                 return (
@@ -161,14 +174,12 @@ export function TeamReporting({
                     )}
                   </div>
                 )
-              })}
-              <div className="flex items-center justify-end gap-3 px-4 py-2 border-t border-tertiary/8">
-                <ActionPill shadow="sm">
-                  <ActionButton icon={Calendar} label="Open full calendar" onClick={onOpenCalendar} />
-                </ActionPill>
-              </div>
-            </>
-          )}
+              })
+            )}
+          </div>
+          <ActionPill shadow="sm" placement="overlay">
+            <ActionButton icon={Calendar} label="Open full calendar" onClick={onOpenCalendar} />
+          </ActionPill>
         </div>
       </div>
 
@@ -177,9 +188,9 @@ export function TeamReporting({
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Soldier Readiness
         </p>
-        <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+        <div className="relative">
           {onAddMember && (
-            <ActionPill ref={addMemberPillRef} shadow="sm" className="absolute top-2 right-2 z-10">
+            <ActionPill ref={addMemberPillRef} shadow="sm" placement="overlay">
               <ActionButton
                 icon={Plus}
                 label="Add member"
@@ -190,6 +201,7 @@ export function TeamReporting({
               />
             </ActionPill>
           )}
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
           {sortedSoldiers.map((entry, index) => {
             const soldier = medics.find(m => m.id === entry.soldierId)
             if (!soldier) return null
@@ -247,8 +259,73 @@ export function TeamReporting({
               </button>
             )
           })}
+          </div>
         </div>
       </div>
+
+      {/* AFT Readiness — dev-gated (mirrors aft_record category visibility) */}
+      {isDevRole && aftRows.length > 0 && (
+        <div data-tour="supervisor-aft-readiness">
+          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
+            AFT Readiness
+          </p>
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+            {aftRows.map(({ medic, status }, idx) => {
+              const recencyDot =
+                status.recency === 'current'  ? 'bg-themegreen' :
+                status.recency === 'expiring' ? 'bg-themeyellow' :
+                status.recency === 'expired'  ? 'bg-themeredred' :
+                                                'bg-tertiary/40'
+              const recencyLabel =
+                status.recency === 'current'  ? 'Current' :
+                status.recency === 'expiring' ? 'Expiring' :
+                status.recency === 'expired'  ? 'Expired' :
+                                                'Never tested'
+              const dateLabel = status.lastTest
+                ? new Date(status.lastTest.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                : '—'
+              return (
+                <button
+                  key={medic.id}
+                  onClick={() => onViewSoldier(medic)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-themeblue2/5 text-left active:scale-95 transition-all ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
+                >
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                    <Dumbbell size={14} className="text-tertiary" />
+                  </div>
+                  <span className="text-sm text-primary truncate shrink-0 w-32">
+                    {formatMedicName(medic)}
+                  </span>
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${recencyDot}`} />
+                    <span className="text-[9pt] text-tertiary truncate">
+                      {recencyLabel}
+                      {status.daysSinceLastTest != null && ` · ${status.daysSinceLastTest}d ago`}
+                    </span>
+                    <span className="text-[9pt] text-tertiary truncate ml-auto">{dateLabel}</span>
+                  </div>
+                  {status.lastTest ? (
+                    <>
+                      <span className="text-[10pt] text-primary tabular-nums shrink-0 font-medium">
+                        {status.lastTest.total}
+                      </span>
+                      <span className={`text-[9pt] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                        status.lastTest.allPassing
+                          ? 'bg-themegreen/15 text-themegreen'
+                          : 'bg-themeredred/15 text-themeredred'
+                      }`}>
+                        {status.lastTest.allPassing ? 'PASS' : 'FAIL'}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-[9pt] text-tertiary shrink-0">—</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Coverage Gaps */}
       <div data-tour="supervisor-coverage-gaps">

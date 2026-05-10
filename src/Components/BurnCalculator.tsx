@@ -86,7 +86,7 @@ export function BurnCalculator() {
                 <Section title="Measurements">
                     <div className="relative">
                         <SectionCard>
-                            <div className="pt-14">
+                            <div>
                                 {/* Wt row */}
                                 <div className="flex items-center gap-3 px-4 py-3.5">
                                     <div className="flex-1 min-w-0">
@@ -123,7 +123,7 @@ export function BurnCalculator() {
                                 </div>
                             </div>
                         </SectionCard>
-                        <ActionPill shadow="sm" className="absolute top-2 right-2">
+                        <ActionPill shadow="sm" placement="overlay">
                             <ActionButton icon={RefreshCw} label="Clear" variant="danger" onClick={handleReset} />
                         </ActionPill>
                     </div>

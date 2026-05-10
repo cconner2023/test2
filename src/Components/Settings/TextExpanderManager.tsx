@@ -63,11 +63,11 @@ export const TextExpanderManager = ({
                 placeholder="Search shortcuts..."
             />
 
-            <div data-tour="expander-list" className="relative rounded-xl bg-themewhite2 overflow-hidden">
-                <ActionPill ref={fabRef} data-tour="expander-fab" shadow="sm" className="absolute top-2 right-2 z-10">
+            <div className="relative">
+                <ActionPill ref={fabRef} data-tour="expander-fab" shadow="sm" placement="overlay">
                     <ActionButton icon={Plus} label="New shortcut" onClick={() => fabRef.current && onStartNew(fabRef.current)} />
                 </ActionPill>
-
+                <div data-tour="expander-list" className="rounded-xl bg-themewhite2 overflow-hidden">
                 <div className="px-2 py-2">
                     {hasItems ? (
                         <div className="divide-y divide-tertiary/8">
@@ -112,6 +112,7 @@ export const TextExpanderManager = ({
                             {lc ? 'No matches' : 'No templates yet — tap + to add one.'}
                         </p>
                     )}
+                </div>
                 </div>
             </div>
         </section>

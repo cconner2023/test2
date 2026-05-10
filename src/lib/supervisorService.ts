@@ -297,6 +297,33 @@ export interface ClinicAppointmentType {
   sort_order: number
 }
 
+/**
+ * One exercise block within a workout template. All target_* fields are optional —
+ * a block can be sets×reps×load (lift), sets×reps (calisthenic), sets×time (hold),
+ * or sets×distance (cardio interval). The execution log on a calendar event records
+ * the actuals against these targets.
+ */
+export interface ClinicWorkoutBlock {
+  exercise: string
+  target_sets?: number
+  target_reps?: number
+  target_load_lbs?: number
+  target_time_sec?: number
+  target_distance_m?: number
+}
+
+/**
+ * Supervisor-authored workout template. Referenced by 'workout' calendar events
+ * via CalendarEvent.workout_id. Hard-delete only; existing event logs keep their
+ * own snapshot of blocks performed.
+ */
+export interface ClinicWorkout {
+  id: string
+  name: string
+  blocks: ClinicWorkoutBlock[]
+  sort_order: number
+}
+
 export async function getClinicDetails(
   clinicId: string
 ): Promise<ClinicDetails> {
@@ -384,6 +411,25 @@ export async function updateSupervisorClinicAppointmentTypes(
     return succeed()
   } catch (error) {
     logger.error('Failed to update clinic appointment types:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+// ─── Update Clinic Workouts (dedicated RPC) ────────────────────────────────
+
+export async function updateSupervisorClinicWorkouts(
+  clinicId: string,
+  workouts: ClinicWorkout[],
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('supervisor_update_clinic_workouts', {
+      p_clinic_id: clinicId,
+      p_workouts: workouts,
+    })
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to update clinic workouts:', error)
     return fail(getErrorMessage(error))
   }
 }

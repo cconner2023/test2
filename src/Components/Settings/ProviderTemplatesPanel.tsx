@@ -100,7 +100,7 @@ export const ProviderTemplatesPanel = () => {
                         <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Templates</p>
                     </div>
 
-                    <div className="relative rounded-xl bg-themewhite2 overflow-hidden">
+                    <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
                         <div className="px-4 py-3">
                             {templates.length > 0 ? (
                                 <div className="space-y-0.5">
@@ -132,7 +132,8 @@ export const ProviderTemplatesPanel = () => {
                                 </p>
                             )}
                         </div>
-                        <ActionPill ref={fabRef} shadow="sm" className="absolute top-2 right-2">
+                        </div>
+                        <ActionPill ref={fabRef} shadow="sm" placement="overlay">
                             <ActionButton
                                 icon={Plus}
                                 label="New template"
