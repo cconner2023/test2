@@ -76,6 +76,7 @@ export const ProfilePage = ({
     const calendarEvents = useCalendarStore(s => s.events);
     const setShowSettings = useNavigationStore(s => s.setShowSettings);
     const setShowCalendarDrawer = useNavigationStore(s => s.setShowCalendarDrawer);
+    const setShowWorkoutDrawer = useNavigationStore(s => s.setShowWorkoutDrawer);
     const now = useMemo(() => new Date(), []);
 
     const { certs, loading: certsLoading, addCert, updateCert, removeCert } = useCertifications();
@@ -726,6 +727,7 @@ export const ProfilePage = ({
                         </div>
                         <ActionPill ref={logFabRef} shadow="sm" placement="overlay">
                             <ActionButton icon={Calendar} label="Open full calendar" onClick={handleOpenCalendar} />
+                            <ActionButton icon={Dumbbell} label="Open fitness" onClick={() => { setShowSettings(false); setShowWorkoutDrawer(true) }} />
                             <ActionButton icon={Plus} label="Log workout" onClick={openLogPopover} />
                         </ActionPill>
                         </div>

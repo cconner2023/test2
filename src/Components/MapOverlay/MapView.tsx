@@ -702,8 +702,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         </div>
       </PreviewOverlay>
 
-      {/* Zoom + GPS controls — right side, vertically stacked */}
-      <div className="absolute right-3 bottom-16 z-[1000] flex flex-col gap-1.5">
+      {/* Zoom + GPS controls — top-left, vertically stacked (right side is FAB territory) */}
+      <div className="absolute left-3 top-3 z-[1000] flex flex-col gap-1.5">
         <button
           type="button"
           onClick={handleRecenterGps}

@@ -1,22 +1,24 @@
 import { useCallback, useRef, useState } from 'react'
-import { Check, Clock, DoorClosed, Dumbbell, ListChecks, Loader2, Plus, Trash2 } from 'lucide-react'
+import { Check, Clock, DoorClosed, Dumbbell, ListChecks, Loader2, Plus, Trash2, X } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useClinicRooms } from '../../Hooks/useClinicRooms'
 import { useClinicHuddleTasks } from '../../Hooks/useClinicHuddleTasks'
 import { useClinicAppointmentTypes } from '../../Hooks/useClinicAppointmentTypes'
 import { useClinicWorkouts } from '../../Hooks/useClinicWorkouts'
+import { useClinicExercises } from '../../Hooks/useClinicExercises'
 import {
   updateSupervisorClinicRooms,
   updateSupervisorClinicHuddleTasks,
   updateSupervisorClinicAppointmentTypes,
   updateSupervisorClinicWorkouts,
+  updateSupervisorClinicExercises,
   type ClinicHuddleTask,
   type ClinicAppointmentType,
   type ClinicWorkout,
-  type ClinicWorkoutBlock,
+  type ClinicExercise,
 } from '../../lib/supervisorService'
-import { parseMmss, formatMmss } from '../../lib/aft/scoring'
+import type { WorkoutBlockType } from '../../Types/CalendarTypes'
 import type { ClinicRoom } from '../../lib/adminService'
 import { invalidate } from '../../stores/useInvalidationStore'
 import { ActionButton } from '../ActionButton'
@@ -56,13 +58,24 @@ export function CalendarClinicEditor() {
   const [apptSaving, setApptSaving] = useState(false)
   const [confirmDeleteAppt, setConfirmDeleteAppt] = useState<ClinicAppointmentType | null>(null)
 
-  // Workouts — dev-only (template scaffold; block-level editor TBD).
+  // Fitness — dev-only.
   const isDevRole = useAuthStore(s => s.isDevRole)
+
+  // Exercise catalog — the corpus workouts pick from.
+  const clinicExercises = useClinicExercises(clinicId)
+  const exerciseFabRef = useRef<HTMLDivElement>(null)
+  const [exercisePopover, setExercisePopover] = useState<{ mode: 'edit' | 'new'; anchor: DOMRect; exercise?: ClinicExercise } | null>(null)
+  const [exerciseDraftName, setExerciseDraftName] = useState('')
+  const [exerciseDraftType, setExerciseDraftType] = useState<WorkoutBlockType>('weight')
+  const [exerciseSaving, setExerciseSaving] = useState(false)
+  const [confirmDeleteExercise, setConfirmDeleteExercise] = useState<ClinicExercise | null>(null)
+
+  // Workouts — pick exercises from the catalog (no inline block editor).
   const clinicWorkouts = useClinicWorkouts(clinicId)
   const workoutFabRef = useRef<HTMLDivElement>(null)
   const [workoutPopover, setWorkoutPopover] = useState<{ mode: 'edit' | 'new'; anchor: DOMRect; workout?: ClinicWorkout } | null>(null)
   const [workoutDraftName, setWorkoutDraftName] = useState('')
-  const [workoutDraftBlocks, setWorkoutDraftBlocks] = useState<ClinicWorkoutBlock[]>([])
+  const [workoutDraftExerciseIds, setWorkoutDraftExerciseIds] = useState<string[]>([])
   const [workoutSaving, setWorkoutSaving] = useState(false)
   const [confirmDeleteWorkout, setConfirmDeleteWorkout] = useState<ClinicWorkout | null>(null)
 
@@ -262,36 +275,115 @@ export function CalendarClinicEditor() {
     if (ok) closeApptPopover()
   }, [confirmDeleteAppt, clinicApptTypes, persistApptTypes, closeApptPopover])
 
+  // ── Exercises (catalog) ──────────────────────────────────────────────────
+
+  const closeExercisePopover = useCallback(() => {
+    setExercisePopover(null)
+    setExerciseDraftName('')
+    setExerciseDraftType('weight')
+    setExerciseSaving(false)
+  }, [])
+
+  const openExerciseEditPopover = useCallback((ex: ClinicExercise, target: HTMLElement) => {
+    setExercisePopover({ mode: 'edit', anchor: target.getBoundingClientRect(), exercise: ex })
+    setExerciseDraftName(ex.name)
+    setExerciseDraftType(ex.type)
+  }, [])
+
+  const openExerciseNewPopover = useCallback(() => {
+    if (!exerciseFabRef.current) return
+    setExercisePopover({ mode: 'new', anchor: exerciseFabRef.current.getBoundingClientRect() })
+    setExerciseDraftName('')
+    setExerciseDraftType('weight')
+  }, [])
+
+  const persistExercises = useCallback(async (next: ClinicExercise[]): Promise<boolean> => {
+    if (!clinicId) return false
+    setExerciseSaving(true)
+    setError(null)
+    const result = await updateSupervisorClinicExercises(clinicId, next)
+    setExerciseSaving(false)
+    if (!result.success) {
+      setError(result.error)
+      return false
+    }
+    invalidate('clinics')
+    return true
+  }, [clinicId])
+
+  const handleSaveExercise = useCallback(async () => {
+    if (!exercisePopover) return
+    const trimmed = exerciseDraftName.trim()
+    if (!trimmed) return
+    const lower = trimmed.toLowerCase()
+    let next: ClinicExercise[]
+    if (exercisePopover.mode === 'new') {
+      if (clinicExercises.some(e => e.name.toLowerCase() === lower)) {
+        setError('An exercise with that name already exists.')
+        return
+      }
+      const nextSort = clinicExercises.reduce((m, e) => Math.max(m, e.sort_order), -1) + 1
+      next = [...clinicExercises, { id: crypto.randomUUID(), name: trimmed, type: exerciseDraftType, sort_order: nextSort }]
+    } else {
+      const target = exercisePopover.exercise
+      if (!target) return
+      if (clinicExercises.some(e => e.id !== target.id && e.name.toLowerCase() === lower)) {
+        setError('An exercise with that name already exists.')
+        return
+      }
+      next = clinicExercises.map(e => e.id === target.id ? { ...e, name: trimmed, type: exerciseDraftType } : e)
+    }
+    const ok = await persistExercises(next)
+    if (ok) closeExercisePopover()
+  }, [exercisePopover, exerciseDraftName, exerciseDraftType, clinicExercises, persistExercises, closeExercisePopover])
+
+  const handleConfirmDeleteExercise = useCallback(async () => {
+    if (!confirmDeleteExercise) return
+    const exId = confirmDeleteExercise.id
+    const nextExercises = clinicExercises.filter(e => e.id !== exId)
+    const okEx = await persistExercises(nextExercises)
+    setConfirmDeleteExercise(null)
+    if (!okEx) return
+    // Cascade: scrub the deleted id out of every workout's exercise_ids.
+    const affected = clinicWorkouts.filter(w => w.exercise_ids.includes(exId))
+    if (affected.length > 0) {
+      const nextWorkouts = clinicWorkouts.map(w =>
+        w.exercise_ids.includes(exId)
+          ? { ...w, exercise_ids: w.exercise_ids.filter(id => id !== exId) }
+          : w,
+      )
+      if (clinicId) {
+        await updateSupervisorClinicWorkouts(clinicId, nextWorkouts)
+        invalidate('clinics')
+      }
+    }
+    closeExercisePopover()
+  }, [confirmDeleteExercise, clinicExercises, clinicWorkouts, clinicId, persistExercises, closeExercisePopover])
+
+  // ── Workouts ─────────────────────────────────────────────────────────────
+
   const closeWorkoutPopover = useCallback(() => {
     setWorkoutPopover(null)
     setWorkoutDraftName('')
-    setWorkoutDraftBlocks([])
+    setWorkoutDraftExerciseIds([])
     setWorkoutSaving(false)
   }, [])
 
   const openWorkoutEditPopover = useCallback((workout: ClinicWorkout, target: HTMLElement) => {
     setWorkoutPopover({ mode: 'edit', anchor: target.getBoundingClientRect(), workout })
     setWorkoutDraftName(workout.name)
-    setWorkoutDraftBlocks(workout.blocks ?? [])
+    setWorkoutDraftExerciseIds(workout.exercise_ids ?? [])
   }, [])
 
   const openWorkoutNewPopover = useCallback(() => {
     if (!workoutFabRef.current) return
     setWorkoutPopover({ mode: 'new', anchor: workoutFabRef.current.getBoundingClientRect() })
     setWorkoutDraftName('')
-    setWorkoutDraftBlocks([])
+    setWorkoutDraftExerciseIds([])
   }, [])
 
-  const updateBlock = useCallback((idx: number, patch: Partial<ClinicWorkoutBlock>) => {
-    setWorkoutDraftBlocks(prev => prev.map((b, i) => i === idx ? { ...b, ...patch } : b))
-  }, [])
-
-  const addBlock = useCallback(() => {
-    setWorkoutDraftBlocks(prev => [...prev, { exercise: '' }])
-  }, [])
-
-  const removeBlock = useCallback((idx: number) => {
-    setWorkoutDraftBlocks(prev => prev.filter((_, i) => i !== idx))
+  const toggleDraftExercise = useCallback((id: string) => {
+    setWorkoutDraftExerciseIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }, [])
 
   const persistWorkouts = useCallback(async (next: ClinicWorkout[]): Promise<boolean> => {
@@ -313,10 +405,7 @@ export function CalendarClinicEditor() {
     const trimmed = workoutDraftName.trim()
     if (!trimmed) return
     const lower = trimmed.toLowerCase()
-    // Strip blocks with empty exercise names; keep target_* fields as-is.
-    const blocks: ClinicWorkoutBlock[] = workoutDraftBlocks
-      .map(b => ({ ...b, exercise: b.exercise.trim() }))
-      .filter(b => b.exercise.length > 0)
+    const exerciseIds = workoutDraftExerciseIds
     let next: ClinicWorkout[]
     if (workoutPopover.mode === 'new') {
       if (clinicWorkouts.some(w => w.name.toLowerCase() === lower)) {
@@ -324,7 +413,7 @@ export function CalendarClinicEditor() {
         return
       }
       const nextSort = clinicWorkouts.reduce((m, w) => Math.max(m, w.sort_order), -1) + 1
-      next = [...clinicWorkouts, { id: crypto.randomUUID(), name: trimmed, blocks, sort_order: nextSort }]
+      next = [...clinicWorkouts, { id: crypto.randomUUID(), name: trimmed, exercise_ids: exerciseIds, sort_order: nextSort }]
     } else {
       const target = workoutPopover.workout
       if (!target) return
@@ -332,11 +421,11 @@ export function CalendarClinicEditor() {
         setError('A workout with that name already exists.')
         return
       }
-      next = clinicWorkouts.map(w => w.id === target.id ? { ...w, name: trimmed, blocks } : w)
+      next = clinicWorkouts.map(w => w.id === target.id ? { ...w, name: trimmed, exercise_ids: exerciseIds } : w)
     }
     const ok = await persistWorkouts(next)
     if (ok) closeWorkoutPopover()
-  }, [workoutPopover, workoutDraftName, workoutDraftBlocks, clinicWorkouts, persistWorkouts, closeWorkoutPopover])
+  }, [workoutPopover, workoutDraftName, workoutDraftExerciseIds, clinicWorkouts, persistWorkouts, closeWorkoutPopover])
 
   const handleConfirmDeleteWorkout = useCallback(async () => {
     if (!confirmDeleteWorkout) return
@@ -395,11 +484,8 @@ export function CalendarClinicEditor() {
       </section>
 
       <section data-tour="clinic-huddle-tasks">
-        <div className="pb-2 flex items-center gap-2">
+        <div className="pb-2">
           <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Huddle Tasks</p>
-          <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
-            {clinicHuddleTasks.length}
-          </span>
         </div>
         <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
           <div className="px-4 py-3">
@@ -438,11 +524,8 @@ export function CalendarClinicEditor() {
       </section>
 
       <section data-tour="clinic-appointment-types">
-        <div className="pb-2 flex items-center gap-2">
+        <div className="pb-2">
           <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Appointment Types</p>
-          <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
-            {clinicApptTypes.length}
-          </span>
         </div>
         <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
           <div className="px-4 py-3">
@@ -482,12 +565,54 @@ export function CalendarClinicEditor() {
       </section>
 
       {isDevRole && (
+        <section data-tour="clinic-exercises">
+          <div className="pb-2">
+            <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Exercises</p>
+          </div>
+          <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
+            <div className="px-4 py-3">
+              {clinicExercises.length === 0 ? (
+                <p className="text-sm text-tertiary py-4 text-center">No exercises configured</p>
+              ) : (
+                <div className="space-y-1">
+                  {[...clinicExercises]
+                    .sort((a, b) => a.sort_order - b.sort_order)
+                    .map((ex) => (
+                      <button
+                        key={ex.id}
+                        type="button"
+                        onClick={(e) => isSupervisorRole && openExerciseEditPopover(ex, e.currentTarget)}
+                        disabled={!isSupervisorRole}
+                        className="w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left hover:bg-secondary/5 active:scale-95 disabled:active:scale-100 transition-all"
+                      >
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center bg-tertiary/10 shrink-0">
+                          <Dumbbell size={14} className="text-tertiary" />
+                        </div>
+                        <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium text-primary truncate">{ex.name}</p>
+                          <span className="text-[9pt] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary shrink-0">
+                            {ex.type === 'weight' ? 'Weight' : 'Timed'}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+            </div>
+            {isSupervisorRole && (
+              <ActionPill ref={exerciseFabRef} shadow="sm" placement="overlay">
+                <ActionButton icon={Plus} label="New exercise" onClick={openExerciseNewPopover} />
+              </ActionPill>
+            )}
+          </div>
+        </section>
+      )}
+
+      {isDevRole && (
         <section data-tour="clinic-workouts">
-          <div className="pb-2 flex items-center gap-2">
+          <div className="pb-2">
             <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Workouts</p>
-            <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
-              {clinicWorkouts.length}
-            </span>
           </div>
           <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
             <div className="px-4 py-3">
@@ -511,7 +636,7 @@ export function CalendarClinicEditor() {
                         <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
                           <p className="text-sm font-medium text-primary truncate">{workout.name}</p>
                           <span className="text-[10pt] text-tertiary tabular-nums shrink-0">
-                            {workout.blocks.length} {workout.blocks.length === 1 ? 'block' : 'blocks'}
+                            {workout.exercise_ids.length} {workout.exercise_ids.length === 1 ? 'exercise' : 'exercises'}
                           </span>
                         </div>
                       </button>
@@ -730,11 +855,180 @@ export function CalendarClinicEditor() {
       />
 
       <PreviewOverlay
+        isOpen={!!exercisePopover}
+        onClose={closeExercisePopover}
+        anchorRect={exercisePopover?.anchor ?? null}
+        title={exercisePopover?.mode === 'new' ? 'New exercise' : 'Edit exercise'}
+        maxWidth={340}
+        footer={
+          exercisePopover ? (
+            <ActionPill>
+              <ActionButton
+                icon={exerciseSaving ? Loader2 : Check}
+                label={exerciseSaving ? 'Saving…' : 'Save'}
+                variant={exerciseSaving || !exerciseDraftName.trim() ? 'disabled' : 'success'}
+                onClick={handleSaveExercise}
+              />
+              {exercisePopover.mode === 'edit' && (
+                <ActionButton
+                  icon={Trash2}
+                  label="Delete"
+                  variant="danger"
+                  onClick={() => {
+                    const ex = exercisePopover.exercise
+                    if (!ex) return
+                    closeExercisePopover()
+                    setTimeout(() => setConfirmDeleteExercise(ex), 320)
+                  }}
+                />
+              )}
+            </ActionPill>
+          ) : undefined
+        }
+      >
+        {exercisePopover && (
+          <>
+            <label className="block border-b border-primary/6">
+              <input
+                autoFocus
+                type="text"
+                value={exerciseDraftName}
+                onChange={(e) => setExerciseDraftName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && exerciseDraftName.trim() && !exerciseSaving) handleSaveExercise()
+                }}
+                placeholder="Exercise name (e.g. Back Squat, 2-mile run)"
+                maxLength={80}
+                className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none"
+              />
+            </label>
+            <div className="grid grid-cols-2 border-b border-primary/6">
+              <button
+                type="button"
+                onClick={() => setExerciseDraftType('weight')}
+                className={`px-3 py-2.5 text-[10pt] uppercase tracking-wider transition-colors ${exerciseDraftType === 'weight' ? 'bg-themewhite2 text-primary font-medium' : 'text-tertiary hover:bg-themewhite/60'}`}
+              >
+                Weight
+              </button>
+              <button
+                type="button"
+                onClick={() => setExerciseDraftType('timed')}
+                className={`px-3 py-2.5 text-[10pt] uppercase tracking-wider border-l border-primary/6 transition-colors ${exerciseDraftType === 'timed' ? 'bg-themewhite2 text-primary font-medium' : 'text-tertiary hover:bg-themewhite/60'}`}
+              >
+                Timed
+              </button>
+            </div>
+          </>
+        )}
+      </PreviewOverlay>
+
+      <ConfirmDialog
+        visible={!!confirmDeleteExercise}
+        title={`Delete "${confirmDeleteExercise?.name || 'this exercise'}"?`}
+        subtitle="Workouts using this exercise have it removed from their list. Past log snapshots keep the exercise name."
+        confirmLabel="Delete"
+        variant="danger"
+        processing={exerciseSaving}
+        onConfirm={handleConfirmDeleteExercise}
+        onCancel={() => setConfirmDeleteExercise(null)}
+      />
+
+      <PreviewOverlay
         isOpen={!!workoutPopover}
         onClose={closeWorkoutPopover}
         anchorRect={workoutPopover?.anchor ?? null}
         title={workoutPopover?.mode === 'new' ? 'New workout' : 'Edit workout'}
         maxWidth={460}
+        previewMaxHeight="40dvh"
+        searchPlaceholder="Search exercises"
+        preview={(filter) => {
+          if (!workoutPopover) return null
+          const lc = filter.trim().toLowerCase()
+          const selectedIds = new Set(workoutDraftExerciseIds)
+          const selectedRows = workoutDraftExerciseIds
+            .map(id => clinicExercises.find(e => e.id === id))
+            .filter((e): e is ClinicExercise => !!e)
+          const sortedAll = [...clinicExercises].sort((a, b) => a.sort_order - b.sort_order)
+          const available = sortedAll
+            .filter(e => !selectedIds.has(e.id))
+            .filter(e => !lc || e.name.toLowerCase().includes(lc))
+          return (
+            <div>
+              <div className="sticky top-0 z-10 bg-themewhite border-b border-primary/6">
+                <input
+                  autoFocus
+                  type="text"
+                  value={workoutDraftName}
+                  onChange={(e) => setWorkoutDraftName(e.target.value)}
+                  placeholder="Workout name (e.g. Murph, Bear Complex)"
+                  maxLength={80}
+                  className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none"
+                />
+              </div>
+              {selectedRows.length > 0 && (
+                <div className="border-b border-primary/6">
+                  <div className="px-4 pt-3 pb-1">
+                    <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">
+                      Selected ({selectedRows.length})
+                    </p>
+                  </div>
+                  <div className="pb-2">
+                    {selectedRows.map(ex => (
+                      <div key={ex.id} className="flex items-center gap-2 px-4 py-2">
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                          <Dumbbell size={12} className="text-tertiary" />
+                        </div>
+                        <span className="flex-1 text-sm text-primary min-w-0 break-words">{ex.name}</span>
+                        <span className="text-[9pt] uppercase tracking-wider text-tertiary shrink-0">
+                          {ex.type === 'weight' ? 'Weight' : 'Timed'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleDraftExercise(ex.id)}
+                          className="shrink-0 p-1 text-tertiary active:text-primary transition-colors"
+                          aria-label="Remove"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div>
+                <div className="px-4 pt-3 pb-1">
+                  <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">
+                    Available
+                  </p>
+                </div>
+                {available.length === 0 ? (
+                  <p className="text-sm text-tertiary text-center py-6 px-4">
+                    {lc ? 'No matches' : clinicExercises.length === 0 ? 'No exercises configured. Add some above first.' : 'All exercises selected.'}
+                  </p>
+                ) : (
+                  <div className="pb-2">
+                    {available.map(ex => (
+                      <button
+                        key={ex.id}
+                        type="button"
+                        onClick={() => toggleDraftExercise(ex.id)}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-themeblue3/5 active:scale-[0.99] transition-colors"
+                      >
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                          <Plus size={12} className="text-tertiary" />
+                        </div>
+                        <span className="flex-1 text-sm text-primary min-w-0 break-words">{ex.name}</span>
+                        <span className="text-[9pt] uppercase tracking-wider text-tertiary shrink-0">
+                          {ex.type === 'weight' ? 'Weight' : 'Timed'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        }}
         footer={
           workoutPopover ? (
             <ActionPill>
@@ -760,125 +1054,7 @@ export function CalendarClinicEditor() {
             </ActionPill>
           ) : undefined
         }
-      >
-        {workoutPopover && (
-          <>
-            <label className="block border-b border-primary/6">
-              <input
-                autoFocus
-                type="text"
-                value={workoutDraftName}
-                onChange={(e) => setWorkoutDraftName(e.target.value)}
-                placeholder="Workout name (e.g. Murph, Bear Complex)"
-                maxLength={80}
-                className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none"
-              />
-            </label>
-
-            <div className="px-3 py-2 space-y-2 max-h-[60vh] overflow-y-auto">
-              {workoutDraftBlocks.length === 0 && (
-                <p className="text-[10pt] text-tertiary text-center py-2">No blocks. Add an exercise below.</p>
-              )}
-              {workoutDraftBlocks.map((block, idx) => (
-                <div key={idx} className="rounded-xl bg-themewhite2 overflow-hidden">
-                  <div className="flex items-stretch border-b border-primary/6">
-                    <input
-                      type="text"
-                      value={block.exercise}
-                      onChange={(e) => updateBlock(idx, { exercise: e.target.value })}
-                      placeholder="Exercise (e.g. Back Squat)"
-                      maxLength={80}
-                      className="flex-1 bg-transparent px-3 py-2.5 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeBlock(idx)}
-                      aria-label="Remove block"
-                      className="px-3 text-tertiary hover:text-themeredred transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-5 text-[9pt] text-tertiary border-b border-primary/6">
-                    <span className="px-2 py-1 text-center">Sets</span>
-                    <span className="px-2 py-1 text-center border-l border-primary/6">Reps</span>
-                    <span className="px-2 py-1 text-center border-l border-primary/6">Load (lbs)</span>
-                    <span className="px-2 py-1 text-center border-l border-primary/6">Time mm:ss</span>
-                    <span className="px-2 py-1 text-center border-l border-primary/6">Dist (m)</span>
-                  </div>
-                  <div className="grid grid-cols-5">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={block.target_sets ?? ''}
-                      onChange={(e) => {
-                        const n = parseInt(e.target.value, 10)
-                        updateBlock(idx, { target_sets: Number.isNaN(n) ? undefined : n })
-                      }}
-                      placeholder="—"
-                      className="bg-transparent px-2 py-2 text-center text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none tabular-nums"
-                    />
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={block.target_reps ?? ''}
-                      onChange={(e) => {
-                        const n = parseInt(e.target.value, 10)
-                        updateBlock(idx, { target_reps: Number.isNaN(n) ? undefined : n })
-                      }}
-                      placeholder="—"
-                      className="bg-transparent px-2 py-2 text-center text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none border-l border-primary/6 tabular-nums"
-                    />
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={block.target_load_lbs ?? ''}
-                      onChange={(e) => {
-                        const n = parseFloat(e.target.value)
-                        updateBlock(idx, { target_load_lbs: Number.isNaN(n) ? undefined : n })
-                      }}
-                      placeholder="—"
-                      className="bg-transparent px-2 py-2 text-center text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none border-l border-primary/6 tabular-nums"
-                    />
-                    <input
-                      type="text"
-                      value={block.target_time_sec != null ? formatMmss(block.target_time_sec) : ''}
-                      onChange={(e) => {
-                        const v = e.target.value.trim()
-                        if (!v) { updateBlock(idx, { target_time_sec: undefined }); return }
-                        const sec = parseMmss(v)
-                        if (Number.isNaN(sec)) return
-                        updateBlock(idx, { target_time_sec: sec })
-                      }}
-                      placeholder="—"
-                      className="bg-transparent px-2 py-2 text-center text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none border-l border-primary/6 tabular-nums"
-                    />
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={block.target_distance_m ?? ''}
-                      onChange={(e) => {
-                        const n = parseInt(e.target.value, 10)
-                        updateBlock(idx, { target_distance_m: Number.isNaN(n) ? undefined : n })
-                      }}
-                      placeholder="—"
-                      className="bg-transparent px-2 py-2 text-center text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none border-l border-primary/6 tabular-nums"
-                    />
-                  </div>
-                </div>
-              ))}
-
-              <button
-                type="button"
-                onClick={addBlock}
-                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-dashed border-tertiary/30 text-[10pt] text-tertiary hover:bg-themewhite2 hover:text-primary transition-colors"
-              >
-                <Plus size={14} /> Add block
-              </button>
-            </div>
-          </>
-        )}
-      </PreviewOverlay>
+      />
 
       <ConfirmDialog
         visible={!!confirmDeleteWorkout}

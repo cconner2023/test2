@@ -1,47 +1,32 @@
 /**
  * Helpers for the workout side of the fitness surface. Pure derivations over
- * clinics.workouts and calendar events.
+ * clinics.exercises, clinics.workouts and calendar events.
  */
 
-import type { CalendarEvent, WorkoutLog, WorkoutLogBlock } from '../../Types/CalendarTypes'
-import type { ClinicWorkout, ClinicWorkoutBlock } from '../supervisorService'
+import type { CalendarEvent, WorkoutBlockType, WorkoutLog, WorkoutLogBlock } from '../../Types/CalendarTypes'
+import type { ClinicExercise, ClinicWorkout } from '../supervisorService'
 
-/** Unique, alphabetized exercise names across all clinic workout blocks. */
-export function clinicExerciseCorpus(workouts: ClinicWorkout[]): string[] {
-  const seen = new Set<string>()
-  for (const w of workouts) {
-    for (const b of w.blocks) {
-      const name = b.exercise.trim()
-      if (name) seen.add(name)
-    }
+/** Snapshot an exercise onto a log block (name + type, empty sets). */
+export function blockFromExercise(ex: ClinicExercise): WorkoutLogBlock {
+  return { exercise_name: ex.name, type: ex.type, sets: [] }
+}
+
+/** Build an empty log from a clinic workout template, resolving exercise_ids → exercises. */
+export function logFromTemplate(workout: ClinicWorkout, exercises: ClinicExercise[]): WorkoutLog {
+  const byId = new Map(exercises.map(e => [e.id, e]))
+  const blocks: WorkoutLogBlock[] = []
+  for (const id of workout.exercise_ids) {
+    const ex = byId.get(id)
+    if (ex) blocks.push(blockFromExercise(ex))
   }
-  return [...seen].sort((a, b) => a.localeCompare(b))
+  return { workout_id: workout.id, blocks }
 }
 
-/** Snapshot a clinic workout block's targets onto a log block. */
-export function blockFromTemplate(b: ClinicWorkoutBlock): WorkoutLogBlock {
-  const out: WorkoutLogBlock = { exercise_name: b.exercise, sets: [] }
-  if (b.target_sets != null)        out.target_sets = b.target_sets
-  if (b.target_reps != null)        out.target_reps = b.target_reps
-  if (b.target_load_lbs != null)    out.target_load_lbs = b.target_load_lbs
-  if (b.target_time_sec != null)    out.target_time_sec = b.target_time_sec
-  if (b.target_distance_m != null)  out.target_distance_m = b.target_distance_m
-  return out
-}
-
-/** Build an empty log from a clinic workout template (sets[] empty per block). */
-export function logFromTemplate(workout: ClinicWorkout): WorkoutLog {
-  return {
-    workout_id: workout.id,
-    blocks: workout.blocks.map(blockFromTemplate),
-  }
-}
-
-/** Build an ad-hoc single-exercise log. */
-export function logFromExercise(exerciseName: string): WorkoutLog {
+/** Build an ad-hoc single-exercise log. Caller picks the block type. */
+export function logFromExercise(exerciseName: string, type: WorkoutBlockType): WorkoutLog {
   return {
     workout_id: null,
-    blocks: [{ exercise_name: exerciseName, sets: [] }],
+    blocks: [{ exercise_name: exerciseName, type, sets: [] }],
   }
 }
 

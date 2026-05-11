@@ -6,6 +6,7 @@ import { HeaderPill, PillButton } from './HeaderPill';
 import { GESTURE_THRESHOLDS, clamp } from '../Utilities/GestureUtils';
 import { DRAWER_TIMING } from '../Utilities/constants';
 import { useIsMobile } from '../Hooks/useIsMobile';
+import { useIOSKeyboard } from '../Hooks/useIOSKeyboard';
 
 /** Render prop type: children can receive handleClose for animated close */
 type DrawerRenderProp = (handleClose: () => void) => ReactNode;
@@ -153,6 +154,10 @@ interface BaseDrawerProps {
      *  'compact'  = 'px-4 pb-6'
      *  Default: no padding (children handle their own). */
     contentPadding?: 'standard' | 'compact';
+    /** Mobile drawer's initial open position as a percentage of `fullHeight`
+     *  (20–100). Default 100 = fully open. Use a smaller value (e.g. 50) to
+     *  land partially open — user drags up to expand, down to dismiss. */
+    initialPosition?: number;
 }
 
 export function BaseDrawer({
@@ -174,6 +179,7 @@ export function BaseDrawer({
     headerFaded = false,
     scrollDisabled = false,
     contentPadding,
+    initialPosition = 100,
 }: BaseDrawerProps) {
     const [drawerPosition, setDrawerPosition] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
@@ -181,6 +187,7 @@ export function BaseDrawer({
     const [desktopOpen, setDesktopOpen] = useState(false);
 
     const isMobile = useIsMobile();
+    const { keyboardHeight } = useIOSKeyboard();
 
     const useMobileLayout = mobileOnly || isMobile;
 
@@ -199,7 +206,7 @@ export function BaseDrawer({
 
             // Animate mobile drawer in (desktop ignores drawerPosition)
             setTimeout(() => {
-                setDrawerPosition(100);
+                setDrawerPosition(initialPosition);
             }, DRAWER_TIMING.OPEN_DELAY);
 
             // Desktop: delay open state so the closed frame renders first,
@@ -357,7 +364,9 @@ export function BaseDrawer({
                     height: mobileHeight,
                     maxHeight: mobileHeight,
                     width: mobileFloating ? undefined : '100%',
-                    bottom: cardMode ? '55dvh' : (mobileFloating ? 12 : 0),
+                    bottom: cardMode
+                        ? `calc(55dvh + ${keyboardHeight}px)`
+                        : (mobileFloating ? 12 + keyboardHeight : keyboardHeight),
                     transform: `translateY(${100 - drawerPosition}%)`,
                     opacity: Math.min(1, drawerPosition / 60 + 0.2),
                     borderRadius: (cardMode || mobileFloating) ? '1.25rem' : (mobileFullScreen ? '0' : '1.25rem 1.25rem 0 0'),

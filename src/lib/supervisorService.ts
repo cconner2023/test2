@@ -6,6 +6,7 @@ import { validateRpcResult } from './validators'
 import { validatePasswordComplexity } from './constants'
 import { encryptWithRawKey, decryptWithRawKey } from './cryptoService'
 import type { TextExpander, PlanOrderTags, PlanOrderSet } from '../Data/User'
+import type { WorkoutBlockType } from '../Types/CalendarTypes'
 
 const logger = createLogger('SupervisorService')
 
@@ -298,29 +299,26 @@ export interface ClinicAppointmentType {
 }
 
 /**
- * One exercise block within a workout template. All target_* fields are optional —
- * a block can be sets×reps×load (lift), sets×reps (calisthenic), sets×time (hold),
- * or sets×distance (cardio interval). The execution log on a calendar event records
- * the actuals against these targets.
+ * Clinic-managed exercise catalog entry. Workouts reference these by id.
+ * `type` decides which inputs the set-entry UI shows when logging:
+ * 'weight' → reps + load; 'timed' → mm:ss.
  */
-export interface ClinicWorkoutBlock {
-  exercise: string
-  target_sets?: number
-  target_reps?: number
-  target_load_lbs?: number
-  target_time_sec?: number
-  target_distance_m?: number
+export interface ClinicExercise {
+  id: string
+  name: string
+  type: WorkoutBlockType
+  sort_order: number
 }
 
 /**
  * Supervisor-authored workout template. Referenced by 'workout' calendar events
- * via CalendarEvent.workout_id. Hard-delete only; existing event logs keep their
- * own snapshot of blocks performed.
+ * via CalendarEvent.workout_id. `exercise_ids` points into clinics.exercises.
+ * Hard-delete only; past event logs keep their own snapshot of blocks performed.
  */
 export interface ClinicWorkout {
   id: string
   name: string
-  blocks: ClinicWorkoutBlock[]
+  exercise_ids: string[]
   sort_order: number
 }
 
@@ -411,6 +409,25 @@ export async function updateSupervisorClinicAppointmentTypes(
     return succeed()
   } catch (error) {
     logger.error('Failed to update clinic appointment types:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+// ─── Update Clinic Exercises (dedicated RPC) ───────────────────────────────
+
+export async function updateSupervisorClinicExercises(
+  clinicId: string,
+  exercises: ClinicExercise[],
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('supervisor_update_clinic_exercises', {
+      p_clinic_id: clinicId,
+      p_exercises: exercises,
+    })
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to update clinic exercises:', error)
     return fail(getErrorMessage(error))
   }
 }

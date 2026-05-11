@@ -83,7 +83,11 @@ const ThemedGridLayer = L.GridLayer.extend({
 
     const renderFromSource = (src: string, isObjectUrl: boolean) => {
       const img = new Image();
-      img.crossOrigin = 'anonymous';
+      // Only request CORS when we'll read pixels back for recoloring.
+      // iOS Safari fails the image load if the tile server omits ACAO
+      // (esri/usgs/opentopo do this), so for imagery/topo we let it load
+      // as a tainted cross-origin image and just drawImage it.
+      if (recolor && !isObjectUrl) img.crossOrigin = 'anonymous';
       img.src = src;
 
       img.onload = () => {

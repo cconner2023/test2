@@ -53,6 +53,7 @@ import { PropertyDrawer } from './Components/PropertyDrawer'
 import { AdminDrawer } from './Components/AdminDrawer'
 import { SupervisorDrawer } from './Components/SupervisorDrawer'
 import { ProviderDrawer } from './Components/ProviderDrawer'
+import { WorkoutDrawer } from './Components/Fitness/WorkoutDrawer'
 import MapOverlayDrawer from './Components/MapOverlay/MapOverlayPanel'
 import { CalendarDrawer } from './Components/CalendarDrawer'
 import { WriteNotePage } from './Components/WriteNotePage'
@@ -771,6 +772,12 @@ case 'mapOverlay':
         <ProviderDrawer
           isVisible={navigation.showProviderDrawer}
           onClose={() => navigation.setShowProviderDrawer(false)}
+        />
+        </ErrorBoundary>
+        <ErrorBoundary>
+        <WorkoutDrawer
+          isVisible={navigation.showWorkoutDrawer}
+          onClose={() => navigation.setShowWorkoutDrawer(false)}
         />
         </ErrorBoundary>
         {/* TC3WriteNote — lifted to root to escape transform stacking context */}

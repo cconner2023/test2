@@ -55,32 +55,26 @@ export interface CalendarEvent {
   workout_log?: WorkoutLog | null
 }
 
+/** Exercise category. Drives which inputs the set-entry UI renders. */
+export type WorkoutBlockType = 'weight' | 'timed'
+
 /**
- * Per-set actuals captured during a workout. Each field maps to the corresponding
- * block target — only the relevant ones are populated for that exercise type.
+ * Per-set actuals captured during a workout. For 'weight' blocks UI uses reps+load_lbs;
+ * for 'timed' blocks UI uses time_sec. Shape is permissive so a single store covers both.
  */
 export interface WorkoutSetLog {
   reps?: number
   load_lbs?: number
   time_sec?: number
-  distance_m?: number
 }
 
 export interface WorkoutLogBlock {
   /** Snapshot of the template's exercise name at log time. */
   exercise_name: string
+  /** Snapshot of the template block's type at log time. */
+  type: WorkoutBlockType
   sets: WorkoutSetLog[]
   notes?: string | null
-  /**
-   * Per-block target snapshot. For workouts spawned from a clinics.workouts template,
-   * these mirror the template's targets at log time. For ad-hoc or supervisor-set
-   * single-exercise goals (no template), these carry the goal directly.
-   */
-  target_sets?: number
-  target_reps?: number
-  target_load_lbs?: number
-  target_time_sec?: number
-  target_distance_m?: number
 }
 
 export interface WorkoutLog {

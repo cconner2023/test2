@@ -2,8 +2,6 @@ import { useState, useMemo, useCallback, useRef } from 'react';
 import { ChevronRight, ChevronDown, Eye, EyeOff, Pencil, Trash2, X, Check, ArrowDownToLine, Wifi, Loader2, Plus } from 'lucide-react';
 import { ContextMenu } from '../ContextMenu';
 import { EmptyState } from '../EmptyState';
-import { ActionPill } from '../ActionPill';
-import { ActionButton } from '../ActionButton';
 import type { LocalMapOverlay, OverlayFeature } from '../../Types/MapOverlayTypes';
 import type { TileMetadata } from '../../lib/mapTileService';
 
@@ -94,9 +92,6 @@ export function MapOverlayTree({
           />
         ) : (
           <>
-            <ActionPill shadow="sm" placement="overlay">
-              <ActionButton icon={Plus} label="New overlay" onClick={onNewOverlay} />
-            </ActionPill>
             {sorted.map((overlay) => {
             const hasChildren = overlay.features.length > 0;
             const isCollapsed = collapsed.has(overlay.id);

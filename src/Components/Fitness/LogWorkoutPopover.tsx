@@ -5,13 +5,14 @@ import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { useClinicWorkouts } from '../../Hooks/useClinicWorkouts'
+import { useClinicExercises } from '../../Hooks/useClinicExercises'
 import { parseMmss, formatMmss } from '../../lib/aft/scoring'
-import { clinicExerciseCorpus, logFromTemplate, logFromExercise } from '../../lib/aft/workoutHelpers'
+import { blockFromExercise, logFromTemplate } from '../../lib/aft/workoutHelpers'
 import type { WorkoutLog, WorkoutLogBlock } from '../../Types/CalendarTypes'
 
 type Selection =
   | { kind: 'workout'; workoutId: string }
-  | { kind: 'exercise'; exerciseName: string }
+  | { kind: 'exercise'; exerciseId: string }
   | null
 
 interface Props {
@@ -20,7 +21,7 @@ interface Props {
   onClose: () => void
   /** Called with the built log + a default title. Parent decides how to persist (create event, update existing goal). */
   onSubmit: (log: WorkoutLog, title: string) => Promise<void> | void
-  /** When provided, prefills with this template/exercise (e.g. logging against an open goal). */
+  /** When provided, prefills with this workout/exercise (e.g. logging against an open goal). */
   initial?: Selection
   saving?: boolean
 }
@@ -30,12 +31,11 @@ const MIXED_OPTION_PREFIX_EXERCISE = 'e:'
 
 export function LogWorkoutPopover({ isOpen, anchorRect, onClose, onSubmit, initial, saving }: Props) {
   const workouts = useClinicWorkouts()
-  const exercises = useMemo(() => clinicExerciseCorpus(workouts), [workouts])
+  const exercises = useClinicExercises()
 
   const [selection, setSelection] = useState<Selection>(initial ?? null)
   const [log, setLog] = useState<WorkoutLog | null>(null)
 
-  // Reset on each open if initial changes.
   const handleClose = useCallback(() => {
     setSelection(null)
     setLog(null)
@@ -48,8 +48,9 @@ export function LogWorkoutPopover({ isOpen, anchorRect, onClose, onSubmit, initi
     for (const w of sortedWorkouts) {
       out.push({ value: `${MIXED_OPTION_PREFIX_WORKOUT}${w.id}`, label: `${w.name} (workout)` })
     }
-    for (const ex of exercises) {
-      out.push({ value: `${MIXED_OPTION_PREFIX_EXERCISE}${ex}`, label: `${ex} (exercise)` })
+    const sortedExercises = [...exercises].sort((a, b) => a.sort_order - b.sort_order)
+    for (const ex of sortedExercises) {
+      out.push({ value: `${MIXED_OPTION_PREFIX_EXERCISE}${ex.id}`, label: `${ex.name} (exercise)` })
     }
     return out
   }, [workouts, exercises])
@@ -57,7 +58,7 @@ export function LogWorkoutPopover({ isOpen, anchorRect, onClose, onSubmit, initi
   const selectionValue = useMemo(() => {
     if (!selection) return ''
     if (selection.kind === 'workout') return `${MIXED_OPTION_PREFIX_WORKOUT}${selection.workoutId}`
-    return `${MIXED_OPTION_PREFIX_EXERCISE}${selection.exerciseName}`
+    return `${MIXED_OPTION_PREFIX_EXERCISE}${selection.exerciseId}`
   }, [selection])
 
   const handlePick = useCallback((v: string) => {
@@ -71,20 +72,15 @@ export function LogWorkoutPopover({ isOpen, anchorRect, onClose, onSubmit, initi
       const w = workouts.find(x => x.id === id)
       if (!w) return
       setSelection({ kind: 'workout', workoutId: id })
-      setLog(logFromTemplate(w))
+      setLog(logFromTemplate(w, exercises))
     } else if (v.startsWith(MIXED_OPTION_PREFIX_EXERCISE)) {
-      const name = v.slice(MIXED_OPTION_PREFIX_EXERCISE.length)
-      setSelection({ kind: 'exercise', exerciseName: name })
-      setLog(logFromExercise(name))
+      const id = v.slice(MIXED_OPTION_PREFIX_EXERCISE.length)
+      const ex = exercises.find(x => x.id === id)
+      if (!ex) return
+      setSelection({ kind: 'exercise', exerciseId: id })
+      setLog({ workout_id: null, blocks: [blockFromExercise(ex)] })
     }
-  }, [workouts])
-
-  const updateBlock = useCallback((idx: number, patch: Partial<WorkoutLogBlock>) => {
-    setLog(prev => {
-      if (!prev) return prev
-      return { ...prev, blocks: prev.blocks.map((b, i) => i === idx ? { ...b, ...patch } : b) }
-    })
-  }, [])
+  }, [workouts, exercises])
 
   const addSet = useCallback((blockIdx: number) => {
     setLog(prev => {
@@ -131,11 +127,11 @@ export function LogWorkoutPopover({ isOpen, anchorRect, onClose, onSubmit, initi
     if (!log || !selection || !canSubmit) return
     const title = selection.kind === 'workout'
       ? (workouts.find(w => w.id === selection.workoutId)?.name ?? 'Workout')
-      : selection.exerciseName
+      : (exercises.find(e => e.id === selection.exerciseId)?.name ?? 'Workout')
     await onSubmit(log, title)
     setSelection(null)
     setLog(null)
-  }, [log, selection, canSubmit, workouts, onSubmit])
+  }, [log, selection, canSubmit, workouts, exercises, onSubmit])
 
   return (
     <PreviewOverlay
@@ -167,89 +163,74 @@ export function LogWorkoutPopover({ isOpen, anchorRect, onClose, onSubmit, initi
       {log && (
         <div className="px-3 py-2 space-y-2 max-h-[55vh] overflow-y-auto">
           {log.blocks.map((block, blockIdx) => {
-            const tmplSummary = [
-              block.target_sets != null ? `${block.target_sets} sets` : null,
-              block.target_reps != null ? `${block.target_reps} reps` : null,
-              block.target_load_lbs != null ? `${block.target_load_lbs} lbs` : null,
-              block.target_time_sec != null ? formatMmss(block.target_time_sec) : null,
-              block.target_distance_m != null ? `${block.target_distance_m} m` : null,
-            ].filter(Boolean).join(' · ')
+            const isWeight = block.type === 'weight'
+            const cols = isWeight ? 'grid-cols-[1.5rem_1fr_1fr_2rem]' : 'grid-cols-[1.5rem_1fr_2rem]'
             return (
               <div key={blockIdx} className="rounded-xl bg-themewhite overflow-hidden">
-                <div className="px-3 py-2 border-b border-primary/6">
-                  {selection?.kind === 'exercise' ? (
-                    <input
-                      type="text"
-                      value={block.exercise_name}
-                      onChange={(e) => updateBlock(blockIdx, { exercise_name: e.target.value })}
-                      placeholder="Exercise"
-                      className="w-full bg-transparent text-base md:text-sm text-primary font-medium placeholder:text-tertiary focus:outline-none"
-                    />
-                  ) : (
-                    <p className="text-sm font-medium text-primary truncate">{block.exercise_name}</p>
-                  )}
-                  {tmplSummary && <p className="text-[9pt] text-tertiary mt-0.5">Target · {tmplSummary}</p>}
+                <div className="px-3 py-2 border-b border-primary/6 flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-primary truncate flex-1 min-w-0">{block.exercise_name}</p>
+                  <span className="text-[9pt] text-tertiary uppercase tracking-wider shrink-0">
+                    {isWeight ? 'Weight' : 'Timed'}
+                  </span>
                 </div>
 
                 {block.sets.length > 0 && (
-                  <div className="grid grid-cols-[1.5rem_1fr_1fr_1fr_1fr_2rem] text-[9pt] text-tertiary border-b border-primary/6">
+                  <div className={`grid ${cols} text-[9pt] text-tertiary border-b border-primary/6`}>
                     <span className="px-1 py-1 text-center">Set</span>
-                    <span className="px-1 py-1 text-center border-l border-primary/6">Reps</span>
-                    <span className="px-1 py-1 text-center border-l border-primary/6">Load (lbs)</span>
-                    <span className="px-1 py-1 text-center border-l border-primary/6">Time mm:ss</span>
-                    <span className="px-1 py-1 text-center border-l border-primary/6">Dist (m)</span>
+                    {isWeight ? (
+                      <>
+                        <span className="px-1 py-1 text-center border-l border-primary/6">Reps</span>
+                        <span className="px-1 py-1 text-center border-l border-primary/6">Load (lbs)</span>
+                      </>
+                    ) : (
+                      <span className="px-1 py-1 text-center border-l border-primary/6">Time mm:ss</span>
+                    )}
                     <span className="border-l border-primary/6" />
                   </div>
                 )}
                 {block.sets.map((set, setIdx) => (
-                  <div key={setIdx} className="grid grid-cols-[1.5rem_1fr_1fr_1fr_1fr_2rem] border-b border-primary/6 last:border-b-0">
+                  <div key={setIdx} className={`grid ${cols} border-b border-primary/6 last:border-b-0`}>
                     <span className="text-[10pt] text-tertiary px-1 py-2 text-center tabular-nums">{setIdx + 1}</span>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={set.reps ?? ''}
-                      onChange={(e) => {
-                        const n = parseInt(e.target.value, 10)
-                        updateSet(blockIdx, setIdx, { reps: Number.isNaN(n) ? undefined : n })
-                      }}
-                      placeholder="—"
-                      className="bg-transparent px-1 py-2 text-center text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none border-l border-primary/6 tabular-nums"
-                    />
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={set.load_lbs ?? ''}
-                      onChange={(e) => {
-                        const n = parseFloat(e.target.value)
-                        updateSet(blockIdx, setIdx, { load_lbs: Number.isNaN(n) ? undefined : n })
-                      }}
-                      placeholder="—"
-                      className="bg-transparent px-1 py-2 text-center text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none border-l border-primary/6 tabular-nums"
-                    />
-                    <input
-                      type="text"
-                      value={set.time_sec != null ? formatMmss(set.time_sec) : ''}
-                      onChange={(e) => {
-                        const v = e.target.value.trim()
-                        if (!v) { updateSet(blockIdx, setIdx, { time_sec: undefined }); return }
-                        const sec = parseMmss(v)
-                        if (Number.isNaN(sec)) return
-                        updateSet(blockIdx, setIdx, { time_sec: sec })
-                      }}
-                      placeholder="—"
-                      className="bg-transparent px-1 py-2 text-center text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none border-l border-primary/6 tabular-nums"
-                    />
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={set.distance_m ?? ''}
-                      onChange={(e) => {
-                        const n = parseInt(e.target.value, 10)
-                        updateSet(blockIdx, setIdx, { distance_m: Number.isNaN(n) ? undefined : n })
-                      }}
-                      placeholder="—"
-                      className="bg-transparent px-1 py-2 text-center text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none border-l border-primary/6 tabular-nums"
-                    />
+                    {isWeight ? (
+                      <>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={set.reps ?? ''}
+                          onChange={(e) => {
+                            const n = parseInt(e.target.value, 10)
+                            updateSet(blockIdx, setIdx, { reps: Number.isNaN(n) ? undefined : n })
+                          }}
+                          placeholder="—"
+                          className="bg-transparent px-1 py-2 text-center text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none border-l border-primary/6 tabular-nums"
+                        />
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={set.load_lbs ?? ''}
+                          onChange={(e) => {
+                            const n = parseFloat(e.target.value)
+                            updateSet(blockIdx, setIdx, { load_lbs: Number.isNaN(n) ? undefined : n })
+                          }}
+                          placeholder="—"
+                          className="bg-transparent px-1 py-2 text-center text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none border-l border-primary/6 tabular-nums"
+                        />
+                      </>
+                    ) : (
+                      <input
+                        type="text"
+                        value={set.time_sec != null ? formatMmss(set.time_sec) : ''}
+                        onChange={(e) => {
+                          const v = e.target.value.trim()
+                          if (!v) { updateSet(blockIdx, setIdx, { time_sec: undefined }); return }
+                          const sec = parseMmss(v)
+                          if (Number.isNaN(sec)) return
+                          updateSet(blockIdx, setIdx, { time_sec: sec })
+                        }}
+                        placeholder="—"
+                        className="bg-transparent px-1 py-2 text-center text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none border-l border-primary/6 tabular-nums"
+                      />
+                    )}
                     <button
                       type="button"
                       onClick={() => removeSet(blockIdx, setIdx)}
