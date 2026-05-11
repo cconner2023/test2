@@ -9,7 +9,7 @@
  *
  * Overscroll: mild upward translateY (0.3x factor) on iOS bounce.
  */
-import { Search, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import {
     useRef,
     useState,
@@ -18,6 +18,7 @@ import {
     forwardRef,
     type ReactNode,
 } from 'react'
+import { SearchInput } from './SearchInput'
 
 const VARIANT_PLACEHOLDERS: Record<string, string> = {
     default: 'Search...',
@@ -242,11 +243,6 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
             }
         }, [focused, hasValue, onFocusChange, barHeight])
 
-        const handleClear = useCallback(() => {
-            onChange('')
-            inputRef.current?.focus()
-        }, [onChange])
-
         const handleKeyDown = useCallback(
             (e: React.KeyboardEvent) => {
                 if (e.key === 'Escape') {
@@ -287,38 +283,17 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
                 >
                     <div ref={innerRef} className="px-3 py-2">
                         <div className="flex items-center gap-2">
-                            <div
-                                {...(dataTour ? { 'data-tour': dataTour } : {})}
-                                className={`flex-1 min-w-0 flex items-center transition-colors duration-200 bg-themewhite text-tertiary rounded-full border shadow-xs ${
-                                focused
-                                    ? 'border-themeblue1/30 bg-themewhite2'
-                                    : 'border-themeblue3/10'
-                            }`}>
-                                <Search
-                                    size={16}
-                                    className="ml-3 shrink-0 text-tertiary"
-                                />
-                                <input
-                                    ref={inputRef}
-                                    type="search"
-                                    placeholder={resolvedPlaceholder}
-                                    value={value}
-                                    onChange={(e) => onChange(e.target.value)}
-                                    onFocus={handleFocus}
-                                    onBlur={handleBlur}
-                                    onKeyDown={handleKeyDown}
-                                    className="text-tertiary bg-transparent outline-none text-[12pt] w-full px-3 py-2 min-w-0 placeholder:text-tertiary [&::-webkit-search-cancel-button]:hidden"
-                                />
-                                {hasValue && (
-                                    <div
-                                        className="flex items-center justify-center px-2 py-2 bg-themewhite2 rounded-r-full cursor-pointer active:scale-95 shrink-0"
-                                        onMouseDown={(e) => e.preventDefault()}
-                                        onClick={handleClear}
-                                    >
-                                        <X className="w-5 h-5 stroke-themeblue1" />
-                                    </div>
-                                )}
-                            </div>
+                            <SearchInput
+                                ref={inputRef}
+                                value={value}
+                                onChange={onChange}
+                                placeholder={resolvedPlaceholder}
+                                onFocus={handleFocus}
+                                onBlur={handleBlur}
+                                onKeyDown={handleKeyDown}
+                                className="flex-1 min-w-0"
+                                dataTour={dataTour}
+                            />
                             {/* Close button — appears when focused, shortens pill width */}
                             <div className={`transition-all duration-200 overflow-hidden ${
                                 focused ? 'w-10 opacity-100' : 'w-0 opacity-0'

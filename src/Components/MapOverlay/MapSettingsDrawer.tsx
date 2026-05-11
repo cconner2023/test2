@@ -23,6 +23,7 @@ import { TILE_SOURCES } from '../../lib/mapTileService';
 import { PreviewOverlay } from '../PreviewOverlay';
 import { EmptyState } from '../EmptyState';
 import { ActionButton } from '../ActionButton';
+import { SearchInput } from '../SearchInput';
 import { ActionPill } from '../ActionPill';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { Z } from '../BaseOverlay';
@@ -428,14 +429,10 @@ export function MapSettingsDrawer({
               <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden relative">
                 {overlays.length > 3 && (
                   <div className="px-3 pt-2">
-                    <input
-                      type="search"
+                    <SearchInput
                       value={search}
-                      onChange={e => setSearch(e.target.value)}
+                      onChange={setSearch}
                       placeholder="Search overlays…"
-                      className="w-full px-3 py-1.5 rounded-lg bg-themewhite text-[10pt] text-primary
-                        placeholder:text-tertiary outline-none border border-tertiary/20 transition-all
-                        [&::-webkit-search-cancel-button]:hidden"
                     />
                   </div>
                 )}

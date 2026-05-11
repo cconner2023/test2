@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { User, BookOpen, MessageSquare, CalendarDays, Settings, Upload, Package } from 'lucide-react';
+import { SearchInput } from '../../SearchInput';
 
 interface GettingStartedSceneProps {
   currentStep: number;
@@ -166,12 +167,11 @@ export default function GettingStartedScene({ currentStep, isMobile }: GettingSt
                     </button>
                   </div>
                   <div className="flex-1 min-w-0 flex items-center gap-2 ml-4 mr-2">
-                    <div className="flex-1 min-w-0 rounded-full border border-themeblue3/20 shadow-xs bg-themewhite">
-                      <input
-                        type="text"
+                    <div className="flex-1 min-w-0">
+                      <SearchInput
+                        value=""
+                        onChange={() => {}}
                         placeholder="Search"
-                        readOnly
-                        className="w-full text-sm text-tertiary px-4 py-1.5 bg-transparent outline-none"
                       />
                     </div>
                     <button className="h-8 flex items-center px-3 py-1.5 bg-themewhite2 rounded-full">

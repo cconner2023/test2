@@ -23,18 +23,20 @@ interface Props {
   onSubmit: (log: WorkoutLog, title: string) => Promise<void> | void
   /** When provided, prefills with this workout/exercise (e.g. logging against an open goal). */
   initial?: Selection
+  /** When provided, prefills set values (editing an existing log). */
+  initialLog?: WorkoutLog | null
   saving?: boolean
 }
 
 const MIXED_OPTION_PREFIX_WORKOUT = 'w:'
 const MIXED_OPTION_PREFIX_EXERCISE = 'e:'
 
-export function LogWorkoutPopover({ isOpen, anchorRect, onClose, onSubmit, initial, saving }: Props) {
+export function LogWorkoutPopover({ isOpen, anchorRect, onClose, onSubmit, initial, initialLog, saving }: Props) {
   const workouts = useClinicWorkouts()
   const exercises = useClinicExercises()
 
   const [selection, setSelection] = useState<Selection>(initial ?? null)
-  const [log, setLog] = useState<WorkoutLog | null>(null)
+  const [log, setLog] = useState<WorkoutLog | null>(initialLog ?? null)
 
   const handleClose = useCallback(() => {
     setSelection(null)

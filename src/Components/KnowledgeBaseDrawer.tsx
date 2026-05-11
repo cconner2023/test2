@@ -497,6 +497,23 @@ function KBHome({
         ).slice(0, 50)
     }, [searchQuery, kbSearchIndex])
 
+    // Pinned items — must be declared before any early return (Rules of Hooks).
+    const { pinnedMeds, pinnedTasks } = useMemo(() => {
+        const list = tc3Mode ? tc3MedList : medList
+        const meds: medListTypes[] = []
+        const tasks: subjectAreaArrayOptions[] = []
+        for (const id of pinnedKB) {
+            if (id.startsWith('med:')) {
+                const med = list.find(m => m.icon === id.slice(4))
+                if (med) meds.push(med)
+            } else if (id.startsWith('task:')) {
+                const task = resolveTaskById(id.slice(5))
+                if (task) tasks.push(task)
+            }
+        }
+        return { pinnedMeds: meds, pinnedTasks: tasks }
+    }, [pinnedKB, tc3Mode])
+
     // Resolve click handlers for search results
     const handleResultClick = useCallback((result: typeof kbSearchIndex[0]) => {
         if (result.type === 'category') {
@@ -597,23 +614,6 @@ function KBHome({
 
     // ── Pinned items (categories, individual meds, individual tasks) ──
     const pinnedCategories = visibleCategories.filter(c => pinnedKB.includes(c.id) && !c.comingSoon)
-
-    const { pinnedMeds, pinnedTasks } = useMemo(() => {
-        const list = tc3Mode ? tc3MedList : medList
-        const meds: medListTypes[] = []
-        const tasks: subjectAreaArrayOptions[] = []
-        for (const id of pinnedKB) {
-            if (id.startsWith('med:')) {
-                const med = list.find(m => m.icon === id.slice(4))
-                if (med) meds.push(med)
-            } else if (id.startsWith('task:')) {
-                const task = resolveTaskById(id.slice(5))
-                if (task) tasks.push(task)
-            }
-        }
-        return { pinnedMeds: meds, pinnedTasks: tasks }
-    }, [pinnedKB, tc3Mode])
-
     const hasPinnedItems = pinnedCategories.length > 0 || pinnedMeds.length > 0 || pinnedTasks.length > 0
 
     // ── Default category grid ─────────────────────────────────

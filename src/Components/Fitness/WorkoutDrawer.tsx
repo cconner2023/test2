@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { Dumbbell, Plus, Target } from 'lucide-react'
+import { Dumbbell, Plus, Target, Trash2 } from 'lucide-react'
 import { BaseDrawer } from '../BaseDrawer'
 import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
@@ -38,11 +38,12 @@ function formatHistoryDate(evt: CalendarEvent): string {
 type LogTarget =
     | { kind: 'adhoc' }
     | { kind: 'goal'; eventId: string }
+    | { kind: 'edit'; eventId: string }
 
 function WorkoutDrawerContent() {
     const { user, clinicId } = useAuth()
     const calendarEvents = useCalendarStore(s => s.events)
-    const { writeEvent, isWriting } = useCalendarWrite()
+    const { writeEvent, deleteEvent, isWriting } = useCalendarWrite()
     const exercises = useClinicExercises()
     const now = useMemo(() => new Date(), [])
 
@@ -70,25 +71,42 @@ function WorkoutDrawerContent() {
         setLogAnchor(anchor)
     }, [])
 
+    const openEditLog = useCallback((eventId: string, anchor: DOMRect) => {
+        setLogTarget({ kind: 'edit', eventId })
+        setLogAnchor(anchor)
+    }, [])
+
     const closeLog = useCallback(() => setLogAnchor(null), [])
 
+    const targetEvent = useMemo(() => {
+        if (logTarget.kind === 'adhoc') return undefined
+        return calendarEvents.find(e => e.id === logTarget.eventId)
+    }, [logTarget, calendarEvents])
+
     const initialSelection = useMemo(() => {
-        if (logTarget.kind !== 'goal') return undefined
-        const evt = calendarEvents.find(e => e.id === logTarget.eventId)
-        if (!evt) return undefined
-        if (evt.workout_id) return { kind: 'workout' as const, workoutId: evt.workout_id }
-        const firstName = evt.workout_log?.blocks[0]?.exercise_name
+        if (!targetEvent) return undefined
+        if (targetEvent.workout_id) return { kind: 'workout' as const, workoutId: targetEvent.workout_id }
+        const firstName = targetEvent.workout_log?.blocks[0]?.exercise_name
         if (firstName) {
             const ex = exercises.find(e => e.name === firstName)
             if (ex) return { kind: 'exercise' as const, exerciseId: ex.id }
         }
         return undefined
-    }, [logTarget, calendarEvents, exercises])
+    }, [targetEvent, exercises])
+
+    const initialLog = useMemo(() => {
+        if (logTarget.kind !== 'edit') return null
+        return targetEvent?.workout_log ?? null
+    }, [logTarget, targetEvent])
+
+    const handleDelete = useCallback((eventId: string) => {
+        deleteEvent(eventId).catch(() => {})
+    }, [deleteEvent])
 
     const handleLogSubmit = useCallback(async (log: WorkoutLog, title: string) => {
         if (!user?.id || !clinicId) return
         const nowIso = new Date().toISOString()
-        if (logTarget.kind === 'goal') {
+        if (logTarget.kind === 'goal' || logTarget.kind === 'edit') {
             const existing = useCalendarStore.getState().events.find(e => e.id === logTarget.eventId)
             if (!existing) { closeLog(); return }
             await writeEvent({
@@ -174,15 +192,29 @@ function WorkoutDrawerContent() {
                                 const setCount = evt.workout_log?.blocks.reduce((s, b) => s + b.sets.length, 0) ?? 0
                                 const blockCount = evt.workout_log?.blocks.length ?? 0
                                 return (
-                                    <div key={evt.id} className="flex items-center gap-3 px-4 py-3">
-                                        <Dumbbell size={14} className="text-tertiary shrink-0" />
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium text-primary truncate">{evt.title || 'Workout'}</p>
-                                            <p className="text-[9pt] text-tertiary">{formatHistoryDate(evt)}</p>
-                                        </div>
-                                        <span className="text-[10pt] text-tertiary tabular-nums shrink-0">
-                                            {blockCount} {blockCount === 1 ? 'block' : 'blocks'} · {setCount} {setCount === 1 ? 'set' : 'sets'}
-                                        </span>
+                                    <div key={evt.id} className="flex items-stretch">
+                                        <button
+                                            type="button"
+                                            onClick={e => openEditLog(evt.id, e.currentTarget.getBoundingClientRect())}
+                                            className="flex-1 min-w-0 flex items-center gap-3 px-4 py-3 text-left hover:bg-tertiary/5 active:bg-tertiary/8"
+                                        >
+                                            <Dumbbell size={14} className="text-tertiary shrink-0" />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-primary truncate">{evt.title || 'Workout'}</p>
+                                                <p className="text-[9pt] text-tertiary">{formatHistoryDate(evt)}</p>
+                                            </div>
+                                            <span className="text-[10pt] text-tertiary tabular-nums shrink-0">
+                                                {blockCount} {blockCount === 1 ? 'block' : 'blocks'} · {setCount} {setCount === 1 ? 'set' : 'sets'}
+                                            </span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDelete(evt.id)}
+                                            aria-label="Delete workout log"
+                                            className="px-3 text-tertiary hover:text-themeredred hover:bg-tertiary/5 active:bg-tertiary/8 flex items-center justify-center shrink-0"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
                                     </div>
                                 )
                             })}
@@ -204,6 +236,7 @@ function WorkoutDrawerContent() {
                 onClose={closeLog}
                 onSubmit={handleLogSubmit}
                 initial={initialSelection}
+                initialLog={initialLog}
                 saving={isWriting}
             />
         </div>

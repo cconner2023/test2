@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useSpring, animated } from '@react-spring/web';
 import { ChevronLeft, ChevronRight, Layers, Move, MapPin, Route, Pentagon, Trash2, X, Ruler, RadioTower, Undo2, Activity, Pause, Play, Square, Plus, Check, Map as MapIcon, Globe, Mountain, MountainSnow } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { ContextMenu, type ContextMenuItem } from '../ContextMenu';
+import { ActionSheet, type ActionSheetOption } from '../ActionSheet';
 import { ActionPill } from '../ActionPill';
 import { TILE_SOURCES as STATIC_TILE_SOURCES } from '../../lib/mapTileService';
 
@@ -144,7 +144,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
 
   const [view, setView] = useState<ViewState>('viewer');
   const [showPopover, setShowPopover] = useState(false);
-  const [addMenu, setAddMenu] = useState<{ x: number; y: number } | null>(null);
+  const [addSheet, setAddSheet] = useState<'root' | 'feature' | 'import' | null>(null);
   const [pinPickerPage, setPinPickerPage] = useState<number | null>(null);
   const [visibleOverlayIds, setVisibleOverlayIds] = useState<Set<string>>(new Set());
   const [overlayId, setOverlayId] = useState<string | null>(null);
@@ -191,6 +191,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   const flushAutosaveRef = useRef<() => void>(() => {});
 
   const mapRef = useRef<MapViewHandle>(null);
+  const gpxKmlInputRef = useRef<HTMLInputElement>(null);
+  const mbtilesInputRef = useRef<HTMLInputElement>(null);
   const hasAutoNavigated = useRef(false);
   const [searchPending, setSearchPending] = useState(false);
 
@@ -976,18 +978,13 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
               <HeaderPill>
                 <PillButton icon={Layers} onClick={() => setShowPopover(prev => !prev)} label="Overlays" />
               </HeaderPill>
-              <span className="flex-1 text-center text-sm font-semibold text-primary truncate">
-                {headerTitle}
-              </span>
+              <div className="flex-1 min-w-0">{searchInputEl}</div>
               <HeaderPill>
                 <PillButton icon={X} onClick={onClose} label="Close" />
               </HeaderPill>
             </div>
           ),
           hideDefaultClose: true,
-          extraRow: (
-            <div className="px-3 pb-2">{searchInputEl}</div>
-          ),
         }
       : {
           title: headerTitle,
@@ -1276,15 +1273,13 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                 {/* Add FAB — opens a context menu of create tools (Pin / Route / Area / Measure / Track).
                     Lights up + swaps glyph while a create mode is active; tap again to exit to pan. */}
                 <button
-                  onClick={(e) => {
+                  onClick={() => {
                     const inCreateMode = drawMode === 'pin' || drawMode === 'route' || drawMode === 'area' || drawMode === 'track' || drawMode === 'measure';
                     if (inCreateMode) {
                       handleModeChange('pan');
                       return;
                     }
-                    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                    // Anchor menu just above the FAB, right-aligned.
-                    setAddMenu({ x: r.right - 240, y: r.top - 52 });
+                    setAddSheet('root');
                   }}
                   className="relative w-12 h-12 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-all pointer-events-auto bg-themeblue3 text-white"
                   title={
@@ -1308,27 +1303,71 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                 </button>
               </div>
 
-              {/* Add context menu — Drop pin opens the inline glyph picker (3 icons
-                  with < / > paging). Route, Area, Measure, Track are leaf actions. */}
-              {addMenu && (() => {
-                const items: ContextMenuItem[] = [
-                  { key: 'new-overlay', label: 'New overlay', icon: Layers, onAction: () => handleNewOverlay() },
+              {/* Add ActionSheet — root condenses to 'New overlay', 'New feature', 'Import'.
+                  Feature + Import each push to a nested sheet so the root stays short. */}
+              {(() => {
+                const rootOptions: ActionSheetOption[] = [
+                  { key: 'new-overlay', label: 'New overlay', onAction: () => handleNewOverlay() },
+                  { key: 'new-feature', label: 'New feature', onAction: () => setAddSheet('feature') },
+                  { key: 'import', label: 'Import', onAction: () => setAddSheet('import') },
+                ];
+                const featureOptions: ActionSheetOption[] = [
                   {
                     key: 'pin',
                     label: 'Drop pin',
-                    icon: waypointGlyphIcon(pinType),
                     onAction: () => {
                       const idx = Math.max(0, PIN_GLYPHS.indexOf(pinType));
                       setPinPickerPage(Math.floor(idx / 3));
                     },
                   },
-                  { key: 'route', label: 'Route', icon: Route, onAction: () => handleModeChange('route') },
-                  { key: 'area', label: 'Area', icon: Pentagon, onAction: () => handleModeChange('area') },
-                  { key: 'measure', label: 'Measure', icon: Ruler, onAction: () => handleModeChange('measure') },
-                  { key: 'track', label: 'Track GPS', icon: Activity, onAction: () => handleModeChange('track') },
+                  { key: 'route', label: 'Route', onAction: () => handleModeChange('route') },
+                  { key: 'area', label: 'Area', onAction: () => handleModeChange('area') },
+                  { key: 'measure', label: 'Measure', onAction: () => handleModeChange('measure') },
+                  { key: 'track', label: 'Track GPS', onAction: () => handleModeChange('track') },
                 ];
-                return <ContextMenu x={addMenu.x} y={addMenu.y} items={items} onClose={() => setAddMenu(null)} />;
+                const importOptions: ActionSheetOption[] = [
+                  { key: 'import-gpx', label: 'GPX/KML', onAction: () => gpxKmlInputRef.current?.click() },
+                  { key: 'import-geopdf', label: 'Geo-PDF', onAction: () => handleOpenGeoPdfForm() },
+                  { key: 'import-mbtiles', label: 'MBTiles', onAction: () => mbtilesInputRef.current?.click() },
+                ];
+                const { title, options } = addSheet === 'feature'
+                  ? { title: 'New feature', options: featureOptions }
+                  : addSheet === 'import'
+                    ? { title: 'Import', options: importOptions }
+                    : { title: 'Add to map', options: rootOptions };
+                return (
+                  <ActionSheet
+                    visible={addSheet !== null}
+                    title={title}
+                    options={options}
+                    onClose={() => setAddSheet(null)}
+                  />
+                );
               })()}
+
+              {/* Hidden file pickers — driven by Add context menu */}
+              <input
+                ref={gpxKmlInputRef}
+                type="file"
+                accept=".gpx,.kml,application/gpx+xml,application/vnd.google-earth.kml+xml"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (file) handleImportFile(file);
+                }}
+                className="hidden"
+              />
+              <input
+                ref={mbtilesInputRef}
+                type="file"
+                accept=".mbtiles,application/octet-stream"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (file) handleImportMBTiles(file);
+                }}
+                className="hidden"
+              />
 
               {/* Search spinner overlay */}
               <animated.div

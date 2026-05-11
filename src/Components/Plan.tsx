@@ -6,6 +6,7 @@ import { PreviewOverlay } from './PreviewOverlay';
 import { PlanAllBlocksPreview, CategoryPicker } from './PlanBlockPreview';
 import { ListItemRow } from './ListItemRow';
 import { ExpandableInput } from './ExpandableInput';
+import { SearchInput } from './SearchInput';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -634,32 +635,14 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                             categories={allCategories}
                             onChange={(key) => { setAddCategory(key as PlanBlockKey | null); setActiveTab(key as PlanBlockKey | null); }}
                         />
-                        <input
-                            type="text"
-                            value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') handleInputSubmit(); }}
-                            placeholder="Search or add item..."
-                            className="flex-1 min-w-0 text-[10pt] pl-3 pr-3 py-2 rounded-full border border-tertiary/15 bg-transparent text-primary outline-none focus:border-themeblue1/30 placeholder:text-tertiary transition-all duration-200"
-                        />
-                        {inputValue && (
-                            <button
-                                type="button"
-                                onClick={() => setInputValue('')}
-                                className="shrink-0 w-7 h-7 rounded-full bg-tertiary/8 flex items-center justify-center active:scale-95 transition-all"
-                            >
-                                <X size={13} className="text-tertiary" />
-                            </button>
-                        )}
-                        {inputValue.trim() && (
-                            <button
-                                type="button"
-                                onClick={handleInputSubmit}
-                                className="shrink-0 w-7 h-7 rounded-full bg-tertiary/8 flex items-center justify-center active:scale-95 transition-all"
-                            >
-                                <Check size={13} className="text-primary" />
-                            </button>
-                        )}
+                        <div className="flex-1 min-w-0">
+                            <SearchInput
+                                value={inputValue}
+                                onChange={setInputValue}
+                                onSubmit={handleInputSubmit}
+                                placeholder="Search or add item..."
+                            />
+                        </div>
                     </div>
                 }
                 actions={[

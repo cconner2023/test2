@@ -327,7 +327,12 @@ export function BaseDrawer({
         ? (children as DrawerRenderProp)(handleClose)
         : children;
 
-    const mobileHeight = cardMode ? '35dvh' : (mobileFullScreen ? '100dvh' : fullHeight);
+    // Shrink height by keyboardHeight so the drawer top stays anchored when the iOS keyboard
+    // pushes the bottom up — otherwise translating bottom by keyboardHeight drives the top off-screen.
+    const baseMobileHeight = cardMode ? '35dvh' : (mobileFullScreen ? '100dvh' : fullHeight);
+    const mobileHeight = keyboardHeight > 0
+        ? `calc(${baseMobileHeight} - ${keyboardHeight}px)`
+        : baseMobileHeight;
 
     if (!isMounted && !isVisible) return null;
 
