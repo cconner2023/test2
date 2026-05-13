@@ -188,7 +188,11 @@ export function BaseDrawer({
     const [desktopOpen, setDesktopOpen] = useState(false);
 
     const isMobile = useIsMobile();
-    const { keyboardHeight } = useIOSKeyboard();
+    const { keyboardHeight, viewportOffsetTop } = useIOSKeyboard();
+    // iOS pins position:fixed to the layout viewport; when the keyboard
+    // scrolls the visualViewport up, we must counter-shift to stay glued
+    // to the visual bottom.
+    const bottomOffset = Math.max(0, keyboardHeight - viewportOffsetTop);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     useFocusKeepInView(scrollContainerRef, isVisible);
 
@@ -371,8 +375,8 @@ export function BaseDrawer({
                     maxHeight: mobileHeight,
                     width: mobileFloating ? undefined : '100%',
                     bottom: cardMode
-                        ? `calc(55dvh + ${keyboardHeight}px)`
-                        : (mobileFloating ? 12 + keyboardHeight : keyboardHeight),
+                        ? `calc(55dvh + ${bottomOffset}px)`
+                        : (mobileFloating ? 12 + bottomOffset : bottomOffset),
                     transform: `translateY(${100 - drawerPosition}%)`,
                     opacity: Math.min(1, drawerPosition / 60 + 0.2),
                     borderRadius: (cardMode || mobileFloating) ? '1.25rem' : (mobileFullScreen ? '0' : '1.25rem 1.25rem 0 0'),
