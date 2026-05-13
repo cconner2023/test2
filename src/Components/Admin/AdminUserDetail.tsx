@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { KeyRound, LogOut, Building2, ChevronRight, Mail, Check, RefreshCw, X } from 'lucide-react'
+import { KeyRound, LogOut, Building2, ChevronRight, Mail, Check, RefreshCw, X, Trash2 } from 'lucide-react'
 import type { Certification } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import type { Component } from '../../Data/User'
@@ -48,12 +48,16 @@ interface AdminUserDetailProps {
   onUserUpdated: (user: AdminUser) => void
   onCreated?: (userId: string) => void
   onSelectClinic?: (clinic: AdminClinic) => void
-  // Edit toolbar props (Settings pattern)
+  // Edit toolbar props (Settings pattern) — for edit on existing users,
+  // the editing flag is now internal (tap-to-overlay). These remain for
+  // the create flow until Phase 3 of the overlay conversion.
   editing: boolean
   onEditingChange: (editing: boolean) => void
   saveRequested: boolean
   onSaveComplete: () => void
   onPendingChangesChange?: (hasPending: boolean) => void
+  /** Called when the user requests deletion from the edit overlay footer. */
+  onRequestDelete?: () => void
 }
 
 const AVAILABLE_ROLES = ['medic', 'supervisor', 'dev', 'provider'] as const
@@ -70,6 +74,7 @@ export function AdminUserDetail({
   saveRequested,
   onSaveComplete,
   onPendingChangesChange,
+  onRequestDelete,
 }: AdminUserDetailProps) {
   const currentUser = useAuthStore(s => s.user)
   const currentUserId = currentUser?.id ?? null
@@ -85,6 +90,10 @@ export function AdminUserDetail({
   const pillRef = useRef<HTMLDivElement>(null)
   const [resetPwAnchor, setResetPwAnchor] = useState<DOMRect | null>(null)
   const resetPw = useResetPasswordFlow()
+
+  // Edit overlay — tap user card → PreviewOverlay anchored to card rect.
+  const cardWrapperRef = useRef<HTMLDivElement>(null)
+  const [editAnchor, setEditAnchor] = useState<DOMRect | null>(null)
 
   // Force logout
   const [forceLogoutProcessing, setForceLogoutProcessing] = useState(false)
@@ -143,6 +152,35 @@ export function AdminUserDetail({
   }, [isCreateMode, user?.id])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // ── Edit overlay ↔ editing prop sync ─────────────────────────────────
+  // External editing=true (e.g. legacy header pencil path, still wired for
+  // create flow until Phase 3) opens the overlay; editing=false closes it.
+  // Skip auto-opening in create mode — that flow renders inline in the card
+  // for now and will be converted to an overlay in Phase 3.
+  useEffect(() => {
+    if (editing && !isCreateMode) {
+      if (!editAnchor) {
+        const rect = cardWrapperRef.current?.getBoundingClientRect() ?? null
+        if (rect) setEditAnchor(rect)
+      }
+    } else {
+      setEditAnchor(null)
+    }
+  }, [editing, isCreateMode, editAnchor])
+
+  const openEditOverlay = useCallback(() => {
+    if (isCreateMode) return
+    const rect = cardWrapperRef.current?.getBoundingClientRect() ?? null
+    if (!rect) return
+    setEditAnchor(rect)
+    onEditingChange(true)
+  }, [isCreateMode, onEditingChange])
+
+  const closeEditOverlay = useCallback(() => {
+    setEditAnchor(null)
+    onEditingChange(false)
+  }, [onEditingChange])
 
   // ── Edit mode initialization (only on false→true transition) ─────────
   const prevEditingRef = useRef(false)
@@ -309,13 +347,15 @@ export function AdminUserDetail({
     }
   }, [saveRequested, handleSave, onSaveComplete])
 
+  const userName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.email || 'user'
+
   const handleResetPasswordConfirm = async () => {
     const result = await resetPw.submit()
     if (result.success) {
       setResetPwAnchor(null)
-      setNotify({ type: 'success', message: 'Password reset.' })
+      setNotify({ type: 'success', message: `Password reset for ${userName}.` })
     } else {
-      setNotify({ type: 'error', message: result.error || 'Failed to reset password' })
+      setNotify({ type: 'error', message: result.error || `Failed to reset password for ${userName}` })
     }
   }
 
@@ -329,10 +369,10 @@ export function AdminUserDetail({
     if (result.success) {
       setNotify({
         type: 'success',
-        message: `Force logout complete: ${result.sessionsDeleted} session(s), ${result.devicesDeleted} device(s), ${result.bundlesDeleted} key bundle(s) cleared`,
+        message: `Force logout ${userName}: ${result.sessionsDeleted} session(s), ${result.devicesDeleted} device(s), ${result.bundlesDeleted} key bundle(s) cleared`,
       })
     } else {
-      setNotify({ type: 'error', message: result.error || 'Failed to force logout user' })
+      setNotify({ type: 'error', message: result.error || `Failed to force logout ${userName}` })
     }
   }
 
@@ -351,131 +391,108 @@ export function AdminUserDetail({
   // ── Render ──────────────────────────────────────────────────────────
 
   return (
-    <div className={saving ? 'opacity-50 pointer-events-none' : undefined}>
+    <div className={`pt-5${saving ? ' opacity-50 pointer-events-none' : ''}`}>
       {/* Error banner */}
       {error && <div className="mb-4"><ErrorDisplay message={error} /></div>}
 
-      {/* Main card — compact card in view, form inputs in edit */}
-      <div className="relative"><div className="rounded-2xl bg-themewhite2 overflow-hidden">
-        {editing ? (
-          <div>
-            {isCreateMode ? (
-              <>
-                <TextInput value={createEmail} onChange={setCreateEmail} placeholder="Email *" type="email" required />
-                <PasswordInput value={createPassword} onChange={setCreatePassword} placeholder="Temporary password (min 12 chars)" />
-              </>
-            ) : (
-              <div className="flex items-center gap-3 px-4 py-3 border-b border-primary/6">
-                <UserAvatar
-                  avatarId={user!.avatar_id}
-                  firstName={user!.first_name}
-                  lastName={user!.last_name}
-                  className="w-11 h-11"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[9pt] font-normal text-tertiary">{user!.email}</p>
-                </div>
-              </div>
-            )}
-            <TextInput value={editFirstName} onChange={setEditFirstName} placeholder="First Name *" required />
-            <div className="flex items-stretch border-b border-primary/6">
-              <div className="flex-1 min-w-0">
-                <TextInput value={editLastName} onChange={setEditLastName} placeholder="Last Name *" required />
-              </div>
-              <div className="w-16 shrink-0 border-l border-primary/6">
-                <TextInput value={editMiddleInitial} onChange={v => setEditMiddleInitial(v.toUpperCase().slice(0, 1))} placeholder="MI" maxLength={1} />
-              </div>
-            </div>
-            <PickerInput value={editCredential} onChange={setEditCredential} options={credentials} placeholder="Credential" />
-            <PickerInput value={editComponent} onChange={handleComponentChange} options={components} placeholder="Component" />
-            {editComponent && <PickerInput value={editRank} onChange={setEditRank} options={componentRanks} placeholder="Rank" />}
-            <UicPinInput value={editUic} onChange={setEditUic} spread />
-            <ClinicPickerInput value={editClinicId} onChange={setEditClinicId} allClinics={clinics} placeholder="Clinic" />
-            {!isCreateMode && (
+      {/* Main card — view-mode UserRow for existing users (tap to open edit
+          overlay), legacy inline form for create-mode until Phase 3.
+          pt-5 above gives the overlay-pill -translate-y-1/2 protrusion room. */}
+      <div ref={cardWrapperRef} className="relative">
+        <div
+          className={`rounded-2xl bg-themewhite2 overflow-hidden ${user && !isCreateMode ? 'cursor-pointer active:bg-themeblue2/5 transition-colors' : ''}`}
+          onClick={user && !isCreateMode ? openEditOverlay : undefined}
+          role={user && !isCreateMode ? 'button' : undefined}
+          tabIndex={user && !isCreateMode ? 0 : undefined}
+          aria-label={user && !isCreateMode ? `Edit ${userName}` : undefined}
+          onKeyDown={user && !isCreateMode ? (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEditOverlay() }
+          } : undefined}
+        >
+          {isCreateMode && editing ? (
+            // Legacy inline create form — Phase 3 will move this to an overlay anchored to the FAB.
+            <div>
+              <TextInput value={createEmail} onChange={setCreateEmail} placeholder="Email *" type="email" required />
+              <PasswordInput value={createPassword} onChange={setCreatePassword} placeholder="Temporary password (min 12 chars)" />
+              <TextInput value={editFirstName} onChange={setEditFirstName} placeholder="First Name *" required />
               <div className="flex items-stretch border-b border-primary/6">
                 <div className="flex-1 min-w-0">
-                  <ClinicPickerInput
-                    value={editSurrogateClinicId}
-                    onChange={setEditSurrogateClinicId}
-                    allClinics={clinics}
-                    excludeId={editClinicId || undefined}
-                    placeholder="Surrogate clinic (loan)"
-                  />
+                  <TextInput value={editLastName} onChange={setEditLastName} placeholder="Last Name *" required />
                 </div>
-                {editSurrogateClinicId && (
-                  <button
-                    type="button"
-                    onClick={() => setEditSurrogateClinicId('')}
-                    className="shrink-0 px-3 text-tertiary hover:text-themeredred transition-colors border-l border-primary/6"
-                    title="Clear surrogate"
-                    aria-label="Clear surrogate clinic"
-                  >
-                    <X size={14} />
-                  </button>
-                )}
+                <div className="w-16 shrink-0 border-l border-primary/6">
+                  <TextInput value={editMiddleInitial} onChange={v => setEditMiddleInitial(v.toUpperCase().slice(0, 1))} placeholder="MI" maxLength={1} />
+                </div>
               </div>
-            )}
-            <MultiPickerInput
-              value={editRoles}
-              onChange={setEditRoles}
-              options={AVAILABLE_ROLES.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))}
-              placeholder="Roles *"
-              required
+              <PickerInput value={editCredential} onChange={setEditCredential} options={credentials} placeholder="Credential" />
+              <PickerInput value={editComponent} onChange={handleComponentChange} options={components} placeholder="Component" />
+              {editComponent && <PickerInput value={editRank} onChange={setEditRank} options={componentRanks} placeholder="Rank" />}
+              <UicPinInput value={editUic} onChange={setEditUic} spread />
+              <ClinicPickerInput value={editClinicId} onChange={setEditClinicId} allClinics={clinics} placeholder="Clinic" />
+              <MultiPickerInput
+                value={editRoles}
+                onChange={setEditRoles}
+                options={AVAILABLE_ROLES.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))}
+                placeholder="Roles *"
+                required
+              />
+            </div>
+          ) : user ? (
+            <UserRow
+              avatarId={user.avatar_id}
+              firstName={user.first_name}
+              lastName={user.last_name}
+              middleInitial={user.middle_initial}
+              rank={user.rank}
+              lastActiveAt={user.last_active_at}
+              subtitle={[
+                user.credential,
+                user.uic,
+                user.clinic_name,
+                user.surrogate_clinic_name ? `Loaned to ${user.surrogate_clinic_name}` : null,
+                user.email,
+              ].filter(Boolean).join(' · ')}
+              meta={(user.roles?.length > 0 || user.supervisor_created) && (
+                <div className="flex flex-wrap items-center gap-1">
+                  {user.roles.map(r => <RoleBadge key={r} role={r} />)}
+                  {user.supervisor_created && <SupervisorCreatedBadge />}
+                </div>
+              )}
+              size="md"
+              showChevron={false}
+              right={<span className="text-[9pt] text-tertiary/50 shrink-0">{formatLastActive(user.last_active_at)}</span>}
             />
-          </div>
-        ) : user ? (
-          <UserRow
-            avatarId={user.avatar_id}
-            firstName={user.first_name}
-            lastName={user.last_name}
-            middleInitial={user.middle_initial}
-            rank={user.rank}
-            lastActiveAt={user.last_active_at}
-            subtitle={[
-              user.credential,
-              user.uic,
-              user.clinic_name,
-              user.surrogate_clinic_name ? `Loaned to ${user.surrogate_clinic_name}` : null,
-              user.email,
-            ].filter(Boolean).join(' · ')}
-            meta={(user.roles?.length > 0 || user.supervisor_created) && (
-              <div className="flex flex-wrap items-center gap-1">
-                {user.roles.map(r => <RoleBadge key={r} role={r} />)}
-                {user.supervisor_created && <SupervisorCreatedBadge />}
-              </div>
-            )}
-            size="md"
-            showChevron={false}
-            right={<span className="text-[9pt] text-tertiary/50 shrink-0">{formatLastActive(user.last_active_at)}</span>}
-          />
-        ) : null}
+          ) : null}
         </div>
 
-        {/* Corner action pill — view mode, non-self only */}
-        {!editing && !isCreateMode && user && currentUserId !== user.id && (
-          <ActionPill ref={pillRef} shadow="sm" placement="overlay">
-            {user.email && (
-              <a
-                href={`mailto:${user.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(`${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n`)}`}
-                aria-label="Email user"
-                title="Email user"
-                className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 bg-themeblue2/8 text-primary"
-              >
-                <Mail size={16} />
-              </a>
-            )}
-            <ActionButton
-              icon={KeyRound}
-              label="Reset password"
-              onClick={openResetPassword}
-            />
-            <ActionButton
-              icon={LogOut}
-              label={forceLogoutProcessing ? 'Logging out' : 'Force logout'}
-              variant={forceLogoutProcessing ? 'disabled' : 'default'}
-              onClick={() => setConfirmForceLogout(true)}
-            />
-          </ActionPill>
+        {/* Corner action pill — non-self only. Edit no longer toggles this off,
+            since edit happens in the overlay above. Stop propagation so card-tap
+            doesn't fire when the user clicks an action button. */}
+        {!isCreateMode && user && currentUserId !== user.id && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <ActionPill ref={pillRef} shadow="sm" placement="overlay">
+              {user.email && (
+                <a
+                  href={`mailto:${user.email}?subject=${encodeURIComponent('Beacon Inquiry')}&body=${encodeURIComponent(`${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n`)}`}
+                  aria-label="Email user"
+                  title="Email user"
+                  className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 bg-themeblue2/8 text-primary"
+                >
+                  <Mail size={16} />
+                </a>
+              )}
+              <ActionButton
+                icon={KeyRound}
+                label="Reset password"
+                onClick={openResetPassword}
+              />
+              <ActionButton
+                icon={LogOut}
+                label={forceLogoutProcessing ? 'Logging out' : 'Force logout'}
+                variant={forceLogoutProcessing ? 'disabled' : 'default'}
+                onClick={() => setConfirmForceLogout(true)}
+              />
+            </ActionPill>
+          </div>
         )}
       </div>
 
@@ -506,6 +523,95 @@ export function AdminUserDetail({
               onChange={resetPw.setValue}
               placeholder="New password (min 12 chars)"
               hint={resetPw.value.length > 0 && resetPw.value.length < 12 ? 'Minimum 12 characters.' : undefined}
+            />
+          </div>
+        )}
+      </PreviewOverlay>
+
+      {/* Edit overlay — tap user card → form fields here. Footer owns Save+Delete. */}
+      <PreviewOverlay
+        isOpen={!!editAnchor && !isCreateMode}
+        onClose={closeEditOverlay}
+        anchorRect={editAnchor}
+        title={`Edit ${userName}`}
+        maxWidth={400}
+        previewMaxHeight="70dvh"
+        footer={
+          editAnchor && user ? (
+            <ActionPill shadow="sm">
+              {onRequestDelete && currentUserId !== user.id && (
+                <ActionButton
+                  icon={Trash2}
+                  label="Delete user"
+                  variant="danger"
+                  onClick={() => { setEditAnchor(null); onRequestDelete() }}
+                />
+              )}
+              <ActionButton
+                icon={saving ? RefreshCw : Check}
+                label={saving ? 'Saving…' : 'Save'}
+                variant={saving ? 'disabled' : 'success'}
+                onClick={handleSave}
+              />
+            </ActionPill>
+          ) : undefined
+        }
+      >
+        {editAnchor && user && (
+          <div>
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-primary/6">
+              <UserAvatar
+                avatarId={user.avatar_id}
+                firstName={user.first_name}
+                lastName={user.last_name}
+                className="w-11 h-11"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-[9pt] font-normal text-tertiary">{user.email}</p>
+              </div>
+            </div>
+            <TextInput value={editFirstName} onChange={setEditFirstName} placeholder="First Name *" required />
+            <div className="flex items-stretch border-b border-primary/6">
+              <div className="flex-1 min-w-0">
+                <TextInput value={editLastName} onChange={setEditLastName} placeholder="Last Name *" required />
+              </div>
+              <div className="w-16 shrink-0 border-l border-primary/6">
+                <TextInput value={editMiddleInitial} onChange={v => setEditMiddleInitial(v.toUpperCase().slice(0, 1))} placeholder="MI" maxLength={1} />
+              </div>
+            </div>
+            <PickerInput value={editCredential} onChange={setEditCredential} options={credentials} placeholder="Credential" />
+            <PickerInput value={editComponent} onChange={handleComponentChange} options={components} placeholder="Component" />
+            {editComponent && <PickerInput value={editRank} onChange={setEditRank} options={componentRanks} placeholder="Rank" />}
+            <UicPinInput value={editUic} onChange={setEditUic} spread />
+            <ClinicPickerInput value={editClinicId} onChange={setEditClinicId} allClinics={clinics} placeholder="Clinic" />
+            <div className="flex items-stretch border-b border-primary/6">
+              <div className="flex-1 min-w-0">
+                <ClinicPickerInput
+                  value={editSurrogateClinicId}
+                  onChange={setEditSurrogateClinicId}
+                  allClinics={clinics}
+                  excludeId={editClinicId || undefined}
+                  placeholder="Surrogate clinic (loan)"
+                />
+              </div>
+              {editSurrogateClinicId && (
+                <button
+                  type="button"
+                  onClick={() => setEditSurrogateClinicId('')}
+                  className="shrink-0 px-3 text-tertiary hover:text-themeredred transition-colors border-l border-primary/6"
+                  title="Clear surrogate"
+                  aria-label="Clear surrogate clinic"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <MultiPickerInput
+              value={editRoles}
+              onChange={setEditRoles}
+              options={AVAILABLE_ROLES.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))}
+              placeholder="Roles *"
+              required
             />
           </div>
         )}
@@ -552,7 +658,7 @@ export function AdminUserDetail({
 
       <ConfirmDialog
         visible={!!resetPw.confirmingUserId}
-        title={`Reset password for ${user?.first_name ?? ''} ${user?.last_name ?? 'user'}?`}
+        title={`Reset password for ${userName}?`}
         subtitle="The new password takes effect immediately. The user is not notified."
         confirmLabel="Reset"
         variant="danger"
@@ -563,7 +669,7 @@ export function AdminUserDetail({
 
       <ConfirmDialog
         visible={confirmForceLogout}
-        title={`Force logout ${user?.first_name ?? ''} ${user?.last_name ?? 'user'}?`}
+        title={`Force logout ${userName}?`}
         subtitle="Clears all sessions, device registrations, and Signal key bundles. The user must re-authenticate and re-register on every device."
         confirmLabel="Force Logout"
         variant="warning"

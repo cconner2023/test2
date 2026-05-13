@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
-import { ChevronRight, ChevronDown, Eye, EyeOff, Pencil, Trash2, X, Check, ArrowDownToLine, Wifi, Loader2, Plus } from 'lucide-react';
+import { ChevronRight, ChevronDown, Eye, EyeOff, Pencil, Trash2, X, Check, ArrowDownToLine, Wifi, Loader2, Plus, CalendarClock, Link2, Link2Off } from 'lucide-react';
 import { ContextMenu } from '../ContextMenu';
 import { EmptyState } from '../EmptyState';
 import type { LocalMapOverlay, OverlayFeature } from '../../Types/MapOverlayTypes';
@@ -20,6 +20,14 @@ interface MapOverlayTreeProps {
   downloadingId: string | null;
   onDownloadTiles: (overlay: LocalMapOverlay) => void;
   onEvictTiles: (overlayId: string) => void;
+  /** Overlay-ids that have at least one CalendarEvent referencing them. Drives the link chip. */
+  linkedOverlayIds: Set<string>;
+  /** Open the calendar focused on the (or first) event linked to this overlay. */
+  onJumpToLinkedEvent: (overlayId: string) => void;
+  /** Open the event picker to link this overlay to an event. */
+  onOpenLinkPicker: (overlayId: string, anchor: HTMLElement) => void;
+  /** Unlink the overlay from its currently-linked event(s). */
+  onUnlinkEvent: (overlayId: string) => void;
 }
 
 export function MapOverlayTree({
@@ -37,6 +45,10 @@ export function MapOverlayTree({
   downloadingId,
   onDownloadTiles,
   onEvictTiles,
+  linkedOverlayIds,
+  onJumpToLinkedEvent,
+  onOpenLinkPicker,
+  onUnlinkEvent,
 }: MapOverlayTreeProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -105,6 +117,7 @@ export function MapOverlayTree({
               <div key={overlay.id}>
                 {/* Overlay row */}
                 <div
+                  data-overlay-row={overlay.id}
                   className={`group flex items-center gap-1.5 py-2 pr-3 transition-colors ${
                     isActive
                       ? 'bg-primary/5 border-l-2 border-l-primary/40'
@@ -154,6 +167,19 @@ export function MapOverlayTree({
                       title={overlay.name}
                     >
                       {overlay.name || 'Untitled'}
+                    </button>
+                  )}
+
+                  {/* Linked-event chip — tap jumps to the calendar event */}
+                  {!isRenaming && linkedOverlayIds.has(overlay.id) && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onJumpToLinkedEvent(overlay.id); }}
+                      className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-themeblue2 hover:bg-themeblue2/10 active:scale-95 transition-all"
+                      aria-label="Open linked calendar event"
+                      title="Open linked calendar event"
+                    >
+                      <CalendarClock size={13} />
                     </button>
                   )}
 
@@ -238,6 +264,7 @@ export function MapOverlayTree({
         const isDownloading = downloadingId === overlay.id;
         const noFeatures = overlay.features.length === 0;
         const cacheBusy = downloadingId !== null && !isDownloading;
+        const isLinked = linkedOverlayIds.has(overlay.id);
         return (
           <ContextMenu
             x={contextMenu.x}
@@ -245,6 +272,17 @@ export function MapOverlayTree({
             onClose={() => setContextMenu(null)}
             items={[
               { key: 'rename', label: 'Rename', icon: Pencil, onAction: () => startRename(overlay) },
+              isLinked
+                ? { key: 'unlink', label: 'Unlink event', icon: Link2Off, onAction: () => onUnlinkEvent(overlay.id) }
+                : {
+                    key: 'link',
+                    label: 'Link to event…',
+                    icon: Link2,
+                    onAction: () => {
+                      const row = document.querySelector<HTMLElement>(`[data-overlay-row="${overlay.id}"]`);
+                      onOpenLinkPicker(overlay.id, row ?? document.body);
+                    },
+                  },
               isCached
                 ? { key: 'evict', label: 'Remove offline tiles', icon: X, onAction: () => onEvictTiles(overlay.id) }
                 : {

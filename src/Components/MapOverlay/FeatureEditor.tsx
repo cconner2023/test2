@@ -1,12 +1,11 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Copy, Check, Camera, Trash2, ClipboardList, Link2, Link2Off, ExternalLink } from 'lucide-react';
+import { useState, useMemo, useCallback } from 'react';
+import { Copy, Check, ClipboardList, Link2, Link2Off, ExternalLink } from 'lucide-react';
 import { forward } from 'mgrs';
 import type { OverlayFeature, WaypointType } from '../../Types/MapOverlayTypes';
-import { TACTICAL_COLORS, WAYPOINT_LABELS, WAYPOINT_CATEGORIES } from '../../Types/MapOverlayTypes';
+import { TACTICAL_COLORS, WAYPOINT_LABELS, PIN_GLYPHS } from '../../Types/MapOverlayTypes';
 import { WaypointIcon } from './WaypointIcon';
 import { useMapPrefsStore } from '../../stores/useMapPrefsStore';
 import { formatBearing } from '../../lib/declination';
-import { putPhoto, getPhoto, deletePhoto } from '../../lib/mapPhotoService';
 import { useTC3Store } from '../../stores/useTC3Store';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useMedevacStore } from '../../stores/useMedevacStore';
@@ -162,59 +161,6 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg }:
       setStripExporting(false);
     }
   }, [feature, waypoints, bearingReference, stripPace]);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-  const [photoError, setPhotoError] = useState<string | null>(null);
-  const photoInputRef = useRef<HTMLInputElement | null>(null);
-
-  // Load attached photo (device-only — see mapPhotoService) when the feature
-  // changes. Object URL is revoked on cleanup to avoid leaks.
-  useEffect(() => {
-    if (feature.type !== 'waypoint') {
-      setPhotoUrl(null);
-      return;
-    }
-    let cancelled = false;
-    let url: string | null = null;
-    getPhoto(feature.id).then(p => {
-      if (cancelled || !p) { setPhotoUrl(null); return; }
-      url = URL.createObjectURL(p.blob);
-      setPhotoUrl(url);
-    });
-    return () => {
-      cancelled = true;
-      if (url) URL.revokeObjectURL(url);
-    };
-  }, [feature.id, feature.type]);
-
-  const handlePhotoPick = useCallback(() => photoInputRef.current?.click(), []);
-
-  const handlePhotoChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    setPhotoError(null);
-    if (!file) return;
-    const result = await putPhoto(feature.id, file, file.name);
-    if (!result.ok) {
-      setPhotoError(result.error.message);
-      return;
-    }
-    // Refresh the displayed thumbnail.
-    const fresh = await getPhoto(feature.id);
-    if (fresh) {
-      setPhotoUrl(prev => {
-        if (prev) URL.revokeObjectURL(prev);
-        return URL.createObjectURL(fresh.blob);
-      });
-    }
-  }, [feature.id]);
-
-  const handlePhotoRemove = useCallback(async () => {
-    await deletePhoto(feature.id);
-    setPhotoUrl(prev => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
-    });
-  }, [feature.id]);
 
   const mgrs = useMemo(() => computeMgrs(feature.geometry), [feature.geometry]);
 
@@ -320,79 +266,24 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg }:
         </div>
       )}
 
-      {/* Waypoint glyph picker — categorized */}
+      {/* Waypoint glyph picker — flat list mirroring the creation toolbar */}
       {feature.type === 'waypoint' && (
-        <div className="px-3 py-2 border-b border-primary/6 flex flex-col gap-2">
-          {WAYPOINT_CATEGORIES.map(cat => (
-            <div key={cat.id} className="flex flex-col gap-1">
-              <span className="text-[9pt] font-medium text-tertiary uppercase tracking-wide">{cat.label}</span>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {cat.types.map(wt => {
-                  const active = (feature.waypoint_type ?? 'circle') === wt;
-                  return (
-                    <button
-                      key={wt}
-                      type="button"
-                      onClick={() => handleWaypointTypeChange(wt)}
-                      aria-label={WAYPOINT_LABELS[wt]}
-                      title={WAYPOINT_LABELS[wt]}
-                      className={`w-8 h-8 rounded-md flex items-center justify-center active:scale-95 transition-all ${active ? 'bg-primary/10 ring-1 ring-primary/30' : 'opacity-60 hover:opacity-100'}`}
-                    >
-                      <WaypointIcon type={wt} color={feature.style.color} size={22} />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Photo (waypoints only) — DEVICE-ONLY, never synced. */}
-      {feature.type === 'waypoint' && (
-        <div className="px-3 py-2 border-b border-primary/6 flex items-center gap-3">
-          {photoUrl ? (
-            <>
-              <img
-                src={photoUrl}
-                alt="Waypoint"
-                className="w-14 h-14 rounded-md object-cover border border-tertiary/20"
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-[10pt] font-medium text-primary">Photo attached</p>
-                <p className="text-[9pt] text-tertiary">Stored on this device only</p>
-              </div>
+        <div className="px-3 py-2 border-b border-primary/6 flex items-center gap-1.5 flex-wrap">
+          {PIN_GLYPHS.map(wt => {
+            const active = (feature.waypoint_type ?? 'circle') === wt;
+            return (
               <button
+                key={wt}
                 type="button"
-                onClick={handlePhotoRemove}
-                aria-label="Remove photo"
-                className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
+                onClick={() => handleWaypointTypeChange(wt)}
+                aria-label={WAYPOINT_LABELS[wt]}
+                title={WAYPOINT_LABELS[wt]}
+                className={`w-8 h-8 rounded-md flex items-center justify-center active:scale-95 transition-all ${active ? 'bg-primary/10 ring-1 ring-primary/30' : 'opacity-60 hover:opacity-100'}`}
               >
-                <Trash2 size={15} />
+                <WaypointIcon type={wt} color={feature.style.color} size={22} />
               </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={handlePhotoPick}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[10pt] font-medium text-tertiary hover:text-primary active:scale-95 transition-all"
-            >
-              <Camera size={14} />
-              Attach photo
-              <span className="text-[9pt] text-tertiary/70">· device only</span>
-            </button>
-          )}
-          <input
-            ref={photoInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={handlePhotoChange}
-            className="hidden"
-          />
-          {photoError && (
-            <span className="text-[9pt] text-themeredred">{photoError}</span>
-          )}
+            );
+          })}
         </div>
       )}
 
@@ -554,7 +445,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg }:
 
           {/* Phase 4.4 — Export strip map PDF */}
           <div className="pt-2 mt-1 border-t border-primary/6 flex items-center gap-2">
-            <span className="text-[9pt] font-medium text-tertiary uppercase tracking-wide shrink-0">Pace</span>
+            <span className="text-[9pt] font-medium text-tertiary uppercase tracking-widest shrink-0">Pace</span>
             <div className="flex rounded-md bg-themewhite p-0.5">
               {([
                 { v: 'off' as const, label: 'Off' },

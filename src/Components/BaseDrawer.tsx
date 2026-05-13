@@ -7,6 +7,7 @@ import { GESTURE_THRESHOLDS, clamp } from '../Utilities/GestureUtils';
 import { DRAWER_TIMING } from '../Utilities/constants';
 import { useIsMobile } from '../Hooks/useIsMobile';
 import { useIOSKeyboard } from '../Hooks/useIOSKeyboard';
+import { useFocusKeepInView } from '../Hooks/useFocusKeepInView';
 
 /** Render prop type: children can receive handleClose for animated close */
 type DrawerRenderProp = (handleClose: () => void) => ReactNode;
@@ -188,6 +189,8 @@ export function BaseDrawer({
 
     const isMobile = useIsMobile();
     const { keyboardHeight } = useIOSKeyboard();
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    useFocusKeepInView(scrollContainerRef, isVisible);
 
     const useMobileLayout = mobileOnly || isMobile;
 
@@ -195,8 +198,6 @@ export function BaseDrawer({
     const animationFrameId = useRef<number>(0);
     const timeoutRef = useRef<number | null>(null);
     const desktopOpenRef = useRef<number>(0);
-
-    const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (isVisible) {

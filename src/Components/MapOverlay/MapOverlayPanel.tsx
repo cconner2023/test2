@@ -1,4 +1,5 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import type { CalendarEvent } from '../../Types/CalendarTypes';
 import { useSpring, animated } from '@react-spring/web';
 import { ChevronLeft, ChevronRight, Layers, Move, MapPin, Route, Pentagon, Trash2, X, Ruler, RadioTower, Undo2, Activity, Pause, Play, Square, Plus, Check, Map as MapIcon, Globe, Mountain, MountainSnow } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -14,15 +15,6 @@ function waypointGlyphIcon(type: WaypointType): LucideIcon {
     <WaypointIcon type={type} color="currentColor" size={props.size ?? 16} />
   )) as unknown as LucideIcon;
 }
-
-// Flat list of waypoint glyphs offered in the Drop-pin submenu — basic +
-// zones + mission, in display order. Forces / assets / caution / casualty are
-// intentionally omitted to keep the menu mobile-friendly.
-const PIN_GLYPHS: WaypointType[] = [
-  'circle', 'cross', 'triangle',
-  'lz', 'pz', 'dz', 'rally',
-  'obj', 'ccp', 'axp', 'target',
-];
 
 // Per-basemap glyph for the bottom-center island. Keys match TILE_SOURCES ids.
 const BASEMAP_ICONS: Record<string, LucideIcon> = {
@@ -52,7 +44,7 @@ import {
 import { getClinicDetails } from '../../lib/supervisorService';
 import type { OverlayFeature, DrawMode, WaypointType } from '../../Types/MapOverlayTypes';
 import type { LocalMapOverlay, MapOverlay } from '../../Types/MapOverlayTypes';
-import { DEFAULT_FEATURE_STYLE, WAYPOINT_LABELS } from '../../Types/MapOverlayTypes';
+import { DEFAULT_FEATURE_STYLE, WAYPOINT_LABELS, PIN_GLYPHS } from '../../Types/MapOverlayTypes';
 import { WaypointIcon } from './WaypointIcon';
 import MapView from './MapView';
 import type { MapViewHandle, PresenceMarker } from './MapView';
@@ -64,12 +56,14 @@ import { MGRSConverter } from './MGRSConverter';
 import { MapSettingsDrawer } from './MapSettingsDrawer';
 import { FeatureEditor } from './FeatureEditor';
 import { MapOverlayTree } from './MapOverlayTree';
+import { OverlayEventPicker } from './OverlayEventPicker';
+import { useCalendarWrite } from '../../Hooks/useCalendarWrite';
+import { useNavigationStore } from '../../stores/useNavigationStore';
 import { resolveSearch } from './searchResolver';
 import { GotoWaypointCard } from './GotoWaypointCard';
 import { parseGPX, serializeGPX } from '../../lib/gpx';
 import { parseKML, serializeKML } from '../../lib/kml';
 import { useTrackRecorder } from '../../lib/trackRecording';
-import { deletePhoto, deletePhotosForFeatures } from '../../lib/mapPhotoService';
 import { registerAllImportedBasemaps, importMBTiles, deleteImportedBasemap, type MBTilesImportProgress } from '../../lib/mapImporters/mbtiles';
 import { importGeoPdf, type GeoPdfImportProgress } from '../../lib/mapImporters/geopdf';
 import { TILE_SOURCES } from '../../lib/mapTileService';
@@ -215,6 +209,58 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   const linkedEvent = overlayId
     ? (allEvents.find(e => e.structured_location?.overlay_id === overlayId) ?? null)
     : null;
+
+  // Inverse-link surface — overlay-id → linked CalendarEvent(s). Drives the
+  // calendar chip on each overlay row and the link/unlink actions.
+  const linkedOverlayIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const e of allEvents) {
+      const id = e.structured_location?.overlay_id;
+      if (id) ids.add(id);
+    }
+    return ids;
+  }, [allEvents]);
+
+  const { writeEvent } = useCalendarWrite();
+  const openCalendarEvent = useNavigationStore(s => s.openCalendarEvent);
+
+  const [linkPicker, setLinkPicker] = useState<{ overlayId: string; anchor: DOMRect } | null>(null);
+
+  const handleJumpToLinkedEvent = useCallback((targetOverlayId: string) => {
+    const next = allEvents
+      .filter(e => e.structured_location?.overlay_id === targetOverlayId)
+      .sort((a, b) => a.start_time.localeCompare(b.start_time))[0];
+    if (!next) return;
+    openCalendarEvent(next.id);
+  }, [allEvents, openCalendarEvent]);
+
+  const handleOpenLinkPicker = useCallback((targetOverlayId: string, anchor: HTMLElement) => {
+    setLinkPicker({ overlayId: targetOverlayId, anchor: anchor.getBoundingClientRect() });
+  }, []);
+
+  const handlePickEventForLink = useCallback((event: CalendarEvent) => {
+    if (!linkPicker) return;
+    // Clear the link from any other event that currently points at this
+    // overlay so the inverse-link surface stays 1:1 from the user's POV.
+    const stale = allEvents.filter(e =>
+      e.structured_location?.overlay_id === linkPicker.overlayId && e.id !== event.id,
+    );
+    for (const s of stale) {
+      writeEvent({ ...s, structured_location: null, updated_at: new Date().toISOString() });
+    }
+    writeEvent({
+      ...event,
+      structured_location: { overlay_id: linkPicker.overlayId },
+      updated_at: new Date().toISOString(),
+    });
+  }, [linkPicker, allEvents, writeEvent]);
+
+  const handleUnlinkEvent = useCallback((targetOverlayId: string) => {
+    const bound = allEvents.filter(e => e.structured_location?.overlay_id === targetOverlayId);
+    for (const e of bound) {
+      writeEvent({ ...e, structured_location: null, updated_at: new Date().toISOString() });
+    }
+  }, [allEvents, writeEvent]);
 
   // Phase 4.3a — auto-share when the linked event is in_progress AND the
   // current user is a participant. Manual toggles win — once the user
@@ -522,14 +568,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
 
   const handleDeleteOverlay = useCallback(async (id: string) => {
     if (!user) return;
-    // Capture feature ids before delete so we can purge their device-only
-    // photos. Photos never sync, so this is the only chance to clean them up.
-    const targetOverlay = overlays.find(o => o.id === id);
-    const featureIds = targetOverlay ? targetOverlay.features.map(f => f.id) : [];
     const result = await deleteOverlay(id, user.id);
     if (result.ok) {
       setOverlays(prev => prev.filter(o => o.id !== id));
-      if (featureIds.length > 0) deletePhotosForFeatures(featureIds);
       // Evict cached tiles for deleted overlay (fire-and-forget)
       evictOverlayTiles(id).then(() => {
         setTileMetaMap(prev => {
@@ -895,8 +936,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   // ── Delete selected ──
   const handleDeleteSelected = useCallback(() => {
     if (!selectedFeatureId) return;
-    // Purge any device-only photo attached to this feature.
-    deletePhoto(selectedFeatureId);
     setFeatures(prev => prev.filter(f => f.id !== selectedFeatureId));
     setSelectedFeatureId(null);
   }, [selectedFeatureId]);
@@ -1044,6 +1083,22 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                 downloadingId={downloadingId}
                 onDownloadTiles={(o) => handleDownloadTiles(o as MapOverlay)}
                 onEvictTiles={handleEvictTiles}
+                linkedOverlayIds={linkedOverlayIds}
+                onJumpToLinkedEvent={handleJumpToLinkedEvent}
+                onOpenLinkPicker={handleOpenLinkPicker}
+                onUnlinkEvent={handleUnlinkEvent}
+              />
+              <OverlayEventPicker
+                isOpen={!!linkPicker}
+                onClose={() => setLinkPicker(null)}
+                anchorRect={linkPicker?.anchor ?? null}
+                currentEventId={
+                  linkPicker
+                    ? (allEvents.find(e => e.structured_location?.overlay_id === linkPicker.overlayId)?.id ?? null)
+                    : null
+                }
+                onPick={handlePickEventForLink}
+                zIndex={1100}
               />
             </div>
           )}
@@ -1120,7 +1175,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                   mobileOnly
                   fullHeight="90dvh"
                   initialPosition={50}
-                  zIndex="z-50"
+                  zIndex="z-[1010]"
                   header={{
                     title: selectedFeature?.label
                       || (selectedFeature?.type === 'waypoint' ? 'Waypoint'

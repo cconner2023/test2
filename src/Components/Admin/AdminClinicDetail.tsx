@@ -217,6 +217,25 @@ const AdminClinicDetail = ({
     [users, clinic?.id, isCreateMode],
   )
 
+  /**
+   * Parent clinics — any clinic that lists this one as a child. Defensive array
+   * (data model permits multiple parents even though the tree is usually clean).
+   */
+  const parentClinics = useMemo(() => {
+    if (isCreateMode || !clinic) return []
+    return clinics
+      .filter((c) => c.id !== clinic.id && c.child_clinic_ids.includes(clinic.id))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [clinics, clinic, isCreateMode])
+
+  /** Sub-clinics resolved to full records, in id-list order. */
+  const subClinics = useMemo(() => {
+    if (isCreateMode || !clinic) return []
+    return clinic.child_clinic_ids
+      .map((cid) => clinics.find((c) => c.id === cid))
+      .filter((c): c is AdminClinic => c !== undefined)
+  }, [clinics, clinic, isCreateMode])
+
   /** Users currently loaned IN to this clinic (their surrogate_clinic_id matches). */
   const loanedInUsers = useMemo(
     () => isCreateMode ? [] : users.filter((u) => u.surrogate_clinic_id === clinic?.id),
@@ -396,16 +415,42 @@ const AdminClinicDetail = ({
                 ))}
               </div>
             )}
-            {clinic.child_clinic_ids.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-1.5">
-                {clinic.child_clinic_ids.map((cid) => {
-                  const child = clinics.find((c) => c.id === cid)
-                  return (
-                    <span key={cid} className="inline-flex items-center px-1.5 py-0.5 rounded text-[9pt] md:text-[9pt] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
-                      {child ? child.name : cid.slice(0, 8)}
-                    </span>
-                  )
-                })}
+            {(parentClinics.length > 0 || subClinics.length > 0) && (
+              <div className="mt-2 space-y-1.5">
+                {parentClinics.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className="text-[8pt] uppercase tracking-wider text-tertiary mr-1 shrink-0">Parent</span>
+                    {parentClinics.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => onSelectClinic?.(p)}
+                        disabled={!onSelectClinic}
+                        aria-label={`Open parent clinic ${p.name}`}
+                        className="inline-flex items-center px-1.5 py-0.5 rounded text-[9pt] font-medium border bg-themeblue3/10 text-themeblue3 border-themeblue3/30 hover:bg-themeblue3/20 transition-colors active:scale-95 disabled:cursor-default disabled:hover:bg-themeblue3/10"
+                      >
+                        {p.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {subClinics.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className="text-[8pt] uppercase tracking-wider text-tertiary mr-1 shrink-0">Sub-clinics</span>
+                    {subClinics.map((child) => (
+                      <button
+                        key={child.id}
+                        type="button"
+                        onClick={() => onSelectClinic?.(child)}
+                        disabled={!onSelectClinic}
+                        aria-label={`Open sub-clinic ${child.name}`}
+                        className="inline-flex items-center px-1.5 py-0.5 rounded text-[9pt] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30 hover:bg-themeblue2/20 transition-colors active:scale-95 disabled:cursor-default disabled:hover:bg-themeblue2/10"
+                      >
+                        {child.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             {clinic.rooms.length > 0 && (

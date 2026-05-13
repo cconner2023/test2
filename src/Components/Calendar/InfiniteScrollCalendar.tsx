@@ -244,6 +244,12 @@ export function InfiniteScrollCalendar({
       existing.push(event)
       map.set(key, existing)
     }
+    for (const list of map.values()) {
+      list.sort((a, b) => {
+        if (a.all_day !== b.all_day) return a.all_day ? -1 : 1
+        return a.start_time.localeCompare(b.start_time)
+      })
+    }
     return map
   }, [events])
 

@@ -100,6 +100,16 @@ export const WAYPOINT_CATEGORIES: { id: string; label: string; types: WaypointTy
   { id: 'casualty', label: 'Casualty', types: ['casualty'] },
 ]
 
+// Flat, ordered list of waypoint glyphs offered in the map creation toolbar's
+// Drop-pin submenu AND in the FeatureEditor glyph picker. Single source of
+// truth — keep both surfaces in lockstep. Forces / assets / caution / casualty
+// are intentionally omitted to keep the picker mobile-friendly.
+export const PIN_GLYPHS: WaypointType[] = [
+  'circle', 'cross', 'triangle',
+  'lz', 'pz', 'dz', 'rally',
+  'obj', 'ccp', 'axp', 'target',
+]
+
 // Tactical palette references the app's CSS theme tokens so feature colors
 // shift with the active theme (light/dark/sepia/etc.). Stored as `var(--…)`
 // strings — resolved by `resolveColor` before being handed to Leaflet, which

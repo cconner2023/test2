@@ -143,6 +143,8 @@ export function AdminSummary({
           {hasChildren ? (
             <button
               className="p-0.5 rounded hover:bg-secondary/10 text-tertiary shrink-0"
+              aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} ${node.clinic.name}`}
+              aria-expanded={!isCollapsed}
               onClick={(e) => { e.stopPropagation(); toggleCollapse(node.clinic.id) }}
             >
               {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
@@ -157,7 +159,7 @@ export function AdminSummary({
             aria-label={`Select clinic ${node.clinic.name}`}
             className="flex items-center flex-1 min-w-0"
             onClick={() => onSelectClinic(node.clinic)}
-            onKeyDown={e => { if (e.key === 'Enter') onSelectClinic(node.clinic) }}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectClinic(node.clinic) } }}
           >
             <span className="text-[10pt] font-medium text-primary truncate">{node.clinic.name}</span>
           </div>
@@ -222,6 +224,8 @@ export function AdminSummary({
           <div>
             <button
               onClick={() => setShowUnassigned(!showUnassigned)}
+              aria-expanded={showUnassigned}
+              aria-label={`${showUnassigned ? 'Hide' : 'Show'} unassigned users`}
               className="flex items-center gap-2 w-full text-left active:scale-[0.98] transition-all"
             >
               <span className="w-7 h-7 rounded-full bg-themeredred/10 flex items-center justify-center shrink-0">

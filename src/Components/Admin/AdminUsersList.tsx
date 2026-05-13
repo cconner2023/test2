@@ -156,36 +156,41 @@ export function AdminUsersList({
 
   const handleDeleteUser = useCallback(
     async (userId: string) => {
+      const target = users.find(u => u.id === userId)
+      const targetName = [target?.first_name, target?.last_name].filter(Boolean).join(' ') || target?.email || 'user'
       setDeleteProcessing(true)
       const result = await deleteUser(userId)
       setDeleteProcessing(false)
       setConfirmDeleteId(null)
 
       if (result.success) {
-        setNotify({ type: 'success', message: 'Deleted.' })
+        setNotify({ type: 'success', message: `Deleted ${targetName}.` })
         await loadUsers()
       } else {
         setNotify({
           type: 'error',
-          message: result.error || 'Failed to delete user',
+          message: result.error || `Failed to delete ${targetName}`,
         })
       }
     },
-    [loadUsers],
+    [loadUsers, users],
   )
 
   const handleResetPasswordConfirm = useCallback(async () => {
+    const targetId = resetPw.confirmingUserId
+    const target = targetId ? users.find(u => u.id === targetId) : null
+    const targetName = [target?.first_name, target?.last_name].filter(Boolean).join(' ') || target?.email || 'user'
     const result = await resetPw.submit()
     if (result.success) {
       setResetPwUserId(null)
-      setNotify({ type: 'success', message: 'Password reset.' })
+      setNotify({ type: 'success', message: `Password reset for ${targetName}.` })
     } else {
       setNotify({
         type: 'error',
-        message: result.error || 'Failed to reset password',
+        message: result.error || `Failed to reset password for ${targetName}`,
       })
     }
-  }, [resetPw])
+  }, [resetPw, users])
 
   const handleForceLogout = useCallback(async (userId: string) => {
     setLogoutProcessing(true)
@@ -208,12 +213,10 @@ export function AdminUsersList({
 
   // ─── Helpers ───────────────────────────────────────────────────────────
 
-  const isSelf = (userId: string) => userId === currentUserId
-
   /** Build right-click / long-press context menu items for a given user */
   const buildContextMenuItems = useCallback(
-    (user: AdminUser) => {
-      if (isSelf(user.id)) return []
+    (user: AdminUser): ContextMenuItem[] => {
+      if (user.id === currentUserId) return []
       return [
         {
           key: 'view',
@@ -231,7 +234,7 @@ export function AdminUsersList({
           key: 'email',
           label: 'Email User',
           icon: Mail,
-          onAction: () => { window.location.href = `mailto:${user.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(`${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n`)}` },
+          onAction: () => { window.open(`mailto:${user.email}?subject=${encodeURIComponent('Beacon Inquiry')}&body=${encodeURIComponent(`${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n`)}`) },
         }] : []),
         {
           key: 'changepw',
@@ -257,8 +260,7 @@ export function AdminUsersList({
         },
       ]
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentUserId, onEditUser, onSelectUser],
+    [currentUserId, onEditUser, onSelectUser, resetPw],
   )
 
   // ─── Render ────────────────────────────────────────────────────────────
@@ -272,29 +274,33 @@ export function AdminUsersList({
     : null
 
   // ── Shared: render user row items ──────────────────────
+  // ResetPasswordForm renders as a SIBLING of UserCard, not a child — nesting
+  // form inputs inside a role="button" element breaks focus on mobile and
+  // misannounces to screen readers.
   const renderUserItems = () => filteredUsers.map((user) => (
-      <UserCard
-        key={user.id}
-        user={user}
-        onTap={() => onSelectUser(user)}
-        onContextMenu={(x, y) => setContextMenu({ userId: user.id, x, y })}
-      >
-        <UserRow
-          avatarId={user.avatar_id}
-          firstName={user.first_name}
-          lastName={user.last_name}
-          middleInitial={user.middle_initial}
-          rank={user.rank}
-          lastActiveAt={user.last_active_at}
-          subtitle={[user.credential, user.uic, user.clinic_name, user.email].filter(Boolean).join(' · ')}
-          meta={(user.roles?.length > 0 || user.supervisor_created) && (
-            <div className="flex flex-wrap items-center gap-1">
-              {user.roles.map(r => <RoleBadge key={r} role={r} />)}
-              {user.supervisor_created && <SupervisorCreatedBadge />}
-            </div>
-          )}
-          right={<span className="text-[9pt] text-tertiary/50 shrink-0">{formatLastActive(user.last_active_at)}</span>}
-        />
+      <div key={user.id}>
+        <UserCard
+          user={user}
+          onTap={() => onSelectUser(user)}
+          onContextMenu={(x, y) => setContextMenu({ userId: user.id, x, y })}
+        >
+          <UserRow
+            avatarId={user.avatar_id}
+            firstName={user.first_name}
+            lastName={user.last_name}
+            middleInitial={user.middle_initial}
+            rank={user.rank}
+            lastActiveAt={user.last_active_at}
+            subtitle={[user.credential, user.uic, user.clinic_name, user.email].filter(Boolean).join(' · ')}
+            meta={(user.roles?.length > 0 || user.supervisor_created) && (
+              <div className="flex flex-wrap items-center gap-1">
+                {user.roles.map(r => <RoleBadge key={r} role={r} />)}
+                {user.supervisor_created && <SupervisorCreatedBadge />}
+              </div>
+            )}
+            right={<span className="text-[9pt] text-tertiary/50 shrink-0">{formatLastActive(user.last_active_at)}</span>}
+          />
+        </UserCard>
 
         {resetPwUserId === user.id && (
           <ResetPasswordForm
@@ -305,7 +311,7 @@ export function AdminUsersList({
             processing={resetPw.processing}
           />
         )}
-      </UserCard>
+      </div>
     )
   )
 
@@ -327,7 +333,7 @@ export function AdminUsersList({
 
       <ConfirmDialog
         visible={!!confirmDeleteId}
-        title={`Delete ${deleteTargetUser?.first_name || ''} ${deleteTargetUser?.last_name || ''}?`}
+        title={`Delete ${[deleteTargetUser?.first_name, deleteTargetUser?.last_name].filter(Boolean).join(' ') || 'user'}?`}
         subtitle="Permanent. All associated data removed."
         confirmLabel="Delete"
         variant="danger"
@@ -354,7 +360,7 @@ export function AdminUsersList({
 
       <ConfirmDialog
         visible={!!confirmLogoutId}
-        title={`Force logout ${logoutTargetUser?.first_name ?? ''} ${logoutTargetUser?.last_name ?? 'user'}?`}
+        title={`Force logout ${[logoutTargetUser?.first_name, logoutTargetUser?.last_name].filter(Boolean).join(' ') || 'user'}?`}
         subtitle="Clears all sessions, device registrations, and Signal key bundles. The user must re-authenticate and re-register on every device."
         confirmLabel="Force Logout"
         variant="warning"

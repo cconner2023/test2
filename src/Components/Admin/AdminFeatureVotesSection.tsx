@@ -309,30 +309,30 @@ export function AdminFeatureVotesSection() {
 
         {error && <ErrorDisplay message={error} />}
 
-        {/* Active cycles — each rendered as a theme-picker-style card */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Active cycles</p>
-            <ActionPill>
+        {/* Active cycles — section header + overlay-pill add FAB riding the
+            top edge of the first card (canonical card-action-overlay pattern). */}
+        <section>
+          <p className="text-[9pt] font-semibold text-primary uppercase tracking-widest mb-2">Active cycles</p>
+          <div className="relative">
+            <ActionPill placement="overlay">
               <button
                 ref={newCycleBtnRef}
                 onClick={openNewCyclePopover}
-                className="w-9 h-9 rounded-full flex items-center justify-center bg-themeblue2 text-white active:scale-95 transition-all"
+                className="rounded-full flex items-center justify-center bg-themeblue2 text-white active:scale-95 transition-all"
                 aria-label="New cycle"
                 title="New cycle"
               >
-                <Plus size={16} />
+                <Plus />
               </button>
             </ActionPill>
-          </div>
 
-          {activeCycles.length === 0 ? (
-            <div className="flex items-center justify-center h-[80px]">
-              <span className="text-[10pt] text-secondary">No active cycles</span>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {activeCycles.map((cycle) => {
+            {activeCycles.length === 0 ? (
+              <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 flex items-center justify-center h-[80px]">
+                <span className="text-[10pt] text-secondary">No active cycles</span>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {activeCycles.map((cycle) => {
                 const data = cycleData[cycle.id]
                 const candidates = data?.candidates ?? []
                 const tally = data?.tally ?? {}
@@ -418,9 +418,10 @@ export function AdminFeatureVotesSection() {
                   </div>
                 )
               })}
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        </section>
 
         {/* Past cycles — compact list, historical only */}
         {closedCycles.length > 0 && (

@@ -71,21 +71,6 @@ export interface ImportedBasemapTile {
   blob: Blob
 }
 
-/**
- * Photo attached to a waypoint feature. DEVICE-ONLY: never enters the sync
- * queue, never traverses Supabase. Photos may capture identifying or
- * operational detail; treating them as PHI-adjacent keeps Beacon's no-PHI-
- * on-the-wire invariant intact. Future explicit-share is a Phase 4 wedge,
- * not Phase 2.4.
- */
-export interface MapPhoto {
-  featureId: string  // keyPath — also the OverlayFeature.id
-  blob: Blob
-  capturedAt: string
-  /** Original filename or capture source — purely informational. */
-  sourceName?: string
-}
-
 export interface TileMetadata {
   overlayId: string  // keyPath
   bbox: [number, number, number, number]  // [west, south, east, north]
@@ -283,10 +268,6 @@ interface PackageBackEndDB extends DBSchema {
     key: string  // overlayId — only one active recording per overlay
     value: TrackBufferEntry
   }
-  mapPhotos: {
-    key: string  // featureId — at most one photo per waypoint
-    value: MapPhoto
-  }
   importedBasemapMeta: {
     key: string  // sourceId, e.g. 'mbtiles:<uuid>'
     value: ImportedBasemapMeta
@@ -326,7 +307,7 @@ interface PackageBackEndDB extends DBSchema {
 }
 
 const DB_NAME = 'packagebackend-offline'
-const DB_VERSION = 11
+const DB_VERSION = 12
 
 let dbInstance: IDBPDatabase<PackageBackEndDB> | null = null
 
@@ -438,13 +419,6 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
         }
       }
 
-      // v9 → v10: Photo waypoints (Phase 2.4) — DEVICE-ONLY, never synced.
-      if (oldVersion < 10) {
-        if (!db.objectStoreNames.contains('mapPhotos')) {
-          db.createObjectStore('mapPhotos', { keyPath: 'featureId' })
-        }
-      }
-
       // v10 → v11: Imported basemaps (Phase 3) — MBTiles / geo-PDF / GeoTIFF.
       if (oldVersion < 11) {
         if (!db.objectStoreNames.contains('importedBasemapMeta')) {
@@ -452,6 +426,15 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
         }
         if (!db.objectStoreNames.contains('importedBasemapTiles')) {
           db.createObjectStore('importedBasemapTiles', { keyPath: 'key' })
+        }
+      }
+
+      // v11 → v12: Drop the mapPhotos store. The Attach-photo waypoint feature
+      // was removed before any user-visible usage; the v10 create block is
+      // gone, so this delete only fires for existing v10/v11 installs.
+      if (oldVersion < 12) {
+        if (db.objectStoreNames.contains('mapPhotos')) {
+          db.deleteObjectStore('mapPhotos')
         }
       }
 

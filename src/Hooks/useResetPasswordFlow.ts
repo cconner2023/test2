@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { resetUserPassword } from '../lib/adminService'
 import type { ServiceResult } from '../lib/result'
 
@@ -35,14 +35,18 @@ export function useResetPasswordFlow() {
 
   const reset = useCallback(() => setValue(''), [])
 
-  return {
-    value,
-    setValue,
-    processing,
-    confirmingUserId,
-    requestConfirm,
-    cancelConfirm,
-    submit,
-    reset,
-  }
+  // Stable object identity — consumers thread this into useCallback/useMemo deps.
+  return useMemo(
+    () => ({
+      value,
+      setValue,
+      processing,
+      confirmingUserId,
+      requestConfirm,
+      cancelConfirm,
+      submit,
+      reset,
+    }),
+    [value, processing, confirmingUserId, requestConfirm, cancelConfirm, submit, reset],
+  )
 }

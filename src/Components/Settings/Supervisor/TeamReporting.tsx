@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react'
-import { AlertTriangle, Building2, Calendar, Dumbbell, Plus } from 'lucide-react'
+import { AlertTriangle, Building2, Calendar, Plus } from 'lucide-react'
 import { formatMedicName } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { TeamMetrics } from './supervisorHelpers'
@@ -79,17 +79,11 @@ export function TeamReporting({
     return [...metrics.soldierReadiness].sort((a, b) => a.readinessPercent - b.readinessPercent)
   }, [metrics.soldierReadiness])
 
-  const aftRows = useMemo(() => {
-    if (!isDevRole) return []
-    return medics
-      .map(m => ({ medic: m, status: aftStatusForSoldier(m.id, teamEvents, now) }))
-      // Sort: never (none) first, then expired, then expiring, then current. Within each, oldest first.
-      .sort((a, b) => {
-        const order: Record<AftStatus['recency'], number> = { none: 0, expired: 1, expiring: 2, current: 3 }
-        const d = order[a.status.recency] - order[b.status.recency]
-        if (d !== 0) return d
-        return (b.status.daysSinceLastTest ?? -1) - (a.status.daysSinceLastTest ?? -1)
-      })
+  const aftStatusById = useMemo(() => {
+    const map = new Map<string, AftStatus>()
+    if (!isDevRole) return map
+    for (const m of medics) map.set(m.id, aftStatusForSoldier(m.id, teamEvents, now))
+    return map
   }, [isDevRole, medics, teamEvents, now])
 
   const sortedGaps = useMemo(() => {
@@ -205,6 +199,17 @@ export function TeamReporting({
           {sortedSoldiers.map((entry, index) => {
             const soldier = medics.find(m => m.id === entry.soldierId)
             if (!soldier) return null
+            const aft = aftStatusById.get(entry.soldierId)
+            const recencyDot = !aft ? '' :
+              aft.recency === 'current'  ? 'bg-themegreen' :
+              aft.recency === 'expiring' ? 'bg-themeyellow' :
+              aft.recency === 'expired'  ? 'bg-themeredred' :
+                                            'bg-tertiary/40'
+            const recencyLabel = !aft ? '' :
+              aft.recency === 'current'  ? 'Current' :
+              aft.recency === 'expiring' ? 'Expiring' :
+              aft.recency === 'expired'  ? 'Expired' :
+                                            'Never tested'
             return (
               <button
                 key={entry.soldierId}
@@ -250,6 +255,25 @@ export function TeamReporting({
                       {entry.compliancePercent}%
                     </span>
                   </div>
+                  {aft && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9pt] text-tertiary w-18 shrink-0">Fitness</span>
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${recencyDot}`} />
+                      <span className="text-[9pt] text-tertiary flex-1 min-w-0 truncate">
+                        {recencyLabel}
+                        {aft.daysSinceLastTest != null && ` · ${aft.daysSinceLastTest}d ago`}
+                      </span>
+                      {aft.lastTest ? (
+                        <span className={`text-[9pt] font-medium w-8 text-right tabular-nums ${
+                          aft.lastTest.allPassing ? 'text-themegreen' : 'text-themeredred'
+                        }`}>
+                          {aft.lastTest.total}
+                        </span>
+                      ) : (
+                        <span className="text-[9pt] text-tertiary w-8 text-right">—</span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {entry.overdueCount > 0 && (
                   <span className="text-[9pt] font-medium text-themeredred bg-themeredred/10 px-1.5 py-0.5 rounded-full flex-shrink-0">
@@ -262,70 +286,6 @@ export function TeamReporting({
           </div>
         </div>
       </div>
-
-      {/* AFT Readiness — dev-gated (mirrors aft_record category visibility) */}
-      {isDevRole && aftRows.length > 0 && (
-        <div data-tour="supervisor-aft-readiness">
-          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
-            AFT Readiness
-          </p>
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-            {aftRows.map(({ medic, status }, idx) => {
-              const recencyDot =
-                status.recency === 'current'  ? 'bg-themegreen' :
-                status.recency === 'expiring' ? 'bg-themeyellow' :
-                status.recency === 'expired'  ? 'bg-themeredred' :
-                                                'bg-tertiary/40'
-              const recencyLabel =
-                status.recency === 'current'  ? 'Current' :
-                status.recency === 'expiring' ? 'Expiring' :
-                status.recency === 'expired'  ? 'Expired' :
-                                                'Never tested'
-              const dateLabel = status.lastTest
-                ? new Date(status.lastTest.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                : '—'
-              return (
-                <button
-                  key={medic.id}
-                  onClick={() => onViewSoldier(medic)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-themeblue2/5 text-left active:scale-95 transition-all ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
-                >
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                    <Dumbbell size={14} className="text-tertiary" />
-                  </div>
-                  <span className="text-sm text-primary truncate shrink-0 w-32">
-                    {formatMedicName(medic)}
-                  </span>
-                  <div className="flex-1 min-w-0 flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${recencyDot}`} />
-                    <span className="text-[9pt] text-tertiary truncate">
-                      {recencyLabel}
-                      {status.daysSinceLastTest != null && ` · ${status.daysSinceLastTest}d ago`}
-                    </span>
-                    <span className="text-[9pt] text-tertiary truncate ml-auto">{dateLabel}</span>
-                  </div>
-                  {status.lastTest ? (
-                    <>
-                      <span className="text-[10pt] text-primary tabular-nums shrink-0 font-medium">
-                        {status.lastTest.total}
-                      </span>
-                      <span className={`text-[9pt] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
-                        status.lastTest.allPassing
-                          ? 'bg-themegreen/15 text-themegreen'
-                          : 'bg-themeredred/15 text-themeredred'
-                      }`}>
-                        {status.lastTest.allPassing ? 'PASS' : 'FAIL'}
-                      </span>
-                    </>
-                  ) : (
-                    <span className="text-[9pt] text-tertiary shrink-0">—</span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       {/* Coverage Gaps */}
       <div data-tour="supervisor-coverage-gaps">

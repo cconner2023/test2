@@ -519,6 +519,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
         weekEvents.sort((a, b) =>
           a.startCol - b.startCol ||
           b.span - a.span ||
+          (a.event.all_day === b.event.all_day ? 0 : a.event.all_day ? -1 : 1) ||
           a.event.start_time.localeCompare(b.event.start_time)
         )
 

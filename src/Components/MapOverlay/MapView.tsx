@@ -157,8 +157,12 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   const gpsLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const measureLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const presenceLayerRef = useRef<L.LayerGroup>(L.layerGroup());
-  const [mgrsReadout, setMgrsReadout] = useState('');
+  const tempWaypointLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const [centerLatLng, setCenterLatLng] = useState<{ lat: number; lng: number } | null>(null);
+  // Temporary waypoint set by right-click / long-press. Pins the readout pill
+  // (and the detail overlay) to a chosen spot instead of the map center.
+  // Distinct from creating a real waypoint feature — purely local UI state.
+  const [tempWaypoint, setTempWaypoint] = useState<{ lat: number; lng: number } | null>(null);
   const [showAttribution, setShowAttribution] = useState(false);
   const attributionTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -195,22 +199,23 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   const updateMgrs = useCallback((map: L.Map) => {
     const c = map.getCenter();
     setCenterLatLng({ lat: c.lat, lng: c.lng });
-    try {
-      const mgrs = forward([c.lng, c.lat], 5);
-      setMgrsReadout(mgrs);
-    } catch {
-      setMgrsReadout('---');
-    }
   }, []);
 
-  const latLngText = centerLatLng
-    ? `${centerLatLng.lat.toFixed(6)}, ${centerLatLng.lng.toFixed(6)}`
+  // tempWaypoint takes precedence over map center for the readout pill + detail overlay.
+  const displayLatLng = tempWaypoint ?? centerLatLng;
+
+  const mgrsReadout = displayLatLng
+    ? (() => { try { return forward([displayLatLng.lng, displayLatLng.lat], 5); } catch { return '---'; } })()
     : '';
 
-  const utmText = centerLatLng
+  const latLngText = displayLatLng
+    ? `${displayLatLng.lat.toFixed(6)}, ${displayLatLng.lng.toFixed(6)}`
+    : '';
+
+  const utmText = displayLatLng
     ? (() => {
         try {
-          const u = latLngToUTM(centerLatLng.lat, centerLatLng.lng);
+          const u = latLngToUTM(displayLatLng.lat, displayLatLng.lng);
           const e = Math.round(u.easting).toString().padStart(7, '0');
           const n = Math.round(u.northing).toString().padStart(7, '0');
           return `${u.zone}${u.northern ? 'N' : 'S'} ${e} ${n}`;
@@ -228,16 +233,17 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     setReadoutAnchor(e.currentTarget.getBoundingClientRect());
     setShowReadout(true);
     setAddress('');
-    if (!centerLatLng) return;
+    const pos = tempWaypoint ?? centerLatLng;
+    if (!pos) return;
     setAddressLoading(true);
-    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${centerLatLng.lat}&lon=${centerLatLng.lng}`, {
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.lat}&lon=${pos.lng}`, {
       headers: { 'Accept-Language': 'en' },
     })
       .then(r => r.ok ? r.json() : null)
       .then(d => setAddress(d?.display_name ?? ''))
       .catch(() => setAddress(''))
       .finally(() => setAddressLoading(false));
-  }, [centerLatLng]);
+  }, [centerLatLng, tempWaypoint]);
 
   const handleCopyField = useCallback((value: string, field: 'mgrs' | 'utm' | 'latlng' | 'address') => {
     if (!value) return;
@@ -272,6 +278,11 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     gpsLayerRef.current.addTo(map);
     presenceLayerRef.current.addTo(map);
     measureLayerRef.current.addTo(map);
+    tempWaypointLayerRef.current.addTo(map);
+
+    map.on('contextmenu', (e: L.LeafletMouseEvent) => {
+      setTempWaypoint({ lat: e.latlng.lat, lng: e.latlng.lng });
+    });
 
     updateMgrs(map);
 
@@ -325,12 +336,38 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     if (!map) return;
 
     const handler = (e: L.LeafletMouseEvent) => {
+      setTempWaypoint(null);
       onMapClick(e.latlng.lat, e.latlng.lng);
     };
 
     map.on('click', handler);
     return () => { map.off('click', handler); };
   }, [drawMode, onMapClick]);
+
+  // Render the temporary-waypoint marker (set via right-click / long-press).
+  useEffect(() => {
+    const group = tempWaypointLayerRef.current;
+    group.clearLayers();
+    if (!tempWaypoint) return;
+    const accent = theme === 'dark' ? '#FBBF24' : '#D97706';
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22">
+        <circle cx="11" cy="11" r="6" fill="${accent}" fill-opacity="0.25" stroke="${accent}" stroke-width="1.5" stroke-dasharray="2.5 2"/>
+        <circle cx="11" cy="11" r="1.75" fill="${accent}"/>
+      </svg>`;
+    const icon = L.divIcon({
+      html: svg,
+      className: '',
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+    });
+    const marker = L.marker([tempWaypoint.lat, tempWaypoint.lng], {
+      icon,
+      interactive: false,
+      keyboard: false,
+    });
+    group.addLayer(marker);
+  }, [tempWaypoint, theme]);
 
   // Cursor style based on draw mode
   useEffect(() => {
