@@ -80,6 +80,7 @@ interface SoldierProfileProps {
   onNavigateToArea?: (areaName: string) => void
   calendarEvents: CalendarEvent[]
   onOpenCalendar: () => void
+  onOpenEvent: (eventId: string) => void
   /** When provided, the soldier card becomes tap-to-edit (rank/roles/delete via popover) */
   onEditMember?: (memberId: string, anchorRect: DOMRect) => void
 }
@@ -101,6 +102,7 @@ export function SoldierProfile({
   onNavigateToArea,
   calendarEvents,
   onOpenCalendar,
+  onOpenEvent,
   onEditMember,
 }: SoldierProfileProps) {
   const isMobile = useIsMobile()
@@ -111,6 +113,13 @@ export function SoldierProfile({
   // Fitness — dev-gated; mirrors aft_record category visibility.
   const isDevRole = useAuthStore(s => s.isDevRole)
   const visibleEvents = useMemo(() => visibleEventsForRole(calendarEvents, isDevRole), [calendarEvents, isDevRole])
+  const upcomingEvents = useMemo(
+    () => visibleEvents.filter(e => new Date(e.end_time) >= now),
+    [visibleEvents, now],
+  )
+  const SCHEDULE_LIMIT = 5
+  const scheduleHidden = Math.max(0, upcomingEvents.length - SCHEDULE_LIMIT)
+  const scheduleShown = upcomingEvents.slice(0, SCHEDULE_LIMIT)
   const { clinicId: viewerClinicId } = useAuth()
   const { writeEvent, isWriting } = useCalendarWrite()
   const goalFabRef = useRef<HTMLDivElement>(null)
@@ -272,6 +281,13 @@ export function SoldierProfile({
     }
   }, [certPopover, certForm, soldier.id, onAddCert, onUpdateCert, closeCertPopover])
 
+  // Loan state from the viewer's perspective — drives the header badge only.
+  // The loan/transfer/remove actions themselves live in MemberEditPopover.
+  const loanState: 'loaned-in' | 'loaned-out' | 'home' =
+    soldier.isLoanedIn ? 'loaned-in'
+    : soldier.surrogateClinicId ? 'loaned-out'
+    : 'home'
+
   const handleConfirmDeleteCert = useCallback(async () => {
     if (!confirmDeleteCert) return
     setCertSaving(true)
@@ -350,7 +366,25 @@ export function SoldierProfile({
             <Building2 size={16} className="text-tertiary" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-primary truncate">{formatMedicName(soldier)}</p>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <p className="text-sm font-semibold text-primary truncate">{formatMedicName(soldier)}</p>
+              {loanState === 'loaned-in' && (
+                <span
+                  className="shrink-0 text-[8pt] px-1 py-0.5 rounded bg-themeblue2/10 text-themeblue2 font-medium border border-themeblue2/30"
+                  title={`Loaned in from ${soldier.clinicName ?? 'another clinic'}`}
+                >
+                  Loan
+                </span>
+              )}
+              {loanState === 'loaned-out' && (
+                <span
+                  className="shrink-0 text-[8pt] px-1 py-0.5 rounded bg-themeyellow/15 text-themeyellow font-medium border border-themeyellow/30"
+                  title="Loaned out"
+                >
+                  Out
+                </span>
+              )}
+            </div>
             <p className="text-[9pt] text-tertiary">
               {soldier.credential ?? 'No credential'} · {validCertCount}/{certs.length} certs valid
             </p>
@@ -510,26 +544,38 @@ export function SoldierProfile({
         </p>
         <div className="relative">
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-            {visibleEvents.length === 0 ? (
-              <p className="text-sm text-tertiary px-4 py-3">No events in the next 14 days</p>
+            {scheduleShown.length === 0 ? (
+              <p className="text-sm text-tertiary px-4 py-3">No upcoming events in the next 14 days</p>
             ) : (
-              visibleEvents.map((evt, idx) => {
-                const isPast = new Date(evt.end_time) < now
-                const meta = getCategoryMeta(evt.category)
-                return (
-                  <div
-                    key={evt.id}
-                    className={`flex items-center gap-3 px-4 py-3 transition-opacity ${idx > 0 ? 'border-t border-tertiary/8' : ''} ${isPast ? 'opacity-50' : ''}`}
+              <>
+                {scheduleShown.map((evt, idx) => {
+                  const meta = getCategoryMeta(evt.category)
+                  return (
+                    <button
+                      type="button"
+                      key={evt.id}
+                      onClick={() => onOpenEvent(evt.id)}
+                      className={`w-full text-left flex items-center gap-3 px-4 py-3 transition-colors hover:bg-themeblue3/5 ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
+                    >
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${meta.solidColor}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-primary truncate">{evt.title}</p>
+                        <p className="text-[9pt] text-tertiary">{formatEventDate(evt)}</p>
+                      </div>
+                      <span className="text-[9pt] text-tertiary shrink-0 capitalize">{evt.category}</span>
+                    </button>
+                  )
+                })}
+                {scheduleHidden > 0 && (
+                  <button
+                    type="button"
+                    onClick={onOpenCalendar}
+                    className="w-full text-left text-[9pt] text-tertiary px-4 py-2 border-t border-tertiary/8 hover:bg-themeblue3/5"
                   >
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${meta.solidColor}`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-primary truncate">{evt.title}</p>
-                      <p className="text-[9pt] text-tertiary">{formatEventDate(evt)}</p>
-                    </div>
-                    <span className="text-[9pt] text-tertiary shrink-0 capitalize">{evt.category}</span>
-                  </div>
-                )
-              })
+                    +{scheduleHidden} more in calendar
+                  </button>
+                )}
+              </>
             )}
           </div>
           <ActionPill shadow="sm" placement="overlay">

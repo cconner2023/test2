@@ -16,7 +16,7 @@ interface QuestionCardProps {
     onAnswer: (cardIndex: number, answerIndex: number) => void;
     onQuestionOption: (cardIndex: number, optionIndex: number) => void;
     onOpenScreener?: (cardIndex: number) => void;
-    onActionStatus?: (cardIndex: number, status: 'performed' | 'deferred') => void;
+    onActionStatus?: (cardIndex: number, status: 'performed' | 'deferred-pending' | 'deferred-continue' | 'deferred-stop') => void;
 }
 
 // components/QuestionCard.tsx
@@ -127,7 +127,10 @@ export const QuestionCard = memo(function QuestionCard({
                 // Non-screener action card — Performed / Deferred toggle
                 if (isAction) {
                     const isPerformed = card.actionStatus === 'performed';
-                    const isDeferred = card.actionStatus === 'deferred';
+                    const isDeferredPending = card.actionStatus === 'deferred-pending';
+                    const isDeferredContinue = card.actionStatus === 'deferred-continue';
+                    const isDeferredStop = card.actionStatus === 'deferred-stop';
+                    const isDeferred = isDeferredPending || isDeferredContinue || isDeferredStop;
 
                     return (
                         <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardAppearIn' : ''}`}>
@@ -160,6 +163,39 @@ export const QuestionCard = memo(function QuestionCard({
                                     </div>
                                 )}
 
+                                {/* Stop / Continue answer row — shown whenever the card is in any deferred-* state */}
+                                {isDeferred && (
+                                    <div className="relative flex w-full h-10 bg-themewhite2 border-t border-themered/20">
+                                        <div className={`
+                                            absolute top-0 left-0 h-full w-1/2
+                                            transition-all duration-300
+                                            ${isDeferredStop ? 'translate-x-0 bg-themered/15'
+                                                : isDeferredContinue ? 'translate-x-full bg-themered/15'
+                                                : '-translate-x-full bg-themewhite'}
+                                        `} />
+                                        <button
+                                            type="button"
+                                            onClick={() => onActionStatus?.(card.index, 'deferred-stop')}
+                                            disabled={isTransitioning}
+                                            className="relative h-full w-1/2 text-[10pt] flex items-center justify-center"
+                                        >
+                                            <span className={`transition-colors duration-300 ${isDeferredStop ? 'font-semibold text-themered' : 'text-gray-600'}`}>
+                                                STOP
+                                            </span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => onActionStatus?.(card.index, 'deferred-continue')}
+                                            disabled={isTransitioning}
+                                            className="relative h-full w-1/2 text-[10pt] flex items-center justify-center"
+                                        >
+                                            <span className={`transition-colors duration-300 ${isDeferredContinue ? 'font-semibold text-themered' : 'text-gray-600'}`}>
+                                                CONTINUE
+                                            </span>
+                                        </button>
+                                    </div>
+                                )}
+
                                 </div>
                                 {/* Performed / Deferred toggle — overlays card content; never adds height */}
                                 <ActionPill shadow="sm" placement="overlay">
@@ -177,7 +213,12 @@ export const QuestionCard = memo(function QuestionCard({
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => onActionStatus?.(card.index, 'deferred')}
+                                        onClick={() => {
+                                            // Only transition to pending if the user is actively switching off
+                                            // a non-deferred state. If already deferred-* (pending/stop/continue),
+                                            // ignore — they can switch between STOP/CONTINUE via the slider.
+                                            if (!isDeferred) onActionStatus?.(card.index, 'deferred-pending');
+                                        }}
                                         disabled={isTransitioning}
                                         aria-label="Deferred / Not Indicated"
                                         title="Deferred / Not Indicated"

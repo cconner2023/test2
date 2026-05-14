@@ -272,6 +272,7 @@ export interface ClinicDetails {
   name: string | null
   uics: string[]
   location: string | null
+  location_id: string | null
   associatedClinicIds: string[]
   rooms: ClinicRoom[]
   huddleTasks: ClinicHuddleTask[]
@@ -328,11 +329,11 @@ export async function getClinicDetails(
   try {
     const { data } = await supabase
       .from('clinics')
-      .select('name, uics, location, encryption_key, associated_clinic_ids, rooms, huddle_tasks')
+      .select('name, uics, location, location_id, encryption_key, associated_clinic_ids, rooms, huddle_tasks')
       .eq('id', clinicId)
       .single()
 
-    if (!data) return { name: null, uics: [], location: null, associatedClinicIds: [], rooms: [], huddleTasks: [] }
+    if (!data) return { name: null, uics: [], location: null, location_id: null, associatedClinicIds: [], rooms: [], huddleTasks: [] }
 
     let location: string | null = data.location ?? null
     if (location && data.encryption_key) {
@@ -347,12 +348,32 @@ export async function getClinicDetails(
       name: data.name ?? null,
       uics: data.uics ?? [],
       location,
+      location_id: (data as { location_id?: string | null }).location_id ?? null,
       associatedClinicIds: data.associated_clinic_ids ?? [],
       rooms: (data.rooms as ClinicRoom[]) ?? [],
       huddleTasks: ((data as { huddle_tasks?: ClinicHuddleTask[] }).huddle_tasks as ClinicHuddleTask[]) ?? [],
     }
   } catch {
-    return { name: null, uics: [], location: null, associatedClinicIds: [], rooms: [], huddleTasks: [] }
+    return { name: null, uics: [], location: null, location_id: null, associatedClinicIds: [], rooms: [], huddleTasks: [] }
+  }
+}
+
+// ─── Update Clinic Location ID (dedicated RPC) ─────────────────────────────
+
+export async function updateSupervisorClinicLocationId(
+  clinicId: string,
+  locationId: string | null,
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('supervisor_update_clinic_location_id', {
+      p_clinic_id: clinicId,
+      p_location_id: locationId,
+    })
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to update clinic location:', error)
+    return fail(getErrorMessage(error))
   }
 }
 
@@ -551,6 +572,101 @@ export async function setMemberRoles(
     return succeed()
   } catch (error) {
     logger.error('Failed to set member roles:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+// ─── Loan / Transfer / Remove Soldier ─────────────────────────────────────
+//
+// Three supervisor actions on a single soldier. Authorization on the server is
+// either (a) supervisor of the relevant clinic, or (b) possession of the target
+// clinic's invite code — mirroring how clinic-to-clinic association works.
+//
+// The migration adds three RPCs; this file defines the client contract.
+
+/**
+ * Loan a soldier to another clinic (sets `surrogate_clinic_id`).
+ * Auth: supervisor of the soldier's home clinic, plus a valid invite code for
+ * the target clinic (skipped server-side if the caller already supervises it).
+ */
+export async function loanSoldierToClinic(
+  userId: string,
+  targetClinicCode: string,
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('supervisor_loan_user', {
+      p_user_id: userId,
+      p_target_clinic_code: targetClinicCode.toUpperCase().trim(),
+    })
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to loan soldier:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+/**
+ * Transfer a soldier to another clinic (moves `clinic_id`, clears any surrogate).
+ * Auth: supervisor of the soldier's home clinic, plus a valid invite code for
+ * the target clinic.
+ */
+export async function transferSoldierToClinic(
+  userId: string,
+  targetClinicCode: string,
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('supervisor_transfer_user', {
+      p_user_id: userId,
+      p_target_clinic_code: targetClinicCode.toUpperCase().trim(),
+    })
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to transfer soldier:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+/**
+ * Recall a loaned-out soldier — clears `surrogate_clinic_id` only, leaving
+ * the home clinic intact. Auth: supervisor of either side (existing
+ * `set_user_surrogate` RPC handles the gate).
+ */
+export async function recallSoldier(
+  userId: string,
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('set_user_surrogate', {
+      p_user_id: userId,
+      p_surrogate_clinic_id: null,
+    })
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to recall soldier:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+/**
+ * Context-aware removal:
+ *  - soldier loaned out from caller's clinic → clears surrogate (recall).
+ *  - soldier loaned into caller's clinic    → clears surrogate (end loan).
+ *  - soldier in caller's clinic, no loan    → clears `clinic_id` (eject).
+ * Server resolves which side the caller is on.
+ */
+export async function removeSoldierFromClinic(
+  userId: string,
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('supervisor_remove_user', {
+      p_user_id: userId,
+    })
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to remove soldier:', error)
     return fail(getErrorMessage(error))
   }
 }

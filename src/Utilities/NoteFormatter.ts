@@ -101,11 +101,14 @@ export function formatAlgorithmContent(
             return; // skip normal card processing for this action card
         }
 
-        // Non-screener action card with performed/deferred status
-        if (card.type === 'action' && state.actionStatus) {
+        // Non-screener action card with a finalized performed/deferred status
+        // ('deferred-pending' is transient — treated as no decision yet).
+        if (card.type === 'action' && state.actionStatus && state.actionStatus !== 'deferred-pending') {
             const statusText = state.actionStatus === 'performed'
                 ? '[PERFORMED]'
-                : '[DEFERRED/NOT INDICATED]';
+                : state.actionStatus === 'deferred-stop'
+                    ? '[DEFERRED/NOT INDICATED — ALGORITHM STOPPED, REFER TO CLINIC]'
+                    : '[DEFERRED/NOT INDICATED]';
             const actionLines: string[] = [`${card.text} ${statusText}`];
             if (card.questionOptions && card.questionOptions.length > 0) {
                 card.questionOptions.forEach((option) => {
@@ -160,6 +163,18 @@ function findTriggeringDecisionMaking(
     dispositionType: string,
     dispositionText: string,
 ): decisionMakingType[] {
+    // Deferred-stop fallback: the "Refer to clinic" disposition isn't attached to any
+    // answer option, so borrow decision-making content from what would have been the
+    // next card's first answer option.
+    if (dispositionType === 'OTHER' && dispositionText === 'Refer to clinic') {
+        for (let i = cardStates.length - 1; i >= 0; i--) {
+            if (cardStates[i]?.actionStatus !== 'deferred-stop') continue;
+            const nextAnswer = algorithmOptions[i + 1]?.answerOptions?.[0];
+            return nextAnswer?.decisionMaking || [];
+        }
+        return [];
+    }
+
     for (let i = cardStates.length - 1; i >= 0; i--) {
         const card = cardStates[i];
         const algorithmCard = algorithmOptions[i];

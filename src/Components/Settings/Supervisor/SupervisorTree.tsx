@@ -1,9 +1,7 @@
-import { useRef, useState } from 'react'
-import { ChevronRight, ChevronDown, Plus } from 'lucide-react'
+import { useState } from 'react'
+import { ChevronRight, ChevronDown } from 'lucide-react'
 import { formatMedicName } from './supervisorHelpers'
 import { UserAvatar } from '../UserAvatar'
-import { ActionPill } from '../../ActionPill'
-import { ActionButton } from '../../ActionButton'
 import { SupervisorClinicFilterPanel } from '../../SupervisorClinicSwitcher'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 
@@ -16,8 +14,6 @@ interface SupervisorTreeProps {
   selection: TreeSelection
   onSelect: (selection: TreeSelection) => void
   readinessForSoldier: (soldierId: string) => number
-  /** When provided, an Add-member pill appears in the Personnel header */
-  onAddMember?: (anchorRect: DOMRect) => void
 }
 
 function readinessColor(pct: number): string {
@@ -31,10 +27,8 @@ export function SupervisorTree({
   selection,
   onSelect,
   readinessForSoldier,
-  onAddMember,
 }: SupervisorTreeProps) {
   const [personnelCollapsed, setPersonnelCollapsed] = useState(false)
-  const addPillRef = useRef<HTMLDivElement>(null)
 
   const isActive = (sel: TreeSelection): boolean => {
     if (sel.type !== selection.type) return false
@@ -53,18 +47,6 @@ export function SupervisorTree({
 
   return (
     <div className="relative h-full flex flex-col py-1">
-      {onAddMember && (
-        <ActionPill ref={addPillRef} shadow="sm" placement="overlay">
-          <ActionButton
-            icon={Plus}
-            label="Add member"
-            onClick={() => {
-              if (!addPillRef.current) return
-              onAddMember(addPillRef.current.getBoundingClientRect())
-            }}
-          />
-        </ActionPill>
-      )}
       <div className="flex-1 min-h-0 overflow-y-auto">
         {/* Clinic-context picker — only renders for loaned supervisors. */}
         <SupervisorClinicFilterPanel />

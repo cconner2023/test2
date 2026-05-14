@@ -136,7 +136,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
     }, [hookHandleQuestionOption]);
 
     // Action status wrapper — triggers animation when pending cards are revealed
-    const handleActionStatus = useCallback((cardIndex: number, status: 'performed' | 'deferred') => {
+    const handleActionStatus = useCallback((cardIndex: number, status: 'performed' | 'deferred-pending' | 'deferred-continue' | 'deferred-stop') => {
         setIsTransitioning(true);
         setActionStatus(cardIndex, status);
         setTimeout(() => {

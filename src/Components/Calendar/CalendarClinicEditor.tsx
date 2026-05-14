@@ -27,7 +27,7 @@ import { ConfirmDialog } from '../ConfirmDialog'
 import { ErrorPill } from '../ErrorPill'
 import { PreviewOverlay } from '../PreviewOverlay'
 
-export function CalendarClinicEditor() {
+export function CalendarClinicEditor({ showFitness = true }: { showFitness?: boolean } = {}) {
   // Pivot on the supervisor toggle so editing rooms / huddle tasks /
   // appointment types targets the active clinic context (assigned by default,
   // surrogate when toggled).
@@ -564,7 +564,7 @@ export function CalendarClinicEditor() {
         </div>
       </section>
 
-      {isDevRole && (
+      {isDevRole && showFitness && (
         <section data-tour="clinic-exercises">
           <div className="pb-2">
             <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Exercises</p>
@@ -609,7 +609,7 @@ export function CalendarClinicEditor() {
         </section>
       )}
 
-      {isDevRole && (
+      {isDevRole && showFitness && (
         <section data-tour="clinic-workouts">
           <div className="pb-2">
             <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Workouts</p>

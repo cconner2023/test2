@@ -272,6 +272,12 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   const { sendEvent: vaultSendEvent, deleteEvents: vaultDeleteEvents } = useCalendarVault()
   const { deleteEvent: calendarDeleteEvent } = useCalendarWrite()
   const huddleTasks = useClinicHuddleTasks()
+  const { medics: clinicMedics } = useClinicMedics()
+  const medicById = useMemo(() => {
+    const m = new Map<string, ClinicMedic>()
+    for (const med of clinicMedics) m.set(med.id, med)
+    return m
+  }, [clinicMedics])
   const [confirmDeleteEvent, setConfirmDeleteEvent] = useState<string | null>(null)
 
   const [missionOverlayFeatures, setMissionOverlayFeatures] = useState<OverlayFeature[]>([])
@@ -650,17 +656,30 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
             {ordered.map((g, gi) => (
               <div key={gi} className="flex flex-col gap-0.5">
                 <div className="text-[9pt] font-semibold uppercase tracking-wide text-secondary px-0.5">{g.label}</div>
-                {g.events.map(ev => (
-                  <button
-                    key={ev.id}
-                    onClick={() => handleEventClick(ev.id)}
-                    onContextMenu={(e) => { e.preventDefault(); setContextMenu({ event: ev, x: e.clientX, y: e.clientY }) }}
-                    className="flex items-center gap-2 text-left rounded px-1.5 py-1 active:bg-themeblue2/10"
-                  >
-                    <span className="text-[9pt] text-secondary tabular-nums shrink-0">{ev.start_time.slice(11, 16)}</span>
-                    <span className="text-[10pt] text-primary truncate">{ev.title}</span>
-                  </button>
-                ))}
+                {g.events.map(ev => {
+                  const assignedNames = ev.assigned_to
+                    .map(uid => medicById.get(uid))
+                    .filter((m): m is ClinicMedic => !!m)
+                    .map(getDisplayName)
+                  const titleDiffers = ev.title && ev.title.trim() && ev.title.trim() !== g.label.trim()
+                  const primary = assignedNames.length > 0
+                    ? assignedNames.join(', ')
+                    : (titleDiffers ? ev.title : 'Unassigned')
+                  const primaryClass = assignedNames.length === 0 && !titleDiffers
+                    ? 'text-[10pt] text-tertiary italic truncate'
+                    : 'text-[10pt] text-primary truncate'
+                  return (
+                    <button
+                      key={ev.id}
+                      onClick={() => handleEventClick(ev.id)}
+                      onContextMenu={(e) => { e.preventDefault(); setContextMenu({ event: ev, x: e.clientX, y: e.clientY }) }}
+                      className="flex items-center gap-2 text-left rounded px-1.5 py-1 active:bg-themeblue2/10"
+                    >
+                      <span className="text-[9pt] text-secondary tabular-nums shrink-0">{ev.start_time.slice(11, 16)}</span>
+                      <span className={primaryClass}>{primary}</span>
+                    </button>
+                  )
+                })}
               </div>
             ))}
           </div>

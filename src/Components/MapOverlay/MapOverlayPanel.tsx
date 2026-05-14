@@ -1,28 +1,16 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { CalendarEvent } from '../../Types/CalendarTypes';
 import { useSpring, animated } from '@react-spring/web';
-import { ChevronLeft, ChevronRight, Layers, Move, MapPin, Route, Pentagon, Trash2, X, Ruler, RadioTower, Undo2, Activity, Pause, Play, Square, Plus, Check, Map as MapIcon, Globe, Mountain, MountainSnow } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, Move, MapPin, Route, Pentagon, Trash2, X, Ruler, RadioTower, Undo2, Activity, Pause, Play, Square, Plus, Check } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ActionSheet, type ActionSheetOption } from '../ActionSheet';
 import { ActionPill } from '../ActionPill';
-import { TILE_SOURCES as STATIC_TILE_SOURCES } from '../../lib/mapTileService';
 
-// Lucide-shaped adapter so the pin submenu can render the actual waypoint glyph
-// (circle, cross, triangle, lz, obj, …) using WaypointIcon — same visual the
-// map paints — instead of a generic MapPin icon.
 function waypointGlyphIcon(type: WaypointType): LucideIcon {
   return ((props: { size?: number }) => (
     <WaypointIcon type={type} color="currentColor" size={props.size ?? 16} />
   )) as unknown as LucideIcon;
 }
-
-// Per-basemap glyph for the bottom-center island. Keys match TILE_SOURCES ids.
-const BASEMAP_ICONS: Record<string, LucideIcon> = {
-  osm: MapIcon,
-  'esri-imagery': Globe,
-  opentopo: Mountain,
-  'usgs-topo': MountainSnow,
-};
 import { LoadingSpinner } from '../LoadingSpinner';
 import { BaseDrawer } from '../BaseDrawer';
 import { HeaderPill, PillButton } from '../HeaderPill';
@@ -1015,7 +1003,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
           rightContent: (
             <div className="flex items-center w-full gap-2">
               <HeaderPill>
-                <PillButton icon={Layers} onClick={() => setShowPopover(prev => !prev)} label="Overlays" />
+                <PillButton icon={Settings} onClick={() => setShowPopover(prev => !prev)} label="Map settings" />
               </HeaderPill>
               <div className="flex-1 min-w-0">{searchInputEl}</div>
               <HeaderPill>
@@ -1065,7 +1053,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                   aria-label="Map settings"
                   title="Map settings"
                 >
-                  <Layers size={17} />
+                  <Settings size={17} />
                 </button>
               </div>
               <MapOverlayTree
@@ -1140,25 +1128,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                 onClose={() => setShowPopover(false)}
                 showGrid={showGrid}
                 onToggleGrid={() => setShowGrid(prev => !prev)}
-                overlays={overlays}
-                activeOverlayId={overlayId}
-                visibleOverlayIds={visibleOverlayIds}
-                onMakeActive={handleOpenOverlay}
-                onToggleVisible={handleToggleVisible}
-                onDelete={handleDeleteOverlay}
-                onNewOverlay={handleNewOverlay}
-                tileMeta={tileMetaMap}
-                downloadingId={downloadingId}
-                downloadProgress={downloadProgress}
-                onDownloadTiles={handleDownloadTiles}
-                onEvictTiles={handleEvictTiles}
-                onImportFile={handleImportFile}
-                onExportOverlay={handleExportOverlay}
-                onImportMBTiles={handleImportMBTiles}
-                mbtilesImportProgress={mbtilesProgress ?? geoPdfProgress}
-                onImportGeoPdf={handleOpenGeoPdfForm}
-                onDeleteImportedBasemap={handleDeleteImportedBasemap}
-                showOverlays={isMobile}
               />
               <GeoPdfImportForm
                 isOpen={geoPdfFormOpen}
@@ -1200,29 +1169,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                   )}
                 </BaseDrawer>
               )}
-
-              {/* ── Bottom-center: basemap island — one icon-only button per TILE_SOURCE ── */}
-              <div className="absolute bottom-4 inset-x-0 flex items-center justify-center z-[1002] pointer-events-none pb-[max(0rem,var(--sab,0px))]">
-                <div className="flex items-center gap-1 rounded-full bg-themewhite border border-tertiary/20 px-0.5 py-0.5 shadow-lg pointer-events-auto">
-                  {Object.values(STATIC_TILE_SOURCES).map((src) => {
-                    const active = basemapId === src.id;
-                    const Icon = BASEMAP_ICONS[src.id] ?? MapIcon;
-                    return (
-                      <button
-                        key={src.id}
-                        onClick={() => setBasemapId(src.id)}
-                        className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
-                          active ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
-                        }`}
-                        title={src.name}
-                        aria-label={src.name}
-                      >
-                        <Icon className="w-5 h-5" />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
 
               {/* ── Bottom-right: contextual stack + Add FAB ── */}
               <div className="absolute bottom-4 right-4 z-[1002] flex flex-col items-end gap-1.5 pb-[max(0rem,var(--sab,0px))] pointer-events-none">

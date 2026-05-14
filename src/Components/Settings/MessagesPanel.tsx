@@ -23,7 +23,6 @@ import { useCallActions } from '../../Hooks/CallContext'
 import { useAvatar } from '../../Utilities/AvatarContext'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { TextInput } from '../FormInputs'
-import { SwipeableCard, type SwipeAction as SwipeCardAction } from '../SwipeableCard'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { usePeerAvailability, type UnavailableReason } from '../../Hooks/usePeerAvailability'
 import { ChatDetailView, type ParticipantStatus } from '../ChatDetailView'
@@ -179,7 +178,6 @@ function ConversationPane({
   const pinnedKeys = useMemo(() => new Set(pinnedKeysArr), [pinnedKeysArr])
   const togglePinConversation = useMessagingStore(s => s.togglePinConversation)
   const [contextMenu, setContextMenu] = useState<{ conversationKey: string; x: number; y: number } | null>(null)
-  const [openSwipeId, setOpenSwipeId] = useState<string | null>(null)
   const [previewTarget, setPreviewTarget] = useState<PreviewTarget | null>(null)
   const [previewAnchorRect, setPreviewAnchorRect] = useState<DOMRect | null>(null)
   const showLoading = useMinLoadTime(loading ?? false)
@@ -484,25 +482,6 @@ function ConversationPane({
                   const lastMsg = msgs?.filter(m => m.messageType !== 'request-accepted' && !m.threadId).at(-1)
                   const isPinned = pinnedKeys.has(entry.key)
 
-                  const swipeActions: SwipeCardAction[] = [
-                    {
-                      key: 'pin',
-                      label: isPinned ? 'Unpin' : 'Pin',
-                      icon: Pin,
-                      iconBg: 'bg-themeblue2/15',
-                      iconColor: 'text-themeblue2',
-                      onAction: () => togglePinConversation(entry.key),
-                    },
-                    {
-                      key: 'delete',
-                      label: 'Delete',
-                      icon: Trash2,
-                      iconBg: 'bg-themeredred/15',
-                      iconColor: 'text-themeredred',
-                      onAction: () => deleteConversation(entry.key),
-                    },
-                  ]
-
                   const handleTap = () => {
                     if (entry.type === 'group' && entry.group) onSelectGroup(entry.group)
                     else if (entry.type === 'contact' && entry.medic) onSelectPeer(entry.medic)
@@ -528,27 +507,26 @@ function ConversationPane({
 
                   if (!listItem) return null
 
-                  return (
-                    <SwipeableCard
+                  return isMobile ? (
+                    <LongPressRow
                       key={entry.key}
-                      actions={swipeActions}
-                      isOpen={openSwipeId === entry.key}
-                      enabled
-                      onOpen={() => setOpenSwipeId(entry.key)}
-                      onClose={() => setOpenSwipeId(prev => prev === entry.key ? null : prev)}
-                      onTap={handleTap}
-                      onContextMenu={(e) => { e.preventDefault(); setContextMenu({ conversationKey: entry.key, x: e.clientX, y: e.clientY }) }}
-                      onLongPress={isMobile ? (x, y) => {
-                        handlePreview(
-                          { key: entry.key, type: entry.type, medic: entry.medic, group: entry.group, hasConversation: true, isPinned },
-                          new DOMRect(x - 20, y - 20, 40, 40),
-                        )
-                      } : undefined}
+                      onClick={handleTap}
+                      onLongPress={(rect) => handlePreview(
+                        { key: entry.key, type: entry.type, medic: entry.medic, group: entry.group, hasConversation: true, isPinned },
+                        rect,
+                      )}
                     >
-                      <div className="bg-themewhite3">
-                        {listItem}
-                      </div>
-                    </SwipeableCard>
+                      {listItem}
+                    </LongPressRow>
+                  ) : (
+                    <div
+                      key={entry.key}
+                      onClick={handleTap}
+                      onContextMenu={(e) => { e.preventDefault(); setContextMenu({ conversationKey: entry.key, x: e.clientX, y: e.clientY }) }}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      {listItem}
+                    </div>
                   )
                 })}
               </>

@@ -32,7 +32,7 @@ export interface ParsedNote {
     rfSelections: number[];
     cardEntries: { index: number; selections: number[]; answerIndex: number }[];
     screenerEntries: ScreenerEntry[];
-    actionEntries: { index: number; status: 'performed' | 'deferred' }[];
+    actionEntries: { index: number; status: 'performed' | 'deferred-pending' | 'deferred-continue' | 'deferred-stop' }[];
     hpiText: string;
     peText: string;
     planText: string;
@@ -271,9 +271,12 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
             case 'A': {
                 const aSegs = value.split('.');
                 if (aSegs.length >= 2) {
+                    const aChar = aSegs[1];
                     result.actionEntries.push({
                         index: parseInt(aSegs[0], 10),
-                        status: aSegs[1] === 'D' ? 'deferred' : 'performed',
+                        status: aChar === 'S' ? 'deferred-stop'
+                            : aChar === 'D' ? 'deferred-continue'
+                            : 'performed',
                     });
                 }
                 break;
@@ -405,8 +408,10 @@ function encodeAlgorithmCompact(
             const selPart = (card.questionOptions.length > 0 && state.selectedOptions.length > 0)
                 ? state.selectedOptions.map(o => o.toString(16)).join('')
                 : '';
-            const statusPart = state.actionStatus
-                ? (state.actionStatus === 'deferred' ? 'D' : 'P')
+            // 'deferred-pending' is a transient mid-decision state and is not serialized.
+            const statusPart = state.actionStatus === 'deferred-stop' ? 'S'
+                : state.actionStatus === 'deferred-continue' ? 'D'
+                : state.actionStatus === 'performed' ? 'P'
                 : '';
             if (selPart || statusPart) {
                 groups.push(idx + selPart + statusPart);
@@ -464,7 +469,7 @@ function decodeAlgorithmCompact(
     rfSelections: number[];
     cardEntries: { index: number; selections: number[]; answerIndex: number }[];
     screenerEntries: ScreenerEntry[];
-    actionEntries: { index: number; status: 'performed' | 'deferred' }[];
+    actionEntries: { index: number; status: 'performed' | 'deferred-pending' | 'deferred-continue' | 'deferred-stop' }[];
 } {
     const rfSelections: number[] = [];
     const cardEntries: { index: number; selections: number[]; answerIndex: number }[] = [];
@@ -586,15 +591,19 @@ function decodeCompactAction(
         return;
     }
 
-    // Non-screener: optional hex selections + optional P/D suffix
+    // Non-screener: optional hex selections + optional P/D/S suffix
+    // (P = performed, D = deferred-continue, S = deferred-stop)
     let selStr = rest;
     let statusChar = '';
-    if (rest.endsWith('P') || rest.endsWith('D')) {
+    if (rest.endsWith('P') || rest.endsWith('D') || rest.endsWith('S')) {
         statusChar = rest[rest.length - 1];
         selStr = rest.substring(0, rest.length - 1);
     }
     if (statusChar) {
-        actionEntries.push({ index: ci, status: statusChar === 'D' ? 'deferred' : 'performed' });
+        const status = statusChar === 'S' ? 'deferred-stop'
+            : statusChar === 'D' ? 'deferred-continue'
+            : 'performed';
+        actionEntries.push({ index: ci, status });
     }
     if (selStr.length > 0 && card.questionOptions.length > 0) {
         cardEntries.push({

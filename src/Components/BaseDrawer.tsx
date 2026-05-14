@@ -6,7 +6,6 @@ import { HeaderPill, PillButton } from './HeaderPill';
 import { GESTURE_THRESHOLDS, clamp } from '../Utilities/GestureUtils';
 import { DRAWER_TIMING } from '../Utilities/constants';
 import { useIsMobile } from '../Hooks/useIsMobile';
-import { useIOSKeyboard } from '../Hooks/useIOSKeyboard';
 import { useFocusKeepInView } from '../Hooks/useFocusKeepInView';
 
 /** Render prop type: children can receive handleClose for animated close */
@@ -188,11 +187,6 @@ export function BaseDrawer({
     const [desktopOpen, setDesktopOpen] = useState(false);
 
     const isMobile = useIsMobile();
-    const { keyboardHeight, viewportOffsetTop } = useIOSKeyboard();
-    // iOS pins position:fixed to the layout viewport; when the keyboard
-    // scrolls the visualViewport up, we must counter-shift to stay glued
-    // to the visual bottom.
-    const bottomOffset = Math.max(0, keyboardHeight - viewportOffsetTop);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     useFocusKeepInView(scrollContainerRef, isVisible);
 
@@ -332,12 +326,7 @@ export function BaseDrawer({
         ? (children as DrawerRenderProp)(handleClose)
         : children;
 
-    // Shrink height by keyboardHeight so the drawer top stays anchored when the iOS keyboard
-    // pushes the bottom up — otherwise translating bottom by keyboardHeight drives the top off-screen.
-    const baseMobileHeight = cardMode ? '35dvh' : (mobileFullScreen ? '100dvh' : fullHeight);
-    const mobileHeight = keyboardHeight > 0
-        ? `calc(${baseMobileHeight} - ${keyboardHeight}px)`
-        : baseMobileHeight;
+    const mobileHeight = cardMode ? '35dvh' : (mobileFullScreen ? '100dvh' : fullHeight);
 
     if (!isMounted && !isVisible) return null;
 
@@ -375,8 +364,8 @@ export function BaseDrawer({
                     maxHeight: mobileHeight,
                     width: mobileFloating ? undefined : '100%',
                     bottom: cardMode
-                        ? `calc(55dvh + ${bottomOffset}px)`
-                        : (mobileFloating ? 12 + bottomOffset : bottomOffset),
+                        ? '55dvh'
+                        : (mobileFloating ? 12 : 0),
                     transform: `translateY(${100 - drawerPosition}%)`,
                     opacity: Math.min(1, drawerPosition / 60 + 0.2),
                     borderRadius: (cardMode || mobileFloating) ? '1.25rem' : (mobileFullScreen ? '0' : '1.25rem 1.25rem 0 0'),

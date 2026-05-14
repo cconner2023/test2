@@ -20,6 +20,7 @@ import { useAlgorithmMetrics } from '../Hooks/useAlgorithmMetrics';
 import { useMergedNoteContent } from '../Hooks/useMergedNoteContent';
 import { X, Plus, Check, Eye, FileText, RotateCcw } from 'lucide-react';
 import { PreviewOverlay } from './PreviewOverlay';
+import { ConfirmDialog } from './ConfirmDialog';
 import { GUIDED_HPI_EXPANDED, GUIDED_PE_TEXT, GUIDED_PLAN_TEXT } from '../Data/GuidedTourData';
 import { PdfPreviewModal } from './PdfPreviewModal';
 import { ActionButton } from './ActionButton';
@@ -142,6 +143,8 @@ export const WriteNotePage = ({
     const [viewMode, setViewMode] = useState<'preview' | 'fullnote'>(
         () => (window.__tourNoteOverride ? 'fullnote' : 'preview')
     );
+    const [includeDecisionMaking, setIncludeDecisionMaking] = useState(true);
+    const [dmConfirmOpen, setDmConfirmOpen] = useState(false);
 
     // Tour override: clean up global flag on restore/unmount
     useEffect(() => {
@@ -162,7 +165,7 @@ export const WriteNotePage = ({
         algorithmOptions,
         cardStates,
         includeAlgorithm: true,
-        includeDecisionMaking: true,
+        includeDecisionMaking,
         dispositionType: disposition.type,
         dispositionText: disposition.text,
         selectedSymptom,
@@ -634,7 +637,24 @@ export const WriteNotePage = ({
 
                 <NoteWizardFooter
                     currentPage={currentPage} visiblePages={visiblePages} slideDirection={slideDirection}
-                    handleNext={handleNext} hasPII={hasPII} colors={colors} isMobile={isMobile}
+                    handleNext={() => {
+                        if (currentPageId === 'edit') {
+                            setDmConfirmOpen(true);
+                        } else {
+                            handleNext();
+                        }
+                    }}
+                    hasPII={hasPII} colors={colors} isMobile={isMobile}
+                />
+                <ConfirmDialog
+                    visible={dmConfirmOpen}
+                    title="Include decision making in note?"
+                    subtitle="Choose whether the algorithm's decision-making summary is composed into the final note."
+                    variant="primary"
+                    confirmLabel="Include DM"
+                    cancelLabel="Exclude DM"
+                    onConfirm={() => { setIncludeDecisionMaking(true); setDmConfirmOpen(false); handleNext(); }}
+                    onCancel={() => { setIncludeDecisionMaking(false); setDmConfirmOpen(false); handleNext(); }}
                 />
             </div>
         </BaseDrawer>

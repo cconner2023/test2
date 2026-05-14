@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { XCircle, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { XCircle, AlertTriangle, CheckCircle2, HelpCircle } from 'lucide-react'
 import { Modal } from './Modal'
 
 interface ConfirmDialogProps {
@@ -8,7 +8,7 @@ interface ConfirmDialogProps {
   subtitle?: string
   confirmLabel?: string
   cancelLabel?: string
-  variant?: 'danger' | 'warning' | 'success'
+  variant?: 'danger' | 'warning' | 'success' | 'primary'
   processing?: boolean
   onConfirm?: () => void
   onCancel: () => void
@@ -44,6 +44,14 @@ const variantStyles = {
     icon: 'text-themegreen',
     iconBg: 'bg-themegreen/15',
     Icon: CheckCircle2,
+  },
+  primary: {
+    confirmBtn: 'bg-themeblue2',
+    cancelText: 'text-themeblue2',
+    cancelBorder: 'border-themeblue2/40',
+    icon: 'text-themeblue2',
+    iconBg: 'bg-themeblue2/15',
+    Icon: HelpCircle,
   },
 } as const
 

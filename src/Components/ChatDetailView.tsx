@@ -7,7 +7,6 @@ import { ContactListItem } from './Settings/ContactListItem'
 import { useAuth } from '../Hooks/useAuth'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useImagePaste } from '../Hooks/useImagePaste'
-import { useIOSKeyboard } from '../Hooks/useIOSKeyboard'
 import { useChatInteractions } from '../Hooks/useChatInteractions'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useVoiceRecorder } from '../Hooks/useVoiceRecorder'
@@ -172,7 +171,6 @@ export function ChatDetailView({
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { isKeyboardOpen } = useIOSKeyboard()
 
   const [threadClosing, setThreadClosing] = useState(false)
   const messages = conversations[conversationId] ?? []
@@ -216,15 +214,6 @@ export function ChatDetailView({
     const el = scrollRef.current
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
   }, [activeThreadId ? messages.length : mainViewMessages.length])
-
-  // Auto-scroll when iOS keyboard opens
-  useEffect(() => {
-    if (isKeyboardOpen && scrollRef.current) {
-      requestAnimationFrame(() => {
-        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-      })
-    }
-  }, [isKeyboardOpen])
 
   // Mark as read + fetch history on open
   useEffect(() => {

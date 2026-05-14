@@ -10,12 +10,12 @@ import { useEffect, useCallback, useMemo, useState, useRef } from 'react'
 import { X, Plus, UserPlus } from 'lucide-react'
 import { UserRow } from '../UserRow'
 import { ActionButton } from '../ActionButton'
-import { listClinics, listAllUsers, updateClinic, createClinic } from '../../lib/adminService'
-import type { AdminUser, AdminClinic, ClinicRoom } from '../../lib/adminService'
+import { listClinics, listAllUsers, listLocations, updateClinic, createClinic } from '../../lib/adminService'
+import type { AdminUser, AdminClinic, AdminLocation, ClinicRoom } from '../../lib/adminService'
 import { formatLastActive } from './adminUtils'
 import { TextInput, UicPinInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
-import { ClinicMultiPickerInput } from './AdminPickers'
+import { ClinicMultiPickerInput, LocationPickerInput } from './AdminPickers'
 import { invalidate } from '../../stores/useInvalidationStore'
 import { sameStringSet } from '../../Utilities/arrayEquals'
 import { ActionPill } from '../ActionPill'
@@ -48,10 +48,11 @@ const AdminClinicDetail = ({
 }: AdminClinicDetailProps) => {
   const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
+  const [locations, setLocations] = useState<AdminLocation[]>([])
 
   // Edit state
   const [editName, setEditName] = useState('')
-  const [editLocation, setEditLocation] = useState('')
+  const [editLocationId, setEditLocationId] = useState<string | null>(null)
   const [editUics, setEditUics] = useState<string[]>([])
   const [editChildClinicIds, setEditChildClinicIds] = useState<string[]>([])
   const [editAssociatedClinicIds, setEditAssociatedClinicIds] = useState<string[]>([])
@@ -89,14 +90,16 @@ const AdminClinicDetail = ({
   const onClinicUpdatedRef = useRef(onClinicUpdated)
   onClinicUpdatedRef.current = onClinicUpdated
 
-  /** Load clinics and users. */
+  /** Load clinics, users, and the location taxonomy. */
   const loadData = useCallback(async () => {
-    const [fetchedClinics, fetchedUsers] = await Promise.all([
+    const [fetchedClinics, fetchedUsers, fetchedLocations] = await Promise.all([
       listClinics(),
       listAllUsers(),
+      listLocations(),
     ])
     setClinics(fetchedClinics)
     setUsers(fetchedUsers)
+    setLocations(fetchedLocations)
 
     if (!isCreateMode) {
       const refreshed = fetchedClinics.find((c) => c.id === clinic?.id)
@@ -113,7 +116,7 @@ const AdminClinicDetail = ({
   useEffect(() => {
     if (editing && !prevEditingRef.current) {
       setEditName(clinic?.name ?? '')
-      setEditLocation(clinic?.location ?? '')
+      setEditLocationId(clinic?.location_id ?? null)
       setEditUics([...(clinic?.uics ?? [])])
       setEditChildClinicIds([...(clinic?.child_clinic_ids ?? [])])
       setEditAssociatedClinicIds([...(clinic?.associated_clinic_ids ?? [])])
@@ -131,13 +134,13 @@ const AdminClinicDetail = ({
       JSON.stringify(editRooms) !== JSON.stringify(clinic?.rooms ?? [])
     const changed =
       editName !== (clinic?.name ?? '') ||
-      editLocation !== (clinic?.location ?? '') ||
+      editLocationId !== (clinic?.location_id ?? null) ||
       !sameStringSet(editUics, clinic?.uics ?? []) ||
       !sameStringSet(editChildClinicIds, clinic?.child_clinic_ids ?? []) ||
       !sameStringSet(editAssociatedClinicIds, clinic?.associated_clinic_ids ?? []) ||
       roomsChanged
     onPendingChangesChange?.(changed)
-  }, [editing, editName, editLocation, editUics, editChildClinicIds, editAssociatedClinicIds, editRooms, clinic, onPendingChangesChange])
+  }, [editing, editName, editLocationId, editUics, editChildClinicIds, editAssociatedClinicIds, editRooms, clinic, onPendingChangesChange])
 
   const handleSave = useCallback(async () => {
     if (!editName.trim()) {
@@ -156,7 +159,7 @@ const AdminClinicDetail = ({
     }
 
     if (isCreateMode) {
-      const result = await createClinic({ ...payload, location: editLocation.trim() || undefined })
+      const result = await createClinic({ ...payload, location_id: editLocationId })
       setSaving(false)
       if (result.success && result.id) {
         if (result.warnings?.length) {
@@ -169,7 +172,7 @@ const AdminClinicDetail = ({
       return
     }
 
-    const result = await updateClinic(clinic!.id, { ...payload, location: editLocation.trim() || null })
+    const result = await updateClinic(clinic!.id, { ...payload, location_id: editLocationId })
     setSaving(false)
     if (result.success) {
       onEditingChange(false)
@@ -181,7 +184,7 @@ const AdminClinicDetail = ({
     } else {
       setError(result.error || 'Failed to update clinic')
     }
-  }, [editName, editLocation, editUics, editChildClinicIds, editAssociatedClinicIds, editRooms, isCreateMode, clinic, onEditingChange, loadData, onCreated])
+  }, [editName, editLocationId, editUics, editChildClinicIds, editAssociatedClinicIds, editRooms, isCreateMode, clinic, onEditingChange, loadData, onCreated])
 
   const handleAddRoom = useCallback(() => {
     const trimmed = roomDraft.trim()
@@ -279,7 +282,12 @@ const AdminClinicDetail = ({
         {editing ? (
           <div>
             <TextInput value={editName} onChange={setEditName} placeholder="Clinic name" />
-            <TextInput value={editLocation} onChange={setEditLocation} placeholder="Location" />
+            <LocationPickerInput value={editLocationId} onChange={setEditLocationId} allLocations={locations} />
+            {clinic?.location && editLocationId === null && (
+              <p className="px-4 py-2 text-[9pt] text-tertiary border-b border-primary/6">
+                Legacy location: <span className="text-primary">{clinic.location}</span>
+              </p>
+            )}
 
             {editUics.length > 0 && (
               <div className="px-4 py-3 flex flex-wrap gap-1.5 border-b border-primary/6">
@@ -403,9 +411,21 @@ const AdminClinicDetail = ({
         ) : clinic ? (
           <div className="px-4 py-3">
             <p className="text-sm font-semibold text-primary">{clinic.name}</p>
-            {clinic.location && (
-              <p className="text-[9pt] text-tertiary mt-0.5">{clinic.location}</p>
-            )}
+            {(() => {
+              const loc = clinic.location_id ? locations.find(l => l.id === clinic.location_id) : null
+              if (loc) {
+                return (
+                  <p className="text-[9pt] text-tertiary mt-0.5">
+                    {loc.display_name}
+                    {loc.command && <span className="ml-1.5">· {loc.command}</span>}
+                  </p>
+                )
+              }
+              if (clinic.location) {
+                return <p className="text-[9pt] text-tertiary mt-0.5">{clinic.location}</p>
+              }
+              return null
+            })()}
             {clinic.uics.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-2">
                 {clinic.uics.map((uic) => (

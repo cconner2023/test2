@@ -28,6 +28,7 @@ import { MemberEditPopover } from './ClinicAdmin/MemberEditPopover'
 import { AddMemberPopover } from './ClinicAdmin/AddMemberPopover'
 import { useClinicMedics } from '../Hooks/useClinicMedics'
 import { getClinicDetails } from '../lib/supervisorService'
+import { listLocations, type AdminLocation } from '../lib/adminService'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 import type { StepResult } from '../Types/SupervisorTestTypes'
 import type { CalendarEvent } from '../Types/CalendarTypes'
@@ -83,11 +84,13 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   const isDevRole = useAuthStore(s => s.isDevRole)
   const calendarEvents = useMemo(() => visibleEventsForRole(allCalendarEvents, isDevRole), [allCalendarEvents, isDevRole])
   const setShowCalendarDrawer = useNavigationStore(s => s.setShowCalendarDrawer)
+  const openCalendarEvent = useNavigationStore(s => s.openCalendarEvent)
   const { refresh: refreshMedics } = useClinicMedics()
 
   // ── Clinic-admin popovers (shared with Settings/ClinicPanel) ──────────────
   const [clinicEditAnchor, setClinicEditAnchor] = useState<DOMRect | null>(null)
-  const [clinicDetails, setClinicDetails] = useState<{ uics: string[]; location: string | null }>({ uics: [], location: null })
+  const [clinicDetails, setClinicDetails] = useState<{ uics: string[]; location: string | null; location_id: string | null }>({ uics: [], location: null, location_id: null })
+  const [locations, setLocations] = useState<AdminLocation[]>([])
   const [memberEdit, setMemberEdit] = useState<{ memberId: string; anchor: DOMRect } | null>(null)
   const [addMemberAnchor, setAddMemberAnchor] = useState<DOMRect | null>(null)
 
@@ -95,9 +98,11 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   useEffect(() => {
     if (!clinicId) return
     getClinicDetails(clinicId).then((d) => {
-      setClinicDetails({ uics: d.uics, location: d.location })
+      setClinicDetails({ uics: d.uics, location: d.location, location_id: d.location_id })
     })
   }, [clinicId, isVisible])
+
+  useEffect(() => { listLocations().then(setLocations) }, [])
 
   const {
     loading: _loading,
@@ -317,6 +322,11 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     setShowCalendarDrawer(true)
   }, [handleClose, setShowCalendarDrawer])
 
+  const handleOpenEvent = useCallback((eventId: string) => {
+    handleClose()
+    openCalendarEvent(eventId)
+  }, [handleClose, openCalendarEvent])
+
   const handleTreeSelect = useCallback((selection: TreeSelection) => {
     setTreeSelection(selection)
     if (view.screen !== 'main') {
@@ -451,6 +461,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
               onNavigateToArea={handleNavigateToArea}
               teamEvents={windowedEvents}
               onOpenCalendar={handleOpenCalendar}
+              onOpenEvent={handleOpenEvent}
               onEditClinic={isSupervisor && clinicId ? setClinicEditAnchor : undefined}
               onAddMember={isSupervisor && clinicId ? setAddMemberAnchor : undefined}
             />
@@ -481,6 +492,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
             }}
             calendarEvents={windowedEvents.filter(e => e.assigned_to.includes(soldier.id))}
             onOpenCalendar={handleOpenCalendar}
+            onOpenEvent={handleOpenEvent}
             onEditMember={isSupervisor && clinicId
               ? (memberId, anchor) => setMemberEdit({ memberId, anchor })
               : undefined}
@@ -653,7 +665,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
                       selection={treeSelection}
                       onSelect={handleTreeSelect}
                       readinessForSoldier={readinessForSoldier}
-                      onAddMember={isSupervisor && clinicId ? setAddMemberAnchor : undefined}
                     />
                   </div>
                 </div>
@@ -675,10 +686,12 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         clinicId={clinicId}
         initialName={clinicNameFromAuth ?? clinicName ?? ''}
         initialLocation={clinicDetails.location}
+        initialLocationId={clinicDetails.location_id}
         initialUics={clinicDetails.uics}
+        locations={locations}
         onClose={() => setClinicEditAnchor(null)}
         onSaved={(next) => {
-          setClinicDetails({ uics: next.uics, location: next.location })
+          setClinicDetails({ uics: next.uics, location: next.location, location_id: next.location_id })
         }}
       />
       <MemberEditPopover
@@ -687,6 +700,14 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         memberId={memberEdit?.memberId ?? null}
         clinicId={clinicId}
         fallbackProfile={memberFallback}
+        loanState={(() => {
+          if (!memberEdit) return 'home'
+          const m = medics.find(x => x.id === memberEdit.memberId)
+          if (!m) return 'home'
+          if (m.isLoanedIn) return 'loaned-in'
+          if (m.surrogateClinicId) return 'loaned-out'
+          return 'home'
+        })()}
         onClose={() => setMemberEdit(null)}
         onChanged={handleMemberChanged}
       />

@@ -2,12 +2,22 @@ import { useRef, useEffect, useCallback, useState, forwardRef, useImperativeHand
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { forward } from 'mgrs';
-import { Plus, Minus, Info, Copy, ClipboardCheck, LocateFixed } from 'lucide-react';
+import { Plus, Minus, Info, Copy, ClipboardCheck, LocateFixed, Map as MapIcon, Globe, Mountain, MountainSnow } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { PreviewOverlay } from '../PreviewOverlay';
+import { ActionPill } from '../ActionPill';
 import { useTheme } from '../../Utilities/ThemeContext';
 import { createThemedTileLayer, getTileTheme } from './ThemedTileLayer';
-import { getTileFromCache, getTileSource } from '../../lib/mapTileService';
+import { getTileFromCache, getTileSource, TILE_SOURCES } from '../../lib/mapTileService';
+
+const BASEMAP_ICONS: Record<string, LucideIcon> = {
+  osm: MapIcon,
+  'esri-imagery': Globe,
+  opentopo: Mountain,
+  'usgs-topo': MountainSnow,
+};
 import { createMGRSGridLayer, getGridTheme } from './MGRSGridLayer';
+import { MGRSGridLabels } from './MGRSGridLabels';
 import type { OverlayFeature, DrawMode } from '../../Types/MapOverlayTypes';
 import { resolveColor } from '../../Types/MapOverlayTypes';
 import { waypointIconSvg } from './WaypointIcon';
@@ -148,6 +158,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   const coordDisplay = useMapPrefsStore(s => s.coordDisplay);
   const setCoordDisplay = useMapPrefsStore(s => s.setCoordDisplay);
   const basemapId = useMapPrefsStore(s => s.basemapId);
+  const setBasemapId = useMapPrefsStore(s => s.setBasemapId);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const tileLayerRef = useRef<L.GridLayer | null>(null);
@@ -164,12 +175,15 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   // Distinct from creating a real waypoint feature — purely local UI state.
   const [tempWaypoint, setTempWaypoint] = useState<{ lat: number; lng: number } | null>(null);
   const [showAttribution, setShowAttribution] = useState(false);
+  // Tracked separately so the label overlay re-renders once the map is ready.
+  const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const attributionTimer = useRef<ReturnType<typeof setTimeout>>();
 
   // Coordinate readout overlay state — opened by tapping the MGRS pill.
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [showReadout, setShowReadout] = useState(false);
   const [readoutAnchor, setReadoutAnchor] = useState<DOMRect | null>(null);
+  const [showBasemapPicker, setShowBasemapPicker] = useState(false);
   const [address, setAddress] = useState('');
   const [addressLoading, setAddressLoading] = useState(false);
   const [copiedField, setCopiedField] = useState<'mgrs' | 'utm' | 'latlng' | 'address' | null>(null);
@@ -228,6 +242,10 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     : coordDisplay === 'utm'
       ? (utmText || '---')
       : (latLngText || '---');
+
+  const handleOpenBasemapPicker = useCallback(() => {
+    setShowBasemapPicker(true);
+  }, []);
 
   const handleOpenReadout = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     setReadoutAnchor(e.currentTarget.getBoundingClientRect());
@@ -295,6 +313,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     });
 
     mapRef.current = map;
+    setMapInstance(map);
 
     // Leaflet caches container size on init — re-measure after drawer animation settles
     const resizeTimer = setTimeout(() => map.invalidateSize(), 350);
@@ -303,6 +322,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       clearTimeout(resizeTimer);
       map.remove();
       mapRef.current = null;
+      setMapInstance(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -336,6 +356,12 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     if (!map) return;
 
     const handler = (e: L.LeafletMouseEvent) => {
+      // In pan mode, an intentional tap on empty map = drop temp waypoint so the
+      // MGRS pill pins to that point. Draw modes still consume taps as vertex inserts.
+      if (drawMode === 'pan') {
+        setTempWaypoint({ lat: e.latlng.lat, lng: e.latlng.lng });
+        return;
+      }
       setTempWaypoint(null);
       onMapClick(e.latlng.lat, e.latlng.lng);
     };
@@ -350,16 +376,43 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     group.clearLayers();
     if (!tempWaypoint) return;
     const accent = theme === 'dark' ? '#FBBF24' : '#D97706';
+    const stroke = theme === 'dark' ? '#1F2937' : '#FFFFFF';
+    // Teardrop: tip at (15, 42) in 30×42 viewBox, rendered 21×29 with anchor at the tip.
+    // Placement animation (plays once on insert): an outer sonar ring collapses inward
+    // while the main path morphs from a large CCW circle (centered on the tip) into the
+    // teardrop shape — so the pin is literally formed by the collapsing ring, not popped in.
+    // All path keyframes share the same M + 4×C + z structure so SMIL can interpolate `d`.
+    const bigCircle  = 'M 15 14 C -0.46 14, -13 26.54, -13 42 C -13 57.46, -0.46 70, 15 70 C 30.46 70, 43 57.46, 43 42 C 43 26.54, 30.46 14, 15 14 z';
+    const midCircle  = 'M 15 7 C 3.95 7, -5 15.95, -5 27 C -5 38.05, 3.95 47, 15 47 C 26.05 47, 35 38.05, 35 27 C 35 15.95, 26.05 7, 15 7 z';
+    const teardrop   = 'M 15 1 C 7.27 1, 1 7.27, 1 15 C 1 25.5, 15 41, 15 41 C 15 41, 29 25.5, 29 15 C 29 7.27, 22.73 1, 15 1 z';
     const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22">
-        <circle cx="11" cy="11" r="6" fill="${accent}" fill-opacity="0.25" stroke="${accent}" stroke-width="1.5" stroke-dasharray="2.5 2"/>
-        <circle cx="11" cy="11" r="1.75" fill="${accent}"/>
+      <svg xmlns="http://www.w3.org/2000/svg" width="21" height="29" viewBox="0 0 30 42" overflow="visible" style="overflow:visible">
+        <defs>
+          <filter id="tw-shadow" x="-30%" y="-10%" width="160%" height="140%">
+            <feDropShadow dx="0" dy="1.5" stdDeviation="1.2" flood-opacity="0.35"/>
+          </filter>
+        </defs>
+        <circle cx="15" cy="42" r="72" fill="none" stroke="${accent}" stroke-width="0.4" opacity="0">
+          <animate attributeName="r" from="72" to="4" dur="0.3s" begin="0s" fill="freeze" repeatCount="1"/>
+          <animate attributeName="opacity" values="0;0.4;0" keyTimes="0;0.5;1" dur="0.3s" begin="0s" fill="freeze" repeatCount="1"/>
+          <animate attributeName="stroke-width" from="0.4" to="2.5" dur="0.3s" begin="0s" fill="freeze" repeatCount="1"/>
+        </circle>
+        <path d="${bigCircle}" fill="${accent}" fill-opacity="0" stroke="${accent}" stroke-width="2" stroke-opacity="0" filter="url(#tw-shadow)">
+          <animate attributeName="d" values="${bigCircle};${midCircle};${teardrop}" keyTimes="0;0.55;1" dur="0.9s" begin="0s" fill="freeze" repeatCount="1"/>
+          <animate attributeName="fill-opacity" values="0;0;1" keyTimes="0;0.55;1" dur="0.9s" begin="0s" fill="freeze" repeatCount="1"/>
+          <animate attributeName="stroke-opacity" values="0;0.9;0.9;1" keyTimes="0;0.15;0.55;1" dur="0.9s" begin="0s" fill="freeze" repeatCount="1"/>
+          <animate attributeName="stroke" values="${accent};${accent};${stroke}" keyTimes="0;0.55;1" dur="0.9s" begin="0s" fill="freeze" repeatCount="1"/>
+          <animate attributeName="stroke-width" values="2;2;1.5" keyTimes="0;0.55;1" dur="0.9s" begin="0s" fill="freeze" repeatCount="1"/>
+        </path>
+        <circle cx="15" cy="15" r="4.5" fill="${stroke}" opacity="0">
+          <animate attributeName="opacity" from="0" to="1" dur="0.2s" begin="0.75s" fill="freeze" repeatCount="1"/>
+        </circle>
       </svg>`;
     const icon = L.divIcon({
       html: svg,
       className: '',
-      iconSize: [22, 22],
-      iconAnchor: [11, 11],
+      iconSize: [21, 29],
+      iconAnchor: [10, 29],
     });
     const marker = L.marker([tempWaypoint.lat, tempWaypoint.lng], {
       icon,
@@ -684,20 +737,13 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         style={{ backgroundColor: theme === 'dark' ? 'rgb(15, 25, 35)' : 'rgb(240, 242, 245)' }}
       />
 
-      {/* MGRS readout — top-left pill, opens coordinate detail overlay */}
-      <button
-        type="button"
-        onClick={handleOpenReadout}
-        className="absolute left-3 z-[1000] flex items-center gap-1.5
-          bg-themewhite2/90 dark:bg-themewhite3/90 backdrop-blur-sm
-          text-primary text-[10pt] font-mono px-2.5 py-1.5 rounded-lg shadow-sm
-          active:scale-95 transition-all select-none"
-        style={{ top: controlsTopOffset ? `${controlsTopOffset + 12}px` : 12 }}
-        aria-label="Show coordinate detail"
-      >
-        <span>{activeCoordText}</span>
-        <Copy size={12} className="text-tertiary shrink-0" />
-      </button>
+      {showGrid && (
+        <MGRSGridLabels
+          map={mapInstance}
+          theme={getGridTheme(themeName, theme)}
+          topOffset={controlsTopOffset}
+        />
+      )}
 
       <PreviewOverlay
         isOpen={showReadout}
@@ -739,17 +785,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         </div>
       </PreviewOverlay>
 
-      {/* Zoom + GPS controls — top-left, vertically stacked (right side is FAB territory) */}
-      <div className="absolute left-3 top-3 z-[1000] flex flex-col gap-1.5">
-        <button
-          type="button"
-          onClick={handleRecenterGps}
-          disabled={!gpsPosition}
-          className={`${CTRL_BTN} disabled:opacity-30`}
-          aria-label="Center on my position"
-        >
-          <LocateFixed size={16} />
-        </button>
+      {/* Bottom-left: zoom controls */}
+      <div className="absolute bottom-4 left-3 z-[1000] flex flex-col gap-1.5 pointer-events-auto pb-[max(0rem,var(--sab,0px))]">
         <button type="button" onClick={handleZoomIn} className={CTRL_BTN} aria-label="Zoom in">
           <Plus size={16} />
         </button>
@@ -758,8 +795,75 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         </button>
       </div>
 
-      {/* Attribution — collapsed info icon, expands on tap */}
-      <div className="absolute bottom-2 right-3 z-[1000] flex items-center gap-1.5">
+      {/* Bottom-center island: basemap | locate | coord readout */}
+      <div className="absolute bottom-4 inset-x-0 flex items-center justify-center z-[1000] pointer-events-none pb-[max(0rem,var(--sab,0px))]">
+        <div className="flex items-center gap-1 rounded-full bg-themewhite2/95 dark:bg-themewhite3/95 backdrop-blur-sm border border-tertiary/20 px-1 py-1 shadow-lg pointer-events-auto max-w-[calc(100%-7rem)]">
+          <button
+            type="button"
+            onClick={() => setShowBasemapPicker(v => !v)}
+            className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all ${
+              showBasemapPicker ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
+            }`}
+            aria-label="Basemap"
+            title="Basemap"
+          >
+            {(() => {
+              const Icon = BASEMAP_ICONS[basemapId] ?? MapIcon;
+              return <Icon size={18} />;
+            })()}
+          </button>
+          <button
+            type="button"
+            onClick={handleOpenReadout}
+            className="min-w-0 flex items-center gap-1.5 px-2 h-9 rounded-full text-primary text-[10pt] font-mono active:scale-95 transition-all select-none"
+            aria-label="Show coordinate detail"
+          >
+            <span className="truncate">{activeCoordText}</span>
+            <Copy size={12} className="text-tertiary shrink-0" />
+          </button>
+          <button
+            type="button"
+            onClick={handleRecenterGps}
+            disabled={!gpsPosition}
+            className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-30"
+            aria-label="Center on my position"
+          >
+            <LocateFixed size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* Basemap picker — ActionPill row, floats above the island's basemap glyph
+          (mirrors the waypoint pin glyph picker convention) */}
+      {showBasemapPicker && (
+        <div className="absolute bottom-[4.25rem] inset-x-0 flex items-center justify-center z-[1001] pointer-events-none pb-[max(0rem,var(--sab,0px))]">
+          <ActionPill className="pointer-events-auto">
+            {Object.values(TILE_SOURCES).map((src) => {
+              const active = basemapId === src.id;
+              const Icon = BASEMAP_ICONS[src.id] ?? MapIcon;
+              return (
+                <button
+                  key={src.id}
+                  onClick={() => {
+                    setBasemapId(src.id);
+                    setShowBasemapPicker(false);
+                  }}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
+                    active ? 'bg-themeblue3 text-white' : 'bg-themeblue2/8 text-primary'
+                  }`}
+                  title={src.name}
+                  aria-label={src.name}
+                >
+                  <Icon size={16} />
+                </button>
+              );
+            })}
+          </ActionPill>
+        </div>
+      )}
+
+      {/* Attribution — collapsed info icon top-right so the Add FAB at bottom-right doesn't overlap it */}
+      <div className="absolute top-3 right-3 z-[1000] flex items-center gap-1.5">
         {showAttribution && (
           <span className="text-[9pt] text-secondary bg-themewhite2/80 dark:bg-themewhite3/80
             backdrop-blur-sm px-2 py-0.5 rounded-md animate-fadeIn">

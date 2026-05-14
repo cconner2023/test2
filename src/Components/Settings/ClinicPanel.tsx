@@ -23,6 +23,9 @@ import {
   getClinicEncryptionKey,
   getClinicDetails,
 } from '../../lib/supervisorService'
+// listLocations is an authenticated read of the canonical post taxonomy;
+// it lives in adminService for now but is safe for any signed-in caller.
+import { listLocations, type AdminLocation } from '../../lib/adminService'
 import { invalidate } from '../../stores/useInvalidationStore'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { UserAvatar } from './UserAvatar'
@@ -146,7 +149,16 @@ export function ClinicPanel({
   // Clinic details
   const [clinicUics, setClinicUics] = useState<string[]>([])
   const [clinicLocation, setClinicLocation] = useState<string | null>(null)
+  const [clinicLocationId, setClinicLocationId] = useState<string | null>(null)
   const [clinicAssociatedIds, setClinicAssociatedIds] = useState<string[]>([])
+  const [locations, setLocations] = useState<AdminLocation[]>([])
+
+  useEffect(() => { listLocations().then(setLocations) }, [])
+
+  const selectedLocation = useMemo(
+    () => locations.find(l => l.id === clinicLocationId) ?? null,
+    [locations, clinicLocationId],
+  )
 
   // Edit fields (legacy inline-edit path: still wired through saveRequested → handleSave)
   const [editName, setEditName] = useState('')
@@ -203,6 +215,7 @@ export function ClinicPanel({
     getClinicDetails(clinicId).then((details) => {
       setClinicUics(details.uics)
       setClinicLocation(details.location)
+      setClinicLocationId(details.location_id)
       setClinicAssociatedIds(details.associatedClinicIds)
     })
   }, [clinicId])
@@ -566,9 +579,9 @@ export function ClinicPanel({
                       ? `${memberCount} personnel`
                       : (profile.uic || 'No UIC')}
                   </p>
-                  {(clinicUics.length > 0 || clinicLocation) && (
+                  {(clinicUics.length > 0 || selectedLocation || clinicLocation) && (
                     <p className="text-[10pt] text-tertiary mt-0.5 truncate">
-                      {[clinicUics.join(', '), clinicLocation].filter(Boolean).join(' · ')}
+                      {[clinicUics.join(', '), selectedLocation ? selectedLocation.display_name : clinicLocation].filter(Boolean).join(' · ')}
                     </p>
                   )}
                   {activeCode && (
@@ -794,11 +807,14 @@ export function ClinicPanel({
         clinicId={clinicId}
         initialName={clinicName ?? ''}
         initialLocation={clinicLocation}
+        initialLocationId={clinicLocationId}
         initialUics={clinicUics}
+        locations={locations}
         onClose={() => setClinicEditAnchor(null)}
         onSaved={(next) => {
           setClinicUics(next.uics)
           setClinicLocation(next.location)
+          setClinicLocationId(next.location_id)
         }}
       />
 
@@ -818,6 +834,14 @@ export function ClinicPanel({
         memberId={memberPopover?.memberId ?? null}
         clinicId={clinicId}
         fallbackProfile={memberFallback}
+        loanState={(() => {
+          if (!memberPopover) return 'home'
+          const m = medics.find(x => x.id === memberPopover.memberId)
+          if (!m) return 'home'
+          if (m.isLoanedIn) return 'loaned-in'
+          if (m.surrogateClinicId) return 'loaned-out'
+          return 'home'
+        })()}
         onClose={() => setMemberPopover(null)}
         onChanged={refreshMedics}
       />

@@ -555,7 +555,45 @@ export interface AdminClinic {
   child_clinic_ids: string[]
   associated_clinic_ids: string[]
   location: string | null
+  location_id: string | null
   rooms: ClinicRoom[]
+}
+
+/**
+ * Canonical installation/post taxonomy (public.locations).
+ * Source of truth for the location picker; clinics reference rows via location_id.
+ */
+export interface AdminLocation {
+  id: string
+  country_code: string
+  subdivision: string | null
+  installation: string
+  sub_area: string | null
+  display_name: string
+  timezone: string
+  command: string | null
+  lat: number | null
+  lon: number | null
+}
+
+/**
+ * List all non-archived locations. Authenticated read; small set (~50–200 rows).
+ */
+export async function listLocations(): Promise<AdminLocation[]> {
+  try {
+    const { data, error } = await supabase
+      .from('locations')
+      .select('id, country_code, subdivision, installation, sub_area, display_name, timezone, command, lat, lon')
+      .is('archived_at', null)
+      .order('country_code')
+      .order('installation')
+      .order('sub_area')
+    if (error) throw error
+    return (data || []) as AdminLocation[]
+  } catch (error) {
+    logger.error('Failed to list locations:', error)
+    return []
+  }
 }
 
 /**
@@ -572,7 +610,7 @@ export async function listClinics(): Promise<AdminClinic[]> {
   try {
     const { data, error } = await supabase
       .from('clinics')
-      .select('id, name, uics, child_clinic_ids, associated_clinic_ids, location, rooms, encryption_key')
+      .select('id, name, uics, child_clinic_ids, associated_clinic_ids, location, location_id, rooms, encryption_key')
       .order('name')
 
     if (error) throw error
@@ -598,6 +636,7 @@ export async function listClinics(): Promise<AdminClinic[]> {
           child_clinic_ids: row.child_clinic_ids || [],
           associated_clinic_ids: row.associated_clinic_ids || [],
           location,
+          location_id: row.location_id ?? null,
           rooms: (row.rooms as ClinicRoom[]) || [],
         }
       })
@@ -621,6 +660,7 @@ export async function listClinics(): Promise<AdminClinic[]> {
 export async function createClinic(data: {
   name: string
   location?: string
+  location_id?: string | null
   uics?: string[]
   child_clinic_ids?: string[]
   associated_clinic_ids?: string[]
@@ -631,14 +671,31 @@ export async function createClinic(data: {
       ? await encryptWithRawKey(rawKey, data.location)
       : null
 
+    // Auto-associate with existing clinics that share the same canonical location.
+    // Legacy clinics without location_id don't participate until backfilled.
+    const seedAssociated = new Set(data.associated_clinic_ids || [])
+    if (data.location_id) {
+      const { data: sameLocation, error: locError } = await supabase
+        .from('clinics')
+        .select('id')
+        .eq('location_id', data.location_id)
+      if (locError) {
+        logger.error('Failed to query same-location clinics for auto-association:', locError.message)
+      } else {
+        for (const row of sameLocation || []) seedAssociated.add(row.id)
+      }
+    }
+    const initialAssociated = [...seedAssociated]
+
     const { data: result, error } = await supabase
       .from('clinics')
       .insert({
         name: data.name,
         location: encryptedLocation,
+        location_id: data.location_id ?? null,
         uics: data.uics || [],
         child_clinic_ids: data.child_clinic_ids || [],
-        associated_clinic_ids: data.associated_clinic_ids || [],
+        associated_clinic_ids: initialAssociated,
         encryption_key: rawKey,
         vault_chain_key: rawKey,
         vault_iteration: 0,
@@ -662,9 +719,8 @@ export async function createClinic(data: {
     }
 
     // Reciprocal: add new clinic to each associated clinic's array
-    const associated = data.associated_clinic_ids || []
-    if (newId && associated.length > 0) {
-      const syncFailures = await syncAssociatedClinics(newId, [], associated)
+    if (newId && initialAssociated.length > 0) {
+      const syncFailures = await syncAssociatedClinics(newId, [], initialAssociated)
       if (syncFailures.length > 0) {
         warnings.push(`Peer clinic sync failed for ${syncFailures.length} clinic(s)`)
       }
@@ -733,6 +789,7 @@ export async function updateClinic(
   updates: {
     name?: string
     location?: string | null
+    location_id?: string | null
     uics?: string[]
     child_clinic_ids?: string[]
     associated_clinic_ids?: string[]
@@ -740,7 +797,7 @@ export async function updateClinic(
   }
 ): Promise<ServiceResult<{ warnings?: string[] }>> {
   try {
-    // Encrypt location if it's being updated
+    // Encrypt legacy free-text location if it's being updated (location_id is plain).
     const payload: Record<string, unknown> = { ...updates }
     if (updates.location !== undefined && updates.location !== null) {
       payload.location = await encryptClinicField(id, updates.location)

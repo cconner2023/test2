@@ -11,8 +11,15 @@ export interface CardState {
     screenerResponses?: number[];
     followUpResponse?: number;
     completedScreenerId?: string;
-    actionStatus?: 'performed' | 'deferred';
+    actionStatus?: 'performed' | 'deferred-pending' | 'deferred-continue' | 'deferred-stop';
+    // For action cards: the downstream card indices that should be revealed
+    // when this action is resolved (Performed or Deferred-Continue). Captured
+    // at the moment the upstream answer reveals this action, so changing the
+    // action's status later can re-flush the same chain from scratch.
+    pendingAfter?: number[];
 }
+
+const REFER_DISPOSITION: dispositionType = { type: 'OTHER', text: 'Refer to clinic' };
 
 /** Creates a blank (reset) card state, preserving only visibility and index */
 const resetCard = (card: CardState): CardState => ({
@@ -25,6 +32,7 @@ const resetCard = (card: CardState): CardState => ({
     followUpResponse: undefined,
     completedScreenerId: undefined,
     actionStatus: undefined,
+    pendingAfter: undefined,
 });
 
 /** Resets all cards after `afterIndex`, skipping RF cards. Returns a new array. */
@@ -53,10 +61,14 @@ const revealWithPause = (
     for (let i = 0; i < indices.length; i++) {
         const idx = indices[i];
         if (idx >= 0 && idx < states.length) {
-            states[idx] = { ...states[idx], isVisible: true };
-            if (algorithmOpts[idx]?.type === 'action') {
-                return indices.slice(i + 1);
-            }
+            const isAction = algorithmOpts[idx]?.type === 'action';
+            const remaining = isAction ? indices.slice(i + 1) : undefined;
+            states[idx] = {
+                ...states[idx],
+                isVisible: true,
+                ...(isAction ? { pendingAfter: remaining } : {}),
+            };
+            if (isAction) return remaining!;
         }
     }
 
@@ -424,25 +436,62 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
         });
     }, [algorithmOptions]);
 
-    // Set performed/deferred status on a non-screener action card
+    // Set performed/deferred status on a non-screener action card.
+    // Any status change resets all downstream non-RF cards (clearing their answers
+    // and visibility), then either re-flushes the card's stored `pendingAfter` chain
+    // (Performed / Deferred-Continue) or halts with a "Refer to clinic" disposition
+    // (Deferred-Stop).
     const setActionStatus = useCallback((
         cardIndex: number,
-        status: 'performed' | 'deferred',
+        status: 'performed' | 'deferred-pending' | 'deferred-continue' | 'deferred-stop',
     ) => {
-        // Capture pending before the updater — React strict mode calls it twice
-        const pending = pendingRevealsRef.current;
         setCardStates(prev => {
-            const newStates = [...prev];
-            if (cardIndex < 0 || cardIndex >= newStates.length) return prev;
+            if (cardIndex < 0 || cardIndex >= prev.length) return prev;
+            let newStates = [...prev];
+            const prevStatus = newStates[cardIndex].actionStatus;
+            const chain = newStates[cardIndex].pendingAfter ?? [];
+
+            // Reset all downstream non-RF cards whenever the decision changes —
+            // their previous answers were predicated on the prior status.
+            if (prevStatus !== status) {
+                newStates = resetCardsAfter(newStates, cardIndex, algorithmOptions);
+            }
+
             newStates[cardIndex] = {
                 ...newStates[cardIndex],
                 actionStatus: status,
             };
-            // Flush pending reveals (pause again at the next action card)
-            pendingRevealsRef.current = revealWithPause(newStates, pending, algorithmOptions);
+
+            if (status === 'deferred-stop' || status === 'deferred-pending') {
+                pendingRevealsRef.current = [];
+                if (status === 'deferred-stop') {
+                    setCurrentDisposition(REFER_DISPOSITION);
+                } else {
+                    // Pending: clear any disposition this branch contributed; recompute from prior
+                    let dispo: dispositionType | null = null;
+                    for (let i = cardIndex - 1; i >= 0; i--) {
+                        if (rfCardIndices.includes(i)) continue;
+                        const a = newStates[i].answer;
+                        if (a?.disposition?.[0]) { dispo = a.disposition[0]; break; }
+                    }
+                    setCurrentDisposition(dispo);
+                }
+            } else {
+                // Re-reveal the downstream chain from scratch (pause at next action)
+                pendingRevealsRef.current = revealWithPause(newStates, chain, algorithmOptions);
+                // Recompute disposition from the last answered non-RF card before this one
+                // (clears the "Refer to clinic" override if switching off deferred-stop)
+                let dispo: dispositionType | null = null;
+                for (let i = cardIndex - 1; i >= 0; i--) {
+                    if (rfCardIndices.includes(i)) continue;
+                    const a = newStates[i].answer;
+                    if (a?.disposition?.[0]) { dispo = a.disposition[0]; break; }
+                }
+                setCurrentDisposition(dispo);
+            }
             return newStates;
         });
-    }, [algorithmOptions]);
+    }, [algorithmOptions, rfCardIndices]);
 
     return {
         cardStates,

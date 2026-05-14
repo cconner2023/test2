@@ -197,12 +197,13 @@ export async function cleanExpiredTombstones(): Promise<void> {
 
 /** Persist a single decrypted message to IndexedDB.
  *  Checks tombstone store first — skips messages created before the tombstone.
- *  When preserveReadAt is true (used by backup restore), a locally-set readAt is
- *  not overwritten — prevents a stale backup from resurfacing already-read messages. */
+ *  Always preserves a locally-set readAt when the incoming copy has none —
+ *  prevents a stale server row (markRead not yet acked) or backup from
+ *  resurfacing already-read messages. */
 export async function saveMessage(
   msg: DecryptedSignalMessage,
   localUserId: string,
-  options?: { preserveReadAt?: boolean }
+  _options?: { preserveReadAt?: boolean }
 ): Promise<void> {
   try {
     const peerId = msg.groupId ?? (msg.senderId === localUserId ? msg.recipientId : msg.senderId)
@@ -216,9 +217,7 @@ export async function saveMessage(
     let stored: StoredMessage = { ...msg, peerId }
     const db = await getDb()
 
-    // Preserve local readAt when restoring from backup — don't let a stale backup
-    // reset messages the user has already read.
-    if (options?.preserveReadAt && !stored.readAt) {
+    if (!stored.readAt) {
       const existing = await db.get('messages', stored.id)
       if (existing?.readAt) {
         stored = { ...stored, readAt: existing.readAt }

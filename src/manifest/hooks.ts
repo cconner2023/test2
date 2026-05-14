@@ -19,7 +19,6 @@ export const hooks = {
   useMessagesSlide:       { path: 'Hooks/useMessagesSlide.ts',       stores: ['useNavigationStore'], services: [], purpose: 'Messages panel slide with right-edge drag-to-open' },
   useOverlay:             { path: 'Hooks/useOverlay.ts',             stores: [], services: [], purpose: 'Mount/unmount animation + mobile drag-to-dismiss' },
   useIsMobile:            { path: 'Hooks/useIsMobile.ts',            stores: [], services: [], purpose: 'Media query: viewport ≤ 767px' },
-  useIOSKeyboard:         { path: 'Hooks/useIOSKeyboard.ts',         stores: [], services: [], purpose: 'Detect iOS keyboard height via visualViewport' },
   useOnboardingReady:     { path: 'Hooks/useOnboardingReady.ts',     stores: [], services: [], purpose: 'Aggregate blocking UI signals into readiness boolean' },
   useSearch:              { path: 'Hooks/useSearch.ts',              stores: [], services: [], purpose: 'Debounced search across categories, symptoms, meds, training' },
   useColumnCarousel:      { path: 'Hooks/useColumnCarousel.ts',      stores: [], services: [], purpose: 'CSS-transition horizontal panel carousel with swipe' },
@@ -29,7 +28,6 @@ export const hooks = {
   useLongPress:           { path: 'Hooks/useLongPress.ts',           stores: [], services: [], purpose: 'Touch long-press detector (500ms, 10px threshold)' },
   useLongPressDrag:       { path: 'Hooks/useLongPressDrag.ts',       stores: [], services: [], purpose: 'Long-press → drag for calendar events' },
   useSwipeBack:           { path: 'Hooks/useSwipeBack.ts',           stores: [], services: [], purpose: 'Left-edge swipe-back detector' },
-  useSwipeGesture:        { path: 'Hooks/useSwipeGesture.ts',        stores: [], services: [], purpose: 'Row-level swipe with long-press for action rows' },
   useSwipeNavigation:     { path: 'Hooks/useSwipeNavigation.ts',     stores: [], services: [], purpose: 'Cross-column swipe-right back + right-edge messages drag' },
   usePageSwipe:           { path: 'Hooks/usePageSwipe.ts',           stores: [], services: [], purpose: 'Horizontal page-swipe for mobile wizard/carousel' },
 

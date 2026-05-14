@@ -24,6 +24,18 @@ export function DecisionMaking({
     const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
 
     const findTriggeringDecisionMaking = (): decisionMakingType[] => {
+        // Deferred-stop fallback: the "Refer to clinic" disposition isn't attached to
+        // any answer option, so borrow decision-making content from what would have been
+        // the next card's first answer option.
+        if (disposition.type === 'OTHER' && disposition.text === 'Refer to clinic') {
+            for (let i = cardStates.length - 1; i >= 0; i--) {
+                if (cardStates[i]?.actionStatus !== 'deferred-stop') continue;
+                const nextAnswer = algorithmOptions[i + 1]?.answerOptions?.[0];
+                return nextAnswer?.decisionMaking || [];
+            }
+            return [];
+        }
+
         const results: decisionMakingType[] = [];
 
         for (let i = cardStates.length - 1; i >= 0; i--) {

@@ -39,6 +39,7 @@ interface TeamReportingProps {
   clinicName?: string | null
   teamEvents: CalendarEvent[]
   onOpenCalendar: () => void
+  onOpenEvent: (eventId: string) => void
   /** When provided, the clinic-overview card becomes tap-to-edit (supervisor surface) */
   onEditClinic?: (anchorRect: DOMRect) => void
   /** When provided, an Add-member pill appears in the Soldier Readiness header */
@@ -68,6 +69,7 @@ export function TeamReporting({
   clinicName,
   teamEvents,
   onOpenCalendar,
+  onOpenEvent,
   onEditClinic,
   onAddMember,
 }: TeamReportingProps) {
@@ -75,6 +77,13 @@ export function TeamReporting({
   const addMemberPillRef = useRef<HTMLDivElement>(null)
   const isDevRole = useAuthStore(s => s.isDevRole)
   const visibleTeamEvents = useMemo(() => visibleEventsForRole(teamEvents, isDevRole), [teamEvents, isDevRole])
+  const upcomingTeamEvents = useMemo(
+    () => visibleTeamEvents.filter(e => new Date(e.end_time) >= now),
+    [visibleTeamEvents, now],
+  )
+  const SCHEDULE_LIMIT = 5
+  const scheduleHidden = Math.max(0, upcomingTeamEvents.length - SCHEDULE_LIMIT)
+  const scheduleShown = upcomingTeamEvents.slice(0, SCHEDULE_LIMIT)
   const sortedSoldiers = useMemo(() => {
     return [...metrics.soldierReadiness].sort((a, b) => a.readinessPercent - b.readinessPercent)
   }, [metrics.soldierReadiness])
@@ -143,32 +152,44 @@ export function TeamReporting({
         </p>
         <div className="relative">
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-            {visibleTeamEvents.length === 0 ? (
-              <p className="text-sm text-tertiary px-4 py-3">No events in the next 14 days</p>
+            {scheduleShown.length === 0 ? (
+              <p className="text-sm text-tertiary px-4 py-3">No upcoming events in the next 14 days</p>
             ) : (
-              visibleTeamEvents.map((evt, idx) => {
-                const isPast = new Date(evt.end_time) < now
-                const meta = getCategoryMeta(evt.category)
-                return (
-                  <div
-                    key={evt.id}
-                    className={`flex items-center gap-3 px-4 py-3 transition-opacity ${idx > 0 ? 'border-t border-tertiary/8' : ''} ${isPast ? 'opacity-50' : ''}`}
+              <>
+                {scheduleShown.map((evt, idx) => {
+                  const meta = getCategoryMeta(evt.category)
+                  return (
+                    <button
+                      type="button"
+                      key={evt.id}
+                      onClick={() => onOpenEvent(evt.id)}
+                      className={`w-full text-left flex items-center gap-3 px-4 py-3 transition-colors hover:bg-themeblue3/5 ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
+                    >
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${meta.solidColor}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-primary truncate">{evt.title}</p>
+                        <p className="text-[9pt] text-tertiary">{formatEventDate(evt)}</p>
+                      </div>
+                      {evt.assigned_to.length > 0 && (
+                        <span className="text-[9pt] text-tertiary shrink-0">
+                          {evt.assigned_to.length === 1
+                            ? resolveName(evt.assigned_to[0])
+                            : `${evt.assigned_to.length} assigned`}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+                {scheduleHidden > 0 && (
+                  <button
+                    type="button"
+                    onClick={onOpenCalendar}
+                    className="w-full text-left text-[9pt] text-tertiary px-4 py-2 border-t border-tertiary/8 hover:bg-themeblue3/5"
                   >
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${meta.solidColor}`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-primary truncate">{evt.title}</p>
-                      <p className="text-[9pt] text-tertiary">{formatEventDate(evt)}</p>
-                    </div>
-                    {evt.assigned_to.length > 0 && (
-                      <span className="text-[9pt] text-tertiary shrink-0">
-                        {evt.assigned_to.length === 1
-                          ? resolveName(evt.assigned_to[0])
-                          : `${evt.assigned_to.length} assigned`}
-                      </span>
-                    )}
-                  </div>
-                )
-              })
+                    +{scheduleHidden} more in calendar
+                  </button>
+                )}
+              </>
             )}
           </div>
           <ActionPill shadow="sm" placement="overlay">
