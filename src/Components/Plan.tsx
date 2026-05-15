@@ -4,9 +4,12 @@ import type { PlanOrderTags, PlanOrderSet, PlanBlockKey, TextExpander } from '..
 import { PLAN_ORDER_CATEGORIES, PLAN_ORDER_LABELS } from '../Data/User';
 import { PreviewOverlay } from './PreviewOverlay';
 import { PlanAllBlocksPreview, CategoryPicker } from './PlanBlockPreview';
+import { CATEGORY_META } from './Settings/PlanTagManager';
 import { ListItemRow } from './ListItemRow';
 import { ExpandableInput } from './ExpandableInput';
-import { SearchInput } from './SearchInput';
+import { EmptyState } from './EmptyState';
+import { ActionPill } from './ActionPill';
+import { ActionButton } from './ActionButton';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -307,22 +310,21 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
     const [dragIndex, setDragIndex] = useState<number | null>(null);
     const [dragOffset, setDragOffset] = useState(0);
     const listRef = useRef<HTMLDivElement>(null);
+    const addPillRef = useRef<HTMLDivElement>(null);
 
     // Single FAB popover state
     const [showFabPopover, setShowFabPopover] = useState(false);
     const [fabAnchorRect, setFabAnchorRect] = useState<DOMRect | null>(null);
     const [activeTab, setActiveTab] = useState<PlanBlockKey | null>(null);
-    const [inputValue, setInputValue] = useState('');
     const [addCategory, setAddCategory] = useState<PlanBlockKey | null>(null);
 
     const addTarget = addCategory ?? activeTab;
 
-    const openFab = useCallback((e: React.MouseEvent, focusKey?: string) => {
-        setFabAnchorRect((e.currentTarget as HTMLElement).getBoundingClientRect());
+    const openFabFromAnchor = useCallback((anchor: HTMLElement, focusKey?: string) => {
+        setFabAnchorRect(anchor.getBoundingClientRect());
         const tab = (focusKey as PlanBlockKey) ?? null;
         setActiveTab(tab);
         setAddCategory(tab);
-        setInputValue('');
         setShowFabPopover(true);
     }, []);
 
@@ -335,7 +337,6 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
         if (pickerOpenAnchor) setFabAnchorRect(pickerOpenAnchor);
         setActiveTab(null);
         setAddCategory(null);
-        setInputValue('');
         setShowFabPopover(true);
     }, [pickerOpenSignal, pickerOpenAnchor]);
 
@@ -371,9 +372,7 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
         }));
     }, [allTags]);
 
-    const handleInputSubmit = useCallback(() => {
-        if (!inputValue.trim()) return;
-        const value = inputValue.trim();
+    const handleAdd = useCallback((value: string) => {
         // Resolve target: explicit selection → first category with a matching tag → first with tags
         const key = (addTarget as PlanBlockKey)
             ?? ALL_BLOCK_KEYS.find(k => allTags[k].includes(value))
@@ -384,8 +383,7 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
         } else {
             addCustomTag(key, value);
         }
-        setInputValue('');
-    }, [inputValue, addTarget, allTags, toggleTag, addCustomTag]);
+    }, [addTarget, allTags, toggleTag, addCustomTag]);
 
     /** Apply an order set — activates blocks and unions the preset tags */
     const applyOrderSet = useCallback((os: PlanOrderSet) => {
@@ -465,7 +463,6 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
         setFabAnchorRect(rect);
         setActiveTab(key ?? null);
         setAddCategory(key ?? null);
-        setInputValue('');
         setShowFabPopover(true);
     }, [visibleBlocks]);
 
@@ -525,21 +522,24 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
         <div className="space-y-4">
             {/* Block rows or empty state */}
             {visibleBlocks.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-6">
-                    <div className="flex items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={openFab}
-                            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary"
-                        >
-                            <Plus size={14} />
-                        </button>
-                    </div>
-                    <p className="text-[9pt] text-tertiary">Add plan blocks</p>
-                </div>
+                <EmptyState
+                    title="Add plan blocks"
+                    action={{
+                        icon: Plus,
+                        label: 'Add plan blocks',
+                        onClick: (a) => openFabFromAnchor(a),
+                    }}
+                />
             ) : (
-                <>
-                    <div className="rounded-xl bg-themewhite2 overflow-hidden">
+                <div className="relative">
+                    <ActionPill ref={addPillRef} shadow="sm" placement="overlay">
+                        <ActionButton
+                            icon={Plus}
+                            label="Add block"
+                            onClick={() => addPillRef.current && openFabFromAnchor(addPillRef.current)}
+                        />
+                    </ActionPill>
+                    <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
                         <div
                             ref={listRef}
                             className="px-4 py-3"
@@ -561,16 +561,7 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                             ))}
                         </div>
                     </div>
-                    <div className="flex justify-center items-center gap-2 pt-1">
-                        <button
-                            type="button"
-                            onClick={openFab}
-                            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all bg-tertiary/8 border border-dashed border-tertiary/20 text-tertiary"
-                        >
-                            <Plus size={14} />
-                        </button>
-                    </div>
-                </>
+                </div>
             )}
 
             {/* Unified popover — all categories with nested tags */}
@@ -579,7 +570,7 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                 onClose={() => setShowFabPopover(false)}
                 anchorRect={fabAnchorRect}
                 maxWidth={520}
-                previewMaxHeight="280px"
+                previewMaxHeight="200px"
                 headerCard={
                     <>
                         {orderSets.length > 0 && (
@@ -617,34 +608,34 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                         )}
                     </>
                 }
-                preview={
+                searchPlaceholder="Search items..."
+                searchPrefix={
+                    <CategoryPicker
+                        value={addTarget}
+                        variant="icon"
+                        categories={allCategories.map(c => ({
+                            key: c.key,
+                            label: c.label,
+                            icon: CATEGORY_META[c.key as PlanBlockKey].icon,
+                            color: CATEGORY_META[c.key as PlanBlockKey].color,
+                            bg: CATEGORY_META[c.key as PlanBlockKey].bg,
+                        }))}
+                        onChange={(key) => { setAddCategory(key as PlanBlockKey | null); setActiveTab(key as PlanBlockKey | null); }}
+                    />
+                }
+                preview={(filter, clearFilter) => (
                     <PlanAllBlocksPreview
                         categories={allCategories}
-                        filter={inputValue}
+                        filter={filter}
                         onToggleTag={(catKey, tag) => {
                             toggleTag(catKey as PlanBlockKey, tag);
-                            setInputValue('');
+                            clearFilter();
                         }}
                         activeTab={activeTab}
                     />
-                }
-                supplemental={
-                    <div className="flex items-center gap-2">
-                        <CategoryPicker
-                            value={addTarget}
-                            categories={allCategories}
-                            onChange={(key) => { setAddCategory(key as PlanBlockKey | null); setActiveTab(key as PlanBlockKey | null); }}
-                        />
-                        <div className="flex-1 min-w-0">
-                            <SearchInput
-                                value={inputValue}
-                                onChange={setInputValue}
-                                onSubmit={handleInputSubmit}
-                                placeholder="Search or add item..."
-                            />
-                        </div>
-                    </div>
-                }
+                )}
+                onAdd={handleAdd}
+                addPlaceholder="Add custom item..."
                 actions={[
                     {
                         key: 'reset',

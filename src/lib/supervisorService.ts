@@ -229,6 +229,29 @@ export async function createClinicUser(userData: {
   }
 }
 
+// ─── Reset Member Password ────────────────────────────────────────────────
+
+export async function supervisorResetUserPassword(
+  userId: string,
+  newPassword: string,
+): Promise<ServiceResult> {
+  try {
+    const pwError = validatePasswordComplexity(newPassword)
+    if (pwError) return fail(pwError)
+
+    const { error } = await supabase.rpc('supervisor_reset_password', {
+      p_target_user_id: userId,
+      p_new_password: newPassword,
+    })
+
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to reset member password:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
 // ─── Disassociate Clinic ──────────────────────────────────────────────────
 
 export async function disassociateClinic(

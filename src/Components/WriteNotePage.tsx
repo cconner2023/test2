@@ -500,7 +500,6 @@ export const WriteNotePage = ({
                                 <div className="space-y-2" data-tour="writenote-plan">
                                     <p className={SECTION_LABEL_CLASS}>Plan</p>
                                     <div
-                                        className={planHasContent ? CARD_CLASS : undefined}
                                         style={planHasContent ? undefined : { display: 'none' }}
                                         aria-hidden={!planHasContent}
                                     >

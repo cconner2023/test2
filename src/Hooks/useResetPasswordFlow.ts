@@ -9,8 +9,14 @@ import type { ServiceResult } from '../lib/result'
  * caller renders a ConfirmDialog bound to `confirmingUserId` and calls
  * `submit()` on confirm. This guarantees both call sites share the same
  * destructive-action gate.
+ *
+ * `resetFn` lets the supervisor surface route through `supervisor_reset_password`
+ * (server-side gates on caller-supervises-clinic) instead of the dev-only
+ * admin path. Defaults to the admin RPC for backward compatibility.
  */
-export function useResetPasswordFlow() {
+export function useResetPasswordFlow(
+  resetFn: (userId: string, newPassword: string) => Promise<ServiceResult> = resetUserPassword,
+) {
   const [value, setValue] = useState('')
   const [processing, setProcessing] = useState(false)
   const [confirmingUserId, setConfirmingUserId] = useState<string | null>(null)
@@ -26,12 +32,12 @@ export function useResetPasswordFlow() {
   const submit = useCallback(async (): Promise<ServiceResult> => {
     if (!confirmingUserId) return { success: false, error: 'No pending reset request.' }
     setProcessing(true)
-    const result = await resetUserPassword(confirmingUserId, value)
+    const result = await resetFn(confirmingUserId, value)
     setProcessing(false)
     setConfirmingUserId(null)
     if (result.success) setValue('')
     return result
-  }, [confirmingUserId, value])
+  }, [confirmingUserId, value, resetFn])
 
   const reset = useCallback(() => setValue(''), [])
 

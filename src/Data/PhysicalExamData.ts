@@ -54,9 +54,11 @@ export const VITAL_SIGNS: VitalSignDef[] = [
     { key: 'rr',    label: 'Respirations',    shortLabel: 'RR',   unit: '/min', placeholder: '12-20'  },
     { key: 'bpSys', label: 'BP (Systolic)',   shortLabel: 'BPs',  unit: 'mmHg', placeholder: '120'    },
     { key: 'bpDia', label: 'BP (Diastolic)',  shortLabel: 'BPd',  unit: 'mmHg', placeholder: '80'     },
+    { key: 'spo2',  label: 'SpO₂',            shortLabel: 'SpO2', unit: '%',    placeholder: '95-100' },
     { key: 'temp',  label: 'Temperature',     shortLabel: 'Temp', unit: '°F',   placeholder: '98.6'   },
     { key: 'ht',    label: 'Height',          shortLabel: 'Ht',   unit: 'in',   placeholder: '68'     },
     { key: 'wt',    label: 'Weight',          shortLabel: 'Wt',   unit: 'lbs',  placeholder: '170'    },
+    { key: 'lmp',   label: 'LMP',             shortLabel: 'LMP',  unit: '',     placeholder: 'YYYY-MM-DD' },
 ];
 
 export function isBackPainCode(code: string): boolean {

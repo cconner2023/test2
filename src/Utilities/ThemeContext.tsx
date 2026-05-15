@@ -2,7 +2,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { logError } from './ErrorHandler';
 
-export type ThemeName = 'default' | 'ironclad' | 'forest' | 'void' | 'slipstream' | 'urban';
+export type ThemeName = 'default' | 'ironclad' | 'forest' | 'void' | 'slipstream' | 'urban' | 'topo';
 export type ThemeMode = 'light' | 'dark';
 type ThemeId = `${ThemeName}-${ThemeMode}`;
 
@@ -21,7 +21,7 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const VALID_NAMES: ThemeName[] = ['default', 'ironclad', 'forest', 'void', 'slipstream', 'urban'];
+const VALID_NAMES: ThemeName[] = ['default', 'ironclad', 'forest', 'void', 'slipstream', 'urban', 'topo'];
 const VALID_MODES: ThemeMode[] = ['light', 'dark'];
 
 export function parseThemeId(raw: string | null): { name: ThemeName; mode: ThemeMode } | null {
@@ -50,6 +50,8 @@ const META_COLORS: Record<ThemeId, string> = {
     'slipstream-dark':    'rgb(12, 15, 18)',
     'urban-light':        'rgb(240, 236, 228)',
     'urban-dark':         'rgb(14, 13, 12)',
+    'topo-light':         'rgb(241, 234, 211)',
+    'topo-dark':          'rgb(12, 16, 10)',
 };
 
 /** Provides multi-theme context (named palette + light/dark mode) with localStorage persistence and system preference detection. */

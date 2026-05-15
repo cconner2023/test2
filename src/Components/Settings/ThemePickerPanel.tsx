@@ -51,6 +51,13 @@ const THEME_DEFS: {
             dark: { bg: '#0e0d0c', surface: '#161412', accent: '#84644e', text: '#dcd4c8' },
             light: { bg: '#f0ece4', surface: '#e0dace', accent: '#5a4230', text: '#12100c' },
         },
+        {
+            name: 'topo',
+            label: 'Topo',
+            tagline: 'Topographic Survey',
+            dark: { bg: '#0c100a', surface: '#141a10', accent: '#a4944c', text: '#dcd4bc' },
+            light: { bg: '#f1ead3', surface: '#e7dec4', accent: '#605824', text: '#1c180c' },
+        },
 ];
 
 export function ThemePickerPanel() {

@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { Check, Pencil, Trash2, Loader2, Camera, ImagePlus, Send, ArrowRightLeft, Undo2 } from 'lucide-react'
+import { Check, Pencil, Trash2, Loader2, Camera, ImagePlus, Send, ArrowRightLeft, Undo2, KeyRound } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionButton } from '../ActionButton'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { ErrorPill } from '../ErrorPill'
 import { PickerInput } from '../FormInputs'
+import { ResetPasswordForm } from '../Admin/ResetPasswordForm'
 import {
   getMemberProfile,
   updateMemberProfile,
@@ -13,8 +14,10 @@ import {
   loanSoldierToClinic,
   transferSoldierToClinic,
   recallSoldier,
+  supervisorResetUserPassword,
   type MemberProfileData,
 } from '../../lib/supervisorService'
+import { useResetPasswordFlow } from '../../Hooks/useResetPasswordFlow'
 import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
 import { invalidate } from '../../stores/useInvalidationStore'
 
@@ -173,6 +176,28 @@ export function MemberEditPopover({
     handleClose()
   }, [memberId, onChanged, handleClose])
 
+  // ─── Reset Password ──────────────────────────────────────────────────
+  const [resetMode, setResetMode] = useState(false)
+  const resetPw = useResetPasswordFlow(supervisorResetUserPassword)
+  const [resetError, setResetError] = useState<string | null>(null)
+
+  const closeReset = useCallback(() => {
+    setResetMode(false)
+    setResetError(null)
+    resetPw.reset()
+    resetPw.cancelConfirm()
+  }, [resetPw])
+
+  const handleResetSubmit = useCallback(async () => {
+    if (!resetPw.confirmingUserId) return
+    const r = await resetPw.submit()
+    if (!r.success) {
+      setResetError(r.error)
+      return
+    }
+    closeReset()
+  }, [resetPw, closeReset])
+
   // ─── Loan / Transfer ─────────────────────────────────────────────────
   const [moveMode, setMoveMode] = useState<'loan' | 'transfer' | null>(null)
   const [moveCode, setMoveCode] = useState('')
@@ -290,6 +315,17 @@ export function MemberEditPopover({
                   />
                   <ActionButton icon={ArrowRightLeft} label="Transfer" onClick={() => setMoveMode('transfer')} />
                 </>
+              )}
+              {!editMode && (
+                <ActionButton
+                  icon={KeyRound}
+                  label="Reset password"
+                  onClick={() => {
+                    resetPw.reset()
+                    setResetError(null)
+                    setResetMode(true)
+                  }}
+                />
               )}
               <ActionButton
                 icon={Trash2}
@@ -471,6 +507,46 @@ export function MemberEditPopover({
           </div>
         )}
       </PreviewOverlay>
+
+      {/* Reset password — sibling overlay, mirrors loan/transfer pattern */}
+      <PreviewOverlay
+        isOpen={resetMode}
+        onClose={closeReset}
+        anchorRect={anchorRect}
+        title="Reset password"
+        maxWidth={380}
+      >
+        {resetMode && memberId && (
+          <div>
+            <ResetPasswordForm
+              value={resetPw.value}
+              onChange={resetPw.setValue}
+              onSubmit={() => resetPw.requestConfirm(memberId)}
+              onCancel={closeReset}
+              processing={resetPw.processing}
+            />
+            {resetError && (
+              <div className="px-4 py-2">
+                <ErrorPill>{resetError}</ErrorPill>
+              </div>
+            )}
+            <p className="px-4 py-2 text-[9pt] text-tertiary border-t border-primary/6">
+              The new password takes effect immediately. The user is not notified.
+            </p>
+          </div>
+        )}
+      </PreviewOverlay>
+
+      <ConfirmDialog
+        visible={!!resetPw.confirmingUserId}
+        title={`Reset password for ${title || 'this user'}?`}
+        subtitle="The new password takes effect immediately. The user is not notified."
+        confirmLabel="Reset"
+        variant="danger"
+        processing={resetPw.processing}
+        onConfirm={handleResetSubmit}
+        onCancel={resetPw.cancelConfirm}
+      />
     </>
   )
 }

@@ -78,6 +78,9 @@ interface MapViewProps {
   /** Fired on right-click (desktop) / long-press (mobile). Used by the panel
    *  to drop a pin at the gesture point regardless of draw mode. */
   onLongPress?: (lat: number, lng: number) => void;
+  /** Transient marker for an uncommitted tap / long-press. Not a feature —
+   *  promoted to a real waypoint only when the user accepts in the panel. */
+  tempPoint?: { lat: number; lng: number } | null;
 }
 
 const DEFAULT_CENTER: [number, number] = [38.8977, -77.0365];
@@ -161,6 +164,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   readOnlyFeatures,
   selectedAnchor,
   onLongPress,
+  tempPoint,
 }, ref) {
   const { theme, themeName } = useTheme();
   const bearingReference = useMapPrefsStore(s => s.bearingReference);
@@ -176,6 +180,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   const readOnlyLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const gpsLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const measureLayerRef = useRef<L.LayerGroup>(L.layerGroup());
+  const tempPointLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const presenceLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const [centerLatLng, setCenterLatLng] = useState<{ lat: number; lng: number } | null>(null);
   const [showAttribution, setShowAttribution] = useState(false);
@@ -301,6 +306,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     gpsLayerRef.current.addTo(map);
     presenceLayerRef.current.addTo(map);
     measureLayerRef.current.addTo(map);
+    tempPointLayerRef.current.addTo(map);
 
     updateMgrs(map);
 
@@ -661,6 +667,21 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       group.addLayer(line);
     }
   }, [measurePoints, measureResult, bearingReference]);
+
+  // Sync transient temp-point marker. Uncommitted — a pulsing dashed ring
+  // around a hollow dot distinguishes it from real waypoints.
+  useEffect(() => {
+    const group = tempPointLayerRef.current;
+    group.clearLayers();
+    if (!tempPoint) return;
+    const html = `
+      <div style="position:relative;width:24px;height:24px;">
+        <div style="position:absolute;inset:0;border-radius:50%;border:2px dashed #2563EB;opacity:0.85;"></div>
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:10px;height:10px;border-radius:50%;background:#FFFFFF;border:2px solid #2563EB;box-shadow:0 1px 2px rgba(0,0,0,0.35);"></div>
+      </div>`;
+    const icon = L.divIcon({ html, className: '', iconSize: [24, 24], iconAnchor: [12, 12] });
+    L.marker([tempPoint.lat, tempPoint.lng], { icon, interactive: false }).addTo(group);
+  }, [tempPoint]);
 
   useImperativeHandle(ref, () => ({
     flyTo: (lat: number, lng: number, z?: number) => {

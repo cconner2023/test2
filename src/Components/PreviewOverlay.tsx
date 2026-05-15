@@ -67,6 +67,8 @@ interface PreviewOverlayProps {
   previewMaxHeight?: string
   /** Adds a search input pinned to the top of the inner card */
   searchPlaceholder?: string
+  /** Optional element rendered before the search input (e.g. icon category picker) */
+  searchPrefix?: ReactNode
   /** Optional content rendered between the shell header and the inner card */
   headerCard?: ReactNode
   /** Optional content rendered between the inner card and the footer */
@@ -99,6 +101,7 @@ export function PreviewOverlay({
   maxWidth,
   previewMaxHeight,
   searchPlaceholder,
+  searchPrefix,
   headerCard,
   supplemental,
   onAdd,
@@ -203,13 +206,16 @@ export function PreviewOverlay({
                 <div className="bg-themewhite rounded-2xl overflow-hidden min-h-0">
                   {title && <PopoverHeader title={title} onClose={onClose} onBack={onBack} />}
                   {searchPlaceholder && preview && (
-                    <div className="border-b border-tertiary/10 px-2 py-1.5">
-                      <SearchInput
-                        value={filter}
-                        onChange={setFilter}
-                        placeholder={searchPlaceholder}
-                        className="!bg-transparent !border-transparent !shadow-none text-[10pt]"
-                      />
+                    <div className="border-b border-tertiary/10 px-2 py-1.5 flex items-center gap-1.5">
+                      {searchPrefix}
+                      <div className="flex-1 min-w-0">
+                        <SearchInput
+                          value={filter}
+                          onChange={setFilter}
+                          placeholder={searchPlaceholder}
+                          className="!bg-transparent !border-transparent !shadow-none text-[10pt]"
+                        />
+                      </div>
                     </div>
                   )}
                   <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: previewMaxHeight ?? '40dvh' }}>

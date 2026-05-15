@@ -56,6 +56,36 @@ import { registerAllImportedBasemaps, importMBTiles, deleteImportedBasemap, type
 import { importGeoPdf, type GeoPdfImportProgress } from '../../lib/mapImporters/geopdf';
 import { TILE_SOURCES } from '../../lib/mapTileService';
 import { GeoPdfImportForm } from './GeoPdfImportForm';
+import { forward as mgrsForward } from 'mgrs';
+import { latLngToUTM } from './utmProjection';
+
+function TempPointBody({ lat, lng }: { lat: number; lng: number }) {
+  let mgrs = '—';
+  try { mgrs = mgrsForward([lng, lat], 5); } catch { /* ignore */ }
+  let utm = '—';
+  try {
+    const u = latLngToUTM(lat, lng);
+    const e = Math.round(u.easting).toString().padStart(7, '0');
+    const n = Math.round(u.northing).toString().padStart(7, '0');
+    utm = `${u.zone}${u.northern ? 'N' : 'S'} ${e} ${n}`;
+  } catch { /* ignore */ }
+  const latLng = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  const rows: Array<{ label: string; value: string }> = [
+    { label: 'MGRS', value: mgrs },
+    { label: 'UTM', value: utm },
+    { label: 'Lat / Lng', value: latLng },
+  ];
+  return (
+    <div className="flex flex-col gap-2 p-3">
+      {rows.map(row => (
+        <div key={row.label} className="px-2.5 py-2 rounded-lg bg-themewhite2/60 dark:bg-themewhite3/60">
+          <div className="text-[9pt] font-medium text-tertiary uppercase tracking-wide">{row.label}</div>
+          <div className="text-[10pt] font-mono text-primary truncate" title={row.value}>{row.value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 type ViewState = 'viewer' | 'converter';
 
@@ -134,6 +164,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   const [features, setFeatures] = useState<OverlayFeature[]>([]);
   const [drawMode, setDrawMode] = useState<DrawMode>('pan');
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
+  // Transient single-tap / long-press marker. Does NOT commit a feature —
+  // user must explicitly promote it via "Save as waypoint" in the temp-point
+  // drawer. Prevents accidental waypoint litter from stray taps.
+  const [tempPoint, setTempPoint] = useState<{ lat: number; lng: number } | null>(null);
   const [gotoDismissedFor, setGotoDismissedFor] = useState<string | null>(null);
   const [showGrid, setShowGrid] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -668,6 +702,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     if (drawMode === 'pin') {
       dropPinAt(lat, lng);
       setDrawMode('pan');
+      setTempPoint(null);
       return;
     }
 
@@ -753,23 +788,33 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     }
 
     if (drawMode === 'pan') {
-      // Google-Maps-like split: desktop single-click on empty map drops a pin;
-      // mobile waits for a long-press (handled separately by `handleMapLongPress`)
-      // so accidental taps under the partial drawer don't litter the overlay.
-      // Empty-tap never deselects — the X button owns deselection.
+      // Desktop single-click drops a transient temp point (mobile waits for
+      // long-press). Temp point shows a "Temp point" drawer with coordinates
+      // and a Save-as-waypoint promote action — nothing is committed to the
+      // feature list until the user explicitly accepts.
       if (!isMobile) {
-        dropPinAt(lat, lng);
+        setSelectedFeatureId(null);
+        setTempPoint({ lat, lng });
       }
     }
   }, [drawMode, overlayId, measurePoints, features, pinType, isMobile, dropPinAt]);
 
-  // Long-press / right-click → always drop a pin, regardless of mode. Lets
-  // the user drop pins while panning without juggling the Add FAB.
+  // Long-press / right-click → drop a transient temp point regardless of
+  // pan mode. Does not commit a waypoint; user promotes via the drawer.
   const handleMapLongPress = useCallback((lat: number, lng: number) => {
     if (!overlayId) return;
     if (drawMode === 'route' || drawMode === 'area' || drawMode === 'measure' || drawMode === 'track') return;
-    dropPinAt(lat, lng);
-  }, [overlayId, drawMode, dropPinAt]);
+    setSelectedFeatureId(null);
+    setTempPoint({ lat, lng });
+  }, [overlayId, drawMode]);
+
+  const handlePromoteTempPoint = useCallback(() => {
+    if (!tempPoint) return;
+    dropPinAt(tempPoint.lat, tempPoint.lng);
+    setTempPoint(null);
+  }, [tempPoint, dropPinAt]);
+
+  const handleCloseTempPoint = useCallback(() => setTempPoint(null), []);
 
   // ── Finish route/area ──
   // Called when the user toggles out of route/area mode. Routes auto-finalize
@@ -906,6 +951,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
       }
       return;
     }
+    setTempPoint(null);
     setSelectedFeatureId(prev => prev === featureId ? null : featureId);
   }, [drawMode, features, handleMapClick]);
 
@@ -943,6 +989,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     setDrawMode(next);
     setMeasurePoints([]);
     setMeasureResult(null);
+    if (next !== 'pan') setTempPoint(null);
   }, [drawMode, finishRoute]);
 
   // ── Delete selected ──
@@ -1150,6 +1197,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                 tilesCached={overlayId ? tileMetaMap.has(overlayId) : false}
                 presenceMarkers={presenceMarkers}
                 readOnlyFeatures={visibleReadOnlyFeatures}
+                tempPoint={tempPoint}
               />
 
               {/* ── Map settings (overlays + grid) — drawer/preview-overlay, calendar-settings pattern ── */}
@@ -1205,6 +1253,32 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                       onFocusLeg={(bbox) => mapRef.current?.fitBounds(bbox)}
                     />
                   )}
+                </BaseDrawer>
+              )}
+
+              {/* ── Mobile: temp-point drawer. Transient — no feature is
+                  committed until the user taps "Save as waypoint". ── */}
+              {isMobile && (
+                <BaseDrawer
+                  isVisible={!!tempPoint && !selectedFeature}
+                  onClose={handleCloseTempPoint}
+                  mobileOnly
+                  fullHeight="60dvh"
+                  initialPosition={40}
+                  noBackdrop
+                  zIndex="z-[1010]"
+                  header={{
+                    title: 'Temp point',
+                    rightContent: (
+                      <HeaderPill>
+                        <PillButton icon={Check} iconSize={18} onClick={handlePromoteTempPoint} label="Save as waypoint" circleBg="bg-themegreen text-white" />
+                        <PillButton icon={X} iconSize={18} onClick={handleCloseTempPoint} label="Close" />
+                      </HeaderPill>
+                    ),
+                    hideDefaultClose: true,
+                  }}
+                >
+                  {tempPoint && <TempPointBody lat={tempPoint.lat} lng={tempPoint.lng} />}
                 </BaseDrawer>
               )}
 
@@ -1508,8 +1582,22 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
               Map column is flex-1 so it reflows as this pane opens/closes. */}
           {!isMobile && (
             <div className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-all duration-300 overflow-hidden ${
-              selectedFeature ? 'w-[320px] opacity-100' : 'w-0 opacity-0 border-l-0'
+              (selectedFeature || tempPoint) ? 'w-[320px] opacity-100' : 'w-0 opacity-0 border-l-0'
             }`}>
+              {!selectedFeature && tempPoint && (
+                <div className="relative flex flex-col flex-1 min-h-0">
+                  <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-tertiary/10">
+                    <div className="text-[10pt] font-semibold text-primary truncate flex-1 min-w-0">Temp point</div>
+                    <HeaderPill>
+                      <PillButton icon={Check} iconSize={18} onClick={handlePromoteTempPoint} label="Save as waypoint" circleBg="bg-themegreen text-white" />
+                      <PillButton icon={X} iconSize={18} onClick={handleCloseTempPoint} label="Close" />
+                    </HeaderPill>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    <TempPointBody lat={tempPoint.lat} lng={tempPoint.lng} />
+                  </div>
+                </div>
+              )}
               {selectedFeature && (
                 <div className="relative flex flex-col flex-1 min-h-0">
                   <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-tertiary/10">

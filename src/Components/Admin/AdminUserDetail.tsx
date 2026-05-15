@@ -18,6 +18,7 @@ import { AdminCertsSection } from './AdminCertsSection'
 import { TextInput, PickerInput, MultiPickerInput, UicPinInput, PasswordInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { ConfirmDialog } from '../ConfirmDialog'
+import { Z } from '../BaseOverlay'
 import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
 import { PreviewOverlay } from '../PreviewOverlay'
@@ -665,6 +666,7 @@ export function AdminUserDetail({
         processing={resetPw.processing}
         onConfirm={handleResetPasswordConfirm}
         onCancel={resetPw.cancelConfirm}
+        zIndex={Z.POPOVER + 30}
       />
 
       <ConfirmDialog

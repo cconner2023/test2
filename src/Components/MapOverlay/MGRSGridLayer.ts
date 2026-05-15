@@ -40,6 +40,9 @@ const GRID_THEMES: Record<`${ThemeName}-${ThemeMode}`, GridTheme> = {
 
   'urban-light':      { lineColor: 'rgba(90,66,48,0.78)',      lineColorMajor: 'rgba(90,66,48,1.00)',      labelColor: '#5A4230', labelBg: 'rgba(244,240,232,0.9)' },
   'urban-dark':       { lineColor: 'rgba(132,100,78,0.75)',    lineColorMajor: 'rgba(132,100,78,0.95)',    labelColor: '#84644E', labelBg: 'rgba(14,13,11,0.9)' },
+
+  'topo-light':       { lineColor: 'rgba(96,88,36,0.80)',      lineColorMajor: 'rgba(96,88,36,1.00)',      labelColor: '#605824', labelBg: 'rgba(241,234,211,0.9)' },
+  'topo-dark':        { lineColor: 'rgba(164,148,76,0.75)',    lineColorMajor: 'rgba(164,148,76,0.95)',    labelColor: '#A4944C', labelBg: 'rgba(12,16,10,0.9)' },
 }
 
 export function getGridTheme(name: ThemeName, mode: ThemeMode): GridTheme {
