@@ -320,9 +320,10 @@ export async function fetchUnreadMessages(
 }
 
 export async function markMessagesRead(
-  messageIds: string[]
+  messageIds: string[],
+  recipientId?: string,
 ): Promise<Result<void>> {
-  return transportManager.markRead(messageIds)
+  return transportManager.markRead(messageIds, recipientId)
 }
 
 export async function deleteMessages(

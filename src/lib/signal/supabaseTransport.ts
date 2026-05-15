@@ -110,6 +110,20 @@ export class SupabaseTransport implements SignalTransport {
   }
 
   async fetchUnread(userId: string, deviceId?: string): Promise<Result<SignalMessageRow[]>> {
+    // Per-recipient read state lives in signal_message_reads. Legacy
+    // signal_messages.read_at is kept as a silent-fail "already read"
+    // fallback for rows that pre-date the 20260514_signal_message_reads
+    // migration, so cutover doesn't replay history.
+    const { data: readRows, error: readErr } = await supabase
+      .from('signal_message_reads')
+      .select('message_id')
+      .eq('recipient_id', userId)
+    if (readErr) {
+      logger.error('fetchUnread reads-lookup error:', readErr.message)
+      return err(readErr.message)
+    }
+    const readIds = (readRows ?? []).map(r => r.message_id)
+
     return this.runQuery<SignalMessageRow[]>(() => {
       let query = supabase
         .from('signal_messages')
@@ -118,6 +132,9 @@ export class SupabaseTransport implements SignalTransport {
         .is('read_at', null)
         .order('created_at', { ascending: true })
 
+      if (readIds.length > 0) {
+        query = query.not('id', 'in', `(${readIds.join(',')})`)
+      }
       if (deviceId) {
         query = query.or(`recipient_device_id.eq.${deviceId},recipient_device_id.is.null`)
       }
@@ -126,10 +143,13 @@ export class SupabaseTransport implements SignalTransport {
     }, 'fetchUnread', [])
   }
 
-  async markRead(messageIds: string[]): Promise<Result<void>> {
+  async markRead(messageIds: string[], recipientId?: string): Promise<Result<void>> {
     if (messageIds.length === 0) return ok(undefined)
     return this.runQuery(
-      () => supabase.from('signal_messages').update({ read_at: new Date().toISOString() }).in('id', messageIds),
+      () => supabase.rpc('mark_signal_messages_read', {
+        p_message_ids: messageIds,
+        p_recipient_id: recipientId ?? null,
+      }),
       'markRead',
     )
   }

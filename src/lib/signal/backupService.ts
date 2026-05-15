@@ -56,6 +56,19 @@ let _pagehideRegistered = false
  *  Prevents a fresh device from overwriting the backup before restoring. */
 let _hydrationComplete = false
 
+/** Whether restoreBackup has finished (success, failure, or empty server row).
+ *  createBackup is a no-op until this is true — otherwise a freshly-signed-in
+ *  device can upload its pre-restore IDB snapshot and overwrite the server's
+ *  richer snapshot. This is what causes the "device wipe" symptom: a peer
+ *  device receives a delete envelope, deletes from IDB, schedules a backup,
+ *  and the backup races the still-in-flight restore. */
+let _restoreCompleted = false
+
+/** Single-flight lock for createBackup. Multiple concurrent invocations
+ *  (delete handler + incoming sync + periodic timer) collapse into one
+ *  upload so a snapshot taken mid-transaction can't overwrite a clean one. */
+let _createBackupInFlight: Promise<void> | null = null
+
 export function markHydrationComplete(): void {
   _hydrationComplete = true
 }
@@ -64,6 +77,11 @@ export function markHydrationComplete(): void {
 const BACKUP_MAX_WAIT_MS = 30_000
 /** Periodic backup interval (ms). */
 const BACKUP_PERIODIC_MS = 60_000
+/** How many backup snapshots to retain server-side per user.
+ *  See 20260514_signal_backups_multi_snapshot. A clean snapshot survives
+ *  at least N-1 bad writes; restoreBackup walks newest-first and falls
+ *  back to older snapshots if a newer one fails to decrypt. */
+const BACKUP_RETAIN_COUNT = 3
 
 // ---- IDB persistence for the non-extractable CryptoKey ----
 
@@ -242,6 +260,8 @@ export function clearBackupKey(): void {
   _backupKey = null
   _backupKeyReady = null
   _hydrationComplete = false
+  _restoreCompleted = false
+  _createBackupInFlight = null
   _firstDirtyAt = null
   _scheduledUserId = null
   if (_backupTimer) {
@@ -384,8 +404,31 @@ async function flushBackup(userId: string): Promise<void> {
 
 // ---- Public API ----
 
-/** Create an encrypted backup and upsert to Supabase. */
+/** Create an encrypted backup and upsert to Supabase.
+ *
+ *  Gated on _restoreCompleted: never uploads before restoreBackup has finished,
+ *  so a freshly-signed-in device can't clobber the server snapshot with its
+ *  pre-restore IDB state. Single-flight: concurrent invocations (delete handler
+ *  + incoming sync + periodic timer + pagehide flush) coalesce into one upload.
+ */
 export async function createBackup(userId: string): Promise<void> {
+  if (!_restoreCompleted) {
+    logger.info('createBackup deferred — restoreBackup has not completed yet')
+    return
+  }
+  if (_createBackupInFlight) return _createBackupInFlight
+
+  _createBackupInFlight = (async () => {
+    try {
+      await doCreateBackup(userId)
+    } finally {
+      _createBackupInFlight = null
+    }
+  })()
+  return _createBackupInFlight
+}
+
+async function doCreateBackup(userId: string): Promise<void> {
   try { if (_backupKeyReady) await _backupKeyReady } catch { /* fall through to IDB */ }
   if (!_backupKey) {
     // Session restored without password (e.g. PWA reopen) — try IDB
@@ -428,81 +471,128 @@ export async function createBackup(userId: string): Promise<void> {
 
     const { salt, ciphertext } = await encryptWithKey(compressed, _backupKey)
 
+    // Multi-snapshot retention (see 20260514_signal_backups_multi_snapshot).
+    // Each createBackup inserts a NEW row; trim_signal_backups RPC prunes to
+    // the last N. A clean snapshot survives at least N-1 bad writes.
     const { error } = await supabase
       .from('signal_backups')
-      .upsert({
+      .insert({
         user_id: userId,
         salt,
         ciphertext,
         message_count: messages.length,
         backup_version: 2,
         created_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' })
+      })
 
     if (error) {
-      logger.warn('Failed to upsert backup:', error.message)
+      logger.warn('Failed to insert backup:', error.message)
     } else {
       logger.info(`Backup created: ${messages.length} messages, ${compressed.length} bytes compressed`)
+      // Fire-and-forget prune. Failure leaves extra rows behind (harmless;
+      // next successful prune sweeps them).
+      supabase.rpc('trim_signal_backups', { p_keep: BACKUP_RETAIN_COUNT }).then(({ error: trimErr }) => {
+        if (trimErr) logger.warn('trim_signal_backups failed:', trimErr.message)
+      })
     }
   } catch (err) {
     logger.warn('Backup creation failed:', err)
   }
 }
 
-/** Restore messages from an encrypted backup on Supabase. */
+/** Hard cap on restoreBackup wall-clock time. If any internal await hangs
+ *  (network stall, wedged IDB transaction, never-resolving PBKDF2), the gate
+ *  still opens after this so the device can back up new activity. */
+const RESTORE_HARD_TIMEOUT_MS = 15_000
+
+/** Restore messages from an encrypted backup on Supabase.
+ *
+ *  Opens the createBackup gate (_restoreCompleted) in a finally block so all
+ *  exit paths (success, no-backup-found, decrypt failure, missing key, hang,
+ *  exception in initCalendarTombstones) unblock the gate. Never staying gated
+ *  indefinitely is intentional: a permanent block would mean no device could
+ *  ever back up after a restore failure. */
 export async function restoreBackup(userId: string): Promise<void> {
-  // Warm the calendar tombstone set before routing any restored messages.
-  // restoreBackup can race processClinicVaultMessages at login; without this,
-  // a 'c' from the personal backup for a clinic-deleted event could bypass
-  // the routeCalendarEvent tombstone guard if the backup finishes first.
-  await initCalendarTombstones()
+  const hardTimeout = setTimeout(() => {
+    if (!_restoreCompleted) {
+      logger.warn(`restoreBackup hard-timeout after ${RESTORE_HARD_TIMEOUT_MS}ms — opening createBackup gate`)
+      _restoreCompleted = true
+    }
+  }, RESTORE_HARD_TIMEOUT_MS)
 
-  try { if (_backupKeyReady) await _backupKeyReady } catch { /* fall through to IDB */ }
-  if (!_backupKey) {
-    // Session restored without password (e.g. page refresh) — try IDB
-    try {
-      _backupKey = await loadKeyFromIdb()
-    } catch { /* IDB unavailable */ }
-  }
-  if (!_backupKey) {
-    logger.warn('No backup key cached, skipping restore')
-    return
-  }
-
+  let usedLegacyKey = false
   try {
-    const { data, error } = await supabase
-      .from('signal_backups')
-      .select('salt, ciphertext')
-      .eq('user_id', userId)
-      .single()
+    // Warm the calendar tombstone set before routing any restored messages.
+    // restoreBackup can race processClinicVaultMessages at login; without this,
+    // a 'c' from the personal backup for a clinic-deleted event could bypass
+    // the routeCalendarEvent tombstone guard if the backup finishes first.
+    // Wrapped so a thrown error still hits the finally and opens the gate.
+    try { await initCalendarTombstones() } catch (err) {
+      logger.warn('initCalendarTombstones failed during restoreBackup:', err)
+    }
 
-    if (error || !data) {
+    try { if (_backupKeyReady) await _backupKeyReady } catch { /* fall through to IDB */ }
+    if (!_backupKey) {
+      // Session restored without password (e.g. page refresh) — try IDB
+      try {
+        _backupKey = await loadKeyFromIdb()
+      } catch { /* IDB unavailable */ }
+    }
+    if (!_backupKey) {
+      logger.warn('No backup key cached, skipping restore')
+      return
+    }
+
+    // Multi-snapshot fallback: pull the most recent N snapshots and walk
+    // newest-first. If a snapshot fails to decrypt or parse, try the next
+    // older one — survives a single corrupt upload.
+    const { data: snapshots, error } = await supabase
+      .from('signal_backups')
+      .select('salt, ciphertext, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(BACKUP_RETAIN_COUNT)
+
+    if (error || !snapshots || snapshots.length === 0) {
       logger.info('No backup found for user')
       return
     }
 
-    // Try primary (per-user) key first, then fall back to legacy key.
-    let compressed: Uint8Array
-    let usedLegacyKey = false
-    try {
-      compressed = await decryptWithKey(data.ciphertext, _backupKey)
-    } catch {
-      // Primary key failed — attempt legacy key (backup encrypted before userId salt)
-      const legacyKey = await loadLegacyKeyFromIdb().catch(() => null)
-      if (!legacyKey) {
-        logger.warn('Backup restore failed: primary key failed and no legacy key available')
-        return
+    // Legacy key (encrypted before userId salt) loaded once, used as a
+    // per-snapshot fallback if the primary key fails.
+    const legacyKey = await loadLegacyKeyFromIdb().catch(() => null)
+
+    let payload: BackupPayload | null = null
+    for (const snap of snapshots) {
+      try {
+        let compressed: Uint8Array
+        try {
+          compressed = await decryptWithKey(snap.ciphertext, _backupKey)
+        } catch {
+          if (!legacyKey) throw new Error('primary decrypt failed, no legacy key')
+          compressed = await decryptWithKey(snap.ciphertext, legacyKey)
+          usedLegacyKey = true
+          logger.info('Restored backup using legacy key — will re-encrypt with current key')
+        }
+
+        const json = new TextDecoder().decode(inflateRaw(compressed))
+        const candidate: BackupPayload = JSON.parse(json)
+        if (candidate.version !== 1 && candidate.version !== 2) {
+          logger.warn(`Unknown backup version ${candidate.version} in snapshot ${snap.created_at} — trying older`)
+          continue
+        }
+        payload = candidate
+        if (snap !== snapshots[0]) {
+          logger.warn(`Newest backup unusable; restored from snapshot at ${snap.created_at}`)
+        }
+        break
+      } catch (e) {
+        logger.warn(`Snapshot at ${snap.created_at} failed to decrypt/parse, trying older:`, e instanceof Error ? e.message : e)
       }
-      compressed = await decryptWithKey(data.ciphertext, legacyKey)
-      usedLegacyKey = true
-      logger.info('Restored backup using legacy key — will re-encrypt with current key')
     }
 
-    const json = new TextDecoder().decode(inflateRaw(compressed))
-    const payload: BackupPayload = JSON.parse(json)
-
-    if (payload.version !== 1 && payload.version !== 2) {
-      logger.warn(`Unknown backup version: ${payload.version}`)
+    if (!payload) {
+      logger.warn(`All ${snapshots.length} snapshot(s) failed to restore`)
       return
     }
 
@@ -542,14 +632,22 @@ export async function restoreBackup(userId: string): Promise<void> {
     if (restored > 0) {
       window.dispatchEvent(new CustomEvent('backup-restored'))
     }
-
-    // Migration: re-encrypt with the current (per-user) key and clear legacy key slot.
-    if (usedLegacyKey) {
-      createBackup(userId).catch(() => {})
-      clearLegacyKeyFromIdb().catch(() => {})
-    }
   } catch (err) {
     logger.warn('Backup restore failed:', err)
+  } finally {
+    // Open the createBackup gate. All exit paths land here — including
+    // "no backup found" and decrypt failures — so a session never gets
+    // permanently locked out of backing up. Set BEFORE the legacy-key
+    // migration so its createBackup call passes the gate.
+    _restoreCompleted = true
+    clearTimeout(hardTimeout)
+  }
+
+  // Migration: re-encrypt with the current (per-user) key and clear legacy key slot.
+  // Runs after the gate opens so the createBackup actually fires.
+  if (usedLegacyKey) {
+    createBackup(userId).catch(() => {})
+    clearLegacyKeyFromIdb().catch(() => {})
   }
 }
 

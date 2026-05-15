@@ -71,6 +71,13 @@ interface MapViewProps {
   /** Live field positions for mission participants — rendered as decaying presence markers. */
   presenceMarkers?: PresenceMarker[];
   readOnlyFeatures?: OverlayFeature[];
+  /** When set, the MGRS / lat-lng / UTM readout pill anchors to this point
+   *  instead of the map center — used so the readout follows the currently
+   *  selected feature without the user having to recenter the map. */
+  selectedAnchor?: { lat: number; lng: number } | null;
+  /** Fired on right-click (desktop) / long-press (mobile). Used by the panel
+   *  to drop a pin at the gesture point regardless of draw mode. */
+  onLongPress?: (lat: number, lng: number) => void;
 }
 
 const DEFAULT_CENTER: [number, number] = [38.8977, -77.0365];
@@ -152,6 +159,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   tilesCached = false,
   presenceMarkers,
   readOnlyFeatures,
+  selectedAnchor,
+  onLongPress,
 }, ref) {
   const { theme, themeName } = useTheme();
   const bearingReference = useMapPrefsStore(s => s.bearingReference);
@@ -168,12 +177,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   const gpsLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const measureLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const presenceLayerRef = useRef<L.LayerGroup>(L.layerGroup());
-  const tempWaypointLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const [centerLatLng, setCenterLatLng] = useState<{ lat: number; lng: number } | null>(null);
-  // Temporary waypoint set by right-click / long-press. Pins the readout pill
-  // (and the detail overlay) to a chosen spot instead of the map center.
-  // Distinct from creating a real waypoint feature — purely local UI state.
-  const [tempWaypoint, setTempWaypoint] = useState<{ lat: number; lng: number } | null>(null);
   const [showAttribution, setShowAttribution] = useState(false);
   // Tracked separately so the label overlay re-renders once the map is ready.
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
@@ -215,8 +219,9 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     setCenterLatLng({ lat: c.lat, lng: c.lng });
   }, []);
 
-  // tempWaypoint takes precedence over map center for the readout pill + detail overlay.
-  const displayLatLng = tempWaypoint ?? centerLatLng;
+  // Selected-feature anchor takes precedence over map center for the readout
+  // pill + detail overlay, so the coordinate display follows the user's focus.
+  const displayLatLng = selectedAnchor ?? centerLatLng;
 
   const mgrsReadout = displayLatLng
     ? (() => { try { return forward([displayLatLng.lng, displayLatLng.lat], 5); } catch { return '---'; } })()
@@ -251,7 +256,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     setReadoutAnchor(e.currentTarget.getBoundingClientRect());
     setShowReadout(true);
     setAddress('');
-    const pos = tempWaypoint ?? centerLatLng;
+    const pos = selectedAnchor ?? centerLatLng;
     if (!pos) return;
     setAddressLoading(true);
     fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.lat}&lon=${pos.lng}`, {
@@ -261,7 +266,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       .then(d => setAddress(d?.display_name ?? ''))
       .catch(() => setAddress(''))
       .finally(() => setAddressLoading(false));
-  }, [centerLatLng, tempWaypoint]);
+  }, [centerLatLng, selectedAnchor]);
 
   const handleCopyField = useCallback((value: string, field: 'mgrs' | 'utm' | 'latlng' | 'address') => {
     if (!value) return;
@@ -296,11 +301,6 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     gpsLayerRef.current.addTo(map);
     presenceLayerRef.current.addTo(map);
     measureLayerRef.current.addTo(map);
-    tempWaypointLayerRef.current.addTo(map);
-
-    map.on('contextmenu', (e: L.LeafletMouseEvent) => {
-      setTempWaypoint({ lat: e.latlng.lat, lng: e.latlng.lng });
-    });
 
     updateMgrs(map);
 
@@ -350,77 +350,32 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     }
   }, [theme, themeName, showGrid, overlayId, tilesCached, basemapId]);
 
-  // Map click handler
+  // Map click handler — forwards every click (pan + draw modes alike) to the
+  // panel, which decides what to do based on platform + drawMode (e.g. on
+  // desktop a pan-mode click drops a pin; on mobile a pan-mode click is a no-op
+  // because pin drop is bound to long-press instead).
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-
     const handler = (e: L.LeafletMouseEvent) => {
-      // In pan mode, an intentional tap on empty map = drop temp waypoint so the
-      // MGRS pill pins to that point. Draw modes still consume taps as vertex inserts.
-      if (drawMode === 'pan') {
-        setTempWaypoint({ lat: e.latlng.lat, lng: e.latlng.lng });
-        return;
-      }
-      setTempWaypoint(null);
       onMapClick(e.latlng.lat, e.latlng.lng);
     };
-
     map.on('click', handler);
     return () => { map.off('click', handler); };
-  }, [drawMode, onMapClick]);
+  }, [onMapClick]);
 
-  // Render the temporary-waypoint marker (set via right-click / long-press).
+  // Long-press / right-click — Leaflet's `contextmenu` fires for both touch
+  // long-press and desktop right-click, giving us one gesture that drops a pin
+  // on every platform without colliding with single-tap selection.
   useEffect(() => {
-    const group = tempWaypointLayerRef.current;
-    group.clearLayers();
-    if (!tempWaypoint) return;
-    const accent = theme === 'dark' ? '#FBBF24' : '#D97706';
-    const stroke = theme === 'dark' ? '#1F2937' : '#FFFFFF';
-    // Teardrop: tip at (15, 42) in 30×42 viewBox, rendered 21×29 with anchor at the tip.
-    // Placement animation (plays once on insert): an outer sonar ring collapses inward
-    // while the main path morphs from a large CCW circle (centered on the tip) into the
-    // teardrop shape — so the pin is literally formed by the collapsing ring, not popped in.
-    // All path keyframes share the same M + 4×C + z structure so SMIL can interpolate `d`.
-    const bigCircle  = 'M 15 14 C -0.46 14, -13 26.54, -13 42 C -13 57.46, -0.46 70, 15 70 C 30.46 70, 43 57.46, 43 42 C 43 26.54, 30.46 14, 15 14 z';
-    const midCircle  = 'M 15 7 C 3.95 7, -5 15.95, -5 27 C -5 38.05, 3.95 47, 15 47 C 26.05 47, 35 38.05, 35 27 C 35 15.95, 26.05 7, 15 7 z';
-    const teardrop   = 'M 15 1 C 7.27 1, 1 7.27, 1 15 C 1 25.5, 15 41, 15 41 C 15 41, 29 25.5, 29 15 C 29 7.27, 22.73 1, 15 1 z';
-    const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="21" height="29" viewBox="0 0 30 42" overflow="visible" style="overflow:visible">
-        <defs>
-          <filter id="tw-shadow" x="-30%" y="-10%" width="160%" height="140%">
-            <feDropShadow dx="0" dy="1.5" stdDeviation="1.2" flood-opacity="0.35"/>
-          </filter>
-        </defs>
-        <circle cx="15" cy="42" r="72" fill="none" stroke="${accent}" stroke-width="0.4" opacity="0">
-          <animate attributeName="r" from="72" to="4" dur="0.3s" begin="0s" fill="freeze" repeatCount="1"/>
-          <animate attributeName="opacity" values="0;0.4;0" keyTimes="0;0.5;1" dur="0.3s" begin="0s" fill="freeze" repeatCount="1"/>
-          <animate attributeName="stroke-width" from="0.4" to="2.5" dur="0.3s" begin="0s" fill="freeze" repeatCount="1"/>
-        </circle>
-        <path d="${bigCircle}" fill="${accent}" fill-opacity="0" stroke="${accent}" stroke-width="2" stroke-opacity="0" filter="url(#tw-shadow)">
-          <animate attributeName="d" values="${bigCircle};${midCircle};${teardrop}" keyTimes="0;0.55;1" dur="0.9s" begin="0s" fill="freeze" repeatCount="1"/>
-          <animate attributeName="fill-opacity" values="0;0;1" keyTimes="0;0.55;1" dur="0.9s" begin="0s" fill="freeze" repeatCount="1"/>
-          <animate attributeName="stroke-opacity" values="0;0.9;0.9;1" keyTimes="0;0.15;0.55;1" dur="0.9s" begin="0s" fill="freeze" repeatCount="1"/>
-          <animate attributeName="stroke" values="${accent};${accent};${stroke}" keyTimes="0;0.55;1" dur="0.9s" begin="0s" fill="freeze" repeatCount="1"/>
-          <animate attributeName="stroke-width" values="2;2;1.5" keyTimes="0;0.55;1" dur="0.9s" begin="0s" fill="freeze" repeatCount="1"/>
-        </path>
-        <circle cx="15" cy="15" r="4.5" fill="${stroke}" opacity="0">
-          <animate attributeName="opacity" from="0" to="1" dur="0.2s" begin="0.75s" fill="freeze" repeatCount="1"/>
-        </circle>
-      </svg>`;
-    const icon = L.divIcon({
-      html: svg,
-      className: '',
-      iconSize: [21, 29],
-      iconAnchor: [10, 29],
-    });
-    const marker = L.marker([tempWaypoint.lat, tempWaypoint.lng], {
-      icon,
-      interactive: false,
-      keyboard: false,
-    });
-    group.addLayer(marker);
-  }, [tempWaypoint, theme]);
+    const map = mapRef.current;
+    if (!map || !onLongPress) return;
+    const handler = (e: L.LeafletMouseEvent) => {
+      onLongPress(e.latlng.lat, e.latlng.lng);
+    };
+    map.on('contextmenu', handler);
+    return () => { map.off('contextmenu', handler); };
+  }, [onLongPress]);
 
   // Cursor style based on draw mode
   useEffect(() => {

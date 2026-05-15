@@ -158,6 +158,12 @@ interface BaseDrawerProps {
      *  (20–100). Default 100 = fully open. Use a smaller value (e.g. 50) to
      *  land partially open — user drags up to expand, down to dismiss. */
     initialPosition?: number;
+    /** Suppress the dimming backdrop entirely. Useful when the drawer opens
+     *  partially over interactive content (e.g. a map) and the user should be
+     *  able to keep interacting with what's underneath. Tap-to-close via
+     *  backdrop is also disabled — only the X button or a downward drag
+     *  dismisses. Default false. */
+    noBackdrop?: boolean;
 }
 
 export function BaseDrawer({
@@ -180,6 +186,7 @@ export function BaseDrawer({
     scrollDisabled = false,
     contentPadding,
     initialPosition = 100,
+    noBackdrop = false,
 }: BaseDrawerProps) {
     const [drawerPosition, setDrawerPosition] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
@@ -333,22 +340,24 @@ export function BaseDrawer({
     return (
         <>
             {/* Backdrop */}
-            <div
-                className={`fixed inset-0 ${zIndex} bg-black ${
-                    useMobileLayout
-                        ? (isDragging ? '' : 'transition-opacity duration-300 ease-out')
-                        : 'transition-opacity duration-250 ease-out'
-                }`}
-                style={{
-                    opacity: useMobileLayout
-                        ? (drawerPosition / 100) * backdropOpacity
-                        : desktopOpen ? 0.2 : 0,
-                    pointerEvents: useMobileLayout
-                        ? (drawerPosition > 0 ? 'auto' : 'none')
-                        : (desktopOpen ? 'auto' : 'none'),
-                }}
-                onClick={handleClose}
-            />
+            {!noBackdrop && (
+                <div
+                    className={`fixed inset-0 ${zIndex} bg-black ${
+                        useMobileLayout
+                            ? (isDragging ? '' : 'transition-opacity duration-300 ease-out')
+                            : 'transition-opacity duration-250 ease-out'
+                    }`}
+                    style={{
+                        opacity: useMobileLayout
+                            ? (drawerPosition / 100) * backdropOpacity
+                            : desktopOpen ? 0.2 : 0,
+                        pointerEvents: useMobileLayout
+                            ? (drawerPosition > 0 ? 'auto' : 'none')
+                            : (desktopOpen ? 'auto' : 'none'),
+                    }}
+                    onClick={handleClose}
+                />
+            )}
 
             {/* Drawer / Panel — single container that adapts to viewport */}
             <div

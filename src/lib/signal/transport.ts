@@ -42,7 +42,7 @@ export interface SignalTransport {
   sendMessage(params: SendMessageParams): Promise<Result<string>>
   sendMessageBatch(params: SendBatchParams): Promise<Result<string[]>>
   fetchUnread(userId: string, deviceId?: string): Promise<Result<SignalMessageRow[]>>
-  markRead(messageIds: string[]): Promise<Result<void>>
+  markRead(messageIds: string[], recipientId?: string): Promise<Result<void>>
   deleteMessages(messageIds: string[]): Promise<Result<void>>
   hardDeleteByOriginId(originIds: string[]): Promise<Result<void>>
   fetchConversation(userId: string, peerId: string, limit?: number): Promise<Result<SignalMessageRow[]>>
@@ -169,9 +169,9 @@ export class TransportManager {
     return primaryResult
   }
 
-  async markRead(messageIds: string[]): Promise<Result<void>> {
+  async markRead(messageIds: string[], recipientId?: string): Promise<Result<void>> {
     if (!this.primary) return err('No transport configured')
-    return this.primary.markRead(messageIds)
+    return this.primary.markRead(messageIds, recipientId)
   }
 
   async deleteMessages(messageIds: string[]): Promise<Result<void>> {

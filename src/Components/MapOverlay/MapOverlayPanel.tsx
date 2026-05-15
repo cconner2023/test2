@@ -621,6 +621,30 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     }
   }, [view, stopWatching, onClose]);
 
+  // Create a real waypoint feature at the given point. Shared by pin-mode
+  // taps, desktop single-click drops, and mobile long-press drops.
+  const dropPinAt = useCallback((lat: number, lng: number) => {
+    if (!overlayId) return;
+    const now = new Date().toISOString();
+    const id = crypto.randomUUID();
+    setFeatures(prev => {
+      const wptIndex = prev.filter(f => f.type === 'waypoint').length + 1;
+      const feature: OverlayFeature = {
+        id,
+        overlay_id: overlayId,
+        type: 'waypoint',
+        geometry: [[lat, lng]],
+        label: `Point ${wptIndex}`,
+        waypoint_type: pinType,
+        style: { ...DEFAULT_FEATURE_STYLE },
+        created_at: now,
+        updated_at: now,
+      };
+      return [...prev, feature];
+    });
+    setSelectedFeatureId(id);
+  }, [overlayId, pinType]);
+
   // ── Map click handler ──
   const handleMapClick = useCallback((lat: number, lng: number) => {
     if (!overlayId) return;
@@ -642,21 +666,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     }
 
     if (drawMode === 'pin') {
-      const id = crypto.randomUUID();
-      const wptIndex = features.filter(f => f.type === 'waypoint').length + 1;
-      const feature: OverlayFeature = {
-        id,
-        overlay_id: overlayId,
-        type: 'waypoint',
-        geometry: [[lat, lng]],
-        label: `Point ${wptIndex}`,
-        waypoint_type: pinType,
-        style: { ...DEFAULT_FEATURE_STYLE },
-        created_at: now,
-        updated_at: now,
-      };
-      setFeatures(prev => [...prev, feature]);
-      setSelectedFeatureId(id);
+      dropPinAt(lat, lng);
       setDrawMode('pan');
       return;
     }
@@ -743,9 +753,23 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     }
 
     if (drawMode === 'pan') {
-      setSelectedFeatureId(null);
+      // Google-Maps-like split: desktop single-click on empty map drops a pin;
+      // mobile waits for a long-press (handled separately by `handleMapLongPress`)
+      // so accidental taps under the partial drawer don't litter the overlay.
+      // Empty-tap never deselects — the X button owns deselection.
+      if (!isMobile) {
+        dropPinAt(lat, lng);
+      }
     }
-  }, [drawMode, overlayId, measurePoints, features, pinType]);
+  }, [drawMode, overlayId, measurePoints, features, pinType, isMobile, dropPinAt]);
+
+  // Long-press / right-click → always drop a pin, regardless of mode. Lets
+  // the user drop pins while panning without juggling the Add FAB.
+  const handleMapLongPress = useCallback((lat: number, lng: number) => {
+    if (!overlayId) return;
+    if (drawMode === 'route' || drawMode === 'area' || drawMode === 'measure' || drawMode === 'track') return;
+    dropPinAt(lat, lng);
+  }, [overlayId, drawMode, dropPinAt]);
 
   // ── Finish route/area ──
   // Called when the user toggles out of route/area mode. Routes auto-finalize
@@ -1105,7 +1129,13 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                 features={features}
                 drawMode={drawMode}
                 selectedFeatureId={selectedFeatureId}
+                selectedAnchor={
+                  selectedFeature && selectedFeature.geometry.length > 0
+                    ? { lat: selectedFeature.geometry[0][0], lng: selectedFeature.geometry[0][1] }
+                    : null
+                }
                 onMapClick={handleMapClick}
+                onLongPress={handleMapLongPress}
                 onFeatureClick={handleFeatureClick}
                 onFeatureGeometryChange={handleFeatureGeometryChange}
                 onFeatureVertexInsert={handleFeatureVertexInsert}
@@ -1144,6 +1174,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                   mobileOnly
                   fullHeight="90dvh"
                   initialPosition={50}
+                  noBackdrop
                   zIndex="z-[1010]"
                   header={{
                     title: selectedFeature?.label
@@ -1152,6 +1183,13 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                         : 'Area'),
                     rightContent: (
                       <HeaderPill>
+                        <PillButton
+                          icon={Move}
+                          iconSize={18}
+                          onClick={() => handleModeChange('drag')}
+                          label={drawMode === 'drag' ? 'Stop moving' : 'Move'}
+                          circleBg={drawMode === 'drag' ? 'bg-themeblue3 text-white' : undefined}
+                        />
                         <PillButton icon={Trash2} iconSize={18} variant="danger" onClick={handleDeleteSelected} label="Delete" />
                         <PillButton icon={X} iconSize={18} onClick={() => setSelectedFeatureId(null)} label="Close" />
                       </HeaderPill>
@@ -1199,28 +1237,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                   >
                     <Undo2 size={18} />
                   </button>
-                )}
-
-                {/* Move / delete — visible when a feature is selected */}
-                {selectedFeatureId && !isDrawInProgress && (
-                  <div className="flex items-center gap-1 rounded-full bg-themewhite border border-tertiary/20 px-0.5 py-0.5 shadow-lg pointer-events-auto">
-                    <button
-                      onClick={() => handleModeChange('drag')}
-                      className={`w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-95 ${
-                        drawMode === 'drag' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
-                      }`}
-                      title="Move selected"
-                    >
-                      <Move className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={handleDeleteSelected}
-                      className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
-                      title="Delete selected"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </div>
                 )}
 
                 {/* Pin glyph picker — 3 icons at a time with < / > chevrons.
@@ -1505,6 +1521,13 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                       className="text-[10pt] font-semibold text-primary truncate flex-1 min-w-0 bg-transparent focus:outline-none"
                     />
                     <HeaderPill>
+                      <PillButton
+                        icon={Move}
+                        iconSize={18}
+                        onClick={() => handleModeChange('drag')}
+                        label={drawMode === 'drag' ? 'Stop moving' : 'Move'}
+                        circleBg={drawMode === 'drag' ? 'bg-themeblue3 text-white' : undefined}
+                      />
                       <PillButton icon={Trash2} iconSize={18} variant="danger" onClick={handleDeleteSelected} label="Delete" />
                       <PillButton icon={X} iconSize={18} onClick={() => setSelectedFeatureId(null)} label="Close" />
                     </HeaderPill>

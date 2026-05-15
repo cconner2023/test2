@@ -127,7 +127,7 @@ export class LoRaTransport implements SignalTransport {
   }
 
   /** Local-only — no remote server to update. */
-  async markRead(_messageIds: string[]): Promise<Result<void>> {
+  async markRead(_messageIds: string[], _recipientId?: string): Promise<Result<void>> {
     return ok(undefined)
   }
 

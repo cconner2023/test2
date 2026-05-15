@@ -559,14 +559,29 @@ export async function processVaultMessages(userId: string): Promise<number> {
     return 0
   }
 
-  // 3. Fetch unread vault messages
-  const { data: rows, error: fetchError } = await supabase
+  // 3. Fetch unread vault messages.
+  // Per-recipient read state lives in signal_message_reads; legacy read_at
+  // is kept as a silent-fail "already read" fallback for pre-migration rows
+  // (see 20260514_signal_message_reads).
+  const { data: readRows } = await supabase
+    .from('signal_message_reads')
+    .select('message_id')
+    .eq('recipient_id', userId)
+  const readIds = (readRows ?? []).map(r => r.message_id)
+
+  let vaultQuery = supabase
     .from('signal_messages')
     .select('*')
     .eq('recipient_id', userId)
     .eq('recipient_device_id', VAULT_DEVICE_ID)
     .is('read_at', null)
     .order('created_at', { ascending: true })
+
+  if (readIds.length > 0) {
+    vaultQuery = vaultQuery.not('id', 'in', `(${readIds.join(',')})`)
+  }
+
+  const { data: rows, error: fetchError } = await vaultQuery
 
   if (fetchError || !rows || rows.length === 0) {
     if (fetchError) logger.warn('Failed to fetch vault messages:', fetchError)
@@ -782,12 +797,14 @@ export async function processVaultMessages(userId: string): Promise<number> {
     }
   }
 
-  // 6. Mark processed vault messages as read
+  // 6. Mark processed vault messages as read.
+  // userId here is the clinic_id (vault recipient). RLS on
+  // signal_message_reads allows insert when recipient_id ∈ auth_clinic_ids().
   if (processedIds.length > 0) {
-    await supabase
-      .from('signal_messages')
-      .update({ read_at: new Date().toISOString() })
-      .in('id', processedIds)
+    await supabase.rpc('mark_signal_messages_read', {
+      p_message_ids: processedIds,
+      p_recipient_id: userId,
+    })
   }
 
   // 7. Rotate vault signed pre-key and replenish OTPs
