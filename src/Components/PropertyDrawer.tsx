@@ -49,7 +49,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     )
     const { navigateToPath, init, setEditingItem, removeItem, items } = store
     const isSupervisorRole = useAuthStore(s => s.isSupervisorRole)
-    const clinicName = useClinicName(store.clinicId) || 'Clinic'
+    const clinicName = useClinicName(store.clinicId) || 'Cluster'
 
     const [view, setView] = useState<PropertyView>('property')
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')

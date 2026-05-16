@@ -154,7 +154,7 @@ export const TextTemplatesPanel = () => {
                 <p data-tour="expander-edit-hint" className="text-[10pt] text-tertiary leading-relaxed">
                     Autotext shortcuts that expand abbreviations as you type in your notes.
                     {clinicTextExpanders.length > 0 && (
-                        <span className="text-tertiary"> Includes clinic-wide shortcuts.</span>
+                        <span className="text-tertiary"> Includes cluster-wide shortcuts.</span>
                     )}
                 </p>
 

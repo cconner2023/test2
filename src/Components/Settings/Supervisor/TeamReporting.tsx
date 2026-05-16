@@ -103,7 +103,7 @@ export function TeamReporting({
     return (
       <div className="text-center py-12">
         <AlertTriangle size={28} className="mx-auto mb-3 text-tertiary" />
-        <p className="text-sm text-tertiary">No personnel assigned to your clinic.</p>
+        <p className="text-sm text-tertiary">No personnel assigned to your cluster.</p>
       </div>
     )
   }
@@ -123,7 +123,7 @@ export function TeamReporting({
             <Building2 size={16} className="text-tertiary" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-primary truncate">{clinicName ?? 'My Clinic'}</p>
+            <p className="text-sm font-semibold text-primary truncate">{clinicName ?? 'My Cluster'}</p>
             <p className="text-[9pt] text-tertiary">{medics.length} personnel</p>
           </div>
         </div>

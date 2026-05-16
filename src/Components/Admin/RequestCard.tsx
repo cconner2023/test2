@@ -150,7 +150,7 @@ export function RequestCard({
 
     if (selectedClinicId) {
       const clinicResult = await setUserClinic(userId, selectedClinicId)
-      if (!clinicResult.success) warnings.push('Clinic assignment failed')
+      if (!clinicResult.success) warnings.push('Cluster assignment failed')
     }
 
     const emailResult = await sendApprovalEmail(approveResult.email)
@@ -349,7 +349,7 @@ export function RequestCard({
                 {cardMatchedClinic.name}
               </span>
             ) : (
-              <span className="text-[10pt] font-normal text-tertiary">No clinic match</span>
+              <span className="text-[10pt] font-normal text-tertiary">No cluster match</span>
             )}
           </div>
         )}
@@ -419,7 +419,7 @@ export function RequestCard({
                 <PickerInput value={rank} onChange={setRank} options={componentRanks} placeholder="Rank" />
               )}
               <UicPinInput value={uic} onChange={setUic} spread />
-              <PickerInput value={selectedClinicId} onChange={setSelectedClinicId} options={clinicOptions} placeholder="Clinic" />
+              <PickerInput value={selectedClinicId} onChange={setSelectedClinicId} options={clinicOptions} placeholder="Cluster" />
               {formMatchedClinic && selectedClinicId === formMatchedClinic.id && (
                 <p className="px-4 py-2 text-[9pt] text-themegreen flex items-center gap-1 border-b border-primary/6">
                   <Building2 size={12} />

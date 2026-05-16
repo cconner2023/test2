@@ -17,12 +17,14 @@ import { ErrorPill } from '../ErrorPill'
 import { useClinicInvites } from '../../Hooks/useClinicInvites'
 import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
+import { useClinicLoans } from '../../Hooks/useClinicLoans'
 import {
   updateSupervisorClinic,
   disassociateClinic,
   getClinicEncryptionKey,
   getClinicDetails,
 } from '../../lib/supervisorService'
+import { getAssociatedClinicCode } from '../../lib/clinicAssociationService'
 // listLocations is an authenticated read of the canonical post taxonomy;
 // it lives in adminService for now but is safe for any signed-in caller.
 import { listLocations, type AdminLocation } from '../../lib/adminService'
@@ -63,14 +65,15 @@ export function ClinicPanel({
   onAddingMemberChange,
   onPendingChangesChange,
 }: ClinicPanelProps) {
-  const { clinicId: assignedClinicId, surrogateClinicId, supervisingClinicId, profile, isSupervisorRole } = useAuth()
+  const { clinicId: assignedClinicId, surrogateClinicIds, supervisingClinicId, profile, isSupervisorRole } = useAuth()
   // The supervisor toggle picks which clinic this panel administers. For
   // single-clinic users it stays equal to the assigned clinic. All clinic-
   // scoped reads, writes, and labels below resolve through `clinicId` and
   // `clinicName` so the toggle just flips the pointer.
   const clinicId = supervisingClinicId ?? assignedClinicId
-  const clinicName = clinicId === surrogateClinicId
-    ? (profile.surrogateClinicName ?? null)
+  const isSurrogateContext = !!clinicId && surrogateClinicIds.includes(clinicId)
+  const clinicName = clinicId && surrogateClinicIds.includes(clinicId)
+    ? (profile.surrogateClinics?.find((c) => c.id === clinicId)?.name ?? null)
     : (profile.clinicName ?? null)
   const {
     error: hookError,
@@ -123,7 +126,7 @@ export function ClinicPanel({
       const file = new File([blob], filename, { type: 'image/png' })
       try {
         if (navigator.canShare?.({ files: [file] })) {
-          await navigator.share({ files: [file], title: 'Clinic invite' })
+          await navigator.share({ files: [file], title: 'Cluster invite' })
           return
         }
       } catch {
@@ -170,17 +173,19 @@ export function ClinicPanel({
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  // Members — uses the same hook as messaging (get_location_medics RPC).
-  // Include both assigned (m.clinicId === clinicId) and loaned-in
-  // (m.surrogateClinicId === clinicId) members; rendered in separate groups.
+  // Members. Assigned roster comes from useClinicMedics (RPC-backed); the
+  // loaned-in list is a separate query against profile_clinic_loans so that
+  // every active loan to this clinic shows up, not just the oldest one
+  // dual-written into profiles.surrogate_clinic_id.
   const { medics, loading: medicsLoading, refresh: refreshMedics } = useClinicMedics()
+  const { medics: loanedInRaw } = useClinicLoans(clinicId)
   const assignedMembers = useMemo(
     () => medics.filter((m) => !m.clinicId || m.clinicId === clinicId),
     [medics, clinicId],
   )
   const loanedInMembers = useMemo(
-    () => medics.filter((m) => m.surrogateClinicId === clinicId && m.clinicId !== clinicId),
-    [medics, clinicId],
+    () => loanedInRaw.filter((m) => m.clinicId !== clinicId),
+    [loanedInRaw, clinicId],
   )
   const members = useMemo(
     () => [...assignedMembers, ...loanedInMembers],
@@ -196,6 +201,9 @@ export function ClinicPanel({
   >(null)
   const [assocSaving, setAssocSaving] = useState(false)
   const [confirmDisassociate, setConfirmDisassociate] = useState<{ clinicId: string; clinicName: string } | null>(null)
+  const [assocCode, setAssocCode] = useState<string | null>(null)
+  const [assocCodeLoading, setAssocCodeLoading] = useState(false)
+  const [assocCodeCopied, setAssocCodeCopied] = useState(false)
 
   // Member popover (tap-to-edit roster row)
   const [memberPopover, setMemberPopover] = useState<{ memberId: string; anchor: DOMRect } | null>(null)
@@ -305,7 +313,21 @@ export function ClinicPanel({
 
   const openAssocInfoPopover = useCallback((clinic: { clinicId: string; clinicName: string; uics: string[]; location: string | null }, target: HTMLElement) => {
     setAssocPopover({ mode: 'info', anchor: target.getBoundingClientRect(), clinic })
+    setAssocCode(null)
+    setAssocCodeCopied(false)
+    setAssocCodeLoading(true)
+    getAssociatedClinicCode(clinic.clinicId).then((r) => {
+      setAssocCodeLoading(false)
+      if (r.success) setAssocCode(r.code)
+    })
   }, [])
+
+  const handleCopyAssocCode = useCallback(async () => {
+    if (!assocCode) return
+    await navigator.clipboard.writeText(assocCode)
+    setAssocCodeCopied(true)
+    setTimeout(() => setAssocCodeCopied(false), 2_000)
+  }, [assocCode])
 
   const openAssocAddPopover = useCallback(() => {
     if (!assocFabRef.current) return
@@ -409,7 +431,7 @@ export function ClinicPanel({
   const handleSave = useCallback(async () => {
     if (!clinicId) return
     if (!editName.trim()) {
-      setError('Clinic name is required')
+      setError('Cluster name is required')
       return
     }
     setSaving(true)
@@ -444,7 +466,7 @@ export function ClinicPanel({
     setSaving(false)
     invalidate('clinics')
     onEditingChange(false)
-    setSuccess('Clinic updated')
+    setSuccess('Cluster updated')
     setTimeout(() => setSuccess(null), 3_000)
   }, [clinicId, editName, editLocation, editUics, onEditingChange])
 
@@ -555,7 +577,7 @@ export function ClinicPanel({
         {/* ── Clinic ───────────────────────────────────────────────── */}
         <section data-tour="clinic-identity-card">
           <div className="pb-2 flex items-center gap-2">
-            <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Clinic</p>
+            <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Cluster</p>
           </div>
           <div className="relative"><div ref={clinicCardRef} className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
             <button
@@ -602,9 +624,9 @@ export function ClinicPanel({
                 supervisors) with Copy + Share QR (when an invite code is
                 active). All three render together as a single pill so the QR
                 preview at top-right stays unobstructed. */}
-            {isSupervisorRole && (surrogateClinicId || activeCode) && (
+            {isSupervisorRole && (isSurrogateContext || activeCode) && (
               <ActionPill shadow="sm" placement="overlay">
-                {surrogateClinicId && <SupervisorClinicCardAction />}
+                {isSurrogateContext && <SupervisorClinicCardAction />}
                 {activeCode && (
                   <>
                     {/* Copy: raw button styled to match ActionButton default; flips to themegreen tint on success. */}
@@ -644,7 +666,7 @@ export function ClinicPanel({
           <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
             <div className="px-4 py-3">
               {nearbyClinicMap.length === 0 ? (
-                <p className="text-sm text-tertiary py-4 text-center">No associated clinics</p>
+                <p className="text-sm text-tertiary py-4 text-center">No associated clusters</p>
               ) : (
                 <div className="space-y-1">
                   {nearbyClinicMap.map((clinic) => (
@@ -675,7 +697,7 @@ export function ClinicPanel({
             </div>
             </div>
             <ActionPill ref={assocFabRef} shadow="sm" placement="overlay">
-              <ActionButton icon={Plus} label="Associate a clinic" onClick={openAssocAddPopover} />
+              <ActionButton icon={Plus} label="Associate a cluster" onClick={openAssocAddPopover} />
             </ActionPill>
           </div>
         </section>
@@ -790,7 +812,7 @@ export function ClinicPanel({
           <div className="rounded-xl border border-themeblue2/15 bg-themeblue2/5 px-4 py-3 flex items-center gap-3">
             <Stethoscope size={18} className="text-themeblue2 shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-primary">Clinic Note Templates</p>
+              <p className="text-sm font-medium text-primary">Cluster Note Templates</p>
               <p className="text-[9pt] text-tertiary mt-0.5">
                 Manage shared text shortcuts and order sets in Note Content
               </p>
@@ -834,6 +856,7 @@ export function ClinicPanel({
         memberId={memberPopover?.memberId ?? null}
         clinicId={clinicId}
         fallbackProfile={memberFallback}
+        associatedClinics={nearbyClinicMap}
         loanState={(() => {
           if (!memberPopover) return 'home'
           const m = medics.find(x => x.id === memberPopover.memberId)
@@ -902,9 +925,26 @@ export function ClinicPanel({
               <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">UICs</span>
               <span className="text-sm text-primary truncate ml-3">{assocPopover.clinic.uics.join(', ') || '—'}</span>
             </div>
-            <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex items-center justify-between border-b border-primary/6 px-4 py-3">
               <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">Location</span>
               <span className="text-sm text-primary truncate ml-3">{assocPopover.clinic.location || '—'}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3 px-4 py-3">
+              <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">Code</span>
+              {assocCodeLoading ? (
+                <Loader2 size={14} className="animate-spin text-tertiary" />
+              ) : assocCode ? (
+                <button
+                  type="button"
+                  onClick={handleCopyAssocCode}
+                  className="flex items-center gap-2 text-sm font-mono tracking-[0.15em] text-primary hover:text-themeblue3 active:scale-95 transition-all"
+                >
+                  <span>{assocCode}</span>
+                  {assocCodeCopied ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+              ) : (
+                <span className="text-sm text-tertiary">—</span>
+              )}
             </div>
           </div>
         )}
@@ -964,8 +1004,8 @@ export function ClinicPanel({
 
       <ConfirmDialog
         visible={!!confirmDisassociate}
-        title="Disassociate this clinic?"
-        subtitle={confirmDisassociate ? `${confirmDisassociate.clinicName} will no longer be linked to your clinic.` : ''}
+        title="Disassociate this cluster?"
+        subtitle={confirmDisassociate ? `${confirmDisassociate.clinicName} will no longer be linked to your cluster.` : ''}
         confirmLabel="Disassociate"
         variant="danger"
         processing={assocSaving}

@@ -21,6 +21,7 @@ import { create } from 'zustand'
 export type Domain =
   | 'users'
   | 'clinics'
+  | 'locations'
   | 'requests'
   | 'properties'
   | 'calendar'
@@ -36,6 +37,7 @@ export const useInvalidationStore = create<InvalidationState>((set) => ({
   generations: {
     users: 0,
     clinics: 0,
+    locations: 0,
     requests: 0,
     properties: 0,
     calendar: 0,

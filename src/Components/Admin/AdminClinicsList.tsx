@@ -205,7 +205,7 @@ export function AdminClinicsList({
         {showLoading ? (
           <AdminListSkeleton />
         ) : filteredClinics.length === 0 ? (
-          <EmptyState title={searchQuery ? 'No matches.' : 'No clinics.'} />
+          <EmptyState title={searchQuery ? 'No matches.' : 'No clusters.'} />
         ) : (
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
             {renderClinicItems()}
@@ -234,7 +234,7 @@ function ClinicCard({ clinic, assignedUserCount, onTap, onContextMenu }: ClinicC
     <div
       role="button"
       tabIndex={0}
-      aria-label={`Open clinic ${clinic.name}`}
+      aria-label={`Open cluster ${clinic.name}`}
       onClick={onTap}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTap() } }}
       onContextMenu={(e) => {

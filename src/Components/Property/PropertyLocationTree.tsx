@@ -500,7 +500,7 @@ export function PropertyLocationTree({
           onKeyDown={(e) => { if (e.key === 'Enter') onSelectAll() }}
         >
           <span className="w-[18px] shrink-0" />
-          <span className="text-[10pt] font-medium text-primary truncate">{clinicName || 'Clinic'}</span>
+          <span className="text-[10pt] font-medium text-primary truncate">{clinicName || 'Cluster'}</span>
         </div>
       )}
 

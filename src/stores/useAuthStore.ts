@@ -47,8 +47,8 @@ const ROLES_STORAGE_KEY = 'adtmc_user_roles'
 interface CachedRoles {
   roles: string[]
   clinicId: string | null
-  /** Surrogate (loaned-to) clinic. Optional; older caches won't have it. */
-  surrogateClinicId?: string | null
+  /** Clinics the user is currently loaned to. Older caches won't have it. */
+  surrogateClinicIds?: string[]
   isDevRole: boolean
 }
 
@@ -67,8 +67,8 @@ interface AuthState {
   profile: UserTypes
   roles: string[]
   clinicId: string | null
-  /** Loan / dual-membership slot. Null when the user isn't loaned to a second clinic. */
-  surrogateClinicId: string | null
+  /** Clinics the user is currently loaned to (max 4). Empty when home-only. */
+  surrogateClinicIds: string[]
   /** Which clinic the supervisor is currently administering (Settings/ClinicPanel + SupervisorDrawer).
    * In-memory only (no persistence) — defaults to clinic_id on every load.
    * Server doesn't trust this — it gates by role + auth_clinic_ids(). */
@@ -220,11 +220,11 @@ function clearRolesStorage() {
  * Fetch a full profile from Supabase for the given user ID.
  * Returns the UserTypes profile and the roles array.
  */
-async function fetchProfileFromSupabase(userId: string): Promise<{ profile: UserTypes; roles: string[]; clinicId: string | null; surrogateClinicId: string | null; needsPasswordSetup: boolean; clinicTextExpanders: TextExpander[] | null; clinicPlanOrderTags: UserTypes['planOrderTags'] | null; clinicPlanInstructionTags: string[] | null; clinicPlanOrderSets: UserTypes['planOrderSets'] | null }> {
+async function fetchProfileFromSupabase(userId: string): Promise<{ profile: UserTypes; roles: string[]; clinicId: string | null; surrogateClinicIds: string[]; needsPasswordSetup: boolean; clinicTextExpanders: TextExpander[] | null; clinicPlanOrderTags: UserTypes['planOrderTags'] | null; clinicPlanInstructionTags: string[] | null; clinicPlanOrderSets: UserTypes['planOrderSets'] | null }> {
   const profile: UserTypes = {}
   let roles: string[] = []
   let clinicId: string | null = null
-  let surrogateClinicId: string | null = null
+  let surrogateClinicIds: string[] = []
   let needsPasswordSetup = false
   let clinicTextExpanders: TextExpander[] | null = null
   let clinicPlanOrderTags: UserTypes['planOrderTags'] | null = null
@@ -250,7 +250,6 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   if (data) {
     const clinicRow = (data as { clinic?: { name: string } | null }).clinic ?? null
     clinicId = (data as Record<string, unknown>).clinic_id as string | null
-    surrogateClinicId = ((data as Record<string, unknown>).surrogate_clinic_id as string | null) ?? null
 
     profile.firstName = data.first_name ?? undefined
     profile.lastName = data.last_name ?? undefined
@@ -261,15 +260,37 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     profile.uic = data.uic ?? undefined
     profile.clinicName = clinicRow?.name ?? undefined
 
-    // Resolve surrogate clinic name if loaned out. Single extra fetch.
-    if (surrogateClinicId) {
-      const { data: surrogateRow } = await supabase
-        .from('clinics')
-        .select('name')
-        .eq('id', surrogateClinicId)
-        .single()
-      profile.surrogateClinicName = surrogateRow?.name ?? undefined
+    // Resolve all active loan clinics in one join select on the new table.
+    // Falls back to the legacy single-slot profiles.surrogate_clinic_id if the
+    // new table isn't queryable (migration not yet applied, RLS denying read).
+    let surrogateClinics: { id: string; name: string }[] = []
+    const { data: loanRows, error: loanError } = await supabase
+      .from('profile_clinic_loans')
+      .select('clinic_id, created_at, clinic:clinics(name)')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true })
+    if (loanError) {
+      console.warn('profile_clinic_loans read failed, falling back to legacy surrogate_clinic_id:', loanError.message)
+    } else if (loanRows && loanRows.length > 0) {
+      surrogateClinics = (loanRows as Array<{ clinic_id: string; clinic: { name: string } | null }>)
+        .map((r) => ({ id: r.clinic_id, name: r.clinic?.name ?? '' }))
+        .filter((c) => !!c.name)
     }
+    if (surrogateClinics.length === 0) {
+      const legacyId = (data as { surrogate_clinic_id?: string | null }).surrogate_clinic_id ?? null
+      if (legacyId) {
+        const { data: clinicRow2 } = await supabase
+          .from('clinics')
+          .select('name')
+          .eq('id', legacyId)
+          .single()
+        if (clinicRow2?.name) {
+          surrogateClinics = [{ id: legacyId, name: clinicRow2.name }]
+        }
+      }
+    }
+    surrogateClinicIds = surrogateClinics.map((c) => c.id)
+    profile.surrogateClinics = surrogateClinics.length > 0 ? surrogateClinics : undefined
 
     roles = (data.roles as string[]) ?? []
 
@@ -308,7 +329,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     }
   }
 
-  return { profile, roles, clinicId, surrogateClinicId, needsPasswordSetup, clinicTextExpanders, clinicPlanOrderTags, clinicPlanInstructionTags, clinicPlanOrderSets }
+  return { profile, roles, clinicId, surrogateClinicIds, needsPasswordSetup, clinicTextExpanders, clinicPlanOrderTags, clinicPlanInstructionTags, clinicPlanOrderSets }
 }
 
 export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
@@ -344,7 +365,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       profile: {},
       roles: [],
       clinicId: null,
-      surrogateClinicId: null,
+      surrogateClinicIds: [],
       supervisingClinicId: null,
       isDevRole: false,
       isSupervisorRole: false,
@@ -514,8 +535,8 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
           // Iterates assigned + surrogate so a loaned medic sees both clinics overlaid.
           // Await profile so clinic ids are available on new devices (no localStorage cache).
           try { await profileP } catch { /* profile may have failed — ids may still be cached */ }
-          const { clinicId: assignedId, surrogateClinicId: surrogateId } = get()
-          const clinicIds = [assignedId, surrogateId].filter((x): x is string => !!x)
+          const { clinicId: assignedId, surrogateClinicIds: surrogateIds } = get()
+          const clinicIds = [assignedId, ...surrogateIds].filter((x): x is string => !!x)
           if (clinicIds.length > 0) {
             (async () => {
               // Reset hydration gates ONCE before draining all clinics so the
@@ -615,7 +636,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
   profile: loadProfileFromStorage(),
   roles: cachedRoles?.roles ?? [],
   clinicId: cachedRoles?.clinicId ?? null,
-  surrogateClinicId: cachedRoles?.surrogateClinicId ?? null,
+  surrogateClinicIds: cachedRoles?.surrogateClinicIds ?? [],
   supervisingClinicId: cachedRoles?.clinicId ?? null,
   isDevRole: cachedRoles?.isDevRole ?? false,
   isSupervisorRole: cachedRoles?.roles.includes('supervisor') ?? false,
@@ -663,7 +684,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
           set({
             roles: cached.roles,
             clinicId: cached.clinicId,
-            surrogateClinicId: cached.surrogateClinicId ?? null,
+            surrogateClinicIds: cached.surrogateClinicIds ?? [],
             supervisingClinicId: get().supervisingClinicId ?? cached.clinicId,
             isDevRole: cached.isDevRole,
             isSupervisorRole: cached.roles.includes('supervisor'),
@@ -751,8 +772,8 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
           // Also clean up clinic device registration + key bundle for every clinic
           // the user belongs to (assigned + surrogate). Same clinicDeviceId across
           // clinics; one registration row per clinic.
-          const { clinicId: assignedId, surrogateClinicId: surrogateId } = get()
-          const clinicIdsForCleanup = [assignedId, surrogateId].filter((x): x is string => !!x)
+          const { clinicId: assignedId, surrogateClinicIds: surrogateIds } = get()
+          const clinicIdsForCleanup = [assignedId, ...surrogateIds].filter((x): x is string => !!x)
           if (clinicIdsForCleanup.length > 0) {
             const { makeClinicDeviceId } = await import('../lib/signal/clinicKeyManager')
             const clinicDeviceId = makeClinicDeviceId(userId, deviceId)
@@ -793,8 +814,8 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
   },
 
   setSupervisingClinic: (clinicId) => {
-    const { clinicId: assigned, surrogateClinicId: surrogate } = get()
-    if (clinicId !== assigned && clinicId !== surrogate) return
+    const { clinicId: assigned, surrogateClinicIds: surrogates } = get()
+    if (clinicId !== assigned && !surrogates.includes(clinicId)) return
     set({ supervisingClinicId: clinicId })
     invalidate('clinics', 'users', 'training')
   },
@@ -804,19 +825,18 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     if (!user) return
 
     try {
-      const { profile, roles, clinicId, surrogateClinicId, needsPasswordSetup, clinicTextExpanders, clinicPlanOrderTags, clinicPlanInstructionTags, clinicPlanOrderSets } = await fetchProfileFromSupabase(user.id)
+      const { profile, roles, clinicId, surrogateClinicIds, needsPasswordSetup, clinicTextExpanders, clinicPlanOrderTags, clinicPlanInstructionTags, clinicPlanOrderSets } = await fetchProfileFromSupabase(user.id)
       // Keep supervisingClinicId valid against the new reach. If the prior choice
-      // is no longer reachable (surrogate revoked, home clinic changed), fall
-      // back to the assigned clinic.
+      // is no longer reachable (loan ended, home clinic changed), fall back to
+      // the assigned clinic.
       const prevSup = get().supervisingClinicId
-      const validSup = (prevSup === clinicId || prevSup === surrogateClinicId) && prevSup !== null
-        ? prevSup
-        : clinicId
+      const reachable = prevSup === clinicId || (prevSup !== null && surrogateClinicIds.includes(prevSup))
+      const validSup = reachable ? prevSup : clinicId
       set({
         profile,
         roles,
         clinicId,
-        surrogateClinicId,
+        surrogateClinicIds,
         supervisingClinicId: validSup,
         isDevRole: roles.includes('dev'),
         isSupervisorRole: roles.includes('supervisor'),
@@ -828,7 +848,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
         clinicPlanOrderSets: clinicPlanOrderSets ?? null,
       })
       saveProfileToStorage(profile)
-      saveRolesToStorage({ roles, clinicId, surrogateClinicId, isDevRole: roles.includes('dev') })
+      saveRolesToStorage({ roles, clinicId, surrogateClinicIds, isDevRole: roles.includes('dev') })
 
       // Prefetch barcode encryption key for offline use (fire-and-forget)
       prefetchBarcodeKey().catch(() => {})

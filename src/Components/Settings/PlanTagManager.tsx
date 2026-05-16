@@ -92,7 +92,7 @@ export const PlanTagManager = ({
                                                             ? 'bg-themeblue2/10 text-themeblue2'
                                                             : 'bg-tertiary/10 text-tertiary'
                                                     }`}>
-                                                        {isClinic ? 'Clinic' : 'Personal'}
+                                                        {isClinic ? 'Cluster' : 'Personal'}
                                                     </span>
                                                 </button>
                                             );

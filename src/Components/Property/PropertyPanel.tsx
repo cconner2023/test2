@@ -78,7 +78,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   const visibleLocations = store.locations.filter(l => l.name !== ROOT_LOCATION_NAME)
   const hasData = visibleLocations.length > 0 || store.items.length > 0
   const showLoading = useMinLoadTime(store.isLoading) && !hasData
-  const clinicName = useClinicName(store.clinicId) || 'Clinic'
+  const clinicName = useClinicName(store.clinicId) || 'Cluster'
 
   const [desktopLocationId, setDesktopLocationId] = useState<string | null>(null)
   const [showNewLocation, setShowNewLocation] = useState(false)

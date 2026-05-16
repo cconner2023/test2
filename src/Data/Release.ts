@@ -8,7 +8,7 @@ export interface ReleaseNoteTypes {
 
 export const ReleaseNotes: ReleaseNoteTypes[] = [
     { version: '2.6.7', type: 'added', text: 'Calendar view settings. Manage weekend visibility, single vs. triple for day view' },
-    { version: '2.6.7', type: 'added', text: 'Calendar Huddle in Troops to Task. Manage custom daily positions for your clinic and match assignments' },
+    { version: '2.6.7', type: 'added', text: 'Calendar Huddle in Troops to Task. Manage custom daily positions for your cluster and match assignments' },
     { version: '2.6.7', type: 'changed', text: 'TC3 UX update. Manage VS and Treatment across time to match prolonged field care cards' },
     { version: '2.6.7', type: 'changed', text: 'Heat Index with location services. For range coverage requirements' },
     { version: '2.6.6', type: 'added', text: '9-line MEDEVAC request builder with export / import' },

@@ -233,7 +233,8 @@ export const services = {
     tables: { reads: [], writes: [] },
     idb: ['adtmc-message-store'],
     exports: ['saveMessage', 'getMessage', 'loadAllConversations',
-              'deleteMessagesByOriginId', 'saveTombstone', 'getAllTombstones', 'getTombstone'],
+              'deleteMessagesByOriginId', 'saveTombstone', 'getAllTombstones', 'getTombstone',
+              'saveOriginTombstones', 'getOriginTombstone', 'getAllOriginTombstones'],
   },
   'signal/supabaseTransport': {
     path: 'lib/signal/supabaseTransport.ts',

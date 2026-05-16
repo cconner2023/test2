@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { Plus, Building2, X, Inbox, Users, ChevronLeft, MessageCircleQuestion } from 'lucide-react'
+import { Plus, Building2, X, Inbox, Users, ChevronLeft, MessageCircleQuestion, MapPin } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from './BaseDrawer'
 import { MobileSearchBar } from './MobileSearchBar'
 import { HeaderPill, PillButton } from './HeaderPill'
@@ -7,11 +7,12 @@ import { DetailHeaderActions } from './Admin/DetailHeaderActions'
 import { useDetailEditState } from '../Hooks/useDetailEditState'
 import { ContentWrapper } from './ContentWrapper'
 import { ConfirmDialog } from './ConfirmDialog'
+import { Z } from './BaseOverlay'
 import { ActionSheet } from './ActionSheet'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { UI_TIMING } from '../Utilities/constants'
-import { deleteClinic, deleteUser, listAllUsers, listClinics } from '../lib/adminService'
+import { deleteClinic, deleteUser, listAllUsers, listClinics, listLocations } from '../lib/adminService'
 import { useAuthStore } from '../stores/useAuthStore'
 import { invalidate } from '../stores/useInvalidationStore'
 
@@ -21,23 +22,27 @@ import { AdminUsersList } from './Admin/AdminUsersList'
 import { AdminUserDetail } from './Admin/AdminUserDetail'
 import { AdminClinicsList } from './Admin/AdminClinicsList'
 import { AdminClinicDetail } from './Admin/AdminClinicDetail'
+import { AdminLocationsList } from './Admin/AdminLocationsList'
+import { AdminLocationDetail } from './Admin/AdminLocationDetail'
 import { AdminSummary } from './Admin/AdminSummary'
 import { AdminFeatureVotesSection } from './Admin/AdminFeatureVotesSection'
-import type { AdminUser, AdminClinic } from '../lib/adminService'
+import type { AdminUser, AdminClinic, AdminLocation } from '../lib/adminService'
 import type { AccountRequest } from '../lib/accountRequestService'
 
 export type AdminView =
     | 'admin'
     | 'admin-user-detail'
     | 'admin-clinic-detail'
+    | 'admin-location-detail'
 
-const ALL_TABS = ['requests', 'users', 'clinics', 'feature-votes'] as const
+const ALL_TABS = ['requests', 'users', 'clinics', 'locations', 'feature-votes'] as const
 type AdminTab = typeof ALL_TABS[number]
 
 const TAB_ICONS: Record<AdminTab, typeof Inbox> = {
     requests: Inbox,
     users: Users,
     clinics: Building2,
+    locations: MapPin,
     'feature-votes': MessageCircleQuestion,
 }
 
@@ -45,6 +50,7 @@ const TAB_LABELS: Record<AdminTab, string> = {
     requests: 'Requests',
     users: 'Users',
     clinics: 'Clinics',
+    locations: 'Locations',
     'feature-votes': 'Feature Votes',
 }
 
@@ -61,10 +67,12 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // Selected entity for detail views (null = create mode)
     const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
     const [selectedClinic, setSelectedClinic] = useState<AdminClinic | null>(null)
+    const [selectedLocation, setSelectedLocation] = useState<AdminLocation | null>(null)
 
     // User & clinic detail edit/delete state — symmetric, see useDetailEditState
     const userEdit = useDetailEditState()
     const clinicEdit = useDetailEditState()
+    const locationEdit = useDetailEditState()
 
     // Search state
     const [searchQuery, setSearchQuery] = useState('')
@@ -83,7 +91,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const currentUserId = useAuthStore(s => s.user?.id ?? null)
     const isDevRole = useAuthStore(s => s.isDevRole)
     const visibleTabs = useMemo<AdminTab[]>(
-        () => isDevRole ? [...ALL_TABS] : ALL_TABS.filter(t => t !== 'feature-votes'),
+        () => isDevRole ? [...ALL_TABS] : ALL_TABS.filter(t => t !== 'feature-votes' && t !== 'locations'),
         [isDevRole]
     )
 
@@ -178,24 +186,42 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setView('admin-clinic-detail')
     }, [handleSlideAnimation, clinicEdit])
 
+    const handleSelectLocation = useCallback((loc: AdminLocation) => {
+        setSelectedLocation(loc)
+        locationEdit.setEditing(false)
+        locationEdit.setHasPending(false)
+        handleSlideAnimation('left')
+        setView('admin-location-detail')
+    }, [handleSlideAnimation, locationEdit])
+
+    const handleCreateLocation = useCallback(() => {
+        setSelectedLocation(null)
+        locationEdit.setEditing(true)
+        locationEdit.setHasPending(false)
+        handleSlideAnimation('left')
+        setView('admin-location-detail')
+    }, [handleSlideAnimation, locationEdit])
+
     const navigateBack = useCallback(() => {
         clinicEdit.reset()
         userEdit.reset()
+        locationEdit.reset()
         if (view !== 'admin') {
             handleSlideAnimation('right')
             setView('admin')
             setSelectedUser(null)
             setSelectedClinic(null)
+            setSelectedLocation(null)
         }
-    }, [view, handleSlideAnimation, clinicEdit, userEdit])
+    }, [view, handleSlideAnimation, clinicEdit, userEdit, locationEdit])
 
     const handleBack = useCallback(() => {
-        if (userEdit.hasPending || clinicEdit.hasPending) {
+        if (userEdit.hasPending || clinicEdit.hasPending || locationEdit.hasPending) {
             setConfirmDiscard(true)
             return
         }
         navigateBack()
-    }, [userEdit.hasPending, clinicEdit.hasPending, navigateBack])
+    }, [userEdit.hasPending, clinicEdit.hasPending, locationEdit.hasPending, navigateBack])
 
     const handleDiscardConfirmed = useCallback(() => {
         setConfirmDiscard(false)
@@ -207,12 +233,14 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setActiveTab('requests')
         setSelectedUser(null)
         setSelectedClinic(null)
+        setSelectedLocation(null)
         setSlideDirection('')
         setSearchQuery('')
         clinicEdit.reset()
         userEdit.reset()
+        locationEdit.reset()
         onClose()
-    }, [onClose, clinicEdit, userEdit])
+    }, [onClose, clinicEdit, userEdit, locationEdit])
 
     const handleDeleteClinic = useCallback(async () => {
         if (!selectedClinic) return
@@ -267,7 +295,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     const isUserCreateMode = view === 'admin-user-detail' && selectedUser === null
     const isClinicCreateMode = view === 'admin-clinic-detail' && selectedClinic === null
-    const isDetailView = view === 'admin-user-detail' || view === 'admin-clinic-detail'
+    const isLocationCreateMode = view === 'admin-location-detail' && selectedLocation === null
+    const isDetailView = view === 'admin-user-detail' || view === 'admin-clinic-detail' || view === 'admin-location-detail'
     const desktopDetailPaneOpen = !isMobile && isDetailView
 
     const detailTitle = useMemo(() => {
@@ -279,8 +308,11 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         if (view === 'admin-clinic-detail') {
             return selectedClinic?.name || 'New Clinic'
         }
+        if (view === 'admin-location-detail') {
+            return selectedLocation?.display_name || 'New Location'
+        }
         return ''
-    }, [view, selectedUser, selectedClinic])
+    }, [view, selectedUser, selectedClinic, selectedLocation])
 
     // Header actions for detail views — user/clinic share DetailHeaderActions.
     const detailHeaderActions = useMemo(() => {
@@ -318,8 +350,21 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 />
             )
         }
+        if (view === 'admin-location-detail') {
+            return (
+                <DetailHeaderActions
+                    editing={locationEdit.editing}
+                    isCreate={isLocationCreateMode}
+                    onCancelEdit={() => locationEdit.setEditing(false)}
+                    onStartEdit={() => locationEdit.setEditing(true)}
+                    onRequestSave={locationEdit.requestSave}
+                    onClose={handleClose}
+                    showCloseWhenIdle={isMobile}
+                />
+            )
+        }
         return undefined
-    }, [view, selectedUser, userEdit, clinicEdit, isUserCreateMode, isClinicCreateMode, handleClose, currentUserId, isMobile])
+    }, [view, selectedUser, userEdit, clinicEdit, locationEdit, isUserCreateMode, isClinicCreateMode, isLocationCreateMode, handleClose, currentUserId, isMobile])
 
     // Header config per view
     // Desktop always shows the "Admin Panel" header — detail views get their own
@@ -348,6 +393,14 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     hideDefaultClose: !!detailHeaderActions,
                 }
             case 'admin-clinic-detail':
+                return {
+                    title: detailTitle,
+                    showBack: true,
+                    onBack: handleBack,
+                    rightContent: detailHeaderActions,
+                    hideDefaultClose: !!detailHeaderActions,
+                }
+            case 'admin-location-detail':
                 return {
                     title: detailTitle,
                     showBack: true,
@@ -384,6 +437,23 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         }
         invalidate('clinics')
     }, [handleBack, clinicEdit])
+
+    // After creating a location, load full location and switch to view mode
+    const handleLocationCreated = useCallback(async (locationId: string) => {
+        const locs = await listLocations()
+        const newLoc = locs.find(l => l.id === locationId)
+        if (newLoc) {
+            setSelectedLocation(newLoc)
+            locationEdit.setEditing(false)
+        } else {
+            handleBack()
+        }
+        invalidate('locations')
+    }, [handleBack, locationEdit])
+
+    const handleLocationArchived = useCallback(() => {
+        navigateBack()
+    }, [navigateBack])
 
     // Render detail content (user/clinic) — shared by mobile (full-width) and
     // desktop (right pane).
@@ -424,12 +494,31 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 </ScrollPane>
             )
         }
+        if (view === 'admin-location-detail') {
+            return (
+                <ScrollPane>
+                    <div className="px-5 pt-4 pb-8">
+                        <AdminLocationDetail
+                            location={selectedLocation}
+                            onLocationUpdated={(l) => setSelectedLocation(l)}
+                            onCreated={handleLocationCreated}
+                            onArchived={handleLocationArchived}
+                            editing={locationEdit.editing}
+                            onEditingChange={locationEdit.setEditing}
+                            saveRequested={locationEdit.saveRequested}
+                            onSaveComplete={locationEdit.completeSave}
+                            onPendingChangesChange={locationEdit.setHasPending}
+                        />
+                    </div>
+                </ScrollPane>
+            )
+        }
         return null
     }
 
     // Render active content — mobile slides between main and detail via `view`.
     const renderContent = () => {
-        if (view === 'admin-user-detail' || view === 'admin-clinic-detail') {
+        if (view === 'admin-user-detail' || view === 'admin-clinic-detail' || view === 'admin-location-detail') {
             return renderDetailContent()
         }
         return renderMainView()
@@ -437,16 +526,20 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     // ActionSheet options per tab
     const addSheetOptions = useMemo(() => {
-        const options = []
+        const options: Array<{ key: string; label: string; onAction: () => void }> = []
         if (activeTab === 'feature-votes') return options
+        if (activeTab === 'locations') {
+            options.push({ key: 'location', label: 'New Location', onAction: () => { setShowAddSheet(false); handleCreateLocation() } })
+            return options
+        }
         if (activeTab !== 'clinics') {
             options.push({ key: 'user', label: 'New User', onAction: () => { setShowAddSheet(false); handleCreateUser() } })
         }
         if (activeTab !== 'users') {
-            options.push({ key: 'clinic', label: 'New Clinic', onAction: () => { setShowAddSheet(false); handleCreateClinic() } })
+            options.push({ key: 'clinic', label: 'New Cluster', onAction: () => { setShowAddSheet(false); handleCreateClinic() } })
         }
         return options
-    }, [activeTab, handleCreateUser, handleCreateClinic])
+    }, [activeTab, handleCreateUser, handleCreateClinic, handleCreateLocation])
 
     // Bottom island — tab switcher (centered) + FAB (right), matching Property/Calendar pattern
     const bottomIsland = (
@@ -482,7 +575,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             </div>
 
             {/* FAB — absolute right, aligned to island. Hidden on tabs that don't create entities (requests = approval workflow, feature-votes = inline mgmt). */}
-            {activeTab !== 'feature-votes' && activeTab !== 'requests' && (
+            {activeTab !== 'feature-votes' && activeTab !== 'requests' && !(activeTab === 'locations' && !isDevRole) && (
                 <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
                     <button
                         onClick={() => setShowAddSheet(true)}
@@ -518,6 +611,13 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     onSelectClinic={handleSelectClinic}
                     onEditClinic={handleEditClinic}
                     onCreateClinic={handleCreateClinic}
+                    searchQuery={searchQuery}
+                />
+            )}
+            {activeTab === 'locations' && isDevRole && (
+                <AdminLocationsList
+                    onSelectLocation={handleSelectLocation}
+                    onCreateLocation={handleCreateLocation}
                     searchQuery={searchQuery}
                 />
             )}
@@ -678,13 +778,14 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         {/* Clinic delete confirmation — triggered from header pill */}
         <ConfirmDialog
             visible={clinicEdit.confirmingDelete}
-            title={`Delete ${selectedClinic?.name ?? 'clinic'}?`}
+            title={`Delete ${selectedClinic?.name ?? 'cluster'}?`}
             subtitle="Permanent. All associated data removed."
             confirmLabel="Delete"
             variant="danger"
             processing={clinicEdit.deleteProcessing}
             onConfirm={handleDeleteClinic}
             onCancel={clinicEdit.cancelDelete}
+            zIndex={Z.POPOVER + 30}
         />
 
         {/* User delete confirmation — triggered from header pill */}
@@ -697,6 +798,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             processing={userEdit.deleteProcessing}
             onConfirm={handleDeleteUser}
             onCancel={userEdit.cancelDelete}
+            zIndex={Z.POPOVER + 30}
         />
         </>
     )

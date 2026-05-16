@@ -156,6 +156,32 @@ export async function revokeAssociation(
   }
 }
 
+/**
+ * Fetch the freshest pending invite code for a clinic the caller is already
+ * associated with. Returns null if no active code exists; fails if the
+ * association gate rejects.
+ */
+export async function getAssociatedClinicCode(
+  clinicId: string,
+): Promise<ServiceResult<{ code: string | null }>> {
+  try {
+    const { data, error } = await supabase.rpc('get_associated_clinic_code', {
+      p_clinic_id: clinicId,
+    })
+
+    if (error) {
+      logger.error('Failed to fetch associated clinic code:', error.message)
+      return fail(error.message)
+    }
+
+    return succeed({ code: (data as string | null) ?? null })
+  } catch (error) {
+    const msg = rpcError(error)
+    logger.error('Failed to fetch associated clinic code:', msg)
+    return fail(msg)
+  }
+}
+
 /** Fetch all clinic invites (sent and received) for the current clinic. */
 export async function getInvites(): Promise<ServiceResult<{ invites: ClinicInvite[] }>> {
   try {

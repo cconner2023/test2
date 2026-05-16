@@ -161,7 +161,7 @@ export const TextExpanderEditPopover = ({
                             <button
                                 type="button"
                                 onClick={() => setSource(isClinic ? 'personal' : 'clinic')}
-                                aria-label={isClinic ? 'Clinic shortcut — tap for personal' : 'Personal shortcut — tap for clinic'}
+                                aria-label={isClinic ? 'Cluster shortcut — tap for personal' : 'Personal shortcut — tap for cluster'}
                                 className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
                                     isClinic ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
                                 }`}

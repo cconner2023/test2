@@ -150,7 +150,7 @@ const gettingStarted: TourDefinition = {
     },
     {
       target: 'sidenav-property',
-      text: 'Property Book — track clinic equipment, serialized gear, and consumables by location.',
+      text: 'Property Book — track cluster equipment, serialized gear, and consumables by location.',
       placement: 'bottom',
     },
     {
@@ -877,7 +877,7 @@ const calendarTour: TourDefinition = {
     // ── Huddle band (inline above medic timeline rows) ──
     {
       target: 'calendar-huddle-band',
-      text: 'Huddle band — provider/medic pairings sit above the medic rows, anchored to each day. Pan horizontally to see other days; manage rooms in clinic settings.',
+      text: 'Huddle band — provider/medic pairings sit above the medic rows, anchored to each day. Pan horizontally to see other days; manage rooms in cluster settings.',
       placement: 'bottom',
       beforeStep: 'calendar:view:troops',
       delay: 400,
@@ -947,7 +947,7 @@ const calendarTour: TourDefinition = {
     // ── Room picker ──
     {
       target: 'event-form-room',
-      text: 'Tag a clinic room so the event shows on that room\'s schedule. Rooms are managed in clinic settings.',
+      text: 'Tag a cluster room so the event shows on that room\'s schedule. Rooms are managed in cluster settings.',
       placement: 'top',
       duration: 5000,
     },
@@ -1104,12 +1104,12 @@ const supervisorTour: TourDefinition = {
   name: 'Supervisor Panel',
   tier: 'supervisor',
   category: 'advanced',
-  description: 'Clinic stats, soldier readiness, coverage gaps, and task evaluation.',
+  description: 'Cluster stats, soldier readiness, coverage gaps, and task evaluation.',
   steps: [
     // ── Overview: clinic stats card ──
     {
       target: 'supervisor-clinic-stats',
-      text: 'Clinic overview — team readiness and cert compliance at a glance. These aggregate across all assigned personnel.',
+      text: 'Cluster overview — team readiness and cert compliance at a glance. These aggregate across all assigned personnel.',
       placement: 'bottom',
       beforeStep: 'open:supervisor',
       delay: 400,
@@ -1158,15 +1158,15 @@ const supervisorTour: TourDefinition = {
 
 const clinicManagementTour: TourDefinition = {
   id: 'clinic-management',
-  name: 'Clinic Management',
+  name: 'Cluster Management',
   tier: 'supervisor',
   category: 'advanced',
-  description: 'Edit clinic details, manage associations, rooms, huddle tasks, and personnel.',
+  description: 'Edit cluster details, manage associations, rooms, huddle tasks, and personnel.',
   steps: [
     // ── Navigate to Settings → Clinic ──
     {
       target: 'clinic-identity-card',
-      text: 'Your clinic identity — name, location, UICs, and invite code. The QR code lets nearby clinics request association.',
+      text: 'Your cluster identity — name, location, UICs, and invite code. The QR code lets nearby clusters request association.',
       placement: 'bottom',
       beforeStep: 'clinic:open',
       delay: 600,
@@ -1182,14 +1182,14 @@ const clinicManagementTour: TourDefinition = {
     // ── Associated Clinics section ──
     {
       target: 'clinic-associated',
-      text: 'Associated clinics share personnel visibility across nearby teams. Tap "+" to scan a QR code, upload an image, or type an 8-character invite code.',
+      text: 'Associated clusters share personnel visibility across nearby teams. Tap "+" to scan a QR code, upload an image, or type an 8-character invite code.',
       placement: 'bottom',
       duration: 6000,
     },
     // ── Rooms section ──
     {
       target: 'clinic-rooms',
-      text: 'Rooms are the physical spaces in your clinic — exam rooms, triage bays, the SCA. They tag calendar events and notes so the team knows where care happens. Tap "+" to add one.',
+      text: 'Rooms are the physical spaces in your cluster — exam rooms, triage bays, the SCA. They tag calendar events and notes so the team knows where care happens. Tap "+" to add one.',
       placement: 'top',
       duration: 7000,
     },
@@ -1241,7 +1241,7 @@ const providerTemplateCreateTour: TourDefinition = {
     },
     {
       target: 'template-appt-type',
-      text: 'Choose the appointment type — each type carries its own duration (20-min virt, 40-min in-person, etc.). Manage types in Settings → Clinic → Appointment Types.',
+      text: 'Choose the appointment type — each type carries its own duration (20-min virt, 40-min in-person, etc.). Manage types in Settings → Cluster → Appointment Types.',
       placement: 'bottom',
       duration: 6500,
     },
@@ -1277,7 +1277,7 @@ const providerTemplateClearTour: TourDefinition = {
   steps: [
     {
       target: 'block-form',
-      text: 'Clear Templates — bulk-deletes templated slots for one or more providers across a date range. Use it to wipe a Tuesday or close a clinic week.',
+      text: 'Clear Templates — bulk-deletes templated slots for one or more providers across a date range. Use it to wipe a Tuesday or close a cluster week.',
       placement: 'bottom',
       beforeStep: 'calendar:open-block-panel',
       delay: 600,
@@ -1386,11 +1386,11 @@ const propertyTour: TourDefinition = {
   name: 'Property Book',
   tier: 'medic',
   category: 'reference-network',
-  description: 'Track clinic equipment, supplies, and serialized gear by location.',
+  description: 'Track cluster equipment, supplies, and serialized gear by location.',
   steps: [
     {
       target: 'sidenav-property',
-      text: 'Property Book tracks your clinic\'s equipment — serialized gear, medications, and consumables.',
+      text: 'Property Book tracks your cluster\'s equipment — serialized gear, medications, and consumables.',
       placement: 'bottom',
       beforeStep: 'open:sidenav',
       delay: 350,

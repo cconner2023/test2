@@ -211,7 +211,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                     if (match) updateField('clinic_id', match.id)
                   }}
                   options={clinicOptions.map(c => c.name)}
-                  placeholder="Clinic"
+                  placeholder="Cluster"
                 />
               </div>
             )
@@ -369,7 +369,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                 value={form.room_id ?? ''}
                 onChange={v => updateField('room_id', v || null)}
                 options={[{ value: '', label: 'No room' }, ...roomOptions.map(r => ({ value: r.id, label: r.name }))]}
-                placeholder="Clinic room"
+                placeholder="Cluster room"
               />
             </div>
           )}

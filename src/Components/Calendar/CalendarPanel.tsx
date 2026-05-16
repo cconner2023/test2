@@ -82,15 +82,18 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   }, [])
   const eventFormRef = useRef<EventFormHandle>(null)
 
-  const { clinicId, surrogateClinicId, profile, user } = useAuth()
-  // Clinic options for the EventForm picker. Only includes the surrogate when
-  // loaned. EventForm hides the picker entirely when length < 2.
+  const { clinicId, surrogateClinicIds, profile, user } = useAuth()
+  // Clinic options for the EventForm picker. Includes every active loan; the
+  // form hides the picker entirely when length < 2.
   const clinicFormOptions = useMemo(() => {
     const opts: { id: string; name: string }[] = []
     if (clinicId) opts.push({ id: clinicId, name: profile.clinicName ?? 'Assigned' })
-    if (surrogateClinicId) opts.push({ id: surrogateClinicId, name: profile.surrogateClinicName ?? 'Surrogate' })
+    const loans = profile.surrogateClinics ?? []
+    for (const id of surrogateClinicIds) {
+      opts.push({ id, name: loans.find((c) => c.id === id)?.name ?? 'Surrogate' })
+    }
     return opts
-  }, [clinicId, surrogateClinicId, profile.clinicName, profile.surrogateClinicName])
+  }, [clinicId, surrogateClinicIds, profile.clinicName, profile.surrogateClinics])
   const { writeEvent, vaultUpdate, deleteEvent: calendarDeleteEvent, isWriting, isDeleting } = useCalendarWrite()
   const apptTypes = useClinicAppointmentTypes()
   const apptTypeNames = useMemo(() => apptTypes.map(t => t.name), [apptTypes])
@@ -765,7 +768,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     <ConfirmDialog
       visible={!!confirmDeleteEvent}
       title="Delete event?"
-      subtitle="Permanent. Removed for all clinic members."
+      subtitle="Permanent. Removed for all cluster members."
       confirmLabel="Delete"
       variant="danger"
       onConfirm={() => {

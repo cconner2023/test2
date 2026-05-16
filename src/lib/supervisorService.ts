@@ -630,6 +630,29 @@ export async function loanSoldierToClinic(
 }
 
 /**
+ * Loan a soldier to a clinic that already has an accepted association with
+ * the soldier's home clinic. Bypasses the invite-code requirement since the
+ * two clinics are already linked. Use this for the multi-select Loans UI
+ * when adding from the associated-clinics list.
+ */
+export async function loanSoldierToAssociatedClinic(
+  userId: string,
+  targetClinicId: string,
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('supervisor_loan_user_to_clinic', {
+      p_user_id: userId,
+      p_target_clinic_id: targetClinicId,
+    })
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to loan soldier (associated):', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+/**
  * Transfer a soldier to another clinic (moves `clinic_id`, clears any surrogate).
  * Auth: supervisor of the soldier's home clinic, plus a valid invite code for
  * the target clinic.
@@ -652,22 +675,42 @@ export async function transferSoldierToClinic(
 }
 
 /**
- * Recall a loaned-out soldier — clears `surrogate_clinic_id` only, leaving
- * the home clinic intact. Auth: supervisor of either side (existing
- * `set_user_surrogate` RPC handles the gate).
+ * Recall a soldier from a single loan-target clinic. Auth: supervisor of either
+ * the soldier's home clinic or the loan-target clinic (server-resolved).
  */
-export async function recallSoldier(
+export async function endLoanFromClinic(
   userId: string,
+  clinicId: string,
 ): Promise<ServiceResult> {
   try {
-    const { error } = await supabase.rpc('set_user_surrogate', {
+    const { error } = await supabase.rpc('supervisor_end_loan_user', {
       p_user_id: userId,
-      p_surrogate_clinic_id: null,
+      p_clinic_id: clinicId,
     })
     if (error) return fail(error.message)
     return succeed()
   } catch (error) {
-    logger.error('Failed to recall soldier:', error)
+    logger.error('Failed to end loan:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+/**
+ * Recall a soldier from every active loan in one call. Auth: supervisor of
+ * the soldier's home clinic (loan-side callers should use endLoanFromClinic
+ * per-clinic).
+ */
+export async function endAllLoans(
+  userId: string,
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('supervisor_end_all_loans_user', {
+      p_user_id: userId,
+    })
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to end all loans:', error)
     return fail(getErrorMessage(error))
   }
 }

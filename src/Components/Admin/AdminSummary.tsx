@@ -63,12 +63,16 @@ export function AdminSummary({
     })
   }, [])
 
-  const childClinicIdSet = useMemo(() => {
-    const set = new Set<string>()
+  /** Map parent_id → children, computed once via reverse lookup on parent_clinic_id. */
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string, AdminClinic[]>()
     for (const clinic of clinics) {
-      for (const childId of clinic.child_clinic_ids) set.add(childId)
+      if (!clinic.parent_clinic_id) continue
+      const arr = map.get(clinic.parent_clinic_id) ?? []
+      arr.push(clinic)
+      map.set(clinic.parent_clinic_id, arr)
     }
-    return set
+    return map
   }, [clinics])
 
   const usersByClinic = useMemo(() => {
@@ -92,21 +96,17 @@ export function AdminSummary({
   const [showUnassigned, setShowUnassigned] = useState(false)
 
   const { roots } = useMemo(() => {
-    const clinicMap = new Map(clinics.map(c => [c.id, c]))
-
     function countTotal(clinic: AdminClinic): number {
       let count = usersByClinic.get(clinic.id) ?? 0
-      for (const childId of clinic.child_clinic_ids) {
-        const child = clinicMap.get(childId)
-        if (child) count += countTotal(child)
+      for (const child of childrenByParent.get(clinic.id) ?? []) {
+        count += countTotal(child)
       }
       return count
     }
 
     function buildNode(clinic: AdminClinic): ClinicNode {
-      const children = clinic.child_clinic_ids
-        .map(id => clinicMap.get(id))
-        .filter((c): c is AdminClinic => c !== undefined)
+      const children = (childrenByParent.get(clinic.id) ?? [])
+        .slice()
         .sort((a, b) => a.name.localeCompare(b.name))
         .map(buildNode)
 
@@ -119,11 +119,11 @@ export function AdminSummary({
     }
 
     const rootClinics = clinics
-      .filter(c => !childClinicIdSet.has(c.id))
+      .filter(c => !c.parent_clinic_id)
       .sort((a, b) => a.name.localeCompare(b.name))
 
     return { roots: rootClinics.map(buildNode) }
-  }, [clinics, usersByClinic, childClinicIdSet])
+  }, [clinics, usersByClinic, childrenByParent])
 
   function renderClinicRow(node: ClinicNode, depth: number) {
     const hasChildren = node.children.length > 0
@@ -156,7 +156,7 @@ export function AdminSummary({
           <div
             role="button"
             tabIndex={0}
-            aria-label={`Select clinic ${node.clinic.name}`}
+            aria-label={`Select cluster ${node.clinic.name}`}
             className="flex items-center flex-1 min-w-0"
             onClick={() => onSelectClinic(node.clinic)}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectClinic(node.clinic) } }}
@@ -180,8 +180,8 @@ export function AdminSummary({
     return (
       <div className="px-4 py-4">
         <EmptyState
-          title="No users or clinics yet"
-          action={{ icon: Building2, label: 'Open clinics', onClick: () => onSwitchTab('clinics') }}
+          title="No users or clusters yet"
+          action={{ icon: Building2, label: 'Open clusters', onClick: () => onSwitchTab('clinics') }}
         />
       </div>
     )
@@ -203,7 +203,7 @@ export function AdminSummary({
           onClick={() => onSwitchTab('clinics')}
           className="flex items-center gap-2 w-full text-left active:scale-[0.98] transition-all"
         >
-          <span className="text-[10pt] text-primary flex-1">Clinics</span>
+          <span className="text-[10pt] text-primary flex-1">Clusters</span>
           <span className="text-[10pt] font-semibold text-primary tabular-nums">{clinics.length}</span>
         </button>
 
@@ -270,7 +270,7 @@ export function AdminSummary({
         <button
           onClick={onSelectAll}
           onKeyDown={e => { if (e.key === 'Enter') onSelectAll() }}
-          aria-label="Show all clinics"
+          aria-label="Show all clusters"
           className={`flex items-center gap-2 w-full py-2 px-4 text-left cursor-pointer transition-all active:scale-[0.98] ${
             allSelected
               ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
@@ -278,7 +278,7 @@ export function AdminSummary({
           }`}
         >
           <span className="w-[18px] shrink-0" />
-          <span className="text-[10pt] font-medium text-primary">All Clinics</span>
+          <span className="text-[10pt] font-medium text-primary">All Clusters</span>
           <span className="text-[9pt] md:text-[9pt] font-normal text-tertiary tabular-nums ml-auto">{users.length}</span>
         </button>
 

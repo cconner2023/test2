@@ -93,6 +93,11 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   const [locations, setLocations] = useState<AdminLocation[]>([])
   const [memberEdit, setMemberEdit] = useState<{ memberId: string; anchor: DOMRect } | null>(null)
   const [addMemberAnchor, setAddMemberAnchor] = useState<DOMRect | null>(null)
+  // Associated clinics for the Loans multi-select. Derived from medics whose
+  // home clinic is different (gives counts + names) plus any clinics we
+  // discover via getClinicDetails for accepted associations missing from
+  // the medic roster. Same shape as ClinicPanel's nearbyClinicMap.
+  const [nearbyDetails, setNearbyDetails] = useState<Map<string, { name: string | null; uics: string[]; location: string | null }>>(new Map())
 
   // Fetch clinic UIC/location for the identity-edit popover seed
   useEffect(() => {
@@ -103,6 +108,46 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   }, [clinicId, isVisible])
 
   useEffect(() => { listLocations().then(setLocations) }, [])
+
+  // Fetch accepted associations so the MemberEditPopover Loans overlay can
+  // show them as toggleable rows. Mirrors ClinicPanel's nearbyClinicMap.
+  const [associatedClinicsList, setAssociatedClinicsList] = useState<{ clinicId: string; clinicName: string; uics: string[]; location: string | null }[]>([])
+  useEffect(() => {
+    if (!clinicId) { setAssociatedClinicsList([]); return }
+    let cancelled = false
+    ;(async () => {
+      const { getInvites } = await import('../lib/clinicAssociationService')
+      const r = await getInvites()
+      if (cancelled) return
+      if (!r.success) return
+      const peerIds = new Set<string>()
+      for (const inv of r.invites) {
+        if (inv.status !== 'accepted') continue
+        const peer = inv.clinic_id === clinicId ? inv.peer_clinic_id
+                   : inv.peer_clinic_id === clinicId ? inv.clinic_id
+                   : null
+        if (peer && peer !== clinicId) peerIds.add(peer)
+      }
+      const ids = Array.from(peerIds)
+      const details = await Promise.all(ids.map(async (id) => {
+        const d = nearbyDetails.get(id) ?? await getClinicDetails(id)
+        return [id, d] as const
+      }))
+      if (cancelled) return
+      setNearbyDetails((prev) => {
+        const next = new Map(prev)
+        for (const [id, d] of details) next.set(id, { name: d.name ?? null, uics: d.uics, location: d.location })
+        return next
+      })
+      setAssociatedClinicsList(details.map(([id, d]) => ({
+        clinicId: id,
+        clinicName: d.name ?? 'Unknown',
+        uics: d.uics,
+        location: d.location,
+      })))
+    })()
+    return () => { cancelled = true }
+  }, [clinicId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const {
     loading: _loading,
@@ -700,6 +745,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         memberId={memberEdit?.memberId ?? null}
         clinicId={clinicId}
         fallbackProfile={memberFallback}
+        associatedClinics={associatedClinicsList}
         loanState={(() => {
           if (!memberEdit) return 'home'
           const m = medics.find(x => x.id === memberEdit.memberId)

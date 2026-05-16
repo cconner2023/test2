@@ -194,7 +194,7 @@ export const PlanPanel = () => {
                     <p className="text-[10pt] text-tertiary leading-relaxed">
                         Manage order tags and order sets for the plan section of your notes.
                         {(clinicPlanOrderTags || (clinicPlanOrderSets?.length ?? 0) > 0) && (
-                            <span className="text-tertiary"> Includes clinic-wide items.</span>
+                            <span className="text-tertiary"> Includes cluster-wide items.</span>
                         )}
                     </p>
 
@@ -349,7 +349,7 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitN
                     {supervisorScopeAvailable && (
                         <ActionButton
                             icon={scope === 'clinic' ? Building2 : User}
-                            label={scope === 'clinic' ? 'Clinic' : 'Personal'}
+                            label={scope === 'clinic' ? 'Cluster' : 'Personal'}
                             onClick={() => setScope(s => s === 'personal' ? 'clinic' : 'personal')}
                         />
                     )}
@@ -534,7 +534,7 @@ function OrderSetEditPopover({
                 <ActionPill>
                     <ActionButton
                         icon={scope === 'clinic' ? Building2 : User}
-                        label={scope === 'clinic' ? 'Clinic' : 'Personal'}
+                        label={scope === 'clinic' ? 'Cluster' : 'Personal'}
                         onClick={() => setScope(s => s === 'personal' ? 'clinic' : 'personal')}
                     />
                 </ActionPill>

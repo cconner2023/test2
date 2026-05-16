@@ -7,15 +7,15 @@
  */
 
 import { useEffect, useCallback, useMemo, useState, useRef } from 'react'
-import { X, Plus, UserPlus } from 'lucide-react'
+import { X, Plus, UserPlus, RefreshCw } from 'lucide-react'
 import { UserRow } from '../UserRow'
 import { ActionButton } from '../ActionButton'
-import { listClinics, listAllUsers, listLocations, updateClinic, createClinic } from '../../lib/adminService'
+import { listClinics, listAllUsers, listLocations, updateClinic, createClinic, rescueClinicAssociationsByLocation } from '../../lib/adminService'
 import type { AdminUser, AdminClinic, AdminLocation, ClinicRoom } from '../../lib/adminService'
 import { formatLastActive } from './adminUtils'
 import { TextInput, UicPinInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
-import { ClinicMultiPickerInput, LocationPickerInput } from './AdminPickers'
+import { ClinicMultiPickerInput, ClinicParentPickerInput, LocationPickerInput } from './AdminPickers'
 import { invalidate } from '../../stores/useInvalidationStore'
 import { sameStringSet } from '../../Utilities/arrayEquals'
 import { ActionPill } from '../ActionPill'
@@ -54,7 +54,7 @@ const AdminClinicDetail = ({
   const [editName, setEditName] = useState('')
   const [editLocationId, setEditLocationId] = useState<string | null>(null)
   const [editUics, setEditUics] = useState<string[]>([])
-  const [editChildClinicIds, setEditChildClinicIds] = useState<string[]>([])
+  const [editParentClinicId, setEditParentClinicId] = useState<string | null>(null)
   const [editAssociatedClinicIds, setEditAssociatedClinicIds] = useState<string[]>([])
   const [editRooms, setEditRooms] = useState<ClinicRoom[]>([])
   const [roomDraft, setRoomDraft] = useState('')
@@ -63,6 +63,8 @@ const AdminClinicDetail = ({
   const [uicDraft, setUicDraft] = useState('')
   const [uicError, setUicError] = useState<string | null>(null)
   const [uicOwner, setUicOwner] = useState<AdminClinic | null>(null)
+  const [rescuing, setRescuing] = useState(false)
+  const [rescueResult, setRescueResult] = useState<string | null>(null)
 
   const isCreateMode = clinic === null
 
@@ -118,7 +120,7 @@ const AdminClinicDetail = ({
       setEditName(clinic?.name ?? '')
       setEditLocationId(clinic?.location_id ?? null)
       setEditUics([...(clinic?.uics ?? [])])
-      setEditChildClinicIds([...(clinic?.child_clinic_ids ?? [])])
+      setEditParentClinicId(clinic?.parent_clinic_id ?? null)
       setEditAssociatedClinicIds([...(clinic?.associated_clinic_ids ?? [])])
       setEditRooms((clinic?.rooms ?? []).map(r => ({ ...r })))
       setRoomDraft('')
@@ -136,15 +138,15 @@ const AdminClinicDetail = ({
       editName !== (clinic?.name ?? '') ||
       editLocationId !== (clinic?.location_id ?? null) ||
       !sameStringSet(editUics, clinic?.uics ?? []) ||
-      !sameStringSet(editChildClinicIds, clinic?.child_clinic_ids ?? []) ||
+      editParentClinicId !== (clinic?.parent_clinic_id ?? null) ||
       !sameStringSet(editAssociatedClinicIds, clinic?.associated_clinic_ids ?? []) ||
       roomsChanged
     onPendingChangesChange?.(changed)
-  }, [editing, editName, editLocationId, editUics, editChildClinicIds, editAssociatedClinicIds, editRooms, clinic, onPendingChangesChange])
+  }, [editing, editName, editLocationId, editUics, editParentClinicId, editAssociatedClinicIds, editRooms, clinic, onPendingChangesChange])
 
   const handleSave = useCallback(async () => {
     if (!editName.trim()) {
-      setError('Clinic name required.')
+      setError('Cluster name required.')
       return
     }
     setSaving(true)
@@ -153,7 +155,7 @@ const AdminClinicDetail = ({
     const payload = {
       name: editName.trim(),
       uics: editUics,
-      child_clinic_ids: editChildClinicIds,
+      parent_clinic_id: editParentClinicId,
       associated_clinic_ids: editAssociatedClinicIds,
       rooms: editRooms,
     }
@@ -163,11 +165,11 @@ const AdminClinicDetail = ({
       setSaving(false)
       if (result.success && result.id) {
         if (result.warnings?.length) {
-          setError(`Clinic created, but: ${result.warnings.join('; ')}`)
+          setError(`Cluster created, but: ${result.warnings.join('; ')}`)
         }
         onCreated?.(result.id)
       } else {
-        setError(!result.success ? result.error : 'Failed to create clinic')
+        setError(!result.success ? result.error : 'Failed to create cluster')
       }
       return
     }
@@ -184,7 +186,7 @@ const AdminClinicDetail = ({
     } else {
       setError(result.error || 'Failed to update clinic')
     }
-  }, [editName, editLocationId, editUics, editChildClinicIds, editAssociatedClinicIds, editRooms, isCreateMode, clinic, onEditingChange, loadData, onCreated])
+  }, [editName, editLocationId, editUics, editParentClinicId, editAssociatedClinicIds, editRooms, isCreateMode, clinic, onEditingChange, loadData, onCreated])
 
   const handleAddRoom = useCallback(() => {
     const trimmed = roomDraft.trim()
@@ -207,6 +209,21 @@ const AdminClinicDetail = ({
     setEditRooms(prev => prev.filter(r => r.id !== id))
   }, [])
 
+  const handleRescueAssociations = useCallback(async () => {
+    if (!clinic?.location_id) return
+    setRescuing(true)
+    setRescueResult(null)
+    const result = await rescueClinicAssociationsByLocation(clinic.location_id)
+    setRescuing(false)
+    if (result.success) {
+      setRescueResult(`Re-associated ${result.touched} clinic${result.touched === 1 ? '' : 's'} at this location.`)
+      invalidate('clinics')
+      loadData()
+    } else {
+      setRescueResult(`Rescue failed: ${result.error}`)
+    }
+  }, [clinic?.location_id, loadData])
+
   useEffect(() => {
     if (saveRequested) {
       handleSave()
@@ -220,23 +237,18 @@ const AdminClinicDetail = ({
     [users, clinic?.id, isCreateMode],
   )
 
-  /**
-   * Parent clinics — any clinic that lists this one as a child. Defensive array
-   * (data model permits multiple parents even though the tree is usually clean).
-   */
-  const parentClinics = useMemo(() => {
-    if (isCreateMode || !clinic) return []
-    return clinics
-      .filter((c) => c.id !== clinic.id && c.child_clinic_ids.includes(clinic.id))
-      .sort((a, b) => a.name.localeCompare(b.name))
+  /** Single parent resolved from parent_clinic_id (null = root). */
+  const parentClinic = useMemo(() => {
+    if (isCreateMode || !clinic?.parent_clinic_id) return null
+    return clinics.find((c) => c.id === clinic.parent_clinic_id) ?? null
   }, [clinics, clinic, isCreateMode])
 
-  /** Sub-clinics resolved to full records, in id-list order. */
+  /** Sub-clinics — derived from reverse lookup on parent_clinic_id. */
   const subClinics = useMemo(() => {
     if (isCreateMode || !clinic) return []
-    return clinic.child_clinic_ids
-      .map((cid) => clinics.find((c) => c.id === cid))
-      .filter((c): c is AdminClinic => c !== undefined)
+    return clinics
+      .filter((c) => c.parent_clinic_id === clinic.id)
+      .sort((a, b) => a.name.localeCompare(b.name))
   }, [clinics, clinic, isCreateMode])
 
   /** Users currently loaned IN to this clinic (their surrogate_clinic_id matches). */
@@ -281,7 +293,7 @@ const AdminClinicDetail = ({
       <div className="rounded-2xl bg-themewhite2 overflow-hidden">
         {editing ? (
           <div>
-            <TextInput value={editName} onChange={setEditName} placeholder="Clinic name" />
+            <TextInput value={editName} onChange={setEditName} placeholder="Cluster name" />
             <LocationPickerInput value={editLocationId} onChange={setEditLocationId} allLocations={locations} />
             {clinic?.location && editLocationId === null && (
               <p className="px-4 py-2 text-[9pt] text-tertiary border-b border-primary/6">
@@ -364,8 +376,13 @@ const AdminClinicDetail = ({
               )
             })()}
 
-            <ClinicMultiPickerInput selectedIds={editChildClinicIds} allClinics={clinics} excludeId={clinic?.id} onChange={setEditChildClinicIds} placeholder="Add sub-clinic" />
-            <ClinicMultiPickerInput selectedIds={editAssociatedClinicIds} allClinics={clinics} excludeId={clinic?.id} onChange={setEditAssociatedClinicIds} placeholder="Add associated clinic" />
+            <ClinicParentPickerInput
+              value={editParentClinicId}
+              allClinics={clinics}
+              excludeId={clinic?.id ?? null}
+              onChange={setEditParentClinicId}
+            />
+            <ClinicMultiPickerInput selectedIds={editAssociatedClinicIds} allClinics={clinics} excludeId={clinic?.id} onChange={setEditAssociatedClinicIds} placeholder="Add associated cluster" />
 
             {editRooms.length > 0 && (
               <div className="px-4 py-3 space-y-1.5 border-b border-primary/6">
@@ -415,10 +432,23 @@ const AdminClinicDetail = ({
               const loc = clinic.location_id ? locations.find(l => l.id === clinic.location_id) : null
               if (loc) {
                 return (
-                  <p className="text-[9pt] text-tertiary mt-0.5">
-                    {loc.display_name}
-                    {loc.command && <span className="ml-1.5">· {loc.command}</span>}
-                  </p>
+                  <div className="mt-0.5 flex items-center gap-2">
+                    <p className="text-[9pt] text-tertiary flex-1 min-w-0">
+                      {loc.display_name}
+                      {loc.command && <span className="ml-1.5">· {loc.command}</span>}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleRescueAssociations}
+                      disabled={rescuing}
+                      title="Re-associate all clusters at this location"
+                      aria-label="Rescue associations for this location"
+                      className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9pt] text-tertiary hover:text-themeblue2 hover:bg-themeblue2/5 transition-colors disabled:opacity-40"
+                    >
+                      <RefreshCw size={11} className={rescuing ? 'animate-spin' : ''} />
+                      <span>{rescuing ? 'Rescuing…' : 'Rescue peers'}</span>
+                    </button>
+                  </div>
                 )
               }
               if (clinic.location) {
@@ -426,6 +456,9 @@ const AdminClinicDetail = ({
               }
               return null
             })()}
+            {rescueResult && (
+              <p className="mt-1 text-[9pt] text-themeblue2">{rescueResult}</p>
+            )}
             {clinic.uics.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-2">
                 {clinic.uics.map((uic) => (
@@ -435,35 +468,32 @@ const AdminClinicDetail = ({
                 ))}
               </div>
             )}
-            {(parentClinics.length > 0 || subClinics.length > 0) && (
+            {(parentClinic || subClinics.length > 0) && (
               <div className="mt-2 space-y-1.5">
-                {parentClinics.length > 0 && (
+                {parentClinic && (
                   <div className="flex flex-wrap items-center gap-1">
                     <span className="text-[8pt] uppercase tracking-wider text-tertiary mr-1 shrink-0">Parent</span>
-                    {parentClinics.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => onSelectClinic?.(p)}
-                        disabled={!onSelectClinic}
-                        aria-label={`Open parent clinic ${p.name}`}
-                        className="inline-flex items-center px-1.5 py-0.5 rounded text-[9pt] font-medium border bg-themeblue3/10 text-themeblue3 border-themeblue3/30 hover:bg-themeblue3/20 transition-colors active:scale-95 disabled:cursor-default disabled:hover:bg-themeblue3/10"
-                      >
-                        {p.name}
-                      </button>
-                    ))}
+                    <button
+                      type="button"
+                      onClick={() => onSelectClinic?.(parentClinic)}
+                      disabled={!onSelectClinic}
+                      aria-label={`Open parent cluster ${parentClinic.name}`}
+                      className="inline-flex items-center px-1.5 py-0.5 rounded text-[9pt] font-medium border bg-themeblue3/10 text-themeblue3 border-themeblue3/30 hover:bg-themeblue3/20 transition-colors active:scale-95 disabled:cursor-default disabled:hover:bg-themeblue3/10"
+                    >
+                      {parentClinic.name}
+                    </button>
                   </div>
                 )}
                 {subClinics.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1">
-                    <span className="text-[8pt] uppercase tracking-wider text-tertiary mr-1 shrink-0">Sub-clinics</span>
+                    <span className="text-[8pt] uppercase tracking-wider text-tertiary mr-1 shrink-0">Sub-clusters</span>
                     {subClinics.map((child) => (
                       <button
                         key={child.id}
                         type="button"
                         onClick={() => onSelectClinic?.(child)}
                         disabled={!onSelectClinic}
-                        aria-label={`Open sub-clinic ${child.name}`}
+                        aria-label={`Open sub-cluster ${child.name}`}
                         className="inline-flex items-center px-1.5 py-0.5 rounded text-[9pt] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30 hover:bg-themeblue2/20 transition-colors active:scale-95 disabled:cursor-default disabled:hover:bg-themeblue2/10"
                       >
                         {child.name}
@@ -519,7 +549,7 @@ const AdminClinicDetail = ({
       {!isCreateMode && !editing && allClinicUsers.length === 0 && (
         <EmptyState
           className="mt-4"
-          title="No users assigned to this clinic"
+          title="No users assigned to this cluster"
           action={{ icon: UserPlus, label: 'Add users', onClick: () => onEditingChange(true) }}
         />
       )}

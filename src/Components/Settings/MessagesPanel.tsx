@@ -541,7 +541,7 @@ function ConversationPane({
                 return filtered.length > 0 ? (
                   <>
                     <div className="flex items-center gap-1.5 px-3 py-1.5">
-                      <p className="text-[10pt] text-tertiary uppercase tracking-wider font-semibold">My Clinic</p>
+                      <p className="text-[10pt] text-tertiary uppercase tracking-wider font-semibold">My Cluster</p>
                     </div>
                     {filtered.map(medic => isMobile ? (
                       <LongPressRow
@@ -715,6 +715,7 @@ function ChatDetail({
   acceptRequest,
   editMessage,
   deleteMessages,
+  deleteConversation,
   onBack,
   onStartCall,
   onStartVideoCall,
@@ -737,6 +738,7 @@ function ChatDetail({
   acceptRequest: (peerId: string) => Promise<void>
   editMessage: (peerId: string, messageId: string, newText: string) => void
   deleteMessages: (peerId: string, messageIds: string[]) => void
+  deleteConversation: (conversationKey: string) => void
   onBack?: () => void
   onStartCall?: () => void
   onStartVideoCall?: () => void
@@ -812,7 +814,15 @@ function ChatDetail({
         status: requestStatus,
         peerName,
         onAccept: () => acceptRequest(peerId),
-        onDecline: () => onBack?.(),
+        // Decline silently tears down the conversation on our side: writes a
+        // conversation tombstone, hard-deletes server rows, fans a sync to our
+        // own devices, and (via per-originId tombstones) prevents backup or
+        // realtime echoes from resurrecting the request. Peer is not notified
+        // at the conversation level — matches Discord "ignore request" semantics.
+        onDecline: () => {
+          deleteConversation(peerId)
+          onBack?.()
+        },
       }}
       isSelfChat={isSelf}
       showForward
@@ -1225,6 +1235,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         acceptRequest={acceptRequest}
         editMessage={editMessage}
         deleteMessages={deleteMessages}
+        deleteConversation={deleteConversation}
         onBack={onBack}
         onStartCall={callActions ? () => callActions.startCall({ userId: selectedPeerId, displayName: peerName ?? 'Unknown' }) : undefined}
         onStartVideoCall={callActions ? () => callActions.startVideoCall({ userId: selectedPeerId, displayName: peerName ?? 'Unknown' }) : undefined}

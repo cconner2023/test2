@@ -69,7 +69,7 @@ export function ClinicIdentityEditPopover({
   const handleSave = useCallback(async () => {
     if (!clinicId) return
     if (!name.trim()) {
-      setError('Clinic name is required')
+      setError('Cluster name is required')
       return
     }
     setSaving(true)
@@ -147,7 +147,7 @@ export function ClinicIdentityEditPopover({
       isOpen={isOpen}
       onClose={onClose}
       anchorRect={anchorRect}
-      title={isPickMode ? 'Location' : 'Edit clinic'}
+      title={isPickMode ? 'Location' : 'Edit cluster'}
       onBack={isPickMode ? () => setMode('edit') : undefined}
       maxWidth={360}
       previewMaxHeight="60dvh"
@@ -223,7 +223,7 @@ export function ClinicIdentityEditPopover({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Clinic name"
+              placeholder="Cluster name"
               className="flex-1 bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm min-w-0"
             />
           </div>

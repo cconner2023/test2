@@ -6,10 +6,21 @@
  *
  * Database: adtmc-message-store
  * Stores:
- *   messages - Decrypted messages keyed by message id
+ *   messages              - Decrypted messages keyed by message id
  *     Indexes:
  *       by-peer       - peerId (for loading a conversation)
  *       by-peer-time  - [peerId, createdAt] compound (sorted retrieval)
+ *   conversationTombstones - { conversationKey, deletedAt } — coarse deletion guard
+ *   originTombstones       - { originId, deletedAt }       — fine per-message guard
+ *
+ * Delete-propagation invariant:
+ *   originId is the canonical identity for delete propagation. All protocol
+ *   deletes flow through deleteMessagesByOriginId, which atomically writes an
+ *   originTombstone AND removes the row. saveMessage checks BOTH tombstone
+ *   stores, so any later resurrection vector (realtime echo, vault drain,
+ *   backup restore on a new device) drops the row silently. Both tombstone
+ *   stores ride in the encrypted backup, so device rebirths inherit the
+ *   deletion log along with history.
  *
  * Follows the same patterns as keyStore.ts:
  * - Singleton IDB instance
@@ -50,10 +61,17 @@ interface MessageDB extends DBSchema {
       deletedAt: string // ISO 8601
     }
   }
+  originTombstones: {
+    key: string // originId
+    value: {
+      originId: string
+      deletedAt: string // ISO 8601
+    }
+  }
 }
 
 const MESSAGE_DB_NAME = 'adtmc-message-store'
-const MESSAGE_DB_VERSION = 3
+const MESSAGE_DB_VERSION = 4
 
 const { getDb, destroy: destroyMessageDb } = createIdbSingleton<MessageDB>(
   MESSAGE_DB_NAME,
@@ -74,6 +92,11 @@ const { getDb, destroy: destroyMessageDb } = createIdbSingleton<MessageDB>(
       if (oldVersion < 3) {
         if (!db.objectStoreNames.contains('conversationTombstones')) {
           db.createObjectStore('conversationTombstones', { keyPath: 'conversationKey' })
+        }
+      }
+      if (oldVersion < 4) {
+        if (!db.objectStoreNames.contains('originTombstones')) {
+          db.createObjectStore('originTombstones', { keyPath: 'originId' })
         }
       }
     },
@@ -175,21 +198,77 @@ export async function deleteTombstone(conversationKey: string): Promise<void> {
   }
 }
 
-/** Delete tombstones older than 30 days. */
+/** Delete tombstones older than 30 days (both conversation + origin stores). */
 export async function cleanExpiredTombstones(): Promise<void> {
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
   try {
     const db = await getDb()
-    const all = await db.getAll('conversationTombstones')
-    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-    const tx = db.transaction('conversationTombstones', 'readwrite')
+    const convoAll = await db.getAll('conversationTombstones')
+    const convoTx = db.transaction('conversationTombstones', 'readwrite')
     await Promise.all(
-      all
+      convoAll
         .filter(row => row.deletedAt < cutoff)
-        .map(row => tx.store.delete(row.conversationKey)),
+        .map(row => convoTx.store.delete(row.conversationKey)),
     )
+    await convoTx.done
+  } catch (err) {
+    logger.warn('Failed to clean expired conversation tombstones:', err)
+  }
+  try {
+    const db = await getDb()
+    const originAll = await db.getAll('originTombstones')
+    const originTx = db.transaction('originTombstones', 'readwrite')
+    await Promise.all(
+      originAll
+        .filter(row => row.deletedAt < cutoff)
+        .map(row => originTx.store.delete(row.originId)),
+    )
+    await originTx.done
+  } catch (err) {
+    logger.warn('Failed to clean expired origin tombstones:', err)
+  }
+}
+
+// ---- Origin tombstone CRUD (per-message delete identity) ----
+
+/** Persist origin tombstones for one or more deleted messages. */
+export async function saveOriginTombstones(originIds: string[], deletedAt: string): Promise<void> {
+  if (originIds.length === 0) return
+  try {
+    const db = await getDb()
+    const tx = db.transaction('originTombstones', 'readwrite')
+    await Promise.all(originIds.map(originId => tx.store.put({ originId, deletedAt })))
     await tx.done
   } catch (err) {
-    logger.warn('Failed to clean expired tombstones:', err)
+    logger.warn('Failed to save origin tombstones:', err)
+  }
+}
+
+/** Look up an origin tombstone, or null if the originId has not been deleted. */
+export async function getOriginTombstone(originId: string): Promise<string | null> {
+  try {
+    const db = await getDb()
+    const row = await db.get('originTombstones', originId)
+    return row?.deletedAt ?? null
+  } catch (err) {
+    logger.warn('Failed to get origin tombstone:', err)
+    return null
+  }
+}
+
+/** Load all origin tombstones as a map of originId → deletedAt. */
+export async function getAllOriginTombstones(): Promise<Record<string, string>> {
+  try {
+    const db = await getDb()
+    const all = await db.getAll('originTombstones')
+    const result: Record<string, string> = {}
+    for (const row of all) {
+      result[row.originId] = row.deletedAt
+    }
+    return result
+  } catch (err) {
+    logger.warn('Failed to load origin tombstones:', err)
+    return {}
   }
 }
 
@@ -208,10 +287,19 @@ export async function saveMessage(
   try {
     const peerId = msg.groupId ?? (msg.senderId === localUserId ? msg.recipientId : msg.senderId)
 
-    // Tombstone guard: skip messages that predate a conversation deletion
+    // Tombstone guards — see invariant block at file head.
+    // (1) Conversation tombstone: skip messages that predate a conversation deletion.
     const tombstone = await getTombstone(peerId)
     if (tombstone && msg.createdAt < tombstone) {
       return
+    }
+    // (2) Origin tombstone: skip any message whose originId has been deleted.
+    // Catches realtime echoes, vault drains, and backup restores on new devices.
+    if (msg.originId) {
+      const originTombstone = await getOriginTombstone(msg.originId)
+      if (originTombstone) {
+        return
+      }
     }
 
     let stored: StoredMessage = { ...msg, peerId }
@@ -392,20 +480,35 @@ export async function deleteMessages(messageIds: string[]): Promise<void> {
   }
 }
 
-/** Delete messages from IndexedDB by originId (for cross-device/peer delete sync). */
-export async function deleteMessagesByOriginId(originIds: string[]): Promise<void> {
+/** Delete messages by originId AND record an origin tombstone in one atomic
+ *  transaction (cross-device/peer delete sync). The tombstone is what makes
+ *  the delete survive backup restores and vault drains on new devices — see
+ *  the invariant block at the top of this file. */
+export async function deleteMessagesByOriginId(
+  originIds: string[],
+  deletedAt: string = new Date().toISOString(),
+): Promise<void> {
   if (originIds.length === 0) return
   try {
     const db = await getDb()
-    const tx = db.transaction('messages', 'readwrite')
+    const tx = db.transaction(['messages', 'originTombstones'], 'readwrite')
     const originSet = new Set(originIds)
-    let cursor = await tx.store.openCursor()
+
+    // Tombstone first (writes are idempotent — re-deletes just refresh deletedAt).
+    await Promise.all(
+      originIds.map(originId => tx.objectStore('originTombstones').put({ originId, deletedAt })),
+    )
+
+    // Then sweep matching rows from `messages`.
+    const messagesStore = tx.objectStore('messages')
+    let cursor = await messagesStore.openCursor()
     while (cursor) {
       if (cursor.value.originId && originSet.has(cursor.value.originId)) {
         await cursor.delete()
       }
       cursor = await cursor.continue()
     }
+
     await tx.done
   } catch (err) {
     logger.warn('Failed to delete messages by originId:', err)

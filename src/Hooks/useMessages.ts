@@ -1322,7 +1322,24 @@ export function useMessages(): UseMessagesReturn {
 
     store().deleteMessages(peerId, messageIds)
 
-    deleteMessagesFromDb(messageIds)
+    // Tombstone-first: the by-originId delete writes per-message tombstones
+    // atomically with the row removal. saveMessage's origin-tombstone guard
+    // then blocks any later resurrection (realtime echo, backup restore,
+    // vault drain on a new device). For legacy rows with no originId, fall
+    // back to the by-id helper. Backup is scheduled after both complete.
+    const deletedAt = new Date().toISOString()
+    const idbDeletes: Promise<unknown>[] = []
+    if (originIds.length > 0) {
+      idbDeletes.push(deleteMessagesByOriginIdFromDb(originIds, deletedAt))
+    }
+    const messageIdsWithoutOrigin = messageIds.filter(id => {
+      const m = msgs.find(m => m.id === id)
+      return !m?.originId
+    })
+    if (messageIdsWithoutOrigin.length > 0) {
+      idbDeletes.push(deleteMessagesFromDb(messageIdsWithoutOrigin))
+    }
+    Promise.all(idbDeletes)
       .then(() => createBackup(userId))
       .catch(e => logger.warn('Failed to delete/re-sync:', e instanceof Error ? e.message : e))
 

@@ -25,12 +25,16 @@ interface ClinicOption {
 
 function useSupervisorContextOptions(): ClinicOption[] | null {
   const {
-    isSupervisorRole, profile, clinicId, surrogateClinicId,
+    isSupervisorRole, profile, clinicId, surrogateClinicIds,
   } = useAuth()
-  if (!isSupervisorRole || !surrogateClinicId || !clinicId) return null
+  if (!isSupervisorRole || !clinicId || surrogateClinicIds.length === 0) return null
+  const loans = profile.surrogateClinics ?? []
   return [
     { id: clinicId, name: profile.clinicName ?? 'Assigned' },
-    { id: surrogateClinicId, name: profile.surrogateClinicName ?? 'Surrogate' },
+    ...surrogateClinicIds.map((id) => ({
+      id,
+      name: loans.find((c) => c.id === id)?.name ?? 'Surrogate',
+    })),
   ]
 }
 
@@ -80,7 +84,7 @@ export function SupervisorClinicCardAction() {
       <div ref={buttonRef} className="contents">
         <ActionButton
           icon={Building2}
-          label="Switch clinic context"
+          label="Switch cluster context"
           onClick={() => setAnchor(buttonRef.current?.getBoundingClientRect() ?? null)}
         />
       </div>

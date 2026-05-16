@@ -552,10 +552,15 @@ export interface AdminClinic {
   id: string
   name: string
   uics: string[]
+  /** @deprecated — superseded by parent_clinic_id reverse lookup. Retained
+   *  for one release while consumers migrate. New writes should use
+   *  parent_clinic_id on the child row instead of mutating this array. */
   child_clinic_ids: string[]
   associated_clinic_ids: string[]
   location: string | null
   location_id: string | null
+  /** Single-parent command tree. Null = root clinic. Edited admin-only. */
+  parent_clinic_id: string | null
   rooms: ClinicRoom[]
 }
 
@@ -574,6 +579,7 @@ export interface AdminLocation {
   command: string | null
   lat: number | null
   lon: number | null
+  parent_id: string | null
 }
 
 /**
@@ -583,7 +589,7 @@ export async function listLocations(): Promise<AdminLocation[]> {
   try {
     const { data, error } = await supabase
       .from('locations')
-      .select('id, country_code, subdivision, installation, sub_area, display_name, timezone, command, lat, lon')
+      .select('id, country_code, subdivision, installation, sub_area, display_name, timezone, command, lat, lon, parent_id')
       .is('archived_at', null)
       .order('country_code')
       .order('installation')
@@ -593,6 +599,100 @@ export async function listLocations(): Promise<AdminLocation[]> {
   } catch (error) {
     logger.error('Failed to list locations:', error)
     return []
+  }
+}
+
+/**
+ * Create a location (dev only — RLS-gated). Parent is optional; cycle
+ * prevention is enforced by the locations_no_cycle trigger.
+ */
+export async function createLocation(data: {
+  country_code: string
+  subdivision?: string | null
+  installation: string
+  sub_area?: string | null
+  display_name: string
+  /** Optional — auto-filled from device IANA tz on the writer. Column retained
+   *  NOT NULL for now but unused at read time (clients render in device tz). */
+  timezone?: string
+  command?: string | null
+  lat?: number | null
+  lon?: number | null
+  parent_id?: string | null
+}): Promise<ServiceResult<{ id: string }>> {
+  try {
+    const tz = data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+    const { data: result, error } = await supabase
+      .from('locations')
+      .insert({
+        country_code: data.country_code,
+        subdivision: data.subdivision ?? null,
+        installation: data.installation,
+        sub_area: data.sub_area ?? null,
+        display_name: data.display_name,
+        timezone: tz,
+        command: data.command ?? null,
+        lat: data.lat ?? null,
+        lon: data.lon ?? null,
+        parent_id: data.parent_id ?? null,
+      })
+      .select('id')
+      .single()
+    if (error) return fail(error.message)
+    return succeed({ id: result.id })
+  } catch (error) {
+    logger.error('Failed to create location:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+/**
+ * Update a location (dev only). Pass parent_id: null to detach.
+ * Cycle prevention enforced by the locations_no_cycle trigger.
+ */
+export async function updateLocation(
+  id: string,
+  updates: {
+    country_code?: string
+    subdivision?: string | null
+    installation?: string
+    sub_area?: string | null
+    display_name?: string
+    timezone?: string
+    command?: string | null
+    lat?: number | null
+    lon?: number | null
+    parent_id?: string | null
+  }
+): Promise<ServiceResult<Record<string, never>>> {
+  try {
+    const { error } = await supabase
+      .from('locations')
+      .update(updates)
+      .eq('id', id)
+    if (error) return fail(error.message)
+    return succeed({})
+  } catch (error) {
+    logger.error('Failed to update location:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+/**
+ * Archive a location (soft-delete — locations are never hard-deleted because
+ * clinics.location_id FK is ON DELETE RESTRICT). Sets archived_at = now().
+ */
+export async function archiveLocation(id: string): Promise<ServiceResult<Record<string, never>>> {
+  try {
+    const { error } = await supabase
+      .from('locations')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('id', id)
+    if (error) return fail(error.message)
+    return succeed({})
+  } catch (error) {
+    logger.error('Failed to archive location:', error)
+    return fail(getErrorMessage(error))
   }
 }
 
@@ -610,7 +710,7 @@ export async function listClinics(): Promise<AdminClinic[]> {
   try {
     const { data, error } = await supabase
       .from('clinics')
-      .select('id, name, uics, child_clinic_ids, associated_clinic_ids, location, location_id, rooms, encryption_key')
+      .select('id, name, uics, child_clinic_ids, associated_clinic_ids, location, location_id, parent_clinic_id, rooms, encryption_key')
       .order('name')
 
     if (error) throw error
@@ -637,6 +737,7 @@ export async function listClinics(): Promise<AdminClinic[]> {
           associated_clinic_ids: row.associated_clinic_ids || [],
           location,
           location_id: row.location_id ?? null,
+          parent_clinic_id: row.parent_clinic_id ?? null,
           rooms: (row.rooms as ClinicRoom[]) || [],
         }
       })
@@ -664,6 +765,7 @@ export async function createClinic(data: {
   uics?: string[]
   child_clinic_ids?: string[]
   associated_clinic_ids?: string[]
+  parent_clinic_id?: string | null
 }): Promise<ServiceResult<{ id?: string; warnings?: string[] }>> {
   try {
     const rawKey = generateClinicKeyBase64()
@@ -696,6 +798,7 @@ export async function createClinic(data: {
         uics: data.uics || [],
         child_clinic_ids: data.child_clinic_ids || [],
         associated_clinic_ids: initialAssociated,
+        parent_clinic_id: data.parent_clinic_id ?? null,
         encryption_key: rawKey,
         vault_chain_key: rawKey,
         vault_iteration: 0,
@@ -729,6 +832,26 @@ export async function createClinic(data: {
     return succeed({ id: newId, warnings: warnings.length > 0 ? warnings : undefined })
   } catch (error) {
     logger.error('Failed to create clinic:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+/**
+ * Admin rescue: re-batch associated_clinic_ids for every clinic at a given
+ * location. Forces the full peer set to be mutually associated. Dev-only,
+ * gated server-side in the RPC. Returns the number of clinics touched.
+ */
+export async function rescueClinicAssociationsByLocation(
+  locationId: string,
+): Promise<ServiceResult<{ touched: number }>> {
+  try {
+    const { data, error } = await supabase.rpc('admin_rescue_clinic_associations_by_location', {
+      p_location_id: locationId,
+    })
+    if (error) return fail(error.message)
+    return succeed({ touched: (data as number | null) ?? 0 })
+  } catch (error) {
+    logger.error('rescueClinicAssociationsByLocation failed:', error)
     return fail(getErrorMessage(error))
   }
 }
@@ -793,6 +916,7 @@ export async function updateClinic(
     uics?: string[]
     child_clinic_ids?: string[]
     associated_clinic_ids?: string[]
+    parent_clinic_id?: string | null
     rooms?: ClinicRoom[]
   }
 ): Promise<ServiceResult<{ warnings?: string[] }>> {
@@ -884,27 +1008,25 @@ export async function setUserClinic(
 }
 
 /**
- * Set a user's surrogate clinic (loan to / clear loan from a second clinic).
+ * Replace a user's entire active loan set atomically (dev-only).
  *
- * Authorization is enforced server-side by `set_user_surrogate`: dev role OR
- * supervisor at either side of the loan. Pass `null` to clear.
- *
- * NOTE: This PR is column-only — no vault attach/detach yet. PR 4 wraps this
- * call in `surrogateService.setSurrogate` which adds the vault dance.
+ * Admin paths edit by clinic id, so they can't go through the supervisor RPCs
+ * that require an invite code. The server reconciles rows in one transaction
+ * and refuses to loan the soldier to their own home clinic.
  */
-export async function setUserSurrogate(
+export async function setUserLoans(
   userId: string,
-  surrogateClinicId: string | null,
+  clinicIds: string[],
 ): Promise<ServiceResult> {
   try {
-    const { error } = await supabase.rpc('set_user_surrogate', {
+    const { error } = await supabase.rpc('admin_set_user_loans', {
       p_user_id: userId,
-      p_surrogate_clinic_id: surrogateClinicId,
+      p_clinic_ids: clinicIds,
     })
     if (error) return fail(error.message)
     return succeed()
   } catch (error) {
-    logger.error('Failed to set user surrogate:', error)
+    logger.error('Failed to set user loans:', error)
     return fail(getErrorMessage(error))
   }
 }

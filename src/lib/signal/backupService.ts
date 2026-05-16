@@ -17,7 +17,15 @@ import { supabase } from '../supabase'
 import { SIGNAL } from '../constants'
 import { createLogger } from '../../Utilities/Logger'
 import { base64ToBytes, bytesToBase64 } from '../base64Utils'
-import { saveMessage, setOnMessageSaved, loadAllConversations, getAllTombstones, saveTombstone } from './messageStore'
+import {
+  saveMessage,
+  setOnMessageSaved,
+  loadAllConversations,
+  getAllTombstones,
+  saveTombstone,
+  getAllOriginTombstones,
+  saveOriginTombstones,
+} from './messageStore'
 import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones } from '../calendarRouting'
 import type { StoredMessage } from './messageStore'
 
@@ -373,7 +381,19 @@ interface BackupPayloadV2 {
   tombstones: Record<string, string>  // conversationKey → deletedAt ISO
 }
 
-type BackupPayload = BackupPayloadV1 | BackupPayloadV2
+interface BackupPayloadV3 {
+  version: 3
+  createdAt: string
+  messages: StoredMessage[]
+  /** Conversation-level tombstones (conversationKey → deletedAt ISO). */
+  tombstones: Record<string, string>
+  /** Per-message tombstones (originId → deletedAt ISO). Carries the delete
+   *  log across device rebirths so backup restore can't resurrect a deleted
+   *  message. See messageStore invariant block. */
+  originTombstones: Record<string, string>
+}
+
+type BackupPayload = BackupPayloadV1 | BackupPayloadV2 | BackupPayloadV3
 
 // ---- Load messages from IndexedDB directly (bypasses at-rest encryption) ----
 
@@ -453,12 +473,14 @@ async function doCreateBackup(userId: string): Promise<void> {
     }
 
     const tombstones = await getAllTombstones()
+    const originTombstones = await getAllOriginTombstones()
 
-    const payload: BackupPayloadV2 = {
-      version: 2,
+    const payload: BackupPayloadV3 = {
+      version: 3,
       createdAt: new Date().toISOString(),
       messages,
       tombstones,
+      originTombstones,
     }
 
     // Compress, enforce size limit by halving message count
@@ -481,7 +503,7 @@ async function doCreateBackup(userId: string): Promise<void> {
         salt,
         ciphertext,
         message_count: messages.length,
-        backup_version: 2,
+        backup_version: 3,
         created_at: new Date().toISOString(),
       })
 
@@ -577,7 +599,7 @@ export async function restoreBackup(userId: string): Promise<void> {
 
         const json = new TextDecoder().decode(inflateRaw(compressed))
         const candidate: BackupPayload = JSON.parse(json)
-        if (candidate.version !== 1 && candidate.version !== 2) {
+        if (candidate.version !== 1 && candidate.version !== 2 && candidate.version !== 3) {
           logger.warn(`Unknown backup version ${candidate.version} in snapshot ${snap.created_at} — trying older`)
           continue
         }
@@ -598,12 +620,27 @@ export async function restoreBackup(userId: string): Promise<void> {
 
     let restored = 0
 
-    // V2: restore tombstones FIRST so the saveMessage tombstone guard fires correctly
-    if (payload.version === 2 && payload.tombstones) {
+    // V2+: restore tombstones FIRST so the saveMessage tombstone guards fire correctly.
+    // V3 additionally restores per-originId tombstones (the canonical delete identity).
+    if ((payload.version === 2 || payload.version === 3) && payload.tombstones) {
       for (const [conversationKey, deletedAt] of Object.entries(payload.tombstones)) {
         await saveTombstone(conversationKey, deletedAt)
       }
       logger.info(`Restored ${Object.keys(payload.tombstones).length} conversation tombstones`)
+    }
+    if (payload.version === 3 && payload.originTombstones) {
+      const originEntries = Object.entries(payload.originTombstones)
+      // Group by deletedAt so a single saveOriginTombstones call writes each batch atomically.
+      const byDeletedAt = new Map<string, string[]>()
+      for (const [originId, deletedAt] of originEntries) {
+        const bucket = byDeletedAt.get(deletedAt) ?? []
+        bucket.push(originId)
+        byDeletedAt.set(deletedAt, bucket)
+      }
+      for (const [deletedAt, originIds] of byDeletedAt) {
+        await saveOriginTombstones(originIds, deletedAt)
+      }
+      logger.info(`Restored ${originEntries.length} origin tombstones`)
     }
 
     // Pre-scan: collect event IDs that have a delete action so we don't

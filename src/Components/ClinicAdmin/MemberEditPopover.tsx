@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { Check, Pencil, Trash2, Loader2, Camera, ImagePlus, Send, ArrowRightLeft, Undo2, KeyRound } from 'lucide-react'
+import { Building2, Check, Pencil, Trash2, Loader2, Camera, Send, ArrowRightLeft, KeyRound, AlertCircle } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionButton } from '../ActionButton'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -12,11 +12,14 @@ import {
   setMemberRoles,
   removeSoldierFromClinic,
   loanSoldierToClinic,
+  loanSoldierToAssociatedClinic,
   transferSoldierToClinic,
-  recallSoldier,
+  endLoanFromClinic,
   supervisorResetUserPassword,
   type MemberProfileData,
 } from '../../lib/supervisorService'
+import { getAssociatedClinicCode } from '../../lib/clinicAssociationService'
+import { supabase } from '../../lib/supabase'
 import { useResetPasswordFlow } from '../../Hooks/useResetPasswordFlow'
 import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
 import { invalidate } from '../../stores/useInvalidationStore'
@@ -36,6 +39,18 @@ interface MemberEditPopoverProps {
    * callers (e.g. admin views) — they get the plain remove path.
    */
   loanState?: 'loaned-in' | 'loaned-out' | 'home'
+  /**
+   * The soldier's current active loans. Pre-populates the unified Loans
+   * overlay's selection state and the cap-of-4 counter. Fetched in-component
+   * when omitted.
+   */
+  loans?: { clinicId: string; clinicName: string }[]
+  /**
+   * Optional list of clinics the caller is already associated with. When
+   * provided, the loan/transfer overlay shows them as tappable quick-picks
+   * above the code input so the supervisor doesn't have to copy a code.
+   */
+  associatedClinics?: { clinicId: string; clinicName: string; uics: string[]; location: string | null }[]
   onClose: () => void
   /** Called after rank/roles save succeeds OR after delete/loan/transfer succeeds */
   onChanged: () => void
@@ -48,9 +63,31 @@ export function MemberEditPopover({
   clinicId,
   fallbackProfile,
   loanState = 'home',
+  loans,
+  associatedClinics,
   onClose,
   onChanged,
 }: MemberEditPopoverProps) {
+  // If the caller doesn't pass `loans`, fetch them when the popover opens so
+  // the recall sub-overlay and cap-of-4 logic always reflect server state.
+  const [fetchedLoans, setFetchedLoans] = useState<{ clinicId: string; clinicName: string }[]>([])
+  useEffect(() => {
+    if (loans || !isOpen || !memberId) return
+    let cancelled = false
+    supabase
+      .from('profile_clinic_loans')
+      .select('clinic_id, clinic:clinics(name)')
+      .eq('user_id', memberId)
+      .then(({ data }) => {
+        if (cancelled) return
+        const rows = (data ?? []) as Array<{ clinic_id: string; clinic: { name: string } | null }>
+        setFetchedLoans(rows
+          .filter((r) => !!r.clinic)
+          .map((r) => ({ clinicId: r.clinic_id, clinicName: r.clinic!.name })))
+      })
+    return () => { cancelled = true }
+  }, [loans, isOpen, memberId])
+  const activeLoans = loans ?? fetchedLoans
   const [profile, setProfile] = useState<MemberProfileData | null>(null)
   const [loading, setLoading] = useState(false)
   const [editMode, setEditMode] = useState(false)
@@ -147,7 +184,11 @@ export function MemberEditPopover({
     if (!memberId) return
     setSaving(true)
     setError(null)
-    const r = await removeSoldierFromClinic(memberId)
+    // Loaned-in: the danger action ends the loan FROM this clinic explicitly,
+    // rather than relying on server context resolution.
+    const r = loanState === 'loaned-in' && clinicId
+      ? await endLoanFromClinic(memberId, clinicId)
+      : await removeSoldierFromClinic(memberId)
     setSaving(false)
     setConfirmDelete(false)
     if (!r.success) {
@@ -157,24 +198,117 @@ export function MemberEditPopover({
     invalidate('users', 'clinics')
     onChanged()
     handleClose()
-  }, [memberId, onChanged, handleClose])
+  }, [memberId, clinicId, loanState, onChanged, handleClose])
 
-  // ─── Recall (loaned-out only) ────────────────────────────────────────
-  const [recalling, setRecalling] = useState(false)
-  const handleRecall = useCallback(async () => {
-    if (!memberId) return
-    setRecalling(true)
-    setError(null)
-    const r = await recallSoldier(memberId)
-    setRecalling(false)
-    if (!r.success) {
-      setError(r.error)
-      return
+  // ─── Loans (unified multi-select) ─────────────────────────────────────
+  // Single overlay replaces the prior Loan + Recall paths. Rows = union of
+  // associated clinics and the soldier's current loans, plus an "Add by code"
+  // row for ad-hoc loans. Save commits the diff one-by-one with per-row
+  // progress (partial success OK). Cap-of-4 evaluated on the post-save state.
+  const [loansMode, setLoansMode] = useState(false)
+  const [selectedLoanIds, setSelectedLoanIds] = useState<Set<string>>(new Set())
+  const [rowState, setRowState] = useState<Map<string, 'idle' | 'busy' | 'done' | 'error'>>(new Map())
+  const [rowError, setRowError] = useState<Map<string, string>>(new Map())
+  const [loansApplying, setLoansApplying] = useState(false)
+  const [pendingCode, setPendingCode] = useState('')
+
+  // Reset the multi-select state every time the overlay opens.
+  useEffect(() => {
+    if (!loansMode) return
+    setSelectedLoanIds(new Set(activeLoans.map((l) => l.clinicId)))
+    setRowState(new Map())
+    setRowError(new Map())
+    setPendingCode('')
+  }, [loansMode, activeLoans])
+
+  const toggleLoanSelection = useCallback((cId: string) => {
+    if (loansApplying) return
+    setSelectedLoanIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(cId)) next.delete(cId)
+      else next.add(cId)
+      return next
+    })
+  }, [loansApplying])
+
+  // The row list = associated ∪ current loans, deduplicated by clinicId.
+  // Each row carries the clinic name and a flag indicating whether the row
+  // is toggleable by *this* supervisor (loaned-in supervisors can only flip
+  // their own clinic; everything else is read-only for them).
+  const loanRows = (() => {
+    const map = new Map<string, { clinicId: string; clinicName: string; subtitle?: string }>()
+    for (const c of activeLoans) {
+      map.set(c.clinicId, { clinicId: c.clinicId, clinicName: c.clinicName })
     }
+    for (const c of associatedClinics ?? []) {
+      if (!map.has(c.clinicId)) {
+        const subtitle = [c.uics.join(', '), c.location].filter(Boolean).join(' · ')
+        map.set(c.clinicId, { clinicId: c.clinicId, clinicName: c.clinicName, subtitle: subtitle || undefined })
+      }
+    }
+    return Array.from(map.values())
+  })()
+
+  const isLoanedInView = loanState === 'loaned-in'
+  const canToggleRow = useCallback((cId: string) => {
+    if (loansApplying) return false
+    if (isLoanedInView) return cId === clinicId
+    return true
+  }, [loansApplying, isLoanedInView, clinicId])
+
+  const postSaveCount = selectedLoanIds.size + (pendingCode ? 1 : 0)
+  const overCap = postSaveCount > 4
+
+  const applyLoanChanges = useCallback(async () => {
+    if (!memberId || loansApplying) return
+    if (overCap) return
+    setLoansApplying(true)
+
+    const original = new Set(activeLoans.map((l) => l.clinicId))
+    const additions = Array.from(selectedLoanIds).filter((id) => !original.has(id))
+    const removals = Array.from(original).filter((id) => !selectedLoanIds.has(id))
+
+    const markRow = (cId: string, state: 'idle' | 'busy' | 'done' | 'error', err?: string) => {
+      setRowState((prev) => new Map(prev).set(cId, state))
+      if (err) setRowError((prev) => new Map(prev).set(cId, err))
+    }
+
+    // Removals first — frees cap headroom in case additions would have tipped over.
+    for (const cId of removals) {
+      markRow(cId, 'busy')
+      const r = await endLoanFromClinic(memberId, cId)
+      markRow(cId, r.success ? 'done' : 'error', r.success ? undefined : r.error)
+    }
+    // Additions: associated clinics get the direct-id RPC (no code dance).
+    for (const cId of additions) {
+      markRow(cId, 'busy')
+      const r = await loanSoldierToAssociatedClinic(memberId, cId)
+      markRow(cId, r.success ? 'done' : 'error', r.success ? undefined : r.error)
+    }
+    // Ad-hoc code add — clinicId unknown until the server resolves it; track
+    // under the synthetic '__pending__' row id.
+    if (pendingCode) {
+      markRow('__pending__', 'busy')
+      const r = await loanSoldierToClinic(memberId, pendingCode)
+      markRow('__pending__', r.success ? 'done' : 'error', r.success ? undefined : r.error)
+      if (r.success) setPendingCode('')
+    }
+
     invalidate('users', 'clinics')
     onChanged()
-    handleClose()
-  }, [memberId, onChanged, handleClose])
+    // Refresh the in-component loan cache so the overlay reflects committed state.
+    const { data } = await supabase
+      .from('profile_clinic_loans')
+      .select('clinic_id, clinic:clinics(name)')
+      .eq('user_id', memberId)
+    const rows = (data ?? []) as Array<{ clinic_id: string; clinic: { name: string } | null }>
+    const refreshed = rows
+      .filter((r) => !!r.clinic)
+      .map((r) => ({ clinicId: r.clinic_id, clinicName: r.clinic!.name }))
+    setFetchedLoans(refreshed)
+    setSelectedLoanIds(new Set(refreshed.map((l) => l.clinicId)))
+    setLoansApplying(false)
+  }, [memberId, loansApplying, overCap, activeLoans, selectedLoanIds, pendingCode, onChanged])
 
   // ─── Reset Password ──────────────────────────────────────────────────
   const [resetMode, setResetMode] = useState(false)
@@ -225,6 +359,8 @@ export function MemberEditPopover({
     setMoveSaving(false)
   }, [scanning, stopScanning])
 
+  const [pickingClinicId, setPickingClinicId] = useState<string | null>(null)
+
   const submitMove = useCallback(async (code: string) => {
     if (!memberId || !moveMode || !code) return
     setMoveSaving(true)
@@ -241,6 +377,20 @@ export function MemberEditPopover({
     closeMove()
     handleClose()
   }, [memberId, moveMode, onChanged, closeMove, handleClose])
+
+  const pickAssociatedClinic = useCallback(async (targetClinicId: string) => {
+    if (!moveMode || pickingClinicId) return
+    setPickingClinicId(targetClinicId)
+    setMoveError(null)
+    const r = await getAssociatedClinicCode(targetClinicId)
+    if (!r.success || !r.code) {
+      setPickingClinicId(null)
+      setMoveError(r.success ? 'No active code for that cluster — ask their supervisor to refresh it.' : r.error)
+      return
+    }
+    await submitMove(r.code)
+    setPickingClinicId(null)
+  }, [moveMode, pickingClinicId, submitMove])
 
   const handleToggleScan = useCallback(() => {
     if (scanning) {
@@ -264,10 +414,10 @@ export function MemberEditPopover({
   const removeLabel = loanState === 'loaned-in' ? 'End loan' : 'Remove'
   const removeSubtitle =
     loanState === 'loaned-in'
-      ? 'Sends this soldier back to their home clinic.'
+      ? 'Sends this soldier back to their home cluster.'
       : loanState === 'loaned-out'
-        ? 'Recalls the loan and removes this soldier from the clinic.'
-        : 'They will no longer be associated with this clinic.'
+        ? 'Recalls the loan and removes this soldier from the cluster.'
+        : 'They will no longer be associated with this cluster.'
 
   const title = (() => {
     if (!profile) return ''
@@ -298,23 +448,15 @@ export function MemberEditPopover({
                   else setEditMode(true)
                 }}
               />
+              {!editMode && (
+                <ActionButton
+                  icon={Send}
+                  label={activeLoans.length > 0 ? `Loans (${activeLoans.length}/4)` : 'Loans'}
+                  onClick={() => setLoansMode(true)}
+                />
+              )}
               {loanState !== 'loaned-in' && !editMode && (
-                <>
-                  {loanState === 'loaned-out' && (
-                    <ActionButton
-                      icon={recalling ? Loader2 : Undo2}
-                      label="Recall"
-                      variant={recalling ? 'disabled' : 'default'}
-                      onClick={handleRecall}
-                    />
-                  )}
-                  <ActionButton
-                    icon={Send}
-                    label={loanState === 'loaned-out' ? 'Re-loan' : 'Loan'}
-                    onClick={() => setMoveMode('loan')}
-                  />
-                  <ActionButton icon={ArrowRightLeft} label="Transfer" onClick={() => setMoveMode('transfer')} />
-                </>
+                <ActionButton icon={ArrowRightLeft} label="Transfer" onClick={() => setMoveMode('transfer')} />
               )}
               {!editMode && (
                 <ActionButton
@@ -431,12 +573,13 @@ export function MemberEditPopover({
         onCancel={() => setConfirmDelete(false)}
       />
 
-      {/* Loan / Transfer — code + scan, mirrors clinic-association flow */}
+      {/* Transfer — code + scan, mirrors clinic-association flow. Home-clinic
+          change; trigger ends every active loan automatically. */}
       <PreviewOverlay
-        isOpen={!!moveMode}
+        isOpen={moveMode === 'transfer'}
         onClose={closeMove}
         anchorRect={anchorRect}
-        title={moveMode === 'loan' ? 'Loan to clinic' : 'Transfer to clinic'}
+        title="Transfer to cluster"
         maxWidth={360}
         previewMaxHeight="60dvh"
         footer={
@@ -450,7 +593,7 @@ export function MemberEditPopover({
               />
               <ActionButton
                 icon={moveSaving ? Loader2 : Check}
-                label={moveMode === 'loan' ? 'Loan' : 'Transfer'}
+                label="Transfer"
                 variant={!moveCode || moveSaving ? 'disabled' : 'success'}
                 onClick={() => submitMove(moveCode)}
               />
@@ -460,6 +603,42 @@ export function MemberEditPopover({
       >
         {moveMode && (
           <div>
+            {associatedClinics && associatedClinics.length > 0 && (
+              <div className="border-b border-primary/6">
+                <p className="px-4 pt-3 pb-1 text-[9pt] font-semibold text-tertiary uppercase tracking-widest">Associated</p>
+                <div className="px-2 pb-2 space-y-1">
+                  {associatedClinics.map((c) => {
+                    const busy = pickingClinicId === c.clinicId
+                    const disabled = !!pickingClinicId && !busy
+                    return (
+                      <button
+                        key={c.clinicId}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => pickAssociatedClinic(c.clinicId)}
+                        className={`w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left transition-all ${
+                          disabled ? 'opacity-40' : 'hover:bg-secondary/5 active:scale-95'
+                        }`}
+                      >
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center bg-tertiary/10 shrink-0">
+                          {busy
+                            ? <Loader2 size={14} className="text-tertiary animate-spin" />
+                            : <Building2 size={14} className="text-tertiary" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-primary truncate">{c.clinicName}</p>
+                          {(c.uics.length > 0 || c.location) && (
+                            <p className="text-[9pt] text-tertiary truncate">
+                              {[c.uics.join(', '), c.location].filter(Boolean).join(' · ')}
+                            </p>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
             <div className="flex items-center border-b border-primary/6 px-4 py-3">
               <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">Code</span>
               <input
@@ -471,7 +650,7 @@ export function MemberEditPopover({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && moveCode.length > 0) submitMove(moveCode)
                 }}
-                placeholder="Enter clinic code"
+                placeholder="Enter cluster code"
                 maxLength={8}
                 className="flex-1 bg-transparent font-mono tracking-[0.15em] text-primary placeholder:font-sans placeholder:tracking-normal placeholder:text-tertiary focus:outline-none text-sm min-w-0"
               />
@@ -500,9 +679,108 @@ export function MemberEditPopover({
             )}
 
             <p className="px-4 py-2 text-[9pt] text-tertiary border-t border-primary/6">
-              {moveMode === 'loan'
-                ? 'Enter or scan the receiving clinic’s code. The soldier keeps their home clinic.'
-                : 'Enter or scan the destination clinic’s code. The soldier’s home clinic changes.'}
+              Enter or scan the destination cluster’s code. The soldier’s home cluster changes and every active loan ends.
+            </p>
+          </div>
+        )}
+      </PreviewOverlay>
+
+      {/* Loans — unified multi-select. Toggle associated/current rows + an
+          ad-hoc code field. Save commits the diff one-by-one with per-row
+          progress; loaned-in supervisors can only flip their own clinic row. */}
+      <PreviewOverlay
+        isOpen={loansMode}
+        onClose={() => { if (!loansApplying) setLoansMode(false) }}
+        anchorRect={anchorRect}
+        title="Loans"
+        maxWidth={360}
+        previewMaxHeight="60dvh"
+        footer={
+          loansMode ? (
+            <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+              <ActionButton
+                icon={loansApplying ? Loader2 : Check}
+                label={overCap ? `Over limit (${postSaveCount}/4)` : 'Save'}
+                variant={overCap || loansApplying ? 'disabled' : 'success'}
+                onClick={applyLoanChanges}
+              />
+            </div>
+          ) : undefined
+        }
+      >
+        {loansMode && (
+          <div>
+            <p className="px-4 pt-3 pb-1 text-[9pt] font-semibold text-tertiary uppercase tracking-widest">
+              {`Loans (${postSaveCount}/4)`}
+            </p>
+            {loanRows.length === 0 ? (
+              <p className="px-4 py-3 text-[10pt] text-tertiary">No clusters available. Use the code field below to loan to an unrelated cluster.</p>
+            ) : (
+              <div className="px-2 pb-2 space-y-1">
+                {loanRows.map((c) => {
+                  const checked = selectedLoanIds.has(c.clinicId)
+                  const toggleable = canToggleRow(c.clinicId)
+                  const state = rowState.get(c.clinicId) ?? 'idle'
+                  const err = rowError.get(c.clinicId)
+                  return (
+                    <button
+                      key={c.clinicId}
+                      type="button"
+                      disabled={!toggleable}
+                      onClick={() => toggleLoanSelection(c.clinicId)}
+                      className={`w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left transition-all ${
+                        toggleable ? 'hover:bg-secondary/5 active:scale-95' : 'opacity-60'
+                      } ${checked ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3' : ''}`}
+                    >
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center bg-tertiary/10 shrink-0">
+                        {state === 'busy'
+                          ? <Loader2 size={14} className="text-tertiary animate-spin" />
+                          : state === 'error'
+                            ? <AlertCircle size={14} className="text-themeredred" />
+                            : <Building2 size={14} className="text-tertiary" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-primary truncate">{c.clinicName}</p>
+                        {(c.subtitle || err) && (
+                          <p className={`text-[9pt] truncate ${err ? 'text-themeredred' : 'text-tertiary'}`}>
+                            {err ?? c.subtitle}
+                          </p>
+                        )}
+                      </div>
+                      {checked && <Check size={14} className="text-themeblue2 shrink-0" />}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            {!isLoanedInView && (
+              <div className="border-t border-primary/6">
+                <p className="px-4 pt-3 pb-1 text-[9pt] font-semibold text-tertiary uppercase tracking-widest">Add by code</p>
+                <div className="flex items-center border-b border-primary/6 px-4 py-3">
+                  <input
+                    type="text"
+                    value={pendingCode}
+                    onChange={(e) =>
+                      setPendingCode(e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 8))
+                    }
+                    placeholder="Cluster code"
+                    maxLength={8}
+                    disabled={loansApplying}
+                    className="flex-1 bg-transparent font-mono tracking-[0.15em] text-primary placeholder:font-sans placeholder:tracking-normal placeholder:text-tertiary focus:outline-none text-sm min-w-0 disabled:opacity-40"
+                  />
+                  {rowState.get('__pending__') === 'busy' && <Loader2 size={14} className="text-tertiary animate-spin ml-2" />}
+                </div>
+                {rowError.get('__pending__') && (
+                  <p className="px-4 py-2 text-[10pt] text-themeredred">{rowError.get('__pending__')}</p>
+                )}
+              </div>
+            )}
+
+            <p className="px-4 py-2 text-[9pt] text-tertiary border-t border-primary/6">
+              {isLoanedInView
+                ? 'You can only end the loan from your own cluster. The home-cluster supervisor manages other loans.'
+                : 'Toggle a row to add or end a loan. Save applies changes one at a time; failed rows show their error.'}
             </p>
           </div>
         )}

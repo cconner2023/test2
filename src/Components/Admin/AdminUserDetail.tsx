@@ -31,13 +31,14 @@ import {
   updateUserProfile,
   setUserRoles,
   setUserClinic,
-  setUserSurrogate,
+  setUserLoans,
   createUser,
 } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import { ClinicPickerInput } from './AdminPickers'
 import { fetchAllCertifications } from '../../lib/certificationService'
 import { useAuthStore } from '../../stores/useAuthStore'
+import { supabase } from '../../lib/supabase'
 import { UI_TIMING } from '../../Utilities/constants'
 import { invalidate } from '../../stores/useInvalidationStore'
 import { sameStringSet } from '../../Utilities/arrayEquals'
@@ -109,7 +110,8 @@ export function AdminUserDetail({
   const [editRank, setEditRank] = useState('')
   const [editUic, setEditUic] = useState('')
   const [editClinicId, setEditClinicId] = useState('')
-  const [editSurrogateClinicId, setEditSurrogateClinicId] = useState('')
+  const [editLoanClinicIds, setEditLoanClinicIds] = useState<Set<string>>(new Set())
+  const [originalLoanClinicIds, setOriginalLoanClinicIds] = useState<Set<string>>(new Set())
   const [editRoles, setEditRoles] = useState<string[]>([])
 
   const [saving, setSaving] = useState(false)
@@ -195,8 +197,22 @@ export function AdminUserDetail({
       setEditRank(user?.rank || '')
       setEditUic(user?.uic || '')
       setEditClinicId(user?.clinic_id || '')
-      setEditSurrogateClinicId(user?.surrogate_clinic_id || '')
       setEditRoles(user?.roles?.filter(r => AVAILABLE_ROLES.includes(r as typeof AVAILABLE_ROLES[number])) ?? ['medic'])
+      // Hydrate current loans for the multi-select. supabase is imported below.
+      if (user?.id) {
+        supabase
+          .from('profile_clinic_loans')
+          .select('clinic_id')
+          .eq('user_id', user.id)
+          .then(({ data }) => {
+            const ids = new Set<string>((data ?? []).map((r: { clinic_id: string }) => r.clinic_id))
+            setEditLoanClinicIds(ids)
+            setOriginalLoanClinicIds(ids)
+          })
+      } else {
+        setEditLoanClinicIds(new Set())
+        setOriginalLoanClinicIds(new Set())
+      }
 
       setCreateEmail('')
       setCreatePassword('')
@@ -208,6 +224,8 @@ export function AdminUserDetail({
   // ── Pending changes detection ────────────────────────────────────────
   useEffect(() => {
     if (!editing) { onPendingChangesChange?.(false); return }
+    const sameLoans = editLoanClinicIds.size === originalLoanClinicIds.size
+      && Array.from(editLoanClinicIds).every((id) => originalLoanClinicIds.has(id))
     const changed = editFirstName !== (user?.first_name || '')
       || editLastName !== (user?.last_name || '')
       || editMiddleInitial !== (user?.middle_initial || '')
@@ -216,11 +234,11 @@ export function AdminUserDetail({
       || editRank !== (user?.rank || '')
       || editUic !== (user?.uic || '')
       || editClinicId !== (user?.clinic_id || '')
-      || editSurrogateClinicId !== (user?.surrogate_clinic_id || '')
+      || !sameLoans
       || !sameStringSet(editRoles, user?.roles ?? ['medic'])
 
     onPendingChangesChange?.(changed)
-  }, [editing, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editSurrogateClinicId, editRoles, user, onPendingChangesChange])
+  }, [editing, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editLoanClinicIds, originalLoanClinicIds, editRoles, user, onPendingChangesChange])
 
   // ── Handlers ────────────────────────────────────────────────────────
 
@@ -322,13 +340,24 @@ export function AdminUserDetail({
       // here so the next save diff doesn't try to re-set the stale value.
     }
 
-    // 4. Update surrogate clinic if changed.
-    // Skip if assigned clinic just changed (cascade trigger already nulled it).
-    const originalSurrogateId = (editClinicId !== originalClinicId ? '' : (user.surrogate_clinic_id || ''))
-    if (editSurrogateClinicId !== originalSurrogateId) {
-      const surrogateResult = await setUserSurrogate(user.id, editSurrogateClinicId || null)
-      if (!surrogateResult.success) {
-        setError(surrogateResult.error || 'Failed to update surrogate clinic')
+    // 4. Replace the entire loan set if it changed.
+    // Skip if assigned clinic just changed (trigger already wiped all loans).
+    const sameLoans = editLoanClinicIds.size === originalLoanClinicIds.size
+      && Array.from(editLoanClinicIds).every((id) => originalLoanClinicIds.has(id))
+    if (editClinicId !== originalClinicId) {
+      // Trigger cascade nulled everything; re-apply the editor's selection
+      // (filtered to exclude the new home clinic).
+      const next = Array.from(editLoanClinicIds).filter((id) => id !== editClinicId)
+      const loansResult = await setUserLoans(user.id, next)
+      if (!loansResult.success) {
+        setError(loansResult.error || 'Failed to update loans')
+        setSaving(false)
+        return
+      }
+    } else if (!sameLoans) {
+      const loansResult = await setUserLoans(user.id, Array.from(editLoanClinicIds))
+      if (!loansResult.success) {
+        setError(loansResult.error || 'Failed to update loans')
         setSaving(false)
         return
       }
@@ -338,7 +367,7 @@ export function AdminUserDetail({
     onEditingChange(false)
     loadData()
     invalidate('users', 'clinics')
-  }, [user, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editSurrogateClinicId, editRoles, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated])
+  }, [user, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editLoanClinicIds, originalLoanClinicIds, editRoles, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated])
 
   // ── Save requested trigger ───────────────────────────────────────────
   useEffect(() => {
@@ -428,7 +457,7 @@ export function AdminUserDetail({
               <PickerInput value={editComponent} onChange={handleComponentChange} options={components} placeholder="Component" />
               {editComponent && <PickerInput value={editRank} onChange={setEditRank} options={componentRanks} placeholder="Rank" />}
               <UicPinInput value={editUic} onChange={setEditUic} spread />
-              <ClinicPickerInput value={editClinicId} onChange={setEditClinicId} allClinics={clinics} placeholder="Clinic" />
+              <ClinicPickerInput value={editClinicId} onChange={setEditClinicId} allClinics={clinics} placeholder="Cluster" />
               <MultiPickerInput
                 value={editRoles}
                 onChange={setEditRoles}
@@ -584,28 +613,41 @@ export function AdminUserDetail({
             <PickerInput value={editComponent} onChange={handleComponentChange} options={components} placeholder="Component" />
             {editComponent && <PickerInput value={editRank} onChange={setEditRank} options={componentRanks} placeholder="Rank" />}
             <UicPinInput value={editUic} onChange={setEditUic} spread />
-            <ClinicPickerInput value={editClinicId} onChange={setEditClinicId} allClinics={clinics} placeholder="Clinic" />
-            <div className="flex items-stretch border-b border-primary/6">
-              <div className="flex-1 min-w-0">
-                <ClinicPickerInput
-                  value={editSurrogateClinicId}
-                  onChange={setEditSurrogateClinicId}
-                  allClinics={clinics}
-                  excludeId={editClinicId || undefined}
-                  placeholder="Surrogate clinic (loan)"
-                />
+            <ClinicPickerInput value={editClinicId} onChange={setEditClinicId} allClinics={clinics} placeholder="Cluster" />
+            <div className="border-b border-primary/6">
+              <p className="px-4 pt-3 pb-1 text-[9pt] font-semibold text-tertiary uppercase tracking-widest">
+                {`Loans (${editLoanClinicIds.size})`}
+              </p>
+              <div className="px-2 pb-2 space-y-1 max-h-56 overflow-y-auto">
+                {clinics
+                  .filter((c) => c.id !== editClinicId)
+                  .map((c) => {
+                    const checked = editLoanClinicIds.has(c.id)
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() =>
+                          setEditLoanClinicIds((prev) => {
+                            const next = new Set(prev)
+                            if (next.has(c.id)) next.delete(c.id)
+                            else next.add(c.id)
+                            return next
+                          })
+                        }
+                        className={`w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left transition-all hover:bg-secondary/5 active:scale-95 ${
+                          checked ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3' : ''
+                        }`}
+                      >
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center bg-tertiary/10 shrink-0">
+                          <Building2 size={14} className="text-tertiary" />
+                        </div>
+                        <p className="flex-1 min-w-0 text-sm font-medium text-primary truncate">{c.name}</p>
+                        {checked && <Check size={14} className="text-themeblue2 shrink-0" />}
+                      </button>
+                    )
+                  })}
               </div>
-              {editSurrogateClinicId && (
-                <button
-                  type="button"
-                  onClick={() => setEditSurrogateClinicId('')}
-                  className="shrink-0 px-3 text-tertiary hover:text-themeredred transition-colors border-l border-primary/6"
-                  title="Clear surrogate"
-                  aria-label="Clear surrogate clinic"
-                >
-                  <X size={14} />
-                </button>
-              )}
             </div>
             <MultiPickerInput
               value={editRoles}

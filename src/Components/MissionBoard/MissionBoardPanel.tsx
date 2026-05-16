@@ -781,7 +781,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
       <ConfirmDialog
         visible={!!confirmDeleteEvent}
         title="Delete event?"
-        subtitle="Permanent. Removed for all clinic members."
+        subtitle="Permanent. Removed for all cluster members."
         confirmLabel="Delete"
         variant="danger"
         onConfirm={() => {

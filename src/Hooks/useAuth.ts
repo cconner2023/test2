@@ -22,7 +22,7 @@ export function useAuth() {
     isProviderRole: s.isProviderRole,
     refreshProfile: s.refreshProfile,
     clinicId: s.clinicId,
-    surrogateClinicId: s.surrogateClinicId,
+    surrogateClinicIds: s.surrogateClinicIds,
     supervisingClinicId: s.supervisingClinicId,
     setSupervisingClinic: s.setSupervisingClinic,
   })))

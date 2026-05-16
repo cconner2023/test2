@@ -34,7 +34,7 @@ interface CalendarDrawerProps {
 
 export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
     const isMobile = useIsMobile()
-    const { isSupervisorRole, clinicId, surrogateClinicId, profile } = useAuth()
+    const { isSupervisorRole, clinicId, surrogateClinicIds, profile } = useAuth()
 
     const {
         events, personnelFilter, togglePersonnelFilter, clearPersonnelFilter,
@@ -64,13 +64,17 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         setClinicFilter: s.setClinicFilter,
     })))
 
-    // Clinic filter options — only meaningful when the user is loaned to a
-    // surrogate clinic. Single-clinic users never see the panel.
+    // Clinic filter options — only meaningful when the user is loaned to at
+    // least one surrogate clinic. Single-clinic users never see the panel.
     const clinicOptions = (() => {
-        if (!surrogateClinicId || !clinicId) return [] as { id: string; name: string }[]
+        if (!clinicId || surrogateClinicIds.length === 0) return [] as { id: string; name: string }[]
+        const loans = profile.surrogateClinics ?? []
         return [
             { id: clinicId, name: profile.clinicName ?? 'Assigned' },
-            { id: surrogateClinicId, name: profile.surrogateClinicName ?? 'Surrogate' },
+            ...surrogateClinicIds.map((id) => ({
+                id,
+                name: loans.find((c) => c.id === id)?.name ?? 'Surrogate',
+            })),
         ]
     })()
     const clinicFilterAvailable = clinicOptions.length >= 2
@@ -240,7 +244,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
     const clinicFilterPanel = clinicFilterAvailable ? (
         <div data-tour="calendar-clinic-filter" className="flex flex-col min-h-0">
             <div className="shrink-0 px-4 py-3 border-t border-primary/10">
-                <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Filter Clinics</p>
+                <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Filter Clusters</p>
             </div>
 
             <button
@@ -251,7 +255,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                 }`}
                 onClick={() => setClinicFilter(null)}
             >
-                <span className="text-[10pt] font-medium text-primary truncate flex-1">All Clinics</span>
+                <span className="text-[10pt] font-medium text-primary truncate flex-1">All Clusters</span>
             </button>
 
             <div>

@@ -112,8 +112,8 @@ export interface UserTypes {
     uic?: string;
     /** Clinic name resolved from the user's clinic_id association */
     clinicName?: string;
-    /** Surrogate clinic name when the user is loaned to a second clinic */
-    surrogateClinicName?: string;
+    /** Clinics the user is currently loaned to (up to 4). Empty when home-only. */
+    surrogateClinics?: { id: string; name: string }[];
     /** Dev-only: login alerts, account requests, feedback */
     notifyDevAlerts?: boolean;
     /** @deprecated Use MASTER_BLOCKS from PhysicalExamData. Kept for backward compat. */

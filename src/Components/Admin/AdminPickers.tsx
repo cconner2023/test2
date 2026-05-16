@@ -3,6 +3,7 @@ import { X, Check, ChevronDown } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionButton } from '../ActionButton'
 import type { AdminUser, AdminClinic, AdminLocation } from '../../lib/adminService'
+import { LocationBreadcrumb } from './LocationBreadcrumb'
 
 // ── Shared UIC chip ─────────────────────────────────────────────────────────
 
@@ -70,10 +71,135 @@ export const ClinicPickerInput = ({
             return c.name.toLowerCase().includes(q) || c.uics.some(u => u.toLowerCase().includes(q))
           })
           if (filtered.length === 0) {
-            return <p className="text-[9pt] text-tertiary text-center py-4">No clinics match.</p>
+            return <p className="text-[9pt] text-tertiary text-center py-4">No clusters match.</p>
           }
           return (
             <div role="listbox">
+              {filtered.map(c => {
+                const sel = c.id === value
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    role="option"
+                    aria-selected={sel}
+                    onClick={() => { onChange(c.id); close() }}
+                    className="w-full text-left px-3.5 py-2.5 hover:bg-primary/5 active:bg-primary/10 transition-colors flex items-center justify-between gap-2"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm ${sel ? 'text-themeblue2 font-medium' : 'text-primary'}`}>{c.name}</p>
+                      {c.uics.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-0.5">
+                          {c.uics.map(uic => <UicChip key={uic} uic={uic} />)}
+                        </div>
+                      )}
+                    </div>
+                    {sel && <Check size={16} className="shrink-0 text-themeblue2" />}
+                  </button>
+                )
+              })}
+            </div>
+          )
+        }}
+        footer={
+          <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+            <ActionButton icon={X} label="Cancel" onClick={close} />
+          </div>
+        }
+      />
+    </div>
+  )
+}
+
+// ── ClinicParentPickerInput (single-select, nullable, cycle-safe) ───────────
+// Used for choosing a clinic's parent in the command tree. Excludes self and
+// all descendants to prevent the cycle trigger from rejecting on save.
+
+export const ClinicParentPickerInput = ({
+  value,
+  onChange,
+  allClinics,
+  placeholder = 'Parent cluster (optional)',
+  label,
+  excludeId,
+}: {
+  value: string | null
+  onChange: (id: string | null) => void
+  allClinics: AdminClinic[]
+  placeholder?: string
+  label?: string
+  /** Hide this id + all of its descendants (BFS over parent_clinic_id). */
+  excludeId?: string | null
+}) => {
+  const [visible, setVisible] = useState(false)
+  const close = useCallback(() => setVisible(false), [])
+
+  const blockedIds = useMemo(() => {
+    const blocked = new Set<string>()
+    if (!excludeId) return blocked
+    blocked.add(excludeId)
+    let added = true
+    while (added) {
+      added = false
+      for (const c of allClinics) {
+        if (c.parent_clinic_id && blocked.has(c.parent_clinic_id) && !blocked.has(c.id)) {
+          blocked.add(c.id)
+          added = true
+        }
+      }
+    }
+    return blocked
+  }, [allClinics, excludeId])
+
+  const selected = useMemo(
+    () => allClinics.find(c => c.id === value) ?? null,
+    [allClinics, value],
+  )
+
+  return (
+    <div className="block border-b border-primary/6 last:border-b-0">
+      <button
+        type="button"
+        onClick={() => setVisible(true)}
+        className={`w-full bg-transparent px-4 py-3 text-left text-base md:text-sm flex items-center justify-between gap-3 focus:outline-none ${value ? 'text-primary' : 'text-tertiary'}`}
+      >
+        <div className="flex-1 min-w-0 flex items-center gap-2 truncate">
+          <span className="truncate">{selected ? selected.name : (placeholder || label)}</span>
+          {selected && selected.uics.length > 0 && (
+            <span className="text-tertiary text-[10pt] shrink-0">{selected.uics.join(' · ')}</span>
+          )}
+        </div>
+        <ChevronDown size={16} className="shrink-0 text-tertiary" />
+      </button>
+
+      <PreviewOverlay
+        isOpen={visible}
+        onClose={close}
+        anchorRect={null}
+        maxWidth={320}
+        title={label ?? 'Parent cluster'}
+        searchPlaceholder="Search by name or UIC..."
+        preview={(filter) => {
+          const q = filter.toLowerCase()
+          const filtered = allClinics.filter(c => {
+            if (blockedIds.has(c.id)) return false
+            if (!filter) return true
+            return c.name.toLowerCase().includes(q) || c.uics.some(u => u.toLowerCase().includes(q))
+          })
+          if (filtered.length === 0) {
+            return <p className="text-[9pt] text-tertiary text-center py-4">No clusters match.</p>
+          }
+          return (
+            <div role="listbox">
+              {value && (
+                <button
+                  type="button"
+                  onClick={() => { onChange(null); close() }}
+                  className="w-full text-left px-3.5 py-2.5 hover:bg-primary/5 active:bg-primary/10 transition-colors text-[10pt] text-tertiary border-b border-primary/6"
+                >
+                  Clear parent
+                </button>
+              )}
               {filtered.map(c => {
                 const sel = c.id === value
                 return (
@@ -189,7 +315,7 @@ export const ClinicMultiPickerInput = ({
             return c.name.toLowerCase().includes(q) || c.uics.some(u => u.toLowerCase().includes(q))
           })
           if (filtered.length === 0) {
-            return <p className="text-[9pt] text-tertiary text-center py-4">No clinics match.</p>
+            return <p className="text-[9pt] text-tertiary text-center py-4">No clusters match.</p>
           }
           return (
             <div role="listbox" aria-multiselectable="true">
@@ -237,12 +363,19 @@ export const LocationPickerInput = ({
   allLocations,
   placeholder = 'Select location...',
   label,
+  excludeId,
+  excludeDescendantsOf,
 }: {
   value: string | null
   onChange: (id: string | null) => void
   allLocations: AdminLocation[]
   placeholder?: string
   label?: string
+  /** Hide this id from the option list — used to prevent self-selection. */
+  excludeId?: string | null
+  /** Hide any descendant of this id — used when picking a parent to avoid cycles
+   *  (the trigger would reject anyway, but this prevents the bad option from showing). */
+  excludeDescendantsOf?: string | null
 }) => {
   const [visible, setVisible] = useState(false)
   const close = useCallback(() => setVisible(false), [])
@@ -250,6 +383,31 @@ export const LocationPickerInput = ({
   const selected = useMemo(
     () => allLocations.find(l => l.id === value) ?? null,
     [allLocations, value],
+  )
+
+  /** Set of ids descended from excludeDescendantsOf (inclusive). */
+  const blockedIds = useMemo(() => {
+    const blocked = new Set<string>()
+    if (excludeId) blocked.add(excludeId)
+    if (!excludeDescendantsOf) return blocked
+    // BFS down the parent_id graph
+    blocked.add(excludeDescendantsOf)
+    let added = true
+    while (added) {
+      added = false
+      for (const l of allLocations) {
+        if (l.parent_id && blocked.has(l.parent_id) && !blocked.has(l.id)) {
+          blocked.add(l.id)
+          added = true
+        }
+      }
+    }
+    return blocked
+  }, [allLocations, excludeId, excludeDescendantsOf])
+
+  const visibleLocations = useMemo(
+    () => allLocations.filter(l => !blockedIds.has(l.id)),
+    [allLocations, blockedIds],
   )
 
   return (
@@ -280,7 +438,7 @@ export const LocationPickerInput = ({
         searchPlaceholder="Search by post, country, or code..."
         preview={(filter) => {
           const q = filter.toLowerCase().trim()
-          const filtered = allLocations.filter(l => {
+          const filtered = visibleLocations.filter(l => {
             if (!q) return true
             return (
               l.installation.toLowerCase().includes(q) ||
@@ -332,6 +490,14 @@ export const LocationPickerInput = ({
                         className="w-full text-left px-3.5 py-2.5 hover:bg-primary/5 active:bg-primary/10 transition-colors flex items-center justify-between gap-2"
                       >
                         <div className="flex-1 min-w-0">
+                          {l.parent_id && (
+                            <LocationBreadcrumb
+                              locationId={l.id}
+                              allLocations={allLocations}
+                              excludeLeaf
+                              className="block text-[8pt] text-tertiary/70 mb-0.5"
+                            />
+                          )}
                           <p className={`text-sm ${sel ? 'text-themeblue2 font-medium' : 'text-primary'}`}>
                             {l.installation}
                             {l.sub_area && <span className="text-tertiary font-normal"> — {l.sub_area}</span>}

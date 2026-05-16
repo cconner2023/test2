@@ -43,7 +43,7 @@ export const PrivacyPolicyPanel = () => (
             <p>If you create an account, we collect and store:</p>
             <ul className="list-disc list-outside ml-4 space-y-0.5">
               <li><strong className="text-primary">Profile:</strong> Name, rank, component (service branch), medical credential</li>
-              <li><strong className="text-primary">Unit info:</strong> Unit Identification Code (UIC) and clinic association</li>
+              <li><strong className="text-primary">Unit info:</strong> Unit Identification Code (UIC) and cluster association</li>
               <li><strong className="text-primary">Preferences:</strong> Theme, note content settings, text expanders</li>
               <li><strong className="text-primary">Training:</strong> Training task completion progress</li>
               <li><strong className="text-primary">Account:</strong> Email address and authentication credentials</li>

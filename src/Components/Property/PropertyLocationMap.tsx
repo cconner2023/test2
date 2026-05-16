@@ -1562,7 +1562,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       <ConfirmDialog
         visible={!!holderBlockName}
         title="Can't delete this location"
-        subtitle={`${holderBlockName} is an active clinic member. Remove them from the clinic to delete their location.`}
+        subtitle={`${holderBlockName} is an active cluster member. Remove them from the cluster to delete their location.`}
         confirmLabel="Got it"
         onConfirm={() => setHolderBlockName(null)}
         onCancel={() => setHolderBlockName(null)}

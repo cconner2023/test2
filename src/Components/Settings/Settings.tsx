@@ -196,8 +196,8 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         // CLINICS section — each clinic the user belongs to gets its own tile
         if (isAuthenticated) {
             items.push(
-                { type: 'header', label: 'Clinics' },
-                opt(PANEL.CLINIC, <Building2 size={20} />, profile.clinicName || 'My Clinic', 'Manage clinic and personnel'),
+                { type: 'header', label: 'Clusters' },
+                opt(PANEL.CLINIC, <Building2 size={20} />, profile.clinicName || 'My Cluster', 'Manage cluster and personnel'),
             );
         }
 
@@ -368,13 +368,13 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                         </HeaderPill>
                     );
                     return {
-                        title: 'My Clinic',
+                        title: 'My Cluster',
                         ...clinicBackTo,
                         rightContent: clinicPills,
                         hideDefaultClose: true,
                     };
                 }
-                return { title: 'My Clinic', ...clinicBackTo };
+                return { title: 'My Cluster', ...clinicBackTo };
             }
 
         }
