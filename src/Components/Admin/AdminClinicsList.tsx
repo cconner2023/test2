@@ -80,6 +80,28 @@ export function AdminClinicsList({
     })
   }, [clinics, searchQuery, filterClinicId])
 
+  /** Parent→children map for unfiltered tree render. */
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string, AdminClinic[]>()
+    for (const c of clinics) {
+      if (!c.parent_clinic_id) continue
+      const arr = map.get(c.parent_clinic_id)
+      if (arr) arr.push(c)
+      else map.set(c.parent_clinic_id, [c])
+    }
+    for (const arr of map.values()) arr.sort((a, b) => a.name.localeCompare(b.name))
+    return map
+  }, [clinics])
+
+  const rootClinics = useMemo(() => {
+    const clinicById = new Map(clinics.map(c => [c.id, c]))
+    return filteredClinics
+      .filter(c => !c.parent_clinic_id || !clinicById.has(c.parent_clinic_id))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [filteredClinics, clinics])
+
+  const useTreeView = !searchQuery && !filterClinicId && !bare
+
   // ── Delete handlers ─────────────────────────────────────────
 
   const confirmDeleteSingle = (clinic: AdminClinic) => {
@@ -110,18 +132,29 @@ export function AdminClinicsList({
   }
 
   // ── Shared: render clinic row items ─────────────────────
-  const renderClinicItems = () => filteredClinics.map((clinic) => {
-    const assignedUsers = usersInClinic(clinic.id)
-    return (
-      <ClinicCard
-        key={clinic.id}
-        clinic={clinic}
-        assignedUserCount={assignedUsers.length}
-        onTap={() => onSelectClinic(clinic)}
-        onContextMenu={(x, y) => setContextMenu({ clinicId: clinic.id, x, y })}
-      />
-    )
-  })
+  const renderClinicCard = (clinic: AdminClinic, depth = 0) => (
+    <ClinicCard
+      key={clinic.id}
+      clinic={clinic}
+      depth={depth}
+      assignedUserCount={usersInClinic(clinic.id).length}
+      onTap={() => onSelectClinic(clinic)}
+      onContextMenu={(x, y) => setContextMenu({ clinicId: clinic.id, x, y })}
+    />
+  )
+
+  const renderClinicItems = () => filteredClinics.map((clinic) => renderClinicCard(clinic))
+
+  const renderClinicTree = () => {
+    const nodes: React.ReactNode[] = []
+    const visit = (clinic: AdminClinic, depth: number) => {
+      nodes.push(renderClinicCard(clinic, depth))
+      const children = childrenByParent.get(clinic.id)
+      if (children) for (const child of children) visit(child, depth + 1)
+    }
+    for (const root of rootClinics) visit(root, 0)
+    return nodes
+  }
 
   // ── Shared: overlays ──────────────────────────────────────
   const renderOverlays = () => (
@@ -208,7 +241,7 @@ export function AdminClinicsList({
           <EmptyState title={searchQuery ? 'No matches.' : 'No clusters.'} />
         ) : (
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-            {renderClinicItems()}
+            {useTreeView ? renderClinicTree() : renderClinicItems()}
           </div>
         )}
       </div>
@@ -223,11 +256,12 @@ export function AdminClinicsList({
 interface ClinicCardProps {
   clinic: AdminClinic
   assignedUserCount: number
+  depth?: number
   onTap: () => void
   onContextMenu: (x: number, y: number) => void
 }
 
-function ClinicCard({ clinic, assignedUserCount, onTap, onContextMenu }: ClinicCardProps) {
+function ClinicCard({ clinic, assignedUserCount, depth = 0, onTap, onContextMenu }: ClinicCardProps) {
   const { isPressing, ...longPressHandlers } = useLongPress((x, y) => onContextMenu(x, y))
 
   return (
@@ -242,7 +276,8 @@ function ClinicCard({ clinic, assignedUserCount, onTap, onContextMenu }: ClinicC
         onContextMenu(e.clientX, e.clientY)
       }}
       {...longPressHandlers}
-      className={`flex items-center gap-3 px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5 cursor-pointer select-none ${isPressing ? 'opacity-60' : ''}`}
+      style={depth > 0 ? { paddingLeft: `${1 + depth * 1.25}rem` } : undefined}
+      className={`flex items-center gap-3 px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5 cursor-pointer select-none ${depth > 0 ? 'border-l-2 border-l-themeblue3/15' : ''} ${isPressing ? 'opacity-60' : ''}`}
     >
       <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
         <Building2 size={16} className="text-tertiary" />

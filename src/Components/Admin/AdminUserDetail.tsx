@@ -35,7 +35,7 @@ import {
   createUser,
 } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
-import { ClinicPickerInput } from './AdminPickers'
+import { ClinicPickerInput, ClinicMultiPickerInput } from './AdminPickers'
 import { fetchAllCertifications } from '../../lib/certificationService'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { supabase } from '../../lib/supabase'
@@ -614,41 +614,14 @@ export function AdminUserDetail({
             {editComponent && <PickerInput value={editRank} onChange={setEditRank} options={componentRanks} placeholder="Rank" />}
             <UicPinInput value={editUic} onChange={setEditUic} spread />
             <ClinicPickerInput value={editClinicId} onChange={setEditClinicId} allClinics={clinics} placeholder="Cluster" />
-            <div className="border-b border-primary/6">
-              <p className="px-4 pt-3 pb-1 text-[9pt] font-semibold text-tertiary uppercase tracking-widest">
-                {`Loans (${editLoanClinicIds.size})`}
-              </p>
-              <div className="px-2 pb-2 space-y-1 max-h-56 overflow-y-auto">
-                {clinics
-                  .filter((c) => c.id !== editClinicId)
-                  .map((c) => {
-                    const checked = editLoanClinicIds.has(c.id)
-                    return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() =>
-                          setEditLoanClinicIds((prev) => {
-                            const next = new Set(prev)
-                            if (next.has(c.id)) next.delete(c.id)
-                            else next.add(c.id)
-                            return next
-                          })
-                        }
-                        className={`w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left transition-all hover:bg-secondary/5 active:scale-95 ${
-                          checked ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3' : ''
-                        }`}
-                      >
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center bg-tertiary/10 shrink-0">
-                          <Building2 size={14} className="text-tertiary" />
-                        </div>
-                        <p className="flex-1 min-w-0 text-sm font-medium text-primary truncate">{c.name}</p>
-                        {checked && <Check size={14} className="text-themeblue2 shrink-0" />}
-                      </button>
-                    )
-                  })}
-              </div>
-            </div>
+            <ClinicMultiPickerInput
+              selectedIds={[...editLoanClinicIds]}
+              onChange={(ids) => setEditLoanClinicIds(new Set(ids))}
+              allClinics={clinics}
+              excludeId={editClinicId ?? undefined}
+              placeholder={`Loans${editLoanClinicIds.size > 0 ? ` (${editLoanClinicIds.size})` : ''}`}
+            />
+
             <MultiPickerInput
               value={editRoles}
               onChange={setEditRoles}

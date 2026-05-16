@@ -11,6 +11,7 @@
  */
 import { useMemo } from 'react'
 import { useAuth } from './useAuth'
+import { useClinicLoans } from './useClinicLoans'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 
 export interface ClinicGroupedMedics {
@@ -20,20 +21,38 @@ export interface ClinicGroupedMedics {
 }
 
 export function useClinicGroupedMedics(medics: ClinicMedic[]): ClinicGroupedMedics {
-  const { clinicId: userClinicId } = useAuth()
+  const { clinicId, supervisingClinicId } = useAuth()
+  // Pivot on the supervisor's currently-active clinic so calendar/messages
+  // "own clinic" reflects the surrogate when SupervisorClinicSwitcher toggles.
+  const userClinicId = supervisingClinicId ?? clinicId
 
   const canSplit = !!userClinicId
 
+  // Medics loaned in to the active clinic — `medics` from useClinicMedics only
+  // matches by geographic association (associated_clinic_ids), not by loan,
+  // so soldiers loaned to a surrogate clinic won't show up in `ownClinicMedics`
+  // unless we union them in here.
+  const { medics: loanedInMedics } = useClinicLoans(userClinicId)
+  const loanedInIds = useMemo(
+    () => new Set(loanedInMedics.map(m => m.id)),
+    [loanedInMedics],
+  )
+
   const ownClinicMedics = useMemo(() => {
-    const list = canSplit
-      ? medics.filter(m => !m.clinicId || m.clinicId === userClinicId)
-      : medics
-    return [...list].sort((a, b) => (a.lastName ?? '').localeCompare(b.lastName ?? ''))
-  }, [medics, userClinicId, canSplit])
+    if (!canSplit) return [...medics].sort((a, b) => (a.lastName ?? '').localeCompare(b.lastName ?? ''))
+    const byId = new Map<string, ClinicMedic>()
+    for (const m of medics) {
+      if (!m.clinicId || m.clinicId === userClinicId) byId.set(m.id, m)
+    }
+    for (const m of loanedInMedics) {
+      if (!byId.has(m.id)) byId.set(m.id, m)
+    }
+    return Array.from(byId.values()).sort((a, b) => (a.lastName ?? '').localeCompare(b.lastName ?? ''))
+  }, [medics, loanedInMedics, userClinicId, canSplit])
 
   const nearbyByClinic = useMemo(() => {
     if (!canSplit) return {} as Record<string, ClinicMedic[]>
-    const nearby = medics.filter(m => m.clinicId && m.clinicId !== userClinicId)
+    const nearby = medics.filter(m => m.clinicId && m.clinicId !== userClinicId && !loanedInIds.has(m.id))
     const grouped: Record<string, ClinicMedic[]> = {}
     for (const m of nearby) {
       const key = m.clinicName ?? 'Other'

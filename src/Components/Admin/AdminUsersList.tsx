@@ -148,9 +148,31 @@ export function AdminUsersList({
         u.email?.toLowerCase().includes(q) ||
         u.first_name?.toLowerCase().includes(q) ||
         u.last_name?.toLowerCase().includes(q) ||
-        u.uic?.toLowerCase().includes(q),
+        u.uic?.toLowerCase().includes(q) ||
+        u.clinic_name?.toLowerCase().includes(q) ||
+        u.surrogate_clinic_name?.toLowerCase().includes(q),
     )
   }, [users, searchQuery, filterUserId])
+
+  /** Users grouped by clinic (cluster). Used when no search/filter is active. */
+  const groupedUsers = useMemo(() => {
+    const groups = new Map<string, AdminUser[]>()
+    for (const u of filteredUsers) {
+      const key = u.clinic_name ?? '__unassigned__'
+      const arr = groups.get(key)
+      if (arr) arr.push(u)
+      else groups.set(key, [u])
+    }
+    const entries = [...groups.entries()]
+    entries.sort(([a], [b]) => {
+      if (a === '__unassigned__') return 1
+      if (b === '__unassigned__') return -1
+      return a.localeCompare(b)
+    })
+    return entries
+  }, [filteredUsers])
+
+  const useGrouping = !searchQuery && !filterUserId && !bare
 
   // ─── Actions ───────────────────────────────────────────────────────────
 
@@ -273,47 +295,59 @@ export function AdminUsersList({
     ? users.find((u) => u.id === confirmLogoutId)
     : null
 
-  // ── Shared: render user row items ──────────────────────
+  // ── Shared: render a single user row ──────────────────
   // ResetPasswordForm renders as a SIBLING of UserCard, not a child — nesting
   // form inputs inside a role="button" element breaks focus on mobile and
   // misannounces to screen readers.
-  const renderUserItems = () => filteredUsers.map((user) => (
-      <div key={user.id}>
-        <UserCard
-          user={user}
-          onTap={() => onSelectUser(user)}
-          onContextMenu={(x, y) => setContextMenu({ userId: user.id, x, y })}
-        >
-          <UserRow
-            avatarId={user.avatar_id}
-            firstName={user.first_name}
-            lastName={user.last_name}
-            middleInitial={user.middle_initial}
-            rank={user.rank}
-            lastActiveAt={user.last_active_at}
-            subtitle={[user.credential, user.uic, user.clinic_name, user.email].filter(Boolean).join(' · ')}
-            meta={(user.roles?.length > 0 || user.supervisor_created) && (
-              <div className="flex flex-wrap items-center gap-1">
-                {user.roles.map(r => <RoleBadge key={r} role={r} />)}
-                {user.supervisor_created && <SupervisorCreatedBadge />}
-              </div>
-            )}
-            right={<span className="text-[9pt] text-tertiary/50 shrink-0">{formatLastActive(user.last_active_at)}</span>}
-          />
-        </UserCard>
+  const renderUserRow = (user: AdminUser) => (
+    <div key={user.id}>
+      <UserCard
+        user={user}
+        onTap={() => onSelectUser(user)}
+        onContextMenu={(x, y) => setContextMenu({ userId: user.id, x, y })}
+      >
+        <UserRow
+          avatarId={user.avatar_id}
+          firstName={user.first_name}
+          lastName={user.last_name}
+          middleInitial={user.middle_initial}
+          rank={user.rank}
+          lastActiveAt={user.last_active_at}
+          subtitle={[user.credential, user.uic, user.clinic_name, user.email].filter(Boolean).join(' · ')}
+          meta={(user.roles?.length > 0 || user.supervisor_created) && (
+            <div className="flex flex-wrap items-center gap-1">
+              {user.roles.map(r => <RoleBadge key={r} role={r} />)}
+              {user.supervisor_created && <SupervisorCreatedBadge />}
+            </div>
+          )}
+          right={<span className="text-[9pt] text-tertiary/50 shrink-0">{formatLastActive(user.last_active_at)}</span>}
+        />
+      </UserCard>
 
-        {resetPwUserId === user.id && (
-          <ResetPasswordForm
-            value={resetPw.value}
-            onChange={resetPw.setValue}
-            onSubmit={() => resetPw.requestConfirm(user.id)}
-            onCancel={() => { setResetPwUserId(null); resetPw.reset() }}
-            processing={resetPw.processing}
-          />
-        )}
-      </div>
-    )
+      {resetPwUserId === user.id && (
+        <ResetPasswordForm
+          value={resetPw.value}
+          onChange={resetPw.setValue}
+          onSubmit={() => resetPw.requestConfirm(user.id)}
+          onCancel={() => { setResetPwUserId(null); resetPw.reset() }}
+          processing={resetPw.processing}
+        />
+      )}
+    </div>
   )
+
+  const renderUserItems = () => filteredUsers.map(renderUserRow)
+
+  const renderGroupedUsers = () => groupedUsers.map(([key, list]) => (
+    <section key={key} className="space-y-1.5">
+      <p className="px-1 text-[9pt] font-semibold text-tertiary uppercase tracking-widest">
+        {key === '__unassigned__' ? 'Unassigned' : key}
+      </p>
+      <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+        {list.map(renderUserRow)}
+      </div>
+    </section>
+  ))
 
   // ── Shared: overlays (context menu + confirm dialog) ──
   const renderOverlays = () => (
@@ -400,6 +434,8 @@ export function AdminUsersList({
           <AdminListSkeleton />
         ) : filteredUsers.length === 0 ? (
           <EmptyState title={searchQuery ? 'No users match your search' : 'No users found'} />
+        ) : useGrouping ? (
+          <div className="space-y-4">{renderGroupedUsers()}</div>
         ) : (
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
             {renderUserItems()}
