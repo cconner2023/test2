@@ -91,7 +91,7 @@ export function AdminLocationsList({
         {showLoading ? (
           <AdminListSkeleton />
         ) : filtered.length === 0 ? (
-          <EmptyState title={searchQuery ? 'No locations match your search.' : 'No locations yet — tap + to add one.'} />
+          <EmptyState title={searchQuery ? 'No locations match your search.' : 'No locations'} />
         ) : (
           <SectionCard>
             {renderItems()}

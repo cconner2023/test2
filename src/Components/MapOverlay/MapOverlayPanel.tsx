@@ -30,6 +30,7 @@ import {
   type TileMetadata,
 } from '../../lib/mapTileService';
 import { getClinicDetails } from '../../lib/supervisorService';
+import { listLocations } from '../../lib/adminService';
 import type { OverlayFeature, DrawMode, WaypointType } from '../../Types/MapOverlayTypes';
 import type { LocalMapOverlay, MapOverlay } from '../../Types/MapOverlayTypes';
 import { DEFAULT_FEATURE_STYLE, WAYPOINT_LABELS, PIN_GLYPHS } from '../../Types/MapOverlayTypes';
@@ -41,7 +42,7 @@ import { useCalendarStore } from '../../stores/useCalendarStore';
 import { useMapPrefsStore } from '../../stores/useMapPrefsStore';
 import { formatBearing } from '../../lib/declination';
 import { MGRSConverter } from './MGRSConverter';
-import { MapSettingsDrawer } from './MapSettingsDrawer';
+import { MapSettingsDrawer, MapSettingsBody } from './MapSettingsDrawer';
 import { FeatureEditor } from './FeatureEditor';
 import { MapOverlayTree } from './MapOverlayTree';
 import { OverlayEventPicker } from './OverlayEventPicker';
@@ -552,15 +553,39 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   }, [saveError]);
 
   // ── Resolve clinic location to coordinates for map default center ──
+  // Prefer the structured locations.lat/lon (clinic.location_id → locations
+  // row) over geocoding the legacy free-text clinic.location string. The
+  // ISO/installation record is admin-curated and exact; the free-text field
+  // is decrypted-per-clinic and lossy when geocoded.
   useEffect(() => {
     if (!clinicId || initialCenter) return;
     let cancelled = false;
-    getClinicDetails(clinicId).then(async (details) => {
-      if (cancelled || !details.location) return;
-      const result = await resolveSearch(details.location);
-      if (cancelled || !result) return;
-      setInitialCenter([result.lat, result.lng]);
-    });
+    (async () => {
+      const details = await getClinicDetails(clinicId);
+      if (cancelled) return;
+
+      if (details.location_id) {
+        const locs = await listLocations();
+        if (cancelled) return;
+        const loc = locs.find(l => l.id === details.location_id);
+        if (loc?.lat != null && loc?.lon != null) {
+          setInitialCenter([loc.lat, loc.lon]);
+          return;
+        }
+        if (loc?.display_name) {
+          const result = await resolveSearch(loc.display_name);
+          if (cancelled || !result) return;
+          setInitialCenter([result.lat, result.lng]);
+          return;
+        }
+      }
+
+      if (details.location) {
+        const result = await resolveSearch(details.location);
+        if (cancelled || !result) return;
+        setInitialCenter([result.lat, result.lng]);
+      }
+    })();
     return () => { cancelled = true; };
   }, [clinicId, initialCenter]);
 
@@ -775,6 +800,17 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     setPinPickerPage(null);
   }, [overlayId, pinType]);
 
+  // Push the current points into history and replace with `next`. Declared
+  // before handleMapClick so its dependency array can reference this without
+  // hitting TDZ on first render.
+  const commitTempRouteChange = useCallback((next: [number, number][]) => {
+    setTempRoute(prev => prev ? ({
+      ...prev,
+      points: next,
+      history: [...prev.history, prev.points].slice(-50),
+    }) : null);
+  }, []);
+
   // ── Map click handler ──
   const handleMapClick = useCallback((lat: number, lng: number) => {
     if (!overlayId) return;
@@ -934,16 +970,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   }, [overlayId]);
 
   const handleCloseTempRoute = useCallback(() => setTempRoute(null), []);
-
-  // Push the current points into history and replace with `next`. Caller
-  // skips this helper only when it doesn't want the change to be undoable.
-  const commitTempRouteChange = useCallback((next: [number, number][]) => {
-    setTempRoute(prev => prev ? ({
-      ...prev,
-      points: next,
-      history: [...prev.history, prev.points].slice(-50),
-    }) : null);
-  }, []);
 
   const handleTempRouteChange = useCallback((points: [number, number][]) => {
     commitTempRouteChange(points);
@@ -1246,8 +1272,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
           rightContent: (
             <div className="flex items-center w-full gap-2">
               <HeaderPill>
-                <PillButton icon={Layers} onClick={() => setShowMobileTree(prev => !prev)} label="Overlays" />
-                <PillButton icon={Settings} onClick={() => setShowPopover(prev => !prev)} label="Map settings" />
+                <PillButton icon={Layers} onClick={() => setShowMobileTree(prev => !prev)} label="Overlays & settings" />
               </HeaderPill>
               <div className="flex-1 min-w-0">{searchInputEl}</div>
               <HeaderPill>
@@ -1396,11 +1421,11 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                   isVisible={showMobileTree}
                   onClose={() => setShowMobileTree(false)}
                   mobileOnly
-                  fullHeight="75dvh"
-                  initialPosition={75}
+                  mobileFullScreen
+                  fullHeight="95dvh"
                   zIndex="z-[1010]"
                   header={{
-                    title: 'Overlays',
+                    title: 'Overlays & settings',
                     rightContent: (
                       <HeaderPill>
                         <PillButton icon={X} iconSize={18} onClick={() => setShowMobileTree(false)} label="Close" />
@@ -1409,26 +1434,38 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                     hideDefaultClose: true,
                   }}
                 >
-                  <MapOverlayTree
-                    overlays={overlays}
-                    activeOverlayId={overlayId}
-                    visibleOverlayIds={visibleOverlayIds}
-                    selectedFeatureId={selectedFeatureId}
-                    onMakeActive={(o) => { handleOpenOverlay(o as MapOverlay); setShowMobileTree(false); }}
-                    onToggleVisible={handleToggleVisible}
-                    onRenameOverlay={handleRenameOverlay}
-                    onDeleteOverlay={handleDeleteOverlay}
-                    onSelectFeature={(id) => { handleSelectFeatureFromTree(id); setShowMobileTree(false); }}
-                    onNewOverlay={() => { handleNewOverlay(); setShowMobileTree(false); }}
-                    tileMeta={tileMetaMap}
-                    downloadingId={downloadingId}
-                    onDownloadTiles={(o) => handleDownloadTiles(o as MapOverlay)}
-                    onEvictTiles={handleEvictTiles}
-                    linkedOverlayIds={linkedOverlayIds}
-                    onJumpToLinkedEvent={(id) => { handleJumpToLinkedEvent(id); setShowMobileTree(false); }}
-                    onOpenLinkPicker={handleOpenLinkPicker}
-                    onUnlinkEvent={handleUnlinkEvent}
-                  />
+                  <div className="flex flex-col h-full min-h-0 overflow-auto">
+                    <section>
+                      <p className="px-4 pt-3 pb-1 text-[9pt] tracking-widest uppercase text-tertiary">Settings</p>
+                      <MapSettingsBody
+                        showGrid={showGrid}
+                        onToggleGrid={() => setShowGrid(prev => !prev)}
+                      />
+                    </section>
+                    <section>
+                      <p className="px-4 pt-3 pb-1 text-[9pt] tracking-widest uppercase text-tertiary">Overlays</p>
+                      <MapOverlayTree
+                        overlays={overlays}
+                        activeOverlayId={overlayId}
+                        visibleOverlayIds={visibleOverlayIds}
+                        selectedFeatureId={selectedFeatureId}
+                        onMakeActive={(o) => { handleOpenOverlay(o as MapOverlay); setShowMobileTree(false); }}
+                        onToggleVisible={handleToggleVisible}
+                        onRenameOverlay={handleRenameOverlay}
+                        onDeleteOverlay={handleDeleteOverlay}
+                        onSelectFeature={(id) => { handleSelectFeatureFromTree(id); setShowMobileTree(false); }}
+                        onNewOverlay={() => { handleNewOverlay(); setShowMobileTree(false); }}
+                        tileMeta={tileMetaMap}
+                        downloadingId={downloadingId}
+                        onDownloadTiles={(o) => handleDownloadTiles(o as MapOverlay)}
+                        onEvictTiles={handleEvictTiles}
+                        linkedOverlayIds={linkedOverlayIds}
+                        onJumpToLinkedEvent={(id) => { handleJumpToLinkedEvent(id); setShowMobileTree(false); }}
+                        onOpenLinkPicker={handleOpenLinkPicker}
+                        onUnlinkEvent={handleUnlinkEvent}
+                      />
+                    </section>
+                  </div>
                 </BaseDrawer>
               )}
 
@@ -1492,14 +1529,14 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                     title: 'Temp point',
                     rightContent: (
                       <HeaderPill>
+                        <PillButton icon={Check} iconSize={18} onClick={handlePromoteTempPoint} label="Save as waypoint" accent="success" />
                         <PillButton
                           icon={Navigation}
                           iconSize={18}
                           onClick={() => tempPoint && handleStartNavigation(tempPoint.lat, tempPoint.lng, null)}
                           label="Navigate from here"
-                          circleBg="bg-themeblue3 text-white"
+                          accent="info"
                         />
-                        <PillButton icon={Check} iconSize={18} onClick={handlePromoteTempPoint} label="Save as waypoint" circleBg="bg-themegreen text-white" />
                         <PillButton icon={X} iconSize={18} onClick={handleCloseTempPoint} label="Close" />
                       </HeaderPill>
                     ),
@@ -1537,7 +1574,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                           iconSize={18}
                           onClick={handleSaveTempRouteAsFeature}
                           label="Save as route"
-                          circleBg="bg-themegreen text-white"
+                          accent="success"
                           disabled={!tempRoute || tempRoute.points.length < 2}
                         />
                         <PillButton icon={X} iconSize={18} onClick={handleCloseTempRoute} label="Close" />
@@ -1862,14 +1899,14 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                   <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-tertiary/10">
                     <div className="text-[10pt] font-semibold text-primary truncate flex-1 min-w-0">Temp point</div>
                     <HeaderPill>
+                      <PillButton icon={Check} iconSize={18} onClick={handlePromoteTempPoint} label="Save as waypoint" accent="success" />
                       <PillButton
                         icon={Navigation}
                         iconSize={18}
                         onClick={() => handleStartNavigation(tempPoint.lat, tempPoint.lng, null)}
                         label="Navigate from here"
-                        circleBg="bg-themeblue3 text-white"
+                        accent="info"
                       />
-                      <PillButton icon={Check} iconSize={18} onClick={handlePromoteTempPoint} label="Save as waypoint" circleBg="bg-themegreen text-white" />
                       <PillButton icon={X} iconSize={18} onClick={handleCloseTempPoint} label="Close" />
                     </HeaderPill>
                   </div>
@@ -1895,7 +1932,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                         iconSize={18}
                         onClick={handleSaveTempRouteAsFeature}
                         label="Save as route"
-                        circleBg="bg-themegreen text-white"
+                        accent="success"
                         disabled={tempRoute.points.length < 2}
                       />
                       <PillButton icon={X} iconSize={18} onClick={handleCloseTempRoute} label="Close" />

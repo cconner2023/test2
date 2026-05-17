@@ -83,7 +83,7 @@ export function DetailHeaderActions({
         <PillButton
           icon={Check}
           iconSize={18}
-          circleBg="bg-themegreen text-white"
+          accent="success"
           onClick={onRequestSave}
           label="Save"
         />

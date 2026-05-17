@@ -2,6 +2,24 @@ import type { LucideIcon } from 'lucide-react'
 import { Children, type ReactNode } from 'react'
 import { useIsMobile } from '../Hooks/useIsMobile'
 
+type AccentTone = 'success' | 'info' | 'danger'
+
+const ACCENT_CIRCLE: Record<AccentTone, string> = {
+    success: 'bg-themegreen text-white',
+    info: 'bg-themeblue3 text-white',
+    danger: 'bg-themeredred text-white',
+}
+const ACCENT_TEXT: Record<AccentTone, string> = {
+    success: 'text-themegreen',
+    info: 'text-themeblue3',
+    danger: 'text-themeredred',
+}
+const ACCENT_UNDERLINE: Record<AccentTone, string> = {
+    success: 'bg-themegreen',
+    info: 'bg-themeblue3',
+    danger: 'bg-themeredred',
+}
+
 interface PillButtonProps {
     icon: LucideIcon
     onClick: () => void
@@ -10,21 +28,28 @@ interface PillButtonProps {
     iconSize?: number
     compact?: boolean
     disabled?: boolean
-    /** Tinted circle behind the icon (e.g. 'bg-themegreen/15 text-themegreen') */
+    /** Tinted circle behind the icon (e.g. 'bg-themegreen/15 text-themegreen'). Legacy — prefer `accent`. */
     circleBg?: string
+    /** Semantic accent — renders as filled circle on mobile (in-pill), underlined icon on desktop. */
+    accent?: AccentTone
     /** Guided tour anchor */
     'data-tour'?: string
 }
 
-export function PillButton({ icon: Icon, onClick, label, variant = 'default', iconSize, compact, disabled, circleBg, 'data-tour': dataTour }: PillButtonProps) {
+export function PillButton({ icon: Icon, onClick, label, variant = 'default', iconSize, compact, disabled, circleBg, accent, 'data-tour': dataTour }: PillButtonProps) {
     const isMobile = useIsMobile()
     const size = compact
         ? (isMobile ? 'w-[2.4375rem] h-[2.4375rem]' : 'w-8 h-8')  // 39px mobile, 32px desktop
         : (isMobile ? 'w-[2.6875rem] h-[2.6875rem]' : 'w-9 h-9')  // 43px mobile, 36px desktop
     const resolvedIconSize = iconSize ?? (compact ? (isMobile ? 20 : 18) : (isMobile ? 22 : 20))
 
-    const color = circleBg
-        ? ''
+    // Accent on desktop = underline treatment (no circle bg). Accent on mobile = filled circle.
+    const useUnderline = accent && !isMobile
+    const accentCircle = accent && isMobile ? ACCENT_CIRCLE[accent] : ''
+    const accentText = useUnderline ? ACCENT_TEXT[accent] : ''
+
+    const color = (circleBg || accent)
+        ? accentText
         : variant === 'danger'
             ? 'text-themeredred hover:text-themeredred/80'
             : 'text-tertiary hover:text-primary'
@@ -34,7 +59,7 @@ export function PillButton({ icon: Icon, onClick, label, variant = 'default', ic
             onClick={onClick}
             disabled={disabled}
             data-tour={dataTour}
-            className={`${size} rounded-full flex items-center justify-center active:scale-95 transition-all duration-200 ${color} ${disabled ? 'opacity-30 pointer-events-none' : ''} ${circleBg ? '-m-0.5 z-10' : ''}`}
+            className={`${size} rounded-full flex items-center justify-center active:scale-95 transition-all duration-200 relative ${color} ${disabled ? 'opacity-30 pointer-events-none' : ''}`}
             aria-label={label}
             title={label}
         >
@@ -42,8 +67,17 @@ export function PillButton({ icon: Icon, onClick, label, variant = 'default', ic
                 <div className={`w-full h-full rounded-full flex items-center justify-center ${circleBg}`}>
                     <Icon style={{ width: resolvedIconSize, height: resolvedIconSize }} />
                 </div>
+            ) : accentCircle ? (
+                <div className={`w-full h-full rounded-full flex items-center justify-center ${accentCircle}`}>
+                    <Icon style={{ width: resolvedIconSize, height: resolvedIconSize }} />
+                </div>
             ) : (
-                <Icon style={{ width: resolvedIconSize, height: resolvedIconSize }} />
+                <>
+                    <Icon style={{ width: resolvedIconSize, height: resolvedIconSize }} />
+                    {useUnderline && (
+                        <span className={`absolute left-1/2 -translate-x-1/2 bottom-1 h-[2px] w-5 rounded-full ${ACCENT_UNDERLINE[accent]}`} />
+                    )}
+                </>
             )}
         </button>
     )

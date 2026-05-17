@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import { upsertCachedClinicUser } from '../lib/clinicUsersCache'
 import { createLogger } from '../Utilities/Logger'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 
@@ -19,8 +18,13 @@ export function useOrphanedProfiles(orphanedIds: string[]): Map<string, ClinicMe
 
   useEffect(() => {
     const key = [...orphanedIds].sort().join(',')
-    if (!key || key === prevKeyRef.current) return
+    if (key === prevKeyRef.current) return
     prevKeyRef.current = key
+
+    if (!key) {
+      setProfileMap(new Map())
+      return
+    }
 
     let cancelled = false
 
@@ -42,7 +46,6 @@ export function useOrphanedProfiles(orphanedIds: string[]): Map<string, ClinicMe
             clinicName: p.clinic_name,
           }
           map.set(p.id, medic)
-          upsertCachedClinicUser(medic).catch(() => {})
         }
         setProfileMap(map)
       })

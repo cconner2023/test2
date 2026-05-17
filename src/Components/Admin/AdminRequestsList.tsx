@@ -304,7 +304,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
         {showLoading ? (
           <AdminListSkeleton />
         ) : feedItems.length === 0 ? (
-          <EmptyState title={searchQuery ? 'No requests match your search.' : 'No pending requests — new submissions appear here.'} />
+          <EmptyState title={searchQuery ? 'No requests match your search.' : 'No pending requests'} />
         ) : (
           <SectionCard className="divide-y divide-themeblue3/10">
             {feedItems.map(renderFeedItem)}

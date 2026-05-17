@@ -211,9 +211,9 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         hideDefaultClose: true,
                     }
                 }
-                return { title: 'Property Book', badge: 'BETA', rightContent: mainHeaderActions, hideDefaultClose: true }
+                return { title: 'Property Book', rightContent: mainHeaderActions, hideDefaultClose: true }
             case 'property-detail':
-                if (!isMobile) return { title: 'Property Book', badge: 'BETA', rightContent: mainHeaderActions, hideDefaultClose: true }
+                if (!isMobile) return { title: 'Property Book', rightContent: mainHeaderActions, hideDefaultClose: true }
                 return {
                     title: selectedItem?.name ?? 'Item Detail',
                     showBack: true,
@@ -226,7 +226,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                     ),
                 }
             case 'property-form':
-                if (!isMobile) return { title: 'Property Book', badge: 'BETA', rightContent: mainHeaderActions, hideDefaultClose: true }
+                if (!isMobile) return { title: 'Property Book', rightContent: mainHeaderActions, hideDefaultClose: true }
                 return { title: selectedItem ? 'Edit Item' : 'Add Item', showBack: true, onBack: handleBack }
         }
     }, [view, handleBack, isMobile, drilldownPath, mainHeaderActions, selectedItem])

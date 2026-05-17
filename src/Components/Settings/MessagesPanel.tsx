@@ -280,8 +280,11 @@ function ConversationPane({
       if (groups[key]) {
         entries.push({ key, type: 'group', lastMessageTime: lastTime, group: groups[key] })
       } else {
-        const medic = medicMap.get(key)
-        if (medic) entries.push({ key, type: 'contact', lastMessageTime: lastTime, medic })
+        const medic = medicMap.get(key) ?? {
+          id: key, firstName: null, lastName: 'Unknown', middleInitial: null,
+          rank: null, credential: null, avatarId: null,
+        }
+        entries.push({ key, type: 'contact', lastMessageTime: lastTime, medic })
       }
     }
     entries.sort((a, b) => {
@@ -826,7 +829,7 @@ function ChatDetail({
       }}
       isSelfChat={isSelf}
       showForward
-      emptyText={isSelf ? 'Write a note...' : 'No messages yet. Say hello!'}
+      emptyText={isSelf ? 'Write a note...' : 'No messages'}
       mobileHeader={mobileHeader}
       desktopHeader={null}
     />
@@ -968,7 +971,7 @@ function GroupChatDetail({
       participants={participants}
       resolveAvatar={resolveAvatar}
       resolveSenderName={resolveSenderName}
-      emptyText="No messages yet. Start the conversation!"
+      emptyText="No messages"
       mobileHeader={mobileHeader}
       desktopHeader={null}
     >

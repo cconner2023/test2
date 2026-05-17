@@ -327,7 +327,7 @@ export function AdminFeatureVotesSection() {
             </ActionPill>
 
             {activeCycles.length === 0 ? (
-              <EmptyState title="No active cycles — tap + to start one." />
+              <EmptyState title="No active cycles" />
             ) : (
               <div className="space-y-3">
                 {activeCycles.map((cycle) => {
@@ -343,7 +343,7 @@ export function AdminFeatureVotesSection() {
                   >
                     {/* Options body */}
                     {candidates.length === 0 ? (
-                      <EmptyState title="No options yet — add one to start collecting votes." bordered={false} />
+                      <EmptyState title="No options" bordered={false} />
                     ) : (
                       <div className="divide-y divide-themeblue3/10">
                         {candidates.map((c) => {

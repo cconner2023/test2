@@ -936,7 +936,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   <PillButton
                     icon={Check}
                     iconSize={18}
-                    circleBg="bg-themegreen text-white"
+                    accent="success"
                     onClick={() => eventFormRef.current?.submit()}
                     label="Save"
                   />
@@ -983,7 +983,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     <PillButton
                       icon={Check}
                       iconSize={18}
-                      circleBg="bg-themegreen text-white"
+                      accent="success"
                       onClick={() => templatePanelRef.current?.submit()}
                       label="Generate"
                       data-tour="template-generate"
@@ -1021,7 +1021,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     <PillButton
                       icon={Trash2}
                       iconSize={18}
-                      circleBg="bg-themeredred text-white"
+                      accent="danger"
                       onClick={() => blockPanelRef.current?.submit()}
                       label="Clear"
                       variant="danger"
@@ -1061,7 +1061,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   <PillButton
                     icon={Check}
                     iconSize={18}
-                    circleBg="bg-themegreen text-white"
+                    accent="success"
                     onClick={() => eventFormRef.current?.submit()}
                     label="Save"
                   />
@@ -1171,7 +1171,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                       <PillButton
                         icon={Check}
                         iconSize={18}
-                        circleBg="bg-themegreen text-white"
+                        accent="success"
                         onClick={() => eventFormRef.current?.submit()}
                         label="Save"
                       />
@@ -1226,7 +1226,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                       <PillButton
                         icon={Check}
                         iconSize={18}
-                        circleBg="bg-themegreen text-white"
+                        accent="success"
                         onClick={() => templatePanelRef.current?.submit()}
                         label="Generate"
                         data-tour="template-generate"
@@ -1252,7 +1252,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                       <PillButton
                         icon={Trash2}
                         iconSize={18}
-                        circleBg="bg-themeredred text-white"
+                        accent="danger"
                         onClick={() => blockPanelRef.current?.submit()}
                         label="Clear"
                         variant="danger"

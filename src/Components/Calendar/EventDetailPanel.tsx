@@ -143,41 +143,51 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
       )}
 
       <div className={`${hideHeader ? '' : 'flex-1 overflow-y-auto'} ${isMobile ? 'px-4 py-4 space-y-4' : 'px-3 py-3 space-y-3'}`}>
-        {/* Event card */}
-        <div className={`rounded-2xl border border-themeblue3/10 bg-themewhite2 space-y-3 ${isMobile ? 'p-4' : 'p-3'}`}>
-          <div className="flex items-center gap-2">
-            <span className={`h-2 w-2 rounded-full ${cat.color}`} />
-            <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">{cat.label}</span>
+        {/* Event read-out */}
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${cat.color}`} />
+              <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">{cat.label}</span>
+            </div>
+            <h2 className={`font-bold text-primary ${isMobile ? 'text-lg' : 'text-sm'}`}>{event.title}</h2>
           </div>
 
-          <h2 className={`font-bold text-primary ${isMobile ? 'text-lg' : 'text-sm'}`}>{event.title}</h2>
-
-          <div className={`space-y-2 ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>
-            <p className="text-primary">
+          <div>
+            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">When</p>
+            <p className={`text-primary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>
               {formatDateTime(event.start_time, event.all_day)}
               {!event.all_day && (
                 <span className="text-tertiary"> — {formatDateTime(event.end_time, false)}</span>
               )}
             </p>
-
-            {event.location && (
-              <p className="text-secondary">{event.location}</p>
-            )}
-
-            {event.uniform && (
-              <p className="text-secondary">{event.uniform}</p>
-            )}
-
             {event.report_time && (
-              <p className="text-secondary">Report: {event.report_time}</p>
+              <p className={`text-secondary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>Report: {event.report_time}</p>
             )}
+          </div>
 
+          {event.location && (
+            <div>
+              <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Where</p>
+              <p className={`text-secondary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{event.location}</p>
+            </div>
+          )}
+
+          {event.uniform && (
+            <div>
+              <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Uniform</p>
+              <p className={`text-secondary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{event.uniform}</p>
+            </div>
+          )}
+
+          <div>
+            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Assigned</p>
             <div className="flex items-center gap-2 flex-wrap">
               {assignedNames.length === 0 ? (
-                <span className="text-tertiary">Unassigned</span>
+                <span className={`text-tertiary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>Unassigned</span>
               ) : (
                 assignedNames.map((person) => (
-                  <span key={person.id} className="inline-flex items-center gap-1.5">
+                  <span key={person.id} className={`inline-flex items-center gap-1.5 ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>
                     <UserAvatar
                       avatarId={person.avatarId}
                       firstName={person.firstName}
@@ -192,7 +202,8 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
           </div>
 
           {event.description && (
-            <div className="pt-3 border-t border-primary/8">
+            <div>
+              <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Notes</p>
               <p className={`text-secondary whitespace-pre-wrap ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{event.description}</p>
             </div>
           )}

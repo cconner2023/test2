@@ -191,6 +191,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   const tempPointLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const tempRouteLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const presenceLayerRef = useRef<L.LayerGroup>(L.layerGroup());
+  const didInitCenterRef = useRef(false);
+  const lastAppliedCenterRef = useRef<[number, number] | null>(null);
   const [centerLatLng, setCenterLatLng] = useState<{ lat: number; lng: number } | null>(null);
   const [showAttribution, setShowAttribution] = useState(false);
   // Tracked separately so the label overlay re-renders once the map is ready.
@@ -330,6 +332,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 
     mapRef.current = map;
     setMapInstance(map);
+    didInitCenterRef.current = true;
+    lastAppliedCenterRef.current = center;
 
     // Leaflet caches container size on init — re-measure after drawer animation settles
     const resizeTimer = setTimeout(() => map.invalidateSize(), 350);
@@ -342,6 +346,22 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Apply async-resolved `center` prop after init: parent often resolves the
+  // clinic's lat/lng after MapView has already mounted with DEFAULT_CENTER, so
+  // we must re-center when the prop changes. Skip when the map has already been
+  // moved by the user or by fitBounds/flyTo (compare against the last value we
+  // applied, not the live map center).
+  useEffect(() => {
+    if (!didInitCenterRef.current) return;
+    const map = mapRef.current;
+    if (!map) return;
+    const last = lastAppliedCenterRef.current;
+    if (last && last[0] === center[0] && last[1] === center[1]) return;
+    map.setView(center, zoom, { animate: false });
+    lastAppliedCenterRef.current = center;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [center]);
 
   // Swap themed tile + grid layers when theme, showGrid, or overlayId changes
   useEffect(() => {
@@ -839,7 +859,6 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
             aria-label="Show coordinate detail"
           >
             <span className="truncate">{activeCoordText}</span>
-            <Copy size={12} className="text-tertiary shrink-0" />
           </button>
           <button
             type="button"

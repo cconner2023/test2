@@ -434,7 +434,7 @@ export function AdminUsersList({
         {showLoading ? (
           <AdminListSkeleton />
         ) : filteredUsers.length === 0 ? (
-          <EmptyState title={searchQuery ? 'No users match your search.' : 'No users yet — tap + to add one.'} />
+          <EmptyState title={searchQuery ? 'No users match your search.' : 'No users'} />
         ) : useGrouping ? (
           <div className="space-y-4">{renderGroupedUsers()}</div>
         ) : (

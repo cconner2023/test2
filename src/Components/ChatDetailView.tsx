@@ -159,7 +159,7 @@ export function ChatDetailView({
   requestFlow,
   isSelfChat,
   showForward,
-  emptyText = 'No messages yet. Say hello!',
+  emptyText = 'No messages',
   mobileHeader,
   desktopHeader,
   children,
@@ -603,7 +603,7 @@ export function ChatDetailView({
           className={`absolute inset-0 z-20 flex flex-col bg-themewhite3 transition-opacity duration-200 ${threadClosing ? 'opacity-0' : 'animate-fadeIn'}`}
           {...threadSwipeBack}
         >
-          {renderMessageList(threadMessages, 'No messages in this thread', true,
+          {renderMessageList(threadMessages, 'No messages', true,
             <div className="shrink-0 px-3 py-3 pt-[max(0.75rem,var(--sat,0px))] flex items-center">
               <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
                 <button onClick={handleCloseThread} className="w-[3.0625rem] h-[3.0625rem] rounded-full flex items-center justify-center active:scale-95 transition-transform">

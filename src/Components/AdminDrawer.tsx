@@ -69,6 +69,17 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const [selectedClinic, setSelectedClinic] = useState<AdminClinic | null>(null)
     const [selectedLocation, setSelectedLocation] = useState<AdminLocation | null>(null)
 
+    // Lateral nav trail: entities the user hopped *from* via in-detail links
+    // (CPT Conner → his cluster → sister cluster). Cleared whenever navigation
+    // originates from a list/summary, so the crumb never claims a hierarchy
+    // that wasn't actually traversed. Cap depth so it doesn't grow unbounded.
+    type TrailEntry =
+        | { kind: 'user'; user: AdminUser; label: string }
+        | { kind: 'clinic'; clinic: AdminClinic; label: string }
+    const TRAIL_MAX = 3
+    const [trail, setTrail] = useState<TrailEntry[]>([])
+    const clearTrail = useCallback(() => setTrail([]), [])
+
     // User & clinic detail edit/delete state — symmetric, see useDetailEditState
     const userEdit = useDetailEditState()
     const clinicEdit = useDetailEditState()
@@ -105,38 +116,76 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setTimeout(() => setSlideDirection(''), UI_TIMING.SLIDE_ANIMATION)
     }, [isMobile])
 
-    // Navigation handlers
-    const handleSelectUser = useCallback((user: AdminUser) => {
+    // Internal entity-swap helpers. Do NOT touch trail — callers decide whether
+    // the navigation is top-level (clear) or lateral (push).
+    const enterUserDetail = useCallback((user: AdminUser | null, editing: boolean) => {
         setSelectedUser(user)
-        userEdit.setEditing(false)
+        userEdit.setEditing(editing)
         userEdit.setHasPending(false)
         handleSlideAnimation('left')
         setView('admin-user-detail')
     }, [handleSlideAnimation, userEdit])
 
-    const handleEditUser = useCallback((user: AdminUser) => {
-        setSelectedUser(user)
-        userEdit.setEditing(true)
-        userEdit.setHasPending(false)
-        handleSlideAnimation('left')
-        setView('admin-user-detail')
-    }, [handleSlideAnimation, userEdit])
-
-    const handleCreateUser = useCallback(() => {
-        setSelectedUser(null)
-        userEdit.setEditing(true)
-        userEdit.setHasPending(false)
-        handleSlideAnimation('left')
-        setView('admin-user-detail')
-    }, [handleSlideAnimation, userEdit])
-
-    const handleSelectClinic = useCallback((clinic: AdminClinic) => {
+    const enterClinicDetail = useCallback((clinic: AdminClinic | null, editing: boolean) => {
         setSelectedClinic(clinic)
-        clinicEdit.setEditing(false)
+        clinicEdit.setEditing(editing)
         clinicEdit.setHasPending(false)
         handleSlideAnimation('left')
         setView('admin-clinic-detail')
     }, [handleSlideAnimation, clinicEdit])
+
+    // Top-level entries (list rows, summary, request approval) — clear any
+    // prior lateral trail since the user jumped in from outside the chain.
+    const handleSelectUser = useCallback((user: AdminUser) => {
+        clearTrail()
+        enterUserDetail(user, false)
+    }, [enterUserDetail, clearTrail])
+
+    const handleEditUser = useCallback((user: AdminUser) => {
+        clearTrail()
+        enterUserDetail(user, true)
+    }, [enterUserDetail, clearTrail])
+
+    const handleCreateUser = useCallback(() => {
+        clearTrail()
+        enterUserDetail(null, true)
+    }, [enterUserDetail, clearTrail])
+
+    const handleSelectClinic = useCallback((clinic: AdminClinic) => {
+        clearTrail()
+        enterClinicDetail(clinic, false)
+    }, [enterClinicDetail, clearTrail])
+
+    // Lateral hops from inside a detail view (clinic row inside a user card,
+    // member row inside a clinic card, sister cluster row, etc.). Push the
+    // current detail entity onto the trail so the breadcrumb can walk back.
+    const userLabel = (u: AdminUser) =>
+        `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'User'
+    const handleSelectClinicFromDetail = useCallback((clinic: AdminClinic) => {
+        setTrail(prev => {
+            let next = prev
+            if (view === 'admin-user-detail' && selectedUser) {
+                next = [...prev, { kind: 'user', user: selectedUser, label: userLabel(selectedUser) }]
+            } else if (view === 'admin-clinic-detail' && selectedClinic && selectedClinic.id !== clinic.id) {
+                next = [...prev, { kind: 'clinic', clinic: selectedClinic, label: selectedClinic.name || 'Cluster' }]
+            }
+            return next.slice(-TRAIL_MAX)
+        })
+        enterClinicDetail(clinic, false)
+    }, [view, selectedUser, selectedClinic, enterClinicDetail])
+
+    const handleSelectUserFromDetail = useCallback((user: AdminUser) => {
+        setTrail(prev => {
+            let next = prev
+            if (view === 'admin-clinic-detail' && selectedClinic) {
+                next = [...prev, { kind: 'clinic', clinic: selectedClinic, label: selectedClinic.name || 'Cluster' }]
+            } else if (view === 'admin-user-detail' && selectedUser && selectedUser.id !== user.id) {
+                next = [...prev, { kind: 'user', user: selectedUser, label: userLabel(selectedUser) }]
+            }
+            return next.slice(-TRAIL_MAX)
+        })
+        enterUserDetail(user, false)
+    }, [view, selectedClinic, selectedUser, enterUserDetail])
 
     const handleRequestApproved = useCallback((
         userId: string,
@@ -174,36 +223,32 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     }, [handleSelectUser, handleEditUser])
 
     const handleEditClinic = useCallback((clinic: AdminClinic) => {
-        setSelectedClinic(clinic)
-        clinicEdit.setEditing(true)
-        clinicEdit.setHasPending(false)
-        handleSlideAnimation('left')
-        setView('admin-clinic-detail')
-    }, [handleSlideAnimation, clinicEdit])
+        clearTrail()
+        enterClinicDetail(clinic, true)
+    }, [enterClinicDetail, clearTrail])
 
     const handleCreateClinic = useCallback(() => {
-        setSelectedClinic(null)
-        clinicEdit.setEditing(true)
-        clinicEdit.setHasPending(false)
-        handleSlideAnimation('left')
-        setView('admin-clinic-detail')
-    }, [handleSlideAnimation, clinicEdit])
+        clearTrail()
+        enterClinicDetail(null, true)
+    }, [enterClinicDetail, clearTrail])
 
     const handleSelectLocation = useCallback((loc: AdminLocation) => {
+        clearTrail()
         setSelectedLocation(loc)
         locationEdit.setEditing(false)
         locationEdit.setHasPending(false)
         handleSlideAnimation('left')
         setView('admin-location-detail')
-    }, [handleSlideAnimation, locationEdit])
+    }, [handleSlideAnimation, locationEdit, clearTrail])
 
     const handleCreateLocation = useCallback(() => {
+        clearTrail()
         setSelectedLocation(null)
         locationEdit.setEditing(true)
         locationEdit.setHasPending(false)
         handleSlideAnimation('left')
         setView('admin-location-detail')
-    }, [handleSlideAnimation, locationEdit])
+    }, [handleSlideAnimation, locationEdit, clearTrail])
 
     const navigateBack = useCallback(() => {
         clinicEdit.reset()
@@ -215,8 +260,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             setSelectedUser(null)
             setSelectedClinic(null)
             setSelectedLocation(null)
+            clearTrail()
         }
-    }, [view, handleSlideAnimation, clinicEdit, userEdit, locationEdit])
+    }, [view, handleSlideAnimation, clinicEdit, userEdit, locationEdit, clearTrail])
 
     const hasPendingEdits = userEdit.hasPending || clinicEdit.hasPending || locationEdit.hasPending
 
@@ -258,11 +304,12 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setSelectedLocation(null)
         setSlideDirection('')
         setSearchQuery('')
+        clearTrail()
         clinicEdit.reset()
         userEdit.reset()
         locationEdit.reset()
         onClose()
-    }, [onClose, clinicEdit, userEdit, locationEdit])
+    }, [onClose, clinicEdit, userEdit, locationEdit, clearTrail])
 
     const handleClose = useCallback(() => {
         guardNav(doClose)
@@ -305,9 +352,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 setView('admin')
                 setSelectedUser(null)
                 setSelectedClinic(null)
+                clearTrail()
             }
         })
-    }, [view, guardNav])
+    }, [view, guardNav, clearTrail])
 
     const handleTabChange = useCallback((tab: AdminTab) => {
         setActiveTab(tab)
@@ -344,15 +392,23 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         return ''
     }, [view, selectedUser, selectedClinic, selectedLocation])
 
-    /** Label of the list the detail view drills out of — used by the desktop
-     * three-pane header as a clickable breadcrumb crumb. Mobile relies on the
-     * back chevron + title instead. */
-    const detailParentLabel = useMemo(() => {
-        if (view === 'admin-user-detail') return 'Users'
-        if (view === 'admin-clinic-detail') return 'Clusters'
-        if (view === 'admin-location-detail') return 'Locations'
-        return null
-    }, [view])
+    /** Breadcrumb crumb in the desktop detail header. When the user reached
+     * this detail by hopping from another detail (CPT Conner → his cluster →
+     * sister cluster), surface the previously-viewed entity so they can walk
+     * back. Falls back to null when there's no trail — the back chevron
+     * already covers "return to list". */
+    const detailCrumb = useMemo(() => {
+        const prev = trail[trail.length - 1]
+        if (!prev) return null
+        return {
+            label: prev.label,
+            onClick: () => {
+                setTrail(t => t.slice(0, -1))
+                if (prev.kind === 'user') enterUserDetail(prev.user, false)
+                else enterClinicDetail(prev.clinic, false)
+            },
+        }
+    }, [trail, enterUserDetail, enterClinicDetail])
 
     // Header actions for detail views — user/clinic share DetailHeaderActions.
     const detailHeaderActions = useMemo(() => {
@@ -387,6 +443,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     onRequestSave={clinicEdit.requestSave}
                     onClose={handleClose}
                     showCloseWhenIdle={isMobile}
+                    // Tap-to-edit-overlay pattern owns edit entry + save + delete;
+                    // header keeps only Close. Mirrors AdminUserDetail.
+                    hideEdit
                 />
             )
         }
@@ -501,7 +560,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         user={selectedUser}
                         onUserUpdated={(u) => setSelectedUser(u)}
                         onCreated={handleUserCreated}
-                        onSelectClinic={handleSelectClinic}
+                        onSelectClinic={handleSelectClinicFromDetail}
                         editing={userEdit.editing}
                         onEditingChange={userEdit.setEditing}
                         saveRequested={userEdit.saveRequested}
@@ -518,14 +577,15 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     <AdminClinicDetail
                         clinic={selectedClinic}
                         onClinicUpdated={(c) => setSelectedClinic(c)}
-                        onSelectUser={handleSelectUser}
-                        onSelectClinic={handleSelectClinic}
+                        onSelectUser={handleSelectUserFromDetail}
+                        onSelectClinic={handleSelectClinicFromDetail}
                         onCreated={handleClinicCreated}
                         editing={clinicEdit.editing}
                         onEditingChange={clinicEdit.setEditing}
                         saveRequested={clinicEdit.saveRequested}
                         onSaveComplete={clinicEdit.completeSave}
                         onPendingChangesChange={clinicEdit.setHasPending}
+                        onRequestDelete={selectedClinic ? clinicEdit.requestDelete : undefined}
                     />
                 </ScrollPane>
             )
@@ -776,14 +836,14 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                         <ChevronLeft size={18} />
                                     </button>
                                     <h2 className="flex-1 min-w-0 flex items-center gap-1.5 text-[11pt] font-semibold text-primary">
-                                        {detailParentLabel && (
+                                        {detailCrumb && (
                                             <>
                                                 <button
                                                     type="button"
-                                                    onClick={handleBack}
-                                                    className="shrink-0 text-tertiary hover:text-primary active:scale-95 transition-all font-normal"
+                                                    onClick={() => guardNav(detailCrumb.onClick)}
+                                                    className="shrink-0 text-tertiary hover:text-primary active:scale-95 transition-all font-normal max-w-[160px] truncate"
                                                 >
-                                                    {detailParentLabel}
+                                                    {detailCrumb.label}
                                                 </button>
                                                 <span aria-hidden className="shrink-0 text-tertiary/60">›</span>
                                             </>

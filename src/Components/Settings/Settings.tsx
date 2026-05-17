@@ -357,7 +357,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                                 <PillButton
                                     icon={Check}
                                     iconSize={18}
-                                    circleBg="bg-themegreen text-white"
+                                    accent="success"
                                     onClick={() => setClinicSaveRequested(true)}
                                     label="Save"
                                     data-tour="clinic-save-button"

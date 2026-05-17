@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useCallback, useMemo, useState, useRef } from 'react'
-import { X, Plus, RefreshCw } from 'lucide-react'
+import { X, Plus, RefreshCw, Check, Trash2 } from 'lucide-react'
 import { UserRow } from '../UserRow'
 import { ActionButton } from '../ActionButton'
 import { listClinics, listAllUsers, listLocations, updateClinic, createClinic, rescueClinicAssociationsByLocation } from '../../lib/adminService'
@@ -20,6 +20,7 @@ import { invalidate } from '../../stores/useInvalidationStore'
 import { sameStringSet } from '../../Utilities/arrayEquals'
 import { ActionPill } from '../ActionPill'
 import { EmptyState } from '../EmptyState'
+import { PreviewOverlay } from '../PreviewOverlay'
 
 interface AdminClinicDetailProps {
   clinic: AdminClinic | null
@@ -32,6 +33,8 @@ interface AdminClinicDetailProps {
   onSaveComplete: () => void
   onPendingChangesChange?: (hasPending: boolean) => void
   onCreated?: (clinicId: string) => void
+  /** Called when the user requests deletion from the edit overlay footer. */
+  onRequestDelete?: () => void
 }
 
 const AdminClinicDetail = ({
@@ -45,6 +48,7 @@ const AdminClinicDetail = ({
   onSaveComplete,
   onPendingChangesChange,
   onCreated,
+  onRequestDelete,
 }: AdminClinicDetailProps) => {
   const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
@@ -67,6 +71,10 @@ const AdminClinicDetail = ({
   const [rescueResult, setRescueResult] = useState<string | null>(null)
 
   const isCreateMode = clinic === null
+
+  // Edit overlay — tap clinic card → PreviewOverlay anchored to card rect.
+  const cardWrapperRef = useRef<HTMLDivElement>(null)
+  const [editAnchor, setEditAnchor] = useState<DOMRect | null>(null)
 
   const handleAddUic = useCallback(() => {
     if (uicDraft.length !== 6) return
@@ -112,6 +120,34 @@ const AdminClinicDetail = ({
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  // ── Edit overlay ↔ editing prop sync ─────────────────────────────────
+  // External editing=true opens the overlay (for existing records); editing=false
+  // closes it. Create mode keeps the inline form path until the FAB-anchored
+  // overlay lands.
+  useEffect(() => {
+    if (editing && !isCreateMode) {
+      if (!editAnchor) {
+        const rect = cardWrapperRef.current?.getBoundingClientRect() ?? null
+        if (rect) setEditAnchor(rect)
+      }
+    } else {
+      setEditAnchor(null)
+    }
+  }, [editing, isCreateMode, editAnchor])
+
+  const openEditOverlay = useCallback(() => {
+    if (isCreateMode) return
+    const rect = cardWrapperRef.current?.getBoundingClientRect() ?? null
+    if (!rect) return
+    setEditAnchor(rect)
+    onEditingChange(true)
+  }, [isCreateMode, onEditingChange])
+
+  const closeEditOverlay = useCallback(() => {
+    setEditAnchor(null)
+    onEditingChange(false)
+  }, [onEditingChange])
 
   /** Populate edit fields only when entering edit mode (not on every clinic ref change). */
   const prevEditingRef = useRef(false)
@@ -285,146 +321,167 @@ const AdminClinicDetail = ({
     />
   )
 
+  // Edit form body — shared between inline create flow and the tap-to-edit
+  // overlay used for existing records. Keeping it inline (rather than a child
+  // component) preserves the closure over the many edit-state setters.
+  const editFormBody = (
+    <div>
+      <TextInput value={editName} onChange={setEditName} placeholder="Cluster name" />
+      <LocationPickerInput value={editLocationId} onChange={setEditLocationId} allLocations={locations} />
+      {clinic?.location && editLocationId === null && (
+        <p className="px-4 py-2 text-[9pt] text-tertiary border-b border-primary/6">
+          Legacy location: <span className="text-primary">{clinic.location}</span>
+        </p>
+      )}
+
+      {editUics.length > 0 && (
+        <div className="px-4 py-3 flex flex-wrap gap-1.5 border-b border-primary/6">
+          {editUics.map((val, idx) => (
+            <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-themeblue2/10 text-themeblue2 text-[10pt] font-medium border border-themeblue2/30">
+              {val}
+              <button type="button" onClick={() => setEditUics(prev => prev.filter((_, i) => i !== idx))} className="hover:text-themeredred transition-colors">
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center border-b border-primary/6">
+        <div className="flex-1 min-w-0">
+          <UicPinInput value={uicDraft} onChange={(v) => { setUicDraft(v); setUicError(null); setUicOwner(null) }} spread />
+        </div>
+        <button
+          type="button"
+          onClick={handleAddUic}
+          disabled={uicDraft.length !== 6}
+          className="shrink-0 w-9 h-9 mr-3 rounded-full bg-themeblue3 text-white flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
+        >
+          <Plus size={16} />
+        </button>
+      </div>
+      {uicError && (
+        <p className="px-4 py-2 text-[10pt] text-themeredred border-b border-primary/6">
+          {uicError}{' '}
+          {uicOwner && (
+            onSelectClinic ? (
+              <button
+                type="button"
+                onClick={() => onSelectClinic(uicOwner)}
+                className="font-semibold underline text-themeblue2"
+              >
+                {uicOwner.name}
+              </button>
+            ) : (
+              <span className="font-semibold">{uicOwner.name}</span>
+            )
+          )}
+        </p>
+      )}
+      {/* Users whose self-reported UIC matches one of this clinic's UICs but
+          aren't assigned here — informational only; admin can click to edit
+          that user's assigned clinic directly. */}
+      {editUics.length > 0 && (() => {
+        const uicSet = new Set(editUics)
+        const suggested = users.filter(u => u.uic && uicSet.has(u.uic) && u.clinic_id !== clinic?.id)
+        if (suggested.length === 0) return null
+        return (
+          <div className="px-4 py-3 bg-themeblue2/5 border-b border-primary/6">
+            <p className="text-[9pt] text-themeblue2 font-medium mb-1">
+              {suggested.length} user{suggested.length !== 1 ? 's' : ''} self-report these UICs but aren't assigned here
+            </p>
+            <p className="text-[9pt] text-tertiary mb-1.5">
+              Open a user to update their assigned clinic.
+            </p>
+            <div className="space-y-0.5">
+              {suggested.map(u => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => onSelectUser?.(u)}
+                  disabled={!onSelectUser}
+                  className="w-full text-left text-[9pt] text-primary hover:text-themeblue2 transition-colors disabled:cursor-default"
+                >
+                  {[u.rank, u.first_name, u.last_name].filter(Boolean).join(' ') || u.email}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
+
+      <ClinicParentPickerInput
+        value={editParentClinicId}
+        allClinics={clinics}
+        excludeId={clinic?.id ?? null}
+        onChange={setEditParentClinicId}
+      />
+      <ClinicMultiPickerInput selectedIds={editAssociatedClinicIds} allClinics={clinics} excludeId={clinic?.id} onChange={setEditAssociatedClinicIds} placeholder="Add associated cluster" />
+
+      {editRooms.length > 0 && (
+        <div className="px-4 py-3 space-y-1.5 border-b border-primary/6">
+          {[...editRooms]
+            .sort((a, b) => a.sort_order - b.sort_order)
+            .map((room) => (
+              <div key={room.id} className="flex items-center gap-2 rounded-md border border-themeblue3/20 bg-themeblue3/5 px-2 py-1">
+                <input
+                  type="text"
+                  value={room.name}
+                  onChange={(e) => handleRenameRoom(room.id, e.target.value)}
+                  className="flex-1 bg-transparent text-sm text-primary focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleDeleteRoom(room.id)}
+                  className="shrink-0 text-tertiary hover:text-themeredred transition-colors"
+                  title="Delete"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+        </div>
+      )}
+      <div className="flex items-center border-b border-primary/6">
+        <div className="flex-1 min-w-0">
+          <TextInput value={roomDraft} onChange={setRoomDraft} placeholder="Room name" />
+        </div>
+        <button
+          type="button"
+          onClick={handleAddRoom}
+          disabled={!roomDraft.trim()}
+          className="shrink-0 w-9 h-9 mr-3 rounded-full bg-themeblue3 text-white flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
+        >
+          <Plus size={16} />
+        </button>
+      </div>
+      <p className="px-4 py-2 text-[9pt] text-tertiary">
+        Deleting a room won't affect past events — they'll just stop showing the room pill.
+      </p>
+    </div>
+  )
+
+  const clinicLabel = clinic?.name || 'cluster'
+
   return (
     <div className={saving ? 'opacity-50 pointer-events-none' : undefined}>
       {error && <div className="mb-3"><ErrorDisplay message={error} /></div>}
 
-      {/* Main card — compact card in view, form inputs in edit */}
-      <div className="rounded-2xl bg-themewhite2 overflow-hidden">
-        {editing ? (
-          <div>
-            <TextInput value={editName} onChange={setEditName} placeholder="Cluster name" />
-            <LocationPickerInput value={editLocationId} onChange={setEditLocationId} allLocations={locations} />
-            {clinic?.location && editLocationId === null && (
-              <p className="px-4 py-2 text-[9pt] text-tertiary border-b border-primary/6">
-                Legacy location: <span className="text-primary">{clinic.location}</span>
-              </p>
-            )}
-
-            {editUics.length > 0 && (
-              <div className="px-4 py-3 flex flex-wrap gap-1.5 border-b border-primary/6">
-                {editUics.map((val, idx) => (
-                  <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-themeblue2/10 text-themeblue2 text-[10pt] font-medium border border-themeblue2/30">
-                    {val}
-                    <button type="button" onClick={() => setEditUics(prev => prev.filter((_, i) => i !== idx))} className="hover:text-themeredred transition-colors">
-                      <X size={12} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="flex items-center border-b border-primary/6">
-              <div className="flex-1 min-w-0">
-                <UicPinInput value={uicDraft} onChange={(v) => { setUicDraft(v); setUicError(null); setUicOwner(null) }} spread />
-              </div>
-              <button
-                type="button"
-                onClick={handleAddUic}
-                disabled={uicDraft.length !== 6}
-                className="shrink-0 w-9 h-9 mr-3 rounded-full bg-themeblue3 text-white flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
-              >
-                <Plus size={16} />
-              </button>
-            </div>
-            {uicError && (
-              <p className="px-4 py-2 text-[10pt] text-themeredred border-b border-primary/6">
-                {uicError}{' '}
-                {uicOwner && (
-                  onSelectClinic ? (
-                    <button
-                      type="button"
-                      onClick={() => onSelectClinic(uicOwner)}
-                      className="font-semibold underline text-themeblue2"
-                    >
-                      {uicOwner.name}
-                    </button>
-                  ) : (
-                    <span className="font-semibold">{uicOwner.name}</span>
-                  )
-                )}
-              </p>
-            )}
-            {/* Users whose self-reported UIC matches one of this clinic's UICs but
-                aren't assigned here — informational only; admin can click to edit
-                that user's assigned clinic directly. */}
-            {editUics.length > 0 && (() => {
-              const uicSet = new Set(editUics)
-              const suggested = users.filter(u => u.uic && uicSet.has(u.uic) && u.clinic_id !== clinic?.id)
-              if (suggested.length === 0) return null
-              return (
-                <div className="px-4 py-3 bg-themeblue2/5 border-b border-primary/6">
-                  <p className="text-[9pt] text-themeblue2 font-medium mb-1">
-                    {suggested.length} user{suggested.length !== 1 ? 's' : ''} self-report these UICs but aren't assigned here
-                  </p>
-                  <p className="text-[9pt] text-tertiary mb-1.5">
-                    Open a user to update their assigned clinic.
-                  </p>
-                  <div className="space-y-0.5">
-                    {suggested.map(u => (
-                      <button
-                        key={u.id}
-                        type="button"
-                        onClick={() => onSelectUser?.(u)}
-                        disabled={!onSelectUser}
-                        className="w-full text-left text-[9pt] text-primary hover:text-themeblue2 transition-colors disabled:cursor-default"
-                      >
-                        {[u.rank, u.first_name, u.last_name].filter(Boolean).join(' ') || u.email}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )
-            })()}
-
-            <ClinicParentPickerInput
-              value={editParentClinicId}
-              allClinics={clinics}
-              excludeId={clinic?.id ?? null}
-              onChange={setEditParentClinicId}
-            />
-            <ClinicMultiPickerInput selectedIds={editAssociatedClinicIds} allClinics={clinics} excludeId={clinic?.id} onChange={setEditAssociatedClinicIds} placeholder="Add associated cluster" />
-
-            {editRooms.length > 0 && (
-              <div className="px-4 py-3 space-y-1.5 border-b border-primary/6">
-                {[...editRooms]
-                  .sort((a, b) => a.sort_order - b.sort_order)
-                  .map((room) => (
-                    <div key={room.id} className="flex items-center gap-2 rounded-md border border-themeblue3/20 bg-themeblue3/5 px-2 py-1">
-                      <input
-                        type="text"
-                        value={room.name}
-                        onChange={(e) => handleRenameRoom(room.id, e.target.value)}
-                        className="flex-1 bg-transparent text-sm text-primary focus:outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteRoom(room.id)}
-                        className="shrink-0 text-tertiary hover:text-themeredred transition-colors"
-                        title="Delete"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ))}
-              </div>
-            )}
-            <div className="flex items-center border-b border-primary/6">
-              <div className="flex-1 min-w-0">
-                <TextInput value={roomDraft} onChange={setRoomDraft} placeholder="Room name" />
-              </div>
-              <button
-                type="button"
-                onClick={handleAddRoom}
-                disabled={!roomDraft.trim()}
-                className="shrink-0 w-9 h-9 mr-3 rounded-full bg-themeblue3 text-white flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
-              >
-                <Plus size={16} />
-              </button>
-            </div>
-            <p className="px-4 py-2 text-[9pt] text-tertiary">
-              Deleting a room won't affect past events — they'll just stop showing the room pill.
-            </p>
-          </div>
+      {/* Main card — view-mode card for existing records (tap to open edit
+          overlay), inline form during create mode until the FAB-anchored
+          overlay lands. pt-0; the parent ScrollPane already gives padding. */}
+      <div ref={cardWrapperRef} className="relative">
+        <div
+          className={`rounded-2xl bg-themewhite2 overflow-hidden ${clinic && !isCreateMode ? 'cursor-pointer active:bg-themeblue2/5 transition-colors' : ''}`}
+          onClick={clinic && !isCreateMode ? openEditOverlay : undefined}
+          role={clinic && !isCreateMode ? 'button' : undefined}
+          tabIndex={clinic && !isCreateMode ? 0 : undefined}
+          aria-label={clinic && !isCreateMode ? `Edit ${clinicLabel}` : undefined}
+          onKeyDown={clinic && !isCreateMode ? (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEditOverlay() }
+          } : undefined}
+        >
+        {isCreateMode && editing ? (
+          editFormBody
         ) : clinic ? (
           <div className="px-4 py-3">
             <p className="text-sm font-semibold text-primary">{clinic.name}</p>
@@ -439,7 +496,7 @@ const AdminClinicDetail = ({
                     </p>
                     <button
                       type="button"
-                      onClick={handleRescueAssociations}
+                      onClick={(e) => { e.stopPropagation(); handleRescueAssociations() }}
                       disabled={rescuing}
                       title="Re-associate all clusters at this location"
                       aria-label="Rescue associations for this location"
@@ -475,7 +532,7 @@ const AdminClinicDetail = ({
                     <span className="text-[8pt] uppercase tracking-wider text-tertiary mr-1 shrink-0">Parent</span>
                     <button
                       type="button"
-                      onClick={() => onSelectClinic?.(parentClinic)}
+                      onClick={(e) => { e.stopPropagation(); onSelectClinic?.(parentClinic) }}
                       disabled={!onSelectClinic}
                       aria-label={`Open parent cluster ${parentClinic.name}`}
                       className="inline-flex items-center px-1.5 py-0.5 rounded text-[9pt] font-medium border bg-themeblue3/10 text-themeblue3 border-themeblue3/30 hover:bg-themeblue3/20 transition-colors active:scale-95 disabled:cursor-default disabled:hover:bg-themeblue3/10"
@@ -491,7 +548,7 @@ const AdminClinicDetail = ({
                       <button
                         key={child.id}
                         type="button"
-                        onClick={() => onSelectClinic?.(child)}
+                        onClick={(e) => { e.stopPropagation(); onSelectClinic?.(child) }}
                         disabled={!onSelectClinic}
                         aria-label={`Open sub-cluster ${child.name}`}
                         className="inline-flex items-center px-1.5 py-0.5 rounded text-[9pt] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30 hover:bg-themeblue2/20 transition-colors active:scale-95 disabled:cursor-default disabled:hover:bg-themeblue2/10"
@@ -519,7 +576,40 @@ const AdminClinicDetail = ({
             </p>
           </div>
         ) : null}
+        </div>
       </div>
+
+      {/* Edit overlay — tap clinic card → form fields here. Footer owns Save+Delete. */}
+      <PreviewOverlay
+        isOpen={!!editAnchor && !isCreateMode}
+        onClose={closeEditOverlay}
+        anchorRect={editAnchor}
+        title={`Edit ${clinicLabel}`}
+        maxWidth={400}
+        previewMaxHeight="70dvh"
+        footer={
+          editAnchor && clinic ? (
+            <ActionPill shadow="sm">
+              {onRequestDelete && (
+                <ActionButton
+                  icon={Trash2}
+                  label="Delete cluster"
+                  variant="danger"
+                  onClick={() => { setEditAnchor(null); onRequestDelete() }}
+                />
+              )}
+              <ActionButton
+                icon={saving ? RefreshCw : Check}
+                label={saving ? 'Saving…' : 'Save'}
+                variant={saving ? 'disabled' : 'success'}
+                onClick={handleSave}
+              />
+            </ActionPill>
+          ) : undefined
+        }
+      >
+        {editAnchor && clinic && editFormBody}
+      </PreviewOverlay>
 
       {/* Assigned Users */}
       {!isCreateMode && assignedUsers.length > 0 && (
@@ -549,7 +639,7 @@ const AdminClinicDetail = ({
       {!isCreateMode && !editing && allClinicUsers.length === 0 && (
         <EmptyState
           className="mt-4"
-          title="No users assigned — set each user's home cluster from the Users tab."
+          title="No users assigned"
         />
       )}
     </div>

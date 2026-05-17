@@ -11,12 +11,12 @@ interface MapSettingsDrawerProps {
   onToggleGrid: () => void;
 }
 
-export function MapSettingsDrawer({
-  isOpen,
-  onClose,
-  showGrid,
-  onToggleGrid,
-}: MapSettingsDrawerProps) {
+interface MapSettingsBodyProps {
+  showGrid: boolean;
+  onToggleGrid: () => void;
+}
+
+export function MapSettingsBody({ showGrid, onToggleGrid }: MapSettingsBodyProps) {
   const bearingReference = useMapPrefsStore(s => s.bearingReference);
   const setBearingReference = useMapPrefsStore(s => s.setBearingReference);
   const coordDisplay = useMapPrefsStore(s => s.coordDisplay);
@@ -35,14 +35,7 @@ export function MapSettingsDrawer({
   ];
 
   return (
-    <PreviewOverlay
-      isOpen={isOpen}
-      onClose={onClose}
-      anchorRect={null}
-      title="Map Settings"
-      maxWidth={380}
-    >
-      <div className="flex flex-col gap-4 p-4">
+    <div className="flex flex-col gap-4 p-4">
         {/* Grid toggle row */}
         <div className="flex items-center justify-between rounded-2xl border border-themeblue3/10 bg-themewhite2 px-4 py-3">
           <div className="flex items-center gap-3 min-w-0">
@@ -124,6 +117,24 @@ export function MapSettingsDrawer({
           </p>
         </div>
       </div>
+  );
+}
+
+export function MapSettingsDrawer({
+  isOpen,
+  onClose,
+  showGrid,
+  onToggleGrid,
+}: MapSettingsDrawerProps) {
+  return (
+    <PreviewOverlay
+      isOpen={isOpen}
+      onClose={onClose}
+      anchorRect={null}
+      title="Map Settings"
+      maxWidth={380}
+    >
+      <MapSettingsBody showGrid={showGrid} onToggleGrid={onToggleGrid} />
     </PreviewOverlay>
   );
 }

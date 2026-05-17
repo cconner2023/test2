@@ -239,7 +239,7 @@ export function AdminClinicsList({
         {showLoading ? (
           <AdminListSkeleton />
         ) : filteredClinics.length === 0 ? (
-          <EmptyState title={searchQuery ? 'No clusters match your search.' : 'No clusters yet — tap + to add one.'} />
+          <EmptyState title={searchQuery ? 'No clusters match your search.' : 'No clusters'} />
         ) : (
           <SectionCard>
             {useTreeView ? renderClinicTree() : renderClinicItems()}

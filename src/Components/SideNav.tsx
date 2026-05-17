@@ -39,7 +39,7 @@ const iconMapDesktop: Record<string, React.ReactNode> = {
   'tc3': <Crosshair size={16} className="text-primary" />,
 }
 
-const BETA_ACTIONS = new Set(['lora', 'mapOverlay', 'property', 'tc3'])
+const BETA_ACTIONS = new Set(['lora', 'mapOverlay'])
 const LONG_PRESS_MS = 500
 
 const subscribeOnline = (cb: () => void) => {
