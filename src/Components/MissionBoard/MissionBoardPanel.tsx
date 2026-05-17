@@ -6,7 +6,7 @@ import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { useCalendarVault } from '../../Hooks/useCalendarVault'
 import { useAuthStore } from '../../stores/useAuthStore'
-import { getOverlay } from '../../lib/mapOverlayService'
+import { getOverlays } from '../../lib/mapOverlayService'
 import type { OverlayFeature } from '../../Types/MapOverlayTypes'
 import type { CalendarEvent, EventStatus } from '../../Types/CalendarTypes'
 import { toDateKey, eventFallsOnDate, formatShortDayLabel, isEventEditable, isTemplateStructureMutable } from '../../Types/CalendarTypes'
@@ -253,7 +253,7 @@ interface MissionBoardPanelProps {
 }
 
 export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps) {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, clinicId } = useAuth()
   const setShowCalendarDrawer = useNavigationStore(s => s.setShowCalendarDrawer)
   const openCalendarEvent = useNavigationStore(s => s.openCalendarEvent)
   const openCalendarEventForEdit = useNavigationStore(s => s.openCalendarEventForEdit)
@@ -294,30 +294,20 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   }, [])
 
   useEffect(() => {
-    const overlayIds = Array.from(
-      new Set(
-        events
-          .filter(e => e.structured_location?.overlay_id)
-          .map(e => e.structured_location!.overlay_id!)
-      )
-    )
-    if (overlayIds.length === 0) {
+    if (!clinicId) {
       setMissionOverlayFeatures([])
       setMissionOverlayId(undefined)
       return
     }
     let cancelled = false
-    Promise.all(overlayIds.map(id => getOverlay(id))).then(results => {
+    getOverlays(clinicId).then(result => {
       if (cancelled) return
-      const allFeatures: OverlayFeature[] = []
-      for (const result of results) {
-        if (result.ok && result.data) allFeatures.push(...result.data.features)
-      }
-      setMissionOverlayFeatures(allFeatures)
-      setMissionOverlayId(overlayIds[0])
+      const first = result.ok && result.data.length > 0 ? result.data[0] : undefined
+      setMissionOverlayFeatures(first?.features ?? [])
+      setMissionOverlayId(first?.id)
     })
     return () => { cancelled = true }
-  }, [events])
+  }, [clinicId])
 
   // Week-view swipe: attach native pointer listeners so stopPropagation fires
   // before @use-gesture/react's listener on the parent ColumnA carousel.

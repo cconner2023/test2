@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Building2, Check, Pencil, Trash2, Loader2, Camera, Send, ArrowRightLeft, KeyRound, AlertCircle, Home } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
+import { Z } from '../BaseOverlay'
 import { ActionButton } from '../ActionButton'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { ErrorPill } from '../ErrorPill'
@@ -615,6 +616,7 @@ export function MemberEditPopover({
         processing={saving}
         onConfirm={handleConfirmDelete}
         onCancel={() => setConfirmDelete(false)}
+        zIndex={Z.POPOVER + 30}
       />
 
       <ConfirmDialog
@@ -633,6 +635,7 @@ export function MemberEditPopover({
           setPromoteError(null)
           setPromoteTarget(null)
         }}
+        zIndex={Z.POPOVER + 30}
       />
 
       {/* Transfer — code + scan, mirrors clinic-association flow. Home-clinic
@@ -924,6 +927,7 @@ export function MemberEditPopover({
         processing={resetPw.processing}
         onConfirm={handleResetSubmit}
         onCancel={resetPw.cancelConfirm}
+        zIndex={Z.POPOVER + 30}
       />
     </>
   )

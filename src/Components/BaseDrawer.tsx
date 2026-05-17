@@ -158,6 +158,11 @@ interface BaseDrawerProps {
      *  (20–100). Default 100 = fully open. Use a smaller value (e.g. 50) to
      *  land partially open — user drags up to expand, down to dismiss. */
     initialPosition?: number;
+    /** When true, drag-release settles back to `initialPosition` instead of
+     *  snapping to fully-open. Down-fling-to-close still works. Use for
+     *  drawers that should stay at their partial height even when the user
+     *  taps a header pill or starts a stray drag. */
+    lockPosition?: boolean;
     /** Suppress the dimming backdrop entirely. Useful when the drawer opens
      *  partially over interactive content (e.g. a map) and the user should be
      *  able to keep interacting with what's underneath. Tap-to-close via
@@ -186,6 +191,7 @@ export function BaseDrawer({
     scrollDisabled = false,
     contentPadding,
     initialPosition = 100,
+    lockPosition = false,
     noBackdrop = false,
 }: BaseDrawerProps) {
     const [drawerPosition, setDrawerPosition] = useState(0);
@@ -298,7 +304,7 @@ export function BaseDrawer({
                 if ((vy > GESTURE_THRESHOLDS.DRAWER_FLING_VELOCITY && dy > 0) || drawerPosition < 40) {
                     animateToPosition(0);
                 } else {
-                    animateToPosition(100);
+                    animateToPosition(lockPosition ? initialPosition : 100);
                 }
             }
         },
