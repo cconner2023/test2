@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback } from 'react'
 import { Copy, ClipboardCheck, MapPin } from 'lucide-react'
-import { forward, toPoint } from 'mgrs'
+import { toPoint } from 'mgrs'
 import { ErrorDisplay } from '../ErrorDisplay'
+import { latLngToMgrs, normalizeMgrs } from '../../lib/mgrsFormat'
 
 interface MGRSConverterProps {
   onCoordinateSelect?: (lat: number, lng: number, mgrs: string) => void
@@ -15,7 +16,7 @@ const DEBOUNCE_MS = 200
 const MGRS_PATTERN = /^[0-9]{1,2}[C-X][A-Z]{2}\d{2,10}$/i
 
 function parseMgrs(input: string): { lat: number; lng: number } | string {
-  const cleaned = input.replace(/\s+/g, '')
+  const cleaned = normalizeMgrs(input)
   if (!cleaned) return 'Enter an MGRS coordinate'
   if (!MGRS_PATTERN.test(cleaned)) return 'Invalid MGRS format'
   try {
@@ -45,7 +46,7 @@ function formatLatLng(lat: number, lng: number): string {
 }
 
 function toMgrsString(lat: number, lng: number): string {
-  return forward([lng, lat], 5)
+  return latLngToMgrs(lat, lng, 5)
 }
 
 export function MGRSConverter({ onCoordinateSelect, onJumpToMap }: MGRSConverterProps) {
@@ -86,11 +87,11 @@ export function MGRSConverter({ onCoordinateSelect, onJumpToMap }: MGRSConverter
         setResolved(null)
         return
       }
-      const mgrsClean = value.replace(/\s+/g, '').toUpperCase()
+      const mgrsSpaced = latLngToMgrs(result.lat, result.lng, 5)
       setLatLngInput(formatLatLng(result.lat, result.lng))
       setLatLngError(null)
-      setResolved({ lat: result.lat, lng: result.lng, mgrs: mgrsClean })
-      onCoordinateSelect?.(result.lat, result.lng, mgrsClean)
+      setResolved({ lat: result.lat, lng: result.lng, mgrs: mgrsSpaced })
+      onCoordinateSelect?.(result.lat, result.lng, mgrsSpaced)
     }, DEBOUNCE_MS)
   }, [onCoordinateSelect])
 
@@ -140,7 +141,7 @@ export function MGRSConverter({ onCoordinateSelect, onJumpToMap }: MGRSConverter
             type="text"
             value={mgrsInput}
             onChange={(e) => handleMgrsChange(e.target.value)}
-            placeholder="e.g., 18SUJ2337106519"
+            placeholder="e.g., 18S UJ 23371 06519"
             className="w-full px-3 py-2.5 pr-10 rounded-lg text-primary text-base
                        border border-tertiary/10 bg-themewhite dark:bg-themewhite3
                        focus:border-themeblue2 focus:outline-none

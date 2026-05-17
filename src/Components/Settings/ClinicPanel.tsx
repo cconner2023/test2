@@ -489,6 +489,8 @@ export function ClinicPanel({
       rank: member.rank ?? null,
       uic: null,
       roles: ['medic'] as ('medic' | 'supervisor' | 'provider')[],
+      homeClinicId: member.clinicId ?? null,
+      homeClinicName: member.clinicName ?? null,
     }
   }, [memberPopover, medics])
 

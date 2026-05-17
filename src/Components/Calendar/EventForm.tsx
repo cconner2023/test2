@@ -8,8 +8,6 @@ import { useIsMobile } from '../../Hooks/useIsMobile'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { MedevacForm } from '../Medevac/MedevacForm'
 import { emptyMedevacRequest } from '../../Types/MedevacTypes'
-import { AftEventSubForm } from './AftEventSubForm'
-import { WorkoutEventSubForm } from './WorkoutEventSubForm'
 
 
 const STATUS_OPTIONS: { value: EventStatus; label: string; activeClass: string }[] = [
@@ -444,30 +442,6 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
             <MedevacForm
               value={form.medevac_data}
               onChange={req => updateField('medevac_data', req)}
-            />
-          </div>
-        )}
-
-        {/* AFT record — shown when category is aft_record (dev-gated category) */}
-        {form.category === 'aft_record' && (
-          <div className="mt-3">
-            <AftEventSubForm
-              result={form.aft_result ?? null}
-              target={form.aft_target ?? null}
-              onResultChange={r => updateField('aft_result', r)}
-              onTargetChange={t => updateField('aft_target', t)}
-            />
-          </div>
-        )}
-
-        {/* Workout — shown when category is workout (dev-gated category) */}
-        {form.category === 'workout' && (
-          <div className="mt-3">
-            <WorkoutEventSubForm
-              workoutId={form.workout_id ?? null}
-              log={form.workout_log ?? null}
-              onWorkoutIdChange={id => updateField('workout_id', id)}
-              onLogChange={log => updateField('workout_log', log)}
             />
           </div>
         )}

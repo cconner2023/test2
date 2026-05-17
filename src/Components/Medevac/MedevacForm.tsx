@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useState, useRef } from 'react'
 import { MapPin, Check, ChevronRight, ChevronLeft, RefreshCw, Loader, X, Plus } from 'lucide-react'
-import { forward } from 'mgrs'
+import { latLngToMgrs } from '../../lib/mgrsFormat'
 import { SectionCard } from '../Section'
 import { TextInput } from '../FormInputs'
 import { PreviewOverlay } from '../PreviewOverlay'
@@ -393,8 +393,8 @@ function LineEditor({
     setLocating(true)
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
-        const mgrs = forward([coords.longitude, coords.latitude], 5)
-        update({ l1: mgrs })
+        const mgrs = latLngToMgrs(coords.latitude, coords.longitude, 5)
+        if (mgrs) update({ l1: mgrs })
         setLocating(false)
       },
       () => setLocating(false),

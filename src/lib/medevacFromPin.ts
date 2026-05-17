@@ -8,7 +8,7 @@
  * result to useMedevacStore.setReq and opens the editor.
  */
 
-import { forward } from 'mgrs'
+import { latLngToMgrs } from './mgrsFormat'
 import type { OverlayFeature } from '../Types/MapOverlayTypes'
 import type { MedevacRequest } from '../Types/MedevacTypes'
 import { emptyMedevacRequest } from '../Types/MedevacTypes'
@@ -40,14 +40,9 @@ export function buildMedevacFromPin(
     return { req: base, error: 'Feature has no waypoint coordinate' }
   }
   const [lat, lng] = feature.geometry[0]
-  let mgrs: string | undefined
-  try {
-    mgrs = forward([lng, lat], mgrsPrecision)
-  } catch (e) {
-    return {
-      req: base,
-      error: e instanceof Error ? e.message : 'MGRS conversion failed',
-    }
+  const mgrs = latLngToMgrs(lat, lng, mgrsPrecision)
+  if (!mgrs) {
+    return { req: base, error: 'MGRS conversion failed' }
   }
   const req: MedevacRequest = {
     ...base,

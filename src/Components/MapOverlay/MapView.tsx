@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback, useState, forwardRef, useImperativeHandle } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { forward } from 'mgrs';
+import { latLngToMgrs } from '../../lib/mgrsFormat';
 import { Plus, Minus, Info, Copy, ClipboardCheck, LocateFixed, Map as MapIcon, Globe, Mountain, MountainSnow } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { PreviewOverlay } from '../PreviewOverlay';
@@ -81,6 +81,12 @@ interface MapViewProps {
   /** Transient marker for an uncommitted tap / long-press. Not a feature —
    *  promoted to a real waypoint only when the user accepts in the panel. */
   tempPoint?: { lat: number; lng: number } | null;
+  /** Transient pin-to-pin navigation route. While present, renders a dashed
+   *  polyline + hollow vertex dots. Saved as a real route feature via the
+   *  temp-route drawer action. */
+  tempRoute?: { points: [number, number][] } | null;
+  /** Called on vertex dragend with the updated point list. */
+  onTempRouteChange?: (points: [number, number][]) => void;
 }
 
 const DEFAULT_CENTER: [number, number] = [38.8977, -77.0365];
@@ -165,6 +171,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   selectedAnchor,
   onLongPress,
   tempPoint,
+  tempRoute,
+  onTempRouteChange,
 }, ref) {
   const { theme, themeName } = useTheme();
   const bearingReference = useMapPrefsStore(s => s.bearingReference);
@@ -181,6 +189,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   const gpsLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const measureLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const tempPointLayerRef = useRef<L.LayerGroup>(L.layerGroup());
+  const tempRouteLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const presenceLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const [centerLatLng, setCenterLatLng] = useState<{ lat: number; lng: number } | null>(null);
   const [showAttribution, setShowAttribution] = useState(false);
@@ -229,7 +238,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   const displayLatLng = selectedAnchor ?? centerLatLng;
 
   const mgrsReadout = displayLatLng
-    ? (() => { try { return forward([displayLatLng.lng, displayLatLng.lat], 5); } catch { return '---'; } })()
+    ? (latLngToMgrs(displayLatLng.lat, displayLatLng.lng, 5) || '---')
     : '';
 
   const latLngText = displayLatLng
@@ -307,6 +316,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     presenceLayerRef.current.addTo(map);
     measureLayerRef.current.addTo(map);
     tempPointLayerRef.current.addTo(map);
+    tempRouteLayerRef.current.addTo(map);
 
     updateMgrs(map);
 
@@ -682,6 +692,40 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     const icon = L.divIcon({ html, className: '', iconSize: [24, 24], iconAnchor: [12, 12] });
     L.marker([tempPoint.lat, tempPoint.lng], { icon, interactive: false }).addTo(group);
   }, [tempPoint]);
+
+  // Sync transient pin-to-pin navigation route. Dashed polyline + hollow
+  // dots at each vertex to distinguish from committed route features.
+  // Non-interactive in sub-step A; vertex drag + add land in sub-step B.
+  useEffect(() => {
+    const group = tempRouteLayerRef.current;
+    group.clearLayers();
+    if (!tempRoute || tempRoute.points.length === 0) return;
+    const color = '#2563EB';
+    if (tempRoute.points.length >= 2) {
+      L.polyline(tempRoute.points as L.LatLngTuple[], {
+        color,
+        weight: 3,
+        opacity: 0.85,
+        dashArray: '6 6',
+        interactive: false,
+      }).addTo(group);
+    }
+    const dotHtml = `<div style="width:12px;height:12px;border-radius:50%;background:#FFFFFF;border:2px solid ${color};box-shadow:0 1px 2px rgba(0,0,0,0.35);"></div>`;
+    const dotIcon = L.divIcon({ html: dotHtml, className: '', iconSize: [12, 12], iconAnchor: [6, 6] });
+    tempRoute.points.forEach(([lat, lng], idx) => {
+      const m = L.marker([lat, lng], { icon: dotIcon, draggable: !!onTempRouteChange });
+      if (onTempRouteChange) {
+        m.on('dragend', () => {
+          const p = m.getLatLng();
+          const next = tempRoute.points.map(([la, ln], i) => (
+            i === idx ? [p.lat, p.lng] as [number, number] : [la, ln] as [number, number]
+          ));
+          onTempRouteChange(next);
+        });
+      }
+      m.addTo(group);
+    });
+  }, [tempRoute, onTempRouteChange]);
 
   useImperativeHandle(ref, () => ({
     flyTo: (lat: number, lng: number, z?: number) => {

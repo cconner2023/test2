@@ -34,10 +34,6 @@ function event(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
     resource_allocations: null,
     field_positions: null,
     medevac_data: null,
-    aft_result: null,
-    aft_target: null,
-    workout_id: null,
-    workout_log: null,
     created_by: 'u-1',
     created_at: NOW,
     updated_at: NOW,
@@ -55,7 +51,6 @@ describe('isFieldEvent', () => {
   it('returns false for non-field categories', () => {
     expect(isFieldEvent(event({ category: 'huddle' }))).toBe(false)
     expect(isFieldEvent(event({ category: 'medevac' }))).toBe(false)
-    expect(isFieldEvent(event({ category: 'workout' }))).toBe(false)
     expect(isFieldEvent(event({ category: 'leave' }))).toBe(false)
   })
 })

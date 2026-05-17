@@ -10,6 +10,7 @@
 
 import { supabase } from './supabase'
 import { useAuthStore } from '../stores/useAuthStore'
+import { useInvalidationStore } from '../stores/useInvalidationStore'
 import type { AccountRequest } from './accountRequestService'
 import { createLogger } from '../Utilities/Logger'
 import {
@@ -704,50 +705,74 @@ export async function archiveLocation(id: string): Promise<ServiceResult<Record<
 const locationDecryptCache = new Map<string, string | null>()
 
 /**
+ * Promise cache for listClinics keyed by the `clinics` invalidation generation.
+ * Every admin tab's loadData calls listClinics, so without this each save
+ * triggers N redundant supabase round-trips + array maps. The cache holds the
+ * in-flight promise so concurrent callers share one request; when `invalidate
+ * ('clinics')` bumps the generation the next call refetches. A rejected
+ * promise is cleared so a transient network error doesn't poison subsequent
+ * calls.
+ */
+let listClinicsCache: { gen: number; promise: Promise<AdminClinic[]> } | null = null
+
+/**
  * List all clinics. Dev only.
  */
 export async function listClinics(): Promise<AdminClinic[]> {
-  try {
-    const { data, error } = await supabase
-      .from('clinics')
-      .select('id, name, uics, child_clinic_ids, associated_clinic_ids, location, location_id, parent_clinic_id, rooms, encryption_key')
-      .order('name')
-
-    if (error) throw error
-
-    // Decrypt location fields using each clinic's own encryption key (memoized)
-    const clinics = await Promise.all(
-      (data || []).map(async (row) => {
-        let location: string | null = row.location
-        if (row.encryption_key && row.location) {
-          const cacheKey = `${row.id}:${row.encryption_key}:${row.location}`
-          const cached = locationDecryptCache.get(cacheKey)
-          if (cached !== undefined) {
-            location = cached
-          } else {
-            location = await decryptWithRawKey(row.encryption_key, row.location)
-            locationDecryptCache.set(cacheKey, location)
-          }
-        }
-        return {
-          id: row.id,
-          name: row.name,
-          uics: row.uics || [],
-          child_clinic_ids: row.child_clinic_ids || [],
-          associated_clinic_ids: row.associated_clinic_ids || [],
-          location,
-          location_id: row.location_id ?? null,
-          parent_clinic_id: row.parent_clinic_id ?? null,
-          rooms: (row.rooms as ClinicRoom[]) || [],
-        }
-      })
-    )
-
-    return clinics
-  } catch (error) {
-    logger.error('Failed to list clinics:', error)
-    return []
+  const gen = useInvalidationStore.getState().generations.clinics
+  if (listClinicsCache && listClinicsCache.gen === gen) {
+    return listClinicsCache.promise
   }
+
+  const promise = (async () => {
+    try {
+      const { data, error } = await supabase
+        .from('clinics')
+        .select('id, name, uics, child_clinic_ids, associated_clinic_ids, location, location_id, parent_clinic_id, rooms, encryption_key')
+        .order('name')
+
+      if (error) throw error
+
+      // Decrypt location fields using each clinic's own encryption key (memoized)
+      const clinics = await Promise.all(
+        (data || []).map(async (row) => {
+          let location: string | null = row.location
+          if (row.encryption_key && row.location) {
+            const cacheKey = `${row.id}:${row.encryption_key}:${row.location}`
+            const cached = locationDecryptCache.get(cacheKey)
+            if (cached !== undefined) {
+              location = cached
+            } else {
+              location = await decryptWithRawKey(row.encryption_key, row.location)
+              locationDecryptCache.set(cacheKey, location)
+            }
+          }
+          return {
+            id: row.id,
+            name: row.name,
+            uics: row.uics || [],
+            child_clinic_ids: row.child_clinic_ids || [],
+            associated_clinic_ids: row.associated_clinic_ids || [],
+            location,
+            location_id: row.location_id ?? null,
+            parent_clinic_id: row.parent_clinic_id ?? null,
+            rooms: (row.rooms as ClinicRoom[]) || [],
+          }
+        })
+      )
+
+      return clinics
+    } catch (error) {
+      logger.error('Failed to list clinics:', error)
+      // Drop the cache entry so the next call retries instead of returning the
+      // empty fallback forever.
+      if (listClinicsCache?.gen === gen) listClinicsCache = null
+      return []
+    }
+  })()
+
+  listClinicsCache = { gen, promise }
+  return promise
 }
 
 /**

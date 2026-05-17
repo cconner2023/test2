@@ -235,7 +235,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                 daySpan,
                 setDaySpan,
             )}
-            {isSupervisorRole && <CalendarClinicEditor showFitness={false} />}
+            {isSupervisorRole && <CalendarClinicEditor />}
         </div>
     )
 

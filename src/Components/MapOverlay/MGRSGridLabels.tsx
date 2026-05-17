@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import L from 'leaflet';
 import { latLngToUTM, utmToLatLng, utmZone } from './utmProjection';
 import { gridIntervalMeters, formatGridLabel, type GridTheme } from './MGRSGridLayer';
+import { mgrsSquareLabel } from '../../lib/mgrsFormat';
 
 interface MGRSGridLabelsProps {
   map: L.Map | null;
@@ -24,6 +25,7 @@ interface EdgeLabel {
 export function MGRSGridLabels({ map, theme, topOffset = 0 }: MGRSGridLabelsProps) {
   const [eastings, setEastings] = useState<EdgeLabel[]>([]);
   const [northings, setNorthings] = useState<EdgeLabel[]>([]);
+  const [squareLabel, setSquareLabel] = useState('');
 
   useEffect(() => {
     if (!map) return;
@@ -74,6 +76,7 @@ export function MGRSGridLabels({ map, theme, topOffset = 0 }: MGRSGridLabelsProp
 
       setEastings(newEastings);
       setNorthings(newNorthings);
+      setSquareLabel(mgrsSquareLabel(center.lat, center.lng));
     };
 
     recompute();
@@ -128,6 +131,16 @@ export function MGRSGridLabels({ map, theme, topOffset = 0 }: MGRSGridLabelsProp
           </span>
         ))}
       </div>
+      {/* Top-right corner — GZD + 100km square anchor (e.g. "18S UJ").
+          Lets a medic reconstruct any edge-label pair into a full MGRS grid. */}
+      {squareLabel && (
+        <span
+          className="absolute px-1.5 py-0.5 rounded-sm whitespace-nowrap"
+          style={{ ...labelStyle, top: topOffset, right: 2 }}
+        >
+          {squareLabel}
+        </span>
+      )}
     </div>
   );
 }

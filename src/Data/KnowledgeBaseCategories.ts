@@ -83,13 +83,6 @@ export const kbCategories: KBCategory[] = [
         icon: Thermometer,
         group: 'calculators',
     },
-    {
-        id: 'aft-calculator',
-        label: 'AFT Score',
-        description: 'Army Fitness Test scoring (eff. 1 Jun 2025)',
-        icon: Calculator,
-        group: 'calculators',
-    },
 
     // ── Reports ───────────────────────────────────────────────
     {

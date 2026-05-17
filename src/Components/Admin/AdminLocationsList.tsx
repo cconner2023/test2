@@ -10,6 +10,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { MapPin, ChevronRight } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
+import { SectionCard } from '../Section'
 import { AdminListSkeleton } from './AdminSkeletons'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { listLocations, listClinics } from '../../lib/adminService'
@@ -90,11 +91,11 @@ export function AdminLocationsList({
         {showLoading ? (
           <AdminListSkeleton />
         ) : filtered.length === 0 ? (
-          <EmptyState title={searchQuery ? 'No matches.' : 'No locations.'} />
+          <EmptyState title={searchQuery ? 'No locations match your search.' : 'No locations yet — tap + to add one.'} />
         ) : (
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          <SectionCard>
             {renderItems()}
-          </div>
+          </SectionCard>
         )}
       </div>
     </div>

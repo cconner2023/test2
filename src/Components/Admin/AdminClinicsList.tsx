@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Pencil, Trash2, Building2, Eye, ChevronRight } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
+import { SectionCard } from '../Section'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { AdminListSkeleton } from './AdminSkeletons'
@@ -238,11 +239,11 @@ export function AdminClinicsList({
         {showLoading ? (
           <AdminListSkeleton />
         ) : filteredClinics.length === 0 ? (
-          <EmptyState title={searchQuery ? 'No matches.' : 'No clusters.'} />
+          <EmptyState title={searchQuery ? 'No clusters match your search.' : 'No clusters yet — tap + to add one.'} />
         ) : (
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          <SectionCard>
             {useTreeView ? renderClinicTree() : renderClinicItems()}
-          </div>
+          </SectionCard>
         )}
       </div>
 

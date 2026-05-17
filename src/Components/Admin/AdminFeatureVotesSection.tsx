@@ -327,9 +327,7 @@ export function AdminFeatureVotesSection() {
             </ActionPill>
 
             {activeCycles.length === 0 ? (
-              <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 flex items-center justify-center h-[80px]">
-                <span className="text-[10pt] text-secondary">No active cycles</span>
-              </div>
+              <EmptyState title="No active cycles — tap + to start one." />
             ) : (
               <div className="space-y-3">
                 {activeCycles.map((cycle) => {
@@ -345,9 +343,7 @@ export function AdminFeatureVotesSection() {
                   >
                     {/* Options body */}
                     {candidates.length === 0 ? (
-                      <div className="flex items-center justify-center h-[60px]">
-                        <span className="text-[10pt] text-secondary">No options in this cycle</span>
-                      </div>
+                      <EmptyState title="No options yet — add one to start collecting votes." bordered={false} />
                     ) : (
                       <div className="divide-y divide-themeblue3/10">
                         {candidates.map((c) => {

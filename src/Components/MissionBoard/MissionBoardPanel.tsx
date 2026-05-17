@@ -4,7 +4,6 @@ import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useCalendarStore } from '../../stores/useCalendarStore'
-import { visibleEventsForRole } from '../../lib/aft/visibility'
 import { useCalendarVault } from '../../Hooks/useCalendarVault'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { getOverlay } from '../../lib/mapOverlayService'
@@ -265,8 +264,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   const updateEvent = useCalendarStore(s => s.updateEvent)
   const userId = useAuthStore(s => s.user?.id)
   const isDevRole = useAuthStore(s => s.isDevRole)
-  // Hide fitness categories from non-dev users at the render layer.
-  const events = useMemo(() => visibleEventsForRole(allEvents, isDevRole), [allEvents, isDevRole])
+  const events = allEvents
   const isSupervisor = useAuthStore(s => s.isSupervisorRole)
   const overviewWidgets = useAuthStore(s => s.profile?.overviewWidgets)
   const { sendEvent: vaultSendEvent, deleteEvents: vaultDeleteEvents } = useCalendarVault()

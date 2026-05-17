@@ -58,7 +58,6 @@ export function useNavigation() {
         showMapOverlayDrawer: s.showMapOverlayDrawer,
         mapOverlayDrawerOverlayId: s.mapOverlayDrawerOverlayId,
         showCalendarDrawer: s.showCalendarDrawer,
-        showWorkoutDrawer: s.showWorkoutDrawer,
 
         // Derived selectors
         showQuestionCard: selectShowQuestionCard(s),
@@ -92,7 +91,6 @@ export function useNavigation() {
         setShowLoRaDrawer: s.setShowLoRaDrawer,
         setShowMapOverlayDrawer: s.setShowMapOverlayDrawer,
         setShowCalendarDrawer: s.setShowCalendarDrawer,
-        setShowWorkoutDrawer: s.setShowWorkoutDrawer,
         openCalendarEvent: s.openCalendarEvent,
         showWriteNote: s.openWriteNote,
         closeWriteNote: s.closeWriteNote,

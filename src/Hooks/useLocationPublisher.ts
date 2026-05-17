@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { forward } from 'mgrs'
+import { latLngToMgrs } from '../lib/mgrsFormat'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { useCalendarVault } from './useCalendarVault'
 import { distanceMeters } from '../lib/geoUtils'
@@ -55,8 +55,7 @@ export function useLocationPublisher(
     const event = eventsRef.current.find(e => e.id === eventId)
     if (!event) return
 
-    let mgrs = ''
-    try { mgrs = forward([lng, lat], 5) } catch { /* leave empty */ }
+    const mgrs = latLngToMgrs(lat, lng, 5)
 
     const updatedEvent = {
       ...event,

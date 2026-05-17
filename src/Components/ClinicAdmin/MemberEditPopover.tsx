@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { Building2, Check, Pencil, Trash2, Loader2, Camera, Send, ArrowRightLeft, KeyRound, AlertCircle } from 'lucide-react'
+import { Building2, Check, Pencil, Trash2, Loader2, Camera, Send, ArrowRightLeft, KeyRound, AlertCircle, Home } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionButton } from '../ActionButton'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -14,6 +14,7 @@ import {
   loanSoldierToClinic,
   loanSoldierToAssociatedClinic,
   transferSoldierToClinic,
+  setSoldierHomeClinic,
   endLoanFromClinic,
   supervisorResetUserPassword,
   type MemberProfileData,
@@ -23,6 +24,7 @@ import { supabase } from '../../lib/supabase'
 import { useResetPasswordFlow } from '../../Hooks/useResetPasswordFlow'
 import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
 import { invalidate } from '../../stores/useInvalidationStore'
+import { useAuthStore } from '../../stores/useAuthStore'
 
 type Role = 'medic' | 'supervisor' | 'provider'
 
@@ -122,6 +124,11 @@ export function MemberEditPopover({
             rank: result.rank,
             uic: result.uic,
             roles: result.roles,
+            // Backstop with the cached medic row — the RPC only returns home
+            // fields if the home-clinic migration is applied, and even when it
+            // is, loaned-in supervisors hit the RPC's clinic-mismatch path.
+            homeClinicId: result.homeClinicId ?? fallbackProfile?.homeClinicId ?? null,
+            homeClinicName: result.homeClinicName ?? fallbackProfile?.homeClinicName ?? null,
           }
         : (fallbackProfile ?? {
             firstName: null,
@@ -132,6 +139,8 @@ export function MemberEditPopover({
             rank: null,
             uic: null,
             roles: ['medic'],
+            homeClinicId: null,
+            homeClinicName: null,
           })
       setProfile(next)
       setRank(next.rank ?? '')
@@ -211,6 +220,11 @@ export function MemberEditPopover({
   const [rowError, setRowError] = useState<Map<string, string>>(new Map())
   const [loansApplying, setLoansApplying] = useState(false)
   const [pendingCode, setPendingCode] = useState('')
+  // Promote-to-home: target clinic id pending confirmation; only the home-clinic
+  // supervisor (loanState === 'home') ever sees the inline action.
+  const [promoteTarget, setPromoteTarget] = useState<{ clinicId: string; clinicName: string } | null>(null)
+  const [promoting, setPromoting] = useState(false)
+  const [promoteError, setPromoteError] = useState<string | null>(null)
 
   // Reset the multi-select state every time the overlay opens.
   useEffect(() => {
@@ -234,13 +248,19 @@ export function MemberEditPopover({
   // The row list = associated ∪ current loans, deduplicated by clinicId.
   // Each row carries the clinic name and a flag indicating whether the row
   // is toggleable by *this* supervisor (loaned-in supervisors can only flip
-  // their own clinic; everything else is read-only for them).
+  // their own clinic; everything else is read-only for them). The soldier's
+  // home clinic never appears in this list — it renders as a separate static
+  // row at the top of the overlay.
+  const homeClinicId = profile?.homeClinicId ?? null
+  const homeClinicName = profile?.homeClinicName ?? null
   const loanRows = (() => {
     const map = new Map<string, { clinicId: string; clinicName: string; subtitle?: string }>()
     for (const c of activeLoans) {
+      if (c.clinicId === homeClinicId) continue
       map.set(c.clinicId, { clinicId: c.clinicId, clinicName: c.clinicName })
     }
     for (const c of associatedClinics ?? []) {
+      if (c.clinicId === homeClinicId) continue
       if (!map.has(c.clinicId)) {
         const subtitle = [c.uics.join(', '), c.location].filter(Boolean).join(' · ')
         map.set(c.clinicId, { clinicId: c.clinicId, clinicName: c.clinicName, subtitle: subtitle || undefined })
@@ -309,6 +329,30 @@ export function MemberEditPopover({
     setSelectedLoanIds(new Set(refreshed.map((l) => l.clinicId)))
     setLoansApplying(false)
   }, [memberId, loansApplying, overCap, activeLoans, selectedLoanIds, pendingCode, onChanged])
+
+  // ─── Promote loan → home cluster ─────────────────────────────────────
+  // Supervisor is a global user quality, not per-clinic, and auth_clinic_ids()
+  // returns home + every loan clinic — so a loaned supervisor may legitimately
+  // be authorized over the soldier's home cluster from any viewing context.
+  // Gate the action on the global supervisor flag and let the server enforce
+  // actual home-clinic authority via supervisor_set_home_clinic.
+  const isSupervisorRole = useAuthStore((s) => s.isSupervisorRole)
+  const canPromoteHome = isSupervisorRole && !!homeClinicId
+  const confirmPromote = useCallback(async () => {
+    if (!memberId || !promoteTarget || promoting) return
+    setPromoting(true)
+    setPromoteError(null)
+    const r = await setSoldierHomeClinic(memberId, promoteTarget.clinicId)
+    setPromoting(false)
+    if (!r.success) {
+      setPromoteError(r.error)
+      return
+    }
+    invalidate('users', 'clinics')
+    setPromoteTarget(null)
+    onChanged()
+    handleClose()
+  }, [memberId, promoteTarget, promoting, onChanged, handleClose])
 
   // ─── Reset Password ──────────────────────────────────────────────────
   const [resetMode, setResetMode] = useState(false)
@@ -573,6 +617,24 @@ export function MemberEditPopover({
         onCancel={() => setConfirmDelete(false)}
       />
 
+      <ConfirmDialog
+        visible={!!promoteTarget}
+        title={promoteTarget ? `Make ${promoteTarget.clinicName} the home cluster?` : ''}
+        subtitle={
+          promoteError
+            ? promoteError
+            : `${homeClinicName ?? 'The current home'} becomes a loan; other active loans stay in place.`
+        }
+        confirmLabel="Make home"
+        processing={promoting}
+        onConfirm={confirmPromote}
+        onCancel={() => {
+          if (promoting) return
+          setPromoteError(null)
+          setPromoteTarget(null)
+        }}
+      />
+
       {/* Transfer — code + scan, mirrors clinic-association flow. Home-clinic
           change; trigger ends every active loan automatically. */}
       <PreviewOverlay
@@ -713,6 +775,19 @@ export function MemberEditPopover({
             <p className="px-4 pt-3 pb-1 text-[9pt] font-semibold text-tertiary uppercase tracking-widest">
               {`Loans (${postSaveCount}/4)`}
             </p>
+            {homeClinicId && homeClinicName && (
+              <div className="px-2 pb-1">
+                <div className="w-full flex items-center gap-3 py-2 px-2 rounded-lg bg-themeblue3/5">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center bg-themeblue3/15 shrink-0">
+                    <Home size={14} className="text-themeblue3" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-primary truncate">{homeClinicName}</p>
+                  </div>
+                  <span className="shrink-0 text-[9pt] font-semibold text-themeblue3 uppercase tracking-widest">Home</span>
+                </div>
+              </div>
+            )}
             {loanRows.length === 0 ? (
               <p className="px-4 py-3 text-[10pt] text-tertiary">No clusters available. Use the code field below to loan to an unrelated cluster.</p>
             ) : (
@@ -722,14 +797,32 @@ export function MemberEditPopover({
                   const toggleable = canToggleRow(c.clinicId)
                   const state = rowState.get(c.clinicId) ?? 'idle'
                   const err = rowError.get(c.clinicId)
+                  // Inline promote only when the row is an actual loan (selected
+                  // pre-edit) and the viewer is the home-cluster supervisor.
+                  const isActiveLoan = activeLoans.some((l) => l.clinicId === c.clinicId)
+                  const showPromote = canPromoteHome && isActiveLoan && !loansApplying
+                  // Row is a div (not a button) so the inline promote
+                  // ActionButton isn't nested in a button — mobile would
+                  // swallow the inner tap otherwise.
+                  const handleRowActivate = () => {
+                    if (!toggleable) return
+                    toggleLoanSelection(c.clinicId)
+                  }
                   return (
-                    <button
+                    <div
                       key={c.clinicId}
-                      type="button"
-                      disabled={!toggleable}
-                      onClick={() => toggleLoanSelection(c.clinicId)}
+                      role="button"
+                      tabIndex={toggleable ? 0 : -1}
+                      aria-disabled={!toggleable}
+                      onClick={handleRowActivate}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          handleRowActivate()
+                        }
+                      }}
                       className={`w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left transition-all ${
-                        toggleable ? 'hover:bg-secondary/5 active:scale-95' : 'opacity-60'
+                        toggleable ? 'cursor-pointer hover:bg-secondary/5 active:scale-95' : 'opacity-60'
                       } ${checked ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3' : ''}`}
                     >
                       <div className="w-8 h-8 rounded-full flex items-center justify-center bg-tertiary/10 shrink-0">
@@ -747,8 +840,15 @@ export function MemberEditPopover({
                           </p>
                         )}
                       </div>
+                      {showPromote && (
+                        <ActionButton
+                          icon={Home}
+                          label="Make home cluster"
+                          onClick={() => setPromoteTarget({ clinicId: c.clinicId, clinicName: c.clinicName })}
+                        />
+                      )}
                       {checked && <Check size={14} className="text-themeblue2 shrink-0" />}
-                    </button>
+                    </div>
                   )
                 })}
               </div>

@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { CalendarEvent } from '../../Types/CalendarTypes';
 import { useSpring, animated } from '@react-spring/web';
-import { ChevronLeft, ChevronRight, Settings, Move, MapPin, Route, Pentagon, Trash2, X, Ruler, RadioTower, Undo2, Activity, Pause, Play, Square, Plus, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, Move, MapPin, Route, Pentagon, Trash2, X, Ruler, RadioTower, Undo2, Activity, Pause, Play, Square, Plus, Check, Navigation } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ActionSheet, type ActionSheetOption } from '../ActionSheet';
 import { ActionPill } from '../ActionPill';
@@ -56,12 +56,81 @@ import { registerAllImportedBasemaps, importMBTiles, deleteImportedBasemap, type
 import { importGeoPdf, type GeoPdfImportProgress } from '../../lib/mapImporters/geopdf';
 import { TILE_SOURCES } from '../../lib/mapTileService';
 import { GeoPdfImportForm } from './GeoPdfImportForm';
-import { forward as mgrsForward } from 'mgrs';
 import { latLngToUTM } from './utmProjection';
+import { latLngToMgrs } from '../../lib/mgrsFormat';
+
+function TempRouteBody({ points, onRemoveVertex }: { points: [number, number][]; onRemoveVertex?: (index: number) => void }) {
+  if (points.length === 0) return null;
+  if (points.length < 2) {
+    return (
+      <div className="p-3">
+        <div className="px-2.5 py-2 rounded-lg bg-themeblue3/10 text-[10pt] text-primary">
+          Tap the map to set the end point.
+        </div>
+      </div>
+    );
+  }
+  let totalM = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const [aLat, aLng] = points[i];
+    const [bLat, bLng] = points[i + 1];
+    totalM += haversine(aLat, aLng, bLat, bLng).distanceM;
+  }
+  const [sLat, sLng] = points[0];
+  const [eLat, eLng] = points[points.length - 1];
+  const { bearing } = haversine(sLat, sLng, eLat, eLng);
+  const distance = totalM >= 1000 ? `${(totalM / 1000).toFixed(2)} km` : `${Math.round(totalM)} m`;
+  const startMgrs = latLngToMgrs(sLat, sLng, 5) || '—';
+  const endMgrs = latLngToMgrs(eLat, eLng, 5) || '—';
+  const rows: Array<{ label: string; value: string }> = [
+    { label: 'Distance', value: distance },
+    { label: 'Bearing', value: `${Math.round(bearing)}°` },
+    { label: 'Legs', value: String(points.length - 1) },
+    { label: 'Start', value: startMgrs },
+    { label: 'End', value: endMgrs },
+  ];
+  const canRemove = points.length > 2;
+  return (
+    <div className="flex flex-col gap-2 p-3">
+      {rows.map(row => (
+        <div key={row.label} className="px-2.5 py-2 rounded-lg bg-themewhite2/60 dark:bg-themewhite3/60">
+          <div className="text-[9pt] font-medium text-tertiary uppercase tracking-wide">{row.label}</div>
+          <div className="text-[10pt] font-mono text-primary truncate" title={row.value}>{row.value}</div>
+        </div>
+      ))}
+      <div className="mt-1">
+        <div className="text-[9pt] font-medium text-tertiary uppercase tracking-wide px-2.5 mb-1">Vertices</div>
+        <div className="rounded-lg overflow-hidden border border-tertiary/10">
+          {points.map(([lat, lng], idx) => {
+            const isEnd = idx === points.length - 1;
+            const role = idx === 0 ? 'Start' : isEnd ? 'End' : `Via ${idx}`;
+            const coord = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            return (
+              <div key={idx} className="flex items-center gap-2 px-2.5 py-1.5 border-b last:border-b-0 border-tertiary/10 bg-themewhite2/40 dark:bg-themewhite3/40">
+                <div className="text-[9pt] font-medium text-tertiary w-12 shrink-0">{role}</div>
+                <div className="text-[10pt] font-mono text-primary flex-1 min-w-0 truncate" title={coord}>{coord}</div>
+                {onRemoveVertex && canRemove && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveVertex(idx)}
+                    className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
+                    aria-label={`Remove ${role}`}
+                    title={`Remove ${role}`}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function TempPointBody({ lat, lng }: { lat: number; lng: number }) {
-  let mgrs = '—';
-  try { mgrs = mgrsForward([lng, lat], 5); } catch { /* ignore */ }
+  const mgrs = latLngToMgrs(lat, lng, 5) || '—';
   let utm = '—';
   try {
     const u = latLngToUTM(lat, lng);
@@ -168,6 +237,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   // user must explicitly promote it via "Save as waypoint" in the temp-point
   // drawer. Prevents accidental waypoint litter from stray taps.
   const [tempPoint, setTempPoint] = useState<{ lat: number; lng: number } | null>(null);
+  // Pin-to-pin navigation route. While active the next map tap sets the end
+  // point; user then saves as a real route feature or cancels. Endpoint editing
+  // and intermediate vertices land in sub-step B.
+  const [tempRoute, setTempRoute] = useState<{ points: [number, number][]; anchorFeatureId: string | null } | null>(null);
   const [gotoDismissedFor, setGotoDismissedFor] = useState<string | null>(null);
   const [showGrid, setShowGrid] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -438,7 +511,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
           if (target) {
             handleOpenOverlay(target as MapOverlay);
           } else {
-            handleNewOverlay();
+            handleNewOverlay({ recenter: true });
           }
         } else if (loaded.length > 0) {
           const latest = loaded.reduce((best, o) =>
@@ -446,7 +519,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
           );
           handleOpenOverlay(latest as MapOverlay);
         } else {
-          handleNewOverlay();
+          handleNewOverlay({ recenter: true });
         }
       }
     });
@@ -537,7 +610,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     URL.revokeObjectURL(url);
   }, []);
 
-  const handleNewOverlay = useCallback(() => {
+  const handleNewOverlay = useCallback((opts?: { recenter?: boolean }) => {
     const id = crypto.randomUUID();
     setOverlayId(id);
     setOverlayName('');
@@ -545,13 +618,15 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     setDrawMode('pan');
     setSelectedFeatureId(null);
     setSearchQuery('');
+    setTempRoute(null);
     resetInProgressDrawing();
     setView('viewer');
     setShowPopover(false);
     setVisibleOverlayIds(prev => new Set([...prev, id]));
     startWatching();
-    // Center on clinic location if resolved
-    if (initialCenter) {
+    // Only recenter on cold-open (no overlays yet); explicit "New overlay" from
+    // FAB/tree keeps the user's current view so they can draw on what they see.
+    if (opts?.recenter && initialCenter) {
       setTimeout(() => mapRef.current?.flyTo(initialCenter[0], initialCenter[1], 12), 400);
     }
     // New-overlay flow: autosave names it on first feature mutation.
@@ -565,6 +640,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     setDrawMode('pan');
     setSelectedFeatureId(null);
     setSearchQuery('');
+    setTempRoute(null);
     skipAutosaveRef.current = true;
     resetInProgressDrawing();
     setView('viewer');
@@ -677,12 +753,34 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
       return [...prev, feature];
     });
     setSelectedFeatureId(id);
+    // After placement the feature drawer/panel takes over editing, so the
+    // on-map glyph picker is redundant — dismiss it.
+    setPinPickerPage(null);
   }, [overlayId, pinType]);
 
   // ── Map click handler ──
   const handleMapClick = useCallback((lat: number, lng: number) => {
     if (!overlayId) return;
     const now = new Date().toISOString();
+
+    // Pin-to-pin navigation:
+    //  - 1 point: next tap commits the end point.
+    //  - 2+ points: tap appends an intermediate vertex on the closest segment.
+    // Both bypass regular pan/temp-point handling.
+    if (tempRoute && tempRoute.points.length === 1) {
+      setTempRoute({ ...tempRoute, points: [tempRoute.points[0], [lat, lng]] });
+      return;
+    }
+    if (tempRoute && tempRoute.points.length >= 2) {
+      const insertAt = closestSegmentInsertIndex(tempRoute.points, [lat, lng]);
+      const nextPoints = [
+        ...tempRoute.points.slice(0, insertAt),
+        [lat, lng] as [number, number],
+        ...tempRoute.points.slice(insertAt),
+      ];
+      setTempRoute({ ...tempRoute, points: nextPoints });
+      return;
+    }
 
     if (drawMode === 'measure') {
       if (measurePoints.length < 2) {
@@ -797,7 +895,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
         setTempPoint({ lat, lng });
       }
     }
-  }, [drawMode, overlayId, measurePoints, features, pinType, isMobile, dropPinAt]);
+  }, [drawMode, overlayId, measurePoints, features, pinType, isMobile, dropPinAt, tempRoute]);
 
   // Long-press / right-click → drop a transient temp point regardless of
   // pan mode. Does not commit a waypoint; user promotes via the drawer.
@@ -815,6 +913,53 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   }, [tempPoint, dropPinAt]);
 
   const handleCloseTempPoint = useCallback(() => setTempPoint(null), []);
+
+  // Seed a temp route from a waypoint (or temp point). Next map tap commits
+  // the end point. Clears tempPoint + selection so the temp-route drawer
+  // gets exclusive focus.
+  const handleStartNavigation = useCallback((lat: number, lng: number, anchorFeatureId: string | null) => {
+    if (!overlayId) return;
+    setTempRoute({ points: [[lat, lng]], anchorFeatureId });
+    setTempPoint(null);
+    setSelectedFeatureId(null);
+    setDrawMode('pan');
+    setPinPickerPage(null);
+  }, [overlayId]);
+
+  const handleCloseTempRoute = useCallback(() => setTempRoute(null), []);
+
+  const handleTempRouteChange = useCallback((points: [number, number][]) => {
+    setTempRoute(prev => (prev ? { ...prev, points } : null));
+  }, []);
+
+  const handleRemoveTempRouteVertex = useCallback((index: number) => {
+    setTempRoute(prev => {
+      if (!prev || prev.points.length <= 2) return prev;
+      return { ...prev, points: prev.points.filter((_, i) => i !== index) };
+    });
+  }, []);
+
+  const handleSaveTempRouteAsFeature = useCallback(() => {
+    if (!overlayId || !tempRoute || tempRoute.points.length < 2) return;
+    const now = new Date().toISOString();
+    const id = crypto.randomUUID();
+    setFeatures(prev => {
+      const routeIndex = prev.filter(f => f.type === 'route').length + 1;
+      const feature: OverlayFeature = {
+        id,
+        overlay_id: overlayId,
+        type: 'route',
+        geometry: [...tempRoute.points],
+        label: `Route ${routeIndex}`,
+        style: { ...DEFAULT_FEATURE_STYLE },
+        created_at: now,
+        updated_at: now,
+      };
+      return [...prev, feature];
+    });
+    setTempRoute(null);
+    setSelectedFeatureId(id);
+  }, [overlayId, tempRoute]);
 
   // ── Finish route/area ──
   // Called when the user toggles out of route/area mode. Routes auto-finalize
@@ -990,6 +1135,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     setMeasurePoints([]);
     setMeasureResult(null);
     if (next !== 'pan') setTempPoint(null);
+    if (next !== 'pan') setTempRoute(null);
   }, [drawMode, finishRoute]);
 
   // ── Delete selected ──
@@ -1198,6 +1344,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                 presenceMarkers={presenceMarkers}
                 readOnlyFeatures={visibleReadOnlyFeatures}
                 tempPoint={tempPoint}
+                tempRoute={tempRoute}
+                onTempRouteChange={handleTempRouteChange}
               />
 
               {/* ── Map settings (overlays + grid) — drawer/preview-overlay, calendar-settings pattern ── */}
@@ -1251,6 +1399,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                       onUpdate={handleUpdateSelectedFeature}
                       waypoints={features.filter(f => f.type === 'waypoint')}
                       onFocusLeg={(bbox) => mapRef.current?.fitBounds(bbox)}
+                      onStartNavigation={handleStartNavigation}
                     />
                   )}
                 </BaseDrawer>
@@ -1271,6 +1420,13 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                     title: 'Temp point',
                     rightContent: (
                       <HeaderPill>
+                        <PillButton
+                          icon={Navigation}
+                          iconSize={18}
+                          onClick={() => tempPoint && handleStartNavigation(tempPoint.lat, tempPoint.lng, null)}
+                          label="Navigate from here"
+                          circleBg="bg-themeblue3 text-white"
+                        />
                         <PillButton icon={Check} iconSize={18} onClick={handlePromoteTempPoint} label="Save as waypoint" circleBg="bg-themegreen text-white" />
                         <PillButton icon={X} iconSize={18} onClick={handleCloseTempPoint} label="Close" />
                       </HeaderPill>
@@ -1279,6 +1435,39 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                   }}
                 >
                   {tempPoint && <TempPointBody lat={tempPoint.lat} lng={tempPoint.lng} />}
+                </BaseDrawer>
+              )}
+
+              {/* ── Mobile: temp-route drawer (pin-to-pin navigation). Save
+                  commits as a route feature; X discards. ── */}
+              {isMobile && (
+                <BaseDrawer
+                  isVisible={!!tempRoute && !tempPoint && !selectedFeature}
+                  onClose={handleCloseTempRoute}
+                  mobileOnly
+                  fullHeight="60dvh"
+                  initialPosition={40}
+                  noBackdrop
+                  zIndex="z-[1010]"
+                  header={{
+                    title: 'Temp route',
+                    rightContent: (
+                      <HeaderPill>
+                        <PillButton
+                          icon={Check}
+                          iconSize={18}
+                          onClick={handleSaveTempRouteAsFeature}
+                          label="Save as route"
+                          circleBg="bg-themegreen text-white"
+                          disabled={!tempRoute || tempRoute.points.length < 2}
+                        />
+                        <PillButton icon={X} iconSize={18} onClick={handleCloseTempRoute} label="Close" />
+                      </HeaderPill>
+                    ),
+                    hideDefaultClose: true,
+                  }}
+                >
+                  {tempRoute && <TempRouteBody points={tempRoute.points} onRemoveVertex={handleRemoveTempRouteVertex} />}
                 </BaseDrawer>
               )}
 
@@ -1407,8 +1596,13 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                     key: 'pin',
                     label: 'Drop pin',
                     onAction: () => {
+                      // Enter pin mode immediately with the current pinType so
+                      // the user can tap-to-drop without first selecting an
+                      // icon. The glyph picker still appears alongside the FAB
+                      // for those who want to refine the icon before placing.
                       const idx = Math.max(0, PIN_GLYPHS.indexOf(pinType));
                       setPinPickerPage(Math.floor(idx / 3));
+                      if (drawMode !== 'pin') handleModeChange('pin');
                     },
                   },
                   { key: 'route', label: 'Route', onAction: () => handleModeChange('route') },
@@ -1582,19 +1776,47 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
               Map column is flex-1 so it reflows as this pane opens/closes. */}
           {!isMobile && (
             <div className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-all duration-300 overflow-hidden ${
-              (selectedFeature || tempPoint) ? 'w-[320px] opacity-100' : 'w-0 opacity-0 border-l-0'
+              (selectedFeature || tempPoint || tempRoute) ? 'w-[320px] opacity-100' : 'w-0 opacity-0 border-l-0'
             }`}>
               {!selectedFeature && tempPoint && (
                 <div className="relative flex flex-col flex-1 min-h-0">
                   <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-tertiary/10">
                     <div className="text-[10pt] font-semibold text-primary truncate flex-1 min-w-0">Temp point</div>
                     <HeaderPill>
+                      <PillButton
+                        icon={Navigation}
+                        iconSize={18}
+                        onClick={() => handleStartNavigation(tempPoint.lat, tempPoint.lng, null)}
+                        label="Navigate from here"
+                        circleBg="bg-themeblue3 text-white"
+                      />
                       <PillButton icon={Check} iconSize={18} onClick={handlePromoteTempPoint} label="Save as waypoint" circleBg="bg-themegreen text-white" />
                       <PillButton icon={X} iconSize={18} onClick={handleCloseTempPoint} label="Close" />
                     </HeaderPill>
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto">
                     <TempPointBody lat={tempPoint.lat} lng={tempPoint.lng} />
+                  </div>
+                </div>
+              )}
+              {!selectedFeature && !tempPoint && tempRoute && (
+                <div className="relative flex flex-col flex-1 min-h-0">
+                  <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-tertiary/10">
+                    <div className="text-[10pt] font-semibold text-primary truncate flex-1 min-w-0">Temp route</div>
+                    <HeaderPill>
+                      <PillButton
+                        icon={Check}
+                        iconSize={18}
+                        onClick={handleSaveTempRouteAsFeature}
+                        label="Save as route"
+                        circleBg="bg-themegreen text-white"
+                        disabled={tempRoute.points.length < 2}
+                      />
+                      <PillButton icon={X} iconSize={18} onClick={handleCloseTempRoute} label="Close" />
+                    </HeaderPill>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    <TempRouteBody points={tempRoute.points} onRemoveVertex={handleRemoveTempRouteVertex} />
                   </div>
                 </div>
               )}
@@ -1626,6 +1848,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                       onUpdate={handleUpdateSelectedFeature}
                       waypoints={features.filter(f => f.type === 'waypoint')}
                       onFocusLeg={(bbox) => mapRef.current?.fitBounds(bbox)}
+                      onStartNavigation={handleStartNavigation}
                     />
                   </div>
                 </div>

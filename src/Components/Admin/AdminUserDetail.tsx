@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { KeyRound, LogOut, Building2, ChevronRight, Mail, Check, RefreshCw, X, Trash2 } from 'lucide-react'
+import { KeyRound, LogOut, Building2, ChevronRight, Mail, Check, RefreshCw, X, Trash2, Home } from 'lucide-react'
 import type { Certification } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import type { Component } from '../../Data/User'
@@ -23,6 +23,7 @@ import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { formatLastActive, RoleBadge, SupervisorCreatedBadge } from './adminUtils'
+import { StepResults, type StepResult } from './StepResults'
 import { useResetPasswordFlow } from '../../Hooks/useResetPasswordFlow'
 import {
   listAllUsers,
@@ -48,7 +49,10 @@ import { sameStringSet } from '../../Utilities/arrayEquals'
 interface AdminUserDetailProps {
   user: AdminUser | null
   onUserUpdated: (user: AdminUser) => void
-  onCreated?: (userId: string) => void
+  /** Receives an optimistic AdminUser built from the create form so the parent
+   * can switch to view mode without a round-trip — AdminUserDetail.loadData
+   * replaces it with the canonical record on the next refresh. */
+  onCreated?: (user: AdminUser) => void
   onSelectClinic?: (clinic: AdminClinic) => void
   // Edit toolbar props (Settings pattern) — for edit on existing users,
   // the editing flag is now internal (tap-to-overlay). These remain for
@@ -84,6 +88,7 @@ export function AdminUserDetail({
   // ── Data state ──────────────────────────────────────────────────────
   const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [allCerts, setAllCerts] = useState<Certification[]>([])
+  const [viewLoanClinicIds, setViewLoanClinicIds] = useState<string[]>([])
 
   // ── UI state ────────────────────────────────────────────────────────
   const [notify, setNotify] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
@@ -116,6 +121,9 @@ export function AdminUserDetail({
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Per-step save outcomes. Persisted across retries so already-successful
+  // steps are skipped — admin sees what stuck and only the failures re-run.
+  const [stepResults, setStepResults] = useState<StepResult[]>([])
 
   const isCreateMode = user === null
   const [createEmail, setCreateEmail] = useState('')
@@ -141,13 +149,21 @@ export function AdminUserDetail({
       setClinics(clinicData)
       return
     }
-    const [userData, clinicData, certData] = await Promise.all([
+    const [userData, clinicData, certData, loanData] = await Promise.all([
       listAllUsers(),
       listClinics(),
       fetchAllCertifications(),
+      user?.id
+        ? supabase
+            .from('profile_clinic_loans')
+            .select('clinic_id')
+            .eq('user_id', user.id)
+            .then(({ data }) => (data ?? []).map((r: { clinic_id: string }) => r.clinic_id))
+        : Promise.resolve<string[]>([]),
     ])
     setClinics(clinicData)
     setAllCerts(certData)
+    setViewLoanClinicIds(loanData)
 
     // Sync user prop with latest data so parent stays current
     const refreshed = userData.find((u) => u.id === user?.id)
@@ -182,6 +198,7 @@ export function AdminUserDetail({
 
   const closeEditOverlay = useCallback(() => {
     setEditAnchor(null)
+    setStepResults([])
     onEditingChange(false)
   }, [onEditingChange])
 
@@ -217,6 +234,7 @@ export function AdminUserDetail({
       setCreateEmail('')
       setCreatePassword('')
       setError(null)
+      setStepResults([])
     }
     prevEditingRef.current = editing
   }, [editing, user])
@@ -286,7 +304,33 @@ export function AdminUserDetail({
         if (editClinicId) {
           await setUserClinic(result.userId, editClinicId)
         }
-        onCreated?.(result.userId)
+        const clinicName = editClinicId
+          ? clinics.find(c => c.id === editClinicId)?.name ?? null
+          : null
+        // Optimistic — parent switches to view mode immediately. The detail
+        // view's loadData refresh overwrites these fields with the canonical
+        // record once the next listAllUsers lands.
+        const optimistic: AdminUser = {
+          id: result.userId,
+          email: createEmail,
+          first_name: editFirstName,
+          last_name: editLastName,
+          middle_initial: editMiddleInitial || null,
+          credential: editCredential || null,
+          component: editComponent || null,
+          rank: editRank || null,
+          uic: editUic || null,
+          roles: chosenRoles,
+          clinic_id: editClinicId || null,
+          clinic_name: clinicName,
+          surrogate_clinic_id: null,
+          surrogate_clinic_name: null,
+          created_at: new Date().toISOString(),
+          last_active_at: null,
+          avatar_id: null,
+          supervisor_created: false,
+        }
+        onCreated?.(optimistic)
         invalidate('users', 'clinics')
       } else {
         setError(result.error || 'Failed to create user')
@@ -294,80 +338,107 @@ export function AdminUserDetail({
       return
     }
 
+    if (!user) return
+
     setSaving(true)
     setError(null)
 
-    // 1. Update profile fields
-    if (!user) return
-    const profileResult = await updateUserProfile(user.id, {
-      firstName: editFirstName || undefined,
-      lastName: editLastName || undefined,
-      middleInitial: editMiddleInitial,
-      credential: editCredential,
-      component: editComponent,
-      rank: editRank,
-      uic: editUic || undefined,
+    // Collect-all semantics: run every diffed step, accumulate results, then
+    // surface a structured panel. Steps already marked ok (from a prior partial
+    // save) are skipped so retry only re-runs the failures.
+    const prior = stepResults
+    const next: StepResult[] = [...prior]
+    const upsert = (r: StepResult) => {
+      const idx = next.findIndex(s => s.key === r.key)
+      if (idx >= 0) next[idx] = r
+      else next.push(r)
+    }
+    const alreadyOk = (key: string) => prior.find(s => s.key === key)?.ok === true
 
-    })
-    if (!profileResult.success) {
-      setError(profileResult.error || 'Failed to update profile')
-      setSaving(false)
-      return
+    // Step 1: profile (always runs — cheap to re-apply identical values)
+    if (!alreadyOk('profile')) {
+      const r = await updateUserProfile(user.id, {
+        firstName: editFirstName || undefined,
+        lastName: editLastName || undefined,
+        middleInitial: editMiddleInitial,
+        credential: editCredential,
+        component: editComponent,
+        rank: editRank,
+        uic: editUic || undefined,
+      })
+      upsert({
+        key: 'profile',
+        label: 'Profile fields applied',
+        ok: r.success,
+        error: r.success ? undefined : (r.error || 'Failed to update profile'),
+      })
+      setStepResults([...next])
     }
 
-    // 2. Reconcile roles — single RPC call with the final role set
+    // Step 2: roles (only if diff)
     const oldSorted = [...(user.roles || [])].sort().join(',')
     const newSorted = [...chosenRoles].sort().join(',')
-    if (oldSorted !== newSorted) {
-      const result = await setUserRoles(user.id, chosenRoles as ('medic' | 'supervisor' | 'dev' | 'provider')[])
-      if (!result.success) {
-        setError(result.error || 'Failed to update roles')
-        setSaving(false)
-        return
-      }
+    const rolesChanged = oldSorted !== newSorted
+    if (rolesChanged && !alreadyOk('roles')) {
+      const r = await setUserRoles(user.id, chosenRoles as ('medic' | 'supervisor' | 'dev' | 'provider')[])
+      upsert({
+        key: 'roles',
+        label: `Roles set (${chosenRoles.join(', ')})`,
+        ok: r.success,
+        error: r.success ? undefined : (r.error || 'Failed to update roles'),
+      })
+      setStepResults([...next])
     }
 
-    // 3. Update clinic assignment if changed
+    // Step 3: clinic (only if diff). DB trigger wipes loans when clinic_id
+    // changes — step 4 re-applies the editor's loan selection in that case.
     const originalClinicId = user.clinic_id || ''
-    if (editClinicId !== originalClinicId) {
-      const clinicResult = await setUserClinic(user.id, editClinicId || null)
-      if (!clinicResult.success) {
-        setError(clinicResult.error || 'Failed to update clinic')
-        setSaving(false)
-        return
-      }
-      // The DB trigger clears surrogate when clinic_id changes — mirror that
-      // here so the next save diff doesn't try to re-set the stale value.
+    const clinicChanged = editClinicId !== originalClinicId
+    if (clinicChanged && !alreadyOk('clinic')) {
+      const r = await setUserClinic(user.id, editClinicId || null)
+      upsert({
+        key: 'clinic',
+        label: editClinicId ? 'Cluster assignment updated' : 'Cluster assignment cleared',
+        ok: r.success,
+        error: r.success ? undefined : (r.error || 'Failed to update clinic'),
+      })
+      setStepResults([...next])
     }
 
-    // 4. Replace the entire loan set if it changed.
-    // Skip if assigned clinic just changed (trigger already wiped all loans).
+    // Step 4: loans (replace whole set if changed, or after clinic cascade).
     const sameLoans = editLoanClinicIds.size === originalLoanClinicIds.size
       && Array.from(editLoanClinicIds).every((id) => originalLoanClinicIds.has(id))
-    if (editClinicId !== originalClinicId) {
-      // Trigger cascade nulled everything; re-apply the editor's selection
-      // (filtered to exclude the new home clinic).
-      const next = Array.from(editLoanClinicIds).filter((id) => id !== editClinicId)
-      const loansResult = await setUserLoans(user.id, next)
-      if (!loansResult.success) {
-        setError(loansResult.error || 'Failed to update loans')
-        setSaving(false)
-        return
-      }
-    } else if (!sameLoans) {
-      const loansResult = await setUserLoans(user.id, Array.from(editLoanClinicIds))
-      if (!loansResult.success) {
-        setError(loansResult.error || 'Failed to update loans')
-        setSaving(false)
-        return
-      }
+    const loansChanged = clinicChanged || !sameLoans
+    if (loansChanged && !alreadyOk('loans')) {
+      const loanIds = clinicChanged
+        ? Array.from(editLoanClinicIds).filter((id) => id !== editClinicId)
+        : Array.from(editLoanClinicIds)
+      const r = await setUserLoans(user.id, loanIds)
+      upsert({
+        key: 'loans',
+        label: loanIds.length === 0 ? 'Loans cleared' : `Loans set (${loanIds.length})`,
+        ok: r.success,
+        error: r.success ? undefined : (r.error || 'Failed to update loans'),
+      })
+      setStepResults([...next])
     }
 
     setSaving(false)
-    onEditingChange(false)
-    loadData()
     invalidate('users', 'clinics')
-  }, [user, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editLoanClinicIds, originalLoanClinicIds, editRoles, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated])
+
+    const anyFailed = next.some(s => !s.ok)
+    if (next.length === 0 || !anyFailed) {
+      // Either nothing changed (no steps ran) or every diffed step succeeded —
+      // refresh & close. The empty-results case keeps the form snappy for
+      // pure no-op saves admins sometimes hit when reviewing a row.
+      setStepResults([])
+      onEditingChange(false)
+      loadData()
+    }
+    // On partial failure, keep the overlay open so the admin sees the
+    // StepResults panel rendered above the form. Retry runs handleSave again
+    // and the alreadyOk() guard skips the already-succeeded steps.
+  }, [user, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editLoanClinicIds, originalLoanClinicIds, editRoles, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated, stepResults])
 
   // ── Save requested trigger ───────────────────────────────────────────
   useEffect(() => {
@@ -477,8 +548,6 @@ export function AdminUserDetail({
               subtitle={[
                 user.credential,
                 user.uic,
-                user.clinic_name,
-                user.surrogate_clinic_name ? `Loaned to ${user.surrogate_clinic_name}` : null,
                 user.email,
               ].filter(Boolean).join(' · ')}
               meta={(user.roles?.length > 0 || user.supervisor_created) && (
@@ -578,8 +647,12 @@ export function AdminUserDetail({
                 />
               )}
               <ActionButton
-                icon={saving ? RefreshCw : Check}
-                label={saving ? 'Saving…' : 'Save'}
+                icon={saving ? RefreshCw : (stepResults.some(s => !s.ok) ? RefreshCw : Check)}
+                label={saving
+                  ? 'Saving…'
+                  : stepResults.some(s => !s.ok)
+                    ? 'Retry failed'
+                    : 'Save'}
                 variant={saving ? 'disabled' : 'success'}
                 onClick={handleSave}
               />
@@ -589,6 +662,15 @@ export function AdminUserDetail({
       >
         {editAnchor && user && (
           <div>
+            {stepResults.length > 0 && (
+              <div className="px-4 pt-3">
+                <StepResults
+                  steps={stepResults}
+                  onRetry={stepResults.some(s => !s.ok) ? handleSave : undefined}
+                  retrying={saving}
+                />
+              </div>
+            )}
             <div className="flex items-center gap-3 px-4 py-3 border-b border-primary/6">
               <UserAvatar
                 avatarId={user.avatar_id}
@@ -614,6 +696,23 @@ export function AdminUserDetail({
             {editComponent && <PickerInput value={editRank} onChange={setEditRank} options={componentRanks} placeholder="Rank" />}
             <UicPinInput value={editUic} onChange={setEditUic} spread />
             <ClinicPickerInput value={editClinicId} onChange={setEditClinicId} allClinics={clinics} placeholder="Cluster" />
+            {(() => {
+              const homeName = editClinicId ? clinics.find(c => c.id === editClinicId)?.name : null
+              if (!homeName) return null
+              return (
+                <div className="px-2 pt-2 pb-1 border-b border-primary/6">
+                  <div className="w-full flex items-center gap-3 py-2 px-2 rounded-lg bg-themeblue3/5">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-themeblue3/15 shrink-0">
+                      <Home size={14} className="text-themeblue3" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-primary truncate">{homeName}</p>
+                    </div>
+                    <span className="shrink-0 text-[9pt] font-semibold text-themeblue3 uppercase tracking-widest">Home</span>
+                  </div>
+                </div>
+              )
+            })()}
             <ClinicMultiPickerInput
               selectedIds={[...editLoanClinicIds]}
               onChange={(ids) => setEditLoanClinicIds(new Set(ids))}
@@ -633,29 +732,74 @@ export function AdminUserDetail({
         )}
       </PreviewOverlay>
 
-      {/* Clinic card — view mode only, when user has a clinic */}
-      {!editing && !isCreateMode && user?.clinic_id && (() => {
-        const userClinic = clinics.find(c => c.id === user.clinic_id)
-        if (!userClinic) return null
+      {/* Clusters section — home row (or assign prompt) + one row per loan */}
+      {!editing && !isCreateMode && user && (() => {
+        const homeClinic = user.clinic_id ? clinics.find(c => c.id === user.clinic_id) ?? null : null
+        const loanClinics = viewLoanClinicIds
+          .map(id => clinics.find(c => c.id === id))
+          .filter((c): c is AdminClinic => !!c)
+        const rowCount = 1 + loanClinics.length
         return (
-          <div className="mt-3 rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-            <button
-              type="button"
-              onClick={() => onSelectClinic?.(userClinic)}
-              disabled={!onSelectClinic}
-              className="flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5 disabled:cursor-default"
-            >
-              <span className="w-9 h-9 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
-                <Building2 size={18} className="text-themeblue2" />
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-primary truncate">{userClinic.name}</p>
-                {userClinic.uics.length > 0 && (
-                  <p className="text-[9pt] text-tertiary mt-0.5 truncate">{userClinic.uics.join(', ')}</p>
-                )}
-              </div>
-              {onSelectClinic && <ChevronRight size={16} className="text-tertiary shrink-0" />}
-            </button>
+          <div className="mt-4">
+            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Clusters</p>
+            <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+              {homeClinic ? (
+                <button
+                  type="button"
+                  onClick={() => onSelectClinic?.(homeClinic)}
+                  disabled={!onSelectClinic}
+                  className={`flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5 disabled:cursor-default${rowCount > 1 ? ' border-b border-primary/6' : ''}`}
+                >
+                  <span className="w-9 h-9 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
+                    <Building2 size={18} className="text-themeblue2" />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-primary truncate">{homeClinic.name}</p>
+                    <p className="text-[9pt] text-tertiary mt-0.5 truncate">
+                      Home{homeClinic.uics.length > 0 ? ` · ${homeClinic.uics.join(', ')}` : ''}
+                    </p>
+                  </div>
+                  {onSelectClinic && <ChevronRight size={16} className="text-tertiary shrink-0" />}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={openEditOverlay}
+                  className={`flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5${rowCount > 1 ? ' border-b border-primary/6' : ''}`}
+                >
+                  <span className="w-9 h-9 rounded-full bg-themeblue2/5 flex items-center justify-center shrink-0">
+                    <Building2 size={18} className="text-tertiary" />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-tertiary truncate">Assign home cluster</p>
+                    <p className="text-[9pt] text-tertiary/60 mt-0.5">Home</p>
+                  </div>
+                </button>
+              )}
+              {loanClinics.map((c, idx) => {
+                const isLast = idx === loanClinics.length - 1
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => onSelectClinic?.(c)}
+                    disabled={!onSelectClinic}
+                    className={`flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5 disabled:cursor-default${isLast ? '' : ' border-b border-primary/6'}`}
+                  >
+                    <span className="w-9 h-9 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
+                      <Building2 size={18} className="text-themeblue2" />
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-primary truncate">{c.name}</p>
+                      <p className="text-[9pt] text-tertiary mt-0.5 truncate">
+                        Loan{c.uics.length > 0 ? ` · ${c.uics.join(', ')}` : ''}
+                      </p>
+                    </div>
+                    {onSelectClinic && <ChevronRight size={16} className="text-tertiary shrink-0" />}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )
       })()}

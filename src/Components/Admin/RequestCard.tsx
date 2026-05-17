@@ -6,6 +6,7 @@ import { ErrorDisplay } from '../ErrorDisplay'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
+import { StepResults, type StepResult } from './StepResults'
 import { useLongPress } from '../../Hooks/useLongPress'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import type { Component } from '../../Data/User'
@@ -84,6 +85,13 @@ export function RequestCard({
   const [error, setError] = useState<string | null>(null)
   const [confirmReject, setConfirmReject] = useState(false)
 
+  // Approve flow — once approveAccountRequest succeeds the account exists and
+  // cannot be re-created; subsequent retries skip step 1 and only re-run the
+  // subordinate steps (profile / roles / clinic / email) that failed.
+  const [stepResults, setStepResults] = useState<StepResult[]>([])
+  const [approvedUserId, setApprovedUserId] = useState<string | null>(null)
+  const [approvedEmail, setApprovedEmail] = useState<string | null>(null)
+
   // ── Derived ─────────────────────────────────────────────
   const componentRanks = component ? ranksByComponent[component as Component] : []
 
@@ -110,69 +118,135 @@ export function RequestCard({
   }, [rank])
 
   // ── Handlers ────────────────────────────────────────────
-  const handleApprove = useCallback(async () => {
-    if (uic.trim().length !== 6) {
-      setError('UIC must be exactly 6 characters.')
-      return
-    }
+  const runApproveSteps = useCallback(async () => {
     const chosenRoles = roles
-    if (chosenRoles.length === 0) {
-      setError('Select at least one role.')
-      return
+    const priorResults = stepResults
+    const next: StepResult[] = [...priorResults]
+    const upsert = (r: StepResult) => {
+      const idx = next.findIndex(s => s.key === r.key)
+      if (idx >= 0) next[idx] = r
+      else next.push(r)
     }
+    const alreadyOk = (key: string) => priorResults.find(s => s.key === key)?.ok === true
 
     setProcessing(true)
     setError(null)
 
-    const approveResult = await approveAccountRequest(request.id)
-    if (!approveResult.success) {
-      setError(approveResult.error || 'Failed to approve request')
+    // Step 1: create account — non-idempotent, never retried once successful.
+    let userId = approvedUserId
+    let email = approvedEmail
+    if (!alreadyOk('approve')) {
+      const r = await approveAccountRequest(request.id)
+      if (!r.success) {
+        // Approval itself failed — surface as top-level error so the form
+        // stays in pre-create state (nothing to retry yet).
+        setError(r.error || 'Failed to approve request')
+        setProcessing(false)
+        return
+      }
+      userId = r.userId
+      email = r.email
+      setApprovedUserId(userId)
+      setApprovedEmail(email)
+      upsert({ key: 'approve', label: 'Account created', ok: true })
+      setStepResults([...next])
+    }
+
+    if (!userId) {
       setProcessing(false)
       return
     }
 
-    const userId = approveResult.userId
-    const warnings: string[] = []
-
-    const profileResult = await updateUserProfile(userId, {
-      firstName: firstName || undefined,
-      lastName: lastName || undefined,
-      middleInitial,
-      credential,
-      component,
-      rank,
-      uic: uic || undefined,
-    })
-    if (!profileResult.success) warnings.push('Profile update failed')
-
-    const rolesResult = await setUserRoles(userId, chosenRoles as ('medic' | 'supervisor' | 'dev' | 'provider')[])
-    if (!rolesResult.success) warnings.push('Role assignment failed')
-
-    if (selectedClinicId) {
-      const clinicResult = await setUserClinic(userId, selectedClinicId)
-      if (!clinicResult.success) warnings.push('Cluster assignment failed')
+    // Step 2: profile
+    if (!alreadyOk('profile')) {
+      const r = await updateUserProfile(userId, {
+        firstName: firstName || undefined,
+        lastName: lastName || undefined,
+        middleInitial,
+        credential,
+        component,
+        rank,
+        uic: uic || undefined,
+      })
+      upsert({
+        key: 'profile',
+        label: 'Profile fields applied',
+        ok: r.success,
+        error: r.success ? undefined : (r.error || 'Profile update failed'),
+      })
+      setStepResults([...next])
     }
 
-    const emailResult = await sendApprovalEmail(approveResult.email)
-    if (!emailResult.success) warnings.push('Approval email not delivered')
+    // Step 3: roles
+    if (!alreadyOk('roles')) {
+      const r = await setUserRoles(userId, chosenRoles as ('medic' | 'supervisor' | 'dev' | 'provider')[])
+      upsert({
+        key: 'roles',
+        label: `Roles set (${chosenRoles.join(', ')})`,
+        ok: r.success,
+        error: r.success ? undefined : (r.error || 'Role assignment failed'),
+      })
+      setStepResults([...next])
+    }
+
+    // Step 4: clinic (optional — skip step entirely if admin chose none)
+    if (selectedClinicId && !alreadyOk('clinic')) {
+      const r = await setUserClinic(userId, selectedClinicId)
+      upsert({
+        key: 'clinic',
+        label: 'Cluster assigned',
+        ok: r.success,
+        error: r.success ? undefined : (r.error || 'Cluster assignment failed'),
+      })
+      setStepResults([...next])
+    }
+
+    // Step 5: approval email
+    if (email && !alreadyOk('email')) {
+      const r = await sendApprovalEmail(email)
+      upsert({
+        key: 'email',
+        label: 'Approval email sent',
+        ok: r.success,
+        error: r.success ? undefined : (r.error || 'Email delivery failed'),
+      })
+      setStepResults([...next])
+    }
 
     setProcessing(false)
 
-    if (warnings.length > 0) {
-      setError(`Account created but: ${warnings.join(', ')}. Edit user to fix.`)
-    }
-
-    onApproved?.(userId, request, {
-      roles: chosenRoles,
-      clinicId: selectedClinicId,
-      warnings,
-    })
+    const allOk = next.every(s => s.ok)
     invalidate('requests', 'users')
     onRefresh()
+    if (allOk) {
+      onApproved?.(userId, request, {
+        roles: chosenRoles,
+        clinicId: selectedClinicId,
+        warnings: [],
+      })
+    }
   }, [
     request, firstName, lastName, middleInitial, credential, component, rank, uic,
     roles, selectedClinicId, onApproved, onRefresh,
+    stepResults, approvedUserId, approvedEmail,
   ])
+
+  const handleApprove = useCallback(() => {
+    if (uic.trim().length !== 6) {
+      setError('UIC must be exactly 6 characters.')
+      return
+    }
+    if (roles.length === 0) {
+      setError('Select at least one role.')
+      return
+    }
+    runApproveSteps()
+  }, [uic, roles, runApproveSteps])
+
+  const handleRetryFailed = useCallback(() => {
+    setStepResults(prev => prev.map(s => s.ok ? s : { ...s, error: undefined }))
+    runApproveSteps()
+  }, [runApproveSteps])
 
   const handleReject = useCallback(async () => {
     setConfirmReject(false)
@@ -251,6 +325,11 @@ export function RequestCard({
       : 'Rejected request'
 
   const canApprove = uic.length === 6 && roles.length > 0 && !processing
+  // Once the account is created, the form is locked into "post-approve" mode:
+  // Reject is gone (account exists), Approve becomes Retry-failed or Done.
+  const accountCreated = approvedUserId !== null
+  const hasFailedSteps = stepResults.some(s => !s.ok)
+  const allStepsOk = stepResults.length > 0 && !hasFailedSteps
 
   const overlayFooter = (
     <ActionPill>
@@ -271,7 +350,7 @@ export function RequestCard({
           onClick={() => setConfirmDeleteId(request.id)}
         />
       )}
-      {isPending && !isSupport && (
+      {isPending && !isSupport && !accountCreated && (
         <>
           <ActionButton
             icon={Trash2}
@@ -286,6 +365,22 @@ export function RequestCard({
             onClick={handleApprove}
           />
         </>
+      )}
+      {isPending && !isSupport && accountCreated && hasFailedSteps && (
+        <ActionButton
+          icon={RefreshCw}
+          label={processing ? 'Retrying…' : 'Retry failed'}
+          variant={processing ? 'disabled' : 'success'}
+          onClick={handleRetryFailed}
+        />
+      )}
+      {isPending && !isSupport && accountCreated && allStepsOk && (
+        <ActionButton
+          icon={Check}
+          label="Done"
+          variant="success"
+          onClick={handleClose}
+        />
       )}
       {isRejected && !isSupport && (
         <ActionButton
@@ -382,6 +477,16 @@ export function RequestCard({
       >
         <div className={processing ? 'opacity-50 pointer-events-none' : undefined} onClick={(e) => e.stopPropagation()}>
           {error && <div className="px-4 pt-3"><ErrorDisplay message={error} /></div>}
+
+          {stepResults.length > 0 && (
+            <div className="px-4 pt-3">
+              <StepResults
+                steps={stepResults}
+                onRetry={hasFailedSteps ? handleRetryFailed : undefined}
+                retrying={processing}
+              />
+            </div>
+          )}
 
           {/* Support request body */}
           {isSupport && (

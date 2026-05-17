@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { Plus, Building2, X, Inbox, Users, ChevronLeft, MessageCircleQuestion, MapPin } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from './BaseDrawer'
 import { MobileSearchBar } from './MobileSearchBar'
@@ -12,7 +12,7 @@ import { ActionSheet } from './ActionSheet'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { UI_TIMING } from '../Utilities/constants'
-import { deleteClinic, deleteUser, listAllUsers, listClinics, listLocations } from '../lib/adminService'
+import { deleteClinic, deleteUser, listClinics, listLocations } from '../lib/adminService'
 import { useAuthStore } from '../stores/useAuthStore'
 import { invalidate } from '../stores/useInvalidationStore'
 
@@ -81,8 +81,11 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // FAB action sheet
     const [showAddSheet, setShowAddSheet] = useState(false)
 
-    // Discard pending changes confirmation
+    // Discard pending changes confirmation. The pending action is held in a
+    // ref so any nav path (back, tab switch, drawer close, summary jump) can
+    // route through the same dialog without each duplicating the guard logic.
     const [confirmDiscard, setConfirmDiscard] = useState(false)
+    const pendingActionRef = useRef<(() => void) | null>(null)
 
     // Clear search when navigating between views (e.g., clicking a search result)
     useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
@@ -215,20 +218,39 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         }
     }, [view, handleSlideAnimation, clinicEdit, userEdit, locationEdit])
 
-    const handleBack = useCallback(() => {
-        if (userEdit.hasPending || clinicEdit.hasPending || locationEdit.hasPending) {
+    const hasPendingEdits = userEdit.hasPending || clinicEdit.hasPending || locationEdit.hasPending
+
+    /**
+     * Run `action` immediately, or — if the user has unsaved edits — defer it
+     * behind the discard confirmation. Confirming runs the action; cancelling
+     * clears it. Use for any nav path that would destroy detail-pane state.
+     */
+    const guardNav = useCallback((action: () => void) => {
+        if (hasPendingEdits) {
+            pendingActionRef.current = action
             setConfirmDiscard(true)
             return
         }
-        navigateBack()
-    }, [userEdit.hasPending, clinicEdit.hasPending, locationEdit.hasPending, navigateBack])
+        action()
+    }, [hasPendingEdits])
+
+    const handleBack = useCallback(() => {
+        guardNav(navigateBack)
+    }, [guardNav, navigateBack])
 
     const handleDiscardConfirmed = useCallback(() => {
         setConfirmDiscard(false)
-        navigateBack()
+        const action = pendingActionRef.current ?? navigateBack
+        pendingActionRef.current = null
+        action()
     }, [navigateBack])
 
-    const handleClose = useCallback(() => {
+    const handleDiscardCancelled = useCallback(() => {
+        setConfirmDiscard(false)
+        pendingActionRef.current = null
+    }, [])
+
+    const doClose = useCallback(() => {
         setView('admin')
         setActiveTab('requests')
         setSelectedUser(null)
@@ -241,6 +263,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         locationEdit.reset()
         onClose()
     }, [onClose, clinicEdit, userEdit, locationEdit])
+
+    const handleClose = useCallback(() => {
+        guardNav(doClose)
+    }, [guardNav, doClose])
 
     const handleDeleteClinic = useCallback(async () => {
         if (!selectedClinic) return
@@ -269,15 +295,19 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         view !== 'admin',
     )
 
-    // Sidebar summary handlers
+    // Sidebar summary handlers. When the user is mid-edit in a detail pane,
+    // jumping to a different tab discards the detail pane — route through the
+    // shared discard guard so the work is preserved unless explicitly dropped.
     const handleSummarySwitchTab = useCallback((tab: 'requests' | 'users' | 'clinics') => {
-        setActiveTab(tab)
-        if (view !== 'admin') {
-            setView('admin')
-            setSelectedUser(null)
-            setSelectedClinic(null)
-        }
-    }, [view])
+        guardNav(() => {
+            setActiveTab(tab)
+            if (view !== 'admin') {
+                setView('admin')
+                setSelectedUser(null)
+                setSelectedClinic(null)
+            }
+        })
+    }, [view, guardNav])
 
     const handleTabChange = useCallback((tab: AdminTab) => {
         setActiveTab(tab)
@@ -313,6 +343,16 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         }
         return ''
     }, [view, selectedUser, selectedClinic, selectedLocation])
+
+    /** Label of the list the detail view drills out of — used by the desktop
+     * three-pane header as a clickable breadcrumb crumb. Mobile relies on the
+     * back chevron + title instead. */
+    const detailParentLabel = useMemo(() => {
+        if (view === 'admin-user-detail') return 'Users'
+        if (view === 'admin-clinic-detail') return 'Clusters'
+        if (view === 'admin-location-detail') return 'Locations'
+        return null
+    }, [view])
 
     // Header actions for detail views — user/clinic share DetailHeaderActions.
     const detailHeaderActions = useMemo(() => {
@@ -412,18 +452,14 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     }, [isMobile, view, detailTitle, handleBack, detailHeaderActions, mainHeaderActions])
 
 
-    // After creating a user, load full user and switch to view mode
-    const handleUserCreated = useCallback(async (userId: string) => {
-        const users = await listAllUsers()
-        const newUser = users.find(u => u.id === userId)
-        if (newUser) {
-            setSelectedUser(newUser)
-            userEdit.setEditing(false)
-        } else {
-            handleBack()
-        }
+    // After creating a user, switch to view mode immediately using the
+    // optimistic AdminUser built by the create form. AdminUserDetail.loadData
+    // overwrites the placeholder with the canonical record on its next refresh.
+    const handleUserCreated = useCallback((user: AdminUser) => {
+        setSelectedUser(user)
+        userEdit.setEditing(false)
         invalidate('users')
-    }, [handleBack, userEdit])
+    }, [userEdit])
 
     // After creating a clinic, load full clinic and switch to view mode
     const handleClinicCreated = useCallback(async (clinicId: string) => {
@@ -739,8 +775,20 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                     >
                                         <ChevronLeft size={18} />
                                     </button>
-                                    <h2 className="flex-1 min-w-0 truncate text-[11pt] font-semibold text-primary">
-                                        {detailTitle}
+                                    <h2 className="flex-1 min-w-0 flex items-center gap-1.5 text-[11pt] font-semibold text-primary">
+                                        {detailParentLabel && (
+                                            <>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleBack}
+                                                    className="shrink-0 text-tertiary hover:text-primary active:scale-95 transition-all font-normal"
+                                                >
+                                                    {detailParentLabel}
+                                                </button>
+                                                <span aria-hidden className="shrink-0 text-tertiary/60">›</span>
+                                            </>
+                                        )}
+                                        <span className="min-w-0 truncate">{detailTitle}</span>
                                     </h2>
                                     {detailHeaderActions}
                                 </div>
@@ -772,7 +820,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             confirmLabel="Discard"
             variant="danger"
             onConfirm={handleDiscardConfirmed}
-            onCancel={() => setConfirmDiscard(false)}
+            onCancel={handleDiscardCancelled}
         />
 
         {/* Clinic delete confirmation — triggered from header pill */}

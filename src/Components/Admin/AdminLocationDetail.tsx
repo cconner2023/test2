@@ -212,7 +212,12 @@ export function AdminLocationDetail({
   const handleArchive = useCallback(async () => {
     if (!location) return
     if (clinicsAtLocation.length > 0) {
-      setError(`Cannot archive — ${clinicsAtLocation.length} clinic(s) still reference this location.`)
+      // Name the blockers so the admin can act on them without walking the
+      // clinic list. Cap at 3 to keep the inline banner one short line.
+      const names = clinicsAtLocation.map(c => c.name)
+      const preview = names.slice(0, 3).join(', ')
+      const remainder = names.length > 3 ? ` and ${names.length - 3} more` : ''
+      setError(`Cannot archive — referenced by ${preview}${remainder}. Reassign or archive ${names.length === 1 ? 'it' : 'them'} first.`)
       setConfirmingArchive(false)
       return
     }

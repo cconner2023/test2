@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { forward } from 'mgrs';
+import { latLngToMgrs } from '../lib/mgrsFormat';
 
 interface GeoPosition {
   lat: number;
@@ -62,7 +62,7 @@ export function useGeolocation(): UseGeolocationReturn {
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
-        const mgrs = forward([longitude, latitude], 5);
+        const mgrs = latLngToMgrs(latitude, longitude, 5);
         setPosition({ lat: latitude, lng: longitude, accuracy, mgrs });
         setError(null);
       },

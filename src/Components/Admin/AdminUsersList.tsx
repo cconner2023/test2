@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Pencil, KeyRound, Trash2, LogOut, Eye, Mail } from 'lucide-react'
 import { UserRow } from '../UserRow'
 import { EmptyState } from '../EmptyState'
+import { SectionCard } from '../Section'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { AdminListSkeleton } from './AdminSkeletons'
@@ -343,9 +344,9 @@ export function AdminUsersList({
       <p className="px-1 text-[9pt] font-semibold text-tertiary uppercase tracking-widest">
         {key === '__unassigned__' ? 'Unassigned' : key}
       </p>
-      <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+      <SectionCard>
         {list.map(renderUserRow)}
-      </div>
+      </SectionCard>
     </section>
   ))
 
@@ -433,13 +434,13 @@ export function AdminUsersList({
         {showLoading ? (
           <AdminListSkeleton />
         ) : filteredUsers.length === 0 ? (
-          <EmptyState title={searchQuery ? 'No users match your search' : 'No users found'} />
+          <EmptyState title={searchQuery ? 'No users match your search.' : 'No users yet — tap + to add one.'} />
         ) : useGrouping ? (
           <div className="space-y-4">{renderGroupedUsers()}</div>
         ) : (
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          <SectionCard>
             {renderUserItems()}
-          </div>
+          </SectionCard>
         )}
       </div>
 

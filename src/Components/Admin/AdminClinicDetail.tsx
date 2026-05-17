@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useCallback, useMemo, useState, useRef } from 'react'
-import { X, Plus, UserPlus, RefreshCw } from 'lucide-react'
+import { X, Plus, RefreshCw } from 'lucide-react'
 import { UserRow } from '../UserRow'
 import { ActionButton } from '../ActionButton'
 import { listClinics, listAllUsers, listLocations, updateClinic, createClinic, rescueClinicAssociationsByLocation } from '../../lib/adminService'
@@ -549,8 +549,7 @@ const AdminClinicDetail = ({
       {!isCreateMode && !editing && allClinicUsers.length === 0 && (
         <EmptyState
           className="mt-4"
-          title="No users assigned to this cluster"
-          action={{ icon: UserPlus, label: 'Add users', onClick: () => onEditingChange(true) }}
+          title="No users assigned — set each user's home cluster from the Users tab."
         />
       )}
     </div>

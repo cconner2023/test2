@@ -19,7 +19,6 @@ import { BlockTemplatedPanel, type BlockTemplatedHandle } from './BlockTemplated
 import { useAuthStore } from '../../stores/useAuthStore'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { useCalendarStore } from '../../stores/useCalendarStore'
-import { visibleEventsForRole } from '../../lib/aft/visibility'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
@@ -139,7 +138,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const [showAddSheet, setShowAddSheet] = useState(false)
   const [showImportSheet, setShowImportSheet] = useState(false)
   const isSupervisor = useAuthStore(s => s.isSupervisorRole)
-  const isDevRole = useAuthStore(s => s.isDevRole)
   const templatePanelRef = useRef<TemplateGeneratorHandle>(null)
   const blockPanelRef = useRef<BlockTemplatedHandle>(null)
   const [templateNonce, setTemplateNonce] = useState(0)
@@ -303,7 +301,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const selectedDateKey = toDateKey(selectedDate)
 
   const filteredEvents = useMemo(() => {
-    let out = visibleEventsForRole(events, isDevRole)
+    let out = events
     if (personnelFilter.length > 0) {
       out = out.filter(e =>
         e.assigned_to.length === 0 || e.assigned_to.some(id => personnelFilter.includes(id))
@@ -316,7 +314,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       out = out.filter(e => clinicFilter.includes(e.clinic_id))
     }
     return out
-  }, [events, isDevRole, personnelFilter, categoryFilter, clinicFilter])
+  }, [events, personnelFilter, categoryFilter, clinicFilter])
 
   const dayEvents = useMemo(() =>
     filteredEvents

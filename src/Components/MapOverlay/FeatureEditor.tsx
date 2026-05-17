@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { Copy, Check, ClipboardList, Link2, Link2Off, ExternalLink } from 'lucide-react';
-import { forward } from 'mgrs';
+import { latLngToMgrs } from '../../lib/mgrsFormat';
 import type { OverlayFeature, WaypointType } from '../../Types/MapOverlayTypes';
 import { TACTICAL_COLORS, WAYPOINT_LABELS, PIN_GLYPHS } from '../../Types/MapOverlayTypes';
 import { WaypointIcon } from './WaypointIcon';
@@ -12,7 +12,7 @@ import { useMedevacStore } from '../../stores/useMedevacStore';
 import { buildMedevacFromPin } from '../../lib/medevacFromPin';
 import { MedevacForm } from '../Medevac/MedevacForm';
 import { Modal } from '../Modal';
-import { Siren, FileDown as FileDownStripMap } from 'lucide-react';
+import { Siren, FileDown as FileDownStripMap, Navigation } from 'lucide-react';
 import { computeLegs, type Pace } from '../../lib/stripMap/computeLegs';
 import { generateStripMapPdf } from '../../lib/stripMap/generatePdf';
 import { downloadPdfBytes } from '../../Utilities/downloadUtils';
@@ -25,6 +25,9 @@ interface FeatureEditorProps {
   waypoints?: OverlayFeature[];
   /** Called when a route leg row is tapped — receives bbox `[west, south, east, north]` of that leg's two endpoints. */
   onFocusLeg?: (bbox: [number, number, number, number]) => void;
+  /** Called when the user taps Navigate on a waypoint — seeds a temp route
+   *  with this pin as the start; next map tap picks the end. */
+  onStartNavigation?: (lat: number, lng: number, anchorFeatureId: string) => void;
 }
 
 const WAYPOINT_SNAP_M = 15; // legs that end within this distance of a waypoint borrow its label
@@ -32,11 +35,7 @@ const WAYPOINT_SNAP_M = 15; // legs that end within this distance of a waypoint 
 function computeMgrs(geometry: [number, number][], precision = 5): string {
   if (geometry.length === 0) return '';
   const [lat, lng] = geometry[0];
-  try {
-    return forward([lng, lat], precision);
-  } catch {
-    return 'Invalid';
-  }
+  return latLngToMgrs(lat, lng, precision) || 'Invalid';
 }
 
 function legGeometry(lat1: number, lng1: number, lat2: number, lng2: number): { distanceM: number; bearing: number } {
@@ -76,7 +75,7 @@ function nearestWaypointLabel(
   return best ? best.label : null;
 }
 
-export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg }: FeatureEditorProps) {
+export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, onStartNavigation }: FeatureEditorProps) {
   const [copied, setCopied] = useState(false);
   const bearingReference = useMapPrefsStore(s => s.bearingReference);
   // Phase 4.1 — TC3 link integration. We subscribe with selectors so the
@@ -284,6 +283,29 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg }:
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* Navigate — seeds a temp route from this pin; next map tap picks the end. */}
+      {feature.type === 'waypoint' && feature.geometry.length > 0 && onStartNavigation && (
+        <div className="px-3 py-2 border-b border-primary/6 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-themewhite flex items-center justify-center text-themeblue3 shrink-0">
+            <Navigation size={15} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10pt] font-medium text-primary">Navigate from here</p>
+            <p className="text-[9pt] text-tertiary">Tap the next point on the map to plot a route from this pin.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const [lat, lng] = feature.geometry[0];
+              onStartNavigation(lat, lng, feature.id);
+            }}
+            className="shrink-0 px-3 py-1.5 rounded-md text-[10pt] font-medium text-themewhite bg-themeblue3 active:scale-95 transition-all"
+          >
+            Start
+          </button>
         </div>
       )}
 

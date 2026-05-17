@@ -20,7 +20,7 @@ export type FieldEventCategory = 'mission' | 'training' | 'range'
 
 /** Categories that ought to spawn a map overlay automatically. Excludes
  *  'medevac' (the MEDEVAC form already has its own location workflow) and
- *  non-field categories (huddle, leave, appointment, workout, etc.). */
+ *  non-field categories (huddle, leave, appointment, etc.). */
 const FIELD_EVENT_CATEGORIES: ReadonlySet<string> = new Set<FieldEventCategory>([
   'mission',
   'training',

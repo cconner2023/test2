@@ -9,7 +9,7 @@
  * StripMapData; the UI consumes the same shape for an on-screen preview.
  */
 
-import { forward } from 'mgrs'
+import { latLngToMgrs } from '../mgrsFormat'
 import type { OverlayFeature } from '../../Types/MapOverlayTypes'
 import {
   applyBearingReference,
@@ -160,8 +160,7 @@ function legGeometry(lat1: number, lng1: number, lat2: number, lng2: number): { 
 }
 
 function safeMgrs(lat: number, lng: number, precision: number): string {
-  try { return forward([lng, lat], precision) }
-  catch { return '—' }
+  return latLngToMgrs(lat, lng, precision) || '—'
 }
 
 function nearestWaypointLabel(

@@ -33,7 +33,8 @@ export function useClinicLoans(clinicId: string | null) {
       .select(`
         user_id,
         profile:profiles!profile_clinic_loans_user_id_fkey (
-          id, first_name, last_name, middle_initial, rank, credential, roles, avatar_id, clinic_id
+          id, first_name, last_name, middle_initial, rank, credential, roles, avatar_id, clinic_id,
+          home_clinic:clinics!profiles_clinic_id_fkey ( name )
         )
       `)
       .eq('clinic_id', clinicId)
@@ -59,6 +60,7 @@ export function useClinicLoans(clinicId: string | null) {
             avatarId: (p.avatar_id as string) ?? null,
             roles: (p.roles as string[]) ?? [],
             clinicId: (p.clinic_id as string) ?? undefined,
+            clinicName: (p.home_clinic as { name?: string } | null)?.name ?? undefined,
             isLoanedIn: true,
           }))
         setMedics(mapped)

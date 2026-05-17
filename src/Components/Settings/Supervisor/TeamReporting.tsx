@@ -7,9 +7,6 @@ import type { CalendarEvent } from '../../../Types/CalendarTypes'
 import { getCategoryMeta } from '../../../Types/CalendarTypes'
 import { ActionButton } from '../../ActionButton'
 import { ActionPill } from '../../ActionPill'
-import { useAuthStore } from '../../../stores/useAuthStore'
-import { aftStatusForSoldier, type AftStatus } from '../../../lib/aft/status'
-import { visibleEventsForRole } from '../../../lib/aft/visibility'
 
 function formatEventDate(evt: CalendarEvent): string {
   const start = new Date(evt.start_time)
@@ -75,11 +72,9 @@ export function TeamReporting({
 }: TeamReportingProps) {
   const now = useMemo(() => new Date(), [])
   const addMemberPillRef = useRef<HTMLDivElement>(null)
-  const isDevRole = useAuthStore(s => s.isDevRole)
-  const visibleTeamEvents = useMemo(() => visibleEventsForRole(teamEvents, isDevRole), [teamEvents, isDevRole])
   const upcomingTeamEvents = useMemo(
-    () => visibleTeamEvents.filter(e => new Date(e.end_time) >= now),
-    [visibleTeamEvents, now],
+    () => teamEvents.filter(e => new Date(e.end_time) >= now),
+    [teamEvents, now],
   )
   const SCHEDULE_LIMIT = 5
   const scheduleHidden = Math.max(0, upcomingTeamEvents.length - SCHEDULE_LIMIT)
@@ -87,13 +82,6 @@ export function TeamReporting({
   const sortedSoldiers = useMemo(() => {
     return [...metrics.soldierReadiness].sort((a, b) => a.readinessPercent - b.readinessPercent)
   }, [metrics.soldierReadiness])
-
-  const aftStatusById = useMemo(() => {
-    const map = new Map<string, AftStatus>()
-    if (!isDevRole) return map
-    for (const m of medics) map.set(m.id, aftStatusForSoldier(m.id, teamEvents, now))
-    return map
-  }, [isDevRole, medics, teamEvents, now])
 
   const sortedGaps = useMemo(() => {
     return [...metrics.subjectAreaGaps].sort((a, b) => a.coveragePercent - b.coveragePercent)
@@ -220,17 +208,6 @@ export function TeamReporting({
           {sortedSoldiers.map((entry, index) => {
             const soldier = medics.find(m => m.id === entry.soldierId)
             if (!soldier) return null
-            const aft = aftStatusById.get(entry.soldierId)
-            const recencyDot = !aft ? '' :
-              aft.recency === 'current'  ? 'bg-themegreen' :
-              aft.recency === 'expiring' ? 'bg-themeyellow' :
-              aft.recency === 'expired'  ? 'bg-themeredred' :
-                                            'bg-tertiary/40'
-            const recencyLabel = !aft ? '' :
-              aft.recency === 'current'  ? 'Current' :
-              aft.recency === 'expiring' ? 'Expiring' :
-              aft.recency === 'expired'  ? 'Expired' :
-                                            'Never tested'
             return (
               <button
                 key={entry.soldierId}
@@ -276,25 +253,6 @@ export function TeamReporting({
                       {entry.compliancePercent}%
                     </span>
                   </div>
-                  {aft && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9pt] text-tertiary w-18 shrink-0">Fitness</span>
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${recencyDot}`} />
-                      <span className="text-[9pt] text-tertiary flex-1 min-w-0 truncate">
-                        {recencyLabel}
-                        {aft.daysSinceLastTest != null && ` · ${aft.daysSinceLastTest}d ago`}
-                      </span>
-                      {aft.lastTest ? (
-                        <span className={`text-[9pt] font-medium w-8 text-right tabular-nums ${
-                          aft.lastTest.allPassing ? 'text-themegreen' : 'text-themeredred'
-                        }`}>
-                          {aft.lastTest.total}
-                        </span>
-                      ) : (
-                        <span className="text-[9pt] text-tertiary w-8 text-right">—</span>
-                      )}
-                    </div>
-                  )}
                 </div>
                 {entry.overdueCount > 0 && (
                   <span className="text-[9pt] font-medium text-themeredred bg-themeredred/10 px-1.5 py-0.5 rounded-full flex-shrink-0">

@@ -6,7 +6,6 @@ import { validateRpcResult } from './validators'
 import { validatePasswordComplexity } from './constants'
 import { encryptWithRawKey, decryptWithRawKey } from './cryptoService'
 import type { TextExpander, PlanOrderTags, PlanOrderSet } from '../Data/User'
-import type { WorkoutBlockType } from '../Types/CalendarTypes'
 
 const logger = createLogger('SupervisorService')
 
@@ -322,30 +321,6 @@ export interface ClinicAppointmentType {
   sort_order: number
 }
 
-/**
- * Clinic-managed exercise catalog entry. Workouts reference these by id.
- * `type` decides which inputs the set-entry UI shows when logging:
- * 'weight' → reps + load; 'timed' → mm:ss.
- */
-export interface ClinicExercise {
-  id: string
-  name: string
-  type: WorkoutBlockType
-  sort_order: number
-}
-
-/**
- * Supervisor-authored workout template. Referenced by 'workout' calendar events
- * via CalendarEvent.workout_id. `exercise_ids` points into clinics.exercises.
- * Hard-delete only; past event logs keep their own snapshot of blocks performed.
- */
-export interface ClinicWorkout {
-  id: string
-  name: string
-  exercise_ids: string[]
-  sort_order: number
-}
-
 export async function getClinicDetails(
   clinicId: string
 ): Promise<ClinicDetails> {
@@ -457,44 +432,6 @@ export async function updateSupervisorClinicAppointmentTypes(
   }
 }
 
-// ─── Update Clinic Exercises (dedicated RPC) ───────────────────────────────
-
-export async function updateSupervisorClinicExercises(
-  clinicId: string,
-  exercises: ClinicExercise[],
-): Promise<ServiceResult> {
-  try {
-    const { error } = await supabase.rpc('supervisor_update_clinic_exercises', {
-      p_clinic_id: clinicId,
-      p_exercises: exercises,
-    })
-    if (error) return fail(error.message)
-    return succeed()
-  } catch (error) {
-    logger.error('Failed to update clinic exercises:', error)
-    return fail(getErrorMessage(error))
-  }
-}
-
-// ─── Update Clinic Workouts (dedicated RPC) ────────────────────────────────
-
-export async function updateSupervisorClinicWorkouts(
-  clinicId: string,
-  workouts: ClinicWorkout[],
-): Promise<ServiceResult> {
-  try {
-    const { error } = await supabase.rpc('supervisor_update_clinic_workouts', {
-      p_clinic_id: clinicId,
-      p_workouts: workouts,
-    })
-    if (error) return fail(error.message)
-    return succeed()
-  } catch (error) {
-    logger.error('Failed to update clinic workouts:', error)
-    return fail(getErrorMessage(error))
-  }
-}
-
 // ─── Get Member Profile (for inline editing) ─────────────────────────────
 
 export interface MemberProfileData {
@@ -506,6 +443,8 @@ export interface MemberProfileData {
   rank: string | null
   uic: string | null
   roles: string[]
+  homeClinicId?: string | null
+  homeClinicName?: string | null
 }
 
 export async function getMemberProfile(
@@ -528,6 +467,8 @@ export async function getMemberProfile(
       rank: string | null
       uic: string | null
       roles: string[] | null
+      home_clinic_id?: string | null
+      home_clinic_name?: string | null
     }
 
     return succeed({
@@ -539,6 +480,8 @@ export async function getMemberProfile(
       rank: row.rank,
       uic: row.uic,
       roles: row.roles ?? ['medic'],
+      homeClinicId: row.home_clinic_id ?? null,
+      homeClinicName: row.home_clinic_name ?? null,
     })
   } catch (error) {
     logger.error('Failed to get member profile:', error)
@@ -648,6 +591,29 @@ export async function loanSoldierToAssociatedClinic(
     return succeed()
   } catch (error) {
     logger.error('Failed to loan soldier (associated):', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+/**
+ * Promote one of the soldier's existing loan clinics to be their home cluster.
+ * Old home becomes a regular loan row; the rest of the loan set is preserved.
+ * Auth: supervisor of the soldier's current home clinic; target must already
+ * be an active loan (no new auth surface created).
+ */
+export async function setSoldierHomeClinic(
+  userId: string,
+  targetClinicId: string,
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('supervisor_set_home_clinic', {
+      p_user_id: userId,
+      p_target_clinic_id: targetClinicId,
+    })
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to set home clinic:', error)
     return fail(getErrorMessage(error))
   }
 }
