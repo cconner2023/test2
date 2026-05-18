@@ -916,6 +916,108 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       return
     }
 
+    // ── map:setup — inject demo overlay, open the map drawer ──
+    if (action === 'map:setup') {
+      const { createMapTourOverlay, MAP_TOUR_OVERLAY_PREFIX } = await import('../../Data/GuidedTourData')
+      const { saveLocalMapOverlay, getLocalMapOverlays, deleteLocalMapOverlay } = await import('../../lib/offlineDb')
+      const { useAuthStore } = await import('../../stores/useAuthStore')
+      const { invalidate } = await import('../../stores/useInvalidationStore')
+      const authState = useAuthStore.getState()
+      const clinicId = authState.clinicId ?? ''
+      const userId = authState.user?.id ?? ''
+
+      // Wipe any stale tour overlays before injecting a fresh one.
+      const existing = await getLocalMapOverlays(clinicId)
+      for (const ov of existing) {
+        if (ov.id.startsWith(MAP_TOUR_OVERLAY_PREFIX)) await deleteLocalMapOverlay(ov.id)
+      }
+      const mock = createMapTourOverlay(clinicId, userId)
+      await saveLocalMapOverlay(mock)
+      invalidate('mapOverlays')
+
+      closeAllDrawers()
+      store.closeMenu()
+      await new Promise(r => setTimeout(r, 50))
+      store.setShowMapOverlayDrawer(true)
+      await waitForTarget('map-overlay-tree', 5000)
+      await new Promise(r => setTimeout(r, 600))
+      return
+    }
+
+    // ── map:select-waypoint / map:select-route — drive feature selection ──
+    if (action === 'map:select-waypoint') {
+      const { MAP_TOUR_WAYPOINT_ID } = await import('../../Data/GuidedTourData')
+      window.dispatchEvent(new CustomEvent('tour:map-select-feature', { detail: { featureId: MAP_TOUR_WAYPOINT_ID } }))
+      await waitForTarget('map-feature-editor', 3000)
+      await new Promise(r => setTimeout(r, 400))
+      return
+    }
+    if (action === 'map:select-route') {
+      const { MAP_TOUR_ROUTE_ID } = await import('../../Data/GuidedTourData')
+      window.dispatchEvent(new CustomEvent('tour:map-clear-selection'))
+      await new Promise(r => setTimeout(r, 200))
+      window.dispatchEvent(new CustomEvent('tour:map-select-feature', { detail: { featureId: MAP_TOUR_ROUTE_ID } }))
+      await waitForTarget('map-feature-directions', 3000)
+      await new Promise(r => setTimeout(r, 400))
+      return
+    }
+
+    // ── map:open-settings / map:close-settings ──
+    if (action === 'map:open-settings') {
+      window.dispatchEvent(new CustomEvent('tour:map-open-settings'))
+      await waitForTarget('map-settings-grid-toggle', 3000)
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+    if (action === 'map:close-settings') {
+      window.dispatchEvent(new CustomEvent('tour:map-close-settings'))
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+
+    // ── map:open-basemap / map:close-basemap — click the basemap button ──
+    if (action === 'map:open-basemap') {
+      clickTarget('map-basemap-button')
+      await waitForTarget('map-basemap-picker', 3000)
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+    if (action === 'map:close-basemap') {
+      // Same button toggles closed.
+      clickTarget('map-basemap-button')
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+
+    // ── map:cleanup — remove demo overlay, return to guided tours ──
+    if (action === 'map:cleanup') {
+      const { MAP_TOUR_OVERLAY_PREFIX } = await import('../../Data/GuidedTourData')
+      const { getLocalMapOverlays, deleteLocalMapOverlay } = await import('../../lib/offlineDb')
+      const { useAuthStore } = await import('../../stores/useAuthStore')
+      const { invalidate } = await import('../../stores/useInvalidationStore')
+      const clinicId = useAuthStore.getState().clinicId ?? ''
+      const overlays = await getLocalMapOverlays(clinicId)
+      for (const ov of overlays) {
+        if (ov.id.startsWith(MAP_TOUR_OVERLAY_PREFIX)) await deleteLocalMapOverlay(ov.id)
+      }
+      invalidate('mapOverlays')
+      window.dispatchEvent(new CustomEvent('tour:map-clear-selection'))
+      window.dispatchEvent(new CustomEvent('tour:map-close-settings'))
+
+      setTooltipHidden(true)
+      await new Promise(r => setTimeout(r, 250))
+      setCurtainVisible(true)
+      await new Promise(r => setTimeout(r, 350))
+      closeAllDrawers()
+      store.closeMenu()
+      store.setShowSettings(true)
+      await new Promise(r => setTimeout(r, 350))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'guided-tours' }))
+      setCurtainVisible(false)
+      await new Promise(r => setTimeout(r, 350))
+      return
+    }
+
     // ── tc3:cleanup — exit TC3 mode, reset wizard, return to guided tours ──
     if (action === 'tc3:cleanup') {
       setTooltipHidden(true)

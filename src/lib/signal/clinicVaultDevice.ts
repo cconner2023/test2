@@ -41,7 +41,8 @@ import { x3dhRespond } from './x3dh'
 import { initReceiver, ratchetDecrypt } from './ratchet'
 import { uploadKeyBundle, registerDevice } from './signalService'
 import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones } from '../calendarRouting'
-import type { CalendarEventContent } from './messageContent'
+import { isMapOverlay, routeMapOverlay, initOverlayTombstones } from '../mapOverlayRouting'
+import type { CalendarEventContent, MapOverlayContent } from './messageContent'
 import { parseMessageContent } from './messageContent'
 import type { PublicKeyBundle, InitialMessage, EncryptedMessage, RatchetState } from './types'
 import type { SignalMessageRow } from './transportTypes'
@@ -421,9 +422,11 @@ export async function ensureClinicVaultExists(
  * encryption_key as the wrapping key.
  */
 export async function processClinicVaultMessages(clinicId: string): Promise<number> {
-  // 0. Ensure tombstones are loaded so routeCalendarEvent can guard against resurrecting deleted events.
-  // This runs before React hooks (useCalendarSync) so the in-memory set must be warm.
+  // 0. Ensure tombstones are loaded so routeCalendarEvent / routeMapOverlay can
+  // guard against resurrecting deleted events. This runs before React hooks
+  // (useCalendarSync) so the in-memory sets must be warm.
   await initCalendarTombstones()
+  await initOverlayTombstones()
 
   // 1. Fetch vault row
   const { data: vaultRow } = await supabase
@@ -488,9 +491,17 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
 
   // 4. Batch decrypt with ephemeral session map
   const sessionMap = new Map<string, { state: RatchetState; ad: Uint8Array }>()
-  const processedIds: string[] = []
+  // Permanently-undecryptable rows — hard-delete after the pass. Successful
+  // decrypts are intentionally NOT collected here (archive-mode replay).
+  const deadOriginIds: string[] = []
+  const deadRowIds: string[] = []
+  const markDead = (row: SignalMessageRow) => {
+    if (row.origin_id) deadOriginIds.push(row.origin_id)
+    else deadRowIds.push(row.id)
+  }
   let processedCount = 0
   const calendarRoutes: Array<{ content: CalendarEventContent; originId: string | null }> = []
+  const overlayRoutes: Array<{ content: MapOverlayContent; originId: string | null }> = []
 
   for (const row of rows as SignalMessageRow[]) {
     try {
@@ -510,6 +521,7 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
         ))
       } catch (e) {
         logger.error(`Vault unseal failed for message ${row.id}:`, e)
+        markDead(row)
         continue
       }
 
@@ -527,7 +539,7 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
 
         if (!matchedSpk) {
           logger.warn(`Clinic vault SPK ${initial.signedPreKeyId} not found — message undecryptable, skipping`)
-          processedIds.push(row.id)
+          markDead(row)
           continue
         }
 
@@ -550,6 +562,8 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
             otpkPair = { publicKey: otpk.publicKey, privateKey: otpk.privateKey }
           } else {
             logger.warn(`Vault OTP keyId ${initial.oneTimePreKeyId} absent from blob for message ${row.id} — either never provisioned or evicted by pre-April-19 code. This message is permanently undecryptable.`)
+            markDead(row)
+            continue
           }
         }
 
@@ -574,6 +588,7 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
           )
         } catch (e) {
           logger.error(`Vault X3DH failed for message ${row.id} (SPK ${initial.signedPreKeyId}):`, e)
+          markDead(row)
           continue
         }
 
@@ -593,7 +608,10 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
         const encMsg = inner as unknown as EncryptedMessage
         const existing = sessionMap.get(sessionKey)
         if (!existing) {
-          processedIds.push(row.id)
+          // Orphaned follow-on message — preceding X3DH initial failed or
+          // never arrived in this batch. Won't decrypt on future replays
+          // either (session state is ephemeral per drain).
+          markDead(row)
           continue
         }
 
@@ -608,13 +626,14 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
       const { content } = parseMessageContent(plaintext)
       if (isCalendarEvent(content)) {
         calendarRoutes.push({ content, originId: (row as SignalMessageRow).origin_id ?? null })
+      } else if (isMapOverlay(content)) {
+        overlayRoutes.push({ content, originId: (row as SignalMessageRow).origin_id ?? null })
       }
 
-      processedIds.push(row.id)
       processedCount++
     } catch (e) {
       logger.error(`Failed to process clinic vault message ${row.id}:`, e)
-      processedIds.push(row.id)  // Mark as read — permanently undecryptable
+      markDead(row)  // Permanently undecryptable — schedule for hard delete
     }
   }
 
@@ -646,6 +665,53 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
         }).catch(() => { /* best-effort; next replay retries */ })
       }
     }
+  }
+
+  // 5b. Same delete-aware dispatch + pair-clean for map overlays.
+  if (overlayRoutes.length > 0) {
+    const deletedOverlayIds = new Set<string>()
+    for (const { content } of overlayRoutes) {
+      if (content.action === 'delete') deletedOverlayIds.add(content.data.id)
+    }
+    for (const { content } of overlayRoutes) {
+      if (content.action === 'delete' || !deletedOverlayIds.has(content.data.id)) {
+        routeMapOverlay(content).catch(() => {})
+      }
+    }
+    if (deletedOverlayIds.size > 0) {
+      const pairedOriginIds = overlayRoutes
+        .filter(({ content, originId }) => originId && deletedOverlayIds.has(content.data.id))
+        .map(({ originId }) => originId as string)
+      if (pairedOriginIds.length > 0) {
+        supabase.rpc('hard_delete_clinic_vault_messages', {
+          p_clinic_id: clinicId,
+          p_origin_ids: pairedOriginIds,
+        }).then(({ error }) => {
+          if (error) logger.warn('Vault pair-clean RPC failed (overlay):', error.message)
+        }).catch(() => { /* best-effort; next replay retries */ })
+      }
+    }
+  }
+
+  // 5c. Hard-delete permanently-undecryptable rows so they don't bloat the
+  // table and don't get re-fetched/re-failed on every login. Only failure
+  // paths reach this — successful decrypts stay in supabase to support
+  // archive-mode replay (see header).
+  if (deadOriginIds.length > 0) {
+    supabase.rpc('hard_delete_clinic_vault_messages', {
+      p_clinic_id: clinicId,
+      p_origin_ids: deadOriginIds,
+    }).then(({ error }) => {
+      if (error) logger.warn('Vault dead-row cleanup RPC failed:', error.message)
+      else logger.info(`Vault dead-row cleanup: deleted ${deadOriginIds.length} undecryptable rows by origin_id`)
+    }).catch(() => { /* best-effort; next login retries */ })
+  }
+  if (deadRowIds.length > 0) {
+    supabase.from('signal_messages').delete().in('id', deadRowIds)
+      .then(({ error }) => {
+        if (error) logger.warn('Vault dead-row direct delete failed:', error.message)
+        else logger.info(`Vault dead-row cleanup: deleted ${deadRowIds.length} undecryptable rows by id`)
+      })
   }
 
   // 6. Rotate SPK. OTPs are never consumed from the blob (see comment above).

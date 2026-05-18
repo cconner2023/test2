@@ -261,7 +261,7 @@ export function CalendarClinicEditor() {
         <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
           <div className="px-4 py-3">
             {clinicRooms.length === 0 ? (
-              <p className="text-sm text-tertiary py-4 text-center">No clinic rooms formatted</p>
+              <p className="text-[10pt] text-tertiary py-4 text-center">No clinic rooms formatted</p>
             ) : (
               <div className="space-y-1">
                 {[...clinicRooms]
@@ -301,7 +301,7 @@ export function CalendarClinicEditor() {
         <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
           <div className="px-4 py-3">
             {clinicHuddleTasks.length === 0 ? (
-              <p className="text-sm text-tertiary py-4 text-center">No huddle tasks formatted</p>
+              <p className="text-[10pt] text-tertiary py-4 text-center">No huddle tasks formatted</p>
             ) : (
               <div className="space-y-1">
                 {[...clinicHuddleTasks]
@@ -341,7 +341,7 @@ export function CalendarClinicEditor() {
         <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
           <div className="px-4 py-3">
             {clinicApptTypes.length === 0 ? (
-              <p className="text-sm text-tertiary py-4 text-center">No appointment types formatted</p>
+              <p className="text-[10pt] text-tertiary py-4 text-center">No appointment types formatted</p>
             ) : (
               <div className="space-y-1">
                 {[...clinicApptTypes]

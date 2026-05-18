@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Settings, Move, MapPin, Route, Pentagon, Tra
 import type { LucideIcon } from 'lucide-react';
 import { ActionSheet, type ActionSheetOption } from '../ActionSheet';
 import { ActionPill } from '../ActionPill';
+import { ConfirmDialog } from '../ConfirmDialog';
 
 function waypointGlyphIcon(type: WaypointType): LucideIcon {
   return ((props: { size?: number }) => (
@@ -17,10 +18,14 @@ import { HeaderPill, PillButton } from '../HeaderPill';
 import { SearchInput } from '../SearchInput';
 import { ContentWrapper } from '../ContentWrapper';
 import { ErrorDisplay } from '../ErrorDisplay';
+import { TextInput } from '../FormInputs';
 import { useGeolocation } from '../../Hooks/useGeolocation';
 import { useIsMobile } from '../../Hooks/useIsMobile';
 import { useAuth } from '../../Hooks/useAuth';
-import { getOverlays, saveOverlay, deleteOverlay } from '../../lib/mapOverlayService';
+import { getOverlays } from '../../lib/mapOverlayService';
+import { useMapOverlayWrite } from '../../Hooks/useMapOverlayWrite';
+import { useMapOverlaySync } from '../../Hooks/useMapOverlaySync';
+import { useInvalidation } from '../../stores/useInvalidationStore';
 import { loadCachedClinicUsers } from '../../lib/clinicUsersCache';
 import {
   downloadTilesForOverlay,
@@ -60,13 +65,64 @@ import { GeoPdfImportForm } from './GeoPdfImportForm';
 import { latLngToUTM } from './utmProjection';
 import { latLngToMgrs } from '../../lib/mgrsFormat';
 
-function TempRouteBody({ points, onRemoveVertex }: { points: [number, number][]; onRemoveVertex?: (index: number) => void }) {
+function VertexCoordInput({ onAdd }: { onAdd: (lat: number, lng: number) => void }) {
+  const [value, setValue] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const submit = useCallback(async () => {
+    const q = value.trim();
+    if (!q || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await resolveSearch(q);
+      if (!r) {
+        setError('Could not resolve coordinate or address');
+        return;
+      }
+      onAdd(r.lat, r.lng);
+      setValue('');
+    } catch {
+      setError('Lookup failed');
+    } finally {
+      setBusy(false);
+    }
+  }, [value, busy, onAdd]);
+  return (
+    <div>
+      <div className="flex items-center border-b border-primary/6">
+        <div className="flex-1 min-w-0">
+          <TextInput
+            value={value}
+            onChange={(v) => { setValue(v); setError(null); }}
+            placeholder="MGRS, UTM, lat,lng, or address"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!value.trim() || busy}
+          aria-label="Add vertex"
+          className="shrink-0 w-9 h-9 mr-3 rounded-full bg-themeblue3 text-white flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
+        >
+          <Plus size={16} />
+        </button>
+      </div>
+      {error && <ErrorDisplay message={error} />}
+    </div>
+  );
+}
+
+function TempRouteBody({ points, closed = false, onRemoveVertex, onAddVertex }: { points: [number, number][]; closed?: boolean; onRemoveVertex?: (index: number) => void; onAddVertex?: (lat: number, lng: number) => void }) {
   if (points.length === 0) return null;
   if (points.length < 2) {
     return (
-      <div className="p-3">
-        <div className="px-2.5 py-2 rounded-lg bg-themeblue3/10 text-[10pt] text-primary">
-          Tap the map to set the end point.
+      <div>
+        {onAddVertex && <VertexCoordInput onAdd={onAddVertex} />}
+        <div className="p-3">
+          <div className="px-2.5 py-2 rounded-lg bg-themeblue3/10 text-[10pt] text-primary">
+            Tap map to set next end point.
+          </div>
         </div>
       </div>
     );
@@ -84,14 +140,17 @@ function TempRouteBody({ points, onRemoveVertex }: { points: [number, number][];
   const startMgrs = latLngToMgrs(sLat, sLng, 5) || '—';
   const endMgrs = latLngToMgrs(eLat, eLng, 5) || '—';
   const rows: Array<{ label: string; value: string }> = [
+    { label: 'Shape', value: closed ? 'Closed (area)' : 'Open (route)' },
     { label: 'Distance', value: distance },
     { label: 'Bearing', value: `${Math.round(bearing)}°` },
-    { label: 'Legs', value: String(points.length - 1) },
+    { label: 'Legs', value: String(closed ? points.length : points.length - 1) },
     { label: 'Start', value: startMgrs },
     { label: 'End', value: endMgrs },
   ];
   const canRemove = points.length > 2;
   return (
+    <div>
+      {onAddVertex && !closed && <VertexCoordInput onAdd={onAddVertex} />}
     <div className="flex flex-col gap-2 p-3">
       {rows.map(row => (
         <div key={row.label} className="px-2.5 py-2 rounded-lg bg-themewhite2/60 dark:bg-themewhite3/60">
@@ -139,6 +198,7 @@ function TempRouteBody({ points, onRemoveVertex }: { points: [number, number][];
           })}
         </div>
       </div>
+    </div>
     </div>
   );
 }
@@ -237,6 +297,14 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   const bearingReference = useMapPrefsStore(s => s.bearingReference);
   const basemapId = useMapPrefsStore(s => s.basemapId);
 
+  // Map overlays propagate via the clinic Signal vault. writeOverlay/deleteOverlay
+  // own the optimistic IDB write + vault fan-out; useMapOverlaySync hydrates the
+  // tombstone set; useInvalidation('mapOverlays') re-fires the load effect when
+  // vault drain delivers a remote create/update/delete.
+  useMapOverlaySync();
+  const { writeOverlay, deleteOverlay: vaultDeleteOverlay } = useMapOverlayWrite();
+  const overlayGen = useInvalidation('mapOverlays');
+
   const [view, setView] = useState<ViewState>('viewer');
   const [showPopover, setShowPopover] = useState(false);
   const [showMobileTree, setShowMobileTree] = useState(false);
@@ -258,6 +326,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     points: [number, number][];
     anchorFeatureId: string | null;
     history: [number, number][][];
+    // True once the user taps near points[0] (>=3 pts). Renders a closing
+    // segment in MapView and swaps the primary save action to "Save area".
+    closed: boolean;
   } | null>(null);
   const [gotoDismissedFor, setGotoDismissedFor] = useState<string | null>(null);
   const [showGrid, setShowGrid] = useState(false);
@@ -295,7 +366,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   // immediately after handleOpenOverlay/handleNewOverlay populates features.
   const autosaveTimerRef = useRef<number | null>(null);
   const skipAutosaveRef = useRef(true);
-  const flushAutosaveRef = useRef<() => void>(() => {});
+  const flushAutosaveRef = useRef<() => Promise<void>>(async () => {});
+  const [confirmDeleteOverlayId, setConfirmDeleteOverlayId] = useState<string | null>(null);
+  const [confirmDeleteFeature, setConfirmDeleteFeature] = useState(false);
 
   const mapRef = useRef<MapViewHandle>(null);
   const gpxKmlInputRef = useRef<HTMLInputElement>(null);
@@ -542,8 +615,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
       }
     });
     return () => { cancelled = true; };
+    // overlayGen bumps when the vault delivers an inbound create/update/delete,
+    // refetching IDB so the panel reflects remote changes without a manual reload.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isVisible, clinicId]);
+  }, [isVisible, clinicId, overlayGen]);
 
   // ── Auto-clear save error ──
   useEffect(() => {
@@ -706,23 +781,25 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     });
   }, []);
 
-  const handleDeleteOverlay = useCallback(async (id: string) => {
-    if (!user) return;
-    const result = await deleteOverlay(id, user.id);
-    if (result.ok) {
-      setOverlays(prev => prev.filter(o => o.id !== id));
-      // Evict cached tiles for deleted overlay (fire-and-forget)
-      evictOverlayTiles(id).then(() => {
-        setTileMetaMap(prev => {
-          const next = new Map(prev);
-          next.delete(id);
-          return next;
-        });
+  const handleDeleteOverlay = useCallback((id: string) => {
+    setConfirmDeleteOverlayId(id);
+  }, []);
+
+  const handleConfirmDeleteOverlay = useCallback(async () => {
+    const id = confirmDeleteOverlayId;
+    if (!id || !user) return;
+    setConfirmDeleteOverlayId(null);
+    await vaultDeleteOverlay(id);
+    setOverlays(prev => prev.filter(o => o.id !== id));
+    // Evict cached tiles for deleted overlay (fire-and-forget)
+    evictOverlayTiles(id).then(() => {
+      setTileMetaMap(prev => {
+        const next = new Map(prev);
+        next.delete(id);
+        return next;
       });
-    } else {
-      setSaveError(result.error);
-    }
-  }, [user]);
+    });
+  }, [confirmDeleteOverlayId, user, vaultDeleteOverlay]);
 
   const handleDownloadTiles = useCallback(async (overlay: MapOverlay) => {
     if (downloadingId) return;
@@ -757,9 +834,11 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     setView('converter');
   }, []);
 
-  const handleBack = useCallback(() => {
+  const handleBack = useCallback(async () => {
     if (view === 'viewer') {
-      flushAutosaveRef.current();
+      // Await the pending re-fan before unmount — closing mid-encryption would
+      // orphan the vault send and leave the local IDB out of sync with peers.
+      await flushAutosaveRef.current();
       stopWatching();
       setIsSharing(false);
       setDrawMode('pan');
@@ -771,7 +850,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     } else {
       setView('viewer');
     }
-  }, [view, stopWatching, onClose]);
+  }, [view, stopWatching, onClose, resetInProgressDrawing]);
 
   // Create a real waypoint feature at the given point. Shared by pin-mode
   // taps, desktop single-click drops, and mobile long-press drops.
@@ -821,6 +900,35 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     // point handling. All mutations route through commitTempRouteChange so
     // Undo can pop them.
     if (tempRoute) {
+      // Tap near the first vertex (>=3 pts) closes the loop AND auto-commits
+      // it as an area feature. The closing gesture is the save — no extra
+      // click needed. "Save as area" pill remains for users who don't hit
+      // the snap radius.
+      if (tempRoute.points.length >= 3) {
+        const [sLat, sLng] = tempRoute.points[0];
+        const px = mapRef.current?.containerDistancePx(lat, lng, sLat, sLng) ?? Infinity;
+        if (px < SNAP_PX) {
+          const id = crypto.randomUUID();
+          const closingPoints = [...tempRoute.points];
+          setFeatures(prev => {
+            const areaIndex = prev.filter(f => f.type === 'area').length + 1;
+            const feature: OverlayFeature = {
+              id,
+              overlay_id: overlayId,
+              type: 'area',
+              geometry: closingPoints,
+              label: `Area ${areaIndex}`,
+              style: { ...DEFAULT_FEATURE_STYLE },
+              created_at: now,
+              updated_at: now,
+            };
+            return [...prev, feature];
+          });
+          setTempRoute(null);
+          setSelectedFeatureId(id);
+          return;
+        }
+      }
       commitTempRouteChange([...tempRoute.points, [lat, lng]]);
       return;
     }
@@ -962,7 +1070,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   // gets exclusive focus.
   const handleStartNavigation = useCallback((lat: number, lng: number, anchorFeatureId: string | null) => {
     if (!overlayId) return;
-    setTempRoute({ points: [[lat, lng]], anchorFeatureId, history: [] });
+    setTempRoute({ points: [[lat, lng]], anchorFeatureId, history: [], closed: false });
     setTempPoint(null);
     setSelectedFeatureId(null);
     setDrawMode('pan');
@@ -974,6 +1082,14 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   const handleTempRouteChange = useCallback((points: [number, number][]) => {
     commitTempRouteChange(points);
   }, [commitTempRouteChange]);
+
+  const handleAddTempRouteVertex = useCallback((lat: number, lng: number) => {
+    setTempRoute(prev => {
+      if (!prev) return prev;
+      return { ...prev, points: [...prev.points, [lat, lng] as [number, number]], history: [...prev.history, prev.points].slice(-50) };
+    });
+    mapRef.current?.flyTo(lat, lng);
+  }, []);
 
   const handleRemoveTempRouteVertex = useCallback((index: number) => {
     setTempRoute(prev => {
@@ -1013,6 +1129,28 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     setSelectedFeatureId(id);
   }, [overlayId, tempRoute]);
 
+  const handleSaveTempRouteAsArea = useCallback(() => {
+    if (!overlayId || !tempRoute || tempRoute.points.length < 3) return;
+    const now = new Date().toISOString();
+    const id = crypto.randomUUID();
+    setFeatures(prev => {
+      const areaIndex = prev.filter(f => f.type === 'area').length + 1;
+      const feature: OverlayFeature = {
+        id,
+        overlay_id: overlayId,
+        type: 'area',
+        geometry: [...tempRoute.points],
+        label: `Area ${areaIndex}`,
+        style: { ...DEFAULT_FEATURE_STYLE },
+        created_at: now,
+        updated_at: now,
+      };
+      return [...prev, feature];
+    });
+    setTempRoute(null);
+    setSelectedFeatureId(id);
+  }, [overlayId, tempRoute]);
+
   // ── Finish route/area ──
   // Called when the user toggles out of route/area mode. Routes auto-finalize
   // on mode change — there's no explicit Done button.
@@ -1035,38 +1173,37 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
       setOverlayName(name);
     }
 
-    const result = await saveOverlay({
+    const saved = await writeOverlay({
       overlayId,
       clinicId,
-      userId: user.id,
       name,
       center: mapCenter,
       zoom: mapZoom,
       features,
     });
 
-    if (result.ok) {
+    if (saved) {
       setOverlays(prev => {
-        const idx = prev.findIndex(o => o.id === result.data.id);
+        const idx = prev.findIndex(o => o.id === saved.id);
         if (idx >= 0) {
           const next = [...prev];
-          next[idx] = result.data;
+          next[idx] = saved;
           return next;
         }
-        return [...prev, result.data];
+        return [...prev, saved];
       });
     } else {
-      setSaveError(result.error);
+      setSaveError('Failed to save overlay');
     }
-  }, [overlayId, user, clinicId, overlayName, mapCenter, mapZoom, features]);
+  }, [overlayId, user, clinicId, overlayName, mapCenter, mapZoom, features, writeOverlay]);
 
   // Autosave: debounce 600ms after the last features mutation. The first effect
   // run after open/new is suppressed via skipAutosaveRef so we don't echo-save.
-  const flushAutosave = useCallback(() => {
+  const flushAutosave = useCallback(async () => {
     if (autosaveTimerRef.current) {
       window.clearTimeout(autosaveTimerRef.current);
       autosaveTimerRef.current = null;
-      handleSaveClick();
+      await handleSaveClick();
     }
   }, [handleSaveClick]);
 
@@ -1089,22 +1226,21 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
 
   const handleRenameOverlay = useCallback(async (overlay: LocalMapOverlay, name: string) => {
     if (!user || !clinicId) return;
-    const result = await saveOverlay({
+    const saved = await writeOverlay({
       overlayId: overlay.id,
       clinicId,
-      userId: user.id,
       name,
       center: overlay.center,
       zoom: overlay.zoom,
       features: overlay.features,
     });
-    if (result.ok) {
-      setOverlays(prev => prev.map(o => o.id === overlay.id ? result.data : o));
+    if (saved) {
+      setOverlays(prev => prev.map(o => o.id === overlay.id ? saved : o));
       if (overlay.id === overlayId) setOverlayName(name);
     } else {
-      setSaveError(result.error);
+      setSaveError('Failed to rename overlay');
     }
-  }, [user, clinicId, overlayId]);
+  }, [user, clinicId, overlayId, writeOverlay]);
 
   const handleSelectFeatureFromTree = useCallback((feature: OverlayFeature, sourceOverlayId: string) => {
     if (drawMode === 'route' || drawMode === 'area') return;
@@ -1122,6 +1258,35 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     }
   }, [drawMode, overlayId, overlays, handleOpenOverlay]);
 
+  // Tour orchestrator hooks — let the guided Map tour drive selection and
+  // settings without depending on click coordinates the tour can't compute.
+  useEffect(() => {
+    const onSelect = (e: Event) => {
+      const detail = (e as CustomEvent<{ featureId: string }>).detail;
+      if (!detail?.featureId) return;
+      for (const ov of overlays) {
+        const found = ov.features.find(f => f.id === detail.featureId);
+        if (found) {
+          handleSelectFeatureFromTree(found, ov.id);
+          return;
+        }
+      }
+    };
+    const onOpenSettings = () => setShowPopover(true);
+    const onCloseSettings = () => setShowPopover(false);
+    const onClearSelection = () => setSelectedFeatureId(null);
+    window.addEventListener('tour:map-select-feature', onSelect);
+    window.addEventListener('tour:map-open-settings', onOpenSettings);
+    window.addEventListener('tour:map-close-settings', onCloseSettings);
+    window.addEventListener('tour:map-clear-selection', onClearSelection);
+    return () => {
+      window.removeEventListener('tour:map-select-feature', onSelect);
+      window.removeEventListener('tour:map-open-settings', onOpenSettings);
+      window.removeEventListener('tour:map-close-settings', onCloseSettings);
+      window.removeEventListener('tour:map-clear-selection', onClearSelection);
+    };
+  }, [overlays, handleSelectFeatureFromTree]);
+
   const handleUpdateSelectedFeature = useCallback((updated: OverlayFeature) => {
     setFeatures(prev => prev.map(f => f.id === updated.id ? updated : f));
   }, []);
@@ -1132,6 +1297,17 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   // tap as part of its own gesture or swallows it entirely — so a tap on an
   // existing waypoint while drawing a route never yanks focus into a select.
   const handleFeatureClick = useCallback((featureId: string) => {
+    // Temp route active: tapping a waypoint appends its coord as the next
+    // vertex (or closes the loop if it's the start, via handleMapClick's
+    // SNAP_PX logic). Selection is suppressed so the route stays in focus.
+    if (tempRoute) {
+      const feature = features.find(f => f.id === featureId);
+      if (feature && feature.geometry.length > 0) {
+        const [lat, lng] = feature.geometry[0];
+        handleMapClick(lat, lng);
+        return;
+      }
+    }
     if (drawMode !== 'pan' && drawMode !== 'drag') {
       // Route / Area / Measure: forward the tap to the map-click handler at
       // the feature's anchor so the waypoint becomes the next vertex /
@@ -1150,7 +1326,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     }
     setTempPoint(null);
     setSelectedFeatureId(prev => prev === featureId ? null : featureId);
-  }, [drawMode, features, handleMapClick]);
+  }, [drawMode, features, handleMapClick, tempRoute]);
 
   // ── Drag-driven geometry update (waypoint drag, route/area vertex drag) ──
   const handleFeatureGeometryChange = useCallback((featureId: string, geometry: [number, number][]) => {
@@ -1193,8 +1369,17 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   // ── Delete selected ──
   const handleDeleteSelected = useCallback(() => {
     if (!selectedFeatureId) return;
+    setConfirmDeleteFeature(true);
+  }, [selectedFeatureId]);
+
+  const handleConfirmDeleteFeature = useCallback(() => {
+    if (!selectedFeatureId) {
+      setConfirmDeleteFeature(false);
+      return;
+    }
     setFeatures(prev => prev.filter(f => f.id !== selectedFeatureId));
     setSelectedFeatureId(null);
+    setConfirmDeleteFeature(false);
   }, [selectedFeatureId]);
 
   // ── Undo last vertex (route / area drawing) ──
@@ -1222,7 +1407,17 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     try {
       const [result] = await Promise.all([resolveSearch(searchQuery), floor]);
       if (result) {
-        mapRef.current?.flyTo(result.lat, result.lng, result.zoom);
+        // Low-confidence address geocodes land as a transient pin so the user
+        // can confirm or dismiss via TempPointBody — avoids committing to a
+        // miles-off centroid. Exact inputs (MGRS / UTM / lat-lng) have no
+        // importance score and always commit straight to flyTo.
+        const lowConfidence = result.importance != null && result.importance < 0.7;
+        if (lowConfidence) {
+          mapRef.current?.flyTo(result.lat, result.lng, 13);
+          setTempPoint({ lat: result.lat, lng: result.lng });
+        } else {
+          mapRef.current?.flyTo(result.lat, result.lng, result.zoom);
+        }
         await new Promise(r => setTimeout(r, 800));
       }
     } finally {
@@ -1289,7 +1484,12 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   return (
     <BaseDrawer
       isVisible={isVisible}
-      onClose={onClose}
+      onClose={async () => {
+        // Mirror handleBack's flush so the X path also awaits the in-flight
+        // re-fan instead of orphaning it on unmount.
+        await flushAutosaveRef.current();
+        onClose();
+      }}
       mobileFullScreen
       fullHeight="95dvh"
       desktopWidth="w-[90%]"
@@ -1302,10 +1502,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
           {/* Desktop left pane — search/layers row + overlay tree, mirrors CalendarDrawer rail */}
           {!isMobile && (
             <div className={`shrink-0 border-r border-primary/10 bg-themewhite3 flex flex-col transition-all duration-300 overflow-hidden ${
-              selectedFeature ? 'w-0 opacity-0 border-r-0' : 'w-60 opacity-100'
+              (selectedFeature || tempPoint || tempRoute) ? 'w-0 opacity-0 border-r-0' : 'w-60 opacity-100'
             }`}>
               <div className="shrink-0 flex items-center gap-1.5 px-3 pt-2 pb-1">
-                <div className="flex-1 min-w-0">
+                <div data-tour="map-feature-search" className="flex-1 min-w-0">
                   <SearchInput
                     value={searchQuery}
                     onChange={setSearchQuery}
@@ -1316,6 +1516,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                 <button
                   type="button"
                   onClick={() => setShowPopover(prev => !prev)}
+                  data-tour="map-settings-button"
                   className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all ${
                     showPopover ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
                   }`}
@@ -1368,7 +1569,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
             )}
 
             {/* Map area */}
-            <div className="flex-1 min-h-0 relative">
+            <div data-tour="map-canvas" className="flex-1 min-h-0 relative">
               <MapView
                 ref={mapRef}
                 features={features}
@@ -1562,28 +1763,39 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                     title: 'Temp route',
                     rightContent: (
                       <HeaderPill>
-                        <PillButton
-                          icon={Undo2}
-                          iconSize={18}
-                          onClick={handleUndoTempRoute}
-                          label="Undo"
-                          disabled={!tempRoute || tempRoute.history.length === 0}
-                        />
-                        <PillButton
-                          icon={Check}
-                          iconSize={18}
-                          onClick={handleSaveTempRouteAsFeature}
-                          label="Save as route"
-                          accent="success"
-                          disabled={!tempRoute || tempRoute.points.length < 2}
-                        />
+                        {tempRoute && tempRoute.history.length > 0 && (
+                          <PillButton
+                            icon={Undo2}
+                            iconSize={18}
+                            onClick={handleUndoTempRoute}
+                            label="Undo"
+                          />
+                        )}
+                        {tempRoute && tempRoute.points.length >= 2 && (
+                          <PillButton
+                            icon={Check}
+                            iconSize={18}
+                            onClick={handleSaveTempRouteAsFeature}
+                            label="Save as route"
+                            accent="success"
+                          />
+                        )}
+                        {tempRoute && tempRoute.points.length >= 3 && (
+                          <PillButton
+                            icon={Pentagon}
+                            iconSize={18}
+                            onClick={handleSaveTempRouteAsArea}
+                            label="Save as area"
+                            accent="success"
+                          />
+                        )}
                         <PillButton icon={X} iconSize={18} onClick={handleCloseTempRoute} label="Close" />
                       </HeaderPill>
                     ),
                     hideDefaultClose: true,
                   }}
                 >
-                  {tempRoute && <TempRouteBody points={tempRoute.points} onRemoveVertex={handleRemoveTempRouteVertex} />}
+                  {tempRoute && <TempRouteBody points={tempRoute.points} closed={tempRoute.closed} onRemoveVertex={handleRemoveTempRouteVertex} onAddVertex={handleAddTempRouteVertex} />}
                 </BaseDrawer>
               )}
 
@@ -1669,6 +1881,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                 {/* Add FAB — opens a context menu of create tools (Pin / Route / Area / Measure / Track).
                     Lights up + swaps glyph while a create mode is active; tap again to exit to pan. */}
                 <button
+                  data-tour="map-add-fab"
                   onClick={() => {
                     const inCreateMode = drawMode === 'pin' || drawMode === 'route' || drawMode === 'area' || drawMode === 'track' || drawMode === 'measure';
                     if (inCreateMode) {
@@ -1780,7 +1993,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
 
               {/* Track recorder card — visible while in track mode OR while a recording is in progress */}
               {(drawMode === 'track' || recorder.status !== 'idle') && (
-                <div className="absolute bottom-3 left-3 z-[1000] flex items-center gap-3
+                <div data-tour="map-track-recorder" className="absolute bottom-3 left-3 z-[1000] flex items-center gap-3
                   bg-themewhite2/95 dark:bg-themewhite3/95 backdrop-blur-sm
                   px-3 py-2 rounded-lg shadow-sm">
                   <div className="relative w-10 h-10 rounded-full bg-themewhite shrink-0 flex items-center justify-center">
@@ -1935,11 +2148,19 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                         accent="success"
                         disabled={tempRoute.points.length < 2}
                       />
+                      <PillButton
+                        icon={Pentagon}
+                        iconSize={18}
+                        onClick={handleSaveTempRouteAsArea}
+                        label="Save as area"
+                        accent="success"
+                        disabled={tempRoute.points.length < 3}
+                      />
                       <PillButton icon={X} iconSize={18} onClick={handleCloseTempRoute} label="Close" />
                     </HeaderPill>
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto">
-                    <TempRouteBody points={tempRoute.points} onRemoveVertex={handleRemoveTempRouteVertex} />
+                    <TempRouteBody points={tempRoute.points} onRemoveVertex={handleRemoveTempRouteVertex} onAddVertex={handleAddTempRouteVertex} />
                   </div>
                 </div>
               )}
@@ -1987,6 +2208,28 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
           </div>
         )}
       </ContentWrapper>
+      <ConfirmDialog
+        visible={!!confirmDeleteOverlayId}
+        title="Delete overlay?"
+        subtitle={(() => {
+          const o = overlays.find(o => o.id === confirmDeleteOverlayId);
+          const name = o?.name ? `“${o.name}” ` : '';
+          return `${name}will be removed for every device in this clinic.`;
+        })()}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleConfirmDeleteOverlay}
+        onCancel={() => setConfirmDeleteOverlayId(null)}
+      />
+      <ConfirmDialog
+        visible={confirmDeleteFeature}
+        title="Delete this feature?"
+        subtitle="The overlay will re-sync to every device in this clinic."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleConfirmDeleteFeature}
+        onCancel={() => setConfirmDeleteFeature(false)}
+      />
     </BaseDrawer>
   );
 }

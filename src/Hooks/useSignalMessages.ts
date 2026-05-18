@@ -29,6 +29,7 @@ import type { SyncMessagePayload } from '../lib/signal/transportTypes'
 import type { SenderKeyMessage, SenderKeyDistribution } from '../lib/signal/types'
 import { parseMessageContent } from '../lib/signal/messageContent'
 import { isCalendarEvent, routeCalendarEvent } from '../lib/calendarRouting'
+import { isMapOverlay, routeMapOverlay } from '../lib/mapOverlayRouting'
 import { errorBus } from '../lib/errorBus'
 import { ErrorCode } from '../lib/errorCodes'
 
@@ -473,7 +474,8 @@ export function useSignalMessages({
           const isConversationContent =
             isUserMessage && isFromOther &&
             !decrypted._deliveryReceipt &&
-            !isCalendarEvent(decrypted.content)
+            !isCalendarEvent(decrypted.content) &&
+            !isMapOverlay(decrypted.content)
           if (
             isConversationContent &&
             !decrypted.plaintext.includes('"__type":"delivery-receipt"') &&
@@ -528,6 +530,8 @@ export function useSignalMessages({
           const { plaintext, content } = parseMessageContent(rawPlaintext)
           if (isCalendarEvent(content)) {
             routeCalendarEvent(content)
+          } else if (isMapOverlay(content)) {
+            routeMapOverlay(content).catch(() => {})
           }
         } catch (e) {
           logger.warn(`Failed to decrypt clinic message ${row.id}:`, e instanceof Error ? e.message : e)
@@ -582,7 +586,8 @@ export function useSignalMessages({
         const isConversationContent =
           isUserMessage && isFromOther &&
           !decrypted._deliveryReceipt &&
-          !isCalendarEvent(decrypted.content)
+          !isCalendarEvent(decrypted.content) &&
+          !isMapOverlay(decrypted.content)
 
         if (!isConversationContent) {
           markMessagesRead([row.id]).catch(() => {})
@@ -662,7 +667,8 @@ export function useSignalMessages({
         const isConversationContent =
           isUserMessage && isFromOther &&
           !decrypted._deliveryReceipt &&
-          !isCalendarEvent(decrypted.content)
+          !isCalendarEvent(decrypted.content) &&
+          !isMapOverlay(decrypted.content)
 
         // Mark all non-conversation rows as read so the cron cleanup can purge them.
         // User messages are marked read later when the conversation is opened.
@@ -721,6 +727,8 @@ export function useSignalMessages({
           const { content } = parseMessageContent(rawPlaintext)
           if (isCalendarEvent(content)) {
             routeCalendarEvent(content)
+          } else if (isMapOverlay(content)) {
+            routeMapOverlay(content).catch(() => {})
           }
           markMessagesRead([row.id]).catch(() => {})
         } catch (e) {

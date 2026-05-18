@@ -58,6 +58,11 @@ export interface MapOverlay {
   created_by: string
   created_at: string
   updated_at: string
+  /**
+   * Vault fan-out origin id. Set after the 'c' (or 'u' replacement) message
+   * reaches the clinic vault — lets a later 'd' pair-clean the vault row.
+   */
+  originId?: string
 }
 
 export interface LocalMapOverlay extends MapOverlay {

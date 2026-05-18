@@ -302,7 +302,7 @@ export const PropertyPanel = memo(function PropertyPanel({
               return (
                 <div className="flex-1 overflow-y-auto px-4 py-3">
                   {desktopItems.length === 0 ? (
-                    <p className="text-sm text-tertiary text-center py-8">No items</p>
+                    <p className="text-[10pt] text-tertiary text-center py-8">No items</p>
                   ) : (
                     <Section title="Items" count={desktopItems.length} className="">
                       <SectionCard>

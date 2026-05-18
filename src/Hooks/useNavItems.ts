@@ -40,11 +40,10 @@ export function useNavItems(): UseNavItemsReturn {
     admin: isDevRole,
   }), [isAuthenticated, isProviderRole, isSupervisorRole, isDevRole])
 
-  const gatedItems = useMemo(() => menuData.filter(item => {
-    const meetsAccess = accessChecks[item.access ?? 'public']
-    const meetsStage = item.stage === 'beta' ? isDevRole : true
-    return meetsAccess && meetsStage
-  }), [accessChecks, isDevRole])
+  const gatedItems = useMemo(
+    () => menuData.filter(item => accessChecks[item.access ?? 'public']),
+    [accessChecks]
+  )
 
   const visibleItems = useMemo(() => {
     const gatedActions = new Set(gatedItems.map(i => i.action))

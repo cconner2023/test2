@@ -21,12 +21,7 @@ export interface ClinicInvite {
   clinic_name: string
   created_by: string
   expires_at: string
-  status: 'pending' | 'redeemed' | 'accepted' | 'revoked' | 'expired'
-  peer_clinic_id: string | null
-  peer_clinic_name: string | null
-  accepted_by: string | null
-  is_emergency: boolean
-  emergency_justification: string | null
+  clinic_fingerprint: string | null
   created_at: string
 }
 
@@ -90,72 +85,6 @@ export async function redeemInvite(
   }
 }
 
-/** Approve a redeemed invite to finalize the clinic association. */
-export async function approveInvite(
-  inviteId: string
-): Promise<ServiceResult> {
-  try {
-    const { error } = await supabase.rpc('approve_clinic_invite', {
-      p_invite_id: inviteId,
-    })
-
-    if (error) {
-      logger.error('Failed to approve invite:', error.message)
-      return fail(error.message)
-    }
-
-    return succeed()
-  } catch (error) {
-    const msg = rpcError(error)
-    logger.error('Failed to approve invite:', msg)
-    return fail(msg)
-  }
-}
-
-/** Reject a redeemed invite, declining the association request. */
-export async function rejectInvite(
-  inviteId: string
-): Promise<ServiceResult> {
-  try {
-    const { error } = await supabase.rpc('reject_clinic_invite', {
-      p_invite_id: inviteId,
-    })
-
-    if (error) {
-      logger.error('Failed to reject invite:', error.message)
-      return fail(error.message)
-    }
-
-    return succeed()
-  } catch (error) {
-    const msg = rpcError(error)
-    logger.error('Failed to reject invite:', msg)
-    return fail(msg)
-  }
-}
-
-/** Revoke an accepted clinic association, removing the cross-clinic link. */
-export async function revokeAssociation(
-  inviteId: string
-): Promise<ServiceResult> {
-  try {
-    const { error } = await supabase.rpc('revoke_clinic_association', {
-      p_invite_id: inviteId,
-    })
-
-    if (error) {
-      logger.error('Failed to revoke association:', error.message)
-      return fail(error.message)
-    }
-
-    return succeed()
-  } catch (error) {
-    const msg = rpcError(error)
-    logger.error('Failed to revoke association:', msg)
-    return fail(msg)
-  }
-}
-
 /**
  * Fetch the freshest pending invite code for a clinic the caller is already
  * associated with. Returns null if no active code exists; fails if the
@@ -200,12 +129,7 @@ export async function getInvites(): Promise<ServiceResult<{ invites: ClinicInvit
       clinic_name: (row.origin_clinic_name as string) ?? '',
       created_by: row.created_by as string,
       expires_at: row.expires_at as string,
-      status: row.status as ClinicInvite['status'],
-      peer_clinic_id: (row.peer_clinic_id as string) ?? null,
-      peer_clinic_name: (row.peer_clinic_name as string) ?? null,
-      accepted_by: (row.accepted_by as string) ?? null,
-      is_emergency: row.is_emergency as boolean,
-      emergency_justification: (row.emergency_justification as string) ?? null,
+      clinic_fingerprint: (row.clinic_fingerprint as string) ?? null,
       created_at: row.created_at as string,
     }))
 

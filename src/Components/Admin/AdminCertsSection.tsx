@@ -1,11 +1,10 @@
 /**
  * AdminCertsSection — certs for a single user inside the admin panel.
- * Mirrors the ProfilePage cert UX: row click → PreviewOverlay edit,
- * top-right FAB → PreviewOverlay add. CRUD is gated behind the parent's
- * edit mode (header toolbar).
+ * Row click → PreviewOverlay edit, FAB → PreviewOverlay add. Always
+ * interactive; matches the Clusters section pattern (no edit-mode gate).
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { Plus, Check, RefreshCw, Trash2 } from 'lucide-react'
 import type { Certification } from '../../Data/User'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -29,11 +28,10 @@ import { useIsMobile } from '../../Hooks/useIsMobile'
 interface AdminCertsSectionProps {
   userId: string
   certs: Certification[]
-  editing: boolean
   onChanged: () => void
 }
 
-export function AdminCertsSection({ userId, certs, editing, onChanged }: AdminCertsSectionProps) {
+export function AdminCertsSection({ userId, certs, onChanged }: AdminCertsSectionProps) {
   const isMobile = useIsMobile()
   const [form, setForm] = useState<CertFormData>(emptyCertForm)
   const [saving, setSaving] = useState(false)
@@ -49,11 +47,6 @@ export function AdminCertsSection({ userId, certs, editing, onChanged }: AdminCe
     setForm(emptyCertForm)
     setSaving(false)
   }, [])
-
-  // Exit overlays when parent exits edit mode
-  useEffect(() => {
-    if (!editing) closeOverlays()
-  }, [editing, closeOverlays])
 
   const openAdd = useCallback((anchorEl?: HTMLElement) => {
     const el = anchorEl ?? fabRef.current
@@ -133,21 +126,19 @@ export function AdminCertsSection({ userId, certs, editing, onChanged }: AdminCe
                 <CertificationRow
                   key={cert.id}
                   cert={cert}
-                  onClick={editing ? (e) => openEdit(cert, e.currentTarget.getBoundingClientRect()) : undefined}
+                  onClick={(e) => openEdit(cert, e.currentTarget.getBoundingClientRect())}
                 />
               ))}
             </div>
           </SectionCard>
-          {editing && (
-            <ActionPill ref={fabRef} shadow="sm" placement="overlay">
-              <ActionButton icon={Plus} label="Add certification" onClick={() => openAdd()} />
-            </ActionPill>
-          )}
+          <ActionPill ref={fabRef} shadow="sm" placement="overlay">
+            <ActionButton icon={Plus} label="Add certification" onClick={() => openAdd()} />
+          </ActionPill>
         </div>
       ) : (
         <EmptyState
           title="No certifications"
-          action={editing ? { icon: Plus, label: 'Add certification', onClick: openAdd } : undefined}
+          action={{ icon: Plus, label: 'Add certification', onClick: openAdd }}
         />
       )}
 

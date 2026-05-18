@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { KeyRound, LogOut, Building2, ChevronRight, Mail, Check, RefreshCw, X, Trash2, Home } from 'lucide-react'
+import { KeyRound, LogOut, Building2, ChevronRight, Mail, Check, RefreshCw, X, Trash2, Home, Plus, ArrowRightLeft } from 'lucide-react'
 import type { Certification } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import type { Component } from '../../Data/User'
@@ -22,6 +22,7 @@ import { Z } from '../BaseOverlay'
 import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
 import { PreviewOverlay } from '../PreviewOverlay'
+import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { formatLastActive, RoleBadge, SupervisorCreatedBadge } from './adminUtils'
 import { StepResults, type StepResult } from './StepResults'
 import { useResetPasswordFlow } from '../../Hooks/useResetPasswordFlow'
@@ -33,13 +34,13 @@ import {
   setUserRoles,
   setUserClinic,
   setUserLoans,
+  listUserLoans,
   createUser,
 } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
-import { ClinicPickerInput, ClinicMultiPickerInput } from './AdminPickers'
+import { ClinicPickerInput } from './AdminPickers'
 import { fetchAllCertifications } from '../../lib/certificationService'
 import { useAuthStore } from '../../stores/useAuthStore'
-import { supabase } from '../../lib/supabase'
 import { UI_TIMING } from '../../Utilities/constants'
 import { invalidate } from '../../stores/useInvalidationStore'
 import { sameStringSet } from '../../Utilities/arrayEquals'
@@ -95,6 +96,8 @@ export function AdminUserDetail({
 
   // Reset password popover (anchored to KeyRound action button via pill ref)
   const pillRef = useRef<HTMLDivElement>(null)
+  // Clusters "+ Add loan" FAB anchor
+  const addLoanFabRef = useRef<HTMLDivElement>(null)
   const [resetPwAnchor, setResetPwAnchor] = useState<DOMRect | null>(null)
   const resetPw = useResetPasswordFlow()
 
@@ -105,6 +108,15 @@ export function AdminUserDetail({
   // Force logout
   const [forceLogoutProcessing, setForceLogoutProcessing] = useState(false)
   const [confirmForceLogout, setConfirmForceLogout] = useState(false)
+
+  // Clusters section — tap-to-overlay edit surface for home/loan. Replaces
+  // the cluster pickers that used to live in the edit overlay.
+  type ClusterAction =
+    | { kind: 'loan-row'; x: number; y: number; clinic: AdminClinic }
+    | { kind: 'pick-home'; rect: DOMRect }
+    | { kind: 'add-loan'; rect: DOMRect }
+  const [clusterAction, setClusterAction] = useState<ClusterAction | null>(null)
+  const [clusterBusy, setClusterBusy] = useState(false)
 
   // ── Edit state ──────────────────────────────────────────────────────
   const [editFirstName, setEditFirstName] = useState('')
@@ -153,13 +165,7 @@ export function AdminUserDetail({
       listAllUsers(),
       listClinics(),
       fetchAllCertifications(),
-      user?.id
-        ? supabase
-            .from('profile_clinic_loans')
-            .select('clinic_id')
-            .eq('user_id', user.id)
-            .then(({ data }) => (data ?? []).map((r: { clinic_id: string }) => r.clinic_id))
-        : Promise.resolve<string[]>([]),
+      user?.id ? listUserLoans(user.id) : Promise.resolve<string[]>([]),
     ])
     setClinics(clinicData)
     setAllCerts(certData)
@@ -215,17 +221,14 @@ export function AdminUserDetail({
       setEditUic(user?.uic || '')
       setEditClinicId(user?.clinic_id || '')
       setEditRoles(user?.roles?.filter(r => AVAILABLE_ROLES.includes(r as typeof AVAILABLE_ROLES[number])) ?? ['medic'])
-      // Hydrate current loans for the multi-select. supabase is imported below.
+      // Hydrate current loans for the multi-select. Goes through the dev
+      // RPC so loans show even when caller doesn't share a clinic with target.
       if (user?.id) {
-        supabase
-          .from('profile_clinic_loans')
-          .select('clinic_id')
-          .eq('user_id', user.id)
-          .then(({ data }) => {
-            const ids = new Set<string>((data ?? []).map((r: { clinic_id: string }) => r.clinic_id))
-            setEditLoanClinicIds(ids)
-            setOriginalLoanClinicIds(ids)
-          })
+        listUserLoans(user.id).then((ids) => {
+          const set = new Set<string>(ids)
+          setEditLoanClinicIds(set)
+          setOriginalLoanClinicIds(set)
+        })
       } else {
         setEditLoanClinicIds(new Set())
         setOriginalLoanClinicIds(new Set())
@@ -483,6 +486,57 @@ export function AdminUserDetail({
     setResetPwAnchor(rect)
   }
 
+  // ── Cluster mutations ──────────────────────────────────────────────────
+  // All four go through the existing dev RPCs (setUserClinic, setUserLoans)
+  // and then invalidate+reload. Promote-loan-to-home also clears the other
+  // loans via the DB trigger on profiles.clinic_id change.
+  const refreshClusters = useCallback(async () => {
+    invalidate('users', 'clinics')
+    await loadData()
+  }, [loadData])
+
+  const handlePickHome = useCallback(async (newId: string) => {
+    if (!user) return
+    setClusterBusy(true)
+    const r = await setUserClinic(user.id, newId)
+    setClusterBusy(false)
+    setClusterAction(null)
+    if (r.success) refreshClusters()
+    else setNotify({ type: 'error', message: r.error || 'Failed to set home cluster' })
+  }, [user, refreshClusters])
+
+  const handleEndLoan = useCallback(async (clinicId: string) => {
+    if (!user) return
+    setClusterBusy(true)
+    const next = viewLoanClinicIds.filter(id => id !== clinicId)
+    const r = await setUserLoans(user.id, next)
+    setClusterBusy(false)
+    setClusterAction(null)
+    if (r.success) refreshClusters()
+    else setNotify({ type: 'error', message: r.error || 'Failed to end loan' })
+  }, [user, viewLoanClinicIds, refreshClusters])
+
+  const handlePromoteLoan = useCallback(async (clinicId: string) => {
+    if (!user) return
+    setClusterBusy(true)
+    const r = await setUserClinic(user.id, clinicId)
+    setClusterBusy(false)
+    setClusterAction(null)
+    if (r.success) refreshClusters()
+    else setNotify({ type: 'error', message: r.error || 'Failed to promote loan to home' })
+  }, [user, refreshClusters])
+
+  const handleAddLoan = useCallback(async (clinicId: string) => {
+    if (!user) return
+    setClusterBusy(true)
+    const next = [...viewLoanClinicIds, clinicId]
+    const r = await setUserLoans(user.id, next)
+    setClusterBusy(false)
+    setClusterAction(null)
+    if (r.success) refreshClusters()
+    else setNotify({ type: 'error', message: r.error || 'Failed to add loan' })
+  }, [user, viewLoanClinicIds, refreshClusters])
+
   const closeResetPassword = () => {
     setResetPwAnchor(null)
     resetPw.reset()
@@ -695,31 +749,9 @@ export function AdminUserDetail({
             <PickerInput value={editComponent} onChange={handleComponentChange} options={components} placeholder="Component" />
             {editComponent && <PickerInput value={editRank} onChange={setEditRank} options={componentRanks} placeholder="Rank" />}
             <UicPinInput value={editUic} onChange={setEditUic} spread />
-            <ClinicPickerInput value={editClinicId} onChange={setEditClinicId} allClinics={clinics} placeholder="Cluster" />
-            {(() => {
-              const homeName = editClinicId ? clinics.find(c => c.id === editClinicId)?.name : null
-              if (!homeName) return null
-              return (
-                <div className="px-2 pt-2 pb-1 border-b border-primary/6">
-                  <div className="w-full flex items-center gap-3 py-2 px-2 rounded-lg bg-themeblue3/5">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-themeblue3/15 shrink-0">
-                      <Home size={14} className="text-themeblue3" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-primary truncate">{homeName}</p>
-                    </div>
-                    <span className="shrink-0 text-[9pt] font-semibold text-themeblue3 uppercase tracking-widest">Home</span>
-                  </div>
-                </div>
-              )
-            })()}
-            <ClinicMultiPickerInput
-              selectedIds={[...editLoanClinicIds]}
-              onChange={(ids) => setEditLoanClinicIds(new Set(ids))}
-              allClinics={clinics}
-              excludeId={editClinicId ?? undefined}
-              placeholder={`Loans${editLoanClinicIds.size > 0 ? ` (${editLoanClinicIds.size})` : ''}`}
-            />
+            {/* Cluster + loan management moved to the Clusters section below
+                — tap a row or the section '+' to act. The pencil-edit overlay
+                only covers profile fields + roles now. */}
 
             <MultiPickerInput
               value={editRoles}
@@ -732,7 +764,9 @@ export function AdminUserDetail({
         )}
       </PreviewOverlay>
 
-      {/* Clusters section — home row (or assign prompt) + one row per loan */}
+      {/* Clusters section — tap a row to act on it (change home, end loan,
+          promote loan to home, open cluster). Section "+ Add loan" lives in
+          the header. Replaces the cluster pickers from the edit overlay. */}
       {!editing && !isCreateMode && user && (() => {
         const homeClinic = user.clinic_id ? clinics.find(c => c.id === user.clinic_id) ?? null : null
         const loanClinics = viewLoanClinicIds
@@ -740,51 +774,43 @@ export function AdminUserDetail({
           .filter((c): c is AdminClinic => !!c)
         const rowCount = 1 + loanClinics.length
         return (
-          <div className="mt-4">
-            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Clusters</p>
-            <div className="rounded-2xl bg-themewhite2 overflow-hidden">
-              {homeClinic ? (
-                <button
-                  type="button"
-                  onClick={() => onSelectClinic?.(homeClinic)}
-                  disabled={!onSelectClinic}
-                  className={`flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5 disabled:cursor-default${rowCount > 1 ? ' border-b border-primary/6' : ''}`}
-                >
-                  <span className="w-9 h-9 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
-                    <Building2 size={18} className="text-themeblue2" />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-primary truncate">{homeClinic.name}</p>
-                    <p className="text-[9pt] text-tertiary mt-0.5 truncate">
-                      Home{homeClinic.uics.length > 0 ? ` · ${homeClinic.uics.join(', ')}` : ''}
-                    </p>
-                  </div>
-                  {onSelectClinic && <ChevronRight size={16} className="text-tertiary shrink-0" />}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={openEditOverlay}
-                  className={`flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5${rowCount > 1 ? ' border-b border-primary/6' : ''}`}
-                >
-                  <span className="w-9 h-9 rounded-full bg-themeblue2/5 flex items-center justify-center shrink-0">
-                    <Building2 size={18} className="text-tertiary" />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-tertiary truncate">Assign home cluster</p>
-                    <p className="text-[9pt] text-tertiary/60 mt-0.5">Home</p>
-                  </div>
-                </button>
-              )}
+          <section className="mt-4">
+            <div className="pb-2">
+              <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Clusters</p>
+            </div>
+            <div className="relative">
+            <div className={`rounded-2xl bg-themewhite2 overflow-hidden${clusterBusy ? ' opacity-50 pointer-events-none' : ''}`}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  setClusterAction({ kind: 'pick-home', rect })
+                }}
+                className={`flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5${rowCount > 1 ? ' border-b border-primary/6' : ''}`}
+              >
+                <span className={`w-9 h-9 rounded-full ${homeClinic ? 'bg-themeblue2/10' : 'bg-themeblue2/5'} flex items-center justify-center shrink-0`}>
+                  <Building2 size={18} className={homeClinic ? 'text-themeblue2' : 'text-tertiary'} />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-medium truncate ${homeClinic ? 'text-primary' : 'text-tertiary'}`}>
+                    {homeClinic ? homeClinic.name : 'Assign home cluster'}
+                  </p>
+                  <p className="text-[9pt] text-tertiary mt-0.5 truncate">
+                    Home{homeClinic && homeClinic.uics.length > 0 ? ` · ${homeClinic.uics.join(', ')}` : ''}
+                  </p>
+                </div>
+                <ChevronRight size={16} className="text-tertiary shrink-0" />
+              </button>
               {loanClinics.map((c, idx) => {
                 const isLast = idx === loanClinics.length - 1
                 return (
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => onSelectClinic?.(c)}
-                    disabled={!onSelectClinic}
-                    className={`flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5 disabled:cursor-default${isLast ? '' : ' border-b border-primary/6'}`}
+                    onClick={(e) => {
+                      setClusterAction({ kind: 'loan-row', x: e.clientX, y: e.clientY, clinic: c })
+                    }}
+                    className={`flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5${isLast ? '' : ' border-b border-primary/6'}`}
                   >
                     <span className="w-9 h-9 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
                       <Building2 size={18} className="text-themeblue2" />
@@ -795,14 +821,169 @@ export function AdminUserDetail({
                         Loan{c.uics.length > 0 ? ` · ${c.uics.join(', ')}` : ''}
                       </p>
                     </div>
-                    {onSelectClinic && <ChevronRight size={16} className="text-tertiary shrink-0" />}
+                    <ChevronRight size={16} className="text-tertiary shrink-0" />
                   </button>
                 )
               })}
             </div>
-          </div>
+            <ActionPill ref={addLoanFabRef} shadow="sm" placement="overlay">
+              <ActionButton
+                icon={Plus}
+                label="Add loan"
+                onClick={() => {
+                  const rect = addLoanFabRef.current?.getBoundingClientRect() ?? null
+                  if (rect) setClusterAction({ kind: 'add-loan', rect })
+                }}
+              />
+            </ActionPill>
+            </div>
+          </section>
         )
       })()}
+
+      {/* Loan-row context menu — anchored at tap point. */}
+      {clusterAction?.kind === 'loan-row' && (() => {
+        const c = clusterAction.clinic
+        const items: ContextMenuItem[] = [
+          {
+            key: 'end',
+            label: 'End loan',
+            icon: Trash2,
+            destructive: true,
+            onAction: () => handleEndLoan(c.id),
+          },
+          {
+            key: 'promote',
+            label: 'Make home cluster',
+            icon: Home,
+            onAction: () => handlePromoteLoan(c.id),
+          },
+        ]
+        if (onSelectClinic) {
+          items.push({
+            key: 'open',
+            label: 'Open cluster',
+            icon: ChevronRight,
+            onAction: () => { setClusterAction(null); onSelectClinic(c) },
+          })
+        }
+        return (
+          <ContextMenu
+            x={clusterAction.x}
+            y={clusterAction.y}
+            items={items}
+            onClose={() => setClusterAction(null)}
+          />
+        )
+      })()}
+
+      {/* Home picker — tap home row → pick a new home cluster. Changing home
+          clears all loans via the DB trigger. */}
+      <PreviewOverlay
+        isOpen={clusterAction?.kind === 'pick-home'}
+        onClose={() => setClusterAction(null)}
+        anchorRect={clusterAction?.kind === 'pick-home' ? clusterAction.rect : null}
+        maxWidth={320}
+        title="Set home cluster"
+        searchPlaceholder="Search by name or UIC..."
+        preview={(filter) => {
+          const q = filter.toLowerCase()
+          const homeId = user?.clinic_id ?? null
+          const filtered = clinics.filter(c => {
+            if (c.id === homeId) return false
+            if (!filter) return true
+            return c.name.toLowerCase().includes(q) || c.uics.some(u => u.toLowerCase().includes(q))
+          })
+          if (filtered.length === 0) {
+            return <p className="text-[9pt] text-tertiary text-center py-4">No clusters match.</p>
+          }
+          return (
+            <div role="listbox">
+              {filtered.map(c => (
+                <button
+                  key={c.id}
+                  type="button"
+                  role="option"
+                  onClick={() => handlePickHome(c.id)}
+                  className="w-full text-left px-3.5 py-2.5 hover:bg-primary/5 active:bg-primary/10 transition-colors flex items-center gap-2"
+                >
+                  <span className="w-7 h-7 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
+                    <Building2 size={14} className="text-themeblue2" />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-primary truncate">{c.name}</p>
+                    {c.uics.length > 0 && (
+                      <p className="text-[9pt] text-tertiary truncate">{c.uics.join(' · ')}</p>
+                    )}
+                  </div>
+                  <ArrowRightLeft size={14} className="text-tertiary shrink-0" />
+                </button>
+              ))}
+            </div>
+          )
+        }}
+        footer={
+          <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+            <ActionButton icon={X} label="Cancel" onClick={() => setClusterAction(null)} />
+          </div>
+        }
+      />
+
+      {/* Add-loan picker — section "+" → pick a clinic to loan to. Excludes
+          the current home and existing loans. */}
+      <PreviewOverlay
+        isOpen={clusterAction?.kind === 'add-loan'}
+        onClose={() => setClusterAction(null)}
+        anchorRect={clusterAction?.kind === 'add-loan' ? clusterAction.rect : null}
+        maxWidth={320}
+        title="Add loan cluster"
+        searchPlaceholder="Search by name or UIC..."
+        preview={(filter) => {
+          const q = filter.toLowerCase()
+          const homeId = user?.clinic_id ?? null
+          const taken = new Set<string>([
+            ...(homeId ? [homeId] : []),
+            ...viewLoanClinicIds,
+          ])
+          const filtered = clinics.filter(c => {
+            if (taken.has(c.id)) return false
+            if (!filter) return true
+            return c.name.toLowerCase().includes(q) || c.uics.some(u => u.toLowerCase().includes(q))
+          })
+          if (filtered.length === 0) {
+            return <p className="text-[9pt] text-tertiary text-center py-4">No clusters available.</p>
+          }
+          return (
+            <div role="listbox">
+              {filtered.map(c => (
+                <button
+                  key={c.id}
+                  type="button"
+                  role="option"
+                  onClick={() => handleAddLoan(c.id)}
+                  className="w-full text-left px-3.5 py-2.5 hover:bg-primary/5 active:bg-primary/10 transition-colors flex items-center gap-2"
+                >
+                  <span className="w-7 h-7 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
+                    <Building2 size={14} className="text-themeblue2" />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-primary truncate">{c.name}</p>
+                    {c.uics.length > 0 && (
+                      <p className="text-[9pt] text-tertiary truncate">{c.uics.join(' · ')}</p>
+                    )}
+                  </div>
+                  <Plus size={14} className="text-tertiary shrink-0" />
+                </button>
+              ))}
+            </div>
+          )
+        }}
+        footer={
+          <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+            <ActionButton icon={X} label="Cancel" onClick={() => setClusterAction(null)} />
+          </div>
+        }
+      />
 
       {!isCreateMode && (
         <div className="mt-4">
@@ -810,7 +991,6 @@ export function AdminUserDetail({
           <AdminCertsSection
             userId={user!.id}
             certs={userCerts}
-            editing={editing}
             onChanged={loadData}
           />
         </div>

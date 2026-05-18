@@ -1,6 +1,10 @@
 /**
- * Tests for mapOverlayService — CRUD operations and Result wrapping.
- * Mocks offlineDb and syncService to isolate service logic.
+ * Tests for mapOverlayService — read helpers only.
+ *
+ * Overlays are propagated via the clinic Signal vault now (see
+ * useMapOverlayWrite / useMapOverlayVault) so saveOverlay / deleteOverlay
+ * are no longer exposed by this module. The write/vault flow is covered by
+ * its own hook tests.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -9,29 +13,13 @@ import type { LocalMapOverlay } from '../../../Types/MapOverlayTypes'
 // ── Mock offlineDb ──────────────────────────────────────────
 const mockGetLocalMapOverlays = vi.fn()
 const mockGetLocalMapOverlay = vi.fn()
-const mockSaveLocalMapOverlay = vi.fn()
-const mockDeleteLocalMapOverlay = vi.fn()
-const mockAddToSyncQueue = vi.fn()
-const mockStripLocalFields = vi.fn((o: Record<string, unknown>) => o)
 
 vi.mock('../../../lib/offlineDb', () => ({
   getLocalMapOverlays: (...args: unknown[]) => mockGetLocalMapOverlays(...args),
   getLocalMapOverlay: (...args: unknown[]) => mockGetLocalMapOverlay(...args),
-  saveLocalMapOverlay: (...args: unknown[]) => mockSaveLocalMapOverlay(...args),
-  deleteLocalMapOverlay: (...args: unknown[]) => mockDeleteLocalMapOverlay(...args),
-  addToSyncQueue: (...args: unknown[]) => mockAddToSyncQueue(...args),
-  stripLocalFields: (...args: unknown[]) => mockStripLocalFields(...args),
 }))
 
-vi.mock('../../../lib/syncService', () => ({
-  processSyncQueue: vi.fn().mockResolvedValue(undefined),
-  isOnline: vi.fn().mockReturnValue(false),
-}))
-
-// Import after mocks
-const { getOverlays, getOverlay, saveOverlay, deleteOverlay } = await import('../../../lib/mapOverlayService')
-
-// ── Fixtures ────────────────────────────────────────────────
+const { getOverlays, getOverlay } = await import('../../../lib/mapOverlayService')
 
 function makeOverlay(id = 'test-1', clinicId = 'clinic-1'): LocalMapOverlay {
   return {
@@ -51,17 +39,13 @@ function makeOverlay(id = 'test-1', clinicId = 'clinic-1'): LocalMapOverlay {
   }
 }
 
-// ── Tests ────────────────────────────────────────────────────
-
 beforeEach(() => {
   vi.clearAllMocks()
 })
 
 describe('getOverlays', () => {
   it('returns ok with overlays from IDB', async () => {
-    const overlays = [makeOverlay('a'), makeOverlay('b')]
-    mockGetLocalMapOverlays.mockResolvedValue(overlays)
-
+    mockGetLocalMapOverlays.mockResolvedValue([makeOverlay('a'), makeOverlay('b')])
     const result = await getOverlays('clinic-1')
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.data).toHaveLength(2)
@@ -70,7 +54,6 @@ describe('getOverlays', () => {
 
   it('returns err when IDB throws', async () => {
     mockGetLocalMapOverlays.mockRejectedValue(new Error('IDB crash'))
-
     const result = await getOverlays('clinic-1')
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error).toContain('Failed')
@@ -80,7 +63,6 @@ describe('getOverlays', () => {
 describe('getOverlay', () => {
   it('returns ok with single overlay', async () => {
     mockGetLocalMapOverlay.mockResolvedValue(makeOverlay())
-
     const result = await getOverlay('test-1')
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.data?.id).toBe('test-1')
@@ -88,97 +70,8 @@ describe('getOverlay', () => {
 
   it('returns ok with undefined when not found', async () => {
     mockGetLocalMapOverlay.mockResolvedValue(undefined)
-
     const result = await getOverlay('missing')
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.data).toBeUndefined()
-  })
-})
-
-describe('saveOverlay', () => {
-  it('creates new overlay and queues sync', async () => {
-    mockGetLocalMapOverlay.mockResolvedValue(undefined)
-    mockSaveLocalMapOverlay.mockResolvedValue(undefined)
-    mockAddToSyncQueue.mockResolvedValue(undefined)
-
-    const result = await saveOverlay({
-      overlayId: 'new-1',
-      clinicId: 'clinic-1',
-      userId: 'user-1',
-      name: 'New Overlay',
-      center: [0, 0],
-      zoom: 10,
-      features: [],
-    })
-
-    expect(result.ok).toBe(true)
-    if (result.ok) {
-      expect(result.data.id).toBe('new-1')
-      expect(result.data.name).toBe('New Overlay')
-      expect(result.data._sync_status).toBe('pending')
-    }
-
-    expect(mockSaveLocalMapOverlay).toHaveBeenCalledOnce()
-    expect(mockAddToSyncQueue).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'create', table_name: 'map_overlays' })
-    )
-  })
-
-  it('updates existing overlay with action "update"', async () => {
-    mockGetLocalMapOverlay.mockResolvedValue(makeOverlay())
-    mockSaveLocalMapOverlay.mockResolvedValue(undefined)
-    mockAddToSyncQueue.mockResolvedValue(undefined)
-
-    await saveOverlay({
-      overlayId: 'test-1',
-      clinicId: 'clinic-1',
-      userId: 'user-1',
-      name: 'Updated',
-      center: [0, 0],
-      zoom: 10,
-      features: [],
-    })
-
-    expect(mockAddToSyncQueue).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'update' })
-    )
-  })
-
-  it('returns err when IDB save fails', async () => {
-    mockGetLocalMapOverlay.mockResolvedValue(undefined)
-    mockSaveLocalMapOverlay.mockRejectedValue(new Error('quota exceeded'))
-
-    const result = await saveOverlay({
-      overlayId: 'fail',
-      clinicId: 'clinic-1',
-      userId: 'user-1',
-      name: 'Fail',
-      center: [0, 0],
-      zoom: 10,
-      features: [],
-    })
-
-    expect(result.ok).toBe(false)
-  })
-})
-
-describe('deleteOverlay', () => {
-  it('deletes from IDB and queues sync', async () => {
-    mockDeleteLocalMapOverlay.mockResolvedValue(undefined)
-    mockAddToSyncQueue.mockResolvedValue(undefined)
-
-    const result = await deleteOverlay('test-1', 'user-1')
-    expect(result.ok).toBe(true)
-    expect(mockDeleteLocalMapOverlay).toHaveBeenCalledWith('test-1')
-    expect(mockAddToSyncQueue).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'delete', record_id: 'test-1' })
-    )
-  })
-
-  it('returns err when delete fails', async () => {
-    mockDeleteLocalMapOverlay.mockRejectedValue(new Error('not found'))
-
-    const result = await deleteOverlay('missing', 'user-1')
-    expect(result.ok).toBe(false)
   })
 })

@@ -91,7 +91,7 @@ function ForwardPicker({
       </div>
       <div className="flex-1 overflow-y-auto px-2 py-2">
         {sorted.length === 0 ? (
-          <p className="text-sm text-tertiary text-center py-8">No contacts to forward to</p>
+          <p className="text-[10pt] text-tertiary text-center py-8">No contacts to forward to</p>
         ) : (
           sorted.map(medic => (
             <ContactListItem key={medic.id} medic={medic} onClick={() => onSelect(medic)} />
@@ -495,7 +495,7 @@ export function ChatDetailView({
       <div className="px-4 py-3">
       {msgs.length === 0 ? (
         <div className="flex items-center justify-center h-full">
-          <p className="text-sm text-tertiary">{emptyLabel}</p>
+          <p className="text-[10pt] text-tertiary">{emptyLabel}</p>
         </div>
       ) : (
         (() => {

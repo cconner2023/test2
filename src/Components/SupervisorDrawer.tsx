@@ -106,27 +106,19 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
 
   useEffect(() => { listLocations().then(setLocations) }, [])
 
-  // Fetch accepted associations so the MemberEditPopover Loans overlay can
-  // show them as toggleable rows. Mirrors ClinicPanel's nearbyClinicMap.
+  // Resolve the home clinic's associated peers so the MemberEditPopover Loans
+  // overlay can show them as toggleable rows. Source of truth is
+  // clinics.associated_clinic_ids — populated atomically by redeem_clinic_invite
+  // (code paste/QR) and by admin direct edits.
   const [associatedClinicsList, setAssociatedClinicsList] = useState<{ clinicId: string; clinicName: string; uics: string[]; location: string | null }[]>([])
   useEffect(() => {
     if (!clinicId) { setAssociatedClinicsList([]); return }
     let cancelled = false
     ;(async () => {
-      const { getInvites } = await import('../lib/clinicAssociationService')
-      const r = await getInvites()
+      const home = await getClinicDetails(clinicId)
       if (cancelled) return
-      if (!r.success) return
-      const peerIds = new Set<string>()
-      for (const inv of r.invites) {
-        if (inv.status !== 'accepted') continue
-        const peer = inv.clinic_id === clinicId ? inv.peer_clinic_id
-                   : inv.peer_clinic_id === clinicId ? inv.clinic_id
-                   : null
-        if (peer && peer !== clinicId) peerIds.add(peer)
-      }
-      const ids = Array.from(peerIds)
-      const details = await Promise.all(ids.map(async (id) => {
+      const peerIds = (home.associatedClinicIds ?? []).filter((id) => id && id !== clinicId)
+      const details = await Promise.all(peerIds.map(async (id) => {
         const d = nearbyDetails.get(id) ?? await getClinicDetails(id)
         return [id, d] as const
       }))

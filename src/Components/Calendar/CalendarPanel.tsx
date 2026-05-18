@@ -29,7 +29,8 @@ import { useCalendarSync } from '../../Hooks/useCalendarSync'
 import { useCalendarWrite } from '../../Hooks/useCalendarWrite'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { useAuth } from '../../Hooks/useAuth'
-import { getOverlays, saveOverlay } from '../../lib/mapOverlayService'
+import { getOverlays } from '../../lib/mapOverlayService'
+import { useMapOverlayWrite } from '../../Hooks/useMapOverlayWrite'
 import type { OverlayOption, RoomOption, HuddleTaskOption } from './EventForm'
 import { MissionBoard } from '../Mission/MissionBoard'
 import type { ResourceAllocation } from '../../Types/MissionTypes'
@@ -94,6 +95,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     return opts
   }, [clinicId, surrogateClinicIds, profile.clinicName, profile.surrogateClinics])
   const { writeEvent, vaultUpdate, deleteEvent: calendarDeleteEvent, isWriting, isDeleting } = useCalendarWrite()
+  const { writeOverlay } = useMapOverlayWrite()
   const apptTypes = useClinicAppointmentTypes()
   const apptTypeNames = useMemo(() => apptTypes.map(t => t.name), [apptTypes])
   const [isFormPending, setIsFormPending] = useState(false)
@@ -120,19 +122,18 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     if (!clinicId || !user) return null
     const overlayId = crypto.randomUUID()
     const today = new Date().toISOString().slice(0, 10)
-    const result = await saveOverlay({
+    const saved = await writeOverlay({
       overlayId,
       clinicId,
-      userId: user.id,
       name: `Field map · ${today}`,
       center: [0, 0],
       zoom: 13,
       features: [],
     })
-    if (!result.ok) return null
+    if (!saved) return null
     setOverlayOptions(prev => [...prev, { id: overlayId, name: `Field map · ${today}` }])
     return overlayId
-  }, [clinicId, user])
+  }, [clinicId, user, writeOverlay])
   const [missionBoardEventId, setMissionBoardEventId] = useState<string | null>(null)
 
   const [showAddSheet, setShowAddSheet] = useState(false)

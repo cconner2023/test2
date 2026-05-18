@@ -270,7 +270,7 @@ export function AdminLocationDetail({
               value={editLat}
               onChange={(e) => setEditLat(e.target.value)}
               placeholder="Latitude"
-              className="flex-1 bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none border-r border-primary/6"
+              className="flex-1 bg-transparent px-4 py-3 text-base md:text-[10pt] text-primary placeholder:text-tertiary focus:outline-none border-r border-primary/6"
             />
             <input
               type="number"
@@ -278,7 +278,7 @@ export function AdminLocationDetail({
               value={editLon}
               onChange={(e) => setEditLon(e.target.value)}
               placeholder="Longitude"
-              className="flex-1 bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none"
+              className="flex-1 bg-transparent px-4 py-3 text-base md:text-[10pt] text-primary placeholder:text-tertiary focus:outline-none"
             />
           </div>
           <LocationPickerInput

@@ -48,19 +48,7 @@ export function GotoWaypointCard({ label, target, gps, onDismiss }: GotoWaypoint
     }
   }, [permission, requestPermission])
 
-  if (!gps) {
-    return (
-      <div className="absolute bottom-3 right-16 z-[1000] flex items-center gap-2
-        bg-themewhite2/90 dark:bg-themewhite3/90 backdrop-blur-sm
-        px-3 py-2 rounded-lg shadow-sm">
-        <Navigation size={14} className="text-tertiary" />
-        <span className="text-[10pt] text-tertiary">Waiting for GPS…</span>
-        <button type="button" onClick={onDismiss} aria-label="Dismiss" className="ml-1 text-tertiary hover:text-primary">
-          <X size={14} />
-        </button>
-      </div>
-    )
-  }
+  if (!gps) return null
 
   const { distanceM, bearing: trueBearing } = legGeometry(gps.lat, gps.lng, target[0], target[1])
   const refBearing = applyBearingReference(trueBearing, bearingReference, gps.lat, gps.lng)
@@ -69,7 +57,9 @@ export function GotoWaypointCard({ label, target, gps, onDismiss }: GotoWaypoint
   const arrowDeg = heading == null ? trueBearing : ((trueBearing - heading) + 360) % 360
 
   return (
-    <div className="absolute bottom-3 right-16 z-[1000] flex items-center gap-3
+    <div
+      data-tour="map-goto-card"
+      className="absolute bottom-3 right-16 z-[1000] flex items-center gap-3
       bg-themewhite2/95 dark:bg-themewhite3/95 backdrop-blur-sm
       px-3 py-2 rounded-lg shadow-sm">
       <div className="relative w-10 h-10 rounded-full bg-themewhite shrink-0 flex items-center justify-center">

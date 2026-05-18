@@ -16,7 +16,7 @@ const BASEMAP_ICONS: Record<string, LucideIcon> = {
   opentopo: Mountain,
   'usgs-topo': MountainSnow,
 };
-import { createMGRSGridLayer, getGridTheme } from './MGRSGridLayer';
+import { createMGRSGridLayer, createLLGridLayer, getGridTheme } from './MGRSGridLayer';
 import { MGRSGridLabels } from './MGRSGridLabels';
 import type { OverlayFeature, DrawMode } from '../../Types/MapOverlayTypes';
 import { resolveColor } from '../../Types/MapOverlayTypes';
@@ -84,7 +84,7 @@ interface MapViewProps {
   /** Transient pin-to-pin navigation route. While present, renders a dashed
    *  polyline + hollow vertex dots. Saved as a real route feature via the
    *  temp-route drawer action. */
-  tempRoute?: { points: [number, number][] } | null;
+  tempRoute?: { points: [number, number][]; closed?: boolean } | null;
   /** Called on vertex dragend with the updated point list. */
   onTempRouteChange?: (points: [number, number][]) => void;
 }
@@ -176,6 +176,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 }, ref) {
   const { theme, themeName } = useTheme();
   const bearingReference = useMapPrefsStore(s => s.bearingReference);
+  const labelMode = useMapPrefsStore(s => s.labelMode);
   const coordDisplay = useMapPrefsStore(s => s.coordDisplay);
   const setCoordDisplay = useMapPrefsStore(s => s.setCoordDisplay);
   const basemapId = useMapPrefsStore(s => s.basemapId);
@@ -307,7 +308,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     tileLayer.addTo(map);
     tileLayerRef.current = tileLayer;
 
-    const gridLayer = createMGRSGridLayer(getGridTheme(themeName, theme));
+    const gridFactory = coordDisplay === 'latlng' ? createLLGridLayer : createMGRSGridLayer;
+    const gridLayer = gridFactory(getGridTheme(themeName, theme));
     gridLayer.addTo(map);
     gridLayerRef.current = gridLayer;
     // Note: overlayId-aware tile cache is applied in the theme/overlayId effect below
@@ -378,13 +380,14 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     tileLayerRef.current = tileLayer;
 
     if (showGrid) {
-      const gridLayer = createMGRSGridLayer(getGridTheme(themeName, theme));
+      const gridFactory = coordDisplay === 'latlng' ? createLLGridLayer : createMGRSGridLayer;
+      const gridLayer = gridFactory(getGridTheme(themeName, theme));
       gridLayer.addTo(map);
       gridLayerRef.current = gridLayer;
     } else {
       gridLayerRef.current = null;
     }
-  }, [theme, themeName, showGrid, overlayId, tilesCached, basemapId]);
+  }, [theme, themeName, showGrid, overlayId, tilesCached, basemapId, coordDisplay]);
 
   // Map click handler — forwards every click (pan + draw modes alike) to the
   // panel, which decides what to do based on platform + drawMode (e.g. on
@@ -451,6 +454,15 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 
         const marker = L.marker([lat, lng], { icon, draggable: isDraggable });
 
+        if (feature.label && (labelMode === 'always' || isSelected)) {
+          marker.bindTooltip(feature.label, {
+            permanent: true,
+            direction: 'top',
+            offset: [0, -iconSize / 2],
+            className: 'leaflet-tooltip-tactical',
+          });
+        }
+
         marker.on('click', (e) => {
           L.DomEvent.stopPropagation(e);
           onFeatureClick(feature.id);
@@ -480,7 +492,10 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
           });
 
           if (feature.label) {
-            line.bindTooltip(feature.label, { sticky: true, className: 'leaflet-tooltip-tactical' });
+            const permanent = labelMode === 'always' || isSelected;
+            line.bindTooltip(feature.label, permanent
+              ? { permanent: true, direction: 'center', className: 'leaflet-tooltip-tactical' }
+              : { sticky: true, className: 'leaflet-tooltip-tactical' });
           }
 
           line.on('click', (e) => {
@@ -532,7 +547,10 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         });
 
         if (feature.label) {
-          polygon.bindTooltip(feature.label, { sticky: true, className: 'leaflet-tooltip-tactical' });
+          const permanent = labelMode === 'always' || isSelected;
+          polygon.bindTooltip(feature.label, permanent
+            ? { permanent: true, direction: 'center', className: 'leaflet-tooltip-tactical' }
+            : { sticky: true, className: 'leaflet-tooltip-tactical' });
         }
 
         polygon.on('click', (e) => {
@@ -547,7 +565,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         }
       }
     }
-  }, [features, selectedFeatureId, drawMode, onFeatureClick, onFeatureGeometryChange, onFeatureVertexInsert, bearingReference]);
+  }, [features, selectedFeatureId, drawMode, onFeatureClick, onFeatureGeometryChange, onFeatureVertexInsert, bearingReference, labelMode]);
 
   // Sync read-only features (visible but non-active overlays)
   useEffect(() => {
@@ -570,6 +588,14 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         });
         const marker = L.marker([lat, lng], { icon });
         marker.setOpacity(0.4);
+        if (feature.label && labelMode === 'always') {
+          marker.bindTooltip(feature.label, {
+            permanent: true,
+            direction: 'top',
+            offset: [0, -11],
+            className: 'leaflet-tooltip-tactical',
+          });
+        }
         group.addLayer(marker);
       }
 
@@ -577,7 +603,9 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         const latlngs = feature.geometry.map(([lat, lng]) => [lat, lng] as [number, number]);
         const line = L.polyline(latlngs, { color, weight: baseWeight, opacity: 0.35, dashArray: dashArray ?? undefined });
         if (feature.label) {
-          line.bindTooltip(feature.label, { sticky: true, className: 'leaflet-tooltip-tactical' });
+          line.bindTooltip(feature.label, labelMode === 'always'
+            ? { permanent: true, direction: 'center', className: 'leaflet-tooltip-tactical' }
+            : { sticky: true, className: 'leaflet-tooltip-tactical' });
         }
         group.addLayer(line);
       }
@@ -586,12 +614,14 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         const latlngs = feature.geometry.map(([lat, lng]) => [lat, lng] as [number, number]);
         const polygon = L.polygon(latlngs, { color, weight: baseWeight, opacity: 0.35, fillColor: color, fillOpacity: 0.08, dashArray: dashArray ?? undefined });
         if (feature.label) {
-          polygon.bindTooltip(feature.label, { sticky: true, className: 'leaflet-tooltip-tactical' });
+          polygon.bindTooltip(feature.label, labelMode === 'always'
+            ? { permanent: true, direction: 'center', className: 'leaflet-tooltip-tactical' }
+            : { sticky: true, className: 'leaflet-tooltip-tactical' });
         }
         group.addLayer(polygon);
       }
     }
-  }, [readOnlyFeatures]);
+  }, [readOnlyFeatures, labelMode]);
 
   // Sync GPS position
   useEffect(() => {
@@ -721,7 +751,17 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     group.clearLayers();
     if (!tempRoute || tempRoute.points.length === 0) return;
     const color = '#2563EB';
-    if (tempRoute.points.length >= 2) {
+    if (tempRoute.closed && tempRoute.points.length >= 3) {
+      L.polygon(tempRoute.points as L.LatLngTuple[], {
+        color,
+        weight: 3,
+        opacity: 0.85,
+        dashArray: '6 6',
+        fillColor: color,
+        fillOpacity: 0.12,
+        interactive: false,
+      }).addTo(group);
+    } else if (tempRoute.points.length >= 2) {
       L.polyline(tempRoute.points as L.LatLngTuple[], {
         color,
         weight: 3,
@@ -781,6 +821,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         <MGRSGridLabels
           map={mapInstance}
           theme={getGridTheme(themeName, theme)}
+          coordDisplay={coordDisplay}
           topOffset={controlsTopOffset}
         />
       )}
@@ -826,7 +867,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       </PreviewOverlay>
 
       {/* Bottom-left: zoom controls */}
-      <div className="absolute bottom-4 left-3 z-[1000] flex flex-col gap-1.5 pointer-events-auto pb-[max(0rem,var(--sab,0px))]">
+      <div data-tour="map-zoom-controls" className="absolute bottom-4 left-3 z-[1000] flex flex-col gap-1.5 pointer-events-auto pb-[max(0rem,var(--sab,0px))]">
         <button type="button" onClick={handleZoomIn} className={CTRL_BTN} aria-label="Zoom in">
           <Plus size={16} />
         </button>
@@ -837,10 +878,11 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 
       {/* Bottom-center island: basemap | locate | coord readout */}
       <div className="absolute bottom-4 inset-x-0 flex items-center justify-center z-[1000] pointer-events-none pb-[max(0rem,var(--sab,0px))]">
-        <div className="flex items-center gap-1 rounded-full bg-themewhite2/95 dark:bg-themewhite3/95 backdrop-blur-sm border border-tertiary/20 px-1 py-1 shadow-lg pointer-events-auto max-w-[calc(100%-7rem)]">
+        <div data-tour="map-control-island" className="flex items-center gap-1 rounded-full bg-themewhite2/95 dark:bg-themewhite3/95 backdrop-blur-sm border border-tertiary/20 px-1 py-1 shadow-lg pointer-events-auto max-w-[calc(100%-7rem)]">
           <button
             type="button"
             onClick={() => setShowBasemapPicker(v => !v)}
+            data-tour="map-basemap-button"
             className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all ${
               showBasemapPicker ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
             }`}
@@ -855,6 +897,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
           <button
             type="button"
             onClick={handleOpenReadout}
+            data-tour="map-coord-readout"
             className="min-w-0 flex items-center gap-1.5 px-2 h-9 rounded-full text-primary text-[10pt] font-mono active:scale-95 transition-all select-none"
             aria-label="Show coordinate detail"
           >
@@ -864,6 +907,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
             type="button"
             onClick={handleRecenterGps}
             disabled={!gpsPosition}
+            data-tour="map-recenter-gps"
             className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-30"
             aria-label="Center on my position"
           >
@@ -875,7 +919,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       {/* Basemap picker — ActionPill row, floats above the island's basemap glyph
           (mirrors the waypoint pin glyph picker convention) */}
       {showBasemapPicker && (
-        <div className="absolute bottom-[4.25rem] inset-x-0 flex items-center justify-center z-[1001] pointer-events-none pb-[max(0rem,var(--sab,0px))]">
+        <div data-tour="map-basemap-picker" className="absolute bottom-[4.25rem] inset-x-0 flex items-center justify-center z-[1001] pointer-events-none pb-[max(0rem,var(--sab,0px))]">
           <ActionPill className="pointer-events-auto">
             {Object.values(TILE_SOURCES).map((src) => {
               const active = basemapId === src.id;

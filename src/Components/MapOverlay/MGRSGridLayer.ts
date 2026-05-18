@@ -66,6 +66,23 @@ export function formatGridLabel(value: number, interval: number): string {
   return `${String(Math.round((value % 100000) / 100)).padStart(3, '0')}`
 }
 
+// Lat/lng graticule interval in decimal degrees, chosen by zoom.
+export function llGridInterval(zoom: number): number {
+  if (zoom <= 3) return 10
+  if (zoom <= 5) return 5
+  if (zoom <= 7) return 1
+  if (zoom <= 9) return 0.5
+  if (zoom <= 11) return 0.1
+  if (zoom <= 13) return 0.05
+  if (zoom <= 15) return 0.01
+  return 0.005
+}
+
+export function formatLLLabel(value: number, interval: number): string {
+  const digits = interval >= 1 ? 0 : interval >= 0.1 ? 1 : interval >= 0.01 ? 2 : 3
+  return `${value.toFixed(digits)}°`
+}
+
 export function createMGRSGridLayer(theme: GridTheme): L.GridLayer {
   const GridLayer = L.GridLayer.extend({
     createTile(this: L.GridLayer, coords: L.Coords): HTMLCanvasElement {
@@ -140,6 +157,72 @@ export function createMGRSGridLayer(theme: GridTheme): L.GridLayer {
           if (!started) { ctx.moveTo(px[0], px[1]); started = true }
           else ctx.lineTo(px[0], px[1])
         }
+        ctx.stroke()
+      }
+
+      return canvas
+    },
+  })
+
+  return new GridLayer({ opacity: 1, pane: 'overlayPane' }) as L.GridLayer
+}
+
+// Lat/lng graticule — lines at constant latitude (horizontal) and constant
+// longitude (vertical). Used when coordDisplay = 'latlng'.
+export function createLLGridLayer(theme: GridTheme): L.GridLayer {
+  const GridLayer = L.GridLayer.extend({
+    createTile(this: L.GridLayer, coords: L.Coords): HTMLCanvasElement {
+      const tileSize = this.getTileSize()
+      const canvas = document.createElement('canvas')
+      canvas.width = tileSize.x
+      canvas.height = tileSize.y
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return canvas
+
+      const map = this._map as L.Map
+      if (!map) return canvas
+
+      const zoom = coords.z
+      const interval = llGridInterval(zoom)
+
+      const nw = map.unproject([coords.x * tileSize.x, coords.y * tileSize.y], zoom)
+      const se = map.unproject([(coords.x + 1) * tileSize.x, (coords.y + 1) * tileSize.y], zoom)
+
+      const minLat = Math.min(nw.lat, se.lat)
+      const maxLat = Math.max(nw.lat, se.lat)
+      const minLng = Math.min(nw.lng, se.lng)
+      const maxLng = Math.max(nw.lng, se.lng)
+
+      const startLat = Math.floor(minLat / interval) * interval
+      const startLng = Math.floor(minLng / interval) * interval
+
+      const toPixel = (lat: number, lng: number): [number, number] => {
+        const pt = map.project([lat, lng], zoom)
+        return [pt.x - coords.x * tileSize.x, pt.y - coords.y * tileSize.y]
+      }
+
+      ctx.lineCap = 'butt'
+      ctx.strokeStyle = theme.lineColorMajor
+      ctx.lineWidth = 1.5
+      ctx.setLineDash([])
+
+      // Vertical lines (constant longitude)
+      for (let lng = startLng; lng <= maxLng + interval; lng += interval) {
+        const p1 = toPixel(maxLat, lng)
+        const p2 = toPixel(minLat, lng)
+        ctx.beginPath()
+        ctx.moveTo(p1[0], p1[1])
+        ctx.lineTo(p2[0], p2[1])
+        ctx.stroke()
+      }
+
+      // Horizontal lines (constant latitude)
+      for (let lat = startLat; lat <= maxLat + interval; lat += interval) {
+        const p1 = toPixel(lat, minLng)
+        const p2 = toPixel(lat, maxLng)
+        ctx.beginPath()
+        ctx.moveTo(p1[0], p1[1])
+        ctx.lineTo(p2[0], p2[1])
         ctx.stroke()
       }
 

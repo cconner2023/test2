@@ -705,16 +705,18 @@ export const MedicationsForm = memo(function MedicationsForm() {
 
       {/* Empty state — all four sections empty */}
       {!hasIV && !hasMeds && !hasFluids && !hasBlood && (
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-          <div className="flex items-center gap-3 px-4 py-3">
-            <p className="text-sm text-tertiary flex-1">No items added yet</p>
-            <ActionPill ref={topPillRef} shadow="sm">
-              <ActionButton icon={Syringe} label="Add IV/IO" onClick={() => handleAddIV(topPillRef.current)} />
-              <ActionButton icon={Pill} label="Add medication" onClick={() => handleAddMed(topPillRef.current)} />
-              <ActionButton icon={Droplet} label="Add fluid" onClick={() => handleAddFluid(topPillRef.current)} />
-              <ActionButton icon={HeartPulse} label="Add blood product" onClick={() => handleAddBlood(topPillRef.current)} />
-            </ActionPill>
+        <div className="relative">
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+            <div className="flex items-center gap-3 px-4 py-3 min-h-[3.75rem]">
+              <p className="text-[10pt] text-tertiary flex-1 text-center">No items added yet</p>
+            </div>
           </div>
+          <ActionPill ref={topPillRef} shadow="sm" placement="overlay">
+            <ActionButton icon={Syringe} label="Add IV/IO" onClick={() => handleAddIV(topPillRef.current)} />
+            <ActionButton icon={Pill} label="Add medication" onClick={() => handleAddMed(topPillRef.current)} />
+            <ActionButton icon={Droplet} label="Add fluid" onClick={() => handleAddFluid(topPillRef.current)} />
+            <ActionButton icon={HeartPulse} label="Add blood product" onClick={() => handleAddBlood(topPillRef.current)} />
+          </ActionPill>
         </div>
       )}
 

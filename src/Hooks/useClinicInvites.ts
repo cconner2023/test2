@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { generateInvite, redeemInvite, approveInvite, rejectInvite, revokeAssociation, getInvites, type ClinicInvite } from '../lib/clinicAssociationService'
+import { generateInvite, redeemInvite, getInvites, type ClinicInvite } from '../lib/clinicAssociationService'
 import { loadCachedInvites, saveCachedInvites } from '../lib/clinicInviteCache'
 import { createLogger } from '../Utilities/Logger'
 
@@ -9,7 +9,7 @@ const logger = createLogger('ClinicInvites')
 function findActiveInvite(invites: ClinicInvite[]): ClinicInvite | null {
   const now = Date.now()
   return invites
-    .filter(i => i.status === 'pending' && new Date(i.expires_at).getTime() > now)
+    .filter(i => new Date(i.expires_at).getTime() > now)
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] ?? null
 }
 
@@ -83,30 +83,6 @@ export function useClinicInvites() {
     return result
   }, [refresh])
 
-  const handleApproveInvite = useCallback(async (inviteId: string) => {
-    const result = await approveInvite(inviteId)
-    if (result.success) {
-      await refresh()
-    }
-    return result
-  }, [refresh])
-
-  const handleRejectInvite = useCallback(async (inviteId: string) => {
-    const result = await rejectInvite(inviteId)
-    if (result.success) {
-      await refresh()
-    }
-    return result
-  }, [refresh])
-
-  const handleRevokeAssociation = useCallback(async (inviteId: string) => {
-    const result = await revokeAssociation(inviteId)
-    if (result.success) {
-      await refresh()
-    }
-    return result
-  }, [refresh])
-
   return {
     invites,
     loading,
@@ -115,8 +91,5 @@ export function useClinicInvites() {
     activeCode: activeInvite?.code ?? null,
     activeExpiresAt: activeInvite?.expires_at ?? null,
     redeemInvite: handleRedeemInvite,
-    approveInvite: handleApproveInvite,
-    rejectInvite: handleRejectInvite,
-    revokeAssociation: handleRevokeAssociation,
   }
 }

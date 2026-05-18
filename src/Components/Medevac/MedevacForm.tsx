@@ -483,7 +483,7 @@ function LineEditor({
               value={req.l1}
               onChange={e => update({ l1: e.target.value.toUpperCase() })}
               placeholder="MGRS grid"
-              className="flex-1 bg-transparent font-mono tracking-wider text-primary placeholder:text-tertiary focus:outline-none text-sm"
+              className="flex-1 bg-transparent font-mono tracking-wider text-primary placeholder:text-tertiary focus:outline-none text-[10pt]"
             />
             <button
               type="button"

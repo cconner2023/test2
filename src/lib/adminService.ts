@@ -1057,6 +1057,63 @@ export async function setUserLoans(
 }
 
 /**
+ * List all loan rows relevant to a clinic (dev only). Returns 'in' rows
+ * (loans pointing at this clinic) and 'out' rows (loans for users whose
+ * home is this clinic). Bypasses the profile_clinic_loans RLS scope which
+ * would otherwise hide rows for clinics outside the dev's own membership.
+ */
+export async function listClinicLoans(
+  clinicId: string,
+): Promise<{ inUserIds: string[]; outMap: Map<string, string[]> }> {
+  try {
+    const { data, error } = await supabase.rpc('admin_list_clinic_loans', {
+      p_clinic_id: clinicId,
+    })
+    if (error) {
+      logger.error('listClinicLoans failed:', error.message)
+      return { inUserIds: [], outMap: new Map() }
+    }
+    const rows = (data ?? []) as { user_id: string; clinic_id: string; direction: 'in' | 'out' }[]
+    const inUserIds: string[] = []
+    const outMap = new Map<string, string[]>()
+    for (const r of rows) {
+      if (r.direction === 'in') {
+        inUserIds.push(r.user_id)
+      } else {
+        const arr = outMap.get(r.user_id) ?? []
+        arr.push(r.clinic_id)
+        outMap.set(r.user_id, arr)
+      }
+    }
+    return { inUserIds, outMap }
+  } catch (error) {
+    logger.error('listClinicLoans threw:', error)
+    return { inUserIds: [], outMap: new Map() }
+  }
+}
+
+/**
+ * Read a single user's loan clinic_ids (dev only). Bypasses
+ * profile_clinic_loans RLS so the admin user editor sees current loans
+ * regardless of whether the caller shares a clinic with the target.
+ */
+export async function listUserLoans(userId: string): Promise<string[]> {
+  try {
+    const { data, error } = await supabase.rpc('admin_list_user_loans', {
+      p_user_id: userId,
+    })
+    if (error) {
+      logger.error('listUserLoans failed:', error.message)
+      return []
+    }
+    return ((data ?? []) as { clinic_id: string }[]).map(r => r.clinic_id)
+  } catch (error) {
+    logger.error('listUserLoans threw:', error)
+    return []
+  }
+}
+
+/**
  * Update a user's profile fields (dev only).
  */
 export async function updateUserProfile(

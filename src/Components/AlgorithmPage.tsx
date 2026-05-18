@@ -198,14 +198,14 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
     if (!selectedSymptom) {
         return (
             <div className="w-full h-full flex items-center justify-center px-4">
-                <p className="text-sm text-tertiary">No symptom selected</p>
+                <p className="text-[10pt] text-tertiary">No symptom selected</p>
             </div>
         );
     }
     if (!algorithm || algorithmOptions.length === 0) {
         return (
             <div className="w-full h-full flex items-center justify-center px-4">
-                <p className="text-sm text-tertiary">No algorithm found for "{selectedSymptom.text}"</p>
+                <p className="text-[10pt] text-tertiary">No algorithm found for "{selectedSymptom.text}"</p>
             </div>
         );
     }

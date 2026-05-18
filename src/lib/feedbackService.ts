@@ -77,6 +77,19 @@ export async function submitFeedback(
 }
 
 /**
+ * Delete a feedback row. Dev-only via RLS.
+ */
+export async function deleteFeedback(id: string): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.from('feedback').delete().eq('id', id)
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    return fail(getErrorMessage(error, 'Failed to delete feedback'))
+  }
+}
+
+/**
  * Get all feedback ordered by created_at desc.
  * Only succeeds for dev users due to RLS policies.
  */

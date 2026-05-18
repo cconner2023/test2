@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Copy, Check, ClipboardList, Link2, Link2Off, ExternalLink } from 'lucide-react';
+import { Copy, Check, Link2, Link2Off, ExternalLink } from 'lucide-react';
 import { latLngToMgrs } from '../../lib/mgrsFormat';
 import type { OverlayFeature, WaypointType } from '../../Types/MapOverlayTypes';
 import { TACTICAL_COLORS, WAYPOINT_LABELS, PIN_GLYPHS } from '../../Types/MapOverlayTypes';
@@ -251,11 +251,11 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
   const labelPlaceholder = feature.type === 'waypoint' ? 'Waypoint' : feature.type === 'route' ? 'Route' : 'Area';
 
   return (
-    <div className="flex flex-col">
+    <div data-tour="map-feature-editor" className="flex flex-col pb-[calc(env(safe-area-inset-bottom)+3rem)]">
       {/* Editable label — primary identifier for the feature. Mirrors the
           desktop sidebar's title input so mobile can rename without an
           external chrome row. */}
-      <div className="px-3 py-2 border-b border-primary/6">
+      <div data-tour="map-feature-label" className="px-3 py-2 border-b border-primary/6">
         <input
           type="text"
           value={feature.label}
@@ -286,7 +286,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
 
       {/* Waypoint glyph picker — flat list mirroring the creation toolbar */}
       {feature.type === 'waypoint' && (
-        <div className="px-3 py-2 border-b border-primary/6 flex items-center gap-1.5 flex-wrap">
+        <div data-tour="map-feature-glyph-picker" className="px-3 py-2 border-b border-primary/6 flex items-center gap-1.5 flex-wrap">
           {PIN_GLYPHS.map(wt => {
             const active = (feature.waypoint_type ?? 'circle') === wt;
             return (
@@ -307,10 +307,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
 
       {/* Navigate — seeds a temp route from this pin; next map tap picks the end. */}
       {feature.type === 'waypoint' && feature.geometry.length > 0 && onStartNavigation && (
-        <div className="px-3 py-2 border-b border-primary/6 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-themewhite flex items-center justify-center text-themeblue3 shrink-0">
-            <Navigation size={15} />
-          </div>
+        <div data-tour="map-feature-navigate" className="px-3 py-2 border-b border-primary/6 flex items-center gap-3">
           <div className="flex-1 min-w-0">
             <p className="text-[10pt] font-medium text-primary">Navigate from here</p>
             <p className="text-[9pt] text-tertiary">Tap the next point on the map to plot a route from this pin.</p>
@@ -321,16 +318,18 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
               const [lat, lng] = feature.geometry[0];
               onStartNavigation(lat, lng, feature.id);
             }}
-            className="shrink-0 px-3 py-1.5 rounded-md text-[10pt] font-medium text-themewhite bg-themeblue3 active:scale-95 transition-all"
+            aria-label="Start navigation"
+            title="Start navigation"
+            className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-themewhite bg-themeblue3 active:scale-95 transition-all"
           >
-            Start
+            <Navigation size={15} />
           </button>
         </div>
       )}
 
       {/* Build MEDEVAC — surfaced for PZ/LZ pins or any pin with a TC3 link. */}
       {showMedevacAction && (
-        <div className="px-3 py-2 border-b border-primary/6 flex items-center gap-3">
+        <div data-tour="map-feature-medevac" className="px-3 py-2 border-b border-primary/6 flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-themewhite flex items-center justify-center text-themeredred shrink-0">
             <Siren size={15} />
           </div>
@@ -367,9 +366,6 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
       {/* TC3 link (waypoints only) — opaque id; no PHI in the OverlayFeature. */}
       {feature.type === 'waypoint' && (
         <div className="px-3 py-2 border-b border-primary/6 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-themewhite flex items-center justify-center text-themeredred shrink-0">
-            <ClipboardList size={15} />
-          </div>
           <div className="flex-1 min-w-0">
             <p className="text-[10pt] font-medium text-primary">
               {linkedExists
@@ -434,7 +430,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
       )}
 
       {/* Color Picker */}
-      <div className="px-3 py-2 border-b border-primary/6 flex items-center gap-2">
+      <div data-tour="map-feature-color-picker" className="px-3 py-2 border-b border-primary/6 flex items-center gap-2">
         {TACTICAL_COLORS.map((tc) => {
           const active = feature.style.color === tc.hex;
           return (
@@ -454,7 +450,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
           (distance · bearing · 8-digit grid or waypoint name), end point and
           total at the bottom. Tapping a leg fits the map to that segment. */}
       {feature.type === 'route' && legs.length > 0 && startLabel && endLabel && (
-        <div className="px-3 py-2 border-b border-primary/6 flex flex-col gap-1.5">
+        <div data-tour="map-feature-directions" className="px-3 py-2 border-b border-primary/6 flex flex-col gap-1.5">
           <div className={`text-[10pt] ${startLabel.isWaypoint ? 'text-themeblue2 font-medium' : 'font-mono text-primary'}`}>
             {startLabel.label}
           </div>
@@ -485,7 +481,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
           </div>
 
           {/* Phase 4.4 — Export strip map PDF */}
-          <div className="pt-2 mt-1 border-t border-primary/6 flex items-center gap-2">
+          <div data-tour="map-feature-strip-map" className="pt-2 mt-1 border-t border-primary/6 flex items-center gap-2">
             <span className="text-[9pt] font-medium text-tertiary uppercase tracking-widest shrink-0">Pace</span>
             <div className="flex rounded-md bg-themewhite p-0.5">
               {([
@@ -526,6 +522,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
         onChange={(e) => handleNotesChange(e.target.value)}
         rows={3}
         placeholder="Notes"
+        data-tour="map-feature-notes"
         className="w-full px-3 py-2 bg-transparent text-[10pt] text-primary placeholder:text-tertiary resize-none focus:outline-none"
       />
     </div>

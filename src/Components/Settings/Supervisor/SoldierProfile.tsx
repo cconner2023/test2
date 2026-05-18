@@ -518,7 +518,7 @@ export function SoldierProfile({
         </p>
         {tests.length === 0 ? (
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden px-4 py-4">
-            <p className="text-sm text-tertiary">No test records yet</p>
+            <p className="text-[10pt] text-tertiary">No test records yet</p>
           </div>
         ) : (
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">

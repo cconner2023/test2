@@ -1,0 +1,133 @@
+/**
+ * Shared map overlay routing — applies overlay actions from any message
+ * processing path (realtime, vault drain, backup restore) to the overlay
+ * IDB projection and notifies subscribers via useInvalidationStore.
+ *
+ * This centralises the routing logic so every path that decrypts a map
+ * overlay message can call a single function instead of duplicating the
+ * create/update/delete branching.
+ *
+ * Projection target: offlineDb 'mapOverlays' store. UI components watch
+ * useInvalidatedQuery('mapOverlays') and refetch on bump.
+ */
+
+import type { MessageContent, MapOverlayContent, MapOverlayPayload } from './signal/messageContent'
+import type { LocalMapOverlay } from '../Types/MapOverlayTypes'
+import {
+  getLocalMapOverlay,
+  saveLocalMapOverlay,
+  deleteLocalMapOverlay,
+} from './offlineDb'
+import { addOverlayTombstone, loadOverlayTombstones } from './mapOverlayEventStore'
+import { invalidate } from '../stores/useInvalidationStore'
+import { createLogger } from '../Utilities/Logger'
+
+const logger = createLogger('MapOverlayRouting')
+
+/** Returns true if the content is a map overlay message. */
+export function isMapOverlay(content: MessageContent | undefined | null): content is MapOverlayContent {
+  return content?.type === 'map_overlay'
+}
+
+// Module-level tombstone set for O(1) lookups — avoids IDB on every message.
+let _tombstones: Set<string> = new Set()
+
+/** Expose the in-memory tombstone set for hydration filtering. */
+export function getOverlayTombstones(): Set<string> {
+  return _tombstones
+}
+
+/**
+ * Load persisted tombstones into the in-memory set.
+ * Must be called once during hydration before replaying any message stream.
+ */
+export async function initOverlayTombstones(): Promise<void> {
+  _tombstones = await loadOverlayTombstones()
+}
+
+/**
+ * Route a map overlay message to the IDB projection.
+ * Safe to call from any context.
+ *
+ * Create/update actions are silently dropped for tombstoned overlay IDs so
+ * vault replay and backup restore cannot resurrect deleted overlays.
+ */
+export async function routeMapOverlay(content: MapOverlayContent): Promise<void> {
+  const { action, data } = content
+  if (!data.id) return
+
+  if (action === 'delete') {
+    _tombstones.add(data.id)
+    addOverlayTombstone(data.id).catch(() => {})
+    try {
+      await deleteLocalMapOverlay(data.id)
+    } catch (e) {
+      logger.warn('Failed to delete overlay from IDB:', e)
+    }
+    invalidate('mapOverlays')
+    return
+  }
+
+  // Guard: skip create/update for any tombstoned overlay.
+  if (_tombstones.has(data.id)) return
+
+  try {
+    const existing = await getLocalMapOverlay(data.id)
+    const merged = mergeOverlay(existing, data)
+    if (!merged) return
+    await saveLocalMapOverlay(merged)
+    invalidate('mapOverlays')
+  } catch (e) {
+    logger.warn('Failed to route overlay:', e)
+  }
+}
+
+/**
+ * Merge a payload into an existing overlay (or build a fresh one for create).
+ * Returns null when a 'create' arrives without enough fields to materialise
+ * a full overlay — vault drain may surface partial replays that we just drop.
+ */
+function mergeOverlay(
+  existing: LocalMapOverlay | undefined,
+  data: MapOverlayPayload,
+): LocalMapOverlay | null {
+  if (existing) {
+    return {
+      ...existing,
+      ...(data.clinic_id !== undefined && { clinic_id: data.clinic_id }),
+      ...(data.name !== undefined && { name: data.name }),
+      ...(data.description !== undefined && { description: data.description }),
+      ...(data.center !== undefined && { center: data.center }),
+      ...(data.zoom !== undefined && { zoom: data.zoom }),
+      ...(data.features !== undefined && { features: data.features }),
+      ...(data.created_by !== undefined && { created_by: data.created_by }),
+      ...(data.created_at !== undefined && { created_at: data.created_at }),
+      ...(data.updated_at !== undefined && { updated_at: data.updated_at }),
+      ...(data.originId !== undefined && { originId: data.originId }),
+      _sync_status: 'synced',
+      _sync_retry_count: 0,
+      _last_sync_error: null,
+      _last_sync_error_message: null,
+    }
+  }
+
+  // Fresh create — require the fields a viewable overlay needs.
+  if (!data.clinic_id || !data.created_by) return null
+  return {
+    id: data.id,
+    clinic_id: data.clinic_id,
+    name: data.name ?? '',
+    description: data.description,
+    center: data.center ?? [0, 0],
+    zoom: data.zoom ?? 12,
+    features: data.features ?? [],
+    created_by: data.created_by,
+    created_at: data.created_at ?? new Date().toISOString(),
+    updated_at: data.updated_at ?? new Date().toISOString(),
+    originId: data.originId,
+    _sync_status: 'synced',
+    _sync_retry_count: 0,
+    _last_sync_error: null,
+    _last_sync_error_message: null,
+  }
+}

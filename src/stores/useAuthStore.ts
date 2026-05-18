@@ -26,6 +26,7 @@ import { unregisterDevice, deleteKeyBundle, primaryLogoutAll, initLoRaMesh } fro
 import { secureSet, secureGet, secureRemove, persistSupabaseAuth, destroySecureStore } from '../lib/secureStorage'
 import { clearOutboundQueue, destroyOutboundQueue } from '../lib/signal/outboundQueue'
 import { clearCalendarEvents, clearAllPendingVaultSends } from '../lib/calendarEventStore'
+import { clearAllPendingOverlaySends } from '../lib/mapOverlayEventStore'
 import { useCalendarStore } from './useCalendarStore'
 import { invalidate } from './useInvalidationStore'
 import { clearBackupKey, createBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
@@ -122,6 +123,7 @@ interface AuthActions {
 /** Module-level flag: true only during deliberate user-initiated sign-out.
  *  Lives in JS memory only — cannot be spoofed across sessions. */
 let _userInitiatedSignOut = false
+let _pendingSignOutCleanup: Promise<void> | null = null
 
 /** Sync load from localStorage for instant hydration (prevents login screen flash). */
 function loadLocalSessionSync(): LocalSession | null {
@@ -406,11 +408,18 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     clearCalendarEvents().catch(() => {})
     clearAllPendingVaultSends().catch(() => {})
 
-    if (wasPrimary) {
-      // Primary logout: destroy entire IDB databases (nuke containers + encryption key).
-      // This ensures no residual data survives — a full clean slate.
-      // Use allSettled so one failure doesn't block others, with nuclear fallback.
-      ;(async () => {
+    // Same contract for map overlays. The projection (offlineDb mapOverlays)
+    // is wiped by clearAllUserData below; overlay tombstones live in the
+    // adtmc-map-overlay-events DB and must be preserved across logout.
+    clearAllPendingOverlaySends().catch(() => {})
+
+    // IDB cleanup is awaited by signOut() before it resolves, preventing a
+    // subsequent signIn from racing leftover account-A data into account-B
+    // hydration (shared DB names — see MESSAGE_DB_NAME). The promise is
+    // stored on _pendingSignOutCleanup; signOut() awaits it post-auth.signOut.
+    _pendingSignOutCleanup = (async () => {
+      if (wasPrimary) {
+        // Primary logout: destroy entire IDB databases (nuke containers + encryption key).
         const destroyClinic = import('../lib/signal/clinicKeyManager').then(m => m.destroyClinicSignalKeys())
         const results = await Promise.allSettled([
           destroySignalKeys(),
@@ -425,14 +434,9 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
             try { indexedDB.deleteDatabase(dbNames[i]) } catch { /* last resort */ }
           }
         })
-      })()
-    } else {
-      // Linked/provisional logout: purge data from stores but keep
-      // database containers and the device encryption key intact so
-      // the device can re-authenticate cleanly on next login.
-      // Clinic IDB is always destroyed (no cross-session reuse needed).
-      // Nuclear fallback: if clear fails, force-delete the databases.
-      ;(async () => {
+      } else {
+        // Linked/provisional logout: purge data from stores but keep
+        // database containers and the device encryption key intact.
         const destroyClinic = import('../lib/signal/clinicKeyManager').then(m => m.destroyClinicSignalKeys())
         const results = await Promise.allSettled([
           clearSignalKeys(),
@@ -446,8 +450,8 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
             try { indexedDB.deleteDatabase(dbNames[i]) } catch { /* last resort */ }
           }
         })
-      })()
-    }
+      }
+    })()
 
     if (LORA_MESH_ENABLED) {
       import('../lib/lora/loraDb').then(m => m.clearLoraDb()).catch(() => {})
@@ -792,7 +796,15 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     }
 
     await supabase.auth.signOut({ scope: 'local' })
-    // onAuthStateChange handler clears local state (IDB, sessions, etc.)
+    // onAuthStateChange → handleSignedOut clears local state and kicks off
+    // IDB cleanup, storing the promise on _pendingSignOutCleanup. Await it
+    // so a subsequent signIn (same browser, different account) can't race
+    // residual rows into the wrong user's hydration. Shared DB names make
+    // this race a cross-account data-leak vector — see MESSAGE_DB_NAME.
+    if (_pendingSignOutCleanup) {
+      try { await _pendingSignOutCleanup } catch { /* allSettled inside, but be defensive */ }
+      _pendingSignOutCleanup = null
+    }
   },
 
   patchProfile: (fields) => {

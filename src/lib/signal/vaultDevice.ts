@@ -30,7 +30,8 @@ import { importDhPublicKey } from './keyManager'
 import { uploadKeyBundle, registerDevice } from './signalService'
 import { saveMessage, deleteMessagesByOriginId, getTombstone } from './messageStore'
 import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones } from '../calendarRouting'
-import type { CalendarEventContent } from './messageContent'
+import { isMapOverlay, routeMapOverlay, initOverlayTombstones } from '../mapOverlayRouting'
+import type { CalendarEventContent, MapOverlayContent } from './messageContent'
 import { parseMessageContent } from './messageContent'
 import type { PublicKeyBundle, InitialMessage, EncryptedMessage, RatchetState, RatchetKeyPair } from './types'
 import type { DecryptedSignalMessage, SignalMessageRow, SyncMessagePayload } from './transportTypes'
@@ -523,6 +524,7 @@ async function recoverVaultKeys(row: VaultDeviceKeysRow): Promise<VaultPrivateKe
 export async function processVaultMessages(userId: string): Promise<number> {
   // 0. Ensure tombstones are loaded before replaying any messages
   await initCalendarTombstones()
+  await initOverlayTombstones()
 
   // 1. Fetch vault_device_keys row
   const { data: vaultRow } = await supabase
@@ -606,6 +608,7 @@ export async function processVaultMessages(userId: string): Promise<number> {
   // This prevents an earlier create/update from resurrecting an event that is
   // deleted by a later message in the same vault batch.
   const calendarRoutes: CalendarEventContent[] = []
+  const overlayRoutes: MapOverlayContent[] = []
 
   // 5. Process each message in order
   for (const row of rows as SignalMessageRow[]) {
@@ -746,6 +749,7 @@ export async function processVaultMessages(userId: string): Promise<number> {
         if (!syncTombstoneAt || sync.originalTimestamp >= syncTombstoneAt) {
           await saveMessage(syncMsg, userId)
           if (isCalendarEvent(syncContent)) calendarRoutes.push(syncContent)
+          else if (isMapOverlay(syncContent)) overlayRoutes.push(syncContent)
         }
       } else if (row.message_type === 'delete') {
         try {
@@ -754,6 +758,7 @@ export async function processVaultMessages(userId: string): Promise<number> {
         } catch { /* ignore parse errors */ }
       } else {
         const isCalEvent = isCalendarEvent(content)
+        const isOverlay = isMapOverlay(content)
         const msg: DecryptedSignalMessage = {
           id: row.id,
           senderId: senderUuid,
@@ -762,7 +767,7 @@ export async function processVaultMessages(userId: string): Promise<number> {
           content,
           messageType: row.message_type,
           createdAt: row.created_at,
-          readAt: isCalEvent ? new Date().toISOString() : null,
+          readAt: (isCalEvent || isOverlay) ? new Date().toISOString() : null,
           ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
           ...(row.group_id && { groupId: row.group_id }),
           originId: row.origin_id ?? undefined,
@@ -771,7 +776,8 @@ export async function processVaultMessages(userId: string): Promise<number> {
         const msgTombstoneAt = await getTombstone(msgConversationKey)
         if (!msgTombstoneAt || row.created_at >= msgTombstoneAt) {
           await saveMessage(msg, userId)
-          if (isCalEvent) calendarRoutes.push(content)
+          if (isCalEvent) calendarRoutes.push(content as CalendarEventContent)
+          else if (isOverlay) overlayRoutes.push(content as MapOverlayContent)
         }
       }
 
@@ -793,6 +799,19 @@ export async function processVaultMessages(userId: string): Promise<number> {
     for (const c of calendarRoutes) {
       if (c.action === 'delete' || !deletedEventIds.has(c.data.id)) {
         routeCalendarEvent(c)
+      }
+    }
+  }
+
+  // 5c. Same delete-aware dispatch for map overlays.
+  if (overlayRoutes.length > 0) {
+    const deletedOverlayIds = new Set<string>()
+    for (const c of overlayRoutes) {
+      if (c.action === 'delete') deletedOverlayIds.add(c.data.id)
+    }
+    for (const c of overlayRoutes) {
+      if (c.action === 'delete' || !deletedOverlayIds.has(c.data.id)) {
+        routeMapOverlay(c).catch(() => {})
       }
     }
   }

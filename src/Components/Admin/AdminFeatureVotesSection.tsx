@@ -295,7 +295,7 @@ export function AdminFeatureVotesSection() {
     return (
       <div className="px-5 py-8 flex items-center justify-center text-tertiary">
         <Loader2 size={18} className="animate-spin mr-2" />
-        <span className="text-sm">Loading…</span>
+        <span className="text-[10pt]">Loading…</span>
       </div>
     )
   }

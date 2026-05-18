@@ -70,7 +70,7 @@ export const OrderSetManager = ({
                             })}
                         </div>
                     ) : (
-                        <p className="text-sm text-tertiary py-4 text-center">
+                        <p className="text-[10pt] text-tertiary py-4 text-center">
                             {lc ? 'No matches' : 'No order sets configured'}
                         </p>
                     )}

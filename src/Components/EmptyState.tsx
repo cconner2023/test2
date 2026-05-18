@@ -46,7 +46,7 @@ export const EmptyState = ({
         return (
             <div className={`flex flex-col items-center justify-center px-4 py-8 ${className}`}>
                 {icon && <div className="text-tertiary mb-3">{icon}</div>}
-                <p className="text-sm font-medium text-secondary mb-1">{title}</p>
+                <p className="text-[10pt] font-medium text-secondary mb-1">{title}</p>
                 {subtitle && <p className="text-[10pt] text-tertiary text-center">{subtitle}</p>}
             </div>
         )
@@ -54,7 +54,7 @@ export const EmptyState = ({
 
     const row = (
         <div className="flex items-center gap-3 px-4 py-3 min-h-[3.75rem]">
-            <p className="text-sm text-tertiary flex-1 text-center">{title}</p>
+            <p className="text-[10pt] text-tertiary flex-1 text-center">{title}</p>
         </div>
     )
     return (

@@ -108,7 +108,7 @@ export const TextExpanderManager = ({
                             })}
                         </div>
                     ) : (
-                        <p className="text-sm text-tertiary py-8 text-center">
+                        <p className="text-[10pt] text-tertiary py-8 text-center">
                             {lc ? 'No matches' : 'No templates yet — tap + to add one.'}
                         </p>
                     )}

@@ -1,6 +1,11 @@
 import type { TemplateNode } from './TemplateTypes';
 
-export type Credential = 'EMT-B' | 'EMT-A' | 'EMT-P' | 'PA-C' | 'NP' | 'MD' | 'DO';
+export type Credential =
+    | 'EMT-B' | 'EMT-A' | 'EMT-P'
+    | 'PA-C' | 'NP' | 'MD' | 'DO'
+    | 'RN' | 'LPN' | 'CNA' | 'APRN' | 'CRNA' | 'CNM'
+    | 'RRT' | 'PharmD' | 'RPh' | 'MA' | 'CMA'
+    | 'LCSW' | 'LPC' | 'PsyD' | 'PhD' | 'BHT';
 export type Component = 'USA' | 'USN' | 'USMC' | 'USAF';
 export type Rank = string;
 
@@ -154,7 +159,20 @@ export const OVERVIEW_WIDGET_META: Record<OverviewWidgetId, { label: string; sub
   'huddle':      { label: 'Daily Huddle', subtitle: "Today's huddle by station" },
 }
 
-export const credentials: Credential[] = ['EMT-B', 'EMT-A', 'EMT-P', 'PA-C', 'NP', 'MD', 'DO'];
+// NOTE: order matters — noteParser.ts encodes credential by array index.
+// Append new entries to the END only; never reorder or remove existing entries.
+export const credentials: Credential[] = [
+    // Prehospital (legacy indices 0-2)
+    'EMT-B', 'EMT-A', 'EMT-P',
+    // Provider (legacy indices 3-6)
+    'PA-C', 'NP', 'MD', 'DO',
+    // Nursing
+    'RN', 'LPN', 'CNA', 'APRN', 'CRNA', 'CNM',
+    // Allied / Tech
+    'RRT', 'PharmD', 'RPh', 'MA', 'CMA',
+    // Behavioral Health
+    'LCSW', 'LPC', 'PsyD', 'PhD', 'BHT',
+];
 export const components: Component[] = ['USA', 'USN', 'USMC', 'USAF'];
 
 /** Ranks organized by DoD component, in ascending grade order */

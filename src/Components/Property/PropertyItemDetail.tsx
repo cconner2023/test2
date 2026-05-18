@@ -255,7 +255,7 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
                   ))
                 }
                 {locations.filter(l => l.id !== item.location_id).length === 0 && (
-                  <p className="text-sm text-tertiary px-4 py-3">No other locations</p>
+                  <p className="text-[10pt] text-tertiary px-4 py-3">No other locations</p>
                 )}
               </SectionCard>
             </div>

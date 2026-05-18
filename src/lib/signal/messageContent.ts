@@ -10,9 +10,11 @@
  *   Image:          { t: "i", mime, key, path, w, h, thumb? }
  *   Voice:          { t: "v", mime, key, path, dur, wf }
  *   Calendar event: { t: "e", a: "c"|"u"|"d", d: {...} }
+ *   Map overlay:    { t: "o", a: "c"|"u"|"d", d: {...} }
  */
 
 import type { EventCategory, EventStatus } from '../../Types/CalendarTypes'
+import type { OverlayFeature } from '../../Types/MapOverlayTypes'
 
 // ---- Content Types ----
 
@@ -90,7 +92,34 @@ export interface CalendarEventContent {
   data: CalendarEventPayload
 }
 
-export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent
+/**
+ * Payload for a map overlay sync message.
+ * For 'create': all fields should be populated.
+ * For 'update': id + only changed fields.
+ * For 'delete': id only.
+ */
+export interface MapOverlayPayload {
+  id: string
+  clinic_id?: string
+  name?: string
+  description?: string
+  center?: [number, number]
+  zoom?: number
+  features?: OverlayFeature[]
+  created_by?: string
+  created_at?: string
+  updated_at?: string
+  /** Origin ID for tracking the broadcast message on the server. */
+  originId?: string
+}
+
+export interface MapOverlayContent {
+  type: 'map_overlay'
+  action: 'create' | 'update' | 'delete'
+  data: MapOverlayPayload
+}
+
+export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent
 
 // ---- Compact wire shapes ----
 
@@ -133,7 +162,13 @@ interface WireCalendarEvent {
   d: Record<string, unknown>
 }
 
-type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent
+interface WireMapOverlay {
+  t: 'o'
+  a: 'c' | 'u' | 'd'
+  d: Record<string, unknown>
+}
+
+type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay
 
 // ---- Serialization ----
 
@@ -169,6 +204,16 @@ export function serializeContent(content: MessageContent): string {
     const actionMap = { create: 'c', update: 'u', delete: 'd' } as const
     const wire: WireCalendarEvent = {
       t: 'e',
+      a: actionMap[content.action],
+      d: content.data as Record<string, unknown>,
+    }
+    return JSON.stringify(wire)
+  }
+
+  if (content.type === 'map_overlay') {
+    const actionMap = { create: 'c', update: 'u', delete: 'd' } as const
+    const wire: WireMapOverlay = {
+      t: 'o',
       a: actionMap[content.action],
       d: content.data as Record<string, unknown>,
     }
@@ -261,6 +306,19 @@ export function parseMessageContent(raw: string): ParsedContent {
           action,
           data: wire.d as CalendarEventPayload,
         } satisfies CalendarEventContent,
+      }
+    }
+
+    if (wire.t === 'o') {
+      const actionMap = { c: 'create', u: 'update', d: 'delete' } as const
+      const action = actionMap[wire.a] ?? 'create'
+      return {
+        plaintext: '[map overlay]',
+        content: {
+          type: 'map_overlay',
+          action,
+          data: wire.d as MapOverlayPayload,
+        } satisfies MapOverlayContent,
       }
     }
   } catch {

@@ -93,7 +93,7 @@ export function MapOverlayTree({
   }, []);
 
   return (
-    <div className="flex flex-col h-full">
+    <div data-tour="map-overlay-tree" className="flex flex-col h-full">
       {/* Tree body — empty state primitive, or populated list with corner action */}
       <div className="flex-1 min-h-0 overflow-y-auto py-1 relative">
         {sorted.length === 0 ? (
@@ -104,7 +104,7 @@ export function MapOverlayTree({
           />
         ) : (
           <>
-            {sorted.map((overlay) => {
+            {sorted.map((overlay, overlayIdx) => {
             const hasChildren = overlay.features.length > 0;
             const isCollapsed = collapsed.has(overlay.id);
             const isActive = activeOverlayId === overlay.id;
@@ -118,6 +118,7 @@ export function MapOverlayTree({
                 {/* Overlay row */}
                 <div
                   data-overlay-row={overlay.id}
+                  data-tour={overlayIdx === 0 ? 'map-overlay-row' : undefined}
                   className={`group flex items-center gap-1.5 py-2 pr-3 transition-colors ${
                     isActive
                       ? 'bg-primary/5 border-l-2 border-l-primary/40'
@@ -219,6 +220,7 @@ export function MapOverlayTree({
                       <button
                         type="button"
                         onClick={() => onToggleVisible(overlay.id)}
+                        data-tour={overlayIdx === 0 ? 'map-overlay-visibility' : undefined}
                         className={`w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all ${
                           isVisible ? 'text-themeblue2' : 'text-tertiary/50'
                         }`}
@@ -232,12 +234,14 @@ export function MapOverlayTree({
                 </div>
 
                 {/* Features */}
-                {hasChildren && !isCollapsed && overlay.features.map((feature) => {
+                {hasChildren && !isCollapsed && overlay.features.map((feature, featureIdx) => {
                   const isSelected = selectedFeatureId === feature.id && isActive;
                   return (
                     <button
                       key={feature.id}
                       type="button"
+                      data-tour={overlayIdx === 0 && featureIdx === 0 ? 'map-feature-row' : undefined}
+                      data-feature-row={feature.id}
                       onClick={() => onSelectFeature(feature, overlay.id)}
                       className={`w-full flex items-center py-1.5 pr-3 text-left transition-colors ${
                         isSelected ? 'bg-themeblue3/10' : 'hover:bg-secondary/5'

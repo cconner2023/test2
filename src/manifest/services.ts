@@ -55,8 +55,7 @@ export const services = {
     path: 'lib/clinicAssociationService.ts',
     tables: { reads: ['clinic_invites'], writes: ['clinic_invites'] },
     idb: [],
-    exports: ['generateInvite', 'redeemInvite', 'acceptInvite', 'rejectInvite',
-              'revokeInvite', 'emergencyAssociate'],
+    exports: ['generateInvite', 'redeemInvite', 'getInvites', 'getAssociatedClinicCode'],
   },
 
   // ─── Training ──────────────────────────────────────────────────
@@ -113,8 +112,22 @@ export const services = {
     path: 'lib/mapOverlayService.ts',
     tables: { reads: [], writes: [] },
     idb: ['packagebackend-offline:mapOverlays'],
-    exports: ['getOverlays', 'getOverlay', 'createOverlay', 'updateOverlay',
-              'deleteOverlay', 'getLocalMapOverlays'],
+    exports: ['getOverlays', 'getOverlay'],
+    note: 'Read helpers only. Overlay writes/deletes flow through the clinic Signal vault — see Hooks/useMapOverlayWrite + Hooks/useMapOverlayVault.',
+  },
+  mapOverlayRouting: {
+    path: 'lib/mapOverlayRouting.ts',
+    tables: { reads: [], writes: [] },
+    idb: ['packagebackend-offline:mapOverlays', 'adtmc-map-overlay-events'],
+    exports: ['isMapOverlay', 'routeMapOverlay', 'initOverlayTombstones', 'getOverlayTombstones'],
+  },
+  mapOverlayEventStore: {
+    path: 'lib/mapOverlayEventStore.ts',
+    tables: { reads: [], writes: [] },
+    idb: ['adtmc-map-overlay-events'],
+    exports: ['addOverlayTombstone', 'loadOverlayTombstones', 'clearExpiredOverlayTombstones',
+              'queuePendingOverlaySend', 'loadPendingOverlaySends', 'clearPendingOverlaySend',
+              'clearAllPendingOverlaySends'],
   },
 
   // ─── Offline Sync ──────────────────────────────────────────────

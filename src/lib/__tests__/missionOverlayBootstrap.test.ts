@@ -1,15 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-
-const mocks = vi.hoisted(() => ({
-  saveOverlay: vi.fn(),
-}))
-
-vi.mock('../mapOverlayService', () => ({
-  saveOverlay: mocks.saveOverlay,
-}))
-
 import { ensureMissionOverlay, isFieldEvent } from '../missionOverlayBootstrap'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
+import type { LocalMapOverlay } from '../../Types/MapOverlayTypes'
 
 const NOW = '2026-05-10T12:00:00.000Z'
 
@@ -41,6 +33,8 @@ function event(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
   } as CalendarEvent
 }
 
+const writeOverlay = vi.fn()
+
 describe('isFieldEvent', () => {
   it('returns true for mission / training / range', () => {
     expect(isFieldEvent(event({ category: 'mission' }))).toBe(true)
@@ -56,25 +50,24 @@ describe('isFieldEvent', () => {
 })
 
 describe('ensureMissionOverlay', () => {
-  beforeEach(() => mocks.saveOverlay.mockReset())
+  beforeEach(() => writeOverlay.mockReset())
 
   it('returns the existing overlay_id when one is already linked (no writes)', async () => {
     const ev = event({ structured_location: { overlay_id: 'ov-existing' } })
-    const r = await ensureMissionOverlay({ event: ev, userId: 'u-1', fallbackCenter: [0, 0] })
+    const r = await ensureMissionOverlay({ event: ev, userId: 'u-1', fallbackCenter: [0, 0], writeOverlay })
     expect(r.overlayId).toBe('ov-existing')
     expect(r.created).toBe(false)
-    expect(mocks.saveOverlay).not.toHaveBeenCalled()
+    expect(writeOverlay).not.toHaveBeenCalled()
   })
 
   it('creates a new overlay when none is linked', async () => {
-    mocks.saveOverlay.mockResolvedValueOnce({ ok: true, data: { id: 'irrelevant' } })
-    const r = await ensureMissionOverlay({ event: event(), userId: 'u-1', fallbackCenter: [38.9, -77.0] })
+    writeOverlay.mockResolvedValueOnce({ id: 'irrelevant' } as Partial<LocalMapOverlay>)
+    const r = await ensureMissionOverlay({ event: event(), userId: 'u-1', fallbackCenter: [38.9, -77.0], writeOverlay })
     expect(r.created).toBe(true)
     expect(r.overlayId).toBeTruthy()
-    expect(mocks.saveOverlay).toHaveBeenCalledOnce()
-    const args = mocks.saveOverlay.mock.calls[0][0]
+    expect(writeOverlay).toHaveBeenCalledOnce()
+    const args = writeOverlay.mock.calls[0][0]
     expect(args.clinicId).toBe('cl-1')
-    expect(args.userId).toBe('u-1')
     expect(args.name).toContain('Op Rake')
     expect(args.name).toContain('2026-06-01')
     expect(args.features).toEqual([])
@@ -82,9 +75,9 @@ describe('ensureMissionOverlay', () => {
   })
 
   it('falls back to a category-prefixed name when title is empty', async () => {
-    mocks.saveOverlay.mockResolvedValueOnce({ ok: true, data: {} })
-    await ensureMissionOverlay({ event: event({ title: '' }), userId: 'u-1', fallbackCenter: [0, 0] })
-    const args = mocks.saveOverlay.mock.calls[0][0]
+    writeOverlay.mockResolvedValueOnce({} as Partial<LocalMapOverlay>)
+    await ensureMissionOverlay({ event: event({ title: '' }), userId: 'u-1', fallbackCenter: [0, 0], writeOverlay })
+    const args = writeOverlay.mock.calls[0][0]
     expect(args.name).toMatch(/^Mission · 2026-06-01$/)
   })
 
@@ -93,17 +86,18 @@ describe('ensureMissionOverlay', () => {
       event: event({ category: 'huddle' }),
       userId: 'u-1',
       fallbackCenter: [0, 0],
+      writeOverlay,
     })
     expect(r.created).toBe(false)
     expect(r.error).toBe('Event is not a field-type category')
-    expect(mocks.saveOverlay).not.toHaveBeenCalled()
+    expect(writeOverlay).not.toHaveBeenCalled()
   })
 
-  it('propagates a saveOverlay failure', async () => {
-    mocks.saveOverlay.mockResolvedValueOnce({ ok: false, error: 'IDB write failed' })
-    const r = await ensureMissionOverlay({ event: event(), userId: 'u-1', fallbackCenter: [0, 0] })
+  it('propagates a writeOverlay failure', async () => {
+    writeOverlay.mockResolvedValueOnce(null)
+    const r = await ensureMissionOverlay({ event: event(), userId: 'u-1', fallbackCenter: [0, 0], writeOverlay })
     expect(r.created).toBe(false)
-    expect(r.error).toBe('IDB write failed')
+    expect(r.error).toBe('Failed to create overlay')
     expect(r.overlayId).toBe('')
   })
 })

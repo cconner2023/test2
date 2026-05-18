@@ -7,9 +7,18 @@
  */
 
 import { createLogger } from '../../Utilities/Logger'
-import { uint8ToBase64, base64ToUint8 } from '../../Utilities/textCodec'
+import { base64ToUint8 } from '../../Utilities/textCodec'
 import { SIGNAL } from '../constants'
 import * as store from './clinicKeyStore'
+import {
+  generateDhKeyPair,
+  generateSigningKeyPair,
+  exportPublicKey,
+  importDhPublicKey,
+  importSigningPublicKey,
+  signBytes,
+  makePeerIdentityKey,
+} from './keyPrimitives'
 import type {
   StoredLocalIdentity,
   StoredPreKey,
@@ -24,60 +33,8 @@ const logger = createLogger('ClinicKeyManager')
 
 let cachedClinicIdentity: StoredLocalIdentity | null = null
 
-// ---- Curve Parameters ----
-
-const ECDH_PARAMS: EcKeyGenParams = { name: 'ECDH', namedCurve: SIGNAL.CURVE }
-const ECDSA_PARAMS: EcKeyGenParams = { name: 'ECDSA', namedCurve: SIGNAL.CURVE }
-const ECDSA_SIGN_PARAMS: EcdsaParams = { name: 'ECDSA', hash: 'SHA-256' }
-
-// ---- Key Generation Primitives ----
-
-async function generateDhKeyPair(): Promise<CryptoKeyPair> {
-  return crypto.subtle.generateKey(ECDH_PARAMS, true, ['deriveKey', 'deriveBits'])
-}
-
-async function generateSigningKeyPair(): Promise<CryptoKeyPair> {
-  return crypto.subtle.generateKey(ECDSA_PARAMS, true, ['sign', 'verify'])
-}
-
-// ---- Key Export / Import ----
-
-async function exportPublicKey(
-  key: CryptoKey,
-  format: 'raw' | 'spki' = 'raw'
-): Promise<string> {
-  const exported = await crypto.subtle.exportKey(format, key)
-  return uint8ToBase64(new Uint8Array(exported))
-}
-
-export async function importDhPublicKey(base64: string): Promise<CryptoKey> {
-  const keyBytes = base64ToUint8(base64)
-  return crypto.subtle.importKey(
-    'raw',
-    keyBytes.buffer as ArrayBuffer,
-    ECDH_PARAMS,
-    true,
-    []
-  )
-}
-
-export async function importSigningPublicKey(base64: string): Promise<CryptoKey> {
-  const keyBytes = base64ToUint8(base64)
-  return crypto.subtle.importKey(
-    'spki',
-    keyBytes.buffer as ArrayBuffer,
-    ECDSA_PARAMS,
-    true,
-    ['verify']
-  )
-}
-
-// ---- Signing ----
-
-async function signBytes(privateKey: CryptoKey, data: Uint8Array): Promise<string> {
-  const signature = await crypto.subtle.sign(ECDSA_SIGN_PARAMS, privateKey, data as BufferSource)
-  return uint8ToBase64(new Uint8Array(signature))
-}
+// Re-export primitives that are part of this module's public API.
+export { importDhPublicKey, importSigningPublicKey }
 
 // ---- Clinic Device ID ----
 
@@ -288,10 +245,6 @@ export async function assembleClinicBundle(
 
 // ---- Peer Identity Management ----
 
-function makePeerIdentityKey(userId: string, deviceId: string): string {
-  return `${userId}:${deviceId}`
-}
-
 export async function storeClinicPeerIdentity(
   userId: string,
   deviceId: string,
@@ -344,16 +297,7 @@ export async function getClinicPeerIdentity(
 
 // ---- Key Agreement (ECDH) ----
 
-export async function performClinicDh(
-  privateKey: CryptoKey,
-  peerPublicKey: CryptoKey
-): Promise<ArrayBuffer> {
-  return crypto.subtle.deriveBits(
-    { name: 'ECDH', public: peerPublicKey },
-    privateKey,
-    256
-  )
-}
+export { performDh as performClinicDh } from './keyPrimitives'
 
 // ---- Cleanup ----
 

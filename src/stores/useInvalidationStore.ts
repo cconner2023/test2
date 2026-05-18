@@ -27,6 +27,7 @@ export type Domain =
   | 'calendar'
   | 'training'
   | 'messaging'
+  | 'mapOverlays'
 
 interface InvalidationState {
   generations: Record<Domain, number>
@@ -43,6 +44,7 @@ export const useInvalidationStore = create<InvalidationState>((set) => ({
     calendar: 0,
     training: 0,
     messaging: 0,
+    mapOverlays: 0,
   },
   invalidate: (...domains) =>
     set((state) => {

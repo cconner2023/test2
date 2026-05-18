@@ -27,6 +27,7 @@ import {
   saveOriginTombstones,
 } from './messageStore'
 import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones } from '../calendarRouting'
+import { isMapOverlay, routeMapOverlay, initOverlayTombstones } from '../mapOverlayRouting'
 import type { StoredMessage } from './messageStore'
 
 const logger = createLogger('BackupService')
@@ -549,7 +550,7 @@ export async function restoreBackup(userId: string): Promise<void> {
     // a 'c' from the personal backup for a clinic-deleted event could bypass
     // the routeCalendarEvent tombstone guard if the backup finishes first.
     // Wrapped so a thrown error still hits the finally and opens the gate.
-    try { await initCalendarTombstones() } catch (err) {
+    try { await initCalendarTombstones(); await initOverlayTombstones() } catch (err) {
       logger.warn('initCalendarTombstones failed during restoreBackup:', err)
     }
 
@@ -643,12 +644,15 @@ export async function restoreBackup(userId: string): Promise<void> {
       logger.info(`Restored ${originEntries.length} origin tombstones`)
     }
 
-    // Pre-scan: collect event IDs that have a delete action so we don't
+    // Pre-scan: collect event/overlay IDs that have a delete action so we don't
     // resurrect them when replaying earlier create messages.
     const deletedEventIds = new Set<string>()
+    const deletedOverlayIds = new Set<string>()
     for (const msg of payload.messages) {
       if (isCalendarEvent(msg.content) && msg.content.action === 'delete') {
         deletedEventIds.add(msg.content.data.id)
+      } else if (isMapOverlay(msg.content) && msg.content.action === 'delete') {
+        deletedOverlayIds.add(msg.content.data.id)
       }
     }
 
@@ -659,6 +663,10 @@ export async function restoreBackup(userId: string): Promise<void> {
       if (isCalendarEvent(msg.content)) {
         if (msg.content.action === 'delete' || !deletedEventIds.has(msg.content.data.id)) {
           routeCalendarEvent(msg.content)
+        }
+      } else if (isMapOverlay(msg.content)) {
+        if (msg.content.action === 'delete' || !deletedOverlayIds.has(msg.content.data.id)) {
+          routeMapOverlay(msg.content).catch(() => {})
         }
       }
       restored++

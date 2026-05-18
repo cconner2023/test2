@@ -28,9 +28,20 @@
  */
 
 import { createLogger } from '../../Utilities/Logger'
-import { uint8ToBase64, base64ToUint8 } from '../../Utilities/textCodec'
+import { base64ToUint8 } from '../../Utilities/textCodec'
 import { SIGNAL } from '../constants'
 import * as store from './keyStore'
+import {
+  generateDhKeyPair,
+  generateSigningKeyPair,
+  exportPublicKey,
+  importDhPublicKey,
+  importSigningPublicKey,
+  signBytes,
+  verifySignature,
+  performDh,
+  makePeerIdentityKey,
+} from './keyPrimitives'
 import type {
   StoredLocalIdentity,
   StoredPreKey,
@@ -45,90 +56,8 @@ const logger = createLogger('SignalKeyManager')
 
 let cachedIdentity: StoredLocalIdentity | null = null
 
-// ---- Curve Parameters ----
-
-const ECDH_PARAMS: EcKeyGenParams = { name: 'ECDH', namedCurve: SIGNAL.CURVE }
-const ECDSA_PARAMS: EcKeyGenParams = { name: 'ECDSA', namedCurve: SIGNAL.CURVE }
-const ECDSA_SIGN_PARAMS: EcdsaParams = { name: 'ECDSA', hash: 'SHA-256' }
-
-// ---- Key Generation Primitives ----
-
-/**
- * Generate an ECDH P-256 key pair for Diffie-Hellman key agreement.
- *
- * NOTE: Keys are generated with extractable=true because IndexedDB
- * structured-clone requires it for persistence. See module-level
- * security model comment for details.
- */
-async function generateDhKeyPair(): Promise<CryptoKeyPair> {
-  return crypto.subtle.generateKey(ECDH_PARAMS, true, ['deriveKey', 'deriveBits'])
-}
-
-/**
- * Generate an ECDSA P-256 key pair for digital signatures.
- *
- * NOTE: Keys are generated with extractable=true because IndexedDB
- * structured-clone requires it for persistence. See module-level
- * security model comment for details.
- */
-async function generateSigningKeyPair(): Promise<CryptoKeyPair> {
-  return crypto.subtle.generateKey(ECDSA_PARAMS, true, ['sign', 'verify'])
-}
-
-// ---- Key Export / Import ----
-
-/** Export a public CryptoKey to base64.
- *  ECDH keys use 'raw' format (65 bytes, uncompressed point).
- *  ECDSA keys use 'spki' format (DER-encoded SubjectPublicKeyInfo). */
-async function exportPublicKey(
-  key: CryptoKey,
-  format: 'raw' | 'spki' = 'raw'
-): Promise<string> {
-  const exported = await crypto.subtle.exportKey(format, key)
-  return uint8ToBase64(new Uint8Array(exported))
-}
-
-/** Import a peer's ECDH public key from base64 (raw format). */
-export async function importDhPublicKey(base64: string): Promise<CryptoKey> {
-  const keyBytes = base64ToUint8(base64)
-  return crypto.subtle.importKey(
-    'raw',
-    keyBytes.buffer as ArrayBuffer,
-    ECDH_PARAMS,
-    true,
-    []  // public keys: no usage flags needed (private key does deriveKey)
-  )
-}
-
-/** Import a peer's ECDSA public key from base64 (SPKI format). */
-export async function importSigningPublicKey(base64: string): Promise<CryptoKey> {
-  const keyBytes = base64ToUint8(base64)
-  return crypto.subtle.importKey(
-    'spki',
-    keyBytes.buffer as ArrayBuffer,
-    ECDSA_PARAMS,
-    true,
-    ['verify']
-  )
-}
-
-// ---- Signing / Verification ----
-
-/** Sign data with an ECDSA private key. Returns base64 signature. */
-async function signBytes(privateKey: CryptoKey, data: Uint8Array): Promise<string> {
-  const signature = await crypto.subtle.sign(ECDSA_SIGN_PARAMS, privateKey, data as BufferSource)
-  return uint8ToBase64(new Uint8Array(signature))
-}
-
-/** Verify an ECDSA signature against a public key. */
-export async function verifySignature(
-  publicKey: CryptoKey,
-  signatureBase64: string,
-  data: Uint8Array
-): Promise<boolean> {
-  const sigBytes = base64ToUint8(signatureBase64)
-  return crypto.subtle.verify(ECDSA_SIGN_PARAMS, publicKey, sigBytes as BufferSource, data as BufferSource)
-}
+// Re-export primitives that are part of this module's public API.
+export { importDhPublicKey, importSigningPublicKey, verifySignature, performDh }
 
 // ---- Identity Key Management ----
 
@@ -450,11 +379,6 @@ export async function assemblePublicKeyBundle(
 
 // ---- Peer Identity Management ----
 
-/** Build a compound identity key for peer identity storage. */
-function makePeerIdentityKey(userId: string, deviceId: string): string {
-  return `${userId}:${deviceId}`
-}
-
 /**
  * Store a peer's identity public keys (per-device).
  *
@@ -528,27 +452,6 @@ export async function markPeerVerified(userId: string, deviceId: string): Promis
 
   await store.savePeerIdentity({ ...peer, verified: true })
   return true
-}
-
-// ---- Key Agreement (ECDH) ----
-
-/**
- * Perform raw ECDH key agreement between a private key and a peer's
- * public key. Returns 256 bits of shared secret material.
- *
- * This is a building block for X3DH — not called directly for
- * message encryption. The Double Ratchet (Phase 2) will compose
- * multiple DH outputs with a KDF to establish session keys.
- */
-export async function performDh(
-  privateKey: CryptoKey,
-  peerPublicKey: CryptoKey
-): Promise<ArrayBuffer> {
-  return crypto.subtle.deriveBits(
-    { name: 'ECDH', public: peerPublicKey },
-    privateKey,
-    256  // P-256 shared secret is 256 bits
-  )
 }
 
 // ---- Cleanup ----

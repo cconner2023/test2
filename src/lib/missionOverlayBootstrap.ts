@@ -14,7 +14,7 @@
  */
 
 import type { CalendarEvent } from '../Types/CalendarTypes'
-import { saveOverlay } from './mapOverlayService'
+import type { WriteOverlayParams, UseMapOverlayWriteResult } from '../Hooks/useMapOverlayWrite'
 
 export type FieldEventCategory = 'mission' | 'training' | 'range'
 
@@ -38,6 +38,10 @@ export interface EnsureOverlayArgs {
    *  active clinic's known location. Caller's responsibility. */
   fallbackCenter: [number, number]
   defaultZoom?: number
+  /** Vault-aware write callback. Caller is a React component so it can pull
+   *  this from useMapOverlayWrite. Kept as a param so this helper stays a
+   *  pure non-hook function callable from any context. */
+  writeOverlay: UseMapOverlayWriteResult['writeOverlay']
 }
 
 export interface EnsureOverlayResult {
@@ -58,7 +62,7 @@ export interface EnsureOverlayResult {
  *   keep this helper testable without the calendar store.)
  */
 export async function ensureMissionOverlay(args: EnsureOverlayArgs): Promise<EnsureOverlayResult> {
-  const { event, userId, fallbackCenter, defaultZoom = 13 } = args
+  const { event, fallbackCenter, defaultZoom = 13, writeOverlay } = args
 
   if (!isFieldEvent(event)) {
     return { overlayId: '', created: false, error: 'Event is not a field-type category' }
@@ -70,18 +74,17 @@ export async function ensureMissionOverlay(args: EnsureOverlayArgs): Promise<Ens
   const overlayId = crypto.randomUUID()
   const name = overlayName(event)
 
-  const result = await saveOverlay({
+  const params: WriteOverlayParams = {
     overlayId,
     clinicId: event.clinic_id,
-    userId,
     name,
     center: fallbackCenter,
     zoom: defaultZoom,
     features: [],
-  })
-
-  if (!result.ok) {
-    return { overlayId: '', created: false, error: result.error }
+  }
+  const result = await writeOverlay(params)
+  if (!result) {
+    return { overlayId: '', created: false, error: 'Failed to create overlay' }
   }
   return { overlayId, created: true }
 }

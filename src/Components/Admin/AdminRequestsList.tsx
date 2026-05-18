@@ -7,6 +7,7 @@ import { ConfirmDialog } from '../ConfirmDialog'
 import { AdminListSkeleton } from './AdminSkeletons'
 import { RequestCard } from './RequestCard'
 import { SuggestionCard } from './SuggestionCard'
+import { FeedbackCard } from './FeedbackCard'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import {
   getAllAccountRequests,
@@ -21,6 +22,7 @@ import {
   adminDeleteSuggestion,
   type FeatureVoteSuggestion,
 } from '../../lib/featureVotingService'
+import { getFeedbackList, deleteFeedback, type FeedbackRow } from '../../lib/feedbackService'
 import { invalidate, useInvalidation } from '../../stores/useInvalidationStore'
 import { UI_TIMING } from '../../Utilities/constants'
 
@@ -43,14 +45,17 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
   // Data
   const [requests, setRequests] = useState<AccountRequest[]>([])
   const [suggestions, setSuggestions] = useState<FeatureVoteSuggestion[]>([])
+  const [feedback, setFeedback] = useState<FeedbackRow[]>([])
   const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [userEmails, setUserEmails] = useState<Set<string>>(new Set())
+  const [userIdToEmail, setUserIdToEmail] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
   const showLoading = useMinLoadTime(loading)
 
   // Processing state
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [confirmDeleteSuggestionId, setConfirmDeleteSuggestionId] = useState<string | null>(null)
+  const [confirmDeleteFeedbackId, setConfirmDeleteFeedbackId] = useState<string | null>(null)
   const [deleteProcessing, setDeleteProcessing] = useState(false)
 
   // Notify modal
@@ -59,21 +64,26 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
   // Expand + context menu
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [expandedSuggestionId, setExpandedSuggestionId] = useState<string | null>(null)
+  const [expandedFeedbackId, setExpandedFeedbackId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ requestId: string; x: number; y: number } | null>(null)
+  const [feedbackContextMenu, setFeedbackContextMenu] = useState<{ feedbackId: string; x: number; y: number } | null>(null)
 
   // ── Data loading ────────────────────────────────────────
   const loadRequests = useCallback(async () => {
     setLoading(true)
-    const [reqData, clinicData, userData, sugResult] = await Promise.all([
+    const [reqData, clinicData, userData, sugResult, fbData] = await Promise.all([
       getAllAccountRequests(),
       listClinics(),
       listAllUsers(),
       fetchSuggestions({ status: 'pending' }),
+      getFeedbackList(),
     ])
     setRequests(reqData)
     setClinics(clinicData)
     setUserEmails(new Set(userData.map(u => u.email?.toLowerCase()).filter(Boolean)))
+    setUserIdToEmail(new Map(userData.filter(u => u.email).map(u => [u.id, u.email as string])))
     setSuggestions(sugResult.ok ? sugResult.data : [])
+    setFeedback(fbData)
     setLoading(false)
   }, [])
 
@@ -126,9 +136,22 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
     )
   }, [suggestions, searchQuery])
 
+  const filteredFeedback = useMemo(() => {
+    if (!searchQuery.trim()) return feedback
+    const q = searchQuery.toLowerCase()
+    return feedback.filter((f) =>
+      (f.display_name?.toLowerCase().includes(q) ?? false) ||
+      (f.comments?.toLowerCase().includes(q) ?? false) ||
+      (f.most_useful_feature?.toLowerCase().includes(q) ?? false) ||
+      (f.desired_feature?.toLowerCase().includes(q) ?? false) ||
+      (f.needs_improvement?.toLowerCase().includes(q) ?? false)
+    )
+  }, [feedback, searchQuery])
+
   type FeedItem =
     | { key: string; kind: 'request'; data: AccountRequest; date: string; pendingRank: 0 | 1 }
     | { key: string; kind: 'suggestion'; data: FeatureVoteSuggestion; date: string; pendingRank: 0 | 1 }
+    | { key: string; kind: 'feedback'; data: FeedbackRow; date: string; pendingRank: 0 | 1 }
 
   const feedItems: FeedItem[] = useMemo(() => {
     const req: FeedItem[] = filteredRequests.map((r) => ({
@@ -145,11 +168,18 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
       date: s.createdAt,
       pendingRank: 0,
     }))
-    return [...req, ...sug].sort((a, b) => {
+    const fb: FeedItem[] = filteredFeedback.map((f) => ({
+      key: `fb-${f.id}`,
+      kind: 'feedback',
+      data: f,
+      date: f.created_at,
+      pendingRank: 0,
+    }))
+    return [...req, ...sug, ...fb].sort((a, b) => {
       if (a.pendingRank !== b.pendingRank) return a.pendingRank - b.pendingRank
       return new Date(b.date).getTime() - new Date(a.date).getTime()
     })
-  }, [filteredRequests, filteredSuggestions])
+  }, [filteredRequests, filteredSuggestions, filteredFeedback])
 
   // ── Delete handler ──────────────────────────────────────
   const handleDeleteRequest = useCallback(async (requestId: string) => {
@@ -157,7 +187,6 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
     const result = await deleteAccountRequest(requestId)
     if (result.success) {
       setConfirmDeleteId(null)
-      setNotify({ type: 'success', message: 'Request permanently deleted' })
       await loadRequests()
       invalidate('requests')
     } else {
@@ -166,13 +195,25 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
     setDeleteProcessing(false)
   }, [loadRequests])
 
+  const handleDeleteFeedback = useCallback(async (feedbackId: string) => {
+    setDeleteProcessing(true)
+    const result = await deleteFeedback(feedbackId)
+    if (result.success) {
+      setConfirmDeleteFeedbackId(null)
+      if (expandedFeedbackId === feedbackId) setExpandedFeedbackId(null)
+      await loadRequests()
+    } else {
+      setNotify({ type: 'error', message: `Failed to delete: ${result.error}` })
+    }
+    setDeleteProcessing(false)
+  }, [loadRequests, expandedFeedbackId])
+
   const handleDeleteSuggestion = useCallback(async (suggestionId: string) => {
     setDeleteProcessing(true)
     const result = await adminDeleteSuggestion(suggestionId)
     if (result.success) {
       setConfirmDeleteSuggestionId(null)
       if (expandedSuggestionId === suggestionId) setExpandedSuggestionId(null)
-      setNotify({ type: 'success', message: 'Suggestion dismissed' })
       await loadRequests()
     } else {
       setNotify({ type: 'error', message: `Failed to dismiss: ${result.error}` })
@@ -234,8 +275,23 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
     />
   )
 
-  const renderFeedItem = (item: FeedItem) =>
-    item.kind === 'request' ? renderCard(item.data) : renderSuggestionCard(item.data)
+  const renderFeedbackCard = (f: FeedbackRow) => (
+    <FeedbackCard
+      key={`fb-${f.id}`}
+      feedback={f}
+      email={f.user_id ? userIdToEmail.get(f.user_id) ?? null : null}
+      expandedId={expandedFeedbackId}
+      setExpandedId={setExpandedFeedbackId}
+      setConfirmDeleteId={setConfirmDeleteFeedbackId}
+      setContextMenu={setFeedbackContextMenu}
+    />
+  )
+
+  const renderFeedItem = (item: FeedItem) => {
+    if (item.kind === 'request') return renderCard(item.data)
+    if (item.kind === 'suggestion') return renderSuggestionCard(item.data)
+    return renderFeedbackCard(item.data)
+  }
 
   const renderContextMenu = () => {
     if (!contextMenu) return null
@@ -250,6 +306,48 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
       />
     )
   }
+
+  const renderFeedbackContextMenu = () => {
+    if (!feedbackContextMenu) return null
+    const ctxFeedback = feedback.find(f => f.id === feedbackContextMenu.feedbackId)
+    if (!ctxFeedback) return null
+    const ctxEmail = ctxFeedback.user_id ? userIdToEmail.get(ctxFeedback.user_id) ?? null : null
+    const emailItem = ctxEmail ? [{
+      key: 'email',
+      label: 'Email',
+      icon: Mail,
+      onAction: () => {
+        const name = ctxFeedback.display_name || ''
+        window.location.href = `mailto:${ctxEmail}?subject=${encodeURIComponent('ADTMC Web App Feedback')}&body=${encodeURIComponent(`${name},\n\nThanks for the feedback.\n\n`)}`
+      },
+    }] : []
+    const items = [
+      { key: 'view', label: 'View', icon: Eye, onAction: () => setExpandedFeedbackId(ctxFeedback.id) },
+      ...emailItem,
+      { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteFeedbackId(ctxFeedback.id) },
+    ]
+    return (
+      <ContextMenu
+        x={feedbackContextMenu.x}
+        y={feedbackContextMenu.y}
+        onClose={() => setFeedbackContextMenu(null)}
+        items={items}
+      />
+    )
+  }
+
+  const feedbackConfirmDialog = (
+    <ConfirmDialog
+      visible={!!confirmDeleteFeedbackId}
+      title="Delete this feedback?"
+      subtitle="Permanent."
+      confirmLabel="Delete"
+      variant="danger"
+      processing={deleteProcessing}
+      onConfirm={() => { if (confirmDeleteFeedbackId) handleDeleteFeedback(confirmDeleteFeedbackId) }}
+      onCancel={() => setConfirmDeleteFeedbackId(null)}
+    />
+  )
 
   const suggestionConfirmDialog = (
     <ConfirmDialog
@@ -282,6 +380,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
       <>
         {feedItems.map(renderFeedItem)}
         {renderContextMenu()}
+      {renderFeedbackContextMenu()}
         <ConfirmDialog
           visible={!!confirmDeleteId}
           title="Delete this request?"
@@ -293,6 +392,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
           onCancel={() => setConfirmDeleteId(null)}
         />
         {suggestionConfirmDialog}
+        {feedbackConfirmDialog}
         {notifyDialog}
       </>
     )
@@ -313,6 +413,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
       </div>
 
       {renderContextMenu()}
+      {renderFeedbackContextMenu()}
 
       <ConfirmDialog
         visible={!!confirmDeleteId}
@@ -326,6 +427,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
       />
 
       {suggestionConfirmDialog}
+      {feedbackConfirmDialog}
       {notifyDialog}
     </div>
   )

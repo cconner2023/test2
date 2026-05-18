@@ -112,6 +112,12 @@ export interface TourDefinition {
 //   'calendar:open-template-panel' — open calendar drawer + provider-template generator
 //   'calendar:open-block-panel'    — open calendar drawer + clear-templates panel
 //   'calendar:close-template-panel' — close template/block panel, return to guided tours
+//   'map:setup'                   — inject demo map overlay (waypoint + route), open the Map drawer
+//   'map:select-waypoint'         — programmatically select the demo waypoint feature
+//   'map:select-route'            — programmatically select the demo route feature
+//   'map:open-settings' / 'map:close-settings' — toggle the map settings popover
+//   'map:open-basemap' / 'map:close-basemap'   — toggle the basemap picker
+//   'map:cleanup'                 — remove the demo overlay, return to guided tours
 
 // ─── Tier 1: Medic Tours ─────────────────────────────────────────────────────
 
@@ -1420,6 +1426,156 @@ const propertyTour: TourDefinition = {
   ],
 }
 
+const mapOverlayTour: TourDefinition = {
+  id: 'map-overlay',
+  name: 'Tactical Map',
+  tier: 'medic',
+  category: 'reference-network',
+  description: 'Overlays, features, navigation, and route planning on the tactical map.',
+  hideStepperDots: true,
+  steps: [
+    {
+      target: 'map-overlay-tree',
+      text: 'The overlay list — your map library. Each overlay holds its own pins, routes, and areas, like layers you can switch on and off.',
+      placement: 'right',
+      beforeStep: 'map:setup',
+      delay: 600,
+      duration: 6000,
+    },
+    {
+      target: 'map-feature-search',
+      text: 'Search by address, MGRS grid, or lat/long to fly the map to a location.',
+      placement: 'bottom',
+      duration: 5000,
+    },
+    {
+      target: 'map-overlay-row',
+      text: 'Tap an overlay to make it active. The eye toggles its features on or off the map without deleting them.',
+      placement: 'right',
+      duration: 5500,
+    },
+    {
+      target: 'map-overlay-visibility',
+      text: 'Visibility toggles are per-overlay so you can stack mission, training, and reference layers and reveal only what you need right now.',
+      placement: 'left',
+      duration: 6000,
+    },
+    {
+      target: 'map-canvas',
+      text: 'The map canvas. Pan, pinch to zoom, long-press to drop a pin, or use the Add button to start a route, area, or measurement.',
+      placement: 'top',
+      duration: 6000,
+    },
+    {
+      target: 'map-zoom-controls',
+      text: 'Zoom controls. The map also pinches and double-taps to zoom.',
+      placement: 'right',
+      duration: 4500,
+    },
+    {
+      target: 'map-coord-readout',
+      text: 'Live coordinates for the map center. Tap to expand a readout with MGRS, UTM, lat/long, and address — copy any field to your clipboard.',
+      placement: 'top',
+      duration: 6000,
+    },
+    {
+      target: 'map-recenter-gps',
+      text: 'Recenter on your GPS position. Disabled until a fix is available.',
+      placement: 'top',
+      duration: 4500,
+    },
+    {
+      target: 'map-basemap-button',
+      text: 'Switch basemap — street, topo, satellite, or dark — to match the situation.',
+      placement: 'top',
+      duration: 5000,
+    },
+    {
+      target: 'map-basemap-picker',
+      text: 'Pick a basemap. Cached tiles stay available offline once an overlay is downloaded from its menu.',
+      placement: 'top',
+      beforeStep: 'map:open-basemap',
+      delay: 300,
+      duration: 6000,
+      afterStep: 'map:close-basemap',
+    },
+    {
+      target: 'map-settings-button',
+      text: 'Map settings — MGRS grid overlay, bearing reference, coordinate display format, and label visibility.',
+      placement: 'bottom',
+      beforeStep: 'map:open-settings',
+      delay: 400,
+      duration: 5500,
+    },
+    {
+      target: 'map-settings-grid-toggle',
+      text: 'Toggle the MGRS grid overlay. The grid auto-scales with zoom — 100 km at low zoom down to 100 m up close.',
+      placement: 'bottom',
+      duration: 5500,
+    },
+    {
+      target: 'map-settings-bearing-ref',
+      text: 'Bearing reference — True, Grid, or Magnetic. Affects every bearing the app displays, including the Goto card and route legs.',
+      placement: 'bottom',
+      duration: 5500,
+    },
+    {
+      target: 'map-settings-coord-display',
+      text: 'Coordinate display format. MGRS for analog comms, UTM for engineering work, lat/long for civilian handoff.',
+      placement: 'bottom',
+      duration: 5500,
+    },
+    {
+      target: 'map-feature-row',
+      text: 'Tap a feature in the tree to select it. The map flies to it and the editor opens on the right.',
+      placement: 'right',
+      beforeStep: 'map:select-waypoint',
+      delay: 400,
+      duration: 5500,
+    },
+    {
+      target: 'map-feature-glyph-picker',
+      text: 'Waypoint glyphs — CCP, LZ, PZ, OBJ, rally, target. The marker on the map updates the moment you tap.',
+      placement: 'left',
+      duration: 5500,
+    },
+    {
+      target: 'map-feature-color-picker',
+      text: 'Color-code features by team, phase, or function. Colors follow the active app theme so dark mode stays readable.',
+      placement: 'left',
+      duration: 5500,
+    },
+    {
+      target: 'map-feature-navigate',
+      text: 'Navigate seeds a route from this pin to wherever you tap next — handy for laying down a quick exfil.',
+      placement: 'left',
+      duration: 5500,
+    },
+    {
+      target: 'map-feature-directions',
+      text: 'Route directions — start, leg-by-leg distance and bearing, total length. Tap a leg to zoom the map to that segment.',
+      placement: 'left',
+      beforeStep: 'map:select-route',
+      delay: 400,
+      duration: 6000,
+    },
+    {
+      target: 'map-feature-strip-map',
+      text: 'Export a printable strip-map PDF with pace timing — analog backup when comms or batteries fail.',
+      placement: 'top',
+      duration: 5500,
+    },
+    {
+      target: 'map-add-fab',
+      text: 'The Add button drops pins, plots routes and areas, measures distance, or records a live track of where you actually walked.',
+      placement: 'left',
+      duration: 6000,
+      pausePoint: true,
+      afterStep: 'map:cleanup',
+    },
+  ],
+}
+
 // ─── Exports ─────────────────────────────────────────────────────────────────
 
 export const allTours: TourDefinition[] = [
@@ -1434,6 +1590,7 @@ export const allTours: TourDefinition[] = [
   messagingTour,
   calendarTour,
   propertyTour,
+  mapOverlayTour,
   missionOverviewTour,
   settingsTour,
   // Tier 2: Supervisor
