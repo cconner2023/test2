@@ -21,6 +21,9 @@ const BADGE_CONFIG: Record<string, { label: string; className: string }> = {
     DDX: { label: 'DDX', className: 'bg-themewhite2 text-themeblue1' },
     screener: { label: 'SCREENER', className: 'bg-themegreen/15 text-themegreen' },
     calculator: { label: 'CALCULATOR', className: 'bg-themeblue2/15 text-themeblue2' },
+    'chat-contact': { label: 'CHAT', className: 'bg-themeblue1/15 text-themeblue1' },
+    'chat-group': { label: 'GROUP', className: 'bg-themeblue1/15 text-themeblue1' },
+    'chat-message': { label: 'MESSAGE', className: 'bg-themeblue1/15 text-themeblue1' },
 }
 
 // Training type specific labels
@@ -134,6 +137,16 @@ export function SearchResults({
                                 {(result.type === 'screener' || result.type === 'calculator') && result.data?.kbCategoryId && (
                                     <div className="text-[9pt] text-secondary mt-1">
                                         {kbCategories.find(c => c.id === result.data!.kbCategoryId)?.description}
+                                    </div>
+                                )}
+                                {result.type === 'chat-message' && result.data?.chatSubtitle && (
+                                    <div className="text-[9pt] text-secondary mt-1 truncate">
+                                        {result.data.chatSubtitle}
+                                    </div>
+                                )}
+                                {result.type === 'chat-contact' && result.data?.chatSubtitle && (
+                                    <div className="text-[9pt] text-secondary mt-1 truncate">
+                                        {result.data.chatSubtitle}
                                     </div>
                                 )}
                             </div>

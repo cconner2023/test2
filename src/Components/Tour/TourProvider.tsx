@@ -939,8 +939,23 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       store.closeMenu()
       await new Promise(r => setTimeout(r, 50))
       store.setShowMapOverlayDrawer(true)
+      // Mobile: open the layers/settings drawer so the overlay tree exists
+      // in the DOM for steps 1, 3, 4. No-op on desktop (gated by isMobile).
+      window.dispatchEvent(new CustomEvent('tour:map-open-mobile-tree'))
       await waitForTarget('map-overlay-tree', 5000)
       await new Promise(r => setTimeout(r, 600))
+      return
+    }
+
+    // ── map:open-mobile-tree / map:close-mobile-tree ──
+    if (action === 'map:open-mobile-tree') {
+      window.dispatchEvent(new CustomEvent('tour:map-open-mobile-tree'))
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+    if (action === 'map:close-mobile-tree') {
+      window.dispatchEvent(new CustomEvent('tour:map-close-mobile-tree'))
+      await new Promise(r => setTimeout(r, 300))
       return
     }
 

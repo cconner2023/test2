@@ -1275,15 +1275,21 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     const onOpenSettings = () => setShowPopover(true);
     const onCloseSettings = () => setShowPopover(false);
     const onClearSelection = () => setSelectedFeatureId(null);
+    const onOpenMobileTree = () => setShowMobileTree(true);
+    const onCloseMobileTree = () => setShowMobileTree(false);
     window.addEventListener('tour:map-select-feature', onSelect);
     window.addEventListener('tour:map-open-settings', onOpenSettings);
     window.addEventListener('tour:map-close-settings', onCloseSettings);
     window.addEventListener('tour:map-clear-selection', onClearSelection);
+    window.addEventListener('tour:map-open-mobile-tree', onOpenMobileTree);
+    window.addEventListener('tour:map-close-mobile-tree', onCloseMobileTree);
     return () => {
       window.removeEventListener('tour:map-select-feature', onSelect);
       window.removeEventListener('tour:map-open-settings', onOpenSettings);
       window.removeEventListener('tour:map-close-settings', onCloseSettings);
       window.removeEventListener('tour:map-clear-selection', onClearSelection);
+      window.removeEventListener('tour:map-open-mobile-tree', onOpenMobileTree);
+      window.removeEventListener('tour:map-close-mobile-tree', onCloseMobileTree);
     };
   }, [overlays, handleSelectFeatureFromTree]);
 

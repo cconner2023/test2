@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef } from 'react'
-import { FileText, Check } from 'lucide-react'
+import { FileText, Check, Pencil, Plus } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { ListItemRow } from '../ListItemRow'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { useLongPress } from '../../Hooks/useLongPress'
+import { ActionPill } from '../ActionPill'
+import { ActionButton } from '../ActionButton'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { useUserProfile } from '../../Hooks/useUserProfile'
 import { getBlockByKey } from '../../Data/PhysicalExamData'
@@ -16,6 +17,10 @@ interface ProviderTemplateListProps {
   onSelect: (template: ProviderNoteTemplate) => void
   /** Hide the section header (e.g. when rendered inside a drawer that already has a title) */
   hideHeader?: boolean
+  /** Opens the new-template editor anchored to the supplied rect */
+  onNew?: (anchor: DOMRect) => void
+  /** Opens the edit popover for the supplied template */
+  onEdit?: (template: ProviderNoteTemplate, anchor: DOMRect) => void
 }
 
 function fieldPreview(t: ProviderNoteTemplate): string {
@@ -125,43 +130,21 @@ function TemplatePreview({ template, expanders, orderSets }: {
   )
 }
 
-// ── Template Row (handles long-press on mobile) ─────────────────────────────
+// ── Template Row ────────────────────────────────────────────────────────────
 
-function TemplateRow({ template, onSelect, onPreview, isMobile }: {
+function TemplateRow({ template, onClick }: {
   template: ProviderNoteTemplate
-  onSelect: () => void
-  onPreview: (rect: DOMRect) => void
-  isMobile: boolean
+  onClick: (rect: DOMRect) => void
 }) {
   const rowRef = useRef<HTMLDivElement>(null)
-  const firedRef = useRef(false)
-
-  const handleLongPress = useCallback(() => {
-    firedRef.current = true
-    if (rowRef.current) {
-      onPreview(rowRef.current.getBoundingClientRect())
-    }
-  }, [onPreview])
-
-  const { isPressing, ...longPressHandlers } = useLongPress(handleLongPress, { delay: 400 })
   const isTourTemplate = template.id.startsWith(PROVIDER_TOUR_TEMPLATE_PREFIX)
 
   const handleClick = useCallback(() => {
-    if (firedRef.current) {
-      firedRef.current = false
-      return
-    }
-    onSelect()
-  }, [onSelect])
+    if (rowRef.current) onClick(rowRef.current.getBoundingClientRect())
+  }, [onClick])
 
   return (
-    <div
-      ref={rowRef}
-      data-tour={isTourTemplate ? 'provider-template-apply' : undefined}
-      {...(isMobile ? longPressHandlers : {})}
-      onContextMenu={isMobile ? (e) => e.preventDefault() : undefined}
-      className={isMobile && isPressing ? 'transition-opacity duration-100 opacity-60' : undefined}
-    >
+    <div ref={rowRef} data-tour={isTourTemplate ? 'provider-template-apply' : undefined}>
       <ListItemRow
         onClick={handleClick}
         className="px-3 py-2.5 md:py-1.5 hover:bg-themeblue2/8 active:scale-95 transition-all duration-200"
@@ -183,28 +166,48 @@ function TemplateRow({ template, onSelect, onPreview, isMobile }: {
 
 // ── Main Component ──────────────────────────────────────────────────────────
 
-export function ProviderTemplateList({ templates, onSelect, hideHeader }: ProviderTemplateListProps) {
+export function ProviderTemplateList({ templates, onSelect, hideHeader, onNew, onEdit }: ProviderTemplateListProps) {
   const isMobile = useIsMobile()
   const { profile } = useUserProfile()
   const expanders = profile.textExpanders ?? []
   const orderSets = profile.planOrderSets
 
-  const [previewTemplate, setPreviewTemplate] = useState<ProviderNoteTemplate | null>(null)
+  // Single context-menu popover: click a row → choose Apply or Edit (with preview).
+  const [menuTemplate, setMenuTemplate] = useState<ProviderNoteTemplate | null>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
+  const addPillRef = useRef<HTMLDivElement>(null)
 
-  const handlePreview = useCallback((template: ProviderNoteTemplate, rect: DOMRect) => {
-    setPreviewTemplate(template)
+  const handleRowClick = useCallback((template: ProviderNoteTemplate, rect: DOMRect) => {
+    setMenuTemplate(template)
     setAnchorRect(rect)
   }, [])
 
-  const handleClosePreview = useCallback(() => {
-    setPreviewTemplate(null)
+  const handleCloseMenu = useCallback(() => {
+    setMenuTemplate(null)
     setAnchorRect(null)
   }, [])
 
-  if (!templates.length) {
-    return <EmptyState title="No templates — create in Settings → Note Content" />
-  }
+  const handleNewClick = useCallback(() => {
+    if (!onNew || !addPillRef.current) return
+    onNew(addPillRef.current.getBoundingClientRect())
+  }, [onNew])
+
+  const menuActions = menuTemplate ? [
+    {
+      key: 'apply',
+      label: 'Apply',
+      icon: Check,
+      onAction: () => onSelect(menuTemplate),
+    },
+    ...(onEdit ? [{
+      key: 'edit',
+      label: 'Edit',
+      icon: Pencil,
+      onAction: () => {
+        if (anchorRect) onEdit(menuTemplate, anchorRect)
+      },
+    }] : []),
+  ] : []
 
   return (
     <div className="flex flex-col h-full">
@@ -214,43 +217,45 @@ export function ProviderTemplateList({ templates, onSelect, hideHeader }: Provid
         </div>
       )}
       <div className={`flex-1 overflow-y-auto px-2 pb-3${hideHeader ? ' pt-2' : ''}`}>
-        <div className="rounded-xl bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
-          {templates.map((t) => (
-            <TemplateRow
-              key={t.id}
-              template={t}
-              onSelect={() => onSelect(t)}
-              onPreview={(rect) => handlePreview(t, rect)}
-              isMobile={isMobile}
-            />
-          ))}
-        </div>
+        {templates.length ? (
+          <div className="rounded-xl bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
+            {templates.map((t) => (
+              <TemplateRow
+                key={t.id}
+                template={t}
+                onClick={(rect) => handleRowClick(t, rect)}
+              />
+            ))}
+          </div>
+        ) : (
+          <EmptyState title="No templates yet" />
+        )}
       </div>
 
-      {isMobile && (
-        <PreviewOverlay
-          isOpen={!!previewTemplate}
-          onClose={handleClosePreview}
-          anchorRect={anchorRect}
-          preview={
-            previewTemplate && (
-              <TemplatePreview
-                template={previewTemplate}
-                expanders={expanders}
-                orderSets={orderSets}
-              />
-            )
-          }
-          actions={previewTemplate ? [
-            {
-              key: 'apply',
-              label: 'Apply',
-              icon: Check,
-              onAction: () => { if (previewTemplate) onSelect(previewTemplate) },
-            },
-          ] : []}
-        />
+      {onNew && (
+        <div className="px-3 pb-3 flex justify-end">
+          <ActionPill ref={addPillRef} shadow="sm">
+            <ActionButton icon={Plus} label="New template" onClick={handleNewClick} />
+          </ActionPill>
+        </div>
       )}
+
+      <PreviewOverlay
+        isOpen={!!menuTemplate}
+        onClose={handleCloseMenu}
+        anchorRect={anchorRect}
+        preview={
+          menuTemplate && (
+            <TemplatePreview
+              template={menuTemplate}
+              expanders={expanders}
+              orderSets={orderSets}
+            />
+          )
+        }
+        previewMaxHeight={isMobile ? '50dvh' : '40dvh'}
+        actions={menuActions}
+      />
     </div>
   )
 }

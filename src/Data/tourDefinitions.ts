@@ -117,6 +117,7 @@ export interface TourDefinition {
 //   'map:select-route'            — programmatically select the demo route feature
 //   'map:open-settings' / 'map:close-settings' — toggle the map settings popover
 //   'map:open-basemap' / 'map:close-basemap'   — toggle the basemap picker
+//   'map:open-mobile-tree' / 'map:close-mobile-tree' — toggle the mobile layers/settings drawer (no-op on desktop)
 //   'map:cleanup'                 — remove the demo overlay, return to guided tours
 
 // ─── Tier 1: Medic Tours ─────────────────────────────────────────────────────
@@ -1447,6 +1448,7 @@ const mapOverlayTour: TourDefinition = {
       text: 'Search by address, MGRS grid, or lat/long to fly the map to a location.',
       placement: 'bottom',
       duration: 5000,
+      desktopOnly: true,
     },
     {
       target: 'map-overlay-row',
@@ -1459,6 +1461,7 @@ const mapOverlayTour: TourDefinition = {
       text: 'Visibility toggles are per-overlay so you can stack mission, training, and reference layers and reveal only what you need right now.',
       placement: 'left',
       duration: 6000,
+      afterStep: 'map:close-mobile-tree',
     },
     {
       target: 'map-canvas',
@@ -1503,14 +1506,15 @@ const mapOverlayTour: TourDefinition = {
       target: 'map-settings-button',
       text: 'Map settings — MGRS grid overlay, bearing reference, coordinate display format, and label visibility.',
       placement: 'bottom',
-      beforeStep: 'map:open-settings',
-      delay: 400,
       duration: 5500,
+      desktopOnly: true,
     },
     {
       target: 'map-settings-grid-toggle',
       text: 'Toggle the MGRS grid overlay. The grid auto-scales with zoom — 100 km at low zoom down to 100 m up close.',
       placement: 'bottom',
+      beforeStep: 'map:open-settings',
+      delay: 400,
       duration: 5500,
     },
     {
@@ -1524,19 +1528,21 @@ const mapOverlayTour: TourDefinition = {
       text: 'Coordinate display format. MGRS for analog comms, UTM for engineering work, lat/long for civilian handoff.',
       placement: 'bottom',
       duration: 5500,
+      afterStep: 'map:close-settings',
     },
     {
       target: 'map-feature-row',
       text: 'Tap a feature in the tree to select it. The map flies to it and the editor opens on the right.',
       placement: 'right',
-      beforeStep: 'map:select-waypoint',
-      delay: 400,
       duration: 5500,
+      desktopOnly: true,
     },
     {
       target: 'map-feature-glyph-picker',
       text: 'Waypoint glyphs — CCP, LZ, PZ, OBJ, rally, target. The marker on the map updates the moment you tap.',
       placement: 'left',
+      beforeStep: 'map:select-waypoint',
+      delay: 400,
       duration: 5500,
     },
     {

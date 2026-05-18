@@ -12,8 +12,9 @@ import { UI_TIMING } from '../Utilities/constants'
 import { ProviderNote } from './Provider/ProviderNote'
 import { ProviderNoteOutput } from './Provider/ProviderNoteOutput'
 import { ProviderTemplateList } from './Provider/ProviderTemplateList'
+import { ProviderTemplateEditPopover, type EditState as TemplateEditState } from './Provider/ProviderTemplateEditPopover'
 import type { PEState } from '../Types/PETypes'
-import type { ProviderNoteTemplate, TextExpander, PlanOrderSet, PlanBlockKey } from '../Data/User'
+import type { UserTypes, ProviderNoteTemplate, TextExpander, PlanOrderSet, PlanBlockKey } from '../Data/User'
 import { PLAN_ORDER_LABELS } from '../Data/User'
 import { useUserProfile } from '../Hooks/useUserProfile'
 import { getMasterBlockByKey } from '../Data/PhysicalExamData'
@@ -49,6 +50,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   const [peNote, setPeNote] = useState('')
   const [peState, setPeState] = useState<PEState | null>(null)
   const [peResetKey, setPeResetKey] = useState(0)
+  const [planResetKey, setPlanResetKey] = useState(0)
   const [selectedBlockKeys, setSelectedBlockKeys] = useState<string[]>([])
   const [assessmentNote, setAssessmentNote] = useState('')
   const [planNote, setPlanNote] = useState('')
@@ -60,11 +62,40 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   const importInputRef = useRef<HTMLInputElement>(null)
 
   const isMobile = useIsMobile()
-  const { profile } = useUserProfile()
+  const { profile, updateProfile, syncProfileField } = useUserProfile()
   const templates = profile.providerNoteTemplates ?? []
 
   // ── Mobile template drawer ─────────────────────────────────────────────────
   const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false)
+
+  // ── Inline template edit popover (desktop left pane + mobile picker) ───────
+  const [templateEditState, setTemplateEditState] = useState<TemplateEditState | null>(null)
+
+  const persistTemplates = useCallback((next: ProviderNoteTemplate[]) => {
+    updateProfile({ providerNoteTemplates: next })
+    syncProfileField({ provider_note_templates: next as unknown as UserTypes['providerNoteTemplates'] })
+  }, [updateProfile, syncProfileField])
+
+  const handleTemplateSave = useCallback((entry: ProviderNoteTemplate, isNew: boolean) => {
+    const current = profile.providerNoteTemplates ?? []
+    const next = isNew ? [...current, entry] : current.map(t => t.id === entry.id ? entry : t)
+    persistTemplates(next)
+    setTemplateEditState(null)
+  }, [profile.providerNoteTemplates, persistTemplates])
+
+  const handleTemplateDelete = useCallback((id: string) => {
+    const current = profile.providerNoteTemplates ?? []
+    persistTemplates(current.filter(t => t.id !== id))
+    setTemplateEditState(null)
+  }, [profile.providerNoteTemplates, persistTemplates])
+
+  const handleTemplateNew = useCallback((anchor: DOMRect) => {
+    setTemplateEditState({ mode: 'new', anchor })
+  }, [])
+
+  const handleTemplateEdit = useCallback((template: ProviderNoteTemplate, anchor: DOMRect) => {
+    setTemplateEditState({ mode: 'edit', anchor, template })
+  }, [])
 
   // ── Template apply (merge — only fills empty provider fields) ──────────────
 
@@ -94,19 +125,13 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     return lines.join('\n')
   }, [])
 
+  // Overwrites all sections with template content (empty fields cleared too).
   const handleApplyTemplate = useCallback((template: ProviderNoteTemplate) => {
     const expanders = profile.textExpanders ?? []
-    if (!hpiNote) {
-      const text = expandTemplateText(template.hpiText, template.hpiExpanderAbbrs, template.hpiExpanderAbbr, expanders)
-      if (text) setHpiNote(text)
-    }
-    if (!peNote && !template.peBlockKeys?.length) {
-      const text = expandTemplateText(template.peText, template.peExpanderAbbrs, template.peExpanderAbbr, expanders)
-      if (text) setPeNote(text)
-    }
-    // PE structured blocks — build PEState with all-normal for each selected block.
-    // PhysicalExam reads `initialState` directly and emits the rendered text via onChange.
-    if (template.peBlockKeys?.length && !peState) {
+
+    setHpiNote(expandTemplateText(template.hpiText, template.hpiExpanderAbbrs, template.hpiExpanderAbbr, expanders))
+
+    if (template.peBlockKeys?.length) {
       const items: Record<string, { status: 'normal'; selectedNormals: string[]; selectedAbnormals: string[]; findings: string }> = {}
       for (const key of template.peBlockKeys) {
         const block = getMasterBlockByKey(key)
@@ -118,7 +143,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
           findings: '',
         }
       }
-      setSelectedBlockKeys(template.peBlockKeys!)
+      setSelectedBlockKeys(template.peBlockKeys)
       setPeState({
         categoryLetter: 'A',
         laterality: 'right',
@@ -129,21 +154,24 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
         mode: 'template',
         blockKeys: template.peBlockKeys,
       })
-      setPeResetKey(k => k + 1)
+      setPeNote('')
+    } else {
+      setSelectedBlockKeys([])
+      setPeState(null)
+      setPeNote(expandTemplateText(template.peText, template.peExpanderAbbrs, template.peExpanderAbbr, expanders))
     }
-    if (!assessmentNote) {
-      const text = expandTemplateText(template.assessmentText, template.assessmentExpanderAbbrs, template.assessmentExpanderAbbr, expanders)
-      if (text) setAssessmentNote(text)
+    setPeResetKey(k => k + 1)
+
+    setAssessmentNote(expandTemplateText(template.assessmentText, template.assessmentExpanderAbbrs, template.assessmentExpanderAbbr, expanders))
+
+    let planText = expandTemplateText(template.planText, template.planExpanderAbbrs, template.planExpanderAbbr, expanders)
+    if (!planText && template.planOrderSetId) {
+      const orderSet = (profile.planOrderSets ?? []).find(os => os.id === template.planOrderSetId)
+      if (orderSet) planText = generatePlanFromOrderSet(orderSet)
     }
-    if (!planNote) {
-      let text = expandTemplateText(template.planText, template.planExpanderAbbrs, template.planExpanderAbbr, expanders)
-      if (!text && template.planOrderSetId) {
-        const orderSet = (profile.planOrderSets ?? []).find(os => os.id === template.planOrderSetId)
-        if (orderSet) text = generatePlanFromOrderSet(orderSet)
-      }
-      if (text) setPlanNote(text)
-    }
-  }, [profile.textExpanders, profile.planOrderSets, hpiNote, peNote, peState, assessmentNote, planNote, expandTemplateText, generatePlanFromOrderSet])
+    setPlanNote(planText)
+    setPlanResetKey(k => k + 1)
+  }, [profile.textExpanders, profile.planOrderSets, expandTemplateText, generatePlanFromOrderSet])
 
   // ── Import decode logic ────────────────────────────────────────────────────
 
@@ -255,6 +283,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     setPeState(null)
     setSelectedBlockKeys([])
     setPeResetKey(k => k + 1)
+    setPlanResetKey(k => k + 1)
     setAssessmentNote('')
     setPlanNote('')
     setImportedMedicNote(null)
@@ -411,6 +440,8 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
               <ProviderTemplateList
                 templates={templates}
                 onSelect={handleApplyTemplate}
+                onNew={handleTemplateNew}
+                onEdit={handleTemplateEdit}
               />
             </div>
             {/* Right pane — note content */}
@@ -431,6 +462,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                       peState={peState}
                       onPeStateChange={setPeState}
                       peResetKey={peResetKey}
+                      planResetKey={planResetKey}
                       selectedBlockKeys={selectedBlockKeys}
                       onBlockKeysChange={setSelectedBlockKeys}
                       assessmentNote={assessmentNote}
@@ -476,6 +508,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                   peState={peState}
                   onPeStateChange={setPeState}
                   peResetKey={peResetKey}
+                  planResetKey={planResetKey}
                   selectedBlockKeys={selectedBlockKeys}
                   onBlockKeysChange={setSelectedBlockKeys}
                   assessmentNote={assessmentNote}
@@ -530,9 +563,18 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
               templates={templates}
               hideHeader
               onSelect={(t) => { handleApplyTemplate(t); setTemplateDrawerOpen(false) }}
+              onNew={handleTemplateNew}
+              onEdit={handleTemplateEdit}
             />
           </BaseDrawer>
         )}
+
+        <ProviderTemplateEditPopover
+          state={templateEditState}
+          onClose={() => setTemplateEditState(null)}
+          onSave={handleTemplateSave}
+          onDelete={handleTemplateDelete}
+        />
       </div>
     </BaseDrawer>
   )

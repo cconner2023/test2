@@ -399,6 +399,17 @@ case 'mapOverlay':
       }
     }
 
+    // Chat results → open messages drawer to the matching peer / group
+    if (result.type === 'chat-contact' || result.type === 'chat-group' || result.type === 'chat-message') {
+      navigation.openMessagesConversation(
+        result.data?.peerId ?? null,
+        result.data?.groupId ?? null,
+        result.data?.peerName ?? null,
+      )
+      search.clearSearch()
+      return
+    }
+
     // Screener / calculator → open KB to the right view
     if (result.type === 'screener' && result.data?.kbCategoryId) {
       navigation.setShowKnowledgeBase(true, 'screener', null, result.data.kbCategoryId)
@@ -414,7 +425,7 @@ case 'mapOverlay':
     // Navigation state change drives the grid column transition and Column A carousel
     navigation.handleNavigation(result)
     search.clearSearch()
-  }, [navigation.handleNavigation, search.clearSearch, navigation.setShowTrainingDrawer, navigation.isMobile, openTrainingTask, navigation.setShowKnowledgeBase])
+  }, [navigation.handleNavigation, search.clearSearch, navigation.setShowTrainingDrawer, navigation.isMobile, openTrainingTask, navigation.setShowKnowledgeBase, navigation.openMessagesConversation])
 
   const clearSearchAndCollapse = useCallback(() => {
     search.clearSearch()

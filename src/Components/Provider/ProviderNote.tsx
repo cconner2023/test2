@@ -22,6 +22,7 @@ interface ProviderNoteProps {
   peState: PEState | null;
   onPeStateChange: (state: PEState) => void;
   peResetKey?: number;
+  planResetKey?: number;
   selectedBlockKeys: string[];
   onBlockKeysChange: (keys: string[]) => void;
   assessmentNote: string;
@@ -142,6 +143,7 @@ export function ProviderNote({
   peState,
   onPeStateChange,
   peResetKey = 0,
+  planResetKey = 0,
   selectedBlockKeys,
   onBlockKeysChange,
   assessmentNote,
@@ -269,6 +271,7 @@ export function ProviderNote({
           aria-hidden={!planHasContent}
         >
           <Plan
+            key={planResetKey}
             orderTags={orderTags}
             instructionTags={instructionTags}
             orderSets={orderSets}

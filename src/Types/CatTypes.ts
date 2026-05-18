@@ -66,8 +66,8 @@ export interface differential {
 
 // Types/CatTypes.ts - Update SearchResultType
 export type SearchResultType = {
-    type: 'category' | 'CC' | 'training' | 'DDX' | 'medication' | 'screener' | 'calculator';
-    id: number;
+    type: 'category' | 'CC' | 'training' | 'DDX' | 'medication' | 'screener' | 'calculator' | 'chat-contact' | 'chat-group' | 'chat-message';
+    id: number | string;
     icon: string;
     text: string;
     // Unified data fields
@@ -83,6 +83,12 @@ export type SearchResultType = {
         categoryRef?: catDataTypes;
         symptomRef?: subCatDataTypes;
         kbCategoryId?: string;
+        // Chat search routing
+        peerId?: string;
+        groupId?: string;
+        peerName?: string;
+        matchedText?: string;
+        chatSubtitle?: string;
     };
 }
 

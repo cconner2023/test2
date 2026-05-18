@@ -1,10 +1,16 @@
 // Hooks/useSearch.ts
 import { useState, useRef, useCallback, useMemo } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { catData } from '../Data/CatData'
 import { medList } from '../Data/MedData'
 import { stp68wTraining } from '../Data/TrainingTaskList'
 import { kbCategories } from '../Data/KnowledgeBaseCategories'
+import { useMessagingStore } from '../stores/useMessagingStore'
+import { useClinicMedics } from './useClinicMedics'
+import { useAuth } from './useAuth'
+import { getDisplayName } from '../Utilities/nameUtils'
 import type { SearchResultType } from '../Types/CatTypes'
+import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 
 /**
  * Provides debounced search across categories, symptoms, medications, training tasks, and guidelines.
@@ -12,9 +18,23 @@ import type { SearchResultType } from '../Types/CatTypes'
  */
 export function useSearch() {
     const [searchInput, setSearchInput] = useState('')
-    const [searchResults, setSearchResults] = useState<SearchResultType[]>([])
+    const [staticResults, setStaticResults] = useState<SearchResultType[]>([])
     const [isSearching, setIsSearching] = useState(false)
     const searchTimeoutRef = useRef<number>(0)
+
+    // ── Live chat search inputs (authenticated only) ─────────────────
+    const { isAuthenticated, user, profile } = useAuth()
+    const userId = user?.id ?? null
+    const { medics } = useClinicMedics()
+    const conversations = useMessagingStore(useShallow(s => s.conversations))
+    const groups = useMessagingStore(useShallow(s => s.groups))
+    const deletedConversations = useMessagingStore(useShallow(s => s.deletedConversations))
+
+    const selfMedic: ClinicMedic | null = useMemo(() => (
+        userId
+            ? { id: userId, firstName: profile.firstName ?? null, lastName: profile.lastName ?? 'Notes', middleInitial: null, rank: profile.rank ?? null, credential: null, avatarId: null }
+            : null
+    ), [userId, profile.firstName, profile.lastName, profile.rank])
 
     // Build search index once with references
     const searchIndex = useMemo(() => {
@@ -213,20 +233,120 @@ export function useSearch() {
                     return a.text.localeCompare(b.text)
                 })
 
-            setSearchResults(results)
+            setStaticResults(results)
             setIsSearching(false)
         }, 150)
     }, [searchIndex])
 
     const clearSearch = useCallback(() => {
         setSearchInput('')
-        setSearchResults([])
+        setStaticResults([])
         setIsSearching(false)
         if (searchTimeoutRef.current) {
             window.clearTimeout(searchTimeoutRef.current)
             searchTimeoutRef.current = 0
         }
     }, [])
+
+    // ── Reactive chat search — runs on every keystroke against live IDB state ──
+    const chatResults = useMemo<SearchResultType[]>(() => {
+        const q = searchInput.trim().toLowerCase()
+        if (!q || !isAuthenticated || !userId) return []
+
+        const allMedics: ClinicMedic[] = selfMedic ? [selfMedic, ...medics] : medics
+        const medicMap = new Map<string, ClinicMedic>()
+        for (const m of allMedics) medicMap.set(m.id, m)
+
+        const out: SearchResultType[] = []
+        const matchedKeys = new Set<string>()
+
+        // 1. Contact matches by name / rank / credential / clinic
+        for (const m of allMedics) {
+            const haystacks = [
+                m.firstName,
+                m.lastName,
+                m.rank,
+                m.credential,
+                m.clinicName,
+                [m.rank, m.lastName].filter(Boolean).join(' '),
+            ]
+            if (haystacks.some(h => h?.toLowerCase().includes(q))) {
+                if (matchedKeys.has(m.id)) continue
+                matchedKeys.add(m.id)
+                out.push({
+                    type: 'chat-contact',
+                    id: m.id,
+                    icon: '💬',
+                    text: getDisplayName(m),
+                    data: {
+                        peerId: m.id,
+                        peerName: getDisplayName(m),
+                        chatSubtitle: m.clinicName ?? undefined,
+                    },
+                })
+            }
+        }
+
+        // 2. Group matches by name
+        for (const g of Object.values(groups)) {
+            if (g.systemType) continue
+            if (g.name.toLowerCase().includes(q)) {
+                if (matchedKeys.has(g.groupId)) continue
+                matchedKeys.add(g.groupId)
+                out.push({
+                    type: 'chat-group',
+                    id: g.groupId,
+                    icon: '👥',
+                    text: g.name,
+                    data: {
+                        groupId: g.groupId,
+                        peerName: g.name,
+                    },
+                })
+            }
+        }
+
+        // 3. Message content matches — first hit per conversation
+        for (const [key, msgs] of Object.entries(conversations)) {
+            if (matchedKeys.has(key)) continue
+            if (groups[key]?.systemType) continue
+            const tombstoneAt = deletedConversations[key]
+            for (const msg of msgs) {
+                if (msg.threadId || msg.messageType === 'request-accepted') continue
+                if (tombstoneAt && msg.createdAt < tombstoneAt) continue
+                const text = msg.plaintext
+                if (text && text.toLowerCase().includes(q)) {
+                    const isGroup = !!groups[key]
+                    const medic = medicMap.get(key)
+                    const peerName = isGroup
+                        ? groups[key].name
+                        : (medic ? getDisplayName(medic) : (key === userId ? 'Notes' : 'Unknown'))
+                    out.push({
+                        type: 'chat-message',
+                        id: `${key}:${msg.id ?? msg.createdAt}`,
+                        icon: isGroup ? '👥' : '💬',
+                        text,
+                        data: {
+                            peerId: isGroup ? undefined : key,
+                            groupId: isGroup ? key : undefined,
+                            peerName,
+                            matchedText: text,
+                            chatSubtitle: peerName,
+                        },
+                    })
+                    matchedKeys.add(key)
+                    break
+                }
+            }
+        }
+
+        return out.slice(0, 40)
+    }, [searchInput, isAuthenticated, userId, selfMedic, medics, groups, conversations, deletedConversations])
+
+    const searchResults = useMemo<SearchResultType[]>(
+        () => [...chatResults, ...staticResults],
+        [chatResults, staticResults],
+    )
 
     return {
         searchInput,
