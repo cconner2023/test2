@@ -22,6 +22,7 @@ import {
   deleteMessages as deleteMessagesFromDb,
   loadAllPeerProfiles,
   savePeerProfile,
+  deletePeerProfile,
 } from '../lib/signal/messageStore'
 import { getLocalDeviceId } from '../lib/signal/keyManager'
 import { createLogger } from '../Utilities/Logger'
@@ -346,6 +347,7 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
 
   deleteConversation: async (conversationKey) => {
     const deletedAt = new Date().toISOString()
+    const wasGroup = !!get().groups[conversationKey]
 
     // Write tombstone to state and IDB immediately (offline-safe)
     set(s => {
@@ -353,9 +355,15 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
       delete next[conversationKey]
       const unread = { ...s.unreadCounts }
       delete unread[conversationKey]
+      const peerProfiles = wasGroup ? s.peerProfiles : (() => {
+        const p = { ...s.peerProfiles }
+        delete p[conversationKey]
+        return p
+      })()
       return {
         conversations: next,
         unreadCounts: unread,
+        peerProfiles,
         deletedConversations: { ...s.deletedConversations, [conversationKey]: deletedAt },
       }
     })
@@ -364,6 +372,11 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
     await deleteConversationFromDb(conversationKey).catch(e =>
       logger.warn('Failed to delete conversation from IDB:', e),
     )
+    if (!wasGroup) {
+      await deletePeerProfile(conversationKey).catch(e =>
+        logger.warn('Failed to delete peer profile from IDB:', e),
+      )
+    }
   },
 
   setConversations: (conversations) => {

@@ -193,8 +193,8 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
 
         const items: SettingsItem[] = [];
 
-        // CLINICS section — each clinic the user belongs to gets its own tile
-        if (isAuthenticated) {
+        // CLINICS section — cluster management is supervisor-only (dev also sees it).
+        if (isAuthenticated && (isSupervisorRole || isDevRole)) {
             items.push(
                 { type: 'header', label: 'Clusters' },
                 opt(PANEL.CLINIC, <Building2 size={20} />, profile.clinicName || 'My Cluster', 'Manage cluster and personnel'),

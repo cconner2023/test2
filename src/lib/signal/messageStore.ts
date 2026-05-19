@@ -577,6 +577,15 @@ export async function clearPeerProfiles(): Promise<void> {
   }
 }
 
+export async function deletePeerProfile(peerId: string): Promise<void> {
+  try {
+    const db = await getDb()
+    await db.delete('peerProfiles', peerId)
+  } catch (err) {
+    logger.warn('Failed to delete peer profile:', err)
+  }
+}
+
 // ---- Cleanup ----
 
 /** Wipe all stored messages. Called on sign-out. */
