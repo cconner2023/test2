@@ -738,9 +738,6 @@ export function ClinicPanel({
           </div>
         </section>
 
-        {/* ── Rooms + Huddle Tasks (shared with calendar settings) ── */}
-        <CalendarClinicEditor />
-
         {/* ── Users (supervisor-gated) ───────────────────────────── */}
         {isSupervisorRole && clinicId && (
           <section data-tour="clinic-personnel">
@@ -839,6 +836,9 @@ export function ClinicPanel({
             </div>
           </section>
         )}
+
+        {/* ── PCC / Huddle / Rooms / Appt Types (shared with calendar settings) ── */}
+        <CalendarClinicEditor />
 
         {/* Clinic Note Content callout */}
         {isSupervisorRole && (

@@ -1,5 +1,5 @@
 /**
- * Supervisor clinic-context picker — matches Beacon's filter-panel pattern.
+ * Cluster-context picker — matches Beacon's filter-panel pattern.
  *
  * Two surfaces:
  *   - SupervisorClinicFilterPanel — list-row panel for CalendarDrawer's
@@ -7,9 +7,11 @@
  *   - SupervisorClinicCardAction — small ActionButton mounted on the
  *     ClinicPanel clinic card; opens a PreviewOverlay with the same rows.
  *
- * Both render nothing for users without a supervisor role or without a
- * surrogate. Server validates every supervisor RPC against `auth_clinic_ids()`
- * regardless of the toggle — this is purely a UI affordance.
+ * Visible to any user with at least one active loan (supervisorRole no longer
+ * gates). The toggle is the single clinic-context knob across calendar /
+ * personnel / messages — `supervisingClinicId` drives event-visibility scope
+ * via filteredEvents in CalendarPanel (strict scope + assigned-to-me bleed-
+ * through). Server still validates every RPC against `auth_clinic_ids()`.
  */
 
 import { useRef, useState } from 'react'
@@ -24,10 +26,8 @@ interface ClinicOption {
 }
 
 function useSupervisorContextOptions(): ClinicOption[] | null {
-  const {
-    isSupervisorRole, profile, clinicId, surrogateClinicIds,
-  } = useAuth()
-  if (!isSupervisorRole || !clinicId || surrogateClinicIds.length === 0) return null
+  const { profile, clinicId, surrogateClinicIds } = useAuth()
+  if (!clinicId || surrogateClinicIds.length === 0) return null
   const loans = profile.surrogateClinics ?? []
   return [
     { id: clinicId, name: profile.clinicName ?? 'Assigned' },

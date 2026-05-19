@@ -41,6 +41,17 @@ export const features = {
     hooks: ['useCalendarSync', 'useCalendarVault'],
   },
 
+  preCombatChecks: {
+    label: 'Pre-Combat Checks',
+    store: 'useCalendarStore', // attachments live on calendar events
+    services: ['supervisorService'],
+    tables: ['clinics'], // templates stored in clinics.pre_combat_checks jsonb
+    idb: ['adtmc-calendar-events'], // attachments + subtask state ride the calendar event payload
+    components: 'Components/Calendar/',
+    drawer: null, // template CRUD lives in CalendarClinicEditor; attach UI in EventForm; tick UI in EventDetailPanel
+    hooks: ['useClinicPreCombatChecks'],
+  },
+
   mapOverlay: {
     label: 'Tactical Map Overlay',
     store: null,

@@ -44,7 +44,26 @@ export interface CalendarEvent {
   field_positions?: Record<string, FieldPosition> | null
   /** 9-line MEDEVAC request data — present when category is 'medevac' or when a mission event includes a MEDEVAC request. */
   medevac_data?: MedevacRequest | null
+  /**
+   * Attached Pre-Combat Check (PCC). Optional, supervisor-set. Snapshot-copied
+   * from a clinics.pre_combat_checks template on attach — template edits do not
+   * retro-mutate. Whole PCC owned by a single medic (assigned_to). Subtask ticks
+   * write done_by + done_at and ride the normal event update path.
+   */
+  pcc?: PCCAttachment | null
 }
+
+/** Snapshot of a PCC attached to a calendar event. Inherits ownership from event.assigned_to — anyone on the event can tick. */
+export interface PCCAttachment {
+  template_id: string
+  subtasks: PCCSubtask[]
+}
+
+/** Snapshot of a template item plus per-event completion state. */
+export type PCCSubtask =
+  | { id: string; kind: 'property_item';     ref: string; label_override?: string | null; done_by?: string | null; done_at?: string | null }
+  | { id: string; kind: 'property_location'; ref: string; done_by?: string | null; done_at?: string | null }
+  | { id: string; kind: 'task';              label: string; done_by?: string | null; done_at?: string | null }
 
 /** A single user's last-known field position, stored on a CalendarEvent. */
 export interface FieldPosition {
@@ -83,6 +102,8 @@ export interface EventFormData {
    * edit path we don't carry it (clinic_id is immutable on existing events).
    */
   clinic_id?: string | null
+  /** Attached PCC snapshot (template_id + assignee + subtasks). Supervisor-set. */
+  pcc?: PCCAttachment | null
 }
 
 export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: string; solidColor: string; hidden?: boolean; devOnly?: boolean }[] = [
@@ -177,6 +198,7 @@ export function createEmptyFormData(forDateKey?: string): EventFormData {
     huddle_task_id: null,
     structured_location: null,
     medevac_data: null,
+    pcc: null,
   }
 }
 
@@ -198,6 +220,7 @@ export function eventToFormData(event: CalendarEvent): EventFormData {
     huddle_task_id: event.huddle_task_id ?? null,
     structured_location: event.structured_location ?? null,
     medevac_data: event.medevac_data ?? null,
+    pcc: event.pcc ?? null,
   }
 }
 

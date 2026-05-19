@@ -299,6 +299,115 @@ export function clearClinicVaultKey(): void {
   cachedClinicId = null
 }
 
+interface ClinicVaultMaterial {
+  encryptedBlob: string
+  salt: string
+  iv: string
+  signingPubBase64: string
+  dhPubBase64: string
+  spkPubBase64: string
+  spkSignature: string
+  publicPreKeys: { keyId: number; publicKey: string }[]
+}
+
+async function generateClinicVaultMaterial(encryptionKey: string): Promise<ClinicVaultMaterial> {
+  const [signingPair, dhPair] = await Promise.all([
+    generateSigningPair(),
+    generateDhPair(),
+  ])
+  const [signingPubBase64, dhPubBase64] = await Promise.all([
+    exportPubKey(signingPair.publicKey, 'spki'),
+    exportPubKey(dhPair.publicKey, 'raw'),
+  ])
+
+  const spkPair = await generateDhPair()
+  const spkPubBase64 = await exportPubKey(spkPair.publicKey, 'raw')
+  const spkSignature = await signBytes(signingPair.privateKey, base64ToUint8(spkPubBase64))
+
+  const preKeys: VaultBlobPlaintext['preKeys'] = []
+  for (let i = 1; i <= PREKEY_BATCH_SIZE; i++) {
+    const pair = await generateDhPair()
+    const pubBase64 = await exportPubKey(pair.publicKey, 'raw')
+    preKeys.push({
+      keyId: i,
+      privateKey: await crypto.subtle.exportKey('jwk', pair.privateKey),
+      publicKey: await crypto.subtle.exportKey('jwk', pair.publicKey),
+      publicKeyBase64: pubBase64,
+    })
+  }
+
+  const blob: VaultBlobPlaintext = {
+    signingPrivateKey: await crypto.subtle.exportKey('jwk', signingPair.privateKey),
+    signingPublicKey: await crypto.subtle.exportKey('jwk', signingPair.publicKey),
+    dhPrivateKey: await crypto.subtle.exportKey('jwk', dhPair.privateKey),
+    dhPublicKey: await crypto.subtle.exportKey('jwk', dhPair.publicKey),
+    signingPublicKeyBase64: signingPubBase64,
+    dhPublicKeyBase64: dhPubBase64,
+    signedPreKey: {
+      keyId: 1,
+      privateKey: await crypto.subtle.exportKey('jwk', spkPair.privateKey),
+      publicKey: await crypto.subtle.exportKey('jwk', spkPair.publicKey),
+      publicKeyBase64: spkPubBase64,
+      signature: spkSignature,
+      createdAt: new Date().toISOString(),
+    },
+    previousSignedPreKeys: [],
+    preKeys,
+    nextPreKeyId: PREKEY_BATCH_SIZE + 1,
+  }
+
+  const { encryptedBlob, salt, iv } = await encryptBlob(blob, encryptionKey)
+
+  return {
+    encryptedBlob, salt, iv,
+    signingPubBase64, dhPubBase64, spkPubBase64, spkSignature,
+    publicPreKeys: preKeys.map(pk => ({ keyId: pk.keyId, publicKey: pk.publicKeyBase64 })),
+  }
+}
+
+/**
+ * Provision a clinic vault as a dev via SECURITY DEFINER RPC.
+ *
+ * Used by adminService.createClinic. The RPC runs all three vault inserts
+ * (vault_device_keys, signal_key_bundles, user_devices) in a single
+ * transaction with a server-side requireDev check — bypasses the RLS
+ * timing/membership issues that caused intermittent failures when a dev
+ * created a clinic they were not yet a member of.
+ */
+export async function provisionClinicVaultAsAdmin(
+  clinicId: string,
+  encryptionKey: string,
+): Promise<Result<void>> {
+  logger.info('Provisioning clinic vault device via admin RPC')
+
+  const m = await generateClinicVaultMaterial(encryptionKey)
+
+  const { error } = await supabase.rpc('admin_provision_clinic_vault', {
+    p_clinic_id: clinicId,
+    p_encrypted_blob: m.encryptedBlob,
+    p_salt: m.salt,
+    p_iv: m.iv,
+    p_kdf_iterations: KDF_ITERATIONS,
+    p_version: 1,
+    p_identity_signing_key: m.signingPubBase64,
+    p_identity_dh_key: m.dhPubBase64,
+    p_signed_pre_key_id: 1,
+    p_signed_pre_key: m.spkPubBase64,
+    p_signed_pre_key_sig: m.spkSignature,
+    p_one_time_pre_keys: m.publicPreKeys,
+    p_device_label: 'Clinic Vault',
+  })
+
+  if (error) {
+    const detail = error.message || error.details || error.hint || error.code || JSON.stringify(error)
+    logger.error('admin_provision_clinic_vault failed:', detail, error)
+    return err(detail)
+  }
+
+  logger.info('Clinic vault device provisioned via admin RPC')
+  return ok(undefined)
+}
+
 /**
  * Ensure a clinic vault device exists. If not, create one.
  * Idempotent — safe to call on every login. Any clinic member can provision.
@@ -324,66 +433,15 @@ export async function ensureClinicVaultExists(
 
   logger.info('Provisioning clinic vault device')
 
-  // Generate full X3DH identity for the clinic vault
-  const [signingPair, dhPair] = await Promise.all([
-    generateSigningPair(),
-    generateDhPair(),
-  ])
-  const [signingPubBase64, dhPubBase64] = await Promise.all([
-    exportPubKey(signingPair.publicKey, 'spki'),
-    exportPubKey(dhPair.publicKey, 'raw'),
-  ])
+  const m = await generateClinicVaultMaterial(encryptionKey)
 
-  // Signed pre-key
-  const spkPair = await generateDhPair()
-  const spkPubBase64 = await exportPubKey(spkPair.publicKey, 'raw')
-  const spkSignature = await signBytes(signingPair.privateKey, base64ToUint8(spkPubBase64))
-
-  // One-time pre-keys
-  const preKeys: VaultBlobPlaintext['preKeys'] = []
-  for (let i = 1; i <= PREKEY_BATCH_SIZE; i++) {
-    const pair = await generateDhPair()
-    const pubBase64 = await exportPubKey(pair.publicKey, 'raw')
-    preKeys.push({
-      keyId: i,
-      privateKey: await crypto.subtle.exportKey('jwk', pair.privateKey),
-      publicKey: await crypto.subtle.exportKey('jwk', pair.publicKey),
-      publicKeyBase64: pubBase64,
-    })
-  }
-
-  // Build plaintext blob
-  const blob: VaultBlobPlaintext = {
-    signingPrivateKey: await crypto.subtle.exportKey('jwk', signingPair.privateKey),
-    signingPublicKey: await crypto.subtle.exportKey('jwk', signingPair.publicKey),
-    dhPrivateKey: await crypto.subtle.exportKey('jwk', dhPair.privateKey),
-    dhPublicKey: await crypto.subtle.exportKey('jwk', dhPair.publicKey),
-    signingPublicKeyBase64: signingPubBase64,
-    dhPublicKeyBase64: dhPubBase64,
-    signedPreKey: {
-      keyId: 1,
-      privateKey: await crypto.subtle.exportKey('jwk', spkPair.privateKey),
-      publicKey: await crypto.subtle.exportKey('jwk', spkPair.publicKey),
-      publicKeyBase64: spkPubBase64,
-      signature: spkSignature,
-      createdAt: new Date().toISOString(),
-    },
-    previousSignedPreKeys: [],
-    preKeys,
-    nextPreKeyId: PREKEY_BATCH_SIZE + 1,
-  }
-
-  // Encrypt blob with clinic's encryption_key
-  const { encryptedBlob, salt, iv } = await encryptBlob(blob, encryptionKey)
-
-  // Store encrypted vault blob
   const { error: vaultError } = await supabase
     .from('vault_device_keys')
     .upsert({
       user_id: clinicId,
-      encrypted_blob: encryptedBlob,
-      salt,
-      iv,
+      encrypted_blob: m.encryptedBlob,
+      salt: m.salt,
+      iv: m.iv,
       kdf_iterations: KDF_ITERATIONS,
       version: 1,
       updated_at: new Date().toISOString(),
@@ -394,20 +452,18 @@ export async function ensureClinicVaultExists(
     return err(vaultError.message)
   }
 
-  // Upload public bundle
   const publicBundle: PublicKeyBundle = {
     userId: clinicId,
     deviceId: CLINIC_VAULT_DEVICE_ID,
-    identitySigningKey: signingPubBase64,
-    identityDhKey: dhPubBase64,
-    signedPreKey: { keyId: 1, publicKey: spkPubBase64, signature: spkSignature },
-    oneTimePreKeys: preKeys.map(pk => ({ keyId: pk.keyId, publicKey: pk.publicKeyBase64 })),
+    identitySigningKey: m.signingPubBase64,
+    identityDhKey: m.dhPubBase64,
+    signedPreKey: { keyId: 1, publicKey: m.spkPubBase64, signature: m.spkSignature },
+    oneTimePreKeys: m.publicPreKeys,
   }
 
   const uploadResult = await uploadKeyBundle(publicBundle)
   if (!uploadResult.ok) return uploadResult
 
-  // Register vault device
   await registerDevice(clinicId, CLINIC_VAULT_DEVICE_ID, 'Clinic Vault')
 
   logger.info('Clinic vault device provisioned')

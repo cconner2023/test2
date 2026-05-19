@@ -20,11 +20,14 @@ import {
   deleteTombstone,
   deleteConversation as deleteConversationFromDb,
   deleteMessages as deleteMessagesFromDb,
+  loadAllPeerProfiles,
+  savePeerProfile,
 } from '../lib/signal/messageStore'
 import { getLocalDeviceId } from '../lib/signal/keyManager'
 import { createLogger } from '../Utilities/Logger'
 import type { DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { GroupInfo } from '../lib/signal/groupTypes'
+import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 
 const logger = createLogger('MessagingStore')
 
@@ -54,6 +57,10 @@ interface MessagingState {
   hydrated: boolean
   /** Conversation keys pinned by the user — persisted to localStorage. */
   pinnedConversationKeys: string[]
+  /** Profile cache for every user we've messaged — cluster-agnostic, persisted to IDB.
+   *  Populated by email-lookup success and by inbound-envelope-from-unknown-sender.
+   *  Read by every name-resolution consumer alongside useClinicMedics. */
+  peerProfiles: Record<string, ClinicMedic>
 }
 
 // ── Actions ────────────────────────────────────────────────────────────────
@@ -134,6 +141,8 @@ interface MessagingActions {
 
   /** Toggle pin state for a conversation key — persists to localStorage. */
   togglePinConversation: (key: string) => void
+  /** Upsert a single peer profile and persist to IDB. Cluster-agnostic. */
+  setPeerProfile: (profile: ClinicMedic) => void
   /** Full reset — called on sign-out. */
   clearAll: () => void
 }
@@ -160,6 +169,7 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
       return raw ? (JSON.parse(raw) as string[]) : []
     } catch { return [] }
   })(),
+  peerProfiles: {},
 
   // ── Actions ──
 
@@ -225,7 +235,7 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
       if (!msgs) return s
       const updated = msgs.map(m => {
         if (m.id !== localId) return m
-        return { ...m, id: serverId, status: undefined }
+        return { ...m, id: serverId, status: 'sent' as const }
       })
       return { conversations: { ...s.conversations, [conversationKey]: updated } }
     })
@@ -399,11 +409,14 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
 
   hydrateFromIdb: async (userId) => {
     try {
-      const [convos, counts, tombstones] = await Promise.all([
+      const [convos, counts, tombstones, peerProfileList] = await Promise.all([
         loadAllConversations(),
         loadUnreadCounts(userId),
         getAllTombstones(),
+        loadAllPeerProfiles(),
       ])
+      const peerProfiles: Record<string, ClinicMedic> = {}
+      for (const p of peerProfileList) peerProfiles[p.id] = p
 
       // Filter out conversations that have active tombstones
       const filtered: Record<string, DecryptedSignalMessage[]> = {}
@@ -461,6 +474,9 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
           deletedConversations: tombstones,
           localDeviceId: deviceId ?? s.localDeviceId,
           localUserId: userId,
+          peerProfiles: Object.keys(peerProfiles).length > 0
+            ? { ...peerProfiles, ...s.peerProfiles }
+            : s.peerProfiles,
           hydrated: true,
         }
       })
@@ -481,6 +497,11 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
     try { localStorage.setItem('beacon:pinnedConversations', JSON.stringify(next)) } catch {}
   },
 
+  setPeerProfile: (profile) => {
+    set(s => ({ peerProfiles: { ...s.peerProfiles, [profile.id]: profile } }))
+    savePeerProfile(profile).catch(() => {})
+  },
+
   clearAll: () => {
     try { localStorage.removeItem('beacon:pinnedConversations') } catch {}
     set({
@@ -495,6 +516,7 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
       systemGroupIds: new Set(),
       hydrated: false,
       pinnedConversationKeys: [],
+      peerProfiles: {},
     })
   },
 }))

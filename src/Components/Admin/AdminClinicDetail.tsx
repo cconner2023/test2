@@ -7,10 +7,10 @@
  */
 
 import { useEffect, useCallback, useMemo, useState, useRef } from 'react'
-import { X, Plus, RefreshCw, Check, Trash2, ChevronRight, Building2 } from 'lucide-react'
+import { X, Plus, RefreshCw, Check, Trash2, ChevronRight, Building2, Key } from 'lucide-react'
 import { UserRow } from '../UserRow'
 import { ActionButton } from '../ActionButton'
-import { listClinics, listAllUsers, listLocations, updateClinic, createClinic, rescueClinicAssociationsByLocation, listClinicLoans } from '../../lib/adminService'
+import { listClinics, listAllUsers, listLocations, updateClinic, createClinic, rescueClinicAssociationsByLocation, listClinicLoans, clinicHasVault, rescueClinicVault } from '../../lib/adminService'
 import type { AdminUser, AdminClinic, AdminLocation } from '../../lib/adminService'
 import { formatLastActive } from './adminUtils'
 import { TextInput, UicPinInput } from '../FormInputs'
@@ -19,9 +19,19 @@ import { LocationPickerInput } from './AdminPickers'
 import { invalidate, useInvalidation } from '../../stores/useInvalidationStore'
 import { sameStringSet } from '../../Utilities/arrayEquals'
 import { ActionPill } from '../ActionPill'
-import { EmptyState } from '../EmptyState'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
+
+/** Prefill for the create flow when launched from another cluster's
+ *  relationship picker. The new cluster is seeded with the right linkage so
+ *  saving it lands already-related without a separate edit step.
+ *  - `sub-of`        : new clinic.parent_clinic_id = parentId
+ *  - `parent-of`     : after create, child.parent_clinic_id = newId
+ *  - `associated-with`: new clinic.associated_clinic_ids = [clinicId] (createClinic syncs reciprocally) */
+export type ClusterCreatePrefill =
+  | { kind: 'sub-of'; parentId: string }
+  | { kind: 'parent-of'; childId: string }
+  | { kind: 'associated-with'; clinicId: string }
 
 interface AdminClinicDetailProps {
   clinic: AdminClinic | null
@@ -36,6 +46,15 @@ interface AdminClinicDetailProps {
   onCreated?: (clinicId: string) => void
   /** Called when the user requests deletion from the edit overlay footer. */
   onRequestDelete?: () => void
+  /** Create-mode prefill — when the create flow was launched from another
+   *  cluster's relationship picker, seeds the linkage. */
+  createPrefill?: ClusterCreatePrefill | null
+  /** Called from a relationship picker footer when the user wants to create
+   *  a NEW cluster of that kind instead of selecting an existing one. */
+  onCreateRelatedCluster?: (prefill: ClusterCreatePrefill) => void
+  /** Called from the Assigned Users section "Create user" action — opens the
+   *  AdminUserDetail create flow with clinic_id prefilled to this cluster. */
+  onCreateUserInCluster?: (clinicId: string) => void
 }
 
 const AdminClinicDetail = ({
@@ -50,6 +69,9 @@ const AdminClinicDetail = ({
   onPendingChangesChange,
   onCreated,
   onRequestDelete,
+  createPrefill,
+  onCreateRelatedCluster,
+  onCreateUserInCluster,
 }: AdminClinicDetailProps) => {
   const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
@@ -83,6 +105,9 @@ const AdminClinicDetail = ({
   const [uicOwner, setUicOwner] = useState<AdminClinic | null>(null)
   const [rescuing, setRescuing] = useState(false)
   const [rescueResult, setRescueResult] = useState<string | null>(null)
+  const [vaultMissing, setVaultMissing] = useState(false)
+  const [vaultProvisioning, setVaultProvisioning] = useState(false)
+  const [vaultResult, setVaultResult] = useState<string | null>(null)
 
   const isCreateMode = clinic === null
 
@@ -136,6 +161,9 @@ const AdminClinicDetail = ({
       const { inUserIds, outMap } = await listClinicLoans(clinic.id)
       setLoanedInUserIds(inUserIds)
       setLoanedOutMap(outMap)
+
+      const has = await clinicHasVault(clinic.id)
+      setVaultMissing(!has)
     }
   }, [isCreateMode, clinic?.id])
 
@@ -178,12 +206,20 @@ const AdminClinicDetail = ({
       setEditName(clinic?.name ?? '')
       setEditLocationId(clinic?.location_id ?? null)
       setEditUics([...(clinic?.uics ?? [])])
-      setEditParentClinicId(clinic?.parent_clinic_id ?? null)
-      setEditAssociatedClinicIds([...(clinic?.associated_clinic_ids ?? [])])
+      // Create-mode prefill seeds the relationship the new cluster was
+      // launched to fill. parent-of can't be seeded on the new clinic itself
+      // (it's a reverse-lookup field on the child) — handled in handleSave.
+      if (isCreateMode && createPrefill) {
+        setEditParentClinicId(createPrefill.kind === 'sub-of' ? createPrefill.parentId : null)
+        setEditAssociatedClinicIds(createPrefill.kind === 'associated-with' ? [createPrefill.clinicId] : [])
+      } else {
+        setEditParentClinicId(clinic?.parent_clinic_id ?? null)
+        setEditAssociatedClinicIds([...(clinic?.associated_clinic_ids ?? [])])
+      }
       setError(null)
     }
     prevEditingRef.current = editing
-  }, [editing, clinic])
+  }, [editing, clinic, isCreateMode, createPrefill])
 
   /** Track pending changes. */
   useEffect(() => {
@@ -214,13 +250,29 @@ const AdminClinicDetail = ({
 
     if (isCreateMode) {
       const result = await createClinic({ ...payload, location_id: editLocationId })
-      setSaving(false)
       if (result.success && result.id) {
-        if (result.warnings?.length) {
-          setError(`Cluster created, but: ${result.warnings.join('; ')}`)
+        const warnings = [...(result.warnings ?? [])]
+        // parent-of prefill: this clinic was created to become the parent of
+        // an existing child. createClinic can't set that (parent_clinic_id
+        // lives on the child row) — fire a follow-up updateClinic.
+        if (createPrefill?.kind === 'parent-of') {
+          const reparent = await updateClinic(createPrefill.childId, { parent_clinic_id: result.id })
+          if (!reparent.success) {
+            warnings.push(`Parent link failed: ${reparent.error}`)
+          }
         }
+        setSaving(false)
+        if (warnings.length) {
+          setError(`Cluster created, but: ${warnings.join('; ')}`)
+        }
+        // Clear pending immediately — onCreated awaits listClinics before
+        // flipping editing=false in the parent, leaving a window where the
+        // discard guard would fire if the user tapped Close to verify.
+        onPendingChangesChange?.(false)
+        onEditingChange(false)
         onCreated?.(result.id)
       } else {
+        setSaving(false)
         setError(!result.success ? result.error : 'Failed to create cluster')
       }
       return
@@ -238,7 +290,21 @@ const AdminClinicDetail = ({
     } else {
       setError(result.error || 'Failed to update clinic')
     }
-  }, [editName, editLocationId, editUics, editParentClinicId, editAssociatedClinicIds, isCreateMode, clinic, onEditingChange, loadData, onCreated])
+  }, [editName, editLocationId, editUics, editParentClinicId, editAssociatedClinicIds, isCreateMode, clinic, onEditingChange, loadData, onCreated, createPrefill, onPendingChangesChange])
+
+  const handleProvisionVault = useCallback(async () => {
+    if (!clinic?.id) return
+    setVaultProvisioning(true)
+    setVaultResult(null)
+    const result = await rescueClinicVault(clinic.id)
+    setVaultProvisioning(false)
+    if (result.success) {
+      setVaultMissing(false)
+      setVaultResult('Vault provisioned.')
+    } else {
+      setVaultResult(`Vault provisioning failed: ${result.error}`)
+    }
+  }, [clinic?.id])
 
   const handleRescueAssociations = useCallback(async () => {
     if (!clinic?.location_id) return
@@ -367,19 +433,6 @@ const AdminClinicDetail = ({
     return assignedUsers.filter(u => (loanedOutMap.get(u.id)?.length ?? 0) > 0)
   }, [assignedUsers, loanedOutMap, isCreateMode])
 
-  /** All users to show (assigned + loaned-in, deduplicated). */
-  const allClinicUsers = useMemo(() => {
-    const seen = new Set<string>()
-    const result: AdminUser[] = []
-    for (const u of [...assignedUsers, ...loanedInUsers]) {
-      if (!seen.has(u.id)) {
-        seen.add(u.id)
-        result.push(u)
-      }
-    }
-    return result
-  }, [assignedUsers, loanedInUsers])
-
   const renderUserRow = (user: AdminUser) => (
     <UserRow
       key={user.id}
@@ -498,7 +551,29 @@ const AdminClinicDetail = ({
       {/* Main card — view-mode card for existing records (tap to open edit
           overlay), inline form during create mode until the FAB-anchored
           overlay lands. pt-0; the parent ScrollPane already gives padding. */}
-      <div ref={cardWrapperRef} className="relative">
+      <div ref={cardWrapperRef} className="relative mt-6">
+        {clinic && !isCreateMode && (clinic.location_id || vaultMissing) && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <ActionPill shadow="sm" placement="overlay">
+              {clinic.location_id && (
+                <ActionButton
+                  icon={RefreshCw}
+                  label={rescuing ? 'Rescuing peers…' : 'Rescue peer associations at this location'}
+                  variant={rescuing ? 'disabled' : 'default'}
+                  onClick={handleRescueAssociations}
+                />
+              )}
+              {vaultMissing && (
+                <ActionButton
+                  icon={vaultProvisioning ? RefreshCw : Key}
+                  label={vaultProvisioning ? 'Provisioning vault…' : "Provision this cluster's encryption identity"}
+                  variant={vaultProvisioning ? 'disabled' : 'danger'}
+                  onClick={handleProvisionVault}
+                />
+              )}
+            </ActionPill>
+          </div>
+        )}
         <div
           className={`rounded-2xl bg-themewhite2 overflow-hidden ${clinic && !isCreateMode ? 'cursor-pointer active:bg-themeblue2/5 transition-colors' : ''}`}
           onClick={clinic && !isCreateMode ? openEditOverlay : undefined}
@@ -518,23 +593,10 @@ const AdminClinicDetail = ({
               const loc = clinic.location_id ? locations.find(l => l.id === clinic.location_id) : null
               if (loc) {
                 return (
-                  <div className="mt-0.5 flex items-center gap-2">
-                    <p className="text-[9pt] text-tertiary flex-1 min-w-0">
-                      {loc.display_name}
-                      {loc.command && <span className="ml-1.5">· {loc.command}</span>}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); handleRescueAssociations() }}
-                      disabled={rescuing}
-                      title="Re-associate all clusters at this location"
-                      aria-label="Rescue associations for this location"
-                      className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9pt] text-tertiary hover:text-themeblue2 hover:bg-themeblue2/5 transition-colors disabled:opacity-40"
-                    >
-                      <RefreshCw size={11} className={rescuing ? 'animate-spin' : ''} />
-                      <span>{rescuing ? 'Rescuing…' : 'Rescue peers'}</span>
-                    </button>
-                  </div>
+                  <p className="text-[9pt] text-tertiary mt-0.5">
+                    {loc.display_name}
+                    {loc.command && <span className="ml-1.5">· {loc.command}</span>}
+                  </p>
                 )
               }
               if (clinic.location) {
@@ -542,9 +604,6 @@ const AdminClinicDetail = ({
               }
               return null
             })()}
-            {rescueResult && (
-              <p className="mt-1 text-[9pt] text-themeblue2">{rescueResult}</p>
-            )}
             {clinic.uics.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-2">
                 {clinic.uics.map((uic) => (
@@ -560,6 +619,9 @@ const AdminClinicDetail = ({
           </div>
         ) : null}
         </div>
+        {(rescueResult || vaultResult) && (
+          <p className="mt-1 text-[9pt] text-themeblue2">{rescueResult || vaultResult}</p>
+        )}
       </div>
 
       {/* Edit overlay — tap clinic card → form fields here. Footer owns Save+Delete. */}
@@ -594,16 +656,34 @@ const AdminClinicDetail = ({
         {editAnchor && clinic && editFormBody}
       </PreviewOverlay>
 
-      {/* Assigned Users */}
-      {!isCreateMode && assignedUsers.length > 0 && (
-        <div className="mt-4">
-          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
-            Assigned Users ({assignedUsers.length})
-          </p>
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/10">
-            {assignedUsers.map(renderUserRow)}
+      {/* Assigned Users — always rendered (when not in create mode) so the
+          "Create user" FAB has a home even when the cluster is empty. */}
+      {!isCreateMode && clinic && (
+        <section className="mt-4">
+          <div className="pb-2">
+            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
+              Assigned Users ({assignedUsers.length})
+            </p>
           </div>
-        </div>
+          <div className="relative">
+            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/10">
+              {assignedUsers.length === 0 ? (
+                <div className="px-4 py-3.5 text-[10pt] text-tertiary">No users assigned.</div>
+              ) : (
+                assignedUsers.map(renderUserRow)
+              )}
+            </div>
+            {onCreateUserInCluster && (
+              <ActionPill shadow="sm" placement="overlay">
+                <ActionButton
+                  icon={Plus}
+                  label="Create user"
+                  onClick={() => onCreateUserInCluster(clinic.id)}
+                />
+              </ActionPill>
+            )}
+          </div>
+        </section>
       )}
 
       {/* Loaned In — read-only reverse view of profile_clinic_loans rows
@@ -664,13 +744,6 @@ const AdminClinicDetail = ({
             })}
           </div>
         </div>
-      )}
-
-      {!isCreateMode && !editing && allClinicUsers.length === 0 && (
-        <EmptyState
-          className="mt-4"
-          title="No users assigned"
-        />
       )}
 
       {/* ── Parent cluster ───────────────────────────────────────────── */}
@@ -930,7 +1003,24 @@ const AdminClinicDetail = ({
           )
         }}
         footer={
-          <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+          <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5 flex flex-col">
+            {onCreateRelatedCluster && clinic && relAction && (relAction.kind === 'add-parent' || relAction.kind === 'add-child' || relAction.kind === 'add-assoc') && (
+              <ActionButton
+                icon={Plus}
+                label={
+                  relAction.kind === 'add-parent' ? 'Create new parent cluster' :
+                  relAction.kind === 'add-child' ? 'Create new sub-cluster' :
+                  'Create new associated cluster'
+                }
+                onClick={() => {
+                  const kind = relAction.kind
+                  setRelAction(null)
+                  if (kind === 'add-parent') onCreateRelatedCluster({ kind: 'parent-of', childId: clinic.id })
+                  else if (kind === 'add-child') onCreateRelatedCluster({ kind: 'sub-of', parentId: clinic.id })
+                  else onCreateRelatedCluster({ kind: 'associated-with', clinicId: clinic.id })
+                }}
+              />
+            )}
             <ActionButton icon={X} label="Cancel" onClick={() => setRelAction(null)} />
           </div>
         }

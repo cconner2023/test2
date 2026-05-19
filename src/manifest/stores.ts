@@ -90,6 +90,7 @@ export const stores = {
       'setShowKnowledgeBase', 'setShowTrainingDrawer', 'setShowMessagesDrawer',
       'setShowPropertyDrawer', 'setShowLoRaDrawer', 'setShowMapOverlayDrawer',
       'setShowCalendarDrawer', 'openCalendarEvent', 'clearCalendarDrawerEventId',
+      'clearCalendarDrawerInitialDate',
       'setShowAdminDrawer', 'setShowSupervisorDrawer',
       'setShowProviderDrawer', 'openWriteNote', 'closeWriteNote', 'resetToMain',
     ],

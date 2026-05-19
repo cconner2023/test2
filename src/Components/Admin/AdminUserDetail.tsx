@@ -65,6 +65,10 @@ interface AdminUserDetailProps {
   onPendingChangesChange?: (hasPending: boolean) => void
   /** Called when the user requests deletion from the edit overlay footer. */
   onRequestDelete?: () => void
+  /** Create-mode prefill — when launched from a cluster's "Create user"
+   *  action, seeds editClinicId so the new user lands assigned to that
+   *  cluster on save (setUserClinic runs after createUser in handleSave). */
+  prefillClinicId?: string | null
 }
 
 const AVAILABLE_ROLES = ['medic', 'supervisor', 'dev', 'provider'] as const
@@ -82,6 +86,7 @@ export function AdminUserDetail({
   onSaveComplete,
   onPendingChangesChange,
   onRequestDelete,
+  prefillClinicId,
 }: AdminUserDetailProps) {
   const currentUser = useAuthStore(s => s.user)
   const currentUserId = currentUser?.id ?? null
@@ -113,6 +118,7 @@ export function AdminUserDetail({
   // the cluster pickers that used to live in the edit overlay.
   type ClusterAction =
     | { kind: 'loan-row'; x: number; y: number; clinic: AdminClinic }
+    | { kind: 'home-row'; x: number; y: number; rect: DOMRect; clinic: AdminClinic }
     | { kind: 'pick-home'; rect: DOMRect }
     | { kind: 'add-loan'; rect: DOMRect }
   const [clusterAction, setClusterAction] = useState<ClusterAction | null>(null)
@@ -219,7 +225,9 @@ export function AdminUserDetail({
       setEditComponent(user?.component || '')
       setEditRank(user?.rank || '')
       setEditUic(user?.uic || '')
-      setEditClinicId(user?.clinic_id || '')
+      // Create-mode: prefer prefillClinicId (launched from a cluster's
+      // "Create user"); existing-user edit keeps the current assignment.
+      setEditClinicId(user?.clinic_id || (user === null ? (prefillClinicId || '') : ''))
       setEditRoles(user?.roles?.filter(r => AVAILABLE_ROLES.includes(r as typeof AVAILABLE_ROLES[number])) ?? ['medic'])
       // Hydrate current loans for the multi-select. Goes through the dev
       // RPC so loans show even when caller doesn't share a clinic with target.
@@ -240,7 +248,7 @@ export function AdminUserDetail({
       setStepResults([])
     }
     prevEditingRef.current = editing
-  }, [editing, user])
+  }, [editing, user, prefillClinicId])
 
   // ── Pending changes detection ────────────────────────────────────────
   useEffect(() => {
@@ -495,15 +503,28 @@ export function AdminUserDetail({
     await loadData()
   }, [loadData])
 
+  // Swap semantics: setUserClinic fires a DB trigger that wipes every loan
+  // for this user. To avoid losing the old home + existing loans on a home
+  // change, capture them up front and re-apply via setUserLoans afterward
+  // (minus newId, which is now the home).
   const handlePickHome = useCallback(async (newId: string) => {
     if (!user) return
     setClusterBusy(true)
+    const oldHomeId = user.clinic_id
+    const preservedLoans = viewLoanClinicIds
     const r = await setUserClinic(user.id, newId)
+    if (r.success) {
+      const nextLoans = [
+        ...preservedLoans.filter(id => id !== newId),
+        ...(oldHomeId && oldHomeId !== newId ? [oldHomeId] : []),
+      ]
+      if (nextLoans.length > 0) await setUserLoans(user.id, nextLoans)
+    }
     setClusterBusy(false)
     setClusterAction(null)
     if (r.success) refreshClusters()
     else setNotify({ type: 'error', message: r.error || 'Failed to set home cluster' })
-  }, [user, refreshClusters])
+  }, [user, viewLoanClinicIds, refreshClusters])
 
   const handleEndLoan = useCallback(async (clinicId: string) => {
     if (!user) return
@@ -519,12 +540,21 @@ export function AdminUserDetail({
   const handlePromoteLoan = useCallback(async (clinicId: string) => {
     if (!user) return
     setClusterBusy(true)
+    const oldHomeId = user.clinic_id
+    const preservedLoans = viewLoanClinicIds
     const r = await setUserClinic(user.id, clinicId)
+    if (r.success) {
+      const nextLoans = [
+        ...preservedLoans.filter(id => id !== clinicId),
+        ...(oldHomeId && oldHomeId !== clinicId ? [oldHomeId] : []),
+      ]
+      if (nextLoans.length > 0) await setUserLoans(user.id, nextLoans)
+    }
     setClusterBusy(false)
     setClusterAction(null)
     if (r.success) refreshClusters()
     else setNotify({ type: 'error', message: r.error || 'Failed to promote loan to home' })
-  }, [user, refreshClusters])
+  }, [user, viewLoanClinicIds, refreshClusters])
 
   const handleAddLoan = useCallback(async (clinicId: string) => {
     if (!user) return
@@ -784,7 +814,11 @@ export function AdminUserDetail({
                 type="button"
                 onClick={(e) => {
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                  setClusterAction({ kind: 'pick-home', rect })
+                  if (homeClinic) {
+                    setClusterAction({ kind: 'home-row', x: e.clientX, y: e.clientY, rect, clinic: homeClinic })
+                  } else {
+                    setClusterAction({ kind: 'pick-home', rect })
+                  }
                 }}
                 className={`flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5${rowCount > 1 ? ' border-b border-primary/6' : ''}`}
               >
@@ -838,6 +872,35 @@ export function AdminUserDetail({
             </ActionPill>
             </div>
           </section>
+        )
+      })()}
+
+      {/* Home-row context menu — open the home cluster or swap it for another. */}
+      {clusterAction?.kind === 'home-row' && (() => {
+        const c = clusterAction.clinic
+        const rect = clusterAction.rect
+        const items: ContextMenuItem[] = []
+        if (onSelectClinic) {
+          items.push({
+            key: 'open',
+            label: 'Open cluster',
+            icon: ChevronRight,
+            onAction: () => { setClusterAction(null); onSelectClinic(c) },
+          })
+        }
+        items.push({
+          key: 'change',
+          label: 'Change home',
+          icon: ArrowRightLeft,
+          onAction: () => setClusterAction({ kind: 'pick-home', rect }),
+        })
+        return (
+          <ContextMenu
+            x={clusterAction.x}
+            y={clusterAction.y}
+            items={items}
+            onClose={() => setClusterAction(null)}
+          />
         )
       })()}
 

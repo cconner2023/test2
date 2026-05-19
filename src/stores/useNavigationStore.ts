@@ -55,6 +55,7 @@ const CLOSE_ALL_DRAWERS = {
     showCalendarDrawer: false,
     calendarDrawerEventId: null as string | null,
     calendarDrawerEventEditMode: false,
+    calendarDrawerInitialDate: null as string | null,
     pendingCalendarAction: null as 'new' | null,
     showAdminDrawer: false,
     showSupervisorDrawer: false,
@@ -95,6 +96,7 @@ interface NavigationState {
     showCalendarDrawer: boolean
     calendarDrawerEventId: string | null
     calendarDrawerEventEditMode: boolean
+    calendarDrawerInitialDate: string | null
     pendingCalendarAction: 'new' | null
     showAdminDrawer: boolean
     showSupervisorDrawer: boolean
@@ -129,10 +131,11 @@ interface NavigationActions {
     setShowPropertyDrawer: (show: boolean) => void
     setShowLoRaDrawer: (show: boolean) => void
     setShowMapOverlayDrawer: (show: boolean, overlayId?: string | null) => void
-    setShowCalendarDrawer: (show: boolean) => void
+    setShowCalendarDrawer: (show: boolean, initialDate?: string | null) => void
     openCalendarEvent: (eventId: string) => void
     openCalendarEventForEdit: (eventId: string) => void
     clearCalendarDrawerEventId: () => void
+    clearCalendarDrawerInitialDate: () => void
     requestNewCalendarEvent: () => void
     clearPendingCalendarAction: () => void
     setShowAdminDrawer: (show: boolean) => void
@@ -174,6 +177,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     showCalendarDrawer: false,
     calendarDrawerEventId: null,
     calendarDrawerEventEditMode: false,
+    calendarDrawerInitialDate: null,
     pendingCalendarAction: null,
     showAdminDrawer: false,
     showSupervisorDrawer: false,
@@ -378,10 +382,11 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         mapOverlayDrawerOverlayId: show ? (overlayId ?? null) : null,
     })),
 
-    setShowCalendarDrawer: (show) => set((s) => ({
+    setShowCalendarDrawer: (show, initialDate) => set((s) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),
         ...PRESERVED_FIELDS(s),
         showCalendarDrawer: show,
+        calendarDrawerInitialDate: show ? (initialDate ?? null) : null,
     })),
 
     openCalendarEvent: (eventId) => set((s) => ({
@@ -401,6 +406,8 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     })),
 
     clearCalendarDrawerEventId: () => set({ calendarDrawerEventId: null, calendarDrawerEventEditMode: false }),
+
+    clearCalendarDrawerInitialDate: () => set({ calendarDrawerInitialDate: null }),
 
     requestNewCalendarEvent: () => set((s) => ({
         ...CLOSE_ALL_DRAWERS,

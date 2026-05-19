@@ -21,6 +21,7 @@ import { ColumnA } from './Components/ColumnA'
 import { TC3DesktopLayout } from './Components/TC3/TC3DesktopLayout'
 import { TC3MobileWizard } from './Components/TC3/TC3MobileWizard'
 import { TC3WriteNote } from './Components/TC3/TC3WriteNote'
+import { TC3NavSlot } from './Components/TC3/TC3NavSlot'
 import { useTC3Store, hydrateTC3Store } from './stores/useTC3Store'
 import { hydrateMedevacStore } from './stores/useMedevacStore'
 
@@ -554,6 +555,7 @@ case 'mapOverlay':
                 isMobile: navigation.isMobile,
                 isAlgorithmView: navigation.showQuestionCard,
                 isSearchFocused: searchFocused,
+                rightSlot: tc3Mode ? <TC3NavSlot /> : undefined,
               }}
             />
           </animated.div>

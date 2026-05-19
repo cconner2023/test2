@@ -485,7 +485,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
         )}
 
         {/* Time header with day boundaries */}
-        <div className="sticky top-0 z-10 flex items-end backdrop-blur-xs bg-transparent border-b border-primary/10">
+        <div className="sticky top-0 z-10 flex items-stretch bg-themewhite3 border-b border-primary/10">
           {/* Date nav in personnel column */}
           <div className="sticky left-0 z-20 shrink-0 border-r border-primary/10 flex items-center justify-between px-1.5 py-1 bg-themewhite3" style={{ width: NAME_COL_WIDTH }}>
             <button onClick={prevDay} className="w-6 h-6 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95">

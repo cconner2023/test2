@@ -1,8 +1,10 @@
 import { useState, useRef } from 'react'
 import { Pencil, X, Share2, Map, Copy, Check, Printer, Image, Ban, CircleDashed, Play, CheckCircle2, Clock } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { CalendarEvent, EventStatus } from '../../Types/CalendarTypes'
+import type { CalendarEvent, EventStatus, PCCAttachment } from '../../Types/CalendarTypes'
+import { PCCChecklistCard } from './PCCChecklistCard'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
+import { SectionHeader } from '../Section'
 import { getCategoryMeta, formatShortDayLabel, isEventEditable, isUnscheduledTemplate } from '../../Types/CalendarTypes'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { HeaderPill, PillButton } from '../HeaderPill'
@@ -41,6 +43,8 @@ interface EventDetailPanelProps {
   onOpenMissionBoard?: () => void
   /** Tap-to-cycle status writer — wired in CalendarPanel via useCalendarWrite. Only consumed by the task status pill today. */
   onStatusChange?: (id: string, next: EventStatus) => void
+  /** PCC subtask tick writer. Receives the new full attachment snapshot to persist. */
+  onUpdatePcc?: (id: string, next: PCCAttachment) => void
   assignedNames?: AssignedPerson[]
   linkedPropertyItems?: LinkedPropertyItem[]
   hideHeader?: boolean
@@ -69,7 +73,7 @@ const STATUS_TRIGGER_COLOR: Record<EventStatus, string> = {
   cancelled:   'text-themeredred',
 }
 
-export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, onCancelTemplate, apptTypeNames = [], canDeleteTemplate, onOpenMissionBoard, onStatusChange, assignedNames = [], linkedPropertyItems = [], hideHeader }: EventDetailPanelProps) {
+export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, onCancelTemplate, apptTypeNames = [], canDeleteTemplate, onOpenMissionBoard, onStatusChange, onUpdatePcc, assignedNames = [], linkedPropertyItems = [], hideHeader }: EventDetailPanelProps) {
   const isMobile = useIsMobile()
   const cat = getCategoryMeta(event.category)
   const isSupervisor = useAuthStore(s => s.isSupervisorRole)
@@ -144,70 +148,79 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
 
       <div className={`${hideHeader ? '' : 'flex-1 overflow-y-auto'} ${isMobile ? 'px-4 py-4 space-y-4' : 'px-3 py-3 space-y-3'}`}>
         {/* Event read-out */}
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className={`h-2 w-2 rounded-full ${cat.color}`} />
-              <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">{cat.label}</span>
-            </div>
-            <h2 className={`font-bold text-primary ${isMobile ? 'text-lg' : 'text-sm'}`}>{event.title}</h2>
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold text-primary">{event.title}</h2>
+
+          <div className="flex items-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full ${cat.color}`} />
+            <SectionHeader>{cat.label}</SectionHeader>
           </div>
 
           <div>
-            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">When</p>
+            <SectionHeader>Date</SectionHeader>
             <p className={`text-primary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>
               {formatDateTime(event.start_time, event.all_day)}
               {!event.all_day && (
                 <span className="text-tertiary"> — {formatDateTime(event.end_time, false)}</span>
               )}
+              {event.report_time && (
+                <span className="text-tertiary"> · Report: {event.report_time}</span>
+              )}
             </p>
-            {event.report_time && (
-              <p className={`text-secondary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>Report: {event.report_time}</p>
-            )}
           </div>
 
-          {event.location && (
-            <div>
-              <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Where</p>
-              <p className={`text-secondary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{event.location}</p>
-            </div>
-          )}
-
-          {event.uniform && (
-            <div>
-              <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Uniform</p>
-              <p className={`text-secondary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{event.uniform}</p>
-            </div>
-          )}
-
           <div>
-            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Assigned</p>
+            <SectionHeader>Assigned</SectionHeader>
             <div className="flex items-center gap-2 flex-wrap">
               {assignedNames.length === 0 ? (
                 <span className={`text-tertiary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>Unassigned</span>
               ) : (
                 assignedNames.map((person) => (
-                  <span key={person.id} className={`inline-flex items-center gap-1.5 ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>
+                  <span key={person.id} className={`inline-flex items-center gap-1.5 text-primary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>
                     <UserAvatar
                       avatarId={person.avatarId}
                       firstName={person.firstName}
                       lastName={person.lastName}
                       className={isMobile ? 'w-6 h-6' : 'w-5 h-5'}
                     />
-                    <span className="font-medium text-primary">{person.name}</span>
+                    <span>{person.name}</span>
                   </span>
                 ))
               )}
             </div>
           </div>
 
+          {event.location && (
+            <div>
+              <SectionHeader>Where</SectionHeader>
+              <p className={`text-primary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{event.location}</p>
+            </div>
+          )}
+
+          {event.uniform && (
+            <div>
+              <SectionHeader>Uniform</SectionHeader>
+              <p className={`text-primary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{event.uniform}</p>
+            </div>
+          )}
+
           {event.description && (
             <div>
-              <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Notes</p>
-              <p className={`text-secondary whitespace-pre-wrap ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{event.description}</p>
+              <SectionHeader>Notes</SectionHeader>
+              <p className={`text-primary whitespace-pre-wrap ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{event.description}</p>
             </div>
           )}
         </div>
+
+        {/* Pre-Combat Check */}
+        {event.pcc && onUpdatePcc && (
+          <PCCChecklistCard
+            pcc={event.pcc}
+            assignedIds={event.assigned_to ?? []}
+            onUpdatePcc={(next) => onUpdatePcc(event.id, next)}
+            isMobile={isMobile}
+          />
+        )}
 
         {/* Equipment card */}
         {linkedPropertyItems.length > 0 && (

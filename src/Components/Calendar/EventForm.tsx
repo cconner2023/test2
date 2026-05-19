@@ -1,7 +1,8 @@
 import { useState, useCallback, useImperativeHandle, forwardRef, useEffect } from 'react'
 import { Package } from 'lucide-react'
-import type { EventFormData, EventCategory, EventStatus } from '../../Types/CalendarTypes'
+import type { EventFormData, EventCategory, EventStatus, PCCSubtask } from '../../Types/CalendarTypes'
 import { createEmptyFormData, EVENT_CATEGORIES, MILITARY_TIME_OPTIONS, militaryToHHMM, hhmmToMilitary } from '../../Types/CalendarTypes'
+import type { ClinicPreCombatCheck } from '../../lib/supervisorService'
 import { TextInput, PickerInput, DatePickerInput, TimeInput } from '../FormInputs'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useIsMobile } from '../../Hooks/useIsMobile'
@@ -61,6 +62,10 @@ interface EventFormProps {
   huddleTaskOptions?: HuddleTaskOption[]
   /** Clinics the user can write events into (assigned + surrogate when loaned). Picker hidden when length < 2 or editing. */
   clinicOptions?: ClinicOption[]
+  /** Pre-Combat Check templates (clinics.pre_combat_checks). Empty/undefined hides the section. */
+  pccTemplateOptions?: ClinicPreCombatCheck[]
+  /** Drives dev-only visibility for the PCC attach affordance. */
+  isDev?: boolean
   /**
    * Phase 4.3a — when present, surfaces a "Create map" button for field
    * events (mission/training/range) without an attached overlay. Returns
@@ -70,7 +75,7 @@ interface EventFormProps {
 }
 
 export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
-  function EventForm({ initialData, onSave, isEditing, medics, propertyItems, overlayOptions, roomOptions, huddleTaskOptions, clinicOptions, onCreateOverlay }, ref) {
+  function EventForm({ initialData, onSave, isEditing, medics, propertyItems, overlayOptions, roomOptions, huddleTaskOptions, clinicOptions, pccTemplateOptions, isDev, onCreateOverlay }, ref) {
     const isMobile = useIsMobile()
     const isDevRole = useAuthStore(s => s.isDevRole)
     const [form, setForm] = useState<EventFormData>(initialData ?? createEmptyFormData())
@@ -383,6 +388,34 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
               <p className="px-4 py-2 text-[9pt] text-tertiary border-b border-primary/6">
                 Leave blank for an on-shift provider block. Pick a task to assign someone to a station like Front Desk.
               </p>
+            </div>
+          )}
+
+          {isDev && pccTemplateOptions && pccTemplateOptions.length > 0 && (
+            <div data-tour="event-form-pcc">
+              <PickerInput
+                value={form.pcc?.template_id ?? ''}
+                onChange={v => {
+                  if (!v) {
+                    updateField('pcc', null)
+                    return
+                  }
+                  const template = pccTemplateOptions.find(t => t.id === v)
+                  if (!template) return
+                  const subtasks: PCCSubtask[] = template.items.map(item => {
+                    if (item.kind === 'task')              return { id: item.id, kind: 'task',              label: item.label }
+                    if (item.kind === 'room')              return { id: item.id, kind: 'room',              ref: item.ref }
+                    if (item.kind === 'property_location') return { id: item.id, kind: 'property_location', ref: item.ref }
+                    return { id: item.id, kind: 'property_item', ref: item.ref, label_override: item.label_override ?? null }
+                  })
+                  updateField('pcc', {
+                    template_id: template.id,
+                    subtasks,
+                  })
+                }}
+                options={[{ value: '', label: 'No pre-combat check' }, ...pccTemplateOptions.map(t => ({ value: t.id, label: t.name }))]}
+                placeholder="Pre-combat check"
+              />
             </div>
           )}
 

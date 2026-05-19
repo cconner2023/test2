@@ -48,8 +48,6 @@ interface CalendarState {
   editingEventId: string | null
   showEventForm: boolean
   categoryFilter: EventCategory[] | null
-  /** When set, filteredEvents only includes events whose clinic_id is in this list. null = show all clinics. */
-  clinicFilter: string[] | null
   events: CalendarEvent[]
   rosterSearchQuery: string
   showRosterMobile: boolean
@@ -74,7 +72,6 @@ interface CalendarActions {
   setEditingEvent: (id: string | null) => void
   setShowEventForm: (show: boolean) => void
   setCategoryFilter: (categories: EventCategory[] | null) => void
-  setClinicFilter: (clinicIds: string[] | null) => void
   addEvent: (event: CalendarEvent) => void
   updateEvent: (id: string, updates: Partial<CalendarEvent>) => void
   removeEvent: (id: string) => void
@@ -158,7 +155,6 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   editingEventId: null,
   showEventForm: false,
   categoryFilter: null,
-  clinicFilter: null,
   events: [],
   rosterSearchQuery: '',
   showRosterMobile: false,
@@ -176,7 +172,6 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   setEditingEvent: (id) => set({ editingEventId: id, showEventForm: !!id }),
   setShowEventForm: (show) => set({ showEventForm: show, editingEventId: show ? undefined : null }),
   setCategoryFilter: (categories) => set({ categoryFilter: categories }),
-  setClinicFilter: (clinicIds) => set({ clinicFilter: clinicIds }),
   setRosterSearchQuery: (query) => set({ rosterSearchQuery: query }),
   setShowRosterMobile: (show) => set({ showRosterMobile: show }),
 

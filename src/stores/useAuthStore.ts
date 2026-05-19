@@ -30,7 +30,7 @@ import { clearAllPendingOverlaySends } from '../lib/mapOverlayEventStore'
 import { useCalendarStore } from './useCalendarStore'
 import { invalidate } from './useInvalidationStore'
 import { clearBackupKey, createBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
-import { processVaultMessages, clearVaultKey } from '../lib/signal/vaultDevice'
+import { processVaultMessages, ackVaultDrain, clearVaultKey } from '../lib/signal/vaultDevice'
 import { deriveAndCacheClinicVaultKey, ensureClinicVaultExists, processClinicVaultMessages, clearClinicVaultKey } from '../lib/signal/clinicVaultDevice'
 import { unsubscribeFromPush, resyncPushSubscription } from '../lib/pushNotificationService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
@@ -529,11 +529,19 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
           persistLocalSession(ls)
 
           // Process vault messages (deferred messages from offline period).
-          // If any messages were recovered, create a backup immediately so other
-          // devices don't miss them during the 60s periodic backup window.
-          processVaultMessages(userId)
-            .then(count => { if (count > 0) createBackup(userId).catch(() => {}) })
-            .catch(() => {})
+          // Two-phase drain: processVaultMessages decrypts + saves to IDB and
+          // STASHES the mark-read + OTP replenishment for ackVaultDrain to run
+          // only after createBackup confirms the messages are in signal_backups.
+          // The actual chain (restore → createBackup → ackVaultDrain) is wired
+          // below alongside restoreBackup so the ack depends on a confirmed
+          // post-restore upload, not the gate-deferred no-op this used to be.
+          // Until ackVaultDrain runs the drain is idempotent: messages stay
+          // unread server-side and OTP private keys stay in the blob, so a
+          // logout / iOS PWA eviction between drain and backup just re-drains
+          // on next login instead of permanently losing the messages.
+          const drainP = processVaultMessages(userId).catch(err => {
+            console.warn('vault drain failed:', err); return 0
+          })
 
           // Initialize clinic vault devices (clinic persona — parallel to personal vault).
           // Iterates assigned + surrogate so a loaned medic sees both clinics overlaid.
@@ -601,12 +609,23 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
           // Initialize LoRa mesh subsystem (lazy — no-ops if flag is off)
           initLoRaMesh(userId).catch(() => {})
 
-          // Server-side encrypted backup: restore first, then schedule ongoing
-          // backups so the server row stays fresh. All device roles restore —
-          // primary included — so conversations survive a logout/re-login cycle.
+          // Server-side encrypted backup: restore first. If the vault drain
+          // (kicked off above as drainP) produced messages, explicitly upload
+          // a backup that contains them and only THEN ack the drain so they
+          // get marked read + OTPs replenished. If the upload fails the ack
+          // is skipped — next login will re-drain the same messages and try
+          // again. After all that, schedule the ongoing periodic backups.
+          // All device roles restore so conversations survive logout/re-login.
           restoreBackup(userId)
-            .then(() => scheduleBackup(userId))
-            .catch(() => scheduleBackup(userId))
+            .then(async () => {
+              const drainCount = await drainP
+              if (drainCount > 0) {
+                const uploaded = await createBackup(userId)
+                if (uploaded) await ackVaultDrain()
+              }
+            })
+            .catch(() => {})
+            .finally(() => scheduleBackup(userId))
         }
       }).catch(() => {
         set({ signalReady: true }) // Mark ready even on failure — don't block UI permanently
@@ -829,7 +848,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     const { clinicId: assigned, surrogateClinicIds: surrogates } = get()
     if (clinicId !== assigned && !surrogates.includes(clinicId)) return
     set({ supervisingClinicId: clinicId })
-    invalidate('clinics', 'users', 'training')
+    invalidate('clinics', 'users', 'training', 'calendar')
   },
 
   refreshProfile: async () => {

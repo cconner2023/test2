@@ -1,18 +1,22 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { updateClinicNoteContent } from '../../lib/supervisorService';
+import { useEditableClinicContent } from '../../Hooks/useEditableClinicContent';
 import type { UserTypes, TextExpander } from '../../Data/User';
 import { parseFieldText } from '../../Utilities/templateParser';
+import { MobileSearchBar } from '../MobileSearchBar';
 import { TextExpanderManager } from './TextExpanderManager';
 import { TextExpanderEditPopover, type TextExpanderEditState, type ExpanderScope } from './TextExpanderEditPopover';
+import { ClusterEditButton } from './ClusterEditPicker';
 import { DEMO_EXPANDER_ABBR, DEMO_EXPANDER_BUILDS } from '../../Data/GuidedTourData';
 
 export const TextTemplatesPanel = () => {
     const { profile, updateProfile, syncProfileField } = useUserProfile();
-    const clinicTextExpanders = useAuthStore(s => s.clinicTextExpanders);
     const isSupervisorRole = useAuthStore(s => s.isSupervisorRole);
-    const clinicId = useAuthStore(s => s.clinicId);
+    const homeClinicId = useAuthStore(s => s.clinicId);
+    const [editingClinicId, setEditingClinicId] = useState<string | null>(homeClinicId);
+    const { content: clinicContent, update: updateClinicContent } = useEditableClinicContent(editingClinicId);
+    const clinicTextExpanders = clinicContent.textExpanders;
 
     const textExpanders = profile.textExpanders ?? [];
     const [filter, setFilter] = useState('');
@@ -56,10 +60,9 @@ export const TextTemplatesPanel = () => {
     }, [clinicTextExpanders, isSupervisorRole]);
 
     const writeClinic = useCallback((next: TextExpander[]) => {
-        if (!clinicId) return;
-        updateClinicNoteContent(clinicId, { textExpanders: next });
-        useAuthStore.setState({ clinicTextExpanders: next });
-    }, [clinicId]);
+        if (!editingClinicId) return;
+        updateClinicContent({ textExpanders: next });
+    }, [editingClinicId, updateClinicContent]);
 
     const handleSave = useCallback((entry: TextExpander, source: ExpanderScope, originalAbbr?: string, originalSource?: ExpanderScope) => {
         const personal = profile.textExpanders ?? [];
@@ -67,19 +70,19 @@ export const TextTemplatesPanel = () => {
 
         // Promotion: remove from old scope, add to new
         if (originalAbbr && originalSource && originalSource !== source) {
-            if (originalSource === 'clinic' && clinicId) {
+            if (originalSource === 'clinic' && editingClinicId) {
                 writeClinic(clinic.filter(e => e.abbr !== originalAbbr));
                 handleUpdate({ textExpanders: [...personal, entry] });
             } else {
                 handleUpdate({ textExpanders: personal.filter(e => e.abbr !== originalAbbr) });
-                if (clinicId) writeClinic([...clinic, entry]);
+                if (editingClinicId) writeClinic([...clinic, entry]);
             }
             setEditState(null);
             return;
         }
 
         // Same-scope save
-        if (source === 'clinic' && clinicId) {
+        if (source === 'clinic' && editingClinicId) {
             const next = originalAbbr
                 ? clinic.map(e => e.abbr === originalAbbr ? entry : e)
                 : [...clinic, entry];
@@ -91,18 +94,18 @@ export const TextTemplatesPanel = () => {
             handleUpdate({ textExpanders: next });
         }
         setEditState(null);
-    }, [profile.textExpanders, clinicTextExpanders, clinicId, writeClinic, handleUpdate]);
+    }, [profile.textExpanders, clinicTextExpanders, editingClinicId, writeClinic, handleUpdate]);
 
     const handleDelete = useCallback((abbr: string) => {
         if (!editState) return;
-        if (editState.source === 'clinic' && clinicId) {
+        if (editState.source === 'clinic' && editingClinicId) {
             writeClinic(clinicTextExpanders.filter(e => e.abbr !== abbr));
         } else {
             const current = profile.textExpanders ?? [];
             handleUpdate({ textExpanders: current.filter(e => e.abbr !== abbr) });
         }
         setEditState(null);
-    }, [editState, clinicId, clinicTextExpanders, profile.textExpanders, writeClinic, handleUpdate]);
+    }, [editState, editingClinicId, clinicTextExpanders, profile.textExpanders, writeClinic, handleUpdate]);
 
     // ── Tour: open popover pre-filled with the demo template ──
     useEffect(() => {
@@ -149,25 +152,37 @@ export const TextTemplatesPanel = () => {
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
-        <div data-tour="expander-usage-hint" className="h-full overflow-y-auto">
-            <div className="px-5 py-4 space-y-5">
-                <p data-tour="expander-edit-hint" className="text-[10pt] text-tertiary leading-relaxed">
-                    Autotext shortcuts that expand abbreviations as you type in your notes.
-                    {clinicTextExpanders.length > 0 && (
-                        <span className="text-tertiary"> Includes cluster-wide shortcuts.</span>
-                    )}
-                </p>
+        <>
+            <MobileSearchBar
+                value={filter}
+                onChange={setFilter}
+                placeholder="Search shortcuts..."
+                inheritScroll
+            >
+                <div data-tour="expander-usage-hint" className="px-5 py-4 space-y-5">
+                    <p data-tour="expander-edit-hint" className="text-[10pt] text-tertiary leading-relaxed">
+                        Autotext shortcuts that expand abbreviations as you type in your notes.
+                        {clinicTextExpanders.length > 0 && (
+                            <span className="text-tertiary"> Includes cluster-wide shortcuts.</span>
+                        )}
+                    </p>
 
-                <TextExpanderManager
-                    expanders={allExpanders}
-                    clinicAbbrSet={clinicAbbrSet}
-                    onCardTap={handleCardTap}
-                    onStartNew={handleStartNew}
-                    filter={filter}
-                    onFilterChange={setFilter}
-                    isSupervisorRole={isSupervisorRole}
-                />
-            </div>
+                    <TextExpanderManager
+                        expanders={allExpanders}
+                        clinicAbbrSet={clinicAbbrSet}
+                        onCardTap={handleCardTap}
+                        onStartNew={handleStartNew}
+                        filter={filter}
+                        isSupervisorRole={isSupervisorRole}
+                        clusterPicker={
+                            <ClusterEditButton
+                                selectedClinicId={editingClinicId}
+                                onSelect={setEditingClinicId}
+                            />
+                        }
+                    />
+                </div>
+            </MobileSearchBar>
 
             <TextExpanderEditPopover
                 state={editState}
@@ -177,6 +192,6 @@ export const TextTemplatesPanel = () => {
                 onSave={handleSave}
                 onDelete={handleDelete}
             />
-        </div>
+        </>
     );
 };

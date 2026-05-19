@@ -24,6 +24,7 @@ import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { useClinicRooms } from '../../Hooks/useClinicRooms'
 import { useClinicHuddleTasks } from '../../Hooks/useClinicHuddleTasks'
+import { useClinicPreCombatChecks } from '../../Hooks/useClinicPreCombatChecks'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useCalendarSync } from '../../Hooks/useCalendarSync'
 import { useCalendarWrite } from '../../Hooks/useCalendarWrite'
@@ -82,7 +83,11 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   }, [])
   const eventFormRef = useRef<EventFormHandle>(null)
 
-  const { clinicId, surrogateClinicIds, profile, user } = useAuth()
+  const { clinicId, surrogateClinicIds, supervisingClinicId, profile, user } = useAuth()
+  // Active operating-as clinic — the single source of truth for clinic-scoped
+  // sub-fetches (rooms, huddle tasks, appt types) and the default clinic_id on
+  // new events. supervisingClinicId falls back to home on fresh sessions.
+  const activeClinicId = supervisingClinicId ?? clinicId
   // Clinic options for the EventForm picker. Includes every active loan; the
   // form hides the picker entirely when length < 2.
   const clinicFormOptions = useMemo(() => {
@@ -96,22 +101,22 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   }, [clinicId, surrogateClinicIds, profile.clinicName, profile.surrogateClinics])
   const { writeEvent, vaultUpdate, deleteEvent: calendarDeleteEvent, isWriting, isDeleting } = useCalendarWrite()
   const { writeOverlay } = useMapOverlayWrite()
-  const apptTypes = useClinicAppointmentTypes()
+  const apptTypes = useClinicAppointmentTypes(activeClinicId)
   const apptTypeNames = useMemo(() => apptTypes.map(t => t.name), [apptTypes])
   const [isFormPending, setIsFormPending] = useState(false)
 
   // Kick off IDB hydration + vault subscription
   useCalendarSync()
 
-  // Load overlay options for the event form
+  // Load overlay options for the event form — scoped to operating-as clinic
   useEffect(() => {
-    if (!clinicId) return
-    getOverlays(clinicId).then(result => {
+    if (!activeClinicId) return
+    getOverlays(activeClinicId).then(result => {
       if (result.ok) {
         setOverlayOptions(result.data.map(o => ({ id: o.id, name: o.name })))
       }
     }).catch(() => {})
-  }, [clinicId])
+  }, [activeClinicId])
 
   const [overlayOptions, setOverlayOptions] = useState<OverlayOption[]>([])
 
@@ -119,12 +124,12 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   // Caller (EventForm button) provides no event metadata at click time, so we
   // produce a placeholder name; the user can rename in the overlay tree later.
   const handleCreateOverlayForEvent = useCallback(async (): Promise<string | null> => {
-    if (!clinicId || !user) return null
+    if (!activeClinicId || !user) return null
     const overlayId = crypto.randomUUID()
     const today = new Date().toISOString().slice(0, 10)
     const saved = await writeOverlay({
       overlayId,
-      clinicId,
+      clinicId: activeClinicId,
       name: `Field map · ${today}`,
       center: [0, 0],
       zoom: 13,
@@ -133,12 +138,13 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     if (!saved) return null
     setOverlayOptions(prev => [...prev, { id: overlayId, name: `Field map · ${today}` }])
     return overlayId
-  }, [clinicId, user, writeOverlay])
+  }, [activeClinicId, user, writeOverlay])
   const [missionBoardEventId, setMissionBoardEventId] = useState<string | null>(null)
 
   const [showAddSheet, setShowAddSheet] = useState(false)
   const [showImportSheet, setShowImportSheet] = useState(false)
   const isSupervisor = useAuthStore(s => s.isSupervisorRole)
+  const isDevRole = useAuthStore(s => s.isDevRole)
   const templatePanelRef = useRef<TemplateGeneratorHandle>(null)
   const blockPanelRef = useRef<BlockTemplatedHandle>(null)
   const [templateNonce, setTemplateNonce] = useState(0)
@@ -160,7 +166,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
   const { medics: allMedics } = useClinicMedics()
   const { ownClinicMedics } = useClinicGroupedMedics(allMedics)
-  const clinicRooms = useClinicRooms()
+  const clinicRooms = useClinicRooms(activeClinicId)
   const activeRooms = useMemo(() => clinicRooms.filter(r => !r.archived_at), [clinicRooms])
   const roomFormOptions: RoomOption[] = useMemo(
     () => [...activeRooms]
@@ -168,7 +174,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       .map(r => ({ id: r.id, name: r.name })),
     [activeRooms],
   )
-  const huddleTasks = useClinicHuddleTasks()
+  const huddleTasks = useClinicHuddleTasks(activeClinicId)
   const sortedHuddleTasks = useMemo(
     () => [...huddleTasks].sort((a, b) => a.sort_order - b.sort_order),
     [huddleTasks],
@@ -176,6 +182,11 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const huddleTaskFormOptions: HuddleTaskOption[] = useMemo(
     () => sortedHuddleTasks.map(t => ({ id: t.id, name: t.name })),
     [sortedHuddleTasks],
+  )
+  const pccTemplates = useClinicPreCombatChecks(activeClinicId)
+  const sortedPccTemplates = useMemo(
+    () => [...pccTemplates].sort((a, b) => a.sort_order - b.sort_order),
+    [pccTemplates],
   )
 
   // Medic name resolver — shared across detail panel and form
@@ -236,7 +247,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     hydrationError, clearHydrationError,
     daySpan,
     categoryFilter, setCategoryFilter,
-    clinicFilter, setClinicFilter,
   } = useCalendarStore(useShallow(s => ({
     viewMode: s.currentView,
     setViewMode: s.setView,
@@ -255,14 +265,18 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     daySpan: s.daySpan,
     categoryFilter: s.categoryFilter,
     setCategoryFilter: s.setCategoryFilter,
-    clinicFilter: s.clinicFilter,
-    setClinicFilter: s.setClinicFilter,
   })))
 
   const handleEventStatusChange = useCallback(async (id: string, next: import('../../Types/CalendarTypes').EventStatus) => {
     const event = events.find(e => e.id === id)
     if (!event) return
     await writeEvent({ ...event, status: next, updated_at: new Date().toISOString() })
+  }, [events, writeEvent])
+
+  const handleUpdateEventPcc = useCallback(async (id: string, next: import('../../Types/CalendarTypes').PCCAttachment) => {
+    const event = events.find(e => e.id === id)
+    if (!event) return
+    await writeEvent({ ...event, pcc: next, updated_at: new Date().toISOString() })
   }, [events, writeEvent])
 
   // Deep-link from external sources (e.g. Mission Board) — open specific event in detail or edit view
@@ -301,8 +315,20 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
   const selectedDateKey = toDateKey(selectedDate)
 
+  // Cluster scope: events rendered are those belonging to the active
+  // (operating-as) clinic, OR events from any reachable clinic where the
+  // current user is in assigned_to. The second clause is the home->loan
+  // assignment bleed-through — a soldier on loan still sees personal
+  // assignments from home when operating-as the loan clinic, and vice versa.
+  const userId = user?.id ?? null
   const filteredEvents = useMemo(() => {
     let out = events
+    if (activeClinicId) {
+      out = out.filter(e =>
+        e.clinic_id === activeClinicId ||
+        (userId !== null && e.assigned_to.includes(userId))
+      )
+    }
     if (personnelFilter.length > 0) {
       out = out.filter(e =>
         e.assigned_to.length === 0 || e.assigned_to.some(id => personnelFilter.includes(id))
@@ -311,11 +337,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     if (categoryFilter !== null) {
       out = out.filter(e => categoryFilter.includes(e.category))
     }
-    if (clinicFilter !== null) {
-      out = out.filter(e => clinicFilter.includes(e.clinic_id))
-    }
     return out
-  }, [events, personnelFilter, categoryFilter, clinicFilter])
+  }, [events, personnelFilter, categoryFilter, activeClinicId, userId])
 
   const dayEvents = useMemo(() =>
     filteredEvents
@@ -387,7 +410,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   }, [])
 
   const handleAssignMedicToHuddle = useCallback(async (medicId: string, taskId: string, forDateKey: string, providerId?: string) => {
-    if (!clinicId) return
+    if (!activeClinicId) return
     const medic = ownClinicMedics.find(m => m.id === medicId)
     const medicLabel = medic ? `${medic.lastName ?? ''}${medic.firstName ? ', ' + medic.firstName.charAt(0) + '.' : ''}`.trim() || 'Medic' : 'Medic'
     const provider = providerId ? ownClinicMedics.find(m => m.id === providerId) : null
@@ -423,7 +446,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       const now = new Date().toISOString()
       const newEvent: CalendarEvent = {
         id: generateId(),
-        clinic_id: clinicId,
+        clinic_id: activeClinicId,
         title: rowName,
         description: null,
         category: 'huddle',
@@ -463,7 +486,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     const now = new Date().toISOString()
     const newEvent: CalendarEvent = {
       id: generateId(),
-      clinic_id: clinicId,
+      clinic_id: activeClinicId,
       title: rowName,
       description: null,
       category: 'huddle',
@@ -485,12 +508,14 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       updated_at: now,
     }
     await writeEvent(newEvent)
-  }, [clinicId, ownClinicMedics, sortedHuddleTasks, user, writeEvent])
+  }, [activeClinicId, ownClinicMedics, sortedHuddleTasks, user, writeEvent])
 
   /** Initial form data for a NEW event — pre-populates category/task when launched from the huddle band.
-   *  clinic_id defaults to the user's assigned clinic; the EventForm picker may override it on dual-membership users. */
+   *  clinic_id defaults to the active (operating-as) clinic so a supervisor or
+   *  loaned medic creating an event lands it in the cluster they're currently
+   *  viewing. EventForm picker may override per-event on dual-membership users. */
   const newEventInitialData = useMemo(() => {
-    const base = { ...createEmptyFormData(newEventDateKey), clinic_id: clinicId ?? null }
+    const base = { ...createEmptyFormData(newEventDateKey), clinic_id: activeClinicId ?? null }
     if (newEventHuddleTaskId !== null) {
       return { ...base, category: 'huddle' as const, huddle_task_id: newEventHuddleTaskId }
     }
@@ -498,7 +523,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       return { ...base, category: 'task' as const }
     }
     return base
-  }, [newEventDateKey, newEventHuddleTaskId, newEventCategory, clinicId])
+  }, [newEventDateKey, newEventHuddleTaskId, newEventCategory, activeClinicId])
 
   const handleEditEvent = useCallback((id: string) => {
     const event = events.find(e => e.id === id)
@@ -530,6 +555,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           structured_location: data.structured_location ?? null,
           room_id: data.room_id ?? null,
           huddle_task_id: data.category === 'huddle' ? (data.huddle_task_id ?? null) : null,
+          pcc: data.pcc ?? null,
           updated_at: now,
         }
         await writeEvent(updatedEvent)
@@ -537,8 +563,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
         const newEvent: CalendarEvent = {
           id: generateId(),
           // Form supplies clinic_id when the user has a surrogate (picker shown);
-          // otherwise falls back to the user's assigned clinic.
-          clinic_id: data.clinic_id ?? clinicId ?? '',
+          // otherwise falls back to the active operating-as clinic.
+          clinic_id: data.clinic_id ?? activeClinicId ?? '',
           title: data.title,
           description: data.description || null,
           category: data.category,
@@ -555,6 +581,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           structured_location: data.structured_location ?? null,
           room_id: data.room_id ?? null,
           huddle_task_id: data.category === 'huddle' ? (data.huddle_task_id ?? null) : null,
+          pcc: data.pcc ?? null,
           created_by: user?.id ?? '',
           created_at: now,
           updated_at: now,
@@ -566,7 +593,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     }
     setEditingEvent(null)
     setPanelView('calendar')
-  }, [editingEvent, writeEvent, clinicId, user])
+  }, [editingEvent, writeEvent, activeClinicId, user])
 
   const handleMoveEvent = useCallback((eventId: string, newStartTime: string) => {
     const events = useCalendarStore.getState().events
@@ -957,6 +984,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 overlayOptions={overlayOptions}
                 roomOptions={roomFormOptions}
                 huddleTaskOptions={huddleTaskFormOptions}
+                pccTemplateOptions={sortedPccTemplates}
+                isDev={isDevRole}
                 clinicOptions={clinicFormOptions}
                 onCreateOverlay={handleCreateOverlayForEvent}
               />
@@ -969,7 +998,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           </BaseDrawer>
 
           {/* Mobile template drawer — supervisor provider-template generator */}
-          {clinicId && user && isSupervisor && (
+          {activeClinicId && user && isSupervisor && (
             <BaseDrawer
               isVisible={showTemplateDrawer}
               onClose={() => setPanelView('calendar')}
@@ -998,7 +1027,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 <TemplateGeneratorPanel
                   key={templateNonce}
                   ref={templatePanelRef}
-                  clinicId={clinicId}
+                  clinicId={activeClinicId}
                   userId={user.id}
                   onDone={() => setPanelView('calendar')}
                 />
@@ -1007,7 +1036,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           )}
 
           {/* Mobile block-templates drawer — supervisor bulk-clear */}
-          {clinicId && isSupervisor && (
+          {activeClinicId && isSupervisor && (
             <BaseDrawer
               isVisible={showBlockDrawer}
               onClose={() => setPanelView('calendar')}
@@ -1037,7 +1066,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 <BlockTemplatedPanel
                   key={blockNonce}
                   ref={blockPanelRef}
-                  clinicId={clinicId}
+                  clinicId={activeClinicId}
                   onDone={() => setPanelView('calendar')}
                 />
               </div>
@@ -1095,6 +1124,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   apptTypeNames={apptTypeNames}
                   canDeleteTemplate={isSupervisor}
                   onStatusChange={handleEventStatusChange}
+                  onUpdatePcc={handleUpdateEventPcc}
                   onOpenMissionBoard={() => {
                     handleDayDrawerClose()
                     handleOpenMissionBoard(dayDrawerEvent.id)
@@ -1114,6 +1144,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   medics={medicList}
                   roomOptions={roomFormOptions}
                 huddleTaskOptions={huddleTaskFormOptions}
+                pccTemplateOptions={sortedPccTemplates}
+                isDev={isDevRole}
                 clinicOptions={clinicFormOptions}
                 />
               )}
@@ -1188,6 +1220,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                       propertyItems={propertyItems}
                       roomOptions={roomFormOptions}
                 huddleTaskOptions={huddleTaskFormOptions}
+                pccTemplateOptions={sortedPccTemplates}
+                isDev={isDevRole}
                 clinicOptions={clinicFormOptions}
                     />
                   </div>
@@ -1208,6 +1242,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     apptTypeNames={apptTypeNames}
                     canDeleteTemplate={isSupervisor}
                     onStatusChange={handleEventStatusChange}
+                  onUpdatePcc={handleUpdateEventPcc}
                     onOpenMissionBoard={() => handleOpenMissionBoard(selectedEvent.id)}
                     assignedNames={resolveAssigned(selectedEvent.assigned_to)}
                     linkedPropertyItems={resolvePropertyItems(selectedEvent.property_item_ids ?? [])}
@@ -1218,7 +1253,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     </div>
                   )}
                 </div>
-              ) : panelView === 'template' && clinicId && user && isSupervisor ? (
+              ) : panelView === 'template' && activeClinicId && user && isSupervisor ? (
                 <div className="relative flex flex-col flex-1 min-h-0">
                   <div className="flex items-center justify-between px-3 py-2 border-b border-tertiary/10">
                     <h2 className="text-sm font-semibold text-primary whitespace-nowrap">Provider Template</h2>
@@ -1238,13 +1273,13 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     <TemplateGeneratorPanel
                       key={templateNonce}
                       ref={templatePanelRef}
-                      clinicId={clinicId}
+                      clinicId={activeClinicId}
                       userId={user.id}
                       onDone={() => setPanelView('calendar')}
                     />
                   </div>
                 </div>
-              ) : panelView === 'block' && clinicId && isSupervisor ? (
+              ) : panelView === 'block' && activeClinicId && isSupervisor ? (
                 <div className="relative flex flex-col flex-1 min-h-0">
                   <div className="flex items-center justify-between px-3 py-2 border-b border-tertiary/10">
                     <h2 className="text-sm font-semibold text-primary whitespace-nowrap">Clear Templates</h2>
@@ -1265,7 +1300,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     <BlockTemplatedPanel
                       key={blockNonce}
                       ref={blockPanelRef}
-                      clinicId={clinicId}
+                      clinicId={activeClinicId}
                       onDone={() => setPanelView('calendar')}
                     />
                   </div>
@@ -1302,11 +1337,11 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
         onClose={() => setShowAddSheet(false)}
       />
 
-      {showImportSheet && clinicId && user && (
+      {showImportSheet && activeClinicId && user && (
         <CalendarCSVImportSheet
           visible={showImportSheet}
           onClose={() => setShowImportSheet(false)}
-          clinicId={clinicId}
+          clinicId={activeClinicId}
           userId={user.id}
         />
       )}

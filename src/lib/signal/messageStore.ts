@@ -33,6 +33,7 @@ import { createLogger } from '../../Utilities/Logger'
 import { createIdbSingleton } from '../idbFactory'
 import { encryptString, decryptString } from '../secureStorage'
 import type { DecryptedSignalMessage } from './transportTypes'
+import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 
 const logger = createLogger('MessageStore')
 
@@ -68,10 +69,14 @@ interface MessageDB extends DBSchema {
       deletedAt: string // ISO 8601
     }
   }
+  peerProfiles: {
+    key: string // userId
+    value: ClinicMedic
+  }
 }
 
 const MESSAGE_DB_NAME = 'adtmc-message-store'
-const MESSAGE_DB_VERSION = 4
+const MESSAGE_DB_VERSION = 5
 
 const { getDb, destroy: destroyMessageDb } = createIdbSingleton<MessageDB>(
   MESSAGE_DB_NAME,
@@ -97,6 +102,11 @@ const { getDb, destroy: destroyMessageDb } = createIdbSingleton<MessageDB>(
       if (oldVersion < 4) {
         if (!db.objectStoreNames.contains('originTombstones')) {
           db.createObjectStore('originTombstones', { keyPath: 'originId' })
+        }
+      }
+      if (oldVersion < 5) {
+        if (!db.objectStoreNames.contains('peerProfiles')) {
+          db.createObjectStore('peerProfiles', { keyPath: 'id' })
         }
       }
     },
@@ -431,7 +441,7 @@ export async function updateReadAt(
 /** Update the delivery status of stored messages. */
 export async function updateMessageStatus(
   messageIds: string[],
-  status: 'sending' | 'delivered',
+  status: 'sending' | 'sent' | 'delivered',
 ): Promise<void> {
   try {
     const db = await getDb()
@@ -529,6 +539,41 @@ export async function deleteConversation(conversationKey: string): Promise<void>
     await tx.done
   } catch (err) {
     logger.warn(`Failed to delete conversation ${conversationKey}:`, err)
+  }
+}
+
+// ---- Peer profiles CRUD ----
+// Persistent cache of every user we've talked to — cluster-agnostic.
+// Populated by (1) email-lookup success, (2) inbound envelope from an unknown
+// sender (one-shot resolve via fetch_profiles_by_ids). Replaces the older
+// `extraMedics` ephemeral state + `useOrphanedProfiles` per-render fetch.
+// Result: cluster vs email-lookup peers are indistinguishable for name resolution.
+
+export async function savePeerProfile(profile: ClinicMedic): Promise<void> {
+  try {
+    const db = await getDb()
+    await db.put('peerProfiles', profile)
+  } catch (err) {
+    logger.warn('Failed to save peer profile:', err)
+  }
+}
+
+export async function loadAllPeerProfiles(): Promise<ClinicMedic[]> {
+  try {
+    const db = await getDb()
+    return await db.getAll('peerProfiles')
+  } catch (err) {
+    logger.warn('Failed to load peer profiles:', err)
+    return []
+  }
+}
+
+export async function clearPeerProfiles(): Promise<void> {
+  try {
+    const db = await getDb()
+    await db.clear('peerProfiles')
+  } catch (err) {
+    logger.warn('Failed to clear peer profiles:', err)
   }
 }
 

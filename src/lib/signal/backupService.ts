@@ -431,25 +431,38 @@ async function flushBackup(userId: string): Promise<void> {
  *  so a freshly-signed-in device can't clobber the server snapshot with its
  *  pre-restore IDB state. Single-flight: concurrent invocations (delete handler
  *  + incoming sync + periodic timer + pagehide flush) coalesce into one upload.
+ *
+ *  Returns true only when the snapshot was actually inserted server-side.
+ *  Callers like the vault-drain ack rely on this to know the just-drained
+ *  messages are durably persisted before they mark them read on the server.
  */
-export async function createBackup(userId: string): Promise<void> {
+export async function createBackup(userId: string): Promise<boolean> {
   if (!_restoreCompleted) {
     logger.info('createBackup deferred — restoreBackup has not completed yet')
-    return
+    return false
   }
-  if (_createBackupInFlight) return _createBackupInFlight
+  if (_createBackupInFlight) {
+    try { await _createBackupInFlight } catch { /* swallow — surface as false */ }
+    // Coalesced caller doesn't know whether the upload succeeded; treat as
+    // best-effort. The vault-drain ack path schedules its own createBackup
+    // and is the primary flight, so this fallthrough is rare.
+    return true
+  }
 
+  let uploaded = false
   _createBackupInFlight = (async () => {
     try {
-      await doCreateBackup(userId)
+      uploaded = await doCreateBackup(userId)
     } finally {
       _createBackupInFlight = null
     }
   })()
-  return _createBackupInFlight
+  try { await _createBackupInFlight } catch { /* doCreateBackup never throws */ }
+  return uploaded
 }
 
-async function doCreateBackup(userId: string): Promise<void> {
+/** Returns true iff the snapshot row was inserted server-side. */
+async function doCreateBackup(userId: string): Promise<boolean> {
   try { if (_backupKeyReady) await _backupKeyReady } catch { /* fall through to IDB */ }
   if (!_backupKey) {
     // Session restored without password (e.g. PWA reopen) — try IDB
@@ -459,14 +472,14 @@ async function doCreateBackup(userId: string): Promise<void> {
   }
   if (!_backupKey) {
     logger.warn('No backup key cached, skipping backup')
-    return
+    return false
   }
 
   try {
     let messages = await loadRawMessages()
     if (messages.length === 0 && !_hydrationComplete) {
       logger.info('Skipping empty backup — hydration not yet complete')
-      return
+      return false
     }
     // Cap at max messages
     if (messages.length > SIGNAL.BACKUP_MAX_MESSAGES) {
@@ -510,16 +523,18 @@ async function doCreateBackup(userId: string): Promise<void> {
 
     if (error) {
       logger.warn('Failed to insert backup:', error.message)
-    } else {
-      logger.info(`Backup created: ${messages.length} messages, ${compressed.length} bytes compressed`)
-      // Fire-and-forget prune. Failure leaves extra rows behind (harmless;
-      // next successful prune sweeps them).
-      supabase.rpc('trim_signal_backups', { p_keep: BACKUP_RETAIN_COUNT }).then(({ error: trimErr }) => {
-        if (trimErr) logger.warn('trim_signal_backups failed:', trimErr.message)
-      })
+      return false
     }
+    logger.info(`Backup created: ${messages.length} messages, ${compressed.length} bytes compressed`)
+    // Fire-and-forget prune. Failure leaves extra rows behind (harmless;
+    // next successful prune sweeps them).
+    supabase.rpc('trim_signal_backups', { p_keep: BACKUP_RETAIN_COUNT }).then(({ error: trimErr }) => {
+      if (trimErr) logger.warn('trim_signal_backups failed:', trimErr.message)
+    })
+    return true
   } catch (err) {
     logger.warn('Backup creation failed:', err)
+    return false
   }
 }
 

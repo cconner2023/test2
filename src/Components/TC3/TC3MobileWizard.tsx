@@ -1,10 +1,8 @@
 import { memo, useState, useRef, useEffect, useCallback } from 'react'
-import { ChevronRight, FileText, Crosshair, Trash2 } from 'lucide-react'
+import { ChevronRight, FileText, Crosshair } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { TC3_WIZARD_PAGES } from '../../Types/TC3Types'
 import { ContentWrapper } from '../ContentWrapper'
-import { PreviewOverlay } from '../PreviewOverlay'
-import { TC3CardToolbar } from './TC3CardModePicker'
 import { SectionHeader } from '../Section'
 import { CasualtyInfoForm } from './CasualtyInfoForm'
 import { MechanismForm } from './MechanismForm'
@@ -12,7 +10,6 @@ import { BodyDiagram } from './BodyDiagram'
 import { VitalsForm } from './VitalsForm'
 import { MARCHForm } from './MARCHForm'
 import { NotesPanel } from './NotesPanel'
-import { CasualtyQueue } from './CasualtyQueue'
 import { getRegionLabel } from '../../Utilities/bodyRegionMap'
 import { TQAlertBanner } from './TQAlertBanner'
 
@@ -26,9 +23,7 @@ export const TC3MobileWizard = memo(function TC3MobileWizard() {
   const wizardStep = useTC3Store((s) => s.wizardStep)
   const setWizardStep = useTC3Store((s) => s.setWizardStep)
   const card = useTC3Store((s) => s.card)
-  const resetCard = useTC3Store((s) => s.resetCard)
   const openExport = useTC3Store((s) => s.openExport)
-  const casualtyQueue = useTC3Store((s) => s.casualtyQueue)
 
   const hasData =
     card.markers.length > 0 ||
@@ -40,8 +35,6 @@ export const TC3MobileWizard = memo(function TC3MobileWizard() {
     !!card.notes
 
   const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
-  const [queueOpen, setQueueOpen] = useState(false)
-  const [showConfirmReset, setShowConfirmReset] = useState(false)
   const [editingMarker, setEditingMarker] = useState<string | null>(null)
   const prevStepRef = useRef(wizardStep)
 
@@ -60,11 +53,6 @@ export const TC3MobileWizard = memo(function TC3MobileWizard() {
     }
   }, [wizardStep, setWizardStep])
 
-  const handleReset = () => {
-    resetCard()
-    setShowConfirmReset(false)
-  }
-
   const markerCount = card.markers.length
 
   return (
@@ -73,15 +61,6 @@ export const TC3MobileWizard = memo(function TC3MobileWizard() {
       style={{ paddingTop: 'calc(var(--sat, 0px) + 3.75rem)' }}
     >
       <TQAlertBanner />
-
-      {/* Stable toolbar — outside sliding content to prevent duplication on swipe */}
-      <div className="flex justify-end px-4 py-2 shrink-0">
-        <TC3CardToolbar
-          totalCount={casualtyQueue.length + 1}
-          onOpenQueue={() => setQueueOpen(true)}
-          onClearCard={() => setShowConfirmReset(true)}
-        />
-      </div>
 
       {/* Page content */}
       <div className="flex-1 overflow-y-auto">
@@ -194,22 +173,6 @@ export const TC3MobileWizard = memo(function TC3MobileWizard() {
         )}
       </div>
 
-      {/* MASCAL queue drawer */}
-      <CasualtyQueue isOpen={queueOpen} onClose={() => setQueueOpen(false)} />
-
-      {/* Clear card confirm */}
-      <PreviewOverlay
-        isOpen={showConfirmReset}
-        onClose={() => setShowConfirmReset(false)}
-        anchorRect={null}
-        maxWidth={280}
-        title="Clear card?"
-        actions={[
-          { key: 'clear', label: 'Clear card', icon: Trash2, onAction: handleReset, variant: 'danger' },
-        ]}
-      >
-        <p className="px-4 pb-4 text-[10pt] text-secondary">Current entries will be lost.</p>
-      </PreviewOverlay>
     </div>
   )
 })

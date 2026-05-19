@@ -114,8 +114,8 @@ export interface DecryptedSignalMessage {
   messageType: SignalMessageType
   createdAt: string
   readAt: string | null
-  /** Delivery status for outgoing messages (undefined = delivered/incoming). */
-  status?: 'sending' | 'delivered'
+  /** Delivery status for outgoing messages (undefined = legacy, rendered as 'sent'; incoming messages are always undefined). */
+  status?: 'sending' | 'sent' | 'delivered'
   /** Root message ID this message is a reply to (thread ID). */
   threadId?: string
   /** Short preview of the root message text (for display without lookup). */

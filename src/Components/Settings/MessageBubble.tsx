@@ -1,5 +1,5 @@
 import { useRef, useCallback, useState, useEffect } from 'react'
-import { Check, X, Reply, Trash2, Clock, MessageSquare, Play, Pause, Copy, Download } from 'lucide-react'
+import { Check, CheckCheck, X, Reply, Trash2, Clock, MessageSquare, Play, Pause, Copy, Download } from 'lucide-react'
 import { ActionButton } from '../ActionButton'
 import { GESTURE_THRESHOLDS, isInteractiveTarget } from '../../Utilities/GestureUtils'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
@@ -509,7 +509,10 @@ export function MessageBubble({
                 {isOwn && message.messageType !== 'request' && message.status === 'sending' && (
                   <Clock size={10} className="opacity-60" />
                 )}
-                {isOwn && message.messageType !== 'request' && message.status !== 'sending' && (
+                {isOwn && message.messageType !== 'request' && message.status === 'delivered' && (
+                  <CheckCheck size={10} className="opacity-60" />
+                )}
+                {isOwn && message.messageType !== 'request' && message.status !== 'sending' && message.status !== 'delivered' && (
                   <Check size={10} className="opacity-60" />
                 )}
               </div>

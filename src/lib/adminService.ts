@@ -19,7 +19,7 @@ import {
   decryptWithRawKey,
   encryptClinicField,
 } from './cryptoService'
-import { ensureClinicVaultExists } from './signal/clinicVaultDevice'
+import { provisionClinicVaultAsAdmin } from './signal/clinicVaultDevice'
 import { validatePasswordComplexity } from './constants'
 import { getErrorMessage } from '../Utilities/errorUtils'
 import { succeed, fail, type ServiceResult } from './result'
@@ -839,7 +839,7 @@ export async function createClinic(data: {
     // Provision clinic vault device immediately so the encryption identity
     // exists from creation — not deferred until first member login.
     if (newId) {
-      const vaultResult = await ensureClinicVaultExists(newId, rawKey)
+      const vaultResult = await provisionClinicVaultAsAdmin(newId, rawKey)
       if (!vaultResult.ok) {
         logger.error('Clinic created but vault provisioning failed:', vaultResult.error)
         warnings.push('Vault provisioning failed — messaging for this clinic may not work until retried')
@@ -857,6 +857,50 @@ export async function createClinic(data: {
     return succeed({ id: newId, warnings: warnings.length > 0 ? warnings : undefined })
   } catch (error) {
     logger.error('Failed to create clinic:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+/**
+ * Check whether a clinic has its vault rows provisioned. Returns false if
+ * vault_device_keys row is missing — the rescue UI uses this to decide
+ * whether to surface the "Provision vault" action.
+ */
+export async function clinicHasVault(clinicId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('vault_device_keys')
+    .select('user_id')
+    .eq('user_id', clinicId)
+    .maybeSingle()
+  if (error) {
+    logger.error('clinicHasVault check failed:', error.message)
+    return true
+  }
+  return !!data
+}
+
+/**
+ * Admin rescue: provision the vault for an existing clinic that is missing
+ * its vault rows. Fetches the clinic's encryption_key, generates fresh
+ * X3DH material client-side, and submits via admin_provision_clinic_vault.
+ */
+export async function rescueClinicVault(
+  clinicId: string,
+): Promise<ServiceResult<void>> {
+  try {
+    const { data: row, error } = await supabase
+      .from('clinics')
+      .select('encryption_key')
+      .eq('id', clinicId)
+      .single()
+    if (error || !row?.encryption_key) {
+      return fail(error?.message || 'Clinic encryption key not found')
+    }
+    const result = await provisionClinicVaultAsAdmin(clinicId, row.encryption_key)
+    if (!result.ok) return fail(result.error)
+    return succeed(undefined)
+  } catch (error) {
+    logger.error('rescueClinicVault failed:', error)
     return fail(getErrorMessage(error))
   }
 }

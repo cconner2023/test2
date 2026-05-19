@@ -326,7 +326,6 @@ export function ChatDetailView({
 
   const inputDisabled = sending
     || !signalReady
-    || (requestFlow?.status === 'sent')
     || (allUnavailable && !isSelfChat)
 
   const canUploadImage = !requestFlow || requestFlow.status === 'accepted' || requestFlow.status === 'none' || !!isSelfChat
@@ -335,16 +334,30 @@ export function ChatDetailView({
     !requestFlow || requestFlow.status === 'accepted' || requestFlow.status === 'none' || !!isSelfChat
   )
 
-  const placeholder = activeThreadId ? 'Reply in thread...'
-    : requestFlow?.status === 'sent' ? 'Waiting for response...'
-    : 'Type a message...'
+  const placeholder = activeThreadId ? 'Reply in thread...' : 'Type a message...'
+
+  const blockedReason: string | null = (() => {
+    if (requestFlow?.status === 'sent') {
+      return `Waiting for ${requestFlow.peerName ?? 'this user'} to accept your request`
+    }
+    if (allUnavailable && !isSelfChat) {
+      if (unavailableParticipants.length === 1 && participants.length === 1) {
+        const p = unavailableParticipants[0]
+        const name = requestFlow?.peerName ?? p.displayName
+        return p.reason === 'no_keys'
+          ? `${name} hasn't set up messaging keys yet. Messages can't be delivered until they log in.`
+          : `${name} hasn't set up a device yet. Messages can't be delivered until they log in.`
+      }
+      const names = unavailableParticipants.map(p => p.displayName).join(', ')
+      return `${names} can't receive messages`
+    }
+    return null
+  })()
 
   // ── Input area ──────────────────────────────────────────────────────────
 
   const renderInputArea = () => {
-    if (allUnavailable && !isSelfChat) {
-      return <UnavailableBanner participants={participants} peerName={requestFlow?.peerName} />
-    }
+    if (blockedReason) return null
 
     if (requestFlow?.status === 'received') {
       return (
@@ -575,6 +588,13 @@ export function ChatDetailView({
   return (
     <div className="flex flex-col h-full relative" {...mainSwipeBack}>
       {renderMessageList(mainViewMessages, emptyText, true)}
+      {!showThread && blockedReason && (
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center px-6 pointer-events-none">
+          <p className="text-[10pt] text-tertiary text-center max-w-[90%]">
+            {blockedReason}
+          </p>
+        </div>
+      )}
       {!showThread && contextMenu && contextMsg && (() => {
         const isOwn = contextMsg.senderId === userId
         const isMedia = contextMsg.content?.type === 'image' || contextMsg.content?.type === 'voice'

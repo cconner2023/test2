@@ -43,6 +43,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
         isMobile,
         isAlgorithmView = false,
         isSearchFocused = false,
+        rightSlot,
     } = ui
 
     // Refs and computed values
@@ -331,10 +332,10 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                         />
                     )}
 
-                    {/* Mobile collapsed: messages + info buttons */}
+                    {/* Mobile collapsed: messages + info buttons, with mode-scoped rightSlot tacked into the same pill */}
                     {!isAnyExpanded && (
                         <div className={`flex items-center justify-end h-full transition-opacity duration-200${isSearchFocused ? ' opacity-0 pointer-events-none' : ''}`}>
-                            <HeaderPill multi={shouldShowMessagesButton && shouldShowInfoButton}>
+                            <HeaderPill multi={(shouldShowMessagesButton ? 1 : 0) + (shouldShowInfoButton ? 1 : 0) + (rightSlot ? 1 : 0) > 1}>
                                 <div className={`
                                     transition-all duration-300 ease-out overflow-hidden
                                     ${shouldShowMessagesButton ? 'w-[2.6875rem] opacity-100' : 'w-0 opacity-0'}
@@ -374,6 +375,8 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                         </button>
                                     )}
                                 </div>
+
+                                {rightSlot}
                             </HeaderPill>
                         </div>
                     )}
@@ -421,6 +424,13 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                             Import
                         </span>
                     </button>
+
+                    {/* Mode-scoped slot (e.g. TC3 chrome) — sits next to Import */}
+                    {rightSlot && (
+                        <div className="flex items-center gap-0.5 shrink-0">
+                            {rightSlot}
+                        </div>
+                    )}
 
                     {/* Messages — gated on auth, with unread badge */}
                     {isAuthenticated && (

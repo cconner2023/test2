@@ -1,9 +1,8 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, type ReactNode } from 'react';
 import { Plus, TextCursorInput, Layers } from 'lucide-react';
 import type { TextExpander } from '../../Data/User';
 import { isFlatTemplate } from '../../Utilities/templateParser';
 import { ActionButton } from '../ActionButton';
-import { SearchInput } from '../SearchInput';
 import { ActionPill } from '../ActionPill'
 
 const hasBranches = (e: TextExpander): boolean =>
@@ -28,9 +27,9 @@ interface TextExpanderManagerProps {
     onCardTap: (expander: TextExpander, anchor: HTMLElement) => void;
     onStartNew: (anchor: HTMLElement) => void;
     filter: string;
-    onFilterChange: (value: string) => void;
     clinicAbbrSet?: Set<string>;
     isSupervisorRole?: boolean;
+    clusterPicker?: ReactNode;
 }
 
 export const TextExpanderManager = ({
@@ -38,9 +37,9 @@ export const TextExpanderManager = ({
     onCardTap,
     onStartNew,
     filter,
-    onFilterChange,
     clinicAbbrSet,
     isSupervisorRole = false,
+    clusterPicker,
 }: TextExpanderManagerProps) => {
     const fabRef = useRef<HTMLDivElement>(null);
 
@@ -57,14 +56,9 @@ export const TextExpanderManager = ({
 
     return (
         <section className="space-y-3">
-            <SearchInput
-                value={filter}
-                onChange={onFilterChange}
-                placeholder="Search shortcuts..."
-            />
-
             <div className="relative">
-                <ActionPill ref={fabRef} data-tour="expander-fab" shadow="sm" placement="overlay">
+                <ActionPill ref={fabRef} data-tour="expander-fab" placement="overlay" shadow="sm">
+                    {clusterPicker}
                     <ActionButton icon={Plus} label="New shortcut" onClick={() => fabRef.current && onStartNew(fabRef.current)} />
                 </ActionPill>
                 <div data-tour="expander-list" className="rounded-xl bg-themewhite2 overflow-hidden">

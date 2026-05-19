@@ -2,8 +2,38 @@ import { useState, useMemo, useCallback, useRef } from 'react';
 import { ChevronRight, ChevronDown, Eye, EyeOff, Pencil, Trash2, X, Check, ArrowDownToLine, Wifi, Loader2, Plus, CalendarClock, Link2, Link2Off } from 'lucide-react';
 import { ContextMenu } from '../ContextMenu';
 import { EmptyState } from '../EmptyState';
+import { useLongPress } from '../../Hooks/useLongPress';
 import type { LocalMapOverlay, OverlayFeature } from '../../Types/MapOverlayTypes';
 import type { TileMetadata } from '../../lib/mapTileService';
+
+interface OverlayRowProps {
+  overlayId: string;
+  className: string;
+  style?: React.CSSProperties;
+  dataTour?: string;
+  onOpenMenu: (x: number, y: number) => void;
+  children: React.ReactNode;
+}
+
+function OverlayRow({ overlayId, className, style, dataTour, onOpenMenu, children }: OverlayRowProps) {
+  const { isPressing, ...longPressHandlers } = useLongPress((x, y) => onOpenMenu(x, y));
+  return (
+    <div
+      data-overlay-row={overlayId}
+      data-tour={dataTour}
+      className={`${className} ${isPressing ? 'opacity-60' : ''}`}
+      style={style}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onOpenMenu(e.clientX, e.clientY);
+      }}
+      {...longPressHandlers}
+    >
+      {children}
+    </div>
+  );
+}
 
 interface MapOverlayTreeProps {
   overlays: LocalMapOverlay[];
@@ -116,20 +146,16 @@ export function MapOverlayTree({
             return (
               <div key={overlay.id}>
                 {/* Overlay row */}
-                <div
-                  data-overlay-row={overlay.id}
-                  data-tour={overlayIdx === 0 ? 'map-overlay-row' : undefined}
+                <OverlayRow
+                  overlayId={overlay.id}
+                  dataTour={overlayIdx === 0 ? 'map-overlay-row' : undefined}
                   className={`group flex items-center gap-1.5 py-2 pr-3 transition-colors ${
                     isActive
                       ? 'bg-primary/5 border-l-2 border-l-primary/40'
                       : 'hover:bg-secondary/5 border-l-2 border-l-transparent'
                   }`}
                   style={{ paddingLeft: '12px' }}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setContextMenu({ overlayId: overlay.id, x: e.clientX, y: e.clientY });
-                  }}
+                  onOpenMenu={(x, y) => setContextMenu({ overlayId: overlay.id, x, y })}
                 >
                   {/* Chevron */}
                   {hasChildren ? (
@@ -231,7 +257,7 @@ export function MapOverlayTree({
                       </button>
                     )}
                   </div>
-                </div>
+                </OverlayRow>
 
                 {/* Features */}
                 {hasChildren && !isCollapsed && overlay.features.map((feature, featureIdx) => {

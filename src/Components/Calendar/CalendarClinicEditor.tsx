@@ -18,6 +18,7 @@ import { ActionPill } from '../ActionPill'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { ErrorPill } from '../ErrorPill'
 import { PreviewOverlay } from '../PreviewOverlay'
+import { PreCombatChecksSection } from './PreCombatChecksSection'
 
 export function CalendarClinicEditor() {
   // Pivot on the supervisor toggle so editing rooms / huddle tasks /
@@ -254,45 +255,7 @@ export function CalendarClinicEditor() {
         </div>
       )}
 
-      <section data-tour="clinic-rooms">
-        <div className="pb-2 flex items-center gap-2">
-          <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Rooms</p>
-        </div>
-        <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
-          <div className="px-4 py-3">
-            {clinicRooms.length === 0 ? (
-              <p className="text-[10pt] text-tertiary py-4 text-center">No clinic rooms formatted</p>
-            ) : (
-              <div className="space-y-1">
-                {[...clinicRooms]
-                  .sort((a, b) => a.sort_order - b.sort_order)
-                  .map((room) => (
-                    <button
-                      key={room.id}
-                      type="button"
-                      onClick={(e) => isSupervisorRole && openRoomEditPopover(room, e.currentTarget)}
-                      disabled={!isSupervisorRole}
-                      className="w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left hover:bg-secondary/5 active:scale-95 disabled:active:scale-100 transition-all"
-                    >
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center bg-tertiary/10 shrink-0">
-                        <DoorClosed size={14} className="text-tertiary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-primary truncate">{room.name}</p>
-                      </div>
-                    </button>
-                  ))}
-              </div>
-            )}
-          </div>
-          </div>
-          {isSupervisorRole && (
-            <ActionPill ref={roomFabRef} shadow="sm" placement="overlay">
-              <ActionButton icon={Plus} label="New room" onClick={openRoomNewPopover} />
-            </ActionPill>
-          )}
-        </div>
-      </section>
+      <PreCombatChecksSection />
 
       <section data-tour="clinic-huddle-tasks">
         <div className="pb-2">
@@ -329,6 +292,46 @@ export function CalendarClinicEditor() {
           {isSupervisorRole && (
             <ActionPill ref={taskFabRef} shadow="sm" placement="overlay">
               <ActionButton icon={Plus} label="New huddle task" onClick={openTaskNewPopover} />
+            </ActionPill>
+          )}
+        </div>
+      </section>
+
+      <section data-tour="clinic-rooms">
+        <div className="pb-2 flex items-center gap-2">
+          <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Rooms</p>
+        </div>
+        <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
+          <div className="px-4 py-3">
+            {clinicRooms.length === 0 ? (
+              <p className="text-[10pt] text-tertiary py-4 text-center">No clinic rooms formatted</p>
+            ) : (
+              <div className="space-y-1">
+                {[...clinicRooms]
+                  .sort((a, b) => a.sort_order - b.sort_order)
+                  .map((room) => (
+                    <button
+                      key={room.id}
+                      type="button"
+                      onClick={(e) => isSupervisorRole && openRoomEditPopover(room, e.currentTarget)}
+                      disabled={!isSupervisorRole}
+                      className="w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left hover:bg-secondary/5 active:scale-95 disabled:active:scale-100 transition-all"
+                    >
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center bg-tertiary/10 shrink-0">
+                        <DoorClosed size={14} className="text-tertiary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-primary truncate">{room.name}</p>
+                      </div>
+                    </button>
+                  ))}
+              </div>
+            )}
+          </div>
+          </div>
+          {isSupervisorRole && (
+            <ActionPill ref={roomFabRef} shadow="sm" placement="overlay">
+              <ActionButton icon={Plus} label="New room" onClick={openRoomNewPopover} />
             </ActionPill>
           )}
         </div>

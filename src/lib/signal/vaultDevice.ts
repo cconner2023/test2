@@ -29,6 +29,7 @@ import { initReceiver, ratchetDecrypt } from './ratchet'
 import { importDhPublicKey } from './keyManager'
 import { uploadKeyBundle, registerDevice } from './signalService'
 import { saveMessage, deleteMessagesByOriginId, getTombstone } from './messageStore'
+import { useMessagingStore } from '../../stores/useMessagingStore'
 import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones } from '../calendarRouting'
 import { isMapOverlay, routeMapOverlay, initOverlayTombstones } from '../mapOverlayRouting'
 import type { CalendarEventContent, MapOverlayContent } from './messageContent'
@@ -141,6 +142,18 @@ let _vaultKeyReady: Promise<void> | null = null
 export function setVaultKeyReady(promise: Promise<void>): void {
   _vaultKeyReady = promise
 }
+
+// ---- Pending drain ack (two-phase drain) ----
+
+/** Held between the drain (Phase 1) and the post-backup ack (Phase 2).
+ *  See processVaultMessages header. Module-scope so callers don't have to
+ *  thread state through the auth chain. Cleared on sign-out + on ack. */
+interface PendingVaultAck {
+  userId: string
+  processedIds: string[]
+  consumedOtpIds: number[]
+}
+let _pendingVaultAck: PendingVaultAck | null = null
 
 // ---- PBKDF2 Key Derivation ----
 
@@ -417,6 +430,10 @@ export async function deriveAndCacheVaultKey(
 export function clearVaultKey(): void {
   cachedVaultKey = null
   _vaultKeyReady = null
+  // Drop any stashed drain ack — it belongs to the prior session and would
+  // otherwise mark-read / replenish under the wrong identity if a different
+  // user signs in next.
+  _pendingVaultAck = null
 }
 
 /**
@@ -546,13 +563,24 @@ export async function processVaultMessages(userId: string): Promise<number> {
     return 0
   }
 
-  // 2. Recover vault keys
+  // 2. Recover vault keys.
+  // Only wipe + re-provision on a definitive AES-GCM auth-tag failure
+  // (DOMException name 'OperationError'), which is the unambiguous
+  // "wrong wrapping key" signal — i.e. password reset. Any other throw
+  // (network, blob parse, transient Web Crypto blip) is treated as
+  // transient: we abort the drain and leave the vault intact, so senders
+  // fanning out to the cached bundle don't lose messages to a fresh
+  // identity racing the next login.
   let vaultKeys: VaultPrivateKeys
   try {
     vaultKeys = await recoverVaultKeys(vaultRow as VaultDeviceKeysRow)
   } catch (e) {
-    logger.error('Failed to recover vault keys (password changed?):', e)
-    // Password reset scenario: delete old vault, fresh one will be created
+    const isAuthTagFailure = e instanceof DOMException && e.name === 'OperationError'
+    if (!isAuthTagFailure) {
+      logger.warn('Vault key recovery failed (transient) — leaving vault intact:', e)
+      return 0
+    }
+    logger.error('Vault AES-GCM auth failure — password changed; wiping vault for re-provision:', e)
     await supabase.from('vault_device_keys').delete().eq('user_id', userId)
     await supabase.from('signal_key_bundles').delete()
       .eq('user_id', userId).eq('device_id', VAULT_DEVICE_ID)
@@ -748,6 +776,9 @@ export async function processVaultMessages(userId: string): Promise<number> {
         const syncTombstoneAt = await getTombstone(syncConversationKey)
         if (!syncTombstoneAt || sync.originalTimestamp >= syncTombstoneAt) {
           await saveMessage(syncMsg, userId)
+          // Push to live store so UI reflects drained messages without a reload.
+          // addMessage dedupes by id + originId so realtime/catch-up races are safe.
+          useMessagingStore.getState().addMessage(syncMsg)
           if (isCalendarEvent(syncContent)) calendarRoutes.push(syncContent)
           else if (isMapOverlay(syncContent)) overlayRoutes.push(syncContent)
         }
@@ -776,6 +807,7 @@ export async function processVaultMessages(userId: string): Promise<number> {
         const msgTombstoneAt = await getTombstone(msgConversationKey)
         if (!msgTombstoneAt || row.created_at >= msgTombstoneAt) {
           await saveMessage(msg, userId)
+          useMessagingStore.getState().addMessage(msg)
           if (isCalEvent) calendarRoutes.push(content as CalendarEventContent)
           else if (isOverlay) overlayRoutes.push(content as MapOverlayContent)
         }
@@ -816,26 +848,83 @@ export async function processVaultMessages(userId: string): Promise<number> {
     }
   }
 
-  // 6. Mark processed vault messages as read.
-  // userId here is the clinic_id (vault recipient). RLS on
-  // signal_message_reads allows insert when recipient_id ∈ auth_clinic_ids().
-  if (processedIds.length > 0) {
-    await supabase.rpc('mark_signal_messages_read', {
-      p_message_ids: processedIds,
-      p_recipient_id: userId,
-    })
+  // 6. Two-phase drain: stash mark-read + OTP replenishment for ackVaultDrain()
+  //    to run AFTER createBackup confirms the just-drained messages are in
+  //    signal_backups. If we acked inline and the user logged out / iOS
+  //    evicted before the next backup, the messages would be marked read
+  //    (invisible to next drain) AND OTP private keys would be gone
+  //    (undecryptable even if re-fetched) — and they wouldn't be in any
+  //    backup. Vault loses its backstop contract.
+  //
+  //    Until ackVaultDrain runs the drain is fully idempotent:
+  //      - messages stay unread server-side → re-drained on next login
+  //      - OTP private keys stay in blob   → re-decryption works
+  //      - saveMessage + addMessage dedupe by id → no UI duplication
+  if (processedIds.length > 0 || consumedOtpIds.size > 0) {
+    _pendingVaultAck = {
+      userId,
+      processedIds,
+      consumedOtpIds: [...consumedOtpIds],
+    }
   }
 
-  // 7. Rotate vault signed pre-key and replenish OTPs
+  // 7. Rotate vault signed pre-key — orthogonal to ack (SPK rotation doesn't
+  //    touch OTP private keys or message rows, and is just staleness
+  //    mitigation). Safe to run before backup confirms.
   await rotateVaultSignedPreKey(userId, vaultKeys, vaultRow as VaultDeviceKeysRow)
 
-  // 8. Replenish consumed OTPs
-  if (consumedOtpIds.size > 0) {
-    await replenishVaultPreKeys(userId, vaultKeys, consumedOtpIds, vaultRow as VaultDeviceKeysRow)
-  }
-
-  logger.info(`Processed ${processedCount} vault messages`)
+  logger.info(`Processed ${processedCount} vault messages (ack pending)`)
   return processedCount
+}
+
+/**
+ * Phase 2 of vault drain — call AFTER createBackup confirms the just-drained
+ * messages have been uploaded to signal_backups. Marks the messages read
+ * server-side (so they don't re-drain) and replenishes the consumed OTPs.
+ *
+ * Idempotent: second call is a no-op. Safe to call when no drain is pending.
+ *
+ * Re-recovers the latest vault row before replenishing so concurrent SPK
+ * rotation or another device's replenish doesn't trigger OCC failure.
+ */
+export async function ackVaultDrain(): Promise<void> {
+  const ack = _pendingVaultAck
+  if (!ack) return
+  _pendingVaultAck = null
+
+  try {
+    if (ack.processedIds.length > 0) {
+      const { error } = await supabase.rpc('mark_signal_messages_read', {
+        p_message_ids: ack.processedIds,
+        p_recipient_id: ack.userId,
+      })
+      if (error) logger.warn('ackVaultDrain mark-read failed:', error.message)
+    }
+
+    if (ack.consumedOtpIds.length > 0) {
+      // Re-recover with latest state. Wrapping key still cached; cheap.
+      const { data: latestRow } = await supabase
+        .from('vault_device_keys')
+        .select('*')
+        .eq('user_id', ack.userId)
+        .single()
+      if (latestRow) {
+        try {
+          const latestKeys = await recoverVaultKeys(latestRow as VaultDeviceKeysRow)
+          await replenishVaultPreKeys(
+            ack.userId,
+            latestKeys,
+            new Set(ack.consumedOtpIds),
+            latestRow as VaultDeviceKeysRow,
+          )
+        } catch (e) {
+          logger.warn('ackVaultDrain replenish failed:', e instanceof Error ? e.message : e)
+        }
+      }
+    }
+  } catch (e) {
+    logger.warn('ackVaultDrain failed:', e instanceof Error ? e.message : e)
+  }
 }
 
 // ---- Pre-Key Rotation & Replenishment ----

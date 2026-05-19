@@ -22,8 +22,9 @@ export interface ClinicGroupedMedics {
 
 export function useClinicGroupedMedics(medics: ClinicMedic[]): ClinicGroupedMedics {
   const { clinicId, supervisingClinicId } = useAuth()
-  // Pivot on the supervisor's currently-active clinic so calendar/messages
-  // "own clinic" reflects the surrogate when SupervisorClinicSwitcher toggles.
+  // Pivot on the currently-active operating-as clinic so calendar/messages
+  // "own clinic" reflects the loan when the cluster toggle flips. Visible to
+  // any loaned user (supervisor or not) via SupervisorClinicSwitcher.
   const userClinicId = supervisingClinicId ?? clinicId
 
   const canSplit = !!userClinicId

@@ -29,8 +29,6 @@ import {
   TaskRow, statusMenuItems,
   offsetDate, CATEGORY_STRIPE,
 } from './MissionGantt'
-import { DatePickerCalendar } from '../FormInputs'
-import { PreviewOverlay } from '../PreviewOverlay'
 import { ContextMenu } from '../ContextMenu'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
@@ -281,11 +279,8 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   const [missionOverlayFeatures, setMissionOverlayFeatures] = useState<OverlayFeature[]>([])
   const [missionOverlayId, setMissionOverlayId] = useState<string | undefined>(undefined)
   const [selectedDate, setSelectedDate] = useState(() => new Date())
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
   const [contextMenu, setContextMenu] = useState<{ event: CalendarEvent; x: number; y: number } | null>(null)
 
-  const dateBtnRef = useRef<HTMLButtonElement>(null)
   const weekViewElRef = useRef<HTMLDivElement | null>(null)
   const [weekViewMounted, setWeekViewMounted] = useState(false)
   const weekViewRef = useCallback((el: HTMLDivElement | null) => {
@@ -360,10 +355,9 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
 
   const navigate = (dir: -1 | 1) => setSelectedDate(d => offsetDate(d, dir))
 
-  const openPicker = () => {
-    setAnchorRect(dateBtnRef.current?.getBoundingClientRect() ?? null)
-    setPickerOpen(true)
-  }
+  const openCalendarOnDate = useCallback((d: Date) => {
+    setShowCalendarDrawer(true, toDateKey(d))
+  }, [setShowCalendarDrawer])
 
   const handleEventClick = useCallback((eventId: string) => {
     openCalendarEvent(eventId)
@@ -554,7 +548,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
                 return (
                   <div key={key} className="flex justify-center">
                     <button
-                      onClick={() => setSelectedDate(day)}
+                      onClick={() => openCalendarOnDate(day)}
                       className={`w-6 h-6 flex items-center justify-center rounded-full active:opacity-60 transition-opacity ${
                         isSelected ? 'bg-themeblue3' : isTodayDay ? 'ring-1 ring-themeblue3' : ''
                       }`}
@@ -688,9 +682,8 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
         <ChevronLeft size={13} />
       </button>
       <button
-        ref={dateBtnRef}
         className="text-[10pt] font-medium text-primary py-0.5 px-1 rounded active:bg-themeblue2/10 whitespace-nowrap"
-        onClick={openPicker}
+        onClick={() => openCalendarOnDate(selectedDate)}
       >
         {isToday ? 'Today' : formatShortDayLabel(selectedDate)}
       </button>
@@ -734,14 +727,6 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
           ))}
         </div>
       )}
-
-      <PreviewOverlay isOpen={pickerOpen} onClose={() => setPickerOpen(false)} anchorRect={anchorRect}>
-        <DatePickerCalendar
-          value={dateKey}
-          onChange={(iso) => { setSelectedDate(new Date(iso + 'T00:00:00')); setPickerOpen(false) }}
-          onClose={() => setPickerOpen(false)}
-        />
-      </PreviewOverlay>
 
       {contextMenu && (() => {
         const ev = contextMenu.event

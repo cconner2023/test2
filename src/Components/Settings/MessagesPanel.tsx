@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
-import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, Pin, Search, Users, Check, QrCode, Mail, Send } from 'lucide-react'
+import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, Pin, Users, Check, QrCode, Mail, Send } from 'lucide-react'
 import { useSpring, animated, type SpringValue } from '@react-spring/web'
 import { MobileSearchBar } from '../MobileSearchBar'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
-import { useOrphanedProfiles } from '../../Hooks/useOrphanedProfiles'
 import { supabase } from '../../lib/supabase'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import { useMessagingStore } from '../../stores/useMessagingStore'
@@ -58,9 +57,6 @@ interface MessagesPanelProps {
   onSearchFocusChange?: (focused: boolean) => void
   headerCollapse?: SpringValue<number>
 }
-
-/** Extends ClinicMedic with email for global search display. */
-type GlobalContactResult = ClinicMedic & { email?: string }
 
 // ── Long-press preview types + wrapper ────────────────────────────────────
 
@@ -144,7 +140,6 @@ interface ConversationPaneProps {
   onSelectGroup: (group: GroupInfo) => void
   onCreateGroup: () => void
   deleteConversation: (conversationKey: string) => void
-  onSelectNewPeer: (medic: ClinicMedic) => void
   loading?: boolean
   searchQuery: string
   onSearchClear: () => void
@@ -181,55 +176,6 @@ function ConversationPane({
   const [previewTarget, setPreviewTarget] = useState<PreviewTarget | null>(null)
   const [previewAnchorRect, setPreviewAnchorRect] = useState<DOMRect | null>(null)
   const showLoading = useMinLoadTime(loading ?? false)
-
-  // Global user search state
-  const [globalResults, setGlobalResults] = useState<GlobalContactResult[] | null>(null)
-  const [globalSearchLoading, setGlobalSearchLoading] = useState(false)
-  const globalSearchQRef = useRef<string>('')
-
-  const runGlobalSearch = useCallback(async (q: string) => {
-    setGlobalSearchLoading(true)
-    try {
-      const { data, error } = await supabase.rpc('search_users', { query: q })
-      if (error || !data) { setGlobalResults([]); return }
-      const knownIds = new Set([...medics.map(m => m.id), userId ?? ''])
-      setGlobalResults(
-        (data as any[])
-          .filter(r => !knownIds.has(r.id))
-          .map(r => ({
-            id: r.id, firstName: r.first_name, lastName: r.last_name,
-            middleInitial: r.middle_initial, rank: r.rank, credential: r.credential,
-            avatarId: r.avatar_id ?? null, clinicId: r.clinic_id, clinicName: r.clinic_name,
-            email: r.email,
-          }))
-      )
-    } catch {
-      setGlobalResults([])
-    } finally {
-      setGlobalSearchLoading(false)
-    }
-  }, [medics, userId])
-
-  // Auto-fire global search for email queries; reset when query changes
-  useEffect(() => {
-    globalSearchQRef.current = ''
-    setGlobalResults(null)
-    const q = searchQuery.trim()
-    if (!q.includes('@') || q.length < 3) return
-    const timer = setTimeout(() => {
-      if (globalSearchQRef.current === q) return
-      globalSearchQRef.current = q
-      runGlobalSearch(q)
-    }, 600)
-    return () => clearTimeout(timer)
-  }, [searchQuery, runGlobalSearch])
-
-  const handleGlobalSearchClick = useCallback(() => {
-    const q = searchQuery.trim()
-    if (q.length < 3 || globalSearchQRef.current === q) return
-    globalSearchQRef.current = q
-    runGlobalSearch(q)
-  }, [searchQuery, runGlobalSearch])
 
   const handlePreview = useCallback((target: PreviewTarget, rect: DOMRect) => {
     setPreviewTarget(target)
@@ -357,9 +303,6 @@ function ConversationPane({
         {/* Search results */}
         {searchResults ? (
           <div>
-            {searchResults.groups.length === 0 && searchResults.medics.length === 0 && searchResults.messages.length === 0 && globalResults !== null && !globalSearchLoading && globalResults.length === 0 && (
-              <p className="text-[10pt] text-tertiary px-3 py-4 text-center">No results for &ldquo;{searchQuery}&rdquo;</p>
-            )}
             {searchResults.groups.length > 0 && (
               <>
                 <p className="text-[10pt] text-tertiary px-3 mb-1 uppercase tracking-wider font-semibold">Groups</p>
@@ -422,34 +365,12 @@ function ConversationPane({
                 })}
               </>
             )}
-            {/* Global user search */}
-            {searchQuery.trim().length >= 3 && (
-              globalSearchLoading ? (
-                <LoadingSpinner label="Searching all users..." className="py-3 text-tertiary" />
-              ) : globalResults !== null ? (
-                globalResults.length > 0 ? (
-                  <>
-                    <p className="text-[10pt] text-tertiary px-3 mb-1 mt-2 uppercase tracking-wider font-semibold">All Users</p>
-                    {globalResults.map(result => (
-                      <ContactListItem
-                        key={result.id}
-                        medic={result}
-                        lastMessage={result.email}
-                        unreadCount={0}
-                        onClick={() => { onSearchClear(); onSelectNewPeer(result) }}
-                      />
-                    ))}
-                  </>
-                ) : null
-              ) : (
-                <button
-                  className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-primary/5 active:bg-primary/10 transition-colors"
-                  onClick={handleGlobalSearchClick}
-                >
-                  <Search className="w-4 h-4 text-tertiary shrink-0" />
-                  <span className="text-[10pt] text-tertiary">Search all users for &ldquo;{searchQuery}&rdquo;</span>
-                </button>
-              )
+            {searchResults.groups.length === 0
+             && searchResults.medics.length === 0
+             && searchResults.messages.length === 0 && (
+              <p className="text-[10pt] text-tertiary px-3 py-4 text-center">
+                No results in your conversations. Use New Message to find anyone on Beacon.
+              </p>
             )}
           </div>
         ) : (
@@ -1004,7 +925,6 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   const [groupSelectedIds, setGroupSelectedIds] = useState<Set<string>>(new Set())
   const [groupCreating, setGroupCreating] = useState(false)
   const [showGroupInfo, setShowGroupInfo] = useState(false)
-  const [extraMedics, setExtraMedics] = useState<ClinicMedic[]>([])
   const [qrScanOpen, setQrScanOpen] = useState(false)
   const [qrLookupError, setQrLookupError] = useState<string | null>(null)
   const qrVideoRef = useRef<HTMLVideoElement>(null)
@@ -1033,31 +953,29 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   const groups = useMessagingStore(s => s.groups)
   const sendingMap = useMessagingStore(s => s.sendingMap)
 
-  // Orphaned profiles: conversation peers no longer visible in the clinic roster
-  const orphanedIds = useMemo(() => {
-    const selfId = useAuthStore.getState().user?.id ?? ''
-    const medicIdSet = new Set(medics.map(m => m.id))
-    return Object.keys(conversations).filter(
-      key => key !== selfId && !groups[key] && !medicIdSet.has(key)
-    )
-  }, [conversations, groups, medics])
-  const orphanedProfiles = useOrphanedProfiles(orphanedIds)
+  // peerProfiles is the cluster-agnostic profile cache: hydrated from IDB,
+  // populated by email-lookup/QR success and by MessagesContext's reactive
+  // sender-resolver effect on inbound envelopes. Cluster medics + peerProfiles
+  // together cover every user we can name. Replaces the older extraMedics +
+  // useOrphanedProfiles dance.
+  const peerProfiles = useMessagingStore(s => s.peerProfiles)
 
-  // Merge clinic roster + orphaned + search-discovered contacts
   const allMedics = useMemo(() => {
-    if (orphanedProfiles.size === 0 && extraMedics.length === 0) return medics
-    const extraFromOrphan = [...orphanedProfiles.values()]
-    const extraFromSearch = extraMedics.filter(m => !orphanedProfiles.has(m.id))
-    return [...medics, ...extraFromOrphan, ...extraFromSearch]
-  }, [medics, orphanedProfiles, extraMedics])
+    const peerList = Object.values(peerProfiles)
+    if (peerList.length === 0) return medics
+    const have = new Set(medics.map(m => m.id))
+    const extras = peerList.filter(m => !have.has(m.id))
+    return extras.length === 0 ? medics : [...medics, ...extras]
+  }, [medics, peerProfiles])
 
-  // Batch-check which contacts have active devices (includes orphaned + search-found)
+  // Batch-check which contacts have active devices
   const medicIds = useMemo(() => allMedics.map(m => m.id), [allMedics])
   const unavailableIds = usePeerAvailability(medicIds)
 
-  // Add a globally-discovered contact to extraMedics before navigating to their chat
+  // Discovery handoff: when a new (non-cluster) peer is chosen, we still navigate
+  // to their chat. The profile is already in peerProfiles via the email-lookup or
+  // QR success path, so no separate ephemeral state is needed.
   const handleSelectNewPeer = useCallback((medic: ClinicMedic) => {
-    setExtraMedics(prev => prev.some(m => m.id === medic.id) ? prev : [...prev, medic])
     onSelectPeer(medic)
   }, [onSelectPeer])
 
@@ -1072,7 +990,8 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     try {
       const { data, error } = await supabase.rpc('search_users', { query: email })
       if (error || !data) { setEmailLookupError('Lookup failed'); return }
-      const match = (data as any[]).find(r => r.email?.toLowerCase() === email)
+      const match = (data as Array<{ id: string; email?: string | null; first_name: string | null; last_name: string | null; middle_initial: string | null; rank: string | null; credential: string | null; avatar_id: string | null; clinic_id: string | null; clinic_name: string | null }>)
+        .find(r => r.email?.toLowerCase() === email)
       if (!match) { setEmailLookupError('No user found with that email'); return }
       const medic: ClinicMedic = {
         id: match.id,
@@ -1082,12 +1001,13 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         rank: match.rank,
         credential: match.credential,
         avatarId: match.avatar_id ?? null,
-        clinicId: match.clinic_id,
-        clinicName: match.clinic_name,
+        clinicId: match.clinic_id ?? undefined,
+        clinicName: match.clinic_name ?? undefined,
       }
       setEmailLookupOpen(false)
       setEmailValue('')
       setShowNewMsg(false)
+      useMessagingStore.getState().setPeerProfile(medic)
       handleSelectNewPeer(medic)
     } catch {
       setEmailLookupError('Lookup failed')
@@ -1161,6 +1081,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
       setQrScanOpen(false)
       setShowNewMsg(false)
       qrClearResult()
+      useMessagingStore.getState().setPeerProfile(medic)
       onSelectPeer(medic)
     })
   }, [qrScanResult, qrScanOpen, qrClearResult, onSelectPeer])
@@ -1270,7 +1191,6 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     onSelectPeer,
     onSelectGroup,
     onCreateGroup: () => { setShowNewMsg(true); setNewMsgMode('group'); setGroupName(''); setGroupSelectedIds(new Set()) },
-    onSelectNewPeer: handleSelectNewPeer,
     deleteConversation,
     loading,
     searchQuery,

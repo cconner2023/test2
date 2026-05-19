@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Check, Trash2, X, User, Building2 } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { updateClinicNoteContent } from '../../lib/supervisorService';
+import { useEditableClinicContent } from '../../Hooks/useEditableClinicContent';
 import type { UserTypes, PlanBlockKey, PlanOrderSet, PlanOrderTags } from '../../Data/User';
 import { PLAN_ORDER_CATEGORIES } from '../../Data/User';
 import { PreviewOverlay } from '../PreviewOverlay';
@@ -13,6 +13,7 @@ import { PlanAllBlocksPreview, CategoryPicker } from '../PlanBlockPreview';
 import type { LucideIcon } from 'lucide-react';
 import { CATEGORY_META, PlanTagManager } from './PlanTagManager';
 import { OrderSetManager } from './OrderSetManager';
+import { ClusterEditButton } from './ClusterEditPicker';
 import { ActionPill } from '../ActionPill'
 
 const ALL_KEYS: PlanBlockKey[] = [...PLAN_ORDER_CATEGORIES, 'instructions'];
@@ -30,11 +31,14 @@ type OrderSetPopover =
 
 export const PlanPanel = () => {
     const { profile, updateProfile, syncProfileField } = useUserProfile();
-    const clinicPlanOrderTags = useAuthStore(s => s.clinicPlanOrderTags);
-    const clinicPlanInstructionTags = useAuthStore(s => s.clinicPlanInstructionTags);
-    const clinicPlanOrderSets = useAuthStore(s => s.clinicPlanOrderSets);
     const isSupervisorRole = useAuthStore(s => s.isSupervisorRole);
-    const clinicId = useAuthStore(s => s.clinicId);
+    const homeClinicId = useAuthStore(s => s.clinicId);
+    const [editingClinicId, setEditingClinicId] = useState<string | null>(homeClinicId);
+    const { content: clinicContent, update: updateClinicContent } = useEditableClinicContent(editingClinicId);
+    const clinicPlanOrderTags = clinicContent.planOrderTags;
+    const clinicPlanInstructionTags = clinicContent.planInstructionTags;
+    const clinicPlanOrderSets = clinicContent.planOrderSets;
+    const clinicId = editingClinicId;
 
     const planOrderTags = profile.planOrderTags ?? EMPTY_TAGS;
     const planInstructionTags = profile.planInstructionTags ?? [];
@@ -92,13 +96,8 @@ export const PlanPanel = () => {
 
     const writeClinic = useCallback((updates: { planOrderTags?: PlanOrderTags; planInstructionTags?: string[]; planOrderSets?: PlanOrderSet[] }) => {
         if (!clinicId) return;
-        updateClinicNoteContent(clinicId, updates);
-        const next: Partial<{ clinicPlanOrderTags: PlanOrderTags; clinicPlanInstructionTags: string[]; clinicPlanOrderSets: PlanOrderSet[] }> = {};
-        if (updates.planOrderTags !== undefined)        next.clinicPlanOrderTags = updates.planOrderTags;
-        if (updates.planInstructionTags !== undefined)  next.clinicPlanInstructionTags = updates.planInstructionTags;
-        if (updates.planOrderSets !== undefined)        next.clinicPlanOrderSets = updates.planOrderSets;
-        useAuthStore.setState(next);
-    }, [clinicId]);
+        updateClinicContent(updates);
+    }, [clinicId, updateClinicContent]);
 
     const mutateTags = useCallback((scope: Scope, key: PlanBlockKey, fn: (current: string[]) => string[]) => {
         if (scope === 'clinic') {
@@ -210,6 +209,12 @@ export const PlanPanel = () => {
                             isClinic: clinicOrderSetIds.has(os.id),
                         })}
                         onTapNew={(anchor) => setOrderSetPopover({ mode: 'new', anchor: anchor.getBoundingClientRect() })}
+                        clusterPicker={
+                            <ClusterEditButton
+                                selectedClinicId={editingClinicId}
+                                onSelect={setEditingClinicId}
+                            />
+                        }
                     />
 
                     <PlanTagManager

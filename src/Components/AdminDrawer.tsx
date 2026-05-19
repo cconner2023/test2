@@ -21,7 +21,7 @@ import { AdminRequestsList } from './Admin/AdminRequestsList'
 import { AdminUsersList } from './Admin/AdminUsersList'
 import { AdminUserDetail } from './Admin/AdminUserDetail'
 import { AdminClinicsList } from './Admin/AdminClinicsList'
-import { AdminClinicDetail } from './Admin/AdminClinicDetail'
+import { AdminClinicDetail, type ClusterCreatePrefill } from './Admin/AdminClinicDetail'
 import { AdminLocationsList } from './Admin/AdminLocationsList'
 import { AdminLocationDetail } from './Admin/AdminLocationDetail'
 import { AdminSummary } from './Admin/AdminSummary'
@@ -68,6 +68,12 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
     const [selectedClinic, setSelectedClinic] = useState<AdminClinic | null>(null)
     const [selectedLocation, setSelectedLocation] = useState<AdminLocation | null>(null)
+    // Cluster create-mode prefill — set when create is launched from another
+    // cluster's relationship picker so the new cluster lands already linked.
+    const [clusterCreatePrefill, setClusterCreatePrefill] = useState<ClusterCreatePrefill | null>(null)
+    // User create-mode prefill — when create is launched from a cluster's
+    // Assigned Users FAB, the new user lands assigned to that cluster.
+    const [userCreatePrefillClinicId, setUserCreatePrefillClinicId] = useState<string | null>(null)
 
     // Lateral nav trail: entities the user hopped *from* via in-detail links
     // (CPT Conner → his cluster → sister cluster). Cleared whenever navigation
@@ -118,16 +124,18 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     // Internal entity-swap helpers. Do NOT touch trail — callers decide whether
     // the navigation is top-level (clear) or lateral (push).
-    const enterUserDetail = useCallback((user: AdminUser | null, editing: boolean) => {
+    const enterUserDetail = useCallback((user: AdminUser | null, editing: boolean, prefillClinicId: string | null = null) => {
         setSelectedUser(user)
+        setUserCreatePrefillClinicId(user === null ? prefillClinicId : null)
         userEdit.setEditing(editing)
         userEdit.setHasPending(false)
         handleSlideAnimation('left')
         setView('admin-user-detail')
     }, [handleSlideAnimation, userEdit])
 
-    const enterClinicDetail = useCallback((clinic: AdminClinic | null, editing: boolean) => {
+    const enterClinicDetail = useCallback((clinic: AdminClinic | null, editing: boolean, prefill: ClusterCreatePrefill | null = null) => {
         setSelectedClinic(clinic)
+        setClusterCreatePrefill(clinic === null ? prefill : null)
         clinicEdit.setEditing(editing)
         clinicEdit.setHasPending(false)
         handleSlideAnimation('left')
@@ -232,6 +240,33 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         enterClinicDetail(null, true)
     }, [enterClinicDetail, clearTrail])
 
+    // Lateral create — launched from a relationship picker inside another
+    // cluster's detail. Push the current cluster onto the trail so the new
+    // cluster's breadcrumb walks back to it, then open create mode with the
+    // prefill so the new cluster lands already-linked on save.
+    const handleCreateRelatedCluster = useCallback((prefill: ClusterCreatePrefill) => {
+        setTrail(prev => {
+            if (view === 'admin-clinic-detail' && selectedClinic) {
+                return [...prev, { kind: 'clinic', clinic: selectedClinic, label: selectedClinic.name || 'Cluster' }].slice(-TRAIL_MAX)
+            }
+            return prev
+        })
+        enterClinicDetail(null, true, prefill)
+    }, [enterClinicDetail, view, selectedClinic])
+
+    // Lateral create — launched from a cluster's Assigned Users FAB. Pushes
+    // the originating cluster onto the trail so the new user's breadcrumb
+    // walks back, then opens user create mode with clinic_id prefilled.
+    const handleCreateUserInCluster = useCallback((clinicId: string) => {
+        setTrail(prev => {
+            if (view === 'admin-clinic-detail' && selectedClinic && selectedClinic.id === clinicId) {
+                return [...prev, { kind: 'clinic', clinic: selectedClinic, label: selectedClinic.name || 'Cluster' }].slice(-TRAIL_MAX)
+            }
+            return prev
+        })
+        enterUserDetail(null, true, clinicId)
+    }, [enterUserDetail, view, selectedClinic])
+
     const handleSelectLocation = useCallback((loc: AdminLocation) => {
         clearTrail()
         setSelectedLocation(loc)
@@ -260,6 +295,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             setSelectedUser(null)
             setSelectedClinic(null)
             setSelectedLocation(null)
+            setClusterCreatePrefill(null)
+            setUserCreatePrefillClinicId(null)
             clearTrail()
         }
     }, [view, handleSlideAnimation, clinicEdit, userEdit, locationEdit, clearTrail])
@@ -302,6 +339,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setSelectedUser(null)
         setSelectedClinic(null)
         setSelectedLocation(null)
+        setClusterCreatePrefill(null)
+        setUserCreatePrefillClinicId(null)
         setSlideDirection('')
         setSearchQuery('')
         clearTrail()
@@ -352,6 +391,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 setView('admin')
                 setSelectedUser(null)
                 setSelectedClinic(null)
+                setClusterCreatePrefill(null)
+            setUserCreatePrefillClinicId(null)
                 clearTrail()
             }
         })
@@ -516,22 +557,29 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // overwrites the placeholder with the canonical record on its next refresh.
     const handleUserCreated = useCallback((user: AdminUser) => {
         setSelectedUser(user)
+        setUserCreatePrefillClinicId(null)
         userEdit.setEditing(false)
         invalidate('users')
     }, [userEdit])
 
-    // After creating a clinic, load full clinic and switch to view mode
+    // After creating a clinic, load full clinic and switch to view mode.
+    // Invalidate BEFORE listing — listClinics is memoized on the clinics
+    // generation, so without bumping it first we'd read the pre-create cache,
+    // miss the new clinic, and fall back to navigateBack with stale pending-
+    // edit state still captured upstream (firing the discard dialog).
     const handleClinicCreated = useCallback(async (clinicId: string) => {
+        invalidate('clinics')
         const clinics = await listClinics()
         const newClinic = clinics.find(c => c.id === clinicId)
+        setClusterCreatePrefill(null)
         if (newClinic) {
             setSelectedClinic(newClinic)
             clinicEdit.setEditing(false)
         } else {
-            handleBack()
+            // Save already succeeded — no edits to guard. Skip guardNav.
+            navigateBack()
         }
-        invalidate('clinics')
-    }, [handleBack, clinicEdit])
+    }, [navigateBack, clinicEdit])
 
     // After creating a location, load full location and switch to view mode
     const handleLocationCreated = useCallback(async (locationId: string) => {
@@ -567,6 +615,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         onSaveComplete={userEdit.completeSave}
                         onPendingChangesChange={userEdit.setHasPending}
                         onRequestDelete={selectedUser && currentUserId !== selectedUser.id ? userEdit.requestDelete : undefined}
+                        prefillClinicId={userCreatePrefillClinicId}
                     />
                 </ScrollPane>
             )
@@ -586,6 +635,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         onSaveComplete={clinicEdit.completeSave}
                         onPendingChangesChange={clinicEdit.setHasPending}
                         onRequestDelete={selectedClinic ? clinicEdit.requestDelete : undefined}
+                        createPrefill={clusterCreatePrefill}
+                        onCreateRelatedCluster={handleCreateRelatedCluster}
+                        onCreateUserInCluster={handleCreateUserInCluster}
                     />
                 </ScrollPane>
             )
@@ -807,7 +859,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                     <AdminSummary
                                         onSelectClinic={handleSelectClinic}
                                         onSelectUser={handleSelectUser}
-                                        onSelectAll={() => { setView('admin'); setSelectedUser(null); setSelectedClinic(null) }}
+                                        onSelectAll={() => { setView('admin'); setSelectedUser(null); setSelectedClinic(null); setClusterCreatePrefill(null); setUserCreatePrefillClinicId(null) }}
                                         onSwitchTab={handleSummarySwitchTab}
                                         activeClinicId={selectedClinic?.id}
                                         activeUserId={selectedUser?.id}

@@ -321,6 +321,23 @@ export interface ClinicAppointmentType {
   sort_order: number
 }
 
+/**
+ * Supervisor-authored Pre-Combat Check template (e.g. "Pre-Mission PCC").
+ * Stored on clinics.pre_combat_checks (jsonb). Attachable to any calendar event
+ * via event.pcc; subtasks are snapshot-copied on attach (template-independent).
+ */
+export type PCCItem =
+  | { id: string; kind: 'property_item';     ref: string; label_override?: string | null }
+  | { id: string; kind: 'property_location'; ref: string }
+  | { id: string; kind: 'task';              label: string }
+
+export interface ClinicPreCombatCheck {
+  id: string
+  name: string
+  sort_order: number
+  items: PCCItem[]
+}
+
 export async function getClinicDetails(
   clinicId: string
 ): Promise<ClinicDetails> {
@@ -409,6 +426,25 @@ export async function updateSupervisorClinicHuddleTasks(
     return succeed()
   } catch (error) {
     logger.error('Failed to update clinic huddle tasks:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+// ─── Update Clinic Pre-Combat Checks (dedicated RPC) ──────────────────────
+
+export async function updateSupervisorClinicPreCombatChecks(
+  clinicId: string,
+  pcc: ClinicPreCombatCheck[],
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('supervisor_update_clinic_pre_combat_checks', {
+      p_clinic_id: clinicId,
+      p_pcc: pcc,
+    })
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to update clinic pre-combat checks:', error)
     return fail(getErrorMessage(error))
   }
 }

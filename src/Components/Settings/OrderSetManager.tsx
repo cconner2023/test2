@@ -1,5 +1,5 @@
 import { Plus } from 'lucide-react';
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, type ReactNode } from 'react';
 import { ActionButton } from '../ActionButton';
 import type { PlanOrderSet, PlanBlockKey } from '../../Data/User';
 import { PLAN_ORDER_CATEGORIES } from '../../Data/User';
@@ -14,10 +14,11 @@ interface OrderSetManagerProps {
     filter?: string;
     onTapRow: (os: PlanOrderSet, anchor: HTMLElement) => void;
     onTapNew: (anchor: HTMLElement) => void;
+    clusterPicker?: ReactNode;
 }
 
 export const OrderSetManager = ({
-    orderSets, clinicOrderSetIds, isSupervisorRole, filter = '', onTapRow, onTapNew,
+    orderSets, clinicOrderSetIds, isSupervisorRole, filter = '', onTapRow, onTapNew, clusterPicker,
 }: OrderSetManagerProps) => {
     const fabRef = useRef<HTMLDivElement>(null);
 
@@ -77,6 +78,7 @@ export const OrderSetManager = ({
                 </div>
                 </div>
                 <ActionPill ref={fabRef} shadow="sm" placement="overlay">
+                    {clusterPicker}
                     <ActionButton icon={Plus} label="New order set" onClick={() => fabRef.current && onTapNew(fabRef.current)} />
                 </ActionPill>
             </div>
