@@ -384,7 +384,10 @@ export function ChatDetailView({
     }
 
     return (
-      <div className="shrink-0">
+      // Mobile: overlay the composer on top of the conversation so the iOS
+      // keyboard floats the input up without resizing the message list.
+      // Desktop: normal flex child below the scroll area.
+      <div className="absolute inset-x-0 bottom-3 z-10 md:static md:inset-auto md:bottom-auto md:shrink-0">
         {someUnavailable && <UnavailableBanner participants={participants} />}
 
         {replyingTo && !activeThreadId && (
@@ -406,7 +409,7 @@ export function ChatDetailView({
 
         <div
           data-tour="messages-input"
-          className="px-4 pt-3 pb-8 md:pb-3"
+          className="px-4 pt-3 pb-3"
         >
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
 
@@ -505,7 +508,7 @@ export function ChatDetailView({
           {headerOverride ?? (<>{mobileHeader}{desktopHeader}</>)}
         </div>
       )}
-      <div className="px-4 py-3">
+      <div className="px-4 pt-3 pb-28 md:pb-3">
       {msgs.length === 0 ? (
         <div className="flex items-center justify-center h-full">
           <p className="text-[10pt] text-tertiary">{emptyLabel}</p>

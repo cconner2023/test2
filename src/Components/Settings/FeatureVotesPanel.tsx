@@ -154,7 +154,7 @@ export const FeatureVotesPanel = ({ onOpenFeedback }: Props) => {
                       ) : null}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-primary truncate">{c.title}</p>
+                      <p className="text-sm font-medium text-primary break-words">{c.title}</p>
                       {c.description && (
                         <p className="text-[9pt] text-tertiary mt-0.5">{c.description}</p>
                       )}
@@ -187,7 +187,7 @@ export const FeatureVotesPanel = ({ onOpenFeedback }: Props) => {
                 </div>
                 <div className="flex-1 min-w-0 flex items-center gap-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-primary truncate">Other</p>
+                    <p className="text-sm font-medium text-primary break-words">Other</p>
                     <p className="text-[9pt] text-tertiary mt-0.5">
                       {votedOther ? 'Thanks — your feedback was recorded.' : 'Something else in mind? Share feedback.'}
                     </p>

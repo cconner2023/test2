@@ -163,6 +163,11 @@ interface BaseDrawerProps {
      *  drawers that should stay at their partial height even when the user
      *  taps a header pill or starts a stray drag. */
     lockPosition?: boolean;
+    /** Peek-style two-snap behavior. When set, the drawer lands at this
+     *  percentage on open (overrides `initialPosition`), drag-down release
+     *  settles back to peek instead of closing, and drag-up release snaps
+     *  to fully-open (100). Down-fling-to-close still works. Range 10–60. */
+    peekPosition?: number;
     /** Suppress the dimming backdrop entirely. Useful when the drawer opens
      *  partially over interactive content (e.g. a map) and the user should be
      *  able to keep interacting with what's underneath. Tap-to-close via
@@ -192,8 +197,11 @@ export function BaseDrawer({
     contentPadding,
     initialPosition = 100,
     lockPosition = false,
+    peekPosition,
     noBackdrop = false,
 }: BaseDrawerProps) {
+    const restPosition = peekPosition ?? initialPosition;
+    const dragMin = peekPosition !== undefined ? Math.max(10, peekPosition) : 20;
     const [drawerPosition, setDrawerPosition] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
@@ -218,7 +226,7 @@ export function BaseDrawer({
 
             // Animate mobile drawer in (desktop ignores drawerPosition)
             setTimeout(() => {
-                setDrawerPosition(initialPosition);
+                setDrawerPosition(restPosition);
             }, DRAWER_TIMING.OPEN_DELAY);
 
             // Desktop: delay open state so the closed frame renders first,
@@ -296,12 +304,20 @@ export function BaseDrawer({
 
             if (active) {
                 setIsDragging(true);
-                const newPosition = clamp(dragStartPosition.current - (my * 0.8), 20, 100);
+                const newPosition = clamp(dragStartPosition.current - (my * 0.8), dragMin, 100);
                 setDrawerPosition(newPosition);
             } else {
                 setIsDragging(false);
-                // Swipe down closes, swipe up stays open
-                if ((vy > GESTURE_THRESHOLDS.DRAWER_FLING_VELOCITY && dy > 0) || drawerPosition < 40) {
+                const flungDown = vy > GESTURE_THRESHOLDS.DRAWER_FLING_VELOCITY && dy > 0;
+                if (peekPosition !== undefined) {
+                    // Peek mode: fling-down closes; otherwise snap to peek or fully open.
+                    if (flungDown) {
+                        animateToPosition(0);
+                    } else {
+                        const midpoint = (peekPosition + 100) / 2;
+                        animateToPosition(drawerPosition >= midpoint ? 100 : peekPosition);
+                    }
+                } else if (flungDown || drawerPosition < 40) {
                     animateToPosition(0);
                 } else {
                     animateToPosition(lockPosition ? initialPosition : 100);

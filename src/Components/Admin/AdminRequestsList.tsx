@@ -4,6 +4,7 @@ import { EmptyState } from '../EmptyState'
 import { SectionCard } from '../Section'
 import { ContextMenu } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
+import { Z } from '../BaseOverlay'
 import { AdminListSkeleton } from './AdminSkeletons'
 import { RequestCard } from './RequestCard'
 import { SuggestionCard } from './SuggestionCard'
@@ -336,6 +337,11 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
     )
   }
 
+  // Cards open via PreviewOverlay (Z.POPOVER); the Delete pill inside their footer
+  // triggers these dialogs, which render here as siblings — outside the overlay's
+  // React subtree, so they don't inherit the parent-ceiling bump. Pin above POPOVER.
+  const confirmZ = Z.POPOVER + 30
+
   const feedbackConfirmDialog = (
     <ConfirmDialog
       visible={!!confirmDeleteFeedbackId}
@@ -344,6 +350,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
       confirmLabel="Delete"
       variant="danger"
       processing={deleteProcessing}
+      zIndex={confirmZ}
       onConfirm={() => { if (confirmDeleteFeedbackId) handleDeleteFeedback(confirmDeleteFeedbackId) }}
       onCancel={() => setConfirmDeleteFeedbackId(null)}
     />
@@ -357,6 +364,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
       confirmLabel="Dismiss"
       variant="danger"
       processing={deleteProcessing}
+      zIndex={confirmZ}
       onConfirm={() => { if (confirmDeleteSuggestionId) handleDeleteSuggestion(confirmDeleteSuggestionId) }}
       onCancel={() => setConfirmDeleteSuggestionId(null)}
     />
@@ -369,6 +377,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
       variant={notify?.type === 'success' ? 'success' : 'danger'}
       notifyOnly
       autoDismissMs={UI_TIMING.FEEDBACK_DURATION}
+      zIndex={confirmZ}
       onCancel={() => setNotify(null)}
     />
   )
@@ -388,6 +397,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
           confirmLabel="Delete"
           variant="danger"
           processing={deleteProcessing}
+          zIndex={confirmZ}
           onConfirm={() => { if (confirmDeleteId) handleDeleteRequest(confirmDeleteId) }}
           onCancel={() => setConfirmDeleteId(null)}
         />
@@ -422,6 +432,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
         confirmLabel="Delete"
         variant="danger"
         processing={deleteProcessing}
+        zIndex={confirmZ}
         onConfirm={() => { if (confirmDeleteId) handleDeleteRequest(confirmDeleteId) }}
         onCancel={() => setConfirmDeleteId(null)}
       />

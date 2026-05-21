@@ -113,14 +113,19 @@ interface UseMapOverlayVaultResult {
 }
 
 export function useMapOverlayVault(): UseMapOverlayVaultResult {
-  const { clinicId, user } = useAuth()
+  const { clinicId, supervisingClinicId, user } = useAuth()
+  // Mirror the calendar / messaging convention: when a supervisor is
+  // operating-as a loan clinic, the vault fan-out must land on THAT clinic's
+  // vault, not the home clinic. Callers that pass `data.clinic_id` win;
+  // unscoped callers fall back to the active clinic.
+  const activeClinicId = supervisingClinicId ?? clinicId
   const userId = user?.id ?? null
 
   const sendOverlay = useCallback(async (
     action: 'c' | 'u' | 'd',
     data: MapOverlayPayload,
   ): Promise<string | null> => {
-    const targetClinicId = data.clinic_id ?? clinicId
+    const targetClinicId = data.clinic_id ?? activeClinicId
     if (!targetClinicId || !userId) return null
     const localDeviceId = useMessagingStore.getState().localDeviceId
     const clinicDeviceId = useMessagingStore.getState().clinicDeviceId
@@ -162,7 +167,7 @@ export function useMapOverlayVault(): UseMapOverlayVaultResult {
       logger.warn('Failed to send map overlay:', e instanceof Error ? e.message : e)
       return null
     }
-  }, [clinicId, userId])
+  }, [activeClinicId, userId])
 
   const deleteOverlayMessages = useCallback(async (originIds: string[], clinicId: string): Promise<void> => {
     if (originIds.length === 0 || !clinicId) return
@@ -179,7 +184,7 @@ export function useMapOverlayVault(): UseMapOverlayVaultResult {
   // Drain pending vault sends on mount and whenever connectivity returns.
   // Overlays queued offline are re-sent here.
   useEffect(() => {
-    if (!clinicId || !userId) return
+    if (!activeClinicId || !userId) return
     const drain = async () => {
       const pendingSends = await loadPendingOverlaySends()
       for (const item of pendingSends) {
@@ -198,10 +203,10 @@ export function useMapOverlayVault(): UseMapOverlayVaultResult {
     drain()
     window.addEventListener('online', drain)
     return () => window.removeEventListener('online', drain)
-  }, [sendOverlay, clinicId, userId])
+  }, [sendOverlay, activeClinicId, userId])
 
   return {
-    ready: !!clinicId && !!userId,
+    ready: !!activeClinicId && !!userId,
     sendOverlay,
     deleteOverlayMessages,
   }

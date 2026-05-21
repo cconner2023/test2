@@ -4,6 +4,7 @@ import { TextInput, PickerInput, MultiPickerInput, UicPinInput } from '../FormIn
 import { ConfirmDialog } from '../ConfirmDialog'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { PreviewOverlay } from '../PreviewOverlay'
+import { Z } from '../BaseOverlay'
 import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
 import { StepResults, type StepResult } from './StepResults'
@@ -568,6 +569,7 @@ export function RequestCard({
         confirmLabel="Reject"
         variant="danger"
         processing={processing}
+        zIndex={Z.POPOVER + 30}
         onConfirm={handleReject}
         onCancel={() => setConfirmReject(false)}
       />

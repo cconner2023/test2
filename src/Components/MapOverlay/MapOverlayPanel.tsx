@@ -54,6 +54,8 @@ import { OverlayEventPicker } from './OverlayEventPicker';
 import { useCalendarWrite } from '../../Hooks/useCalendarWrite';
 import { useNavigationStore } from '../../stores/useNavigationStore';
 import { resolveSearch } from './searchResolver';
+import { MapSearchOverlay, type SearchOverlaySelection } from './MapSearchOverlay';
+import { useMapSearchStore, type SavedPlaceSlot } from '../../stores/useMapSearchStore';
 import { GotoWaypointCard } from './GotoWaypointCard';
 import { parseGPX, serializeGPX } from '../../lib/gpx';
 import { parseKML, serializeKML } from '../../lib/kml';
@@ -293,7 +295,12 @@ function closestSegmentInsertIndex(geometry: [number, number][], point: [number,
 
 export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOverlayPanelProps) {
   const isMobile = useIsMobile();
-  const { user, clinicId } = useAuth();
+  const { user, clinicId, supervisingClinicId } = useAuth();
+  // Active operating-as clinic — single source of truth for overlay scoping,
+  // clinic-location resolution, and vault fan-out target. Mirrors the calendar /
+  // messaging / clinic-settings convention so a supervisor toggled into a loan
+  // clinic sees and writes that clinic's overlays.
+  const activeClinicId = supervisingClinicId ?? clinicId;
   const bearingReference = useMapPrefsStore(s => s.bearingReference);
   const basemapId = useMapPrefsStore(s => s.basemapId);
 
@@ -333,6 +340,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   const [gotoDismissedFor, setGotoDismissedFor] = useState<string | null>(null);
   const [showGrid, setShowGrid] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
+  const pushRecent = useMapSearchStore(s => s.pushRecent);
+  const setSavedPlace = useMapSearchStore(s => s.setSavedPlace);
 
   // Measure tool
   const [measurePoints, setMeasurePoints] = useState<[number, number][]>([]);
@@ -393,7 +403,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   const allEvents = useCalendarStore(s => s.events);
   // Find the calendar event that owns this overlay (structured_location.overlay_id)
   const linkedEvent = overlayId
-    ? (allEvents.find(e => e.structured_location?.overlay_id === overlayId) ?? null)
+    ? (allEvents.find(e =>
+        e.structured_location?.overlay_id === overlayId &&
+        (!activeClinicId || e.clinic_id === activeClinicId)
+      ) ?? null)
     : null;
 
   // Inverse-link surface — overlay-id → linked CalendarEvent(s). Drives the
@@ -401,11 +414,12 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   const linkedOverlayIds = useMemo(() => {
     const ids = new Set<string>();
     for (const e of allEvents) {
+      if (activeClinicId && e.clinic_id !== activeClinicId) continue;
       const id = e.structured_location?.overlay_id;
       if (id) ids.add(id);
     }
     return ids;
-  }, [allEvents]);
+  }, [allEvents, activeClinicId]);
 
   const { writeEvent } = useCalendarWrite();
   const openCalendarEvent = useNavigationStore(s => s.openCalendarEvent);
@@ -586,10 +600,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
       setShowPopover(false);
       return;
     }
-    if (!clinicId) return;
+    if (!activeClinicId) return;
     let cancelled = false;
     setLoading(true);
-    Promise.all([getOverlays(clinicId), getAllTileMeta()]).then(([result, meta]) => {
+    Promise.all([getOverlays(activeClinicId), getAllTileMeta()]).then(([result, meta]) => {
       if (cancelled) return;
       const loaded: LocalMapOverlay[] = result.ok ? result.data : [];
       if (result.ok) setOverlays(loaded);
@@ -618,7 +632,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     // overlayGen bumps when the vault delivers an inbound create/update/delete,
     // refetching IDB so the panel reflects remote changes without a manual reload.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isVisible, clinicId, overlayGen]);
+  }, [isVisible, activeClinicId, overlayGen]);
 
   // ── Auto-clear save error ──
   useEffect(() => {
@@ -633,10 +647,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   // ISO/installation record is admin-curated and exact; the free-text field
   // is decrypted-per-clinic and lossy when geocoded.
   useEffect(() => {
-    if (!clinicId || initialCenter) return;
+    if (!activeClinicId || initialCenter) return;
     let cancelled = false;
     (async () => {
-      const details = await getClinicDetails(clinicId);
+      const details = await getClinicDetails(activeClinicId);
       if (cancelled) return;
 
       if (details.location_id) {
@@ -662,7 +676,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
       }
     })();
     return () => { cancelled = true; };
-  }, [clinicId, initialCenter]);
+  }, [activeClinicId, initialCenter]);
 
   // ── Spinner fade spring ──
   const spinnerSpring = useSpring({
@@ -1164,7 +1178,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   }, [drawMode, resetInProgressDrawing]);
 
   const handleSaveClick = useCallback(async () => {
-    if (!overlayId || !user || !clinicId) return;
+    if (!overlayId || !user || !activeClinicId) return;
     let name = overlayName.trim();
     if (!name) {
       // Auto-default unnamed overlays to today's date so autosave doesn't need
@@ -1175,7 +1189,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
 
     const saved = await writeOverlay({
       overlayId,
-      clinicId,
+      clinicId: activeClinicId,
       name,
       center: mapCenter,
       zoom: mapZoom,
@@ -1195,7 +1209,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     } else {
       setSaveError('Failed to save overlay');
     }
-  }, [overlayId, user, clinicId, overlayName, mapCenter, mapZoom, features, writeOverlay]);
+  }, [overlayId, user, activeClinicId, overlayName, mapCenter, mapZoom, features, writeOverlay]);
 
   // Autosave: debounce 600ms after the last features mutation. The first effect
   // run after open/new is suppressed via skipAutosaveRef so we don't echo-save.
@@ -1216,19 +1230,19 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
       skipAutosaveRef.current = false;
       return;
     }
-    if (!overlayId || !user || !clinicId) return;
+    if (!overlayId || !user || !activeClinicId) return;
     if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
     autosaveTimerRef.current = window.setTimeout(() => {
       autosaveTimerRef.current = null;
       handleSaveClick();
     }, 600);
-  }, [features, overlayId, user, clinicId, handleSaveClick]);
+  }, [features, overlayId, user, activeClinicId, handleSaveClick]);
 
   const handleRenameOverlay = useCallback(async (overlay: LocalMapOverlay, name: string) => {
-    if (!user || !clinicId) return;
+    if (!user || !activeClinicId) return;
     const saved = await writeOverlay({
       overlayId: overlay.id,
-      clinicId,
+      clinicId: overlay.clinic_id ?? activeClinicId,
       name,
       center: overlay.center,
       zoom: overlay.zoom,
@@ -1240,7 +1254,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     } else {
       setSaveError('Failed to rename overlay');
     }
-  }, [user, clinicId, overlayId, writeOverlay]);
+  }, [user, activeClinicId, overlayId, writeOverlay]);
 
   const handleSelectFeatureFromTree = useCallback((feature: OverlayFeature, sourceOverlayId: string) => {
     if (drawMode === 'route' || drawMode === 'area') return;
@@ -1424,12 +1438,35 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
         } else {
           mapRef.current?.flyTo(result.lat, result.lng, result.zoom);
         }
+        pushRecent({
+          query: searchQuery.trim(),
+          label: result.label,
+          lat: result.lat,
+          lng: result.lng,
+        });
+        setSearchFocused(false);
         await new Promise(r => setTimeout(r, 800));
       }
     } finally {
       setSearchPending(false);
     }
-  }, [searchQuery, searchPending]);
+  }, [searchQuery, searchPending, pushRecent]);
+
+  const handleSearchOverlaySelect = useCallback((sel: SearchOverlaySelection) => {
+    mapRef.current?.flyTo(sel.lat, sel.lng, 15);
+    if (!sel.noPin) {
+      setTempPoint({ lat: sel.lat, lng: sel.lng });
+    }
+    setSearchFocused(false);
+    setSearchQuery('');
+  }, []);
+
+  const handleAssignSavedPlace = useCallback((slot: SavedPlaceSlot) => {
+    const [lat, lng] = mapCenter;
+    if (!lat && !lng) return;
+    const label = `Saved (${lat.toFixed(3)}, ${lng.toFixed(3)})`;
+    setSavedPlace(slot, { lat, lng, label });
+  }, [mapCenter, setSavedPlace]);
 
   // ── Map move tracking ──
   const handleMoveEnd = useCallback((center: [number, number], zoom: number) => {
@@ -1451,6 +1488,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
       value={searchQuery}
       onChange={setSearchQuery}
       onSubmit={handleSearchSubmit}
+      onFocus={() => setSearchFocused(true)}
       placeholder="Address, grid, lat/lng…"
       className={isMobile ? '' : 'w-[260px]'}
     />
@@ -1504,7 +1542,20 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
       <ContentWrapper slideDirection="">
         {/* ── Viewer ── */}
         {view === 'viewer' && (
-          <div className="flex h-full">
+          <div className="flex h-full relative">
+          <MapSearchOverlay
+            isVisible={searchFocused}
+            value={searchQuery}
+            onChange={setSearchQuery}
+            onSubmit={handleSearchSubmit}
+            onClose={() => setSearchFocused(false)}
+            onSelect={handleSearchOverlaySelect}
+            onAssignSavedPlace={handleAssignSavedPlace}
+            waypoints={[
+              ...features.filter(f => f.type === 'waypoint'),
+              ...visibleReadOnlyFeatures.filter(f => f.type === 'waypoint'),
+            ]}
+          />
           {/* Desktop left pane — search/layers row + overlay tree, mirrors CalendarDrawer rail */}
           {!isMobile && (
             <div className={`shrink-0 border-r border-primary/10 bg-themewhite3 flex flex-col transition-all duration-300 overflow-hidden ${
@@ -1516,6 +1567,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                     value={searchQuery}
                     onChange={setSearchQuery}
                     onSubmit={handleSearchSubmit}
+                    onFocus={() => setSearchFocused(true)}
                     placeholder="Address, grid, lat/lng…"
                   />
                 </div>
@@ -1684,8 +1736,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                   onClose={() => setSelectedFeatureId(null)}
                   mobileOnly
                   fullHeight="90dvh"
-                  initialPosition={50}
-                  lockPosition
+                  peekPosition={14}
                   noBackdrop
                   zIndex="z-[1010]"
                   header={{
