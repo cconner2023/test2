@@ -77,7 +77,7 @@ export function MapSearchOverlay({
 
   return (
     <div
-      className="absolute inset-0 z-[1020] bg-themewhite3 flex flex-col"
+      className="fixed inset-0 z-[1020] bg-themewhite3 flex flex-col"
       role="dialog"
       aria-label="Map search"
     >

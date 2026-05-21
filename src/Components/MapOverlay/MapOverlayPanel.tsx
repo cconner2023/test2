@@ -1738,6 +1738,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                   fullHeight="90dvh"
                   peekPosition={14}
                   noBackdrop
+                  noDragDismiss
                   zIndex="z-[1010]"
                   header={{
                     title: selectedFeature?.label

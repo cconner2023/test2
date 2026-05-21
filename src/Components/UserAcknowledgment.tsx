@@ -61,7 +61,7 @@ export const UserAcknowledgment = ({ onAccept, persistent }: UserAcknowledgmentP
 
   return (
     <div
-      className="fixed inset-0 z-30 bg-themewhite overflow-y-auto select-none"
+      className="fixed inset-0 z-[100] bg-themewhite overflow-y-auto select-none"
       style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}
     >
       <div className="min-h-full flex flex-col items-center justify-center py-8 px-6">

@@ -174,6 +174,11 @@ interface BaseDrawerProps {
      *  backdrop is also disabled — only the X button or a downward drag
      *  dismisses. Default false. */
     noBackdrop?: boolean;
+    /** Disable drag-to-dismiss. Drawer can still be expanded/minimized via
+     *  drag (between peek and 100), but a downward fling or release past the
+     *  dismiss threshold snaps back to peek instead of closing. The only path
+     *  to onClose is the X button. Requires `peekPosition` to be set. */
+    noDragDismiss?: boolean;
 }
 
 export function BaseDrawer({
@@ -199,6 +204,7 @@ export function BaseDrawer({
     lockPosition = false,
     peekPosition,
     noBackdrop = false,
+    noDragDismiss = false,
 }: BaseDrawerProps) {
     const restPosition = peekPosition ?? initialPosition;
     const dragMin = peekPosition !== undefined ? Math.max(10, peekPosition) : 20;
@@ -310,8 +316,11 @@ export function BaseDrawer({
                 setIsDragging(false);
                 const flungDown = vy > GESTURE_THRESHOLDS.DRAWER_FLING_VELOCITY && dy > 0;
                 if (peekPosition !== undefined) {
-                    // Peek mode: fling-down closes; otherwise snap to peek or fully open.
-                    if (flungDown) {
+                    // Peek mode: fling-down closes (unless noDragDismiss); otherwise
+                    // snap to peek or fully open. With noDragDismiss the drawer can
+                    // be minimized to peek but never dismissed by drag — only the X
+                    // button calls onClose.
+                    if (flungDown && !noDragDismiss) {
                         animateToPosition(0);
                     } else {
                         const midpoint = (peekPosition + 100) / 2;
@@ -398,7 +407,7 @@ export function BaseDrawer({
                         ? '55dvh'
                         : (mobileFloating ? 12 : 0),
                     transform: `translateY(${100 - drawerPosition}%)`,
-                    opacity: Math.min(1, drawerPosition / 60 + 0.2),
+                    opacity: Math.min(1, drawerPosition / Math.max(10, restPosition)),
                     borderRadius: (cardMode || mobileFloating) ? '1.25rem' : (mobileFullScreen ? '0' : '1.25rem 1.25rem 0 0'),
                     willChange: isDragging ? 'transform' : 'auto',
                     boxShadow: (cardMode || mobileFloating)
