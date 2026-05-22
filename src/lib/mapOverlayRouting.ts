@@ -42,6 +42,28 @@ export function getOverlayTombstones(): Set<string> {
   return _tombstones
 }
 
+// Per-overlay serialization queue. Both routeMapOverlay and routeMapFeature
+// do read-modify-write on the same LocalMapOverlay.features[] row, so
+// concurrent calls for one overlay last-write-wins drop deltas. Calendar
+// doesn't need this — its routes write to a Zustand store synchronously.
+// Here every caller (vault drain, realtime, backup restore, system inbox)
+// can fire the route without ordering knowledge: the queue serializes
+// applies per overlay_id while still letting unrelated overlays parallelize.
+const _routeQueue: Map<string, Promise<void>> = new Map()
+
+function enqueueRoute(overlayId: string, task: () => Promise<void>): Promise<void> {
+  const prior = _routeQueue.get(overlayId) ?? Promise.resolve()
+  const next = prior.then(task, task).catch(() => {})
+  _routeQueue.set(overlayId, next)
+  // Drop the chain entry once this tail resolves so the Map doesn't grow
+  // unbounded. If new work was enqueued after this, the Map already points
+  // at the newer tail and this branch is a no-op.
+  next.then(() => {
+    if (_routeQueue.get(overlayId) === next) _routeQueue.delete(overlayId)
+  })
+  return next
+}
+
 /**
  * Load persisted tombstones into the in-memory set.
  * Must be called once during hydration before replaying any message stream.
@@ -57,9 +79,14 @@ export async function initOverlayTombstones(): Promise<void> {
  * Create/update actions are silently dropped for tombstoned overlay IDs so
  * vault replay and backup restore cannot resurrect deleted overlays.
  */
-export async function routeMapOverlay(content: MapOverlayContent): Promise<void> {
+export function routeMapOverlay(content: MapOverlayContent): Promise<void> {
+  const { data } = content
+  if (!data.id) return Promise.resolve()
+  return enqueueRoute(data.id, () => applyOverlay(content))
+}
+
+async function applyOverlay(content: MapOverlayContent): Promise<void> {
   const { action, data } = content
-  if (!data.id) return
 
   if (action === 'delete') {
     _tombstones.add(data.id)
@@ -150,9 +177,14 @@ function mergeOverlay(
  * Tombstone guard short-circuits when the parent overlay is deleted —
  * resurrection-safe.
  */
-export async function routeMapFeature(content: MapFeatureContent): Promise<void> {
+export function routeMapFeature(content: MapFeatureContent): Promise<void> {
+  const { data } = content
+  if (!data.overlay_id || !data.feature?.id) return Promise.resolve()
+  return enqueueRoute(data.overlay_id, () => applyFeature(content))
+}
+
+async function applyFeature(content: MapFeatureContent): Promise<void> {
   const { action, data } = content
-  if (!data.overlay_id || !data.feature?.id) return
   if (_tombstones.has(data.overlay_id)) return
 
   try {

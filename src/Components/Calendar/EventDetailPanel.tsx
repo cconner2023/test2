@@ -1,5 +1,7 @@
-import { useState, useRef } from 'react'
-import { Pencil, X, Share2, Map, Copy, Check, Printer, Image, Ban, CircleDashed, Play, CheckCircle2, Clock } from 'lucide-react'
+import { useEffect, useState, useRef } from 'react'
+import { Pencil, X, Share2, Map as MapIcon, Copy, Check, Printer, Image, Ban, CircleDashed, Play, CheckCircle2, Clock } from 'lucide-react'
+import { reverseGeocode } from '../MapOverlay/searchResolver'
+import { latLngToUTM } from '../MapOverlay/utmProjection'
 import type { LucideIcon } from 'lucide-react'
 import type { CalendarEvent, EventStatus, PCCAttachment } from '../../Types/CalendarTypes'
 import { PCCChecklistCard } from './PCCChecklistCard'
@@ -7,6 +9,7 @@ import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { SectionHeader } from '../Section'
 import { getCategoryMeta, formatShortDayLabel, isEventEditable, isUnscheduledTemplate } from '../../Types/CalendarTypes'
 import { useAuthStore } from '../../stores/useAuthStore'
+import { useNavigationStore } from '../../stores/useNavigationStore'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { shareSingleEvent } from '../../lib/calendarExport'
@@ -40,13 +43,19 @@ interface EventDetailPanelProps {
   apptTypeNames?: readonly string[]
   /** Supervisor flag forwarded from CalendarPanel — gates the Delete affordance for templated events. */
   canDeleteTemplate?: boolean
-  onOpenMissionBoard?: () => void
   /** Tap-to-cycle status writer — wired in CalendarPanel via useCalendarWrite. Only consumed by the task status pill today. */
   onStatusChange?: (id: string, next: EventStatus) => void
   /** PCC subtask tick writer. Receives the new full attachment snapshot to persist. */
   onUpdatePcc?: (id: string, next: PCCAttachment) => void
   assignedNames?: AssignedPerson[]
   linkedPropertyItems?: LinkedPropertyItem[]
+  /** Active clinic overlays — used to resolve names + coords for linked_overlays / linked_features. */
+  overlayOptions?: {
+    id: string
+    name: string
+    center?: [number, number]
+    features?: { id: string; label: string; type: 'waypoint' | 'route' | 'area'; lat?: number; lng?: number }[]
+  }[]
   hideHeader?: boolean
 }
 
@@ -73,10 +82,11 @@ const STATUS_TRIGGER_COLOR: Record<EventStatus, string> = {
   cancelled:   'text-themeredred',
 }
 
-export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, onCancelTemplate, apptTypeNames = [], canDeleteTemplate, onOpenMissionBoard, onStatusChange, onUpdatePcc, assignedNames = [], linkedPropertyItems = [], hideHeader }: EventDetailPanelProps) {
+export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, onCancelTemplate, apptTypeNames = [], canDeleteTemplate, onStatusChange, onUpdatePcc, assignedNames = [], linkedPropertyItems = [], overlayOptions, hideHeader }: EventDetailPanelProps) {
   const isMobile = useIsMobile()
   const cat = getCategoryMeta(event.category)
   const isSupervisor = useAuthStore(s => s.isSupervisorRole)
+  const openMapOverlay = useNavigationStore(s => s.setShowMapOverlayDrawer)
   const editable = isEventEditable(event, isSupervisor)
   const showCancelTemplate = event.category === 'templated' && !!onCancelTemplate && !isUnscheduledTemplate(event, apptTypeNames)
   const isTask = event.category === 'task'
@@ -190,12 +200,53 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
             </div>
           </div>
 
-          {event.location && (
-            <div>
-              <SectionHeader>Where</SectionHeader>
-              <p className={`text-primary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{event.location}</p>
-            </div>
-          )}
+          {(() => {
+            const fullIds = event.linked_overlays ?? []
+            const featureAnchors = (event.linked_features ?? []).filter(f => !fullIds.includes(f.overlay_id))
+            const hasLocation = !!event.location
+            const hasMaps = !!overlayOptions && (fullIds.length > 0 || featureAnchors.length > 0)
+            if (!hasLocation && !hasMaps) return null
+            const overlayFor = (id: string) => overlayOptions?.find(o => o.id === id)
+            const txt = isMobile ? 'text-sm' : 'text-[10pt]'
+            type Row = { key: string; name: string; lat?: number; lng?: number; onClick: () => void }
+            const rows: Row[] = []
+            for (const id of fullIds) {
+              const o = overlayFor(id)
+              rows.push({
+                key: `full-${id}`,
+                name: o?.name ?? '—',
+                lat: o?.center?.[0],
+                lng: o?.center?.[1],
+                onClick: () => openMapOverlay(true, id),
+              })
+            }
+            for (const f of featureAnchors) {
+              const o = overlayFor(f.overlay_id)
+              const feat = o?.features?.find(x => x.id === f.feature_id)
+              rows.push({
+                key: `feat-${f.overlay_id}-${f.feature_id}`,
+                name: feat?.label ?? '(feature)',
+                lat: feat?.lat,
+                lng: feat?.lng,
+                onClick: () => openMapOverlay(true, f.overlay_id, f.feature_id),
+              })
+            }
+            return (
+              <div>
+                <SectionHeader>Where</SectionHeader>
+                {hasLocation && (
+                  <p className={`text-primary ${txt}`}>{event.location}</p>
+                )}
+                {hasMaps && (
+                  <div className={`flex flex-col gap-2 ${hasLocation ? 'mt-2' : ''}`}>
+                    {rows.map(r => (
+                      <LinkedLocationRow key={r.key} name={r.name} lat={r.lat} lng={r.lng} onClick={r.onClick} txt={txt} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {event.uniform && (
             <div>
@@ -304,18 +355,6 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
           </div>
         )}
 
-        {/* Mission Board — shown when event has an overlay link */}
-        {event.structured_location?.overlay_id && onOpenMissionBoard && (
-          <button
-            onClick={onOpenMissionBoard}
-            className={`w-full flex items-center justify-center gap-2 rounded-2xl border border-themegreen/30 bg-themegreen/10 font-medium text-themegreen active:scale-95 transition-all duration-200 ${
-              isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-[10pt]'
-            }`}
-          >
-            <Map className={isMobile ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
-            Open Mission Board
-          </button>
-        )}
 
         <div className={isMobile ? 'h-16 shrink-0' : 'h-8 shrink-0'} />
       </div>
@@ -335,3 +374,46 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
     </div>
   )
 }
+
+interface LinkedLocationRowProps {
+  name: string
+  lat?: number
+  lng?: number
+  onClick: () => void
+  /** Tailwind text-size class for the primary name line (matches surrounding content). */
+  txt: string
+}
+
+function formatUtm(lat: number, lng: number): string {
+  const u = latLngToUTM(lat, lng)
+  return `${u.zone}${u.northern ? 'N' : 'S'} ${Math.round(u.easting)} ${Math.round(u.northing)}`
+}
+
+function LinkedLocationRow({ name, lat, lng, onClick, txt }: LinkedLocationRowProps) {
+  const [address, setAddress] = useState<string | null>(null)
+  useEffect(() => {
+    if (lat === undefined || lng === undefined) return
+    let cancelled = false
+    reverseGeocode(lat, lng).then(result => {
+      if (!cancelled) setAddress(result)
+    })
+    return () => { cancelled = true }
+  }, [lat, lng])
+  const hasCoord = lat !== undefined && lng !== undefined
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-col items-start text-left active:scale-[0.99] transition-all"
+    >
+      <span className={`text-themeblue3 hover:underline ${txt}`}>{name}</span>
+      {address && (
+        <span className="text-[9pt] text-tertiary truncate max-w-full">{address}</span>
+      )}
+      {hasCoord && (
+        <span className="text-[9pt] text-tertiary font-mono">{formatUtm(lat!, lng!)}</span>
+      )}
+    </button>
+  )
+}
+

@@ -57,6 +57,7 @@ export function useNavigation() {
         showLoRaDrawer: s.showLoRaDrawer,
         showMapOverlayDrawer: s.showMapOverlayDrawer,
         mapOverlayDrawerOverlayId: s.mapOverlayDrawerOverlayId,
+        mapOverlayDrawerFeatureId: s.mapOverlayDrawerFeatureId,
         showCalendarDrawer: s.showCalendarDrawer,
 
         // Derived selectors

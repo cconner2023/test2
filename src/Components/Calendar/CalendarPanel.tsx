@@ -28,13 +28,11 @@ import { useClinicPreCombatChecks } from '../../Hooks/useClinicPreCombatChecks'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useCalendarSync } from '../../Hooks/useCalendarSync'
 import { useCalendarWrite } from '../../Hooks/useCalendarWrite'
-import { LoadingSpinner } from '../LoadingSpinner'
+import { LoadingOverlay } from '../LoadingOverlay'
 import { useAuth } from '../../Hooks/useAuth'
 import { getOverlays } from '../../lib/mapOverlayService'
 import { useMapOverlayWrite } from '../../Hooks/useMapOverlayWrite'
 import type { OverlayOption, RoomOption, HuddleTaskOption } from './EventForm'
-import { MissionBoard } from '../Mission/MissionBoard'
-import type { ResourceAllocation } from '../../Types/MissionTypes'
 import { getInitials } from '../../Utilities/nameUtils'
 import type { CalendarEvent, EventFormData, EventStatus } from '../../Types/CalendarTypes'
 import {
@@ -113,33 +111,43 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     if (!activeClinicId) return
     getOverlays(activeClinicId).then(result => {
       if (result.ok) {
-        setOverlayOptions(result.data.map(o => ({ id: o.id, name: o.name })))
+        setOverlayOptions(result.data.map(o => ({
+          id: o.id,
+          name: o.name,
+          center: o.center,
+          features: o.features.map(f => ({
+            id: f.id,
+            label: f.label || '(unnamed)',
+            type: f.type,
+            lat: f.geometry[0]?.[0],
+            lng: f.geometry[0]?.[1],
+          })),
+        })))
       }
     }).catch(() => {})
   }, [activeClinicId])
 
   const [overlayOptions, setOverlayOptions] = useState<OverlayOption[]>([])
 
-  // Phase 4.3a — auto-create an overlay for a field-type event without a binding.
-  // Caller (EventForm button) provides no event metadata at click time, so we
-  // produce a placeholder name; the user can rename in the overlay tree later.
-  const handleCreateOverlayForEvent = useCallback(async (): Promise<string | null> => {
+  // Footer Add action for the Location picker — creates a new overlay with
+  // the supplied name (falls back to a date-stamped placeholder when blank).
+  const handleCreateOverlayForEvent = useCallback(async (rawName: string): Promise<string | null> => {
     if (!activeClinicId || !user) return null
     const overlayId = crypto.randomUUID()
     const today = new Date().toISOString().slice(0, 10)
+    const name = rawName.trim() || `Field map · ${today}`
     const saved = await writeOverlay({
       overlayId,
       clinicId: activeClinicId,
-      name: `Field map · ${today}`,
+      name,
       center: [0, 0],
       zoom: 13,
       features: [],
     })
     if (!saved) return null
-    setOverlayOptions(prev => [...prev, { id: overlayId, name: `Field map · ${today}` }])
+    setOverlayOptions(prev => [...prev, { id: overlayId, name, features: [] }])
     return overlayId
   }, [activeClinicId, user, writeOverlay])
-  const [missionBoardEventId, setMissionBoardEventId] = useState<string | null>(null)
 
   const [showAddSheet, setShowAddSheet] = useState(false)
   const [showImportSheet, setShowImportSheet] = useState(false)
@@ -553,6 +561,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           assigned_to: data.assigned_to,
           property_item_ids: data.property_item_ids,
           structured_location: data.structured_location ?? null,
+          linked_overlays: data.linked_overlays ?? null,
+          linked_features: data.linked_features ?? null,
           room_id: data.room_id ?? null,
           huddle_task_id: data.category === 'huddle' ? (data.huddle_task_id ?? null) : null,
           pcc: data.pcc ?? null,
@@ -579,6 +589,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           assigned_to: data.assigned_to,
           property_item_ids: data.property_item_ids,
           structured_location: data.structured_location ?? null,
+          linked_overlays: data.linked_overlays ?? null,
+          linked_features: data.linked_features ?? null,
           room_id: data.room_id ?? null,
           huddle_task_id: data.category === 'huddle' ? (data.huddle_task_id ?? null) : null,
           pcc: data.pcc ?? null,
@@ -683,29 +695,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     setPanelView('calendar')
   }, [selectEvent])
 
-  const handleOpenMissionBoard = useCallback((eventId: string) => {
-    setMissionBoardEventId(eventId)
-    if (!isMobile) setPanelView('detail') // keep detail open on desktop; board replaces it
-  }, [isMobile])
-
-  const handleCloseMissionBoard = useCallback(() => {
-    setMissionBoardEventId(null)
-  }, [])
-
-  const handleSaveMissionBoard = useCallback((allocations: ResourceAllocation[]) => {
-    if (!missionBoardEventId) return
-    const event = useCalendarStore.getState().events.find(e => e.id === missionBoardEventId)
-    if (!event) return
-    const updatedEvent: CalendarEvent = {
-      ...event,
-      resource_allocations: allocations,
-      updated_at: new Date().toISOString(),
-    }
-    useCalendarStore.getState().updateEvent(missionBoardEventId, updatedEvent)
-    vaultUpdate(updatedEvent)
-    setMissionBoardEventId(null)
-  }, [missionBoardEventId, vaultUpdate])
-
   const handleStatusChange = useCallback((eventId: string, status: EventStatus) => {
     const event = useCalendarStore.getState().events.find(e => e.id === eventId)
     if (!event) return
@@ -759,6 +748,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       assigned_to: data.assigned_to,
       property_item_ids: data.property_item_ids,
       structured_location: data.structured_location ?? null,
+      linked_overlays: data.linked_overlays ?? null,
+      linked_features: data.linked_features ?? null,
       updated_at: now,
     }
     setIsFormPending(true)
@@ -814,7 +805,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const showFormDrawer = isMobile && panelView === 'form'
   const showTemplateDrawer = isMobile && panelView === 'template'
   const showBlockDrawer = isMobile && panelView === 'block'
-  const showDesktopPanel = !isMobile && (panelView === 'detail' || panelView === 'form' || panelView === 'template' || panelView === 'block' || !!missionBoardEventId)
+  const showDesktopPanel = !isMobile && (panelView === 'detail' || panelView === 'form' || panelView === 'template' || panelView === 'block')
 
   return (
     <>
@@ -989,11 +980,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 clinicOptions={clinicFormOptions}
                 onCreateOverlay={handleCreateOverlayForEvent}
               />
-              {(isFormPending || isWriting || isDeleting) && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-xl">
-                  <LoadingSpinner size="md" />
-                </div>
-              )}
+              <LoadingOverlay visible={isFormPending || isWriting || isDeleting} className="rounded-xl" />
             </div>
           </BaseDrawer>
 
@@ -1125,12 +1112,9 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   canDeleteTemplate={isSupervisor}
                   onStatusChange={handleEventStatusChange}
                   onUpdatePcc={handleUpdateEventPcc}
-                  onOpenMissionBoard={() => {
-                    handleDayDrawerClose()
-                    handleOpenMissionBoard(dayDrawerEvent.id)
-                  }}
                   assignedNames={resolveAssigned(dayDrawerEvent.assigned_to)}
                   linkedPropertyItems={resolvePropertyItems(dayDrawerEvent.property_item_ids ?? [])}
+                  overlayOptions={overlayOptions}
                   hideHeader
                 />
               )}
@@ -1142,45 +1126,20 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   onSave={handleDayDrawerSave}
                   isEditing
                   medics={medicList}
+                  propertyItems={propertyItems}
+                  overlayOptions={overlayOptions}
                   roomOptions={roomFormOptions}
                 huddleTaskOptions={huddleTaskFormOptions}
                 pccTemplateOptions={sortedPccTemplates}
                 isDev={isDevRole}
                 clinicOptions={clinicFormOptions}
+                onCreateOverlay={handleCreateOverlayForEvent}
                 />
               )}
 
-              {(isFormPending || isWriting || isDeleting) && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-xl">
-                  <LoadingSpinner size="md" />
-                </div>
-              )}
+              <LoadingOverlay visible={isFormPending || isWriting || isDeleting} className="rounded-xl" />
             </div>
           </BaseDrawer>
-
-          {/* Mobile Mission Board drawer */}
-          {(() => {
-            const missionEvent = missionBoardEventId ? events.find(e => e.id === missionBoardEventId) : null
-            return missionEvent ? (
-              <BaseDrawer
-                isVisible={!!missionBoardEventId}
-                onClose={handleCloseMissionBoard}
-                mobileOnly
-                fullHeight="92dvh"
-                zIndex="z-50"
-                header={{ title: 'Mission Board', hideDefaultClose: true }}
-              >
-                <div className="h-full px-3 py-3">
-                  <MissionBoard
-                    event={missionEvent}
-                    medics={medicList.map(m => ({ id: m.id, name: m.name }))}
-                    onClose={handleCloseMissionBoard}
-                    onSave={handleSaveMissionBoard}
-                  />
-                </div>
-              </BaseDrawer>
-            ) : null
-          })()}
 
         </div>
 
@@ -1218,20 +1177,18 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                       isEditing={!!editingEvent}
                       medics={medicList}
                       propertyItems={propertyItems}
+                      overlayOptions={overlayOptions}
                       roomOptions={roomFormOptions}
                 huddleTaskOptions={huddleTaskFormOptions}
                 pccTemplateOptions={sortedPccTemplates}
                 isDev={isDevRole}
                 clinicOptions={clinicFormOptions}
+                onCreateOverlay={handleCreateOverlayForEvent}
                     />
                   </div>
-                  {(isFormPending || isWriting || isDeleting) && (
-                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-xl">
-                      <LoadingSpinner size="md" />
-                    </div>
-                  )}
+                  <LoadingOverlay visible={isFormPending || isWriting || isDeleting} className="rounded-xl" />
                 </div>
-              ) : panelView === 'detail' && selectedEvent && !missionBoardEventId ? (
+              ) : panelView === 'detail' && selectedEvent ? (
                 <div className="relative flex flex-col flex-1 min-h-0">
                   <EventDetailPanel
                     event={selectedEvent}
@@ -1243,15 +1200,11 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     canDeleteTemplate={isSupervisor}
                     onStatusChange={handleEventStatusChange}
                   onUpdatePcc={handleUpdateEventPcc}
-                    onOpenMissionBoard={() => handleOpenMissionBoard(selectedEvent.id)}
                     assignedNames={resolveAssigned(selectedEvent.assigned_to)}
                     linkedPropertyItems={resolvePropertyItems(selectedEvent.property_item_ids ?? [])}
+                    overlayOptions={overlayOptions}
                   />
-                  {isDeleting && (
-                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-xl">
-                      <LoadingSpinner size="md" />
-                    </div>
-                  )}
+                  <LoadingOverlay visible={isDeleting} className="rounded-xl" />
                 </div>
               ) : panelView === 'template' && activeClinicId && user && isSupervisor ? (
                 <div className="relative flex flex-col flex-1 min-h-0">
@@ -1305,17 +1258,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     />
                   </div>
                 </div>
-              ) : panelView === 'detail' && missionBoardEventId ? (() => {
-                const missionEvent = events.find(e => e.id === missionBoardEventId)
-                return missionEvent ? (
-                  <MissionBoard
-                    event={missionEvent}
-                    medics={medicList.map(m => ({ id: m.id, name: m.name }))}
-                    onClose={handleCloseMissionBoard}
-                    onSave={handleSaveMissionBoard}
-                  />
-                ) : null
-              })() : null
+              ) : null
             )}
           </div>
         )}

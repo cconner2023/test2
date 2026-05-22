@@ -92,6 +92,7 @@ export function AdminUserDetail({
 }: AdminUserDetailProps) {
   const currentUser = useAuthStore(s => s.user)
   const currentUserId = currentUser?.id ?? null
+  const isDevRole = useAuthStore(s => s.isDevRole)
 
   // ── Data state ──────────────────────────────────────────────────────
   const [clinics, setClinics] = useState<AdminClinic[]>([])
@@ -361,19 +362,55 @@ export function AdminUserDetail({
     setSaving(true)
     setError(null)
 
-    // Collect-all semantics: run every diffed step, accumulate results, then
-    // surface a structured panel. Steps already marked ok (from a prior partial
-    // save) are skipped so retry only re-runs the failures.
+    // Compute diff up front so the morphed overlay can pre-list every step
+    // it intends to run as pending — admin sees the full plan before the
+    // first await resolves, not just whatever has finished so far.
+    const oldSorted = [...(user.roles || [])].sort().join(',')
+    const newSorted = [...chosenRoles].sort().join(',')
+    const rolesChanged = oldSorted !== newSorted
+
+    const originalClinicId = user.clinic_id || ''
+    const clinicChanged = editClinicId !== originalClinicId
+
+    const sameLoans = editLoanClinicIds.size === originalLoanClinicIds.size
+      && Array.from(editLoanClinicIds).every((id) => originalLoanClinicIds.has(id))
+    const loansChanged = clinicChanged || !sameLoans
+
+    const plan: StepResult[] = [
+      { key: 'profile', label: 'Profile fields applied', ok: false, pending: true },
+    ]
+    if (rolesChanged) {
+      plan.push({ key: 'roles', label: `Roles set (${chosenRoles.join(', ')})`, ok: false, pending: true })
+    }
+    if (clinicChanged) {
+      plan.push({
+        key: 'clinic',
+        label: editClinicId ? 'Cluster assignment updated' : 'Cluster assignment cleared',
+        ok: false,
+        pending: true,
+      })
+    }
+    if (loansChanged) {
+      plan.push({ key: 'loans', label: 'Loans updated', ok: false, pending: true })
+    }
+
+    // Carry forward already-succeeded steps from a prior partial save —
+    // retry only re-runs the failures.
     const prior = stepResults
-    const next: StepResult[] = [...prior]
+    const next: StepResult[] = plan.map(p => {
+      const priorRow = prior.find(s => s.key === p.key)
+      return priorRow?.ok ? priorRow : p
+    })
+    setStepResults([...next])
+
     const upsert = (r: StepResult) => {
       const idx = next.findIndex(s => s.key === r.key)
       if (idx >= 0) next[idx] = r
       else next.push(r)
+      setStepResults([...next])
     }
-    const alreadyOk = (key: string) => prior.find(s => s.key === key)?.ok === true
+    const alreadyOk = (key: string) => next.find(s => s.key === key)?.ok === true
 
-    // Step 1: profile (always runs — cheap to re-apply identical values)
     if (!alreadyOk('profile')) {
       const r = await updateUserProfile(user.id, {
         firstName: editFirstName || undefined,
@@ -390,13 +427,8 @@ export function AdminUserDetail({
         ok: r.success,
         error: r.success ? undefined : (r.error || 'Failed to update profile'),
       })
-      setStepResults([...next])
     }
 
-    // Step 2: roles (only if diff)
-    const oldSorted = [...(user.roles || [])].sort().join(',')
-    const newSorted = [...chosenRoles].sort().join(',')
-    const rolesChanged = oldSorted !== newSorted
     if (rolesChanged && !alreadyOk('roles')) {
       const r = await setUserRoles(user.id, chosenRoles as ('medic' | 'supervisor' | 'dev' | 'provider')[])
       upsert({
@@ -405,13 +437,10 @@ export function AdminUserDetail({
         ok: r.success,
         error: r.success ? undefined : (r.error || 'Failed to update roles'),
       })
-      setStepResults([...next])
     }
 
-    // Step 3: clinic (only if diff). DB trigger wipes loans when clinic_id
-    // changes — step 4 re-applies the editor's loan selection in that case.
-    const originalClinicId = user.clinic_id || ''
-    const clinicChanged = editClinicId !== originalClinicId
+    // DB trigger wipes loans when clinic_id changes — the loans step
+    // re-applies the editor's selection (minus the new home) in that case.
     if (clinicChanged && !alreadyOk('clinic')) {
       const r = await setUserClinic(user.id, editClinicId || null)
       upsert({
@@ -420,13 +449,8 @@ export function AdminUserDetail({
         ok: r.success,
         error: r.success ? undefined : (r.error || 'Failed to update clinic'),
       })
-      setStepResults([...next])
     }
 
-    // Step 4: loans (replace whole set if changed, or after clinic cascade).
-    const sameLoans = editLoanClinicIds.size === originalLoanClinicIds.size
-      && Array.from(editLoanClinicIds).every((id) => originalLoanClinicIds.has(id))
-    const loansChanged = clinicChanged || !sameLoans
     if (loansChanged && !alreadyOk('loans')) {
       const loanIds = clinicChanged
         ? Array.from(editLoanClinicIds).filter((id) => id !== editClinicId)
@@ -438,24 +462,25 @@ export function AdminUserDetail({
         ok: r.success,
         error: r.success ? undefined : (r.error || 'Failed to update loans'),
       })
-      setStepResults([...next])
     }
 
-    setSaving(false)
     invalidate('users', 'clinics')
 
     const anyFailed = next.some(s => !s.ok)
-    if (next.length === 0 || !anyFailed) {
-      // Either nothing changed (no steps ran) or every diffed step succeeded —
-      // refresh & close. The empty-results case keeps the form snappy for
-      // pure no-op saves admins sometimes hit when reviewing a row.
+    if (!anyFailed) {
+      // Brief pause so the admin sees the all-green panel before the overlay
+      // dismisses — confirms every step stuck.
+      await new Promise(resolve => setTimeout(resolve, 600))
       setStepResults([])
+      setSaving(false)
       onEditingChange(false)
       loadData()
+      return
     }
-    // On partial failure, keep the overlay open so the admin sees the
-    // StepResults panel rendered above the form. Retry runs handleSave again
-    // and the alreadyOk() guard skips the already-succeeded steps.
+
+    setSaving(false)
+    // Partial failure — overlay reverts from modal mode to form+steps so the
+    // admin can adjust and retry. The alreadyOk() guard skips the successes.
   }, [user, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editLoanClinicIds, originalLoanClinicIds, editRoles, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated, stepResults])
 
   // ── Save requested trigger ───────────────────────────────────────────
@@ -583,7 +608,7 @@ export function AdminUserDetail({
   // ── Render ──────────────────────────────────────────────────────────
 
   return (
-    <div className={`pt-5${saving ? ' opacity-50 pointer-events-none' : ''}`}>
+    <div className="pt-5">
       {/* Error banner */}
       {error && <div className="mb-4"><ErrorDisplay message={error} /></div>}
 
@@ -738,7 +763,14 @@ export function AdminUserDetail({
         )}
       </PreviewOverlay>
 
-      {/* Edit overlay — tap user card → form fields here. Footer owns Save+Delete. */}
+      {/* Edit overlay — tap user card → form fields here. Footer owns Save+Delete.
+          During an in-flight save (or while any step is still pending) the
+          overlay morphs to a modal-style loading view: form + footer hide and
+          only the StepResults remain. On full success a 600ms pause shows the
+          all-green panel before the overlay auto-closes. */}
+      {(() => {
+        const overlayPending = saving || stepResults.some(s => s.pending)
+        return (
       <PreviewOverlay
         isOpen={!!editAnchor && !isCreateMode}
         onClose={closeEditOverlay}
@@ -747,24 +779,20 @@ export function AdminUserDetail({
         maxWidth={400}
         previewMaxHeight="70dvh"
         footer={
-          editAnchor && user ? (
+          editAnchor && user && !overlayPending ? (
             <ActionPill shadow="sm">
               {onRequestDelete && currentUserId !== user.id && (
                 <ActionButton
                   icon={Trash2}
                   label="Delete user"
                   variant="danger"
-                  onClick={() => { setEditAnchor(null); onRequestDelete() }}
+                  onClick={onRequestDelete}
                 />
               )}
               <ActionButton
-                icon={saving ? RefreshCw : (stepResults.some(s => !s.ok) ? RefreshCw : Check)}
-                label={saving
-                  ? 'Saving…'
-                  : stepResults.some(s => !s.ok)
-                    ? 'Retry failed'
-                    : 'Save'}
-                variant={saving ? 'disabled' : 'success'}
+                icon={stepResults.some(s => !s.ok) ? RefreshCw : Check}
+                label={stepResults.some(s => !s.ok) ? 'Retry failed' : 'Save'}
+                variant="success"
                 onClick={handleSave}
               />
             </ActionPill>
@@ -774,14 +802,16 @@ export function AdminUserDetail({
         {editAnchor && user && (
           <div>
             {stepResults.length > 0 && (
-              <div className="px-4 pt-3">
+              <div className="px-4 pt-3 pb-3">
                 <StepResults
                   steps={stepResults}
-                  onRetry={stepResults.some(s => !s.ok) ? handleSave : undefined}
+                  onRetry={!overlayPending && stepResults.some(s => !s.ok) ? handleSave : undefined}
                   retrying={saving}
                 />
               </div>
             )}
+            {!overlayPending && (
+              <>
             <div className="flex items-center gap-3 px-4 py-3 border-b border-primary/6">
               <UserAvatar
                 avatarId={user.avatar_id}
@@ -817,9 +847,13 @@ export function AdminUserDetail({
               placeholder="Roles *"
               required
             />
+              </>
+            )}
           </div>
         )}
       </PreviewOverlay>
+        )
+      })()}
 
       {/* Clusters section — tap a row to act on it (change home, end loan,
           promote loan to home, open cluster). Section "+ Add loan" lives in

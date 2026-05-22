@@ -52,6 +52,7 @@ const CLOSE_ALL_DRAWERS = {
     showLoRaDrawer: false,
     showMapOverlayDrawer: false,
     mapOverlayDrawerOverlayId: null as string | null,
+    mapOverlayDrawerFeatureId: null as string | null,
     showCalendarDrawer: false,
     calendarDrawerEventId: null as string | null,
     calendarDrawerEventEditMode: false,
@@ -93,6 +94,7 @@ interface NavigationState {
     showLoRaDrawer: boolean
     showMapOverlayDrawer: boolean
     mapOverlayDrawerOverlayId: string | null
+    mapOverlayDrawerFeatureId: string | null
     showCalendarDrawer: boolean
     calendarDrawerEventId: string | null
     calendarDrawerEventEditMode: boolean
@@ -130,7 +132,7 @@ interface NavigationActions {
     clearMessagesConversation: () => void
     setShowPropertyDrawer: (show: boolean) => void
     setShowLoRaDrawer: (show: boolean) => void
-    setShowMapOverlayDrawer: (show: boolean, overlayId?: string | null) => void
+    setShowMapOverlayDrawer: (show: boolean, overlayId?: string | null, featureId?: string | null) => void
     setShowCalendarDrawer: (show: boolean, initialDate?: string | null) => void
     openCalendarEvent: (eventId: string) => void
     openCalendarEventForEdit: (eventId: string) => void
@@ -174,6 +176,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     showLoRaDrawer: false,
     showMapOverlayDrawer: false,
     mapOverlayDrawerOverlayId: null,
+    mapOverlayDrawerFeatureId: null,
     showCalendarDrawer: false,
     calendarDrawerEventId: null,
     calendarDrawerEventEditMode: false,
@@ -375,11 +378,12 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         showLoRaDrawer: show,
     })),
 
-    setShowMapOverlayDrawer: (show, overlayId) => set((s) => ({
+    setShowMapOverlayDrawer: (show, overlayId, featureId) => set((s) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),
         ...PRESERVED_FIELDS(s),
         showMapOverlayDrawer: show,
         mapOverlayDrawerOverlayId: show ? (overlayId ?? null) : null,
+        mapOverlayDrawerFeatureId: show ? (featureId ?? null) : null,
     })),
 
     setShowCalendarDrawer: (show, initialDate) => set((s) => ({

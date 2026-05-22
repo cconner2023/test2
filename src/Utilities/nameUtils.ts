@@ -4,7 +4,7 @@ export function getInitials(firstName?: string | null, lastName?: string | null)
   return ((firstName?.charAt(0) ?? '') + (lastName?.charAt(0) ?? '')).toUpperCase() || '?'
 }
 
-/** Display name: "Rank Last, F." or just "Last" or "Unknown". */
+/** Display name: "Rank Last, F." → "Last" → firstName → "Unknown". */
 export function getDisplayName(medic: ClinicMedic): string {
   const parts: string[] = []
   if (medic.rank) parts.push(medic.rank)
@@ -13,5 +13,5 @@ export function getDisplayName(medic: ClinicMedic): string {
     if (medic.firstName) name += `, ${medic.firstName.charAt(0)}.`
     parts.push(name)
   }
-  return parts.join(' ') || 'Unknown'
+  return parts.join(' ') || medic.firstName || 'Unknown'
 }

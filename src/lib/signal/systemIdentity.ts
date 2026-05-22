@@ -809,8 +809,9 @@ export async function drainSystemInbox(): Promise<number> {
         }
         useMessagingStore.getState().addMessage(msg)
         if (isCal) routeCalendarEvent(content)
-        else if (isOv) routeMapOverlay(content).catch(() => {})
-        else if (isFt) routeMapFeature(content).catch(() => {})
+        // Serial await — overlay/feature routes share a single IDB row under RMW.
+        else if (isOv) await routeMapOverlay(content).catch(() => {})
+        else if (isFt) await routeMapFeature(content).catch(() => {})
       }
 
       processedIds.push(row.id)

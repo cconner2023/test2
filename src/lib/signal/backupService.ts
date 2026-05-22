@@ -684,12 +684,13 @@ export async function restoreBackup(userId: string): Promise<void> {
         }
       } else if (isMapOverlay(msg.content)) {
         if (msg.content.action === 'delete' || !deletedOverlayIds.has(msg.content.data.id)) {
-          routeMapOverlay(msg.content).catch(() => {})
+          // Serial await — shared IDB row under RMW.
+          await routeMapOverlay(msg.content).catch(() => {})
         }
       } else if (isMapFeature(msg.content)) {
         const key = `${msg.content.data.overlay_id}::${msg.content.data.feature.id}`
         if (msg.content.action === 'delete' || !deletedFeatureKeys.has(key)) {
-          routeMapFeature(msg.content).catch(() => {})
+          await routeMapFeature(msg.content).catch(() => {})
         }
       }
       restored++

@@ -29,6 +29,12 @@ export interface StructuredLocation {
   primary_waypoint_id?: string
 }
 
+/** Anchor for a single linked feature stored on CalendarEvent.linked_features. */
+export interface LinkedFeatureRef {
+  overlay_id: string
+  feature_id: string
+}
+
 /** Computed view — allocations grouped by waypoint for the Mission Board UI. */
 export interface WaypointAllocationSummary {
   waypoint: OverlayFeature

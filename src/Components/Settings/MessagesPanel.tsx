@@ -35,6 +35,7 @@ import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
 import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
 import { getMemberProfile } from '../../lib/supervisorService'
+import { SYSTEM_USER_ID } from '../../lib/signal/systemIdentity'
 
 export type MessagesView = 'messages' | 'messages-chat' | 'messages-group-chat'
 
@@ -1263,14 +1264,18 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
             )
           }
           const q = filter.toLowerCase()
+          // System is a synthetic pseudo-user injected into peerProfiles for
+          // name/avatar resolution of existing system conversations. It must
+          // never appear as a startable contact in the new-conversation picker.
+          const rosterMedics = allMedics.filter(m => m.id !== SYSTEM_USER_ID)
           const filtered = q
-            ? allMedics.filter(m =>
+            ? rosterMedics.filter(m =>
                 m.firstName?.toLowerCase().includes(q) ||
                 m.lastName?.toLowerCase().includes(q) ||
                 m.rank?.toLowerCase().includes(q) ||
                 [m.rank, m.lastName].filter(Boolean).join(' ').toLowerCase().includes(q)
               )
-            : allMedics
+            : rosterMedics
           if (qrScanOpen) {
             return (
               <div className="px-4 py-3 space-y-2">

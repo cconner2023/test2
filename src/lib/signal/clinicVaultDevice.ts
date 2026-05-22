@@ -732,9 +732,12 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
     for (const { content } of overlayRoutes) {
       if (content.action === 'delete') deletedOverlayIds.add(content.data.id)
     }
+    // Serial await — overlay/feature routes share a single IDB row
+    // (LocalMapOverlay.features[]) under read-modify-write; parallel
+    // fire-and-forget would last-write-wins drop deltas.
     for (const { content } of overlayRoutes) {
       if (content.action === 'delete' || !deletedOverlayIds.has(content.data.id)) {
-        routeMapOverlay(content).catch(() => {})
+        await routeMapOverlay(content).catch(() => {})
       }
     }
     if (deletedOverlayIds.size > 0) {
@@ -763,7 +766,7 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
     }
     for (const { content } of featureRoutes) {
       if (content.action === 'delete' || !deletedFeatureKeys.has(keyOf(content))) {
-        routeMapFeature(content).catch(() => {})
+        await routeMapFeature(content).catch(() => {})
       }
     }
     if (deletedFeatureKeys.size > 0) {

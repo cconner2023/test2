@@ -35,6 +35,38 @@ function OverlayRow({ overlayId, className, style, dataTour, onOpenMenu, childre
   );
 }
 
+interface FeatureRowProps {
+  featureId: string;
+  className: string;
+  style?: React.CSSProperties;
+  dataTour?: string;
+  onOpenMenu: (x: number, y: number) => void;
+  onClick: () => void;
+  children: React.ReactNode;
+}
+
+function FeatureRow({ featureId, className, style, dataTour, onOpenMenu, onClick, children }: FeatureRowProps) {
+  const { isPressing, ...longPressHandlers } = useLongPress((x, y) => onOpenMenu(x, y));
+  return (
+    <button
+      type="button"
+      data-feature-row={featureId}
+      data-tour={dataTour}
+      onClick={onClick}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onOpenMenu(e.clientX, e.clientY);
+      }}
+      {...longPressHandlers}
+      className={`${className} ${isPressing ? 'opacity-60' : ''}`}
+      style={style}
+    >
+      {children}
+    </button>
+  );
+}
+
 interface MapOverlayTreeProps {
   overlays: LocalMapOverlay[];
   activeOverlayId: string | null;
@@ -58,6 +90,12 @@ interface MapOverlayTreeProps {
   onOpenLinkPicker: (overlayId: string, anchor: HTMLElement) => void;
   /** Unlink the overlay from its currently-linked event(s). */
   onUnlinkEvent: (overlayId: string) => void;
+  /** Open the multi-pick events editor for the new N:N linked_overlays array. */
+  onOpenLinksEditor: (overlayId: string, anchor: HTMLElement) => void;
+  /** Open the multi-pick events editor for a single feature (linked_features N:N). */
+  onOpenFeatureLinksEditor: (overlayId: string, featureId: string, anchor: HTMLElement) => void;
+  /** Delete a single feature from its overlay. */
+  onDeleteFeature: (overlayId: string, featureId: string) => void;
 }
 
 export function MapOverlayTree({
@@ -79,12 +117,16 @@ export function MapOverlayTree({
   onJumpToLinkedEvent,
   onOpenLinkPicker,
   onUnlinkEvent,
+  onOpenLinksEditor,
+  onOpenFeatureLinksEditor,
+  onDeleteFeature,
 }: MapOverlayTreeProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
   const [contextMenu, setContextMenu] = useState<{ overlayId: string; x: number; y: number } | null>(null);
+  const [featureContextMenu, setFeatureContextMenu] = useState<{ overlayId: string; featureId: string; x: number; y: number } | null>(null);
 
   const sorted = useMemo(
     () => [...overlays].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()),
@@ -263,12 +305,12 @@ export function MapOverlayTree({
                 {hasChildren && !isCollapsed && overlay.features.map((feature, featureIdx) => {
                   const isSelected = selectedFeatureId === feature.id && isActive;
                   return (
-                    <button
+                    <FeatureRow
                       key={feature.id}
-                      type="button"
-                      data-tour={overlayIdx === 0 && featureIdx === 0 ? 'map-feature-row' : undefined}
-                      data-feature-row={feature.id}
+                      featureId={feature.id}
+                      dataTour={overlayIdx === 0 && featureIdx === 0 ? 'map-feature-row' : undefined}
                       onClick={() => onSelectFeature(feature, overlay.id)}
+                      onOpenMenu={(x, y) => setFeatureContextMenu({ overlayId: overlay.id, featureId: feature.id, x, y })}
                       className={`w-full flex items-center py-1.5 pr-3 text-left transition-colors ${
                         isSelected ? 'bg-themeblue3/10' : 'hover:bg-secondary/5'
                       }`}
@@ -277,7 +319,7 @@ export function MapOverlayTree({
                       <span className="text-[10pt] text-primary truncate flex-1">
                         {feature.label || `Untitled ${feature.type}`}
                       </span>
-                    </button>
+                    </FeatureRow>
                   );
                 })}
               </div>
@@ -313,6 +355,15 @@ export function MapOverlayTree({
                       onOpenLinkPicker(overlay.id, row ?? document.body);
                     },
                   },
+              {
+                key: 'manage-links',
+                label: 'Manage event links…',
+                icon: Link2,
+                onAction: () => {
+                  const row = document.querySelector<HTMLElement>(`[data-overlay-row="${overlay.id}"]`);
+                  onOpenLinksEditor(overlay.id, row ?? document.body);
+                },
+              },
               isCached
                 ? { key: 'evict', label: 'Remove offline tiles', icon: X, onAction: () => onEvictTiles(overlay.id) }
                 : {
@@ -323,6 +374,32 @@ export function MapOverlayTree({
                     onAction: () => onDownloadTiles(overlay),
                   },
               { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteOverlay(overlay.id) },
+            ]}
+          />
+        );
+      })()}
+
+      {featureContextMenu && (() => {
+        const overlay = overlays.find(o => o.id === featureContextMenu.overlayId);
+        const feature = overlay?.features.find(f => f.id === featureContextMenu.featureId);
+        if (!overlay || !feature) return null;
+        return (
+          <ContextMenu
+            x={featureContextMenu.x}
+            y={featureContextMenu.y}
+            onClose={() => setFeatureContextMenu(null)}
+            items={[
+              { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onSelectFeature(feature, overlay.id) },
+              {
+                key: 'manage-links',
+                label: 'Manage event links…',
+                icon: Link2,
+                onAction: () => {
+                  const row = document.querySelector<HTMLElement>(`[data-feature-row="${feature.id}"]`);
+                  onOpenFeatureLinksEditor(overlay.id, feature.id, row ?? document.body);
+                },
+              },
+              { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteFeature(overlay.id, feature.id) },
             ]}
           />
         );

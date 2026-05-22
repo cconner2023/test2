@@ -498,6 +498,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
               onOpenEvent={handleOpenEvent}
               onEditClinic={isSupervisor && clinicId ? setClinicEditAnchor : undefined}
               onAddMember={isSupervisor && clinicId ? setAddMemberAnchor : undefined}
+              showClusterSwitch={isMobile}
             />
           </div>
         )

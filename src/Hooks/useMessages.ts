@@ -579,14 +579,16 @@ export function useMessages(): UseMessagesReturn {
     }
 
     // Map overlays follow the same out-of-band routing as calendar events.
+    // Awaited because overlay/feature routes share a single IDB row under
+    // read-modify-write — parallel fire-and-forget would drop deltas.
     if (isMapOverlay(msg.content)) {
-      routeMapOverlay(msg.content).catch(() => {})
+      await routeMapOverlay(msg.content).catch(() => {})
       return
     }
 
     // Single-feature overlay envelopes ride the same routing.
     if (isMapFeature(msg.content)) {
-      routeMapFeature(msg.content).catch(() => {})
+      await routeMapFeature(msg.content).catch(() => {})
       return
     }
 

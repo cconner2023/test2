@@ -12,6 +12,7 @@
 import { useMemo } from 'react'
 import { useAuth } from './useAuth'
 import { useClinicLoans } from './useClinicLoans'
+import { SYSTEM_USER_ID } from '../lib/signal/systemIdentity'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 
 export interface ClinicGroupedMedics {
@@ -39,21 +40,25 @@ export function useClinicGroupedMedics(medics: ClinicMedic[]): ClinicGroupedMedi
     [loanedInMedics],
   )
 
+  // System is a synthetic pseudo-user injected into peerProfiles for name/avatar
+  // resolution. It must never appear in the contact roster.
+  const rosterMedics = useMemo(() => medics.filter(m => m.id !== SYSTEM_USER_ID), [medics])
+
   const ownClinicMedics = useMemo(() => {
-    if (!canSplit) return [...medics].sort((a, b) => (a.lastName ?? '').localeCompare(b.lastName ?? ''))
+    if (!canSplit) return [...rosterMedics].sort((a, b) => (a.lastName ?? '').localeCompare(b.lastName ?? ''))
     const byId = new Map<string, ClinicMedic>()
-    for (const m of medics) {
+    for (const m of rosterMedics) {
       if (!m.clinicId || m.clinicId === userClinicId) byId.set(m.id, m)
     }
     for (const m of loanedInMedics) {
       if (!byId.has(m.id)) byId.set(m.id, m)
     }
     return Array.from(byId.values()).sort((a, b) => (a.lastName ?? '').localeCompare(b.lastName ?? ''))
-  }, [medics, loanedInMedics, userClinicId, canSplit])
+  }, [rosterMedics, loanedInMedics, userClinicId, canSplit])
 
   const nearbyByClinic = useMemo(() => {
     if (!canSplit) return {} as Record<string, ClinicMedic[]>
-    const nearby = medics.filter(m => m.clinicId && m.clinicId !== userClinicId && !loanedInIds.has(m.id))
+    const nearby = rosterMedics.filter(m => m.clinicId && m.clinicId !== userClinicId && !loanedInIds.has(m.id))
     const grouped: Record<string, ClinicMedic[]> = {}
     for (const m of nearby) {
       const key = m.clinicName ?? 'Other'
@@ -63,7 +68,7 @@ export function useClinicGroupedMedics(medics: ClinicMedic[]): ClinicGroupedMedi
       grouped[key].sort((a, b) => (a.lastName ?? '').localeCompare(b.lastName ?? ''))
     }
     return grouped
-  }, [medics, userClinicId, canSplit])
+  }, [rosterMedics, loanedInIds, userClinicId, canSplit])
 
   const nearbyClinicNames = useMemo(
     () => Object.keys(nearbyByClinic).sort(),

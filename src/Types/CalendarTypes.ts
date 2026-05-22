@@ -3,7 +3,7 @@ export type EventCategory =
 
 export type EventStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
 
-import type { ResourceAllocation, StructuredLocation } from './MissionTypes'
+import type { LinkedFeatureRef, ResourceAllocation, StructuredLocation } from './MissionTypes'
 import type { MedevacRequest } from './MedevacTypes'
 
 export interface CalendarEvent {
@@ -31,8 +31,19 @@ export interface CalendarEvent {
    * Absent → event renders in the providers row (provider on left, paired medic(s) on right).
    */
   huddle_task_id?: string | null
-  /** Structured geo-binding — links to a map overlay and optionally a primary waypoint. */
+  /** Structured geo-binding — links to a map overlay and optionally a primary waypoint. Drives presence/share. */
   structured_location?: StructuredLocation | null
+  /**
+   * Free-form N:N links to whole overlays (independent of structured_location).
+   * Implies linkage to every feature inside the overlay. See src/lib/eventLinks.ts.
+   */
+  linked_overlays?: string[] | null
+  /**
+   * Free-form N:N links to individual features. overlay_id stored alongside so
+   * feature resolution does not require scanning every overlay. A feature link
+   * does NOT imply the parent overlay is fully linked — surface as "partial".
+   */
+  linked_features?: LinkedFeatureRef[] | null
   /** Resource allocations — items staged at specific waypoints with roles and responsible personnel. */
   resource_allocations?: ResourceAllocation[] | null
   created_by: string
@@ -94,6 +105,10 @@ export interface EventFormData {
   huddle_task_id?: string | null
   /** Overlay link set from the overlay picker — undefined means no overlay selected. */
   structured_location?: StructuredLocation | null
+  /** Additional N:N overlay links (form mirror of CalendarEvent.linked_overlays). */
+  linked_overlays?: string[] | null
+  /** Per-feature N:N links (form mirror of CalendarEvent.linked_features). */
+  linked_features?: LinkedFeatureRef[] | null
   /** 9-line MEDEVAC request — populated when category is 'medevac'. */
   medevac_data?: MedevacRequest | null
   /**
@@ -197,6 +212,8 @@ export function createEmptyFormData(forDateKey?: string): EventFormData {
     room_id: null,
     huddle_task_id: null,
     structured_location: null,
+    linked_overlays: null,
+    linked_features: null,
     medevac_data: null,
     pcc: null,
   }
@@ -219,6 +236,8 @@ export function eventToFormData(event: CalendarEvent): EventFormData {
     room_id: event.room_id ?? null,
     huddle_task_id: event.huddle_task_id ?? null,
     structured_location: event.structured_location ?? null,
+    linked_overlays: event.linked_overlays ?? null,
+    linked_features: event.linked_features ?? null,
     medevac_data: event.medevac_data ?? null,
     pcc: event.pcc ?? null,
   }

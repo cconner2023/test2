@@ -532,9 +532,10 @@ export function useSignalMessages({
           if (isCalendarEvent(content)) {
             routeCalendarEvent(content)
           } else if (isMapOverlay(content)) {
-            routeMapOverlay(content).catch(() => {})
+            // Serial await — overlay/feature routes share a single IDB row under RMW.
+            await routeMapOverlay(content).catch(() => {})
           } else if (isMapFeature(content)) {
-            routeMapFeature(content).catch(() => {})
+            await routeMapFeature(content).catch(() => {})
           }
         } catch (e) {
           logger.warn(`Failed to decrypt clinic message ${row.id}:`, e instanceof Error ? e.message : e)
@@ -733,9 +734,10 @@ export function useSignalMessages({
           if (isCalendarEvent(content)) {
             routeCalendarEvent(content)
           } else if (isMapOverlay(content)) {
-            routeMapOverlay(content).catch(() => {})
+            // Serial await — overlay/feature routes share a single IDB row under RMW.
+            await routeMapOverlay(content).catch(() => {})
           } else if (isMapFeature(content)) {
-            routeMapFeature(content).catch(() => {})
+            await routeMapFeature(content).catch(() => {})
           }
           markMessagesRead([row.id]).catch(() => {})
         } catch (e) {

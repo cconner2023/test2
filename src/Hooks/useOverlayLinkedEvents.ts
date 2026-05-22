@@ -1,24 +1,45 @@
 import { useMemo } from 'react'
 import { useCalendarStore } from '../stores/useCalendarStore'
+import { explicitlyLinkedFeatureIds, resolveOverlayLink } from '../lib/eventLinks'
 import type { CalendarEvent } from '../Types/CalendarTypes'
 
+export interface PartiallyLinkedEvent {
+  event: CalendarEvent
+  /** Feature ids explicitly listed in event.linked_features for this overlay. */
+  featureIds: string[]
+}
+
+export interface OverlayLinkedEvents {
+  /** Events with the overlay in linked_overlays — every feature is implied linked. */
+  full: CalendarEvent[]
+  /** Events with at least one of the overlay's features in linked_features (but not fully linked). */
+  partial: PartiallyLinkedEvent[]
+}
+
+const EMPTY: OverlayLinkedEvents = { full: [], partial: [] }
+
 /**
- * Inverse of CalendarEvent.structured_location.overlay_id — given an overlay id,
- * return every CalendarEvent in the store that references it. Empty array when
- * unlinked (or when the overlayId is null). Sorted by start_time ascending so
- * the next-upcoming event is at index 0.
+ * Inverse lookup: every CalendarEvent in the store that links to `overlayId`,
+ * partitioned by link strength. Sorted by start_time ascending within each bucket.
  *
- * The forward link lives on the calendar event (see Types/MissionTypes.ts
- * StructuredLocation); this hook is the only thing other domains need to read
- * the relationship from the map side without coupling to the calendar's
- * internal layout.
+ * Reads new N:N fields (linked_overlays / linked_features). Does NOT consult
+ * structured_location — that field drives presence/share and is intentionally
+ * orthogonal to free-form metadata links.
  */
-export function useOverlayLinkedEvents(overlayId: string | null | undefined): CalendarEvent[] {
+export function useOverlayLinkedEvents(overlayId: string | null | undefined): OverlayLinkedEvents {
   const events = useCalendarStore(s => s.events)
   return useMemo(() => {
-    if (!overlayId) return []
-    return events
-      .filter(e => e.structured_location?.overlay_id === overlayId)
-      .sort((a, b) => a.start_time.localeCompare(b.start_time))
+    if (!overlayId) return EMPTY
+    const full: CalendarEvent[] = []
+    const partial: PartiallyLinkedEvent[] = []
+    for (const event of events) {
+      const state = resolveOverlayLink(event, overlayId)
+      if (state === 'full') full.push(event)
+      else if (state === 'partial') partial.push({ event, featureIds: explicitlyLinkedFeatureIds(event, overlayId) })
+    }
+    const byStart = (a: CalendarEvent, b: CalendarEvent) => a.start_time.localeCompare(b.start_time)
+    full.sort(byStart)
+    partial.sort((a, b) => byStart(a.event, b.event))
+    return { full, partial }
   }, [events, overlayId])
 }

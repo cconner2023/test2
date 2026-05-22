@@ -56,7 +56,7 @@ export const features = {
     label: 'Tactical Map Overlay',
     store: null,
     services: ['mapOverlayService', 'supervisorService'],
-    tables: [], // map_overlays synced via offline queue
+    tables: [], // overlays propagate over the clinic Signal vault (useMapOverlayVault); no Supabase row + no offline-queue table
     idb: ['packagebackend-offline:mapOverlays'],
     components: 'Components/MapOverlay/',
     drawer: { id: 'showMapOverlayDrawer', wrapper: 'MapOverlayPanel.tsx' },

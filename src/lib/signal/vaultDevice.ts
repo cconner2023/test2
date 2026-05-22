@@ -845,9 +845,10 @@ export async function processVaultMessages(userId: string): Promise<number> {
     for (const c of overlayRoutes) {
       if (c.action === 'delete') deletedOverlayIds.add(c.data.id)
     }
+    // Serial await — overlay/feature routes share a single IDB row under RMW.
     for (const c of overlayRoutes) {
       if (c.action === 'delete' || !deletedOverlayIds.has(c.data.id)) {
-        routeMapOverlay(c).catch(() => {})
+        await routeMapOverlay(c).catch(() => {})
       }
     }
   }
@@ -862,7 +863,7 @@ export async function processVaultMessages(userId: string): Promise<number> {
     }
     for (const c of featureRoutes) {
       if (c.action === 'delete' || !deletedFeatureKeys.has(keyOf(c))) {
-        routeMapFeature(c).catch(() => {})
+        await routeMapFeature(c).catch(() => {})
       }
     }
   }

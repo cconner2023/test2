@@ -760,6 +760,7 @@ case 'mapOverlay':
           isVisible={navigation.showMapOverlayDrawer}
           onClose={() => navigation.setShowMapOverlayDrawer(false)}
           initialOverlayId={navigation.mapOverlayDrawerOverlayId}
+          initialFeatureId={navigation.mapOverlayDrawerFeatureId}
         />
         </ErrorBoundary>
         <ErrorBoundary>

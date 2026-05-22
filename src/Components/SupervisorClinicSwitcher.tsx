@@ -14,8 +14,8 @@
  * through). Server still validates every RPC against `auth_clinic_ids()`.
  */
 
-import { useRef, useState } from 'react'
-import { Building2, Check } from 'lucide-react'
+import { useCallback, useRef, useState } from 'react'
+import { ArrowLeftRight, Check } from 'lucide-react'
 import { useAuth } from '../Hooks/useAuth'
 import { ActionButton } from './ActionButton'
 import { PreviewOverlay } from './PreviewOverlay'
@@ -70,22 +70,41 @@ export function SupervisorClinicFilterPanel() {
   )
 }
 
-/** ClinicPanel clinic-card affordance — small icon button + popover picker. */
+/**
+ * Card-mounted cluster-switch action — mirrors ClinicPanel's pill button
+ * (Settings → clinic management). With exactly one alternative cluster the
+ * button flips `supervisingClinicId` directly ("Switch to {name}"); with more,
+ * it opens a picker.
+ */
 export function SupervisorClinicCardAction() {
   const options = useSupervisorContextOptions()
   const { supervisingClinicId, setSupervisingClinic } = useAuth()
   const buttonRef = useRef<HTMLDivElement>(null)
   const [anchor, setAnchor] = useState<DOMRect | null>(null)
 
+  const handleClick = useCallback(() => {
+    if (!options) return
+    if (options.length === 2) {
+      const next = options.find((c) => c.id !== supervisingClinicId) ?? options[0]
+      setSupervisingClinic(next.id)
+      return
+    }
+    setAnchor(buttonRef.current?.getBoundingClientRect() ?? null)
+  }, [options, supervisingClinicId, setSupervisingClinic])
+
   if (!options) return null
+
+  const otherName = options.length === 2
+    ? options.find((c) => c.id !== supervisingClinicId)?.name ?? 'other cluster'
+    : null
 
   return (
     <>
       <div ref={buttonRef} className="contents">
         <ActionButton
-          icon={Building2}
-          label="Switch cluster context"
-          onClick={() => setAnchor(buttonRef.current?.getBoundingClientRect() ?? null)}
+          icon={ArrowLeftRight}
+          label={otherName ? `Switch to ${otherName}` : 'Switch cluster'}
+          onClick={handleClick}
         />
       </div>
       <PreviewOverlay

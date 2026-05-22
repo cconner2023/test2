@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Copy, Check, Link2, Link2Off, ExternalLink } from 'lucide-react';
+import { Copy, Check, Link2, Link2Off, ExternalLink, X as XIcon } from 'lucide-react';
 import { latLngToMgrs } from '../../lib/mgrsFormat';
 import type { OverlayFeature, WaypointType } from '../../Types/MapOverlayTypes';
 import { TACTICAL_COLORS, WAYPOINT_LABELS, PIN_GLYPHS } from '../../Types/MapOverlayTypes';
@@ -28,6 +28,16 @@ interface FeatureEditorProps {
   /** Called when the user taps Navigate on a waypoint — seeds a temp route
    *  with this pin as the start; next map tap picks the end. */
   onStartNavigation?: (lat: number, lng: number, anchorFeatureId: string) => void;
+  /** Count of CalendarEvents linked to this feature (explicit + parent-overlay implied). Hidden when undefined. */
+  linkedEventCount?: number;
+  /** Open the per-feature event multi-pick popover anchored to the supplied element. */
+  onOpenLinksEditor?: (anchor: HTMLElement) => void;
+  /** True when the overlay has unsaved feature/geometry edits. Drives the Save/Cancel pills. */
+  isDirty?: boolean;
+  /** Commit the draft through the overlay's diff-based save pipeline. */
+  onSave?: () => void;
+  /** Discard the draft and revert features to the last-saved snapshot. */
+  onCancel?: () => void;
 }
 
 const WAYPOINT_SNAP_M = 15; // legs that end within this distance of a waypoint borrow its label
@@ -75,7 +85,7 @@ function nearestWaypointLabel(
   return best ? best.label : null;
 }
 
-export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, onStartNavigation }: FeatureEditorProps) {
+export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, onStartNavigation, linkedEventCount, onOpenLinksEditor, isDirty, onSave, onCancel }: FeatureEditorProps) {
   const [copied, setCopied] = useState(false);
   const bearingReference = useMapPrefsStore(s => s.bearingReference);
   // Phase 4.1 — TC3 link integration. We subscribe with selectors so the
@@ -252,6 +262,35 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
 
   return (
     <div data-tour="map-feature-editor" className="flex flex-col pb-[calc(env(safe-area-inset-bottom)+3rem)]">
+      {/* Draft Save/Cancel — only renders when the overlay has unsaved edits.
+          Sits at the top so it's reachable without scrolling on tall editors. */}
+      {isDirty && (onSave || onCancel) && (
+        <div className="px-3 py-2 border-b border-primary/6 flex items-center gap-2 bg-themeblue3/5">
+          <span className="flex-1 text-[10pt] text-tertiary">Unsaved changes</span>
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+              aria-label="Discard changes"
+              title="Discard changes"
+            >
+              <XIcon size={15} />
+            </button>
+          )}
+          {onSave && (
+            <button
+              type="button"
+              onClick={onSave}
+              className="w-9 h-9 rounded-full flex items-center justify-center text-themewhite bg-themeblue3 active:scale-95 transition-all"
+              aria-label="Save changes"
+              title="Save changes"
+            >
+              <Check size={15} />
+            </button>
+          )}
+        </div>
+      )}
       {/* Editable label — primary identifier for the feature. Mirrors the
           desktop sidebar's title input so mobile can rename without an
           external chrome row. */}
@@ -426,6 +465,31 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
               </button>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Linked calendar events (N:N free-form) — opens the multi-pick popover. */}
+      {onOpenLinksEditor && (
+        <div className="px-3 py-2 border-b border-primary/6 flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-[10pt] font-medium text-primary">
+              {linkedEventCount && linkedEventCount > 0
+                ? `Linked to ${linkedEventCount} event${linkedEventCount === 1 ? '' : 's'}`
+                : 'No linked events'}
+            </p>
+            <p className="text-[9pt] text-tertiary">
+              Tap to manage which calendar events reference this feature.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => onOpenLinksEditor(e.currentTarget)}
+            aria-label="Manage linked events"
+            title="Manage linked events"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-themeblue3 active:scale-95 transition-all"
+          >
+            <Link2 size={14} />
+          </button>
         </div>
       )}
 

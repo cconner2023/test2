@@ -52,6 +52,7 @@ import { FeatureEditor } from './FeatureEditor';
 import { MapOverlayTree } from './MapOverlayTree';
 import { OverlayEventPicker } from './OverlayEventPicker';
 import { useCalendarWrite } from '../../Hooks/useCalendarWrite';
+import { addFeatureLink, addOverlayLink, removeFeatureLink, removeOverlayLink } from '../../lib/eventLinks';
 import { useNavigationStore } from '../../stores/useNavigationStore';
 import { resolveSearch } from './searchResolver';
 import { MapSearchOverlay, type SearchOverlaySelection } from './MapSearchOverlay';
@@ -238,6 +239,7 @@ interface MapOverlayPanelProps {
   isVisible: boolean;
   onClose: () => void;
   initialOverlayId?: string | null;
+  initialFeatureId?: string | null;
 }
 
 const UI_TIMING = { FEEDBACK_DURATION: 4000 } as const;
@@ -293,7 +295,7 @@ function closestSegmentInsertIndex(geometry: [number, number][], point: [number,
   return bestIdx;
 }
 
-export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOverlayPanelProps) {
+export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialFeatureId }: MapOverlayPanelProps) {
   const isMobile = useIsMobile();
   const { user, clinicId, supervisingClinicId } = useAuth();
   // Active operating-as clinic — single source of truth for overlay scoping,
@@ -377,11 +379,13 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     inProgressFeatureId.current = null;
   }, []);
 
-  // Autosave: debounced features-watcher. skipAutosaveRef suppresses the firing
-  // immediately after handleOpenOverlay/handleNewOverlay populates features.
-  const autosaveTimerRef = useRef<number | null>(null);
-  const skipAutosaveRef = useRef(true);
-  const flushAutosaveRef = useRef<() => Promise<void>>(async () => {});
+  // Draft mode: feature mutations stay local until the user taps Save in the
+  // FeatureEditor. skipDirtyRef suppresses the dirty-flip immediately after
+  // handleOpenOverlay/handleNewOverlay populates features so the load itself
+  // doesn't register as a user edit.
+  const skipDirtyRef = useRef(true);
+  const [isDirty, setIsDirty] = useState(false);
+  const [confirmDiscardClose, setConfirmDiscardClose] = useState(false);
 
   // Diff-based autosave: lastSaved*Ref hold the snapshot the vault was last
   // told about, so each autosave dispatches only the per-feature envelopes
@@ -395,7 +399,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   const lastSavedMetadataRef = useRef<{ name: string; center: [number, number]; zoom: number } | null>(null);
   const overlayCreatedRef = useRef<Set<string>>(new Set());
   const [confirmDeleteOverlayId, setConfirmDeleteOverlayId] = useState<string | null>(null);
-  const [confirmDeleteFeature, setConfirmDeleteFeature] = useState(false);
+  const [confirmDeleteFeature, setConfirmDeleteFeature] = useState<string | null>(null);
 
   const mapRef = useRef<MapViewHandle>(null);
   const gpxKmlInputRef = useRef<HTMLInputElement>(null);
@@ -442,6 +446,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   const openCalendarEvent = useNavigationStore(s => s.openCalendarEvent);
 
   const [linkPicker, setLinkPicker] = useState<{ overlayId: string; anchor: DOMRect } | null>(null);
+  const [linksEditor, setLinksEditor] = useState<{ overlayId: string; anchor: DOMRect } | null>(null);
+  const [featureLinksEditor, setFeatureLinksEditor] = useState<{ overlayId: string; featureId: string; anchor: DOMRect } | null>(null);
 
   const handleJumpToLinkedEvent = useCallback((targetOverlayId: string) => {
     const next = allEvents
@@ -478,6 +484,55 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
       writeEvent({ ...e, structured_location: null, updated_at: new Date().toISOString() });
     }
   }, [allEvents, writeEvent]);
+
+  const handleOpenLinksEditor = useCallback((targetOverlayId: string, anchor: HTMLElement) => {
+    setLinksEditor({ overlayId: targetOverlayId, anchor: anchor.getBoundingClientRect() });
+  }, []);
+
+  const handleToggleOverlayLink = useCallback((event: CalendarEvent, willLink: boolean) => {
+    if (!linksEditor) return;
+    const next = willLink
+      ? addOverlayLink(event, linksEditor.overlayId)
+      : removeOverlayLink(event, linksEditor.overlayId);
+    if (next === event) return;
+    writeEvent({ ...next, updated_at: new Date().toISOString() });
+  }, [linksEditor, writeEvent]);
+
+  const handleOpenFeatureLinksEditor = useCallback((targetOverlayId: string, targetFeatureId: string, anchor: HTMLElement) => {
+    setFeatureLinksEditor({ overlayId: targetOverlayId, featureId: targetFeatureId, anchor: anchor.getBoundingClientRect() });
+  }, []);
+
+  const handleToggleFeatureLink = useCallback((event: CalendarEvent, willLink: boolean) => {
+    if (!featureLinksEditor) return;
+    const { overlayId: ov, featureId: fid } = featureLinksEditor;
+    const next = willLink
+      ? addFeatureLink(event, ov, fid)
+      : removeFeatureLink(event, ov, fid);
+    if (next === event) return;
+    writeEvent({ ...next, updated_at: new Date().toISOString() });
+  }, [featureLinksEditor, writeEvent]);
+
+  const linkedEventIdsForOverlay = useMemo(() => {
+    const id = linksEditor?.overlayId;
+    if (!id) return new Set<string>();
+    const set = new Set<string>();
+    for (const e of allEvents) {
+      if (e.linked_overlays?.includes(id)) set.add(e.id);
+    }
+    return set;
+  }, [linksEditor?.overlayId, allEvents]);
+
+  const linkedEventIdsForFeature = useMemo(() => {
+    const ed = featureLinksEditor;
+    if (!ed) return new Set<string>();
+    const set = new Set<string>();
+    for (const e of allEvents) {
+      const explicit = e.linked_features?.some(f => f.overlay_id === ed.overlayId && f.feature_id === ed.featureId);
+      const implied = e.linked_overlays?.includes(ed.overlayId);
+      if (explicit || implied) set.add(e.id);
+    }
+    return set;
+  }, [featureLinksEditor, allEvents]);
 
   // Phase 4.3a — auto-share when the linked event is in_progress AND the
   // current user is a participant. Manual toggles win — once the user
@@ -632,6 +687,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
           const target = loaded.find(o => o.id === initialOverlayId);
           if (target) {
             handleOpenOverlay(target as MapOverlay);
+            if (initialFeatureId && target.features.some(f => f.id === initialFeatureId)) {
+              setSelectedFeatureId(initialFeatureId);
+            }
           } else {
             handleNewOverlay({ recenter: true });
           }
@@ -737,7 +795,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
       setVisibleOverlayIds(prev => new Set([...prev, newId]));
       startWatching();
       // Allow autosave to persist on next features change (don't suppress).
-      skipAutosaveRef.current = false;
+      skipDirtyRef.current = false;
       // Fit to imported features.
       const bbox = computeOverlayBbox(stamped);
       if (bbox) setTimeout(() => mapRef.current?.fitBounds(bbox), 400);
@@ -787,7 +845,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
       setTimeout(() => mapRef.current?.flyTo(initialCenter[0], initialCenter[1], 12), 400);
     }
     // New-overlay flow: autosave names it on first feature mutation.
-    skipAutosaveRef.current = true;
+    skipDirtyRef.current = true;
   }, [startWatching, initialCenter]);
 
   const handleOpenOverlay = useCallback((overlay: MapOverlay) => {
@@ -798,7 +856,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     setSelectedFeatureId(null);
     setSearchQuery('');
     setTempRoute(null);
-    skipAutosaveRef.current = true;
+    skipDirtyRef.current = true;
     // Seed diff-baselines: the overlay already exists in IDB and on the vault,
     // so subsequent edits go straight to per-feature envelopes.
     overlayCreatedRef.current.add(overlay.id);
@@ -879,23 +937,28 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     setView('converter');
   }, []);
 
-  const handleBack = useCallback(async () => {
-    if (view === 'viewer') {
-      // Await the pending re-fan before unmount — closing mid-encryption would
-      // orphan the vault send and leave the local IDB out of sync with peers.
-      await flushAutosaveRef.current();
-      stopWatching();
-      setIsSharing(false);
-      setDrawMode('pan');
-      setSelectedFeatureId(null);
-      setMeasurePoints([]);
-      setMeasureResult(null);
-      resetInProgressDrawing();
-      onClose();
-    } else {
+  const performClose = useCallback(() => {
+    stopWatching();
+    setIsSharing(false);
+    setDrawMode('pan');
+    setSelectedFeatureId(null);
+    setMeasurePoints([]);
+    setMeasureResult(null);
+    resetInProgressDrawing();
+    onClose();
+  }, [stopWatching, onClose, resetInProgressDrawing]);
+
+  const handleBack = useCallback(() => {
+    if (view !== 'viewer') {
       setView('viewer');
+      return;
     }
-  }, [view, stopWatching, onClose, resetInProgressDrawing]);
+    if (isDirty) {
+      setConfirmDiscardClose(true);
+      return;
+    }
+    performClose();
+  }, [view, isDirty, performClose]);
 
   // Create a real waypoint feature at the given point. Shared by pin-mode
   // taps, desktop single-click drops, and mobile long-press drops.
@@ -1297,34 +1360,27 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     setOverlays(prev => prev.map(o => o.id === overlayId
       ? { ...o, name, center: mapCenter, zoom: mapZoom, features, updated_at: new Date().toISOString() }
       : o));
+    skipDirtyRef.current = true;
+    setIsDirty(false);
   }, [overlayId, user, activeClinicId, overlayName, mapCenter, mapZoom, features, writeOverlay, upsertFeature, removeFeature, writeOverlayMetadata]);
 
-  // Autosave: debounce 600ms after the last features mutation. The first effect
-  // run after open/new is suppressed via skipAutosaveRef so we don't echo-save.
-  const flushAutosave = useCallback(async () => {
-    if (autosaveTimerRef.current) {
-      window.clearTimeout(autosaveTimerRef.current);
-      autosaveTimerRef.current = null;
-      await handleSaveClick();
-    }
-  }, [handleSaveClick]);
-
+  // Dirty watcher: any features change after the initial load flips draft mode
+  // on. Save (via handleSaveClick) and Cancel (handleCancelDraft) both arm
+  // skipDirtyRef so the resulting setFeatures doesn't re-flip it.
   useEffect(() => {
-    flushAutosaveRef.current = flushAutosave;
-  }, [flushAutosave]);
-
-  useEffect(() => {
-    if (skipAutosaveRef.current) {
-      skipAutosaveRef.current = false;
+    if (skipDirtyRef.current) {
+      skipDirtyRef.current = false;
       return;
     }
-    if (!overlayId || !user || !activeClinicId) return;
-    if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
-    autosaveTimerRef.current = window.setTimeout(() => {
-      autosaveTimerRef.current = null;
-      handleSaveClick();
-    }, 600);
-  }, [features, overlayId, user, activeClinicId, handleSaveClick]);
+    setIsDirty(true);
+  }, [features]);
+
+  const handleCancelDraft = useCallback(() => {
+    skipDirtyRef.current = true;
+    setFeatures(lastSavedFeaturesRef.current);
+    setSelectedFeatureId(null);
+    setIsDirty(false);
+  }, []);
 
   const handleRenameOverlay = useCallback(async (overlay: LocalMapOverlay, name: string) => {
     if (!user || !activeClinicId) return;
@@ -1476,18 +1532,32 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   // ── Delete selected ──
   const handleDeleteSelected = useCallback(() => {
     if (!selectedFeatureId) return;
-    setConfirmDeleteFeature(true);
+    setConfirmDeleteFeature(selectedFeatureId);
   }, [selectedFeatureId]);
 
-  const handleConfirmDeleteFeature = useCallback(() => {
-    if (!selectedFeatureId) {
-      setConfirmDeleteFeature(false);
-      return;
+  const handleDeleteFeatureFromTree = useCallback((_overlayId: string, featureId: string) => {
+    setConfirmDeleteFeature(featureId);
+  }, []);
+
+  const handleConfirmDeleteFeature = useCallback(async () => {
+    const targetId = confirmDeleteFeature;
+    setConfirmDeleteFeature(null);
+    if (!targetId || !overlayId || !activeClinicId) return;
+
+    // The delete ConfirmDialog *is* the save ceremony for this batch — commit
+    // the removal now instead of leaving it in draft. Other pending features
+    // stay dirty (lastSavedFeaturesRef carves the deleted id but keeps the
+    // rest of the baseline intact, so a later Save still diffs correctly).
+    const wasSaved = lastSavedFeaturesRef.current.some(f => f.id === targetId);
+    const wasOverlayCreated = overlayCreatedRef.current.has(overlayId);
+    if (wasSaved && wasOverlayCreated) {
+      await removeFeature({ overlayId, clinicId: activeClinicId, featureId: targetId });
     }
-    setFeatures(prev => prev.filter(f => f.id !== selectedFeatureId));
-    setSelectedFeatureId(null);
-    setConfirmDeleteFeature(false);
-  }, [selectedFeatureId]);
+    lastSavedFeaturesRef.current = lastSavedFeaturesRef.current.filter(f => f.id !== targetId);
+    skipDirtyRef.current = true;
+    setFeatures(prev => prev.filter(f => f.id !== targetId));
+    setSelectedFeatureId(prev => (prev === targetId ? null : prev));
+  }, [confirmDeleteFeature, overlayId, activeClinicId, removeFeature]);
 
   // ── Undo last vertex (route / area drawing) ──
   const handleUndoVertex = useCallback(() => {
@@ -1613,10 +1683,11 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   return (
     <BaseDrawer
       isVisible={isVisible}
-      onClose={async () => {
-        // Mirror handleBack's flush so the X path also awaits the in-flight
-        // re-fan instead of orphaning it on unmount.
-        await flushAutosaveRef.current();
+      onClose={() => {
+        if (isDirty && view === 'viewer') {
+          setConfirmDiscardClose(true);
+          return;
+        }
         onClose();
       }}
       mobileFullScreen
@@ -1687,6 +1758,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                 onJumpToLinkedEvent={handleJumpToLinkedEvent}
                 onOpenLinkPicker={handleOpenLinkPicker}
                 onUnlinkEvent={handleUnlinkEvent}
+                onOpenLinksEditor={handleOpenLinksEditor}
+                onOpenFeatureLinksEditor={handleOpenFeatureLinksEditor}
+                onDeleteFeature={handleDeleteFeatureFromTree}
               />
               <OverlayEventPicker
                 isOpen={!!linkPicker}
@@ -1698,6 +1772,24 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                     : null
                 }
                 onPick={handlePickEventForLink}
+                zIndex={1100}
+              />
+              <OverlayEventPicker
+                isOpen={!!linksEditor}
+                onClose={() => setLinksEditor(null)}
+                anchorRect={linksEditor?.anchor ?? null}
+                linkedEventIds={linkedEventIdsForOverlay}
+                onToggle={handleToggleOverlayLink}
+                title="Linked events (overlay)"
+                zIndex={1100}
+              />
+              <OverlayEventPicker
+                isOpen={!!featureLinksEditor}
+                onClose={() => setFeatureLinksEditor(null)}
+                anchorRect={featureLinksEditor?.anchor ?? null}
+                linkedEventIds={linkedEventIdsForFeature}
+                onToggle={handleToggleFeatureLink}
+                title="Linked events (feature)"
                 zIndex={1100}
               />
             </div>
@@ -1806,6 +1898,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                         onJumpToLinkedEvent={(id) => { handleJumpToLinkedEvent(id); setShowMobileTree(false); }}
                         onOpenLinkPicker={handleOpenLinkPicker}
                         onUnlinkEvent={handleUnlinkEvent}
+                        onOpenLinksEditor={handleOpenLinksEditor}
+                        onOpenFeatureLinksEditor={(ov, fid, anchor) => { handleOpenFeatureLinksEditor(ov, fid, anchor); setShowMobileTree(false); }}
+                        onDeleteFeature={(ov, fid) => { handleDeleteFeatureFromTree(ov, fid); setShowMobileTree(false); }}
                       />
                     </section>
                   </div>
@@ -1852,6 +1947,15 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                       waypoints={features.filter(f => f.type === 'waypoint')}
                       onFocusLeg={(bbox) => mapRef.current?.fitBounds(bbox)}
                       onStartNavigation={handleStartNavigation}
+                      linkedEventCount={allEvents.reduce((n, e) => {
+                        const explicit = e.linked_features?.some(f => f.overlay_id === selectedFeature.overlay_id && f.feature_id === selectedFeature.id)
+                        const implied = e.linked_overlays?.includes(selectedFeature.overlay_id)
+                        return n + (explicit || implied ? 1 : 0)
+                      }, 0)}
+                      onOpenLinksEditor={(anchor) => handleOpenFeatureLinksEditor(selectedFeature.overlay_id, selectedFeature.id, anchor)}
+                      isDirty={isDirty}
+                      onSave={handleSaveClick}
+                      onCancel={handleCancelDraft}
                     />
                   )}
                 </BaseDrawer>
@@ -2328,6 +2432,15 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
                       waypoints={features.filter(f => f.type === 'waypoint')}
                       onFocusLeg={(bbox) => mapRef.current?.fitBounds(bbox)}
                       onStartNavigation={handleStartNavigation}
+                      linkedEventCount={allEvents.reduce((n, e) => {
+                        const explicit = e.linked_features?.some(f => f.overlay_id === selectedFeature.overlay_id && f.feature_id === selectedFeature.id)
+                        const implied = e.linked_overlays?.includes(selectedFeature.overlay_id)
+                        return n + (explicit || implied ? 1 : 0)
+                      }, 0)}
+                      onOpenLinksEditor={(anchor) => handleOpenFeatureLinksEditor(selectedFeature.overlay_id, selectedFeature.id, anchor)}
+                      isDirty={isDirty}
+                      onSave={handleSaveClick}
+                      onCancel={handleCancelDraft}
                     />
                   </div>
                 </div>
@@ -2364,13 +2477,26 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
         onCancel={() => setConfirmDeleteOverlayId(null)}
       />
       <ConfirmDialog
-        visible={confirmDeleteFeature}
+        visible={!!confirmDeleteFeature}
         title="Delete this feature?"
         subtitle="The overlay will re-sync to every device in this clinic."
         confirmLabel="Delete"
         variant="danger"
         onConfirm={handleConfirmDeleteFeature}
-        onCancel={() => setConfirmDeleteFeature(false)}
+        onCancel={() => setConfirmDeleteFeature(null)}
+      />
+      <ConfirmDialog
+        visible={confirmDiscardClose}
+        title="Discard unsaved changes?"
+        subtitle="Edits to this overlay haven't been saved. Closing now drops them."
+        confirmLabel="Discard"
+        variant="danger"
+        onConfirm={() => {
+          handleCancelDraft();
+          setConfirmDiscardClose(false);
+          performClose();
+        }}
+        onCancel={() => setConfirmDiscardClose(false)}
       />
     </BaseDrawer>
   );

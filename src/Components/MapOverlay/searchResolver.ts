@@ -84,3 +84,40 @@ export async function resolveSearch(query: string): Promise<SearchResult | null>
   if (!q) return null;
   return tryMgrs(q) ?? tryUtm(q) ?? tryLatLng(q) ?? await tryNominatim(q);
 }
+
+/**
+ * Reverse-geocode a coordinate to a short street address via Nominatim.
+ * Returns null when offline or when the lookup fails. Cached in-memory by
+ * 4-decimal lat/lng key so repeated renders don't re-fetch.
+ */
+const reverseCache = new Map<string, string | null>();
+const reverseInflight = new Map<string, Promise<string | null>>();
+
+export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
+  const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+  if (reverseCache.has(key)) return reverseCache.get(key) ?? null;
+  const existing = reverseInflight.get(key);
+  if (existing) return existing;
+  const p = (async () => {
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=json&zoom=16&lat=${lat}&lon=${lng}`;
+      const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+      if (!res.ok) {
+        reverseCache.set(key, null);
+        return null;
+      }
+      const data = await res.json();
+      const display = typeof data?.display_name === 'string' ? data.display_name : null;
+      const short = display ? display.split(',').slice(0, 3).join(',').trim() : null;
+      reverseCache.set(key, short);
+      return short;
+    } catch {
+      reverseCache.set(key, null);
+      return null;
+    } finally {
+      reverseInflight.delete(key);
+    }
+  })();
+  reverseInflight.set(key, p);
+  return p;
+}

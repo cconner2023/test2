@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Calendar as CalendarIcon } from 'lucide-react'
+import { Calendar as CalendarIcon, Check } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
@@ -8,10 +8,20 @@ interface OverlayEventPickerProps {
   isOpen: boolean
   onClose: () => void
   anchorRect: DOMRect | null
-  /** Currently linked event (if any) — shown with an active ring; selecting it is a no-op. */
+  /** Currently linked event (if any) — shown with an active ring; selecting it is a no-op. (Single-pick mode.) */
   currentEventId?: string | null
-  /** Called with the chosen event. Caller is responsible for writing the link. */
-  onPick: (event: CalendarEvent) => void
+  /** Called with the chosen event. Caller is responsible for writing the link. (Single-pick mode.) */
+  onPick?: (event: CalendarEvent) => void
+  /**
+   * Multi-pick mode: when provided, picker stays open after a tap and renders
+   * each row as a toggle reflecting whether the event id is in this set.
+   * Mutually exclusive with onPick — caller picks one mode.
+   */
+  linkedEventIds?: Set<string>
+  /** Multi-pick mode: called with (event, willLink) on each toggle. */
+  onToggle?: (event: CalendarEvent, willLink: boolean) => void
+  /** Multi-pick mode: replaces the popover title (defaults to "Link to event"). */
+  title?: string
   /** Container the popover should be scoped to (typically the map drawer). */
   containerRef?: React.RefObject<HTMLElement | null>
   /** Z bump when launching inside another overlay. */
@@ -41,9 +51,13 @@ export function OverlayEventPicker({
   anchorRect,
   currentEventId,
   onPick,
+  linkedEventIds,
+  onToggle,
+  title,
   containerRef,
   zIndex,
 }: OverlayEventPickerProps) {
+  const isMulti = !!linkedEventIds && !!onToggle
   const events = useCalendarStore(s => s.events)
 
   // Future + recent past (last 7 days) — upcoming first, then recent past below.
@@ -65,7 +79,7 @@ export function OverlayEventPicker({
       isOpen={isOpen}
       onClose={onClose}
       anchorRect={anchorRect}
-      title="Link to event"
+      title={title ?? (isMulti ? 'Linked events' : 'Link to event')}
       maxWidth={360}
       searchPlaceholder="Search events…"
       containerRef={containerRef}
@@ -90,15 +104,23 @@ export function OverlayEventPicker({
         return (
           <ul className="flex flex-col">
             {filtered.map(e => {
-              const isCurrent = e.id === currentEventId
+              const isLinked = isMulti
+                ? linkedEventIds!.has(e.id)
+                : e.id === currentEventId
               return (
                 <li key={e.id}>
                   <button
                     type="button"
-                    onClick={() => { onPick(e); onClose() }}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-left border-b border-primary/6 last:border-0 active:scale-[0.99] transition-all ${isCurrent ? 'bg-primary/5' : 'hover:bg-secondary/5'}`}
+                    onClick={() => {
+                      if (isMulti) {
+                        onToggle!(e, !isLinked)
+                      } else if (onPick) {
+                        onPick(e); onClose()
+                      }
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-left border-b border-primary/6 last:border-0 active:scale-[0.99] transition-all ${isLinked ? 'bg-themeblue3/8' : 'hover:bg-secondary/5'}`}
                   >
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isCurrent ? 'bg-themeblue3 text-themewhite' : 'bg-themewhite2 text-tertiary'}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isLinked ? 'bg-themeblue3 text-themewhite' : 'bg-themewhite2 text-tertiary'}`}>
                       <CalendarIcon size={14} />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -107,6 +129,9 @@ export function OverlayEventPicker({
                         {formatWhen(e.start_time)} · {e.category}
                       </div>
                     </div>
+                    {isMulti && isLinked && (
+                      <Check size={14} className="text-themeblue3 shrink-0" />
+                    )}
                   </button>
                 </li>
               )

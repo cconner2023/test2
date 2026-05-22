@@ -7,6 +7,7 @@ import type { CalendarEvent } from '../../../Types/CalendarTypes'
 import { getCategoryMeta } from '../../../Types/CalendarTypes'
 import { ActionButton } from '../../ActionButton'
 import { ActionPill } from '../../ActionPill'
+import { SupervisorClinicCardAction } from '../../SupervisorClinicSwitcher'
 
 function formatEventDate(evt: CalendarEvent): string {
   const start = new Date(evt.start_time)
@@ -41,6 +42,10 @@ interface TeamReportingProps {
   onEditClinic?: (anchorRect: DOMRect) => void
   /** When provided, an Add-member pill appears in the Soldier Readiness header */
   onAddMember?: (anchorRect: DOMRect) => void
+  /** Mobile-only: render the cluster-switch pill on the clinic overview card.
+   *  Desktop supervisor surfaces already expose this via SupervisorTree's
+   *  SupervisorClinicFilterPanel, so we gate to avoid redundancy. */
+  showClusterSwitch?: boolean
 }
 
 function readinessColor(pct: number): string {
@@ -69,6 +74,7 @@ export function TeamReporting({
   onOpenEvent,
   onEditClinic,
   onAddMember,
+  showClusterSwitch = false,
 }: TeamReportingProps) {
   const now = useMemo(() => new Date(), [])
   const addMemberPillRef = useRef<HTMLDivElement>(null)
@@ -98,13 +104,16 @@ export function TeamReporting({
 
   return (
     <div className="space-y-5">
-      {/* Clinic Overview Card — tap-to-edit when supervisor (onEditClinic provided) */}
+      {/* Clinic Overview Card — tap-to-edit when supervisor (onEditClinic provided).
+          Wrapped in relative so the optional cluster-switch ActionPill can ride
+          the top edge as an overlay (mobile only — see showClusterSwitch). */}
+      <div className="relative mb-5">
       <button
         type="button"
         data-tour="supervisor-clinic-stats"
         disabled={!onEditClinic}
         onClick={(e) => onEditClinic?.(e.currentTarget.getBoundingClientRect())}
-        className="w-full text-left rounded-xl bg-themewhite2 px-4 py-3 mb-5 enabled:hover:bg-secondary/5 enabled:active:scale-[0.99] disabled:cursor-default transition-all"
+        className="w-full text-left rounded-xl bg-themewhite2 px-4 py-3 enabled:hover:bg-secondary/5 enabled:active:scale-[0.99] disabled:cursor-default transition-all"
       >
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
@@ -132,6 +141,12 @@ export function TeamReporting({
           </div>
         </div>
       </button>
+        {showClusterSwitch && (
+          <ActionPill shadow="sm" placement="overlay">
+            <SupervisorClinicCardAction />
+          </ActionPill>
+        )}
+      </div>
 
       {/* Team Schedule */}
       <div>

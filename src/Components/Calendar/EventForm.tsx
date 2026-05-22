@@ -1,5 +1,6 @@
 import { useState, useCallback, useImperativeHandle, forwardRef, useEffect } from 'react'
 import { Package } from 'lucide-react'
+import { LocationPicker } from './LocationPicker'
 import type { EventFormData, EventCategory, EventStatus, PCCSubtask } from '../../Types/CalendarTypes'
 import { createEmptyFormData, EVENT_CATEGORIES, MILITARY_TIME_OPTIONS, militaryToHHMM, hhmmToMilitary } from '../../Types/CalendarTypes'
 import type { ClinicPreCombatCheck } from '../../lib/supervisorService'
@@ -29,9 +30,21 @@ export interface PropertyItemOption {
   serial_number: string | null
 }
 
+export interface OverlayFeatureOption {
+  id: string
+  label: string
+  type: 'waypoint' | 'route' | 'area'
+  /** Anchor coord (first geometry vertex) — drives reverse-geocode + UTM display on the read panel. */
+  lat?: number
+  lng?: number
+}
+
 export interface OverlayOption {
   id: string
   name: string
+  /** Overlay center used when the row links to the whole overlay (no specific feature). */
+  center?: [number, number]
+  features?: OverlayFeatureOption[]
 }
 
 export interface RoomOption {
@@ -67,11 +80,10 @@ interface EventFormProps {
   /** Drives dev-only visibility for the PCC attach affordance. */
   isDev?: boolean
   /**
-   * Phase 4.3a — when present, surfaces a "Create map" button for field
-   * events (mission/training/range) without an attached overlay. Returns
-   * the new overlay's id for the form to bind via structured_location.
+   * Footer Add action for the Location picker — receives the typed name and
+   * returns the new overlay's id so the picker can auto-link it.
    */
-  onCreateOverlay?: () => Promise<string | null>
+  onCreateOverlay?: (name: string) => Promise<string | null>
 }
 
 export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
@@ -358,14 +370,6 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           </>
           )}
 
-          {form.category !== 'medevac' && !isTask && (
-            <TextInput
-              value={form.location}
-              onChange={v => updateField('location', v)}
-              placeholder="Location"
-            />
-          )}
-
           {form.category !== 'medevac' && !isTask && roomOptions && roomOptions.length > 0 && (
             <div data-tour="event-form-room">
               <PickerInput
@@ -419,41 +423,17 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
             </div>
           )}
 
-          {!isTask && overlayOptions && overlayOptions.length > 0 && (
-            <PickerInput
-              value={form.structured_location?.overlay_id ?? ''}
-              onChange={v => {
-                if (!v) {
-                  updateField('structured_location', null)
-                } else {
-                  updateField('structured_location', { overlay_id: v })
-                  if (form.category === 'other') updateField('category', 'mission')
-                }
+          {overlayOptions && (
+            <LocationPicker
+              overlays={overlayOptions}
+              linkedOverlays={form.linked_overlays ?? []}
+              linkedFeatures={form.linked_features ?? []}
+              onChange={(nextOverlays, nextFeatures) => {
+                updateField('linked_overlays', nextOverlays)
+                updateField('linked_features', nextFeatures)
               }}
-              options={[{ value: '', label: 'No overlay' }, ...overlayOptions.map(o => ({ value: o.id, label: o.name }))]}
-              placeholder="Map overlay"
+              onCreateOverlay={onCreateOverlay}
             />
-          )}
-
-          {/* Phase 4.3a — auto-create overlay for field-type events without
-              a binding. Visible only when the parent supplies onCreateOverlay
-              AND the event category is mission/training/range AND no overlay
-              is linked yet. */}
-          {!isTask
-            && onCreateOverlay
-            && !form.structured_location?.overlay_id
-            && (form.category === 'mission' || form.category === 'training' || form.category === 'range') && (
-            <button
-              type="button"
-              onClick={async () => {
-                const id = await onCreateOverlay()
-                if (id) updateField('structured_location', { overlay_id: id })
-              }}
-              className="w-full flex items-center justify-between px-4 py-3 text-left text-[11pt] text-themeblue3 border-b border-primary/6 hover:bg-themeblue3/5 active:bg-themeblue3/10 transition-colors"
-            >
-              <span>+ Create field map for this event</span>
-              <span className="text-[9pt] text-tertiary">auto-named</span>
-            </button>
           )}
 
           {form.category !== 'medevac' && (

@@ -7,11 +7,12 @@
  * sendSystemMessageToClinic). This component only owns the compose UX.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Check, RefreshCw } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
+import { TextInput } from '../FormInputs'
 
 interface Props {
   anchorRect: DOMRect | null
@@ -23,15 +24,12 @@ interface Props {
 export function SystemMessageComposePopover({ anchorRect, title, onClose, onSend }: Props) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Reset on close so reopening starts clean.
   useEffect(() => {
     if (!anchorRect) {
       setText('')
       setSending(false)
-    } else {
-      requestAnimationFrame(() => textareaRef.current?.focus())
     }
   }, [anchorRect])
 
@@ -67,20 +65,12 @@ export function SystemMessageComposePopover({ anchorRect, title, onClose, onSend
       }
     >
       {anchorRect && (
-        <div className="p-3">
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Type a system message…"
-            rows={4}
-            maxLength={500}
-            className="w-full bg-themewhite2 rounded-lg px-3 py-2 text-[12pt] text-tertiary outline-none border border-primary/10 focus:border-themeblue3/40 resize-none"
-          />
-          <p className="text-[9pt] text-tertiary/70 mt-1">
-            Sent as a system notice. The recipient can&apos;t reply.
-          </p>
-        </div>
+        <TextInput
+          value={text}
+          onChange={setText}
+          placeholder="Type a system message…"
+          maxLength={500}
+        />
       )}
     </PreviewOverlay>
   )
