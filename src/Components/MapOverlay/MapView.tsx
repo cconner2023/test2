@@ -488,7 +488,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
             color,
             weight,
             opacity,
-            dashArray: dashArray ?? undefined,
+            dashArray: dashArray ?? '8 6',
           });
 
           if (feature.label) {
@@ -536,10 +536,12 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       }
 
       if (feature.type === 'area' && feature.geometry.length >= 3) {
+        const areaBaseWeight = feature.style.weight ?? 1.5;
+        const areaWeight = isSelected ? areaBaseWeight + SELECTED_WEIGHT_BOOST : areaBaseWeight;
         const latlngs = feature.geometry.map(([lat, lng]) => [lat, lng] as [number, number]);
         const polygon = L.polygon(latlngs, {
           color,
-          weight,
+          weight: areaWeight,
           opacity,
           fillColor: color,
           fillOpacity: 0.15,
@@ -601,7 +603,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 
       if (feature.type === 'route' && feature.geometry.length >= 2) {
         const latlngs = feature.geometry.map(([lat, lng]) => [lat, lng] as [number, number]);
-        const line = L.polyline(latlngs, { color, weight: baseWeight, opacity: 0.35, dashArray: dashArray ?? undefined });
+        const line = L.polyline(latlngs, { color, weight: baseWeight, opacity: 0.35, dashArray: dashArray ?? '8 6' });
         if (feature.label) {
           line.bindTooltip(feature.label, labelMode === 'always'
             ? { permanent: true, direction: 'center', className: 'leaflet-tooltip-tactical' }
@@ -611,8 +613,9 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       }
 
       if (feature.type === 'area' && feature.geometry.length >= 3) {
+        const areaBaseWeight = feature.style.weight ?? 1.5;
         const latlngs = feature.geometry.map(([lat, lng]) => [lat, lng] as [number, number]);
-        const polygon = L.polygon(latlngs, { color, weight: baseWeight, opacity: 0.35, fillColor: color, fillOpacity: 0.08, dashArray: dashArray ?? undefined });
+        const polygon = L.polygon(latlngs, { color, weight: areaBaseWeight, opacity: 0.35, fillColor: color, fillOpacity: 0.08, dashArray: dashArray ?? undefined });
         if (feature.label) {
           polygon.bindTooltip(feature.label, labelMode === 'always'
             ? { permanent: true, direction: 'center', className: 'leaflet-tooltip-tactical' }

@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { KeyRound, LogOut, Building2, ChevronRight, Mail, Check, RefreshCw, X, Trash2, Home, Plus, ArrowRightLeft } from 'lucide-react'
+import { KeyRound, LogOut, Building2, ChevronRight, Mail, Check, RefreshCw, X, Trash2, Home, Plus, ArrowRightLeft, MessageSquare } from 'lucide-react'
 import type { Certification } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import type { Component } from '../../Data/User'
@@ -26,6 +26,8 @@ import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { formatLastActive, RoleBadge, SupervisorCreatedBadge } from './adminUtils'
 import { StepResults, type StepResult } from './StepResults'
 import { useResetPasswordFlow } from '../../Hooks/useResetPasswordFlow'
+import { useMessagesContext } from '../../Hooks/MessagesContext'
+import { SystemMessageComposePopover } from './SystemMessageComposePopover'
 import {
   listAllUsers,
   listClinics,
@@ -105,6 +107,11 @@ export function AdminUserDetail({
   const addLoanFabRef = useRef<HTMLDivElement>(null)
   const [resetPwAnchor, setResetPwAnchor] = useState<DOMRect | null>(null)
   const resetPw = useResetPasswordFlow()
+
+  // System-message compose popover (dev-only). Reuses the same pillRef anchor
+  // as the reset-password popover so it lands next to the other actions.
+  const [sysMsgAnchor, setSysMsgAnchor] = useState<DOMRect | null>(null)
+  const messagesCtx = useMessagesContext()
 
   // Edit overlay — tap user card → PreviewOverlay anchored to card rect.
   const cardWrapperRef = useRef<HTMLDivElement>(null)
@@ -663,6 +670,16 @@ export function AdminUserDetail({
                   <Mail size={16} />
                 </a>
               )}
+              {isDevRole && messagesCtx && (
+                <ActionButton
+                  icon={MessageSquare}
+                  label="Send system message"
+                  onClick={() => {
+                    const rect = pillRef.current?.getBoundingClientRect() ?? null
+                    setSysMsgAnchor(rect)
+                  }}
+                />
+              )}
               <ActionButton
                 icon={KeyRound}
                 label="Reset password"
@@ -678,6 +695,16 @@ export function AdminUserDetail({
           </div>
         )}
       </div>
+
+      {/* System message compose popover — dev-only, anchored to corner ActionPill. */}
+      {user && messagesCtx && (
+        <SystemMessageComposePopover
+          anchorRect={sysMsgAnchor}
+          title={`Message ${userName}`}
+          onClose={() => setSysMsgAnchor(null)}
+          onSend={async (text) => messagesCtx.sendSystemMessageToUser(user.id, text)}
+        />
+      )}
 
       {/* Reset password popover — anchored to corner ActionPill, confirmation via ConfirmDialog */}
       <PreviewOverlay

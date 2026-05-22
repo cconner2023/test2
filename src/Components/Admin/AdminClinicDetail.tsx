@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useCallback, useMemo, useState, useRef } from 'react'
-import { X, Plus, RefreshCw, Check, Trash2, ChevronRight, Building2, Key } from 'lucide-react'
+import { X, Plus, RefreshCw, Check, Trash2, ChevronRight, Building2, Key, MessageSquare } from 'lucide-react'
 import { UserRow } from '../UserRow'
 import { ActionButton } from '../ActionButton'
 import { listClinics, listAllUsers, listLocations, updateClinic, createClinic, rescueClinicAssociationsByLocation, listClinicLoans, clinicHasVault, rescueClinicVault } from '../../lib/adminService'
@@ -21,6 +21,9 @@ import { sameStringSet } from '../../Utilities/arrayEquals'
 import { ActionPill } from '../ActionPill'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
+import { useAuthStore } from '../../stores/useAuthStore'
+import { useMessagesContext } from '../../Hooks/MessagesContext'
+import { SystemMessageComposePopover } from './SystemMessageComposePopover'
 
 /** Prefill for the create flow when launched from another cluster's
  *  relationship picker. The new cluster is seeded with the right linkage so
@@ -107,6 +110,13 @@ const AdminClinicDetail = ({
   const [rescueResult, setRescueResult] = useState<string | null>(null)
   const [vaultMissing, setVaultMissing] = useState(false)
   const [vaultProvisioning, setVaultProvisioning] = useState(false)
+
+  // System-message compose popover (dev-only). Sends into the clinic-scoped
+  // system group, creating it on first use via get_or_create_clinic_system_group.
+  const isDevRole = useAuthStore(s => s.isDevRole)
+  const messagesCtx = useMessagesContext()
+  const sysMsgPillRef = useRef<HTMLDivElement>(null)
+  const [sysMsgAnchor, setSysMsgAnchor] = useState<DOMRect | null>(null)
   const [vaultResult, setVaultResult] = useState<string | null>(null)
 
   const isCreateMode = clinic === null
@@ -552,9 +562,19 @@ const AdminClinicDetail = ({
           overlay), inline form during create mode until the FAB-anchored
           overlay lands. pt-0; the parent ScrollPane already gives padding. */}
       <div ref={cardWrapperRef} className="relative mt-6">
-        {clinic && !isCreateMode && (clinic.location_id || vaultMissing) && (
-          <div onClick={(e) => e.stopPropagation()}>
+        {clinic && !isCreateMode && (clinic.location_id || vaultMissing || (isDevRole && messagesCtx)) && (
+          <div ref={sysMsgPillRef} onClick={(e) => e.stopPropagation()}>
             <ActionPill shadow="sm" placement="overlay">
+              {isDevRole && messagesCtx && (
+                <ActionButton
+                  icon={MessageSquare}
+                  label="Send system message to this cluster"
+                  onClick={() => {
+                    const rect = sysMsgPillRef.current?.getBoundingClientRect() ?? null
+                    setSysMsgAnchor(rect)
+                  }}
+                />
+              )}
               {clinic.location_id && (
                 <ActionButton
                   icon={RefreshCw}
@@ -573,6 +593,15 @@ const AdminClinicDetail = ({
               )}
             </ActionPill>
           </div>
+        )}
+
+        {clinic && messagesCtx && (
+          <SystemMessageComposePopover
+            anchorRect={sysMsgAnchor}
+            title={`Message ${clinic.name}`}
+            onClose={() => setSysMsgAnchor(null)}
+            onSend={async (text) => messagesCtx.sendSystemMessageToClinic(clinic.id, text)}
+          />
         )}
         <div
           className={`rounded-2xl bg-themewhite2 overflow-hidden ${clinic && !isCreateMode ? 'cursor-pointer active:bg-themeblue2/5 transition-colors' : ''}`}

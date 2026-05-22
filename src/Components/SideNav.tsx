@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, useSyncExternalStore } from 'react'
-import { Upload, BookOpen, Package, ClipboardCheck, Settings, HelpCircle, UserCog, Radio, Map as MapIcon, Eye, CalendarDays, Stethoscope, MessageSquare, X, Pin, ChevronUp, ChevronDown, EyeOff, Crosshair } from 'lucide-react'
+import { Upload, BookOpen, Package, ClipboardCheck, Settings, HelpCircle, UserCog, Radio, Map as MapIcon, Eye, CalendarDays, Stethoscope, MessageSquare, Pin, ChevronUp, ChevronDown, EyeOff, Crosshair } from 'lucide-react'
 import { useAuth } from '../Hooks/useAuth'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useAvatar } from '../Utilities/AvatarContext'
@@ -68,14 +68,6 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
 
   const iconMap = isMobile ? iconMapMobile : iconMapDesktop
   const DESKTOP_HIDDEN_ACTIONS = new Set(['knowledgebase', 'import'])
-
-  const [feedbackDismissed, setFeedbackDismissed] = useState(() => {
-    try { return localStorage.getItem('feedback-banner-dismissed') === '1' } catch { return false }
-  })
-  const dismissFeedback = useCallback(() => {
-    setFeedbackDismissed(true)
-    try { localStorage.setItem('feedback-banner-dismissed', '1') } catch { }
-  }, [])
 
   const {
     visibleItems, hidden, hiddenCount, currentActionOrder, isDefaultOrder,
@@ -226,28 +218,6 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
 
       {/* Footer */}
       <div className="border-t border-tertiary/10" style={{ paddingBottom: 'calc(var(--sab, 0px) + 0.5rem)' }}>
-        {!feedbackDismissed && (
-          <div className="px-3 pt-2">
-            <button
-              onClick={() => { onMenuItemClick('settings-feedback'); onClose() }}
-              className={`w-full text-left flex items-center ${isMobile ? 'pl-7 pr-3 py-3.5' : 'pl-5 pr-2 py-2.5'} rounded-xl hover:bg-themewhite2/60 bg-transparent active:scale-95 transform-gpu transition-colors`}
-            >
-              <div className="mr-4">
-                <MessageSquare size={isMobile ? 20 : 16} className="text-primary" />
-              </div>
-              <span className={`tracking-wide ${isMobile ? 'text-[11pt]' : 'text-[10pt]'} text-primary font-medium flex-1`}>
-                Share Feedback
-              </span>
-              <div
-                role="button"
-                onClick={(e) => { e.stopPropagation(); dismissFeedback() }}
-                className="p-1.5 rounded-full hover:bg-tertiary/10 text-tertiary hover:text-tertiary transition-colors"
-              >
-                <X size={14} />
-              </div>
-            </button>
-          </div>
-        )}
         <div className="px-4 py-3 text-center">
           <p className="text-[10pt] text-tertiary">Version {__APP_VERSION__}</p>
           <div className="flex items-center justify-center gap-1.5 mt-2">

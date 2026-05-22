@@ -1561,6 +1561,11 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     .filter(o => visibleOverlayIds.has(o.id) && o.id !== overlayId)
     .flatMap(o => o.features);
 
+  // Hiding an overlay hides all of its features — including the active overlay's
+  // editable layer. Without this gate the eye-toggle only affected other overlays.
+  const activeOverlayHidden = overlayId != null && !visibleOverlayIds.has(overlayId);
+  const renderedFeatures = activeOverlayHidden ? [] : features;
+
   const headerTitle = overlayName.trim() ? `Map · ${overlayName.trim()}` : 'Map';
 
   const searchInputEl = (
@@ -1709,7 +1714,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
             <div data-tour="map-canvas" className="flex-1 min-h-0 relative">
               <MapView
                 ref={mapRef}
-                features={features}
+                features={renderedFeatures}
                 drawMode={drawMode}
                 selectedFeatureId={selectedFeatureId}
                 selectedAnchor={

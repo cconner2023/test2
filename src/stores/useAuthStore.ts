@@ -31,6 +31,7 @@ import { useCalendarStore } from './useCalendarStore'
 import { invalidate } from './useInvalidationStore'
 import { clearBackupKey, createBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
 import { processVaultMessages, ackVaultDrain, clearVaultKey } from '../lib/signal/vaultDevice'
+import { clearSystemIdentity } from '../lib/signal/systemIdentity'
 import { deriveAndCacheClinicVaultKey, ensureClinicVaultExists, processClinicVaultMessages, clearClinicVaultKey } from '../lib/signal/clinicVaultDevice'
 import { unsubscribeFromPush, resyncPushSubscription } from '../lib/pushNotificationService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
@@ -393,6 +394,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     // Clear vault wrapping key
     clearVaultKey()
     clearClinicVaultKey()
+    clearSystemIdentity()
     // Clear clinic device in-memory cache (IDB destruction handled below per device role)
     import('../lib/signal/clinicKeyManager').then(m => m.clearClinicIdentityCache()).catch(() => {})
     // Aggressively clear backup state first (detaches onMessageSaved callback)
@@ -547,6 +549,18 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
           // Iterates assigned + surrogate so a loaned medic sees both clinics overlaid.
           // Await profile so clinic ids are available on new devices (no localStorage cache).
           try { await profileP } catch { /* profile may have failed — ids may still be cached */ }
+
+          // System-identity reply drain (dev-only). Fires once profile resolves
+          // so isDevRole is known. ensureSystemIdentity self-gates on the
+          // is_dev() RPC, so a non-dev call short-circuits to err without RLS
+          // damage — the explicit role check just skips the work entirely.
+          if (get().isDevRole) {
+            import('../lib/signal/systemIdentity').then(m =>
+              m.drainSystemInbox().catch(e =>
+                console.warn('system inbox drain failed:', e)
+              )
+            )
+          }
           const { clinicId: assignedId, surrogateClinicIds: surrogateIds } = get()
           const clinicIds = [assignedId, ...surrogateIds].filter((x): x is string => !!x)
           if (clinicIds.length > 0) {

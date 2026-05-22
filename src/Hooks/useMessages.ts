@@ -68,6 +68,14 @@ import {
   serializeContent,
 } from '../lib/signal/messageContent'
 import type { MessageContent, ImageContent, VoiceContent, ReplyTo } from '../lib/signal/messageContent'
+import { getOrCreateClinicSystemGroup } from '../lib/systemMessageService'
+import {
+  SYSTEM_USER_ID,
+  ensureSystemIdentity,
+  encryptAsSystem,
+  sendSystemEnvelopeToDevice,
+  drainSystemInbox,
+} from '../lib/signal/systemIdentity'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { isCalendarEvent, routeCalendarEvent } from '../lib/calendarRouting'
 import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature } from '../lib/mapOverlayRouting'
@@ -422,6 +430,10 @@ export interface UseMessagesReturn {
   deleteMessages: (peerId: string, messageIds: string[]) => Promise<void>
   /** Delete an entire conversation (state + unread + IndexedDB + tombstone). */
   deleteConversation: (conversationKey: string) => Promise<void>
+  /** Dev-only. Send a system-authored notice to a single user (1:1, `messageType='system'`). */
+  sendSystemMessageToUser: (peerId: string, text: string) => Promise<boolean>
+  /** Dev-only. Send a system-authored notice into a clinic system group, resolving/creating the group. */
+  sendSystemMessageToClinic: (clinicId: string, text: string) => Promise<boolean>
   /** Send a text message to a group (encrypts to each member's devices). */
   sendGroupMessage: (groupId: string, text: string, threadId?: string) => Promise<boolean>
   /** Send an image to a group. */
@@ -454,9 +466,21 @@ export interface UseMessagesReturn {
 const store = useMessagingStore.getState
 
 export function useMessages(): UseMessagesReturn {
-  const { user, isAuthenticated, clinicId } = useAuth()
+  const { user, isAuthenticated, clinicId, isDevRole } = useAuth()
   const userId = user?.id ?? null
   const isPageVisible = usePageVisibility()
+
+  // Dev-only: drain system inbox on visibility resume so newly-arrived peer
+  // replies appear in the per-peer thread without a sign-out cycle. Replies
+  // to SYSTEM_USER_ID are not picked up by the dev's normal signal_messages
+  // realtime subscription (different recipient_id), so polling on focus is
+  // how new content lands. Sign-in already kicks an initial drain.
+  useEffect(() => {
+    if (!isDevRole || !isAuthenticated || !isPageVisible) return
+    drainSystemInbox().catch(e =>
+      logger.warn('system inbox drain (visibility) failed:', e instanceof Error ? e.message : e)
+    )
+  }, [isDevRole, isAuthenticated, isPageVisible])
 
   // Register clinic as a system group so its messages are excluded from unread totals
   useEffect(() => {
@@ -777,6 +801,55 @@ export function useMessages(): UseMessagesReturn {
       }
     }
 
+    // System replies bypass the request gate: System initiates contact, the
+    // user can reply freely. Force a fresh X3DH every send by purging any
+    // cached session beforehand — drainSystemInbox does NOT persist receiver
+    // ratchet state across batches, so subsequent ratchet messages from the
+    // same peer would be undecryptable on the system side. Forcing initial
+    // every time keeps decryption reliable at the cost of an extra OTP per
+    // reply.
+    if (peerId === SYSTEM_USER_ID) {
+      const localId = crypto.randomUUID()
+      const originId = crypto.randomUUID()
+      const now = new Date().toISOString()
+      const content: MessageContent = { type: 'text', text, ...(replyTo && { replyTo }) }
+      addMessage({
+        id: localId,
+        senderId: userId,
+        recipientId: SYSTEM_USER_ID,
+        plaintext: text,
+        content,
+        messageType: 'message',
+        createdAt: now,
+        readAt: null,
+        status: 'sending',
+        originId,
+        ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
+      })
+
+      store().setSending(SYSTEM_USER_ID, true)
+      try {
+        await deleteSessionsForPeer(SYSTEM_USER_ID)
+        const serialized = serializeContent(content)
+        const result = await encryptAndSendToPeer(
+          userId, localDeviceId, SYSTEM_USER_ID, serialized, 'message', undefined, originId,
+        )
+        if (!result.ok) {
+          logger.error('System reply send failed:', result.error)
+          removeOptimisticMessage(SYSTEM_USER_ID, localId)
+          return false
+        }
+        updateMessageStatus(SYSTEM_USER_ID, localId, result.data)
+        return true
+      } catch (e) {
+        logger.error('System reply error:', e instanceof Error ? e.message : e)
+        removeOptimisticMessage(SYSTEM_USER_ID, localId)
+        return false
+      } finally {
+        store().setSending(SYSTEM_USER_ID, false)
+      }
+    }
+
     // Request gate
     const status = getRequestStatus(useMessagingStore.getState().conversations[peerId], userId)
 
@@ -869,6 +942,196 @@ export function useMessages(): UseMessagesReturn {
       store().setSending(peerId, false)
     }
   }, [userId, addMessage, updateMessageStatus, removeOptimisticMessage, buildReplyTo])
+
+  /**
+   * Send a system-authored notice to a single user. Dev-only — the
+   * `send_signal_message_as_system` RPC + `signal_messages_system_gate`
+   * trigger enforce is_dev() on insert. The wire row carries
+   * sender_id=SYSTEM_USER_ID and the sealed cert is signed by system's
+   * identity key, so the recipient renders the message as "from System"
+   * via the synthetic peerProfile mask. Renders as a centered card on the
+   * recipient (MessageBubble.tsx).
+   *
+   * Crypto: every send is a fresh X3DH initiator from system → recipient
+   * (no persistent ratchet state for system) so multiple devs can send
+   * concurrently without ratchet desync.
+   *
+   * The dev's local copy is stored with senderId=userId so it appears in
+   * the dev's own outgoing thread — the wire copy is sender=SYSTEM but
+   * that row only exists for the recipient.
+   */
+  const sendSystemMessageToUser = useCallback(async (peerId: string, text: string): Promise<boolean> => {
+    if (!userId) return false
+
+    const ensure = await ensureSystemIdentity()
+    if (!ensure.ok) {
+      logger.error('System identity unavailable:', ensure.error)
+      return false
+    }
+
+    const localId = crypto.randomUUID()
+    const originId = crypto.randomUUID()
+    const now = new Date().toISOString()
+    const content: MessageContent = { type: 'text', text }
+
+    addMessage({
+      id: localId,
+      senderId: userId,
+      recipientId: peerId,
+      plaintext: text,
+      content,
+      messageType: 'system',
+      createdAt: now,
+      readAt: null,
+      status: 'sending',
+      originId,
+    })
+
+    store().setSending(peerId, true)
+    try {
+      const serialized = serializeContent(content)
+      const devicesResult = await fetchPeerDevices(peerId)
+      const peerDevices = devicesResult.ok ? devicesResult.data : []
+      if (peerDevices.length === 0) {
+        removeOptimisticMessage(peerId, localId)
+        return false
+      }
+
+      let firstServerId: string | null = null
+      for (const device of peerDevices) {
+        const bundleResult = await fetchPeerBundleForDevice(peerId, device.deviceId)
+        if (!bundleResult.ok) {
+          logger.warn(`No bundle for ${peerId}:${device.deviceId}`)
+          continue
+        }
+        const bundle = rpcResultToBundle(bundleResult.data)
+        const enc = await encryptAsSystem(peerId, device.deviceId, bundle, serialized)
+        if (!enc.ok) {
+          logger.warn(`encryptAsSystem failed for ${peerId}:${device.deviceId}: ${enc.error}`)
+          continue
+        }
+        const sendRes = await sendSystemEnvelopeToDevice(
+          peerId, device.deviceId, enc.data, undefined, originId,
+        )
+        if (sendRes.ok && !firstServerId) firstServerId = sendRes.data
+      }
+
+      if (!firstServerId) {
+        removeOptimisticMessage(peerId, localId)
+        return false
+      }
+
+      updateMessageStatus(peerId, localId, firstServerId)
+      return true
+    } catch (e) {
+      logger.error('sendSystemMessageToUser error:', e instanceof Error ? e.message : e)
+      removeOptimisticMessage(peerId, localId)
+      return false
+    } finally {
+      store().setSending(peerId, false)
+    }
+  }, [userId, addMessage, updateMessageStatus, removeOptimisticMessage])
+
+  /**
+   * Send a system-authored notice into the clinic-scoped system group. Resolves
+   * or creates the group via `get_or_create_clinic_system_group`, registers the
+   * group id in `systemGroupIds` so it's suppressed from unread totals, and
+   * fans out to every current member via the 1:1 Double-Ratchet path with
+   * `messageType='system'`. (v1 membership is dev-only, so this is effectively
+   * a fan-out to the dev's own devices.)
+   */
+  const sendSystemMessageToClinic = useCallback(async (clinicId: string, text: string): Promise<boolean> => {
+    const localDeviceId = useMessagingStore.getState().localDeviceId
+    if (!userId || !localDeviceId) return false
+
+    const groupResolve = await getOrCreateClinicSystemGroup(clinicId)
+    if (!groupResolve.ok) {
+      logger.error('Failed to resolve clinic system group:', groupResolve.error)
+      return false
+    }
+    const { groupId } = groupResolve.data
+
+    // Note: we deliberately do NOT add this group to `systemGroupIds`. System
+    // messages are visible, interactive notices — recipients should see unread
+    // badges and be able to reply. (`systemGroupIds` is reserved for one-way
+    // fanout groups like the outside-event-intake group, which lands later.)
+
+    const localId = crypto.randomUUID()
+    const originId = crypto.randomUUID()
+    const now = new Date().toISOString()
+    const content: MessageContent = { type: 'text', text }
+
+    addMessage({
+      id: localId,
+      senderId: userId,
+      recipientId: userId,
+      plaintext: text,
+      content,
+      messageType: 'system',
+      createdAt: now,
+      readAt: now,
+      status: 'sending',
+      groupId,
+      originId,
+    })
+
+    store().setSending(groupId, true)
+    try {
+      const serialized = serializeContent(content)
+
+      const membersResult = await fetchGroupMembersRpc(groupId)
+      if (!membersResult.ok) {
+        logger.error('Failed to fetch system group members:', membersResult.error)
+        removeOptimisticMessage(groupId, localId)
+        return false
+      }
+
+      let firstServerId: string | null = null
+      for (const member of membersResult.data) {
+        const devicesResult = member.userId === userId
+          ? await fetchOwnDevices(userId)
+          : await fetchPeerDevices(member.userId)
+        const devices = devicesResult.ok ? devicesResult.data : []
+        const targetDevices = member.userId === userId
+          ? devices.filter(d => d.deviceId !== localDeviceId)
+          : devices
+        if (targetDevices.length === 0) continue
+
+        const fanOutInputs = await encryptForAllDevices(member.userId, targetDevices, serialized, userId)
+        if (fanOutInputs.length === 0) continue
+        for (const input of fanOutInputs) input.messageType = 'system'
+
+        const sendResult = await sendMessageFanOut(userId, localDeviceId, member.userId, fanOutInputs, groupId, originId)
+        if (sendResult.ok && !firstServerId) firstServerId = sendResult.data[0]
+      }
+
+      const confirmedId = firstServerId ?? crypto.randomUUID()
+      updateMessageStatus(groupId, localId, confirmedId)
+
+      saveMessage({
+        id: confirmedId,
+        senderId: userId,
+        recipientId: userId,
+        plaintext: text,
+        content,
+        messageType: 'system',
+        createdAt: now,
+        readAt: now,
+        groupId,
+        originId,
+      }, userId).catch(e =>
+        errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.sendSystemMessageToClinic', message: 'Failed to save system message locally', timestamp: Date.now(), metadata: { error: e } })
+      )
+
+      return true
+    } catch (e) {
+      logger.error('sendSystemMessageToClinic error:', e instanceof Error ? e.message : e)
+      removeOptimisticMessage(groupId, localId)
+      return false
+    } finally {
+      store().setSending(groupId, false)
+    }
+  }, [userId, addMessage, updateMessageStatus, removeOptimisticMessage])
 
   /** Send an image message to a peer. */
   const sendImage = useCallback(async (peerId: string, file: File): Promise<boolean> => {
@@ -1749,6 +2012,8 @@ export function useMessages(): UseMessagesReturn {
     sendMessage,
     sendImage,
     sendVoice,
+    sendSystemMessageToUser,
+    sendSystemMessageToClinic,
     acceptRequest,
     getRequestStatusForPeer,
     fetchHistory,

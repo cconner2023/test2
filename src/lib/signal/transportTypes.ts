@@ -19,6 +19,7 @@ export type SignalMessageType =
   | 'sender-key-distribution'   // Sender key distribution via 1:1 pairwise session
   | 'sender-key-message'        // Group message encrypted with sender key (pre-encrypted, no Double Ratchet)
   | 'clinic-vault'              // Clinic entity shared-key message (symmetric AES, no Signal session required)
+  | 'system'                    // System-authored notice (dev-only insert; renders as centered card, no reply)
 
 // ---- Device Hierarchy ----
 

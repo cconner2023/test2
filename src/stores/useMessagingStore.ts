@@ -29,6 +29,7 @@ import { createLogger } from '../Utilities/Logger'
 import type { DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { GroupInfo } from '../lib/signal/groupTypes'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
+import { SYSTEM_USER_ID, SYSTEM_PEER_PROFILE } from '../lib/signal/systemIdentity'
 
 const logger = createLogger('MessagingStore')
 
@@ -170,7 +171,11 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
       return raw ? (JSON.parse(raw) as string[]) : []
     } catch { return [] }
   })(),
-  peerProfiles: {},
+  // Synthetic 'System' profile is always present so any messageType='system'
+  // (or any senderId === SYSTEM_USER_ID) resolves to "System" in name/avatar
+  // lookups without requiring a profiles row (the sentinel has none — see
+  // migration 20260522b_system_identity.sql).
+  peerProfiles: { [SYSTEM_USER_ID]: SYSTEM_PEER_PROFILE },
 
   // ── Actions ──
 
@@ -529,7 +534,7 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
       systemGroupIds: new Set(),
       hydrated: false,
       pinnedConversationKeys: [],
-      peerProfiles: {},
+      peerProfiles: { [SYSTEM_USER_ID]: SYSTEM_PEER_PROFILE },
     })
   },
 }))

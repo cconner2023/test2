@@ -14,6 +14,7 @@ import { secureSet, secureGet, secureRemove } from './secureStorage'
 import { fireNotification } from './notifyDispatcher'
 import { deriveAndStoreBackupKey } from './signal/backupService'
 import { generateVaultIdentity, uploadVaultDevice, deriveAndCacheVaultKey, ensureVaultExists, setVaultKeyReady } from './signal/vaultDevice'
+import { deriveAndCacheSystemWrappingKey, setSystemKeyReady } from './signal/systemIdentity'
 import { succeed, fail, getErrorMessage as getErrMsg, type ServiceResult } from './result'
 
 const logger = createLogger('AuthService')
@@ -175,6 +176,14 @@ export async function signIn(
           .catch(() => logger.warn('Vault ensure failed after retry'))
       )
     setVaultKeyReady(vaultKeyP)
+
+    // System identity wrapping key — separate KDF (own salt) from vault.
+    // Cheap to derive permissively for non-devs; the cache is cleared on
+    // sign-out anyway, and bootstrapInternal aborts non-dev calls via the
+    // is_dev() gate on init_or_get_system_identity.
+    const systemKeyP = deriveAndCacheSystemWrappingKey(password, data.user.id)
+      .catch(() => logger.warn('System wrapping key derive failed'))
+    setSystemKeyReady(systemKeyP)
 
     fireNotification({
       type: 'user_login',

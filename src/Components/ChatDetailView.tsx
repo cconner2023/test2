@@ -10,7 +10,6 @@ import { useImagePaste } from '../Hooks/useImagePaste'
 import { useChatInteractions } from '../Hooks/useChatInteractions'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useVoiceRecorder } from '../Hooks/useVoiceRecorder'
-import { useKeyboardInset } from '../Hooks/useKeyboardInset'
 import type { VoiceRecordingResult } from '../Hooks/useVoiceRecorder'
 import { playSendSound } from '../lib/soundService'
 import { MESSAGING_TOUR_NOTE, MESSAGING_TOUR_REPLY } from '../Data/GuidedTourData'
@@ -169,12 +168,9 @@ export function ChatDetailView({
   const userId = user?.id ?? ''
   const signalReady = useAuthStore(s => s.signalReady)
   const [text, setText] = useState('')
-  const panelRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  useKeyboardInset(panelRef)
 
   const [threadClosing, setThreadClosing] = useState(false)
   const messages = conversations[conversationId] ?? []
@@ -390,9 +386,8 @@ export function ChatDetailView({
     return (
       // Mobile: overlay the composer on top of the conversation so the iOS
       // keyboard floats the input up without resizing the message list.
-      // --kb-inset (set by useKeyboardInset) lifts the composer above the
-      // soft keyboard. Desktop: normal flex child below the scroll area.
-      <div className="absolute inset-x-0 bottom-[calc(0.75rem+var(--kb-inset,0px))] z-10 md:static md:inset-auto md:bottom-auto md:shrink-0">
+      // Desktop: normal flex child below the scroll area.
+      <div className="absolute inset-x-0 bottom-3 z-10 md:static md:inset-auto md:bottom-auto md:shrink-0">
         {someUnavailable && <UnavailableBanner participants={participants} />}
 
         {replyingTo && !activeThreadId && (
@@ -513,7 +508,7 @@ export function ChatDetailView({
           {headerOverride ?? (<>{mobileHeader}{desktopHeader}</>)}
         </div>
       )}
-      <div className="px-4 pt-3 pb-[calc(7rem+var(--kb-inset,0px))] md:pb-3">
+      <div className="px-4 pt-3 pb-28 md:pb-3">
       {msgs.length === 0 ? (
         <div className="flex items-center justify-center h-full">
           <p className="text-[10pt] text-tertiary">{emptyLabel}</p>
@@ -594,7 +589,7 @@ export function ChatDetailView({
   const showThread = !!activeThreadId
 
   return (
-    <div ref={panelRef} className="flex flex-col h-full relative" {...mainSwipeBack}>
+    <div className="flex flex-col h-full relative" {...mainSwipeBack}>
       {renderMessageList(mainViewMessages, emptyText, true)}
       {!showThread && blockedReason && (
         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center px-6 pointer-events-none">

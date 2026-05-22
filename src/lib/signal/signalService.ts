@@ -234,7 +234,7 @@ export async function sendMessage(
   senderId: string,
   recipientId: string,
   payload: InitialMessage | EncryptedMessage | { text: string } | Record<string, never>,
-  messageType: 'initial' | 'message' | 'request' | 'request-accepted' | 'receipt',
+  messageType: 'initial' | 'message' | 'request' | 'request-accepted' | 'receipt' | 'system',
   senderDeviceId?: string,
   recipientDeviceId?: string,
   groupId?: string,
