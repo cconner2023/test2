@@ -41,8 +41,8 @@ import { x3dhRespond } from './x3dh'
 import { initReceiver, ratchetDecrypt } from './ratchet'
 import { uploadKeyBundle, registerDevice } from './signalService'
 import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones } from '../calendarRouting'
-import { isMapOverlay, routeMapOverlay, initOverlayTombstones } from '../mapOverlayRouting'
-import type { CalendarEventContent, MapOverlayContent } from './messageContent'
+import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature, initOverlayTombstones } from '../mapOverlayRouting'
+import type { CalendarEventContent, MapOverlayContent, MapFeatureContent } from './messageContent'
 import { parseMessageContent } from './messageContent'
 import type { PublicKeyBundle, InitialMessage, EncryptedMessage, RatchetState } from './types'
 import type { SignalMessageRow } from './transportTypes'
@@ -558,6 +558,7 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
   let processedCount = 0
   const calendarRoutes: Array<{ content: CalendarEventContent; originId: string | null }> = []
   const overlayRoutes: Array<{ content: MapOverlayContent; originId: string | null }> = []
+  const featureRoutes: Array<{ content: MapFeatureContent; originId: string | null }> = []
 
   for (const row of rows as SignalMessageRow[]) {
     try {
@@ -684,6 +685,8 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
         calendarRoutes.push({ content, originId: (row as SignalMessageRow).origin_id ?? null })
       } else if (isMapOverlay(content)) {
         overlayRoutes.push({ content, originId: (row as SignalMessageRow).origin_id ?? null })
+      } else if (isMapFeature(content)) {
+        featureRoutes.push({ content, originId: (row as SignalMessageRow).origin_id ?? null })
       }
 
       processedCount++
@@ -744,6 +747,35 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
           p_origin_ids: pairedOriginIds,
         }).then(({ error }) => {
           if (error) logger.warn('Vault pair-clean RPC failed (overlay):', error.message)
+        }).catch(() => { /* best-effort; next replay retries */ })
+      }
+    }
+  }
+
+  // 5c. Map feature envelopes. Delete-awareness + pair-clean keyed on
+  // (overlay_id, feature_id) — feature 'd' wipes both itself and any
+  // paired c/u for the same feature in this batch.
+  if (featureRoutes.length > 0) {
+    const deletedFeatureKeys = new Set<string>()
+    const keyOf = (c: MapFeatureContent) => `${c.data.overlay_id}::${c.data.feature.id}`
+    for (const { content } of featureRoutes) {
+      if (content.action === 'delete') deletedFeatureKeys.add(keyOf(content))
+    }
+    for (const { content } of featureRoutes) {
+      if (content.action === 'delete' || !deletedFeatureKeys.has(keyOf(content))) {
+        routeMapFeature(content).catch(() => {})
+      }
+    }
+    if (deletedFeatureKeys.size > 0) {
+      const pairedOriginIds = featureRoutes
+        .filter(({ content, originId }) => originId && deletedFeatureKeys.has(keyOf(content)))
+        .map(({ originId }) => originId as string)
+      if (pairedOriginIds.length > 0) {
+        supabase.rpc('hard_delete_clinic_vault_messages', {
+          p_clinic_id: clinicId,
+          p_origin_ids: pairedOriginIds,
+        }).then(({ error }) => {
+          if (error) logger.warn('Vault pair-clean RPC failed (feature):', error.message)
         }).catch(() => { /* best-effort; next replay retries */ })
       }
     }

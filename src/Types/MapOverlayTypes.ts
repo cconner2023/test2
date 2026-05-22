@@ -70,6 +70,15 @@ export interface LocalMapOverlay extends MapOverlay {
   _sync_retry_count: number
   _last_sync_error: string | null
   _last_sync_error_message: string | null
+  /**
+   * Per-feature vault originIds, keyed by feature.id. Populated when a
+   * feature is dispatched via sendFeature so the next per-feature 'u'/'d'
+   * can pair-clean the prior vault row and keep the vault from accumulating
+   * stale c/u envelopes on every edit. Absent when no per-feature sends have
+   * landed for the overlay yet (e.g. legacy overlays created via bulk
+   * writeOverlay where features ride in the parent envelope).
+   */
+  _feature_origin_ids?: Record<string, string>
 }
 
 export const WAYPOINT_LABELS: Record<WaypointType, string> = {

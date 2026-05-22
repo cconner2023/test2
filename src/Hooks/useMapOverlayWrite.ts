@@ -26,10 +26,34 @@ import {
 import { getOverlayTombstones } from '../lib/mapOverlayRouting'
 import { invalidate } from '../stores/useInvalidationStore'
 import type { LocalMapOverlay, MapOverlay, OverlayFeature } from '../Types/MapOverlayTypes'
-import type { MapOverlayPayload } from '../lib/signal/messageContent'
+import type { MapOverlayPayload, MapFeaturePayload } from '../lib/signal/messageContent'
 import { createLogger } from '../Utilities/Logger'
 
 const logger = createLogger('MapOverlayWrite')
+
+/**
+ * Queue the overlay's current IDB state for bulk re-sync on next reconnect.
+ * Shared fallback for any per-feature / metadata send that fails offline —
+ * the existing vault drain in useMapOverlayVault picks pending sends up and
+ * re-fans the full overlay envelope, whose features[] overwrites remote
+ * projections and absorbs whatever local edits accumulated while offline.
+ */
+async function queueOverlayResync(overlayId: string): Promise<void> {
+  const o = await getLocalMapOverlay(overlayId)
+  if (!o) return
+  await queuePendingOverlaySend({
+    id: o.id,
+    clinic_id: o.clinic_id,
+    name: o.name,
+    description: o.description,
+    center: o.center,
+    zoom: o.zoom,
+    features: o.features,
+    created_by: o.created_by,
+    created_at: o.created_at,
+    updated_at: o.updated_at,
+  })
+}
 
 export interface WriteOverlayParams {
   overlayId: string
@@ -41,13 +65,56 @@ export interface WriteOverlayParams {
   features: OverlayFeature[]
 }
 
+export interface UpsertFeatureParams {
+  overlayId: string
+  clinicId: string
+  feature: OverlayFeature
+}
+
+export interface RemoveFeatureParams {
+  overlayId: string
+  clinicId: string
+  featureId: string
+}
+
+export interface WriteOverlayMetadataParams {
+  overlayId: string
+  clinicId: string
+  name?: string
+  description?: string
+  center?: [number, number]
+  zoom?: number
+}
+
 export interface UseMapOverlayWriteResult {
   /**
    * Atomic write: persists optimistically to IDB, awaits vault fan-out, then
    * patches the IDB row with the resulting originId. If the fan-out fails,
    * the overlay is queued in pendingOverlaySends for retry on next online.
+   *
+   * Bulk path — sends the full features[] in a single overlay envelope.
+   * Prefer upsertFeature / removeFeature for incremental edits; reach for
+   * writeOverlay only on first-create-with-features (import) or rename.
    */
   writeOverlay: (params: WriteOverlayParams) => Promise<LocalMapOverlay | null>
+
+  /**
+   * Per-feature sibling of writeOverlay. Sends a single MapFeatureContent
+   * envelope so a 100-point overlay edit doesn't re-encrypt the full feature
+   * set for every recipient. Pair-cleans any prior vault row for the same
+   * feature_id via the per-feature origin-id cache on LocalMapOverlay.
+   */
+  upsertFeature: (params: UpsertFeatureParams) => Promise<void>
+
+  /** Per-feature delete via Signal fan-out. Cooperative pair-clean on next vault drain. */
+  removeFeature: (params: RemoveFeatureParams) => Promise<void>
+
+  /**
+   * Metadata-only overlay 'u' (name / description / center / zoom). The
+   * features[] field is intentionally omitted from the envelope — per-feature
+   * envelopes carry feature state. Pair-cleans the prior overlay originId.
+   */
+  writeOverlayMetadata: (params: WriteOverlayMetadataParams) => Promise<void>
 
   /**
    * Tombstones immediately (resurrection guard), awaits vault fan-out 'd',
@@ -65,7 +132,7 @@ export interface UseMapOverlayWriteResult {
 export function useMapOverlayWrite(): UseMapOverlayWriteResult {
   const [isWriting, setIsWriting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-  const { sendOverlay, deleteOverlayMessages } = useMapOverlayVault()
+  const { sendOverlay, sendFeature, deleteOverlayMessages } = useMapOverlayVault()
   const { user } = useAuth()
   const userId = user?.id ?? null
 
@@ -145,6 +212,139 @@ export function useMapOverlayWrite(): UseMapOverlayWriteResult {
     }
   }, [sendOverlay, deleteOverlayMessages, userId])
 
+  const upsertFeature = useCallback(async (params: UpsertFeatureParams): Promise<void> => {
+    const { overlayId, clinicId, feature } = params
+    if (!userId) return
+    if (getOverlayTombstones().has(overlayId)) return
+
+    const existing = await getLocalMapOverlay(overlayId)
+    if (!existing) {
+      logger.warn(`upsertFeature: unknown overlay ${overlayId}`)
+      return
+    }
+
+    const now = new Date().toISOString()
+    const idx = existing.features.findIndex(f => f.id === feature.id)
+    const isNew = idx === -1
+    const prevOriginId = existing._feature_origin_ids?.[feature.id]
+
+    // Optimistic IDB write — UI reflects the change immediately.
+    const nextFeatures = isNew
+      ? [...existing.features, feature]
+      : existing.features.map((f, i) => i === idx ? feature : f)
+    await saveLocalMapOverlay({
+      ...existing,
+      features: nextFeatures,
+      updated_at: now,
+    })
+    invalidate('mapOverlays')
+
+    // Pair-clean any prior c/u for this feature so the vault doesn't
+    // accumulate stale rows across repeated edits. Fire-and-forget.
+    if (prevOriginId) deleteOverlayMessages([prevOriginId], clinicId).catch(() => {})
+
+    const originId = await sendFeature(isNew ? 'c' : 'u', {
+      overlay_id: overlayId,
+      clinic_id: clinicId,
+      feature,
+    })
+
+    if (originId) {
+      const refreshed = await getLocalMapOverlay(overlayId)
+      if (refreshed) {
+        const nextOriginIds = { ...(refreshed._feature_origin_ids ?? {}), [feature.id]: originId }
+        await saveLocalMapOverlay({ ...refreshed, _feature_origin_ids: nextOriginIds })
+      }
+    } else {
+      // Send failed (offline / fan-out error) — queue the overlay for a bulk
+      // re-sync on reconnect. The drain in useMapOverlayVault re-sends the
+      // overlay envelope with the current features[], which overwrites the
+      // remote projection and includes the change we just made.
+      await queueOverlayResync(overlayId)
+    }
+  }, [userId, sendFeature, deleteOverlayMessages])
+
+  const removeFeature = useCallback(async (params: RemoveFeatureParams): Promise<void> => {
+    const { overlayId, clinicId, featureId } = params
+    if (!userId) return
+
+    const existing = await getLocalMapOverlay(overlayId)
+    if (!existing) return
+
+    const now = new Date().toISOString()
+    const nextOriginIds = existing._feature_origin_ids
+      ? Object.fromEntries(Object.entries(existing._feature_origin_ids).filter(([k]) => k !== featureId))
+      : undefined
+
+    await saveLocalMapOverlay({
+      ...existing,
+      features: existing.features.filter(f => f.id !== featureId),
+      updated_at: now,
+      _feature_origin_ids: nextOriginIds,
+    })
+    invalidate('mapOverlays')
+
+    // Cooperative pair-clean: send 'd' and let the next vault drain pair it
+    // with any prior c/u for the same (overlay_id, feature_id) batch — same
+    // pattern as overlay deletes. Do NOT pre-clean the prior origin or the
+    // 'd' becomes an orphan with nothing to pair against.
+    const originId = await sendFeature('d', {
+      overlay_id: overlayId,
+      clinic_id: clinicId,
+      feature: { id: featureId },
+    })
+    if (!originId) {
+      // Offline — fall back to bulk resync so the deletion still reaches
+      // peers when connectivity returns. Bulk overlay payload overwrites
+      // remote features[], picking up the local splice.
+      await queueOverlayResync(overlayId)
+    }
+  }, [userId, sendFeature])
+
+  const writeOverlayMetadata = useCallback(async (params: WriteOverlayMetadataParams): Promise<void> => {
+    const { overlayId, clinicId } = params
+    if (!userId) return
+    if (getOverlayTombstones().has(overlayId)) return
+
+    const existing = await getLocalMapOverlay(overlayId)
+    if (!existing) return
+
+    const now = new Date().toISOString()
+    await saveLocalMapOverlay({
+      ...existing,
+      ...(params.name !== undefined && { name: params.name }),
+      ...(params.description !== undefined && { description: params.description }),
+      ...(params.center !== undefined && { center: params.center }),
+      ...(params.zoom !== undefined && { zoom: params.zoom }),
+      updated_at: now,
+    })
+    invalidate('mapOverlays')
+
+    const prevOriginId = existing.originId ?? null
+    if (prevOriginId) deleteOverlayMessages([prevOriginId], clinicId).catch(() => {})
+
+    // Metadata-only envelope — features intentionally omitted; per-feature
+    // envelopes carry feature state on this path.
+    const payload: MapOverlayPayload = {
+      id: overlayId,
+      clinic_id: clinicId,
+      ...(params.name !== undefined && { name: params.name }),
+      ...(params.description !== undefined && { description: params.description }),
+      ...(params.center !== undefined && { center: params.center }),
+      ...(params.zoom !== undefined && { zoom: params.zoom }),
+      created_by: existing.created_by,
+      created_at: existing.created_at,
+      updated_at: now,
+    }
+    const originId = await sendOverlay('u', payload)
+    if (originId) {
+      const refreshed = await getLocalMapOverlay(overlayId)
+      if (refreshed) await saveLocalMapOverlay({ ...refreshed, originId })
+    } else {
+      await queueOverlayResync(overlayId)
+    }
+  }, [userId, sendOverlay, deleteOverlayMessages])
+
   const deleteOverlay = useCallback(async (id: string): Promise<void> => {
     // Short-circuit if already tombstoned.
     if (getOverlayTombstones().has(id)) {
@@ -183,7 +383,7 @@ export function useMapOverlayWrite(): UseMapOverlayWriteResult {
     }
   }, [sendOverlay, deleteOverlayMessages])
 
-  return { writeOverlay, deleteOverlay, isWriting, isDeleting }
+  return { writeOverlay, upsertFeature, removeFeature, writeOverlayMetadata, deleteOverlay, isWriting, isDeleting }
 }
 
 /** Helper for callers that hold a MapOverlay-shaped object. */

@@ -31,8 +31,8 @@ import { uploadKeyBundle, registerDevice } from './signalService'
 import { saveMessage, deleteMessagesByOriginId, getTombstone } from './messageStore'
 import { useMessagingStore } from '../../stores/useMessagingStore'
 import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones } from '../calendarRouting'
-import { isMapOverlay, routeMapOverlay, initOverlayTombstones } from '../mapOverlayRouting'
-import type { CalendarEventContent, MapOverlayContent } from './messageContent'
+import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature, initOverlayTombstones } from '../mapOverlayRouting'
+import type { CalendarEventContent, MapOverlayContent, MapFeatureContent } from './messageContent'
 import { parseMessageContent } from './messageContent'
 import type { PublicKeyBundle, InitialMessage, EncryptedMessage, RatchetState, RatchetKeyPair } from './types'
 import type { DecryptedSignalMessage, SignalMessageRow, SyncMessagePayload } from './transportTypes'
@@ -637,6 +637,7 @@ export async function processVaultMessages(userId: string): Promise<number> {
   // deleted by a later message in the same vault batch.
   const calendarRoutes: CalendarEventContent[] = []
   const overlayRoutes: MapOverlayContent[] = []
+  const featureRoutes: MapFeatureContent[] = []
 
   // 5. Process each message in order
   for (const row of rows as SignalMessageRow[]) {
@@ -781,6 +782,7 @@ export async function processVaultMessages(userId: string): Promise<number> {
           useMessagingStore.getState().addMessage(syncMsg)
           if (isCalendarEvent(syncContent)) calendarRoutes.push(syncContent)
           else if (isMapOverlay(syncContent)) overlayRoutes.push(syncContent)
+          else if (isMapFeature(syncContent)) featureRoutes.push(syncContent)
         }
       } else if (row.message_type === 'delete') {
         try {
@@ -790,6 +792,7 @@ export async function processVaultMessages(userId: string): Promise<number> {
       } else {
         const isCalEvent = isCalendarEvent(content)
         const isOverlay = isMapOverlay(content)
+        const isFeature = isMapFeature(content)
         const msg: DecryptedSignalMessage = {
           id: row.id,
           senderId: senderUuid,
@@ -798,7 +801,7 @@ export async function processVaultMessages(userId: string): Promise<number> {
           content,
           messageType: row.message_type,
           createdAt: row.created_at,
-          readAt: (isCalEvent || isOverlay) ? new Date().toISOString() : null,
+          readAt: (isCalEvent || isOverlay || isFeature) ? new Date().toISOString() : null,
           ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
           ...(row.group_id && { groupId: row.group_id }),
           originId: row.origin_id ?? undefined,
@@ -810,6 +813,7 @@ export async function processVaultMessages(userId: string): Promise<number> {
           useMessagingStore.getState().addMessage(msg)
           if (isCalEvent) calendarRoutes.push(content as CalendarEventContent)
           else if (isOverlay) overlayRoutes.push(content as MapOverlayContent)
+          else if (isFeature) featureRoutes.push(content as MapFeatureContent)
         }
       }
 
@@ -844,6 +848,21 @@ export async function processVaultMessages(userId: string): Promise<number> {
     for (const c of overlayRoutes) {
       if (c.action === 'delete' || !deletedOverlayIds.has(c.data.id)) {
         routeMapOverlay(c).catch(() => {})
+      }
+    }
+  }
+
+  // 5d. Map feature envelopes. Delete-aware on (overlay_id, feature_id) so
+  // an in-batch create+delete pair never resurrects a removed feature.
+  if (featureRoutes.length > 0) {
+    const deletedFeatureKeys = new Set<string>()
+    const keyOf = (c: MapFeatureContent) => `${c.data.overlay_id}::${c.data.feature.id}`
+    for (const c of featureRoutes) {
+      if (c.action === 'delete') deletedFeatureKeys.add(keyOf(c))
+    }
+    for (const c of featureRoutes) {
+      if (c.action === 'delete' || !deletedFeatureKeys.has(keyOf(c))) {
+        routeMapFeature(c).catch(() => {})
       }
     }
   }

@@ -24,7 +24,7 @@ import {
   deleteClinicSession,
 } from '../lib/signal/clinicSession'
 import { serializeContent } from '../lib/signal/messageContent'
-import type { MapOverlayContent, MapOverlayPayload } from '../lib/signal/messageContent'
+import type { MapOverlayContent, MapOverlayPayload, MapFeatureContent, MapFeaturePayload } from '../lib/signal/messageContent'
 import type { PeerDevice, FanOutMessageInput, PeerBundleRpcResult } from '../lib/signal/transportTypes'
 import type { PublicKeyBundle } from '../lib/signal/types'
 import {
@@ -108,6 +108,16 @@ interface UseMapOverlayVaultResult {
    * falls back to the user's assigned `clinic_id`.
    */
   sendOverlay: (action: 'c' | 'u' | 'd', data: MapOverlayPayload) => Promise<string | null>
+  /**
+   * Per-feature sibling of sendOverlay — fans out a single OverlayFeature so
+   * incremental edits don't re-encrypt the whole overlay for every recipient.
+   * Returns the originId on success so callers can pair-clean a prior c/u for
+   * the same feature when this one supersedes it.
+   *
+   * The fan-out target clinic is `data.clinic_id` when present; otherwise
+   * falls back to the user's assigned (or supervising) clinic.
+   */
+  sendFeature: (action: 'c' | 'u' | 'd', data: MapFeaturePayload) => Promise<string | null>
   /** Hard-delete vault messages by origin ID. Caller passes the clinic that owns the vault. */
   deleteOverlayMessages: (originIds: string[], clinicId: string) => Promise<void>
 }
@@ -169,6 +179,51 @@ export function useMapOverlayVault(): UseMapOverlayVaultResult {
     }
   }, [activeClinicId, userId])
 
+  const sendFeature = useCallback(async (
+    action: 'c' | 'u' | 'd',
+    data: MapFeaturePayload,
+  ): Promise<string | null> => {
+    const targetClinicId = data.clinic_id ?? activeClinicId
+    if (!targetClinicId || !userId) return null
+    const localDeviceId = useMessagingStore.getState().localDeviceId
+    const clinicDeviceId = useMessagingStore.getState().clinicDeviceId
+    if (!localDeviceId || !clinicDeviceId) return null
+
+    const actionMap = { c: 'create', u: 'update', d: 'delete' } as const
+    const content: MapFeatureContent = {
+      type: 'map_feature',
+      action: actionMap[action],
+      data,
+    }
+    const serialized = serializeContent(content)
+    const originId = crypto.randomUUID()
+
+    try {
+      const devicesResult = await fetchPeerDevices(targetClinicId)
+      if (!devicesResult.ok || devicesResult.data.length === 0) {
+        logger.warn('No clinic devices found for feature fan-out')
+        return null
+      }
+
+      // Same self-filter as sendOverlay — never fan out to our own clinic device.
+      const targetDevices = devicesResult.data.filter(d => d.deviceId !== clinicDeviceId)
+      if (targetDevices.length === 0) {
+        logger.warn('No target clinic devices for feature fan-out (only self)')
+        return null
+      }
+
+      const inputs = await encryptForAllClinicDevices(targetClinicId, targetDevices, serialized, userId)
+      if (inputs.length > 0) {
+        await sendMessageFanOut(userId, clinicDeviceId, targetClinicId, inputs, targetClinicId, originId, true)
+      }
+
+      return originId
+    } catch (e) {
+      logger.warn('Failed to send map feature:', e instanceof Error ? e.message : e)
+      return null
+    }
+  }, [activeClinicId, userId])
+
   const deleteOverlayMessages = useCallback(async (originIds: string[], clinicId: string): Promise<void> => {
     if (originIds.length === 0 || !clinicId) return
     try {
@@ -208,6 +263,7 @@ export function useMapOverlayVault(): UseMapOverlayVaultResult {
   return {
     ready: !!activeClinicId && !!userId,
     sendOverlay,
+    sendFeature,
     deleteOverlayMessages,
   }
 }

@@ -11,8 +11,8 @@
  * useInvalidatedQuery('mapOverlays') and refetch on bump.
  */
 
-import type { MessageContent, MapOverlayContent, MapOverlayPayload } from './signal/messageContent'
-import type { LocalMapOverlay } from '../Types/MapOverlayTypes'
+import type { MessageContent, MapOverlayContent, MapOverlayPayload, MapFeatureContent } from './signal/messageContent'
+import type { LocalMapOverlay, OverlayFeature } from '../Types/MapOverlayTypes'
 import {
   getLocalMapOverlay,
   saveLocalMapOverlay,
@@ -27,6 +27,11 @@ const logger = createLogger('MapOverlayRouting')
 /** Returns true if the content is a map overlay message. */
 export function isMapOverlay(content: MessageContent | undefined | null): content is MapOverlayContent {
   return content?.type === 'map_overlay'
+}
+
+/** Returns true if the content is a single-feature map overlay message. */
+export function isMapFeature(content: MessageContent | undefined | null): content is MapFeatureContent {
+  return content?.type === 'map_feature'
 }
 
 // Module-level tombstone set for O(1) lookups — avoids IDB on every message.
@@ -129,5 +134,63 @@ function mergeOverlay(
     _sync_retry_count: 0,
     _last_sync_error: null,
     _last_sync_error_message: null,
+  }
+}
+
+/**
+ * Route a single-feature map overlay message to the IDB projection.
+ *
+ * The parent overlay record holds the features[] array; this function mutates
+ * that array by feature.id (upsert on c/u, splice on d) and writes the
+ * overlay back. Silently drops when the parent overlay is unknown — vault
+ * replay ordering may surface a feature before its parent overlay landed.
+ * The replay loop is idempotent, so a later parent arrival followed by a
+ * feature replay still reconciles.
+ *
+ * Tombstone guard short-circuits when the parent overlay is deleted —
+ * resurrection-safe.
+ */
+export async function routeMapFeature(content: MapFeatureContent): Promise<void> {
+  const { action, data } = content
+  if (!data.overlay_id || !data.feature?.id) return
+  if (_tombstones.has(data.overlay_id)) return
+
+  try {
+    const existing = await getLocalMapOverlay(data.overlay_id)
+    if (!existing) {
+      // Parent overlay not landed yet; vault replay will surface it later and
+      // a subsequent feature replay (or a snapshot send) reconciles.
+      return
+    }
+
+    const featureId = data.feature.id
+    const now = new Date().toISOString()
+    let nextFeatures: OverlayFeature[]
+
+    if (action === 'delete') {
+      nextFeatures = existing.features.filter(f => f.id !== featureId)
+    } else {
+      const full = data.feature as OverlayFeature
+      const idx = existing.features.findIndex(f => f.id === featureId)
+      if (idx === -1) {
+        nextFeatures = [...existing.features, full]
+      } else {
+        nextFeatures = existing.features.slice()
+        nextFeatures[idx] = full
+      }
+    }
+
+    await saveLocalMapOverlay({
+      ...existing,
+      features: nextFeatures,
+      updated_at: now,
+      _sync_status: 'synced',
+      _sync_retry_count: 0,
+      _last_sync_error: null,
+      _last_sync_error_message: null,
+    })
+    invalidate('mapOverlays')
+  } catch (e) {
+    logger.warn('Failed to route map feature:', e)
   }
 }

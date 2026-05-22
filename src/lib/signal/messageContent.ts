@@ -10,7 +10,8 @@
  *   Image:          { t: "i", mime, key, path, w, h, thumb? }
  *   Voice:          { t: "v", mime, key, path, dur, wf }
  *   Calendar event: { t: "e", a: "c"|"u"|"d", d: {...} }
- *   Map overlay:    { t: "o", a: "c"|"u"|"d", d: {...} }
+ *   Map overlay:    { t: "o", a: "c"|"u"|"d", d: {...} }   ← overlay metadata + (legacy) full feature set
+ *   Map feature:    { t: "mf", a: "c"|"u"|"d", o, c?, f }  ← single feature within a parent overlay
  */
 
 import type { EventCategory, EventStatus } from '../../Types/CalendarTypes'
@@ -119,7 +120,32 @@ export interface MapOverlayContent {
   data: MapOverlayPayload
 }
 
-export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent
+/**
+ * Payload for a single map overlay feature sync message — the per-feature
+ * sibling of MapOverlayPayload. Edits dispatch one of these per touched
+ * feature instead of re-sending the whole overlay's features[] each time.
+ *
+ * For 'create' / 'update': feature is the full OverlayFeature.
+ * For 'delete':            feature carries only { id }.
+ */
+export interface MapFeaturePayload {
+  /** Parent overlay id — receivers locate the overlay to mutate. */
+  overlay_id: string
+  /** Owning clinic id — drives the vault fan-out target. */
+  clinic_id?: string
+  /** Full feature on c/u; { id } on d. */
+  feature: OverlayFeature | { id: string }
+  /** Origin ID for tracking the broadcast message on the server. */
+  originId?: string
+}
+
+export interface MapFeatureContent {
+  type: 'map_feature'
+  action: 'create' | 'update' | 'delete'
+  data: MapFeaturePayload
+}
+
+export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent
 
 // ---- Compact wire shapes ----
 
@@ -168,7 +194,18 @@ interface WireMapOverlay {
   d: Record<string, unknown>
 }
 
-type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay
+interface WireMapFeature {
+  t: 'mf'
+  a: 'c' | 'u' | 'd'
+  /** Parent overlay id. */
+  o: string
+  /** Clinic id (optional — present on c/u, omitted on d when caller didn't capture it). */
+  c?: string
+  /** Feature payload. Full feature on c/u; { id } on d. */
+  f: Record<string, unknown>
+}
+
+type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature
 
 // ---- Serialization ----
 
@@ -217,6 +254,18 @@ export function serializeContent(content: MessageContent): string {
       a: actionMap[content.action],
       d: content.data as Record<string, unknown>,
     }
+    return JSON.stringify(wire)
+  }
+
+  if (content.type === 'map_feature') {
+    const actionMap = { create: 'c', update: 'u', delete: 'd' } as const
+    const wire: WireMapFeature = {
+      t: 'mf',
+      a: actionMap[content.action],
+      o: content.data.overlay_id,
+      f: content.data.feature as unknown as Record<string, unknown>,
+    }
+    if (content.data.clinic_id) wire.c = content.data.clinic_id
     return JSON.stringify(wire)
   }
 
@@ -319,6 +368,23 @@ export function parseMessageContent(raw: string): ParsedContent {
           action,
           data: wire.d as MapOverlayPayload,
         } satisfies MapOverlayContent,
+      }
+    }
+
+    if (wire.t === 'mf') {
+      const actionMap = { c: 'create', u: 'update', d: 'delete' } as const
+      const action = actionMap[wire.a] ?? 'create'
+      return {
+        plaintext: '[map feature]',
+        content: {
+          type: 'map_feature',
+          action,
+          data: {
+            overlay_id: wire.o,
+            ...(wire.c && { clinic_id: wire.c }),
+            feature: wire.f as unknown as MapFeaturePayload['feature'],
+          },
+        } satisfies MapFeatureContent,
       }
     }
   } catch {

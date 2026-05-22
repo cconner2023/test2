@@ -27,7 +27,7 @@ import {
   saveOriginTombstones,
 } from './messageStore'
 import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones } from '../calendarRouting'
-import { isMapOverlay, routeMapOverlay, initOverlayTombstones } from '../mapOverlayRouting'
+import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature, initOverlayTombstones } from '../mapOverlayRouting'
 import type { StoredMessage } from './messageStore'
 
 const logger = createLogger('BackupService')
@@ -659,15 +659,18 @@ export async function restoreBackup(userId: string): Promise<void> {
       logger.info(`Restored ${originEntries.length} origin tombstones`)
     }
 
-    // Pre-scan: collect event/overlay IDs that have a delete action so we don't
-    // resurrect them when replaying earlier create messages.
+    // Pre-scan: collect event/overlay/feature IDs that have a delete action so
+    // we don't resurrect them when replaying earlier create messages.
     const deletedEventIds = new Set<string>()
     const deletedOverlayIds = new Set<string>()
+    const deletedFeatureKeys = new Set<string>()
     for (const msg of payload.messages) {
       if (isCalendarEvent(msg.content) && msg.content.action === 'delete') {
         deletedEventIds.add(msg.content.data.id)
       } else if (isMapOverlay(msg.content) && msg.content.action === 'delete') {
         deletedOverlayIds.add(msg.content.data.id)
+      } else if (isMapFeature(msg.content) && msg.content.action === 'delete') {
+        deletedFeatureKeys.add(`${msg.content.data.overlay_id}::${msg.content.data.feature.id}`)
       }
     }
 
@@ -682,6 +685,11 @@ export async function restoreBackup(userId: string): Promise<void> {
       } else if (isMapOverlay(msg.content)) {
         if (msg.content.action === 'delete' || !deletedOverlayIds.has(msg.content.data.id)) {
           routeMapOverlay(msg.content).catch(() => {})
+        }
+      } else if (isMapFeature(msg.content)) {
+        const key = `${msg.content.data.overlay_id}::${msg.content.data.feature.id}`
+        if (msg.content.action === 'delete' || !deletedFeatureKeys.has(key)) {
+          routeMapFeature(msg.content).catch(() => {})
         }
       }
       restored++

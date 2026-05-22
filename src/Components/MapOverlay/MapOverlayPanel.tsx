@@ -55,7 +55,7 @@ import { useCalendarWrite } from '../../Hooks/useCalendarWrite';
 import { useNavigationStore } from '../../stores/useNavigationStore';
 import { resolveSearch } from './searchResolver';
 import { MapSearchOverlay, type SearchOverlaySelection } from './MapSearchOverlay';
-import { useMapSearchStore, type SavedPlaceSlot } from '../../stores/useMapSearchStore';
+import { useMapSearchStore } from '../../stores/useMapSearchStore';
 import { GotoWaypointCard } from './GotoWaypointCard';
 import { parseGPX, serializeGPX } from '../../lib/gpx';
 import { parseKML, serializeKML } from '../../lib/kml';
@@ -309,7 +309,13 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   // tombstone set; useInvalidation('mapOverlays') re-fires the load effect when
   // vault drain delivers a remote create/update/delete.
   useMapOverlaySync();
-  const { writeOverlay, deleteOverlay: vaultDeleteOverlay } = useMapOverlayWrite();
+  const {
+    writeOverlay,
+    upsertFeature,
+    removeFeature,
+    writeOverlayMetadata,
+    deleteOverlay: vaultDeleteOverlay,
+  } = useMapOverlayWrite();
   const overlayGen = useInvalidation('mapOverlays');
 
   const [view, setView] = useState<ViewState>('viewer');
@@ -342,7 +348,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const pushRecent = useMapSearchStore(s => s.pushRecent);
-  const setSavedPlace = useMapSearchStore(s => s.setSavedPlace);
 
   // Measure tool
   const [measurePoints, setMeasurePoints] = useState<[number, number][]>([]);
@@ -377,6 +382,18 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
   const autosaveTimerRef = useRef<number | null>(null);
   const skipAutosaveRef = useRef(true);
   const flushAutosaveRef = useRef<() => Promise<void>>(async () => {});
+
+  // Diff-based autosave: lastSaved*Ref hold the snapshot the vault was last
+  // told about, so each autosave dispatches only the per-feature envelopes
+  // whose features changed (instead of re-encrypting the whole overlay's
+  // features[] for every recipient). Mirrors calendar's "one envelope per
+  // logical unit" pattern at the feature granularity.
+  // overlayCreatedRef tracks overlays the vault has already seen — on first
+  // save we fall back to bulk writeOverlay (one envelope carrying all initial
+  // features); subsequent edits go per-feature.
+  const lastSavedFeaturesRef = useRef<OverlayFeature[]>([]);
+  const lastSavedMetadataRef = useRef<{ name: string; center: [number, number]; zoom: number } | null>(null);
+  const overlayCreatedRef = useRef<Set<string>>(new Set());
   const [confirmDeleteOverlayId, setConfirmDeleteOverlayId] = useState<string | null>(null);
   const [confirmDeleteFeature, setConfirmDeleteFeature] = useState(false);
 
@@ -710,6 +727,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
       setDrawMode('pan');
       setSelectedFeatureId(null);
       setSearchQuery('');
+      // Import is a brand-new overlay — autosave will use the bulk-create
+      // path which ships imported features in a single overlay envelope.
+      lastSavedFeaturesRef.current = [];
+      lastSavedMetadataRef.current = null;
       resetInProgressDrawing();
       setView('viewer');
       setShowPopover(false);
@@ -750,6 +771,11 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     setSelectedFeatureId(null);
     setSearchQuery('');
     setTempRoute(null);
+    // Reset diff-baselines so the first autosave runs the bulk-create path
+    // (writeOverlay) which lands the overlay record + initial features on the
+    // vault in one envelope.
+    lastSavedFeaturesRef.current = [];
+    lastSavedMetadataRef.current = null;
     resetInProgressDrawing();
     setView('viewer');
     setShowPopover(false);
@@ -773,6 +799,11 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     setSearchQuery('');
     setTempRoute(null);
     skipAutosaveRef.current = true;
+    // Seed diff-baselines: the overlay already exists in IDB and on the vault,
+    // so subsequent edits go straight to per-feature envelopes.
+    overlayCreatedRef.current.add(overlay.id);
+    lastSavedFeaturesRef.current = overlay.features;
+    lastSavedMetadataRef.current = { name: overlay.name, center: overlay.center, zoom: overlay.zoom };
     resetInProgressDrawing();
     setView('viewer');
     setShowPopover(false);
@@ -1187,29 +1218,86 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
       setOverlayName(name);
     }
 
-    const saved = await writeOverlay({
-      overlayId,
-      clinicId: activeClinicId,
-      name,
-      center: mapCenter,
-      zoom: mapZoom,
-      features,
-    });
-
-    if (saved) {
-      setOverlays(prev => {
-        const idx = prev.findIndex(o => o.id === saved.id);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = saved;
-          return next;
-        }
-        return [...prev, saved];
+    // First save for this overlay → bulk writeOverlay. Lands the overlay
+    // record + initial features in a single vault envelope (one fan-out per
+    // recipient). Subsequent edits flip to per-feature envelopes via the diff
+    // branch below so a 100-point overlay's drag-one-waypoint edit only
+    // re-encrypts ~200 bytes per recipient instead of the whole features[].
+    if (!overlayCreatedRef.current.has(overlayId)) {
+      const saved = await writeOverlay({
+        overlayId,
+        clinicId: activeClinicId,
+        name,
+        center: mapCenter,
+        zoom: mapZoom,
+        features,
       });
-    } else {
-      setSaveError('Failed to save overlay');
+      if (saved) {
+        overlayCreatedRef.current.add(overlayId);
+        lastSavedFeaturesRef.current = features;
+        lastSavedMetadataRef.current = { name, center: mapCenter, zoom: mapZoom };
+        setOverlays(prev => {
+          const idx = prev.findIndex(o => o.id === saved.id);
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = saved;
+            return next;
+          }
+          return [...prev, saved];
+        });
+      } else {
+        setSaveError('Failed to save overlay');
+      }
+      return;
     }
-  }, [overlayId, user, activeClinicId, overlayName, mapCenter, mapZoom, features, writeOverlay]);
+
+    // Diff-based dispatch: compute feature add/change/remove sets against the
+    // last-saved snapshot. Equality uses JSON serialisation — features are
+    // small (~200 B) so the diff cost is dwarfed by a single network round.
+    const prevFeatures = lastSavedFeaturesRef.current;
+    const prevById = new Map(prevFeatures.map(f => [f.id, f]));
+    const nextById = new Map(features.map(f => [f.id, f]));
+    const toUpsert: OverlayFeature[] = [];
+    for (const f of features) {
+      const old = prevById.get(f.id);
+      if (!old || JSON.stringify(old) !== JSON.stringify(f)) toUpsert.push(f);
+    }
+    const toRemove: string[] = [];
+    for (const f of prevFeatures) {
+      if (!nextById.has(f.id)) toRemove.push(f.id);
+    }
+
+    // Serial awaits — each upsertFeature does a read/mutate/write on the same
+    // IDB overlay row, so parallel calls would race the features[] update.
+    for (const f of toUpsert) {
+      await upsertFeature({ overlayId, clinicId: activeClinicId, feature: f });
+    }
+    for (const id of toRemove) {
+      await removeFeature({ overlayId, clinicId: activeClinicId, featureId: id });
+    }
+
+    const meta = lastSavedMetadataRef.current;
+    const metaChanged = !meta
+      || meta.name !== name
+      || meta.center[0] !== mapCenter[0]
+      || meta.center[1] !== mapCenter[1]
+      || meta.zoom !== mapZoom;
+    if (metaChanged) {
+      await writeOverlayMetadata({
+        overlayId,
+        clinicId: activeClinicId,
+        name,
+        center: mapCenter,
+        zoom: mapZoom,
+      });
+    }
+
+    lastSavedFeaturesRef.current = features;
+    lastSavedMetadataRef.current = { name, center: mapCenter, zoom: mapZoom };
+    setOverlays(prev => prev.map(o => o.id === overlayId
+      ? { ...o, name, center: mapCenter, zoom: mapZoom, features, updated_at: new Date().toISOString() }
+      : o));
+  }, [overlayId, user, activeClinicId, overlayName, mapCenter, mapZoom, features, writeOverlay, upsertFeature, removeFeature, writeOverlayMetadata]);
 
   // Autosave: debounce 600ms after the last features mutation. The first effect
   // run after open/new is suppressed via skipAutosaveRef so we don't echo-save.
@@ -1240,21 +1328,20 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
 
   const handleRenameOverlay = useCallback(async (overlay: LocalMapOverlay, name: string) => {
     if (!user || !activeClinicId) return;
-    const saved = await writeOverlay({
-      overlayId: overlay.id,
-      clinicId: overlay.clinic_id ?? activeClinicId,
-      name,
-      center: overlay.center,
-      zoom: overlay.zoom,
-      features: overlay.features,
-    });
-    if (saved) {
-      setOverlays(prev => prev.map(o => o.id === overlay.id ? saved : o));
-      if (overlay.id === overlayId) setOverlayName(name);
-    } else {
-      setSaveError('Failed to rename overlay');
+    const clinicId = overlay.clinic_id ?? activeClinicId;
+    // Metadata-only envelope — no features[] re-encrypt per recipient.
+    await writeOverlayMetadata({ overlayId: overlay.id, clinicId, name });
+    const now = new Date().toISOString();
+    setOverlays(prev => prev.map(o => o.id === overlay.id ? { ...o, name, updated_at: now } : o));
+    if (overlay.id === overlayId) {
+      setOverlayName(name);
+      // Keep the diff-baseline in sync so the next autosave doesn't re-fire
+      // an unnecessary metadata update for a name we already pushed.
+      if (lastSavedMetadataRef.current) {
+        lastSavedMetadataRef.current = { ...lastSavedMetadataRef.current, name };
+      }
     }
-  }, [user, activeClinicId, overlayId, writeOverlay]);
+  }, [user, activeClinicId, overlayId, writeOverlayMetadata]);
 
   const handleSelectFeatureFromTree = useCallback((feature: OverlayFeature, sourceOverlayId: string) => {
     if (drawMode === 'route' || drawMode === 'area') return;
@@ -1461,13 +1548,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
     setSearchQuery('');
   }, []);
 
-  const handleAssignSavedPlace = useCallback((slot: SavedPlaceSlot) => {
-    const [lat, lng] = mapCenter;
-    if (!lat && !lng) return;
-    const label = `Saved (${lat.toFixed(3)}, ${lng.toFixed(3)})`;
-    setSavedPlace(slot, { lat, lng, label });
-  }, [mapCenter, setSavedPlace]);
-
   // ── Map move tracking ──
   const handleMoveEnd = useCallback((center: [number, number], zoom: number) => {
     setMapCenter(center);
@@ -1550,7 +1630,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId }: MapOve
             onSubmit={handleSearchSubmit}
             onClose={() => setSearchFocused(false)}
             onSelect={handleSearchOverlaySelect}
-            onAssignSavedPlace={handleAssignSavedPlace}
             waypoints={[
               ...features.filter(f => f.type === 'waypoint'),
               ...visibleReadOnlyFeatures.filter(f => f.type === 'waypoint'),

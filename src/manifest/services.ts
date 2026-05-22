@@ -119,7 +119,7 @@ export const services = {
     path: 'lib/mapOverlayRouting.ts',
     tables: { reads: [], writes: [] },
     idb: ['packagebackend-offline:mapOverlays', 'adtmc-map-overlay-events'],
-    exports: ['isMapOverlay', 'routeMapOverlay', 'initOverlayTombstones', 'getOverlayTombstones'],
+    exports: ['isMapOverlay', 'isMapFeature', 'routeMapOverlay', 'routeMapFeature', 'initOverlayTombstones', 'getOverlayTombstones'],
   },
   mapOverlayEventStore: {
     path: 'lib/mapOverlayEventStore.ts',

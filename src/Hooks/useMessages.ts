@@ -70,7 +70,7 @@ import {
 import type { MessageContent, ImageContent, VoiceContent, ReplyTo } from '../lib/signal/messageContent'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { isCalendarEvent, routeCalendarEvent } from '../lib/calendarRouting'
-import { isMapOverlay, routeMapOverlay } from '../lib/mapOverlayRouting'
+import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature } from '../lib/mapOverlayRouting'
 import { uploadEncryptedAttachment } from '../lib/signal/attachmentService'
 import { createBackup, markHydrationComplete, scheduleBackup } from '../lib/signal/backupService'
 import { ok as okResult, err as errResult, type Result } from '../lib/result'
@@ -557,6 +557,12 @@ export function useMessages(): UseMessagesReturn {
     // Map overlays follow the same out-of-band routing as calendar events.
     if (isMapOverlay(msg.content)) {
       routeMapOverlay(msg.content).catch(() => {})
+      return
+    }
+
+    // Single-feature overlay envelopes ride the same routing.
+    if (isMapFeature(msg.content)) {
+      routeMapFeature(msg.content).catch(() => {})
       return
     }
 
