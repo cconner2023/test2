@@ -52,6 +52,10 @@ export interface ChatDetailViewProps {
   emptyText?: string
   mobileHeader: ReactNode
   desktopHeader?: ReactNode
+  /** Hide the image upload entry point (+ button). For surfaces whose send
+   * path doesn't accept attachments — currently the admin system-conversation
+   * view, which v1 routes through `sendSystemMessageToUser` (text only). */
+  hideImageUpload?: boolean
   children?: ReactNode
 }
 
@@ -162,6 +166,7 @@ export function ChatDetailView({
   emptyText = 'No messages',
   mobileHeader,
   desktopHeader,
+  hideImageUpload,
   children,
 }: ChatDetailViewProps) {
   const { user } = useAuth()
@@ -277,7 +282,7 @@ export function ChatDetailView({
     const success = await sendImage(conversationId, file)
     if (success) playSendSound()
   }, [sendImage, conversationId])
-  useImagePaste(!sending, handlePastedImage)
+  useImagePaste(!sending && !hideImageUpload, handlePastedImage)
 
   const handleSend = useCallback(async () => {
     const trimmed = text.trim()
@@ -328,7 +333,7 @@ export function ChatDetailView({
     || !signalReady
     || (allUnavailable && !isSelfChat)
 
-  const canUploadImage = !requestFlow || requestFlow.status === 'accepted' || requestFlow.status === 'none' || !!isSelfChat
+  const canUploadImage = !hideImageUpload && (!requestFlow || requestFlow.status === 'accepted' || requestFlow.status === 'none' || !!isSelfChat)
 
   const canSendVoice = !!sendVoice && (
     !requestFlow || requestFlow.status === 'accepted' || requestFlow.status === 'none' || !!isSelfChat

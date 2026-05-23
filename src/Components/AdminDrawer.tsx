@@ -31,6 +31,9 @@ import { AdminLocationsList } from './Admin/AdminLocationsList'
 import { AdminLocationDetail } from './Admin/AdminLocationDetail'
 import { AdminSummary } from './Admin/AdminSummary'
 import { AdminFeatureVotesSection } from './Admin/AdminFeatureVotesSection'
+import { AdminSystemConversationView } from './Admin/AdminSystemConversationView'
+import { useMessagingStore } from '../stores/useMessagingStore'
+import { getDisplayName } from '../Utilities/nameUtils'
 import type { AdminUser, AdminClinic, AdminLocation } from '../lib/adminService'
 import type { AccountRequest } from '../lib/accountRequestService'
 
@@ -39,6 +42,7 @@ export type AdminView =
     | 'admin-user-detail'
     | 'admin-clinic-detail'
     | 'admin-location-detail'
+    | 'admin-system-conversation'
 
 const ALL_TABS = ['requests', 'users', 'clinics', 'locations', 'feature-votes'] as const
 type AdminTab = typeof ALL_TABS[number]
@@ -73,6 +77,11 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
     const [selectedClinic, setSelectedClinic] = useState<AdminClinic | null>(null)
     const [selectedLocation, setSelectedLocation] = useState<AdminLocation | null>(null)
+    // Active system-conversation peer when view === 'admin-system-conversation'.
+    const [selectedSystemPeerId, setSelectedSystemPeerId] = useState<string | null>(null)
+    const systemPeerProfile = useMessagingStore(s =>
+        selectedSystemPeerId ? s.peerProfiles[selectedSystemPeerId] ?? null : null,
+    )
     // Cluster create-mode prefill — set when create is launched from another
     // cluster's relationship picker so the new cluster lands already linked.
     const [clusterCreatePrefill, setClusterCreatePrefill] = useState<ClusterCreatePrefill | null>(null)
@@ -284,6 +293,13 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         enterUserDetail(null, true, clinicId)
     }, [enterUserDetail, view, selectedClinic])
 
+    const handleSelectSystemPeer = useCallback((peerId: string) => {
+        clearTrail()
+        setSelectedSystemPeerId(peerId)
+        handleSlideAnimation('left')
+        setView('admin-system-conversation')
+    }, [clearTrail, handleSlideAnimation])
+
     const handleSelectLocation = useCallback((loc: AdminLocation) => {
         clearTrail()
         setSelectedLocation(loc)
@@ -312,6 +328,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             setSelectedUser(null)
             setSelectedClinic(null)
             setSelectedLocation(null)
+            setSelectedSystemPeerId(null)
             setClusterCreatePrefill(null)
             setUserCreatePrefillClinicId(null)
             clearTrail()
@@ -356,6 +373,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setSelectedUser(null)
         setSelectedClinic(null)
         setSelectedLocation(null)
+        setSelectedSystemPeerId(null)
         setClusterCreatePrefill(null)
         setUserCreatePrefillClinicId(null)
         setSlideDirection('')
@@ -408,8 +426,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 setView('admin')
                 setSelectedUser(null)
                 setSelectedClinic(null)
+                setSelectedSystemPeerId(null)
                 setClusterCreatePrefill(null)
-            setUserCreatePrefillClinicId(null)
+                setUserCreatePrefillClinicId(null)
                 clearTrail()
             }
         })
@@ -432,7 +451,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const isUserCreateMode = view === 'admin-user-detail' && selectedUser === null
     const isClinicCreateMode = view === 'admin-clinic-detail' && selectedClinic === null
     const isLocationCreateMode = view === 'admin-location-detail' && selectedLocation === null
-    const isDetailView = view === 'admin-user-detail' || view === 'admin-clinic-detail' || view === 'admin-location-detail'
+    const isDetailView = view === 'admin-user-detail' || view === 'admin-clinic-detail' || view === 'admin-location-detail' || view === 'admin-system-conversation'
     const desktopDetailPaneOpen = !isMobile && isDetailView
 
     const detailTitle = useMemo(() => {
@@ -447,8 +466,11 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         if (view === 'admin-location-detail') {
             return selectedLocation?.display_name || 'New Location'
         }
+        if (view === 'admin-system-conversation') {
+            return systemPeerProfile ? getDisplayName(systemPeerProfile) : 'System thread'
+        }
         return ''
-    }, [view, selectedUser, selectedClinic, selectedLocation])
+    }, [view, selectedUser, selectedClinic, selectedLocation, systemPeerProfile])
 
     /** Breadcrumb crumb in the desktop detail header. When the user reached
      * this detail by hopping from another detail (CPT Conner → his cluster →
@@ -565,6 +587,12 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     rightContent: detailHeaderActions,
                     hideDefaultClose: !!detailHeaderActions,
                 }
+            case 'admin-system-conversation':
+                return {
+                    title: detailTitle,
+                    showBack: true,
+                    onBack: handleBack,
+                }
         }
     }, [isMobile, view, detailTitle, handleBack, detailHeaderActions, mainHeaderActions])
 
@@ -678,12 +706,28 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 </ScrollPane>
             )
         }
+        if (view === 'admin-system-conversation' && selectedSystemPeerId) {
+            // ChatDetailView owns its own scroll; do NOT wrap in ScrollPane.
+            return (
+                <div className="h-full">
+                    <AdminSystemConversationView
+                        peerId={selectedSystemPeerId}
+                        onBack={isMobile ? handleBack : undefined}
+                    />
+                </div>
+            )
+        }
         return null
     }
 
     // Render active content — mobile slides between main and detail via `view`.
     const renderContent = () => {
-        if (view === 'admin-user-detail' || view === 'admin-clinic-detail' || view === 'admin-location-detail') {
+        if (
+            view === 'admin-user-detail' ||
+            view === 'admin-clinic-detail' ||
+            view === 'admin-location-detail' ||
+            view === 'admin-system-conversation'
+        ) {
             return renderDetailContent()
         }
         return renderMainView()
@@ -761,6 +805,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 <AdminRequestsList
                     searchQuery={searchQuery}
                     onApproved={handleRequestApproved}
+                    onSelectSystemPeer={isDevRole ? handleSelectSystemPeer : undefined}
                 />
             )}
             {activeTab === 'users' && (
@@ -800,6 +845,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     searchQuery={searchQuery}
                     bare
                     onApproved={handleRequestApproved}
+                    onSelectSystemPeer={isDevRole ? handleSelectSystemPeer : undefined}
                 />
                 <AdminUsersList
                     onSelectUser={handleSelectUser}
@@ -876,7 +922,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                     <AdminSummary
                                         onSelectClinic={handleSelectClinic}
                                         onSelectUser={handleSelectUser}
-                                        onSelectAll={() => { setView('admin'); setSelectedUser(null); setSelectedClinic(null); setClusterCreatePrefill(null); setUserCreatePrefillClinicId(null) }}
+                                        onSelectAll={() => { setView('admin'); setSelectedUser(null); setSelectedClinic(null); setSelectedSystemPeerId(null); setClusterCreatePrefill(null); setUserCreatePrefillClinicId(null) }}
                                         onSwitchTab={handleSummarySwitchTab}
                                         activeClinicId={selectedClinic?.id}
                                         activeUserId={selectedUser?.id}

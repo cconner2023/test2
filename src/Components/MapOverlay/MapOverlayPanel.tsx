@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { CalendarEvent } from '../../Types/CalendarTypes';
 import { useSpring, animated } from '@react-spring/web';
-import { ChevronLeft, ChevronRight, Settings, Move, MapPin, Route, Pentagon, Trash2, X, Ruler, RadioTower, Undo2, Activity, Pause, Play, Square, Plus, Check, Navigation, Layers, Pencil } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, MapPin, Route, Pentagon, Trash2, X, Ruler, RadioTower, Undo2, Activity, Pause, Play, Square, Plus, Check, Navigation, Layers, Pencil } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ActionSheet, type ActionSheetOption } from '../ActionSheet';
 import { ActionPill } from '../ActionPill';
@@ -1538,6 +1538,34 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     if (next !== 'pan') setTempRoute(null);
   }, [drawMode, finishRoute]);
 
+  // Pencil toggle drives BOTH the feature editor's read/edit bifurcation AND
+  // drawMode='drag' (geometry move) as one gesture. Save and Cancel inside
+  // the editor exit both together — the user never juggles two orthogonal
+  // toggles for "edit fields" vs "move the pin".
+  const handleToggleFeatureEditMode = useCallback(() => {
+    setIsFeatureEditMode(prev => {
+      const next = !prev;
+      if (next) {
+        if (drawMode !== 'drag') handleModeChange('drag');
+      } else if (drawMode === 'drag') {
+        handleModeChange('drag');
+      }
+      return next;
+    });
+  }, [drawMode, handleModeChange]);
+
+  const handleSaveAndExitEdit = useCallback(() => {
+    handleSaveClick();
+    setIsFeatureEditMode(false);
+    if (drawMode === 'drag') handleModeChange('drag');
+  }, [handleSaveClick, drawMode, handleModeChange]);
+
+  const handleCancelAndExitEdit = useCallback(() => {
+    handleCancelDraft();
+    setIsFeatureEditMode(false);
+    if (drawMode === 'drag') handleModeChange('drag');
+  }, [handleCancelDraft, drawMode, handleModeChange]);
+
   // ── Delete selected ──
   const handleDeleteSelected = useCallback(() => {
     if (!selectedFeatureId) return;
@@ -1943,23 +1971,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                         <PillButton
                           icon={Pencil}
                           iconSize={18}
-                          onClick={() => setIsFeatureEditMode(v => !v)}
-                          label={isFeatureEditMode ? 'Exit edit mode' : 'Edit fields'}
+                          onClick={handleToggleFeatureEditMode}
+                          label={isFeatureEditMode ? 'Exit edit mode' : 'Edit & move'}
                           circleBg={isFeatureEditMode ? 'bg-themeblue3 text-white' : undefined}
-                        />
-                        <PillButton
-                          icon={drawMode === 'drag' ? Check : Move}
-                          iconSize={18}
-                          onClick={() => {
-                            if (drawMode === 'drag') {
-                              if (isDirty) handleSaveClick();
-                              handleModeChange('drag');
-                            } else {
-                              handleModeChange('drag');
-                            }
-                          }}
-                          label={drawMode === 'drag' ? 'Save & exit move mode' : 'Move geometry'}
-                          circleBg={drawMode === 'drag' ? 'bg-themeblue3 text-white' : undefined}
                         />
                       </HeaderPill>
                     ),
@@ -1986,8 +2000,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                       }, 0)}
                       onOpenLinksEditor={(anchor) => handleOpenFeatureLinksEditor(selectedFeature.overlay_id, selectedFeature.id, anchor)}
                       isDirty={isDirty}
-                      onSave={handleSaveClick}
-                      onCancel={handleCancelDraft}
+                      onSave={handleSaveAndExitEdit}
+                      onCancel={handleCancelAndExitEdit}
                       isEditMode={isFeatureEditMode}
                     />
                   )}
@@ -2462,16 +2476,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                       <PillButton
                         icon={Pencil}
                         iconSize={18}
-                        onClick={() => setIsFeatureEditMode(v => !v)}
-                        label={isFeatureEditMode ? 'Exit edit mode' : 'Edit fields'}
+                        onClick={handleToggleFeatureEditMode}
+                        label={isFeatureEditMode ? 'Exit edit mode' : 'Edit & move'}
                         circleBg={isFeatureEditMode ? 'bg-themeblue3 text-white' : undefined}
-                      />
-                      <PillButton
-                        icon={Move}
-                        iconSize={18}
-                        onClick={() => handleModeChange('drag')}
-                        label={drawMode === 'drag' ? 'Stop moving' : 'Move'}
-                        circleBg={drawMode === 'drag' ? 'bg-themeblue3 text-white' : undefined}
                       />
                       <PillButton icon={Trash2} iconSize={18} variant="danger" onClick={handleDeleteSelected} label="Delete" />
                       <PillButton icon={X} iconSize={18} onClick={() => setSelectedFeatureId(null)} label="Close" />
@@ -2491,8 +2498,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                       }, 0)}
                       onOpenLinksEditor={(anchor) => handleOpenFeatureLinksEditor(selectedFeature.overlay_id, selectedFeature.id, anchor)}
                       isDirty={isDirty}
-                      onSave={handleSaveClick}
-                      onCancel={handleCancelDraft}
+                      onSave={handleSaveAndExitEdit}
+                      onCancel={handleCancelAndExitEdit}
                       isEditMode={isFeatureEditMode}
                     />
                   </div>

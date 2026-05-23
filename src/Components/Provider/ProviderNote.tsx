@@ -206,10 +206,10 @@ export function ProviderNote({
         {importedMedicNote?.medicPe && (
           <MedicContextCard name={importedMedicNote.medicName} text={importedMedicNote.medicPe} />
         )}
-        {/* Always-mounted PE — wrapper toggles between hidden host and visible TC3 chrome.
-            Single instance keeps the picker overlay alive across the empty→populated transition. */}
+        {/* Always-mounted PE — wrapper is visibility-only. PhysicalExam owns its own
+            bordered chrome + placement="overlay" action pill; wrapping in CARD_CLASS
+            here would double-chrome and clip the negative-translated pill. */}
         <div
-          className={peHasContent ? CARD_CLASS : undefined}
           style={peHasContent ? undefined : { display: 'none' }}
           aria-hidden={!peHasContent}
         >
@@ -265,8 +265,9 @@ export function ProviderNote({
         {importedMedicNote?.medicPlan && (
           <MedicContextCard name={importedMedicNote.medicName} text={importedMedicNote.medicPlan} />
         )}
+        {/* Always-mounted Plan — wrapper visibility-only. Plan owns its own bordered
+            chrome + overlay pill; CARD_CLASS here would double-chrome and clip. */}
         <div
-          className={planHasContent ? CARD_CLASS : undefined}
           style={planHasContent ? undefined : { display: 'none' }}
           aria-hidden={!planHasContent}
         >

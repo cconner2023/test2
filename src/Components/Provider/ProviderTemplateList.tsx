@@ -216,29 +216,38 @@ export function ProviderTemplateList({ templates, onSelect, hideHeader, onNew, o
           <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider">Templates</p>
         </div>
       )}
-      <div className={`flex-1 overflow-y-auto px-2 pb-3${hideHeader ? ' pt-2' : ''}`}>
+      {/* pt-5 gives the placement="overlay" ActionPill (top-0 -translate-y-1/2)
+          enough room above the first card so the scroll container's overflow-y
+          doesn't clip the pill's upper half. */}
+      <div className={`flex-1 overflow-y-auto px-2 pb-3 pt-5${hideHeader ? '' : ''}`}>
         {templates.length ? (
-          <div className="rounded-xl bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
-            {templates.map((t) => (
-              <TemplateRow
-                key={t.id}
-                template={t}
-                onClick={(rect) => handleRowClick(t, rect)}
-              />
-            ))}
+          <div className="relative">
+            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
+              {templates.map((t) => (
+                <TemplateRow
+                  key={t.id}
+                  template={t}
+                  onClick={(rect) => handleRowClick(t, rect)}
+                />
+              ))}
+            </div>
+            {onNew && (
+              <ActionPill ref={addPillRef} shadow="sm" placement="overlay">
+                <ActionButton icon={Plus} label="New template" onClick={handleNewClick} />
+              </ActionPill>
+            )}
           </div>
         ) : (
-          <EmptyState title="No templates yet" />
+          <EmptyState
+            title="No templates yet"
+            action={onNew ? {
+              icon: Plus,
+              label: 'New template',
+              onClick: (anchor) => onNew(anchor.getBoundingClientRect()),
+            } : undefined}
+          />
         )}
       </div>
-
-      {onNew && (
-        <div className="px-3 pb-3 flex justify-end">
-          <ActionPill ref={addPillRef} shadow="sm">
-            <ActionButton icon={Plus} label="New template" onClick={handleNewClick} />
-          </ActionPill>
-        </div>
-      )}
 
       <PreviewOverlay
         isOpen={!!menuTemplate}

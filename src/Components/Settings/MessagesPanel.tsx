@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
-import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, Pin, Users, Check, QrCode, Mail, Send } from 'lucide-react'
+import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, Pin, Users, Check, QrCode, Mail, Send, Plus, Hash } from 'lucide-react'
 import { useSpring, animated, type SpringValue } from '@react-spring/web'
 import { MobileSearchBar } from '../MobileSearchBar'
 import { HeaderPill, PillButton } from '../HeaderPill'
@@ -36,6 +36,7 @@ import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
 import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
 import { getMemberProfile } from '../../lib/supervisorService'
 import { SYSTEM_USER_ID } from '../../lib/signal/systemIdentity'
+import { isSystemMessage } from '../../Hooks/useAdminSystemConversations'
 
 export type MessagesView = 'messages' | 'messages-chat' | 'messages-group-chat'
 
@@ -933,6 +934,11 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   const [emailLookupLoading, setEmailLookupLoading] = useState(false)
   const [emailLookupOpen, setEmailLookupOpen] = useState(false)
   const [emailValue, setEmailValue] = useState('')
+  const [addPickerOpen, setAddPickerOpen] = useState(false)
+  const [codeLookupOpen, setCodeLookupOpen] = useState(false)
+  const [codeValue, setCodeValue] = useState('')
+  const [codeLookupError, setCodeLookupError] = useState<string | null>(null)
+  const [codeLookupLoading, setCodeLookupLoading] = useState(false)
 
   const {
     isScanning: qrIsScanning,
@@ -949,10 +955,27 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   }), [])
 
   // Store subscriptions — before early return so hook order is always stable
-  const conversations = useMessagingStore(s => s.conversations)
+  const rawConversations = useMessagingStore(s => s.conversations)
   const unreadCounts = useMessagingStore(s => s.unreadCounts)
   const groups = useMessagingStore(s => s.groups)
   const sendingMap = useMessagingStore(s => s.sendingMap)
+  const isDevRole = useAuthStore(s => s.isDevRole)
+
+  // Dev users see system traffic in the AdminDrawer, never in personal
+  // Messages — strip it here so the conversation list, search, and any
+  // ChatDetailView path consuming `conversations` are all consistent. Non-devs
+  // never receive `messageType='system'` (the trigger blocks them from
+  // authoring it), but they can have the synthetic SYSTEM peer as a chat — for
+  // them, leave the data untouched.
+  const conversations = useMemo(() => {
+    if (!isDevRole) return rawConversations
+    const out: Record<string, typeof rawConversations[string]> = {}
+    for (const [key, msgs] of Object.entries(rawConversations)) {
+      const filtered = msgs.filter(m => !isSystemMessage(m))
+      if (filtered.length > 0) out[key] = filtered
+    }
+    return out
+  }, [rawConversations, isDevRole])
 
   // peerProfiles is the cluster-agnostic profile cache: hydrated from IDB,
   // populated by email-lookup/QR success and by MessagesContext's reactive
@@ -962,23 +985,61 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   const peerProfiles = useMessagingStore(s => s.peerProfiles)
 
   const allMedics = useMemo(() => {
-    const peerList = Object.values(peerProfiles)
+    // For dev users the synthetic SYSTEM peer never belongs in personal
+    // Messages — it appears as conversation cards only inside AdminDrawer.
+    // Non-dev recipients legitimately see the SYSTEM peer in their personal
+    // MessagesDrawer (that's how they receive admin/system notices), so leave
+    // it intact for them.
+    const peerList = Object.values(peerProfiles).filter(m => !(isDevRole && m.id === SYSTEM_USER_ID))
     if (peerList.length === 0) return medics
     const have = new Set(medics.map(m => m.id))
     const extras = peerList.filter(m => !have.has(m.id))
     return extras.length === 0 ? medics : [...medics, ...extras]
-  }, [medics, peerProfiles])
+  }, [medics, peerProfiles, isDevRole])
 
   // Batch-check which contacts have active devices
   const medicIds = useMemo(() => allMedics.map(m => m.id), [allMedics])
   const unavailableIds = usePeerAvailability(medicIds)
 
-  // Discovery handoff: when a new (non-cluster) peer is chosen, we still navigate
-  // to their chat. The profile is already in peerProfiles via the email-lookup or
-  // QR success path, so no separate ephemeral state is needed.
-  const handleSelectNewPeer = useCallback((medic: ClinicMedic) => {
-    onSelectPeer(medic)
-  }, [onSelectPeer])
+  const closeEmailLookup = useCallback(() => {
+    setEmailLookupOpen(false)
+    setEmailValue('')
+    setEmailLookupError(null)
+    setEmailLookupLoading(false)
+  }, [])
+
+  const closeCodeLookup = useCallback(() => {
+    setCodeLookupOpen(false)
+    setCodeValue('')
+    setCodeLookupError(null)
+    setCodeLookupLoading(false)
+  }, [])
+
+  const closeAddPicker = useCallback(() => {
+    setAddPickerOpen(false)
+  }, [])
+
+  // Routes a discovered user (from QR / email / code lookup) based on mode:
+  // contacts → open the chat; group → add to the in-progress group selection.
+  const handlePickedUser = useCallback((medic: ClinicMedic) => {
+    useMessagingStore.getState().setPeerProfile(medic)
+    if (newMsgMode === 'group') {
+      setGroupSelectedIds(prev => {
+        const next = new Set(prev)
+        next.add(medic.id)
+        return next
+      })
+      setQrScanOpen(false)
+      qrStopScanning()
+      qrClearResult()
+      closeEmailLookup()
+      closeCodeLookup()
+      setAddPickerOpen(false)
+    } else {
+      setShowNewMsg(false)
+      onSelectPeer(medic)
+    }
+  }, [newMsgMode, onSelectPeer, qrStopScanning, qrClearResult, closeEmailLookup, closeCodeLookup])
 
   const handleEmailLookup = useCallback(async () => {
     const email = emailValue.trim().toLowerCase()
@@ -1007,22 +1068,44 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
       }
       setEmailLookupOpen(false)
       setEmailValue('')
-      setShowNewMsg(false)
-      useMessagingStore.getState().setPeerProfile(medic)
-      handleSelectNewPeer(medic)
+      handlePickedUser(medic)
     } catch {
       setEmailLookupError('Lookup failed')
     } finally {
       setEmailLookupLoading(false)
     }
-  }, [emailValue, handleSelectNewPeer])
+  }, [emailValue, handlePickedUser])
 
-  const closeEmailLookup = useCallback(() => {
-    setEmailLookupOpen(false)
-    setEmailValue('')
-    setEmailLookupError(null)
-    setEmailLookupLoading(false)
-  }, [])
+  const handleCodeLookup = useCallback(async () => {
+    const code = codeValue.trim()
+    setCodeLookupError(null)
+    if (!code) {
+      setCodeLookupError('Enter a user code')
+      return
+    }
+    setCodeLookupLoading(true)
+    try {
+      const result = await getMemberProfile(code)
+      if (!result.ok) {
+        setCodeLookupError('No user found with that code')
+        return
+      }
+      const medic: ClinicMedic = {
+        id: code,
+        firstName: result.data.firstName,
+        lastName: result.data.lastName,
+        middleInitial: result.data.middleInitial,
+        rank: result.data.rank,
+        credential: result.data.credential,
+        avatarId: null,
+      }
+      handlePickedUser(medic)
+    } catch {
+      setCodeLookupError('Lookup failed')
+    } finally {
+      setCodeLookupLoading(false)
+    }
+  }, [codeValue, handlePickedUser])
 
   const toggleGroupMember = useCallback((id: string) => {
     setGroupSelectedIds(prev => {
@@ -1080,12 +1163,10 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         avatarId: null,
       }
       setQrScanOpen(false)
-      setShowNewMsg(false)
       qrClearResult()
-      useMessagingStore.getState().setPeerProfile(medic)
-      onSelectPeer(medic)
+      handlePickedUser(medic)
     })
-  }, [qrScanResult, qrScanOpen, qrClearResult, onSelectPeer])
+  }, [qrScanResult, qrScanOpen, qrClearResult, handlePickedUser])
 
   if (!messagesCtx) {
     return (
@@ -1237,17 +1318,38 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
       {/* New Message / New Group overlay */}
       <PreviewOverlay
         isOpen={showNewMsg}
-        onClose={() => { setShowNewMsg(false); setNewMsgMode('contacts'); setQrScanOpen(false); qrStopScanning(); qrClearResult(); closeEmailLookup() }}
+        onClose={() => { setShowNewMsg(false); setNewMsgMode('contacts'); setQrScanOpen(false); qrStopScanning(); qrClearResult(); closeEmailLookup(); closeCodeLookup(); closeAddPicker() }}
         anchorRect={null}
-        title={emailLookupOpen ? 'Find by Email' : newMsgMode === 'contacts' ? 'New Message' : 'New Group'}
+        title={
+          codeLookupOpen ? 'Enter User Code'
+          : emailLookupOpen ? 'Find by Email'
+          : addPickerOpen ? 'Add Contact'
+          : newMsgMode === 'contacts' ? 'New Message'
+          : 'New Group'
+        }
         onBack={
-          emailLookupOpen ? closeEmailLookup
+          codeLookupOpen ? closeCodeLookup
+          : emailLookupOpen ? closeEmailLookup
+          : addPickerOpen ? closeAddPicker
           : newMsgMode === 'group' ? () => { setNewMsgMode('contacts'); setGroupSelectedIds(new Set()) }
           : undefined
         }
-        searchPlaceholder={emailLookupOpen ? undefined : 'Search contacts...'}
+        searchPlaceholder={(emailLookupOpen || codeLookupOpen || addPickerOpen) ? undefined : 'Search contacts...'}
         previewMaxHeight="50dvh"
         preview={(filter: string) => {
+          if (codeLookupOpen) {
+            return (
+              <div className="px-1 py-1">
+                <TextInput
+                  label="User Code"
+                  value={codeValue}
+                  onChange={(v) => { setCodeValue(v); if (codeLookupError) setCodeLookupError(null) }}
+                  placeholder="Paste user code"
+                  hint={codeLookupLoading ? 'Looking up user…' : codeLookupError}
+                />
+              </div>
+            )
+          }
           if (emailLookupOpen) {
             return (
               <div className="px-1 py-1">
@@ -1260,6 +1362,58 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
                   inputMode="email"
                   hint={emailLookupLoading ? 'Looking up email…' : emailLookupError}
                 />
+              </div>
+            )
+          }
+          if (addPickerOpen && !qrScanOpen) {
+            const pickerRows: Array<{ key: string; label: string; icon: typeof QrCode; onClick: () => void }> = [
+              {
+                key: 'scan-qr',
+                label: 'Scan QR Code',
+                icon: QrCode,
+                onClick: () => {
+                  setQrScanOpen(true)
+                  setQrLookupError(null)
+                  requestAnimationFrame(() => {
+                    if (qrVideoRef.current) qrStartScanning(qrVideoRef.current)
+                  })
+                },
+              },
+              {
+                key: 'by-email',
+                label: 'Find by Email',
+                icon: Mail,
+                onClick: () => {
+                  setEmailLookupError(null)
+                  setEmailValue('')
+                  setEmailLookupOpen(true)
+                },
+              },
+              {
+                key: 'by-code',
+                label: 'Enter User Code',
+                icon: Hash,
+                onClick: () => {
+                  setCodeLookupError(null)
+                  setCodeValue('')
+                  setCodeLookupOpen(true)
+                },
+              },
+            ]
+            return (
+              <div className="py-1">
+                {pickerRows.map(row => (
+                  <button
+                    key={row.key}
+                    onClick={row.onClick}
+                    className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-themewhite2 flex items-center justify-center shrink-0">
+                      <row.icon className="w-4 h-4 text-themeblue2" />
+                    </div>
+                    <span className="flex-1 text-sm text-primary">{row.label}</span>
+                  </button>
+                ))}
               </div>
             )
           }
@@ -1354,6 +1508,14 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
           )
         }}
         actions={
+          codeLookupOpen ? [{
+            key: 'submit-code',
+            label: 'Find User',
+            icon: Send,
+            closesOnAction: false,
+            onAction: handleCodeLookup,
+            variant: (!codeValue.trim() || codeLookupLoading) ? 'disabled' : 'default',
+          }] :
           emailLookupOpen ? [{
             key: 'submit-email',
             label: 'Find User',
@@ -1362,15 +1524,25 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
             onAction: handleEmailLookup,
             variant: (!emailValue.trim() || emailLookupLoading) ? 'disabled' : 'default',
           }] :
-          newMsgMode === 'group' ? [{
-            key: 'create-group',
-            label: 'Create Group',
-            icon: Check,
-            onAction: handleCreateGroup,
-            closesOnAction: false,
-            variant: (!groupName.trim() || groupSelectedIds.size === 0 || groupCreating) ? 'disabled' : 'default',
-          }] :
-          newMsgMode === 'contacts' && !qrScanOpen ? [
+          addPickerOpen || qrScanOpen ? [] :
+          newMsgMode === 'group' ? [
+            {
+              key: 'add',
+              label: 'Add',
+              icon: Plus,
+              closesOnAction: false,
+              onAction: () => setAddPickerOpen(true),
+            },
+            {
+              key: 'create-group',
+              label: 'Create Group',
+              icon: Check,
+              onAction: handleCreateGroup,
+              closesOnAction: false,
+              variant: (!groupName.trim() || groupSelectedIds.size === 0 || groupCreating) ? 'disabled' : 'default',
+            },
+          ] :
+          [
             {
               key: 'new-group',
               label: 'New Group',
@@ -1379,30 +1551,13 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
               onAction: () => { setNewMsgMode('group'); setGroupName(''); setGroupSelectedIds(new Set()) },
             },
             {
-              key: 'scan-qr',
-              label: 'Scan QR',
-              icon: QrCode,
+              key: 'add',
+              label: 'Add',
+              icon: Plus,
               closesOnAction: false,
-              onAction: () => {
-                setQrScanOpen(true)
-                setQrLookupError(null)
-                requestAnimationFrame(() => {
-                  if (qrVideoRef.current) qrStartScanning(qrVideoRef.current)
-                })
-              },
+              onAction: () => setAddPickerOpen(true),
             },
-            {
-              key: 'find-by-email',
-              label: 'Find by Email',
-              icon: Mail,
-              closesOnAction: false,
-              onAction: () => {
-                setEmailLookupError(null)
-                setEmailValue('')
-                setEmailLookupOpen(true)
-              },
-            },
-          ] : []
+          ]
         }
       />
 

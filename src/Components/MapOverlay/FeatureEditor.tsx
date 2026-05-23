@@ -1,6 +1,7 @@
-import { useState, useMemo, useCallback } from 'react';
-import { Copy, Check, ExternalLink, X as XIcon, ChevronDown } from 'lucide-react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { Copy, Check, X as XIcon, ChevronDown, Spline, Hexagon } from 'lucide-react';
 import { latLngToMgrs } from '../../lib/mgrsFormat';
+import { latLngToUTM } from './utmProjection';
 import type { OverlayFeature, WaypointType } from '../../Types/MapOverlayTypes';
 import { TACTICAL_COLORS, WAYPOINT_LABELS, PIN_GLYPHS } from '../../Types/MapOverlayTypes';
 import { WaypointIcon } from './WaypointIcon';
@@ -178,6 +179,47 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
 
   const mgrs = useMemo(() => computeMgrs(feature.geometry), [feature.geometry]);
 
+  // Info block (read mode) — UTM derived from the first vertex, same format as
+  // MapView's detail overlay (`<zone><N|S> <easting> <northing>`, 7-digit zero
+  // padded). For routes/areas this is the route/area's anchor point.
+  const utm = useMemo(() => {
+    if (feature.geometry.length === 0) return '';
+    const [lat, lng] = feature.geometry[0];
+    try {
+      const u = latLngToUTM(lat, lng);
+      const e = Math.round(u.easting).toString().padStart(7, '0');
+      const n = Math.round(u.northing).toString().padStart(7, '0');
+      return `${u.zone}${u.northern ? 'N' : 'S'} ${e} ${n}`;
+    } catch { return ''; }
+  }, [feature.geometry]);
+
+  // Reverse-geocoded address for the read-mode info block. Fires only when
+  // out of edit mode so vertex drags don't burn Nominatim hits; cleared and
+  // re-fetched on feature/geometry change. Debounced 300ms.
+  const [address, setAddress] = useState('');
+  const [addressLoading, setAddressLoading] = useState(false);
+  useEffect(() => {
+    if (isEditMode || feature.geometry.length === 0) {
+      setAddress('');
+      setAddressLoading(false);
+      return;
+    }
+    const [lat, lng] = feature.geometry[0];
+    let cancelled = false;
+    setAddress('');
+    setAddressLoading(true);
+    const t = setTimeout(() => {
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
+        headers: { 'Accept-Language': 'en' },
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (!cancelled) setAddress(d?.display_name ?? ''); })
+        .catch(() => { if (!cancelled) setAddress(''); })
+        .finally(() => { if (!cancelled) setAddressLoading(false); });
+    }, 300);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [feature.id, feature.geometry, isEditMode]);
+
   // Resolve a route vertex to either a snapped waypoint label or its 8-digit
   // MGRS grid. 8-digit (~10 m precision) is the readable middle ground for
   // tactical comms — short enough to read aloud, accurate enough to navigate.
@@ -335,22 +377,39 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
         </div>
       )}
 
-      {/* Waypoint MGRS — copy affordance. READ mode only; the grid isn't an
-          input. Routes/areas surface grids in their directions section. */}
-      {!isEditMode && feature.type === 'waypoint' && (
-        <div className="px-3 py-2 border-b border-primary/6">
-          <button
-            type="button"
-            onClick={handleCopyMgrs}
-            className="flex items-center gap-2 w-full text-[10pt] text-tertiary font-mono active:scale-95 transition-all"
-          >
-            <span className="flex-1 text-left truncate">{mgrs || 'N/A'}</span>
-            {copied ? (
-              <Check size={12} className="text-themegreen shrink-0" />
+      {/* INFO BLOCK — READ mode. Compact identity card: feature glyph in the
+          feature's color, MGRS (tap to copy), UTM, and reverse-geocoded
+          address. Replaces the per-row action stack from the prior read view;
+          actions (Navigate / Build MEDEVAC) now live in edit mode. */}
+      {!isEditMode && (
+        <div data-tour="map-feature-info" className="px-3 py-3 border-b border-primary/6 flex gap-3">
+          <div className="shrink-0 w-9 h-9 rounded-full bg-themewhite flex items-center justify-center">
+            {feature.type === 'waypoint' ? (
+              <WaypointIcon type={feature.waypoint_type ?? 'circle'} color={feature.style.color} size={22} />
+            ) : feature.type === 'route' ? (
+              <Spline size={18} color={feature.style.color} />
             ) : (
-              <Copy size={12} className="text-tertiary shrink-0" />
+              <Hexagon size={18} color={feature.style.color} />
             )}
-          </button>
+          </div>
+          <div className="flex-1 min-w-0 flex flex-col gap-1">
+            <button
+              type="button"
+              onClick={handleCopyMgrs}
+              className="flex items-center gap-2 w-full text-[10pt] text-primary font-mono active:scale-95 transition-all"
+            >
+              <span className="flex-1 text-left truncate">{mgrs || 'N/A'}</span>
+              {copied ? (
+                <Check size={12} className="text-themegreen shrink-0" />
+              ) : (
+                <Copy size={12} className="text-tertiary shrink-0" />
+              )}
+            </button>
+            <div className="text-[10pt] text-primary font-mono truncate">{utm || '—'}</div>
+            <div className="text-[9pt] text-tertiary truncate">
+              {addressLoading ? 'Locating…' : (address || 'No address')}
+            </div>
+          </div>
         </div>
       )}
 
@@ -377,9 +436,9 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
         </div>
       )}
 
-      {/* Navigate — READ mode action. Seeds a temp route from this pin;
-          next map tap picks the end. Not surfaced while editing fields. */}
-      {!isEditMode && feature.type === 'waypoint' && feature.geometry.length > 0 && onStartNavigation && (
+      {/* Navigate — EDIT mode action (relocated from read view). Seeds a temp
+          route from this pin; next map tap picks the end. */}
+      {isEditMode && feature.type === 'waypoint' && feature.geometry.length > 0 && onStartNavigation && (
         <div data-tour="map-feature-navigate" className="px-3 py-2 border-b border-primary/6 flex items-center gap-3">
           <div className="flex-1 min-w-0">
             <p className="text-[10pt] font-medium text-primary">Navigate from here</p>
@@ -400,9 +459,9 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
         </div>
       )}
 
-      {/* Build MEDEVAC — READ mode action. Surfaced for PZ/LZ pins or any
-          pin with a TC3 link. */}
-      {!isEditMode && showMedevacAction && (
+      {/* Build MEDEVAC — EDIT mode action (relocated from read view).
+          Surfaced for PZ/LZ pins or any pin with a TC3 link. */}
+      {isEditMode && showMedevacAction && (
         <div data-tour="map-feature-medevac" className="px-3 py-2 border-b border-primary/6 flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-themewhite flex items-center justify-center text-themeredred shrink-0">
             <Siren size={15} />
@@ -455,35 +514,9 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
         </div>
       )}
 
-      {/* TC3 link — READ mode: status + Open action when linked. Link/unlink
-          mutations happen in edit mode. */}
-      {!isEditMode && feature.type === 'waypoint' && (
-        <div className="px-3 py-2 border-b border-primary/6 flex items-center gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-[10pt] font-medium text-primary">{tc3StatusLabel}</p>
-            <p className="text-[9pt] text-tertiary">
-              {linkedExists
-                ? 'Tap to open the casualty card. The link is an opaque id — no PHI on the map.'
-                : 'Switch to edit mode to manage TC3 link.'}
-            </p>
-          </div>
-          {linkedExists && (
-            <button
-              type="button"
-              onClick={handleOpenTC3}
-              aria-label="Open TC3 card"
-              title="Open TC3 card"
-              className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-themewhite bg-themeblue3 active:scale-95 transition-all"
-            >
-              <ExternalLink size={14} />
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Linked calendar events (N:N free-form). EDIT mode: PickerInput-shaped
-          selector row that opens the existing OverlayEventPicker multi-pick.
-          READ mode: informational count display. */}
+      {/* Linked calendar events (N:N free-form). EDIT mode only — opens the
+          existing OverlayEventPicker multi-pick via PickerInput-shaped row.
+          Read mode hides this entirely. */}
       {onOpenLinksEditor && isEditMode && (
         <div className="block border-b border-primary/6 last:border-b-0">
           <button
@@ -500,17 +533,6 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
           </button>
         </div>
       )}
-      {onOpenLinksEditor && !isEditMode && (
-        <div className="px-3 py-2 border-b border-primary/6">
-          <p className="text-[10pt] font-medium text-primary">
-            {linkedEventCount && linkedEventCount > 0
-              ? `Linked to ${linkedEventCount} event${linkedEventCount === 1 ? '' : 's'}`
-              : 'No linked events'}
-          </p>
-          <p className="text-[9pt] text-tertiary">Switch to edit mode to manage linked events.</p>
-        </div>
-      )}
-
       {/* Color Picker — EDIT mode only. */}
       {isEditMode && (
         <div data-tour="map-feature-color-picker" className="px-3 py-2 border-b border-primary/6 flex items-center gap-2">

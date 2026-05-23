@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Check, Trash2, ChevronRight, Stethoscope, ListChecks } from 'lucide-react';
+import { Check, Trash2, ChevronRight, Stethoscope, ListChecks, Plus } from 'lucide-react';
 import { useMergedNoteContent } from '../../Hooks/useMergedNoteContent';
 import { getColorClasses } from '../../Utilities/ColorUtilities';
 import { PhysicalExam } from '../PhysicalExam';
@@ -10,6 +10,7 @@ import { ActionPill } from '../ActionPill';
 import { ActionButton } from '../ActionButton';
 import { PreviewOverlay } from '../PreviewOverlay';
 import { TextInput } from '../FormInputs';
+import { EmptyState } from '../EmptyState';
 
 // ── Legacy → plain text resolution ──────────────────────────────────────────
 
@@ -111,11 +112,20 @@ export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete }
 
     const openPeDrill = (rect: DOMRect) => {
         setPeOpen(rect);
-        if (peBlockKeys.length === 0) {
-            setPePickerAnchor(rect);
-            setPePickerSignal(s => s + 1);
-        }
     };
+
+    // Auto-open the block picker in a post-mount effect so PhysicalExam's
+    // lastPickerSignalRef captures the OLD signal value on mount, then sees a
+    // genuine change when we bump on the next render.
+    useEffect(() => {
+        if (!peOpen) return;
+        if (peBlockKeys.length > 0) return;
+        setPePickerAnchor(peOpen);
+        setPePickerSignal(s => s + 1);
+        // Intentionally only react to peOpen identity; peBlockKeys re-bumps are
+        // user-driven via the explicit Add system button.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [peOpen]);
 
     return (
         <PreviewOverlay
@@ -191,19 +201,39 @@ export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete }
                 }
             >
                 <div className="px-3 py-3">
-                    <PhysicalExam
-                        key={`pe-${idRef.current}`}
-                        initialText=""
-                        initialState={null}
-                        onChange={() => { /* template persists blockKeys only */ }}
-                        colors={peColors}
-                        symptomCode="A-1"
-                        mode="template"
-                        templateBlockKeys={peBlockKeys}
-                        onBlockKeysChange={setPeBlockKeys}
-                        pickerOpenSignal={pePickerSignal}
-                        pickerOpenAnchor={pePickerAnchor}
-                    />
+                    {/* Always-mounted PE — visibility-toggled so the picker stays alive
+                        across the empty→populated transition. */}
+                    <div
+                        style={peBlockKeys.length > 0 ? undefined : { display: 'none' }}
+                        aria-hidden={peBlockKeys.length === 0}
+                    >
+                        <PhysicalExam
+                            key={`pe-${idRef.current}`}
+                            initialText=""
+                            initialState={null}
+                            onChange={() => { /* template persists blockKeys only */ }}
+                            colors={peColors}
+                            symptomCode="A-1"
+                            mode="template"
+                            templateBlockKeys={peBlockKeys}
+                            onBlockKeysChange={setPeBlockKeys}
+                            pickerOpenSignal={pePickerSignal}
+                            pickerOpenAnchor={pePickerAnchor}
+                        />
+                    </div>
+                    {peBlockKeys.length === 0 && (
+                        <EmptyState
+                            title="No systems selected"
+                            action={{
+                                icon: Plus,
+                                label: 'Add system',
+                                onClick: (anchor) => {
+                                    setPePickerAnchor(anchor.getBoundingClientRect());
+                                    setPePickerSignal(s => s + 1);
+                                },
+                            }}
+                        />
+                    )}
                 </div>
             </PreviewOverlay>
 
