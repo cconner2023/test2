@@ -11,10 +11,15 @@ import { Z } from './BaseOverlay'
 import { ActionSheet } from './ActionSheet'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
+import { usePageVisibility } from '../Hooks/usePageVisibility'
 import { UI_TIMING } from '../Utilities/constants'
 import { deleteClinic, deleteUser, listClinics, listLocations } from '../lib/adminService'
 import { useAuthStore } from '../stores/useAuthStore'
 import { invalidate } from '../stores/useInvalidationStore'
+import { drainSystemInbox } from '../lib/signal/systemIdentity'
+import { createLogger } from '../Utilities/Logger'
+
+const systemInboxLogger = createLogger('AdminSystemInbox')
 
 // Admin sub-components
 import { AdminRequestsList } from './Admin/AdminRequestsList'
@@ -108,8 +113,20 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
 
     const isMobile = useIsMobile()
+    const isPageVisible = usePageVisibility()
     const currentUserId = useAuthStore(s => s.user?.id ?? null)
     const isDevRole = useAuthStore(s => s.isDevRole)
+
+    // Dev-only system-inbox drain. Scoped to the admin surface — fires when
+    // the drawer is open and the tab is visible, so user → SYSTEM replies
+    // surface in the per-user/per-clinic threads without polling the rest
+    // of the app. Sign-in already kicks an initial drain (useAuthStore).
+    useEffect(() => {
+        if (!isVisible || !isDevRole || !isPageVisible) return
+        drainSystemInbox().catch(e =>
+            systemInboxLogger.warn('admin drawer drain failed:', e instanceof Error ? e.message : e)
+        )
+    }, [isVisible, isDevRole, isPageVisible])
     const visibleTabs = useMemo<AdminTab[]>(
         () => isDevRole ? [...ALL_TABS] : ALL_TABS.filter(t => t !== 'feature-votes' && t !== 'locations'),
         [isDevRole]

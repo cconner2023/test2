@@ -24,6 +24,10 @@ import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import { SystemMessageComposePopover } from './SystemMessageComposePopover'
+import { drainSystemInbox } from '../../lib/signal/systemIdentity'
+import { createLogger } from '../../Utilities/Logger'
+
+const systemInboxLogger = createLogger('AdminClinicSystemInbox')
 
 /** Prefill for the create flow when launched from another cluster's
  *  relationship picker. The new cluster is seeded with the right linkage so
@@ -118,6 +122,16 @@ const AdminClinicDetail = ({
   const sysMsgPillRef = useRef<HTMLDivElement>(null)
   const [sysMsgAnchor, setSysMsgAnchor] = useState<DOMRect | null>(null)
   const [vaultResult, setVaultResult] = useState<string | null>(null)
+
+  // Refresh the SYSTEM inbox on each clinic-detail open so clinic-scoped
+  // replies surface immediately. AdminDrawer drains on open too; this is the
+  // per-navigation freshness pass.
+  useEffect(() => {
+    if (!isDevRole || !clinic?.id) return
+    drainSystemInbox().catch(e =>
+      systemInboxLogger.warn('clinic-detail drain failed:', e instanceof Error ? e.message : e)
+    )
+  }, [isDevRole, clinic?.id])
 
   const isCreateMode = clinic === null
 

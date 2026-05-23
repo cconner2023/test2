@@ -73,20 +73,6 @@ import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 
 const logger = createLogger('SystemIdentity')
 
-// ── Incoming-message listeners ──────────────────────────────────────────────
-//
-// drainSystemInbox writes decrypted messages directly into useMessagingStore,
-// so they appear in the dev's MessagesDrawer. Notifications, however, live in
-// the React layer (MessagesContext) and need a callback hook. We expose a
-// tiny pub/sub so consumers can register a notification handler without
-// threading callbacks through every drain caller (signIn, visibility, realtime).
-type SystemIncomingListener = (msg: DecryptedSignalMessage) => void
-const systemIncomingListeners = new Set<SystemIncomingListener>()
-export function onSystemIncomingMessage(cb: SystemIncomingListener): () => void {
-  systemIncomingListeners.add(cb)
-  return () => { systemIncomingListeners.delete(cb) }
-}
-
 // ── Constants ───────────────────────────────────────────────────────────────
 
 /** Sentinel pseudo-user UUID for the shared "System" entity. */
@@ -856,13 +842,6 @@ export async function drainSystemInbox(): Promise<number> {
           await saveMessage(msg, devUserId)
         }
         useMessagingStore.getState().addMessage(msg)
-        // Fire notification listeners. Receipts/syncs route through the
-        // store-only path; user-visible replies (text, request) get a notify.
-        if (msg.messageType === 'initial' || msg.messageType === 'message' || msg.messageType === 'request') {
-          for (const listener of systemIncomingListeners) {
-            try { listener(msg) } catch (e) { logger.warn('System incoming listener threw:', e instanceof Error ? e.message : e) }
-          }
-        }
         if (isCal) routeCalendarEvent(content)
         // Serial await — overlay/feature routes share a single IDB row under RMW.
         else if (isOv) await routeMapOverlay(content).catch(() => {})

@@ -28,6 +28,10 @@ import { StepResults, type StepResult } from './StepResults'
 import { useResetPasswordFlow } from '../../Hooks/useResetPasswordFlow'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import { SystemMessageComposePopover } from './SystemMessageComposePopover'
+import { drainSystemInbox } from '../../lib/signal/systemIdentity'
+import { createLogger } from '../../Utilities/Logger'
+
+const systemInboxLogger = createLogger('AdminUserSystemInbox')
 import {
   listAllUsers,
   listClinics,
@@ -93,6 +97,16 @@ export function AdminUserDetail({
   const currentUser = useAuthStore(s => s.user)
   const currentUserId = currentUser?.id ?? null
   const isDevRole = useAuthStore(s => s.isDevRole)
+
+  // Refresh the SYSTEM inbox on each user-detail open so replies from this
+  // user surface in their thread immediately. AdminDrawer drains on open too;
+  // this is the per-navigation freshness pass.
+  useEffect(() => {
+    if (!isDevRole || !user?.id) return
+    drainSystemInbox().catch(e =>
+      systemInboxLogger.warn('user-detail drain failed:', e instanceof Error ? e.message : e)
+    )
+  }, [isDevRole, user?.id])
 
   // ── Data state ──────────────────────────────────────────────────────
   const [clinics, setClinics] = useState<AdminClinic[]>([])

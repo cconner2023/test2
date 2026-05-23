@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { CalendarEvent } from '../../Types/CalendarTypes';
 import { useSpring, animated } from '@react-spring/web';
-import { ChevronLeft, ChevronRight, Settings, Move, MapPin, Route, Pentagon, Trash2, X, Ruler, RadioTower, Undo2, Activity, Pause, Play, Square, Plus, Check, Navigation, Layers } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, Move, MapPin, Route, Pentagon, Trash2, X, Ruler, RadioTower, Undo2, Activity, Pause, Play, Square, Plus, Check, Navigation, Layers, Pencil } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ActionSheet, type ActionSheetOption } from '../ActionSheet';
 import { ActionPill } from '../ActionPill';
@@ -331,11 +331,14 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   const [features, setFeatures] = useState<OverlayFeature[]>([]);
   const [drawMode, setDrawMode] = useState<DrawMode>('pan');
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
-  const [renamingFeature, setRenamingFeature] = useState(false);
-  const [draftFeatureName, setDraftFeatureName] = useState('');
+  // Read vs. edit mode for the selected-feature panel. Title-in-header is the
+  // read affordance; flipping to edit hides the header title, surfaces the
+  // TextInput for the label, and swaps the TC3 + linked-events rows into
+  // PickerInput-style selectors. Resets on selection change so each feature
+  // starts in read mode.
+  const [isFeatureEditMode, setIsFeatureEditMode] = useState(false);
   useEffect(() => {
-    setRenamingFeature(false);
-    setDraftFeatureName('');
+    setIsFeatureEditMode(false);
   }, [selectedFeatureId]);
   // Transient single-tap / long-press marker. Does NOT commit a feature —
   // user must explicitly promote it via "Save as waypoint" in the temp-point
@@ -1926,62 +1929,24 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   noDragDismiss
                   zIndex="z-[1010]"
                   header={{
-                    title: selectedFeature?.label
-                      || (selectedFeature?.type === 'waypoint' ? 'Waypoint'
-                        : selectedFeature?.type === 'route' ? 'Route'
-                        : 'Area'),
-                    titleNode: selectedFeature ? (
-                      renamingFeature ? (
-                        <input
-                          type="text"
-                          autoFocus
-                          value={draftFeatureName}
-                          onChange={(e) => setDraftFeatureName(e.target.value)}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onBlur={() => {
-                            const next = draftFeatureName.trim();
-                            if (next && next !== selectedFeature.label) {
-                              handleUpdateSelectedFeature({
-                                ...selectedFeature,
-                                label: next,
-                                updated_at: new Date().toISOString(),
-                              });
-                            }
-                            setRenamingFeature(false);
-                            setDraftFeatureName('');
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                            else if (e.key === 'Escape') {
-                              setRenamingFeature(false);
-                              setDraftFeatureName('');
-                            }
-                          }}
-                          placeholder={selectedFeature.label
-                            || (selectedFeature.type === 'waypoint' ? 'Waypoint'
-                              : selectedFeature.type === 'route' ? 'Route'
-                              : 'Area')}
-                          className="min-w-0 flex-1 bg-transparent text-[13pt] font-semibold text-primary placeholder:text-tertiary focus:outline-none"
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={() => {
-                            setDraftFeatureName('');
-                            setRenamingFeature(true);
-                          }}
-                          className="min-w-0 flex-1 text-left truncate text-[13pt] font-semibold text-primary active:opacity-70 transition-opacity"
-                        >
-                          {selectedFeature.label
-                            || (selectedFeature.type === 'waypoint' ? 'Waypoint'
-                              : selectedFeature.type === 'route' ? 'Route'
-                              : 'Area')}
-                        </button>
-                      )
-                    ) : undefined,
+                    // Title shown in READ mode only. Edit mode hides the
+                    // header title so the body TextInput is the single
+                    // source of truth for the feature name.
+                    title: isFeatureEditMode
+                      ? ''
+                      : (selectedFeature?.label
+                        || (selectedFeature?.type === 'waypoint' ? 'Waypoint'
+                          : selectedFeature?.type === 'route' ? 'Route'
+                          : 'Area')),
                     leftContent: (
                       <HeaderPill>
+                        <PillButton
+                          icon={Pencil}
+                          iconSize={18}
+                          onClick={() => setIsFeatureEditMode(v => !v)}
+                          label={isFeatureEditMode ? 'Exit edit mode' : 'Edit fields'}
+                          circleBg={isFeatureEditMode ? 'bg-themeblue3 text-white' : undefined}
+                        />
                         <PillButton
                           icon={drawMode === 'drag' ? Check : Move}
                           iconSize={18}
@@ -1993,7 +1958,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                               handleModeChange('drag');
                             }
                           }}
-                          label={drawMode === 'drag' ? 'Save & exit edit mode' : 'Edit feature'}
+                          label={drawMode === 'drag' ? 'Save & exit move mode' : 'Move geometry'}
                           circleBg={drawMode === 'drag' ? 'bg-themeblue3 text-white' : undefined}
                         />
                       </HeaderPill>
@@ -2023,6 +1988,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                       isDirty={isDirty}
                       onSave={handleSaveClick}
                       onCancel={handleCancelDraft}
+                      isEditMode={isFeatureEditMode}
                     />
                   )}
                 </BaseDrawer>
@@ -2479,8 +2445,27 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
               )}
               {selectedFeature && (
                 <div className="relative flex flex-col flex-1 min-h-0">
-                  <div className="shrink-0 flex items-center justify-end gap-1 px-3 py-2 border-b border-tertiary/10">
+                  <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-tertiary/10">
+                    {/* READ-mode title in the desktop pane header — hidden in
+                        edit mode so the body TextInput is the single source
+                        of truth for the feature name. */}
+                    {!isFeatureEditMode && (
+                      <div className="flex-1 min-w-0 truncate text-[10pt] font-semibold text-primary">
+                        {selectedFeature.label
+                          || (selectedFeature.type === 'waypoint' ? 'Waypoint'
+                            : selectedFeature.type === 'route' ? 'Route'
+                            : 'Area')}
+                      </div>
+                    )}
+                    {isFeatureEditMode && <div className="flex-1" />}
                     <HeaderPill>
+                      <PillButton
+                        icon={Pencil}
+                        iconSize={18}
+                        onClick={() => setIsFeatureEditMode(v => !v)}
+                        label={isFeatureEditMode ? 'Exit edit mode' : 'Edit fields'}
+                        circleBg={isFeatureEditMode ? 'bg-themeblue3 text-white' : undefined}
+                      />
                       <PillButton
                         icon={Move}
                         iconSize={18}
@@ -2508,6 +2493,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                       isDirty={isDirty}
                       onSave={handleSaveClick}
                       onCancel={handleCancelDraft}
+                      isEditMode={isFeatureEditMode}
                     />
                   </div>
                 </div>

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Copy, Check, Link2, Link2Off, ExternalLink, X as XIcon } from 'lucide-react';
+import { Copy, Check, ExternalLink, X as XIcon, ChevronDown } from 'lucide-react';
 import { latLngToMgrs } from '../../lib/mgrsFormat';
 import type { OverlayFeature, WaypointType } from '../../Types/MapOverlayTypes';
 import { TACTICAL_COLORS, WAYPOINT_LABELS, PIN_GLYPHS } from '../../Types/MapOverlayTypes';
@@ -16,6 +16,7 @@ import { Siren, FileDown as FileDownStripMap, Navigation } from 'lucide-react';
 import { computeLegs, type Pace } from '../../lib/stripMap/computeLegs';
 import { generateStripMapPdf } from '../../lib/stripMap/generatePdf';
 import { downloadPdfBytes } from '../../Utilities/downloadUtils';
+import { TextInput, PickerInput } from '../FormInputs';
 
 
 interface FeatureEditorProps {
@@ -38,6 +39,10 @@ interface FeatureEditorProps {
   onSave?: () => void;
   /** Discard the draft and revert features to the last-saved snapshot. */
   onCancel?: () => void;
+  /** When true, swap the body into form-edit chrome: TextInput for label,
+   *  PickerInput-style rows for TC3 + linked events. Read mode shows
+   *  informational rows and action affordances only. */
+  isEditMode?: boolean;
 }
 
 const WAYPOINT_SNAP_M = 15; // legs that end within this distance of a waypoint borrow its label
@@ -85,7 +90,7 @@ function nearestWaypointLabel(
   return best ? best.label : null;
 }
 
-export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, onStartNavigation, linkedEventCount, onOpenLinksEditor, isDirty, onSave, onCancel }: FeatureEditorProps) {
+export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, onStartNavigation, linkedEventCount, onOpenLinksEditor, isDirty, onSave, onCancel, isEditMode = false }: FeatureEditorProps) {
   const [copied, setCopied] = useState(false);
   const bearingReference = useMapPrefsStore(s => s.bearingReference);
   // Phase 4.1 — TC3 link integration. We subscribe with selectors so the
@@ -243,6 +248,31 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
     onUpdate({ ...feature, notes, updated_at: new Date().toISOString() });
   }, [feature, onUpdate]);
 
+  const handleLabelChange = useCallback((label: string) => {
+    onUpdate({ ...feature, label, updated_at: new Date().toISOString() });
+  }, [feature, onUpdate]);
+
+  // Edit-mode TC3 selector — action-dispatch options bound to a PickerInput.
+  // value stays '' so PickerInput always shows the status placeholder; each
+  // option is an action ('link' / 'unlink' / 'open') routed in onChange.
+  const tc3Options = useMemo(() => {
+    const opts: { value: string; label: string }[] = [];
+    if (hasActiveCard && !activeAlreadyLinked) opts.push({ value: 'link', label: 'Link active casualty card' });
+    if (linkedId) opts.push({ value: 'unlink', label: 'Unlink' });
+    if (linkedExists) opts.push({ value: 'open', label: 'Open in TC3' });
+    return opts;
+  }, [hasActiveCard, activeAlreadyLinked, linkedId, linkedExists]);
+
+  const tc3StatusLabel = linkedExists
+    ? linkedIsActive ? 'Linked · active card' : 'Linked · queued card'
+    : linkedId ? 'Linked · card unavailable' : 'No casualty card linked';
+
+  const handleTc3Action = useCallback((action: string) => {
+    if (action === 'link') handleLinkActive();
+    else if (action === 'unlink') handleUnlink();
+    else if (action === 'open') handleOpenTC3();
+  }, [handleLinkActive, handleUnlink, handleOpenTC3]);
+
   const handleCopyMgrs = useCallback(async () => {
     if (!mgrs || mgrs === 'Invalid') return;
     try {
@@ -285,9 +315,29 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
           )}
         </div>
       )}
-      {/* Waypoint MGRS — copy affordance. Routes/areas surface grids in their
-          directions section, so the bare MGRS row only renders for waypoints. */}
-      {feature.type === 'waypoint' && (
+      {/* ─────────────────────────── EDIT MODE ───────────────────────────
+          Form-field chrome: label TextInput, glyph picker, color picker,
+          TC3 + linked-events PickerInput selectors, notes textarea.
+          The title is hidden from the BaseDrawer header while in this mode
+          (driven by the parent panel) so the input is the single source of
+          truth for the feature name. */}
+      {isEditMode && (
+        <div data-tour="map-feature-name" className="rounded-2xl overflow-hidden">
+          <TextInput
+            value={feature.label ?? ''}
+            onChange={handleLabelChange}
+            placeholder={
+              feature.type === 'waypoint' ? 'Waypoint name'
+                : feature.type === 'route' ? 'Route name'
+                : 'Area name'
+            }
+          />
+        </div>
+      )}
+
+      {/* Waypoint MGRS — copy affordance. READ mode only; the grid isn't an
+          input. Routes/areas surface grids in their directions section. */}
+      {!isEditMode && feature.type === 'waypoint' && (
         <div className="px-3 py-2 border-b border-primary/6">
           <button
             type="button"
@@ -304,8 +354,10 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
         </div>
       )}
 
-      {/* Waypoint glyph picker — flat list mirroring the creation toolbar */}
-      {feature.type === 'waypoint' && (
+      {/* Waypoint glyph picker — EDIT mode only. Flat list mirroring the
+          creation toolbar; not surfaced in read mode (the pin itself shows
+          the current glyph on the map). */}
+      {isEditMode && feature.type === 'waypoint' && (
         <div data-tour="map-feature-glyph-picker" className="px-3 py-2 border-b border-primary/6 flex items-center gap-1.5 flex-wrap">
           {PIN_GLYPHS.map(wt => {
             const active = (feature.waypoint_type ?? 'circle') === wt;
@@ -325,8 +377,9 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
         </div>
       )}
 
-      {/* Navigate — seeds a temp route from this pin; next map tap picks the end. */}
-      {feature.type === 'waypoint' && feature.geometry.length > 0 && onStartNavigation && (
+      {/* Navigate — READ mode action. Seeds a temp route from this pin;
+          next map tap picks the end. Not surfaced while editing fields. */}
+      {!isEditMode && feature.type === 'waypoint' && feature.geometry.length > 0 && onStartNavigation && (
         <div data-tour="map-feature-navigate" className="px-3 py-2 border-b border-primary/6 flex items-center gap-3">
           <div className="flex-1 min-w-0">
             <p className="text-[10pt] font-medium text-primary">Navigate from here</p>
@@ -347,8 +400,9 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
         </div>
       )}
 
-      {/* Build MEDEVAC — surfaced for PZ/LZ pins or any pin with a TC3 link. */}
-      {showMedevacAction && (
+      {/* Build MEDEVAC — READ mode action. Surfaced for PZ/LZ pins or any
+          pin with a TC3 link. */}
+      {!isEditMode && showMedevacAction && (
         <div data-tour="map-feature-medevac" className="px-3 py-2 border-b border-primary/6 flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-themewhite flex items-center justify-center text-themeredred shrink-0">
             <Siren size={15} />
@@ -383,118 +437,103 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
         </div>
       </Modal>
 
-      {/* TC3 link (waypoints only) — opaque id; no PHI in the OverlayFeature. */}
-      {feature.type === 'waypoint' && (
+      {/* TC3 link (waypoints only) — opaque id; no PHI in the OverlayFeature.
+          EDIT mode: PickerInput selector — value stays empty so the placeholder
+          carries the current status, and each option is an action dispatched
+          through handleTc3Action ('link' / 'unlink' / 'open'). */}
+      {isEditMode && feature.type === 'waypoint' && tc3Options.length > 0 && (
+        <PickerInput
+          value=""
+          onChange={handleTc3Action}
+          options={tc3Options}
+          placeholder={tc3StatusLabel}
+        />
+      )}
+      {isEditMode && feature.type === 'waypoint' && tc3Options.length === 0 && (
+        <div className="block border-b border-primary/6 px-4 py-3 text-base md:text-sm text-tertiary">
+          {tc3StatusLabel} · open a TC3 card to link
+        </div>
+      )}
+
+      {/* TC3 link — READ mode: status + Open action when linked. Link/unlink
+          mutations happen in edit mode. */}
+      {!isEditMode && feature.type === 'waypoint' && (
         <div className="px-3 py-2 border-b border-primary/6 flex items-center gap-3">
           <div className="flex-1 min-w-0">
-            <p className="text-[10pt] font-medium text-primary">
-              {linkedExists
-                ? linkedIsActive ? 'Linked · active TC3 card' : 'Linked · queued TC3 card'
-                : linkedId ? 'Linked · card no longer available' : 'No casualty card linked'}
-            </p>
+            <p className="text-[10pt] font-medium text-primary">{tc3StatusLabel}</p>
             <p className="text-[9pt] text-tertiary">
               {linkedExists
                 ? 'Tap to open the casualty card. The link is an opaque id — no PHI on the map.'
-                : hasActiveCard
-                  ? 'Link this pin to the active TC3 card.'
-                  : 'Open a TC3 card first to link.'}
+                : 'Switch to edit mode to manage TC3 link.'}
             </p>
           </div>
-          <div className="flex items-center gap-1 shrink-0">
-            {linkedExists && (
-              <button
-                type="button"
-                onClick={handleOpenTC3}
-                aria-label="Open TC3 card"
-                title="Open TC3 card"
-                className="w-8 h-8 rounded-full flex items-center justify-center text-themewhite bg-themeblue3 active:scale-95 transition-all"
-              >
-                <ExternalLink size={14} />
-              </button>
-            )}
-            {!linkedId && hasActiveCard && (
-              <button
-                type="button"
-                onClick={handleLinkActive}
-                aria-label="Link active casualty"
-                title="Link active casualty"
-                className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-themeblue3 active:scale-95 transition-all"
-              >
-                <Link2 size={14} />
-              </button>
-            )}
-            {linkedId && (
-              <button
-                type="button"
-                onClick={handleUnlink}
-                aria-label="Unlink"
-                title="Unlink"
-                className={`w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all ${linkedExists ? 'text-tertiary hover:text-themeredred' : 'text-themeredred'}`}
-              >
-                <Link2Off size={14} />
-              </button>
-            )}
-            {hasActiveCard && linkedId && !activeAlreadyLinked && (
-              <button
-                type="button"
-                onClick={handleLinkActive}
-                aria-label="Link active casualty (replace)"
-                title="Link active casualty (replace)"
-                className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-themeblue3 active:scale-95 transition-all"
-              >
-                <Link2 size={14} />
-              </button>
-            )}
-          </div>
+          {linkedExists && (
+            <button
+              type="button"
+              onClick={handleOpenTC3}
+              aria-label="Open TC3 card"
+              title="Open TC3 card"
+              className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-themewhite bg-themeblue3 active:scale-95 transition-all"
+            >
+              <ExternalLink size={14} />
+            </button>
+          )}
         </div>
       )}
 
-      {/* Linked calendar events (N:N free-form) — opens the multi-pick popover. */}
-      {onOpenLinksEditor && (
-        <div className="px-3 py-2 border-b border-primary/6 flex items-center gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-[10pt] font-medium text-primary">
-              {linkedEventCount && linkedEventCount > 0
-                ? `Linked to ${linkedEventCount} event${linkedEventCount === 1 ? '' : 's'}`
-                : 'No linked events'}
-            </p>
-            <p className="text-[9pt] text-tertiary">
-              Tap to manage which calendar events reference this feature.
-            </p>
-          </div>
+      {/* Linked calendar events (N:N free-form). EDIT mode: PickerInput-shaped
+          selector row that opens the existing OverlayEventPicker multi-pick.
+          READ mode: informational count display. */}
+      {onOpenLinksEditor && isEditMode && (
+        <div className="block border-b border-primary/6 last:border-b-0">
           <button
             type="button"
             onClick={(e) => onOpenLinksEditor(e.currentTarget)}
-            aria-label="Manage linked events"
-            title="Manage linked events"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-themeblue3 active:scale-95 transition-all"
+            className={`w-full bg-transparent px-4 py-3 text-left text-base md:text-sm flex items-center justify-between gap-3 focus:outline-none ${linkedEventCount && linkedEventCount > 0 ? 'text-primary' : 'text-tertiary'}`}
           >
-            <Link2 size={14} />
+            <span className="truncate">
+              {linkedEventCount && linkedEventCount > 0
+                ? `Linked to ${linkedEventCount} event${linkedEventCount === 1 ? '' : 's'}`
+                : 'Linked events'}
+            </span>
+            <ChevronDown size={16} className="shrink-0 text-tertiary" />
           </button>
         </div>
       )}
+      {onOpenLinksEditor && !isEditMode && (
+        <div className="px-3 py-2 border-b border-primary/6">
+          <p className="text-[10pt] font-medium text-primary">
+            {linkedEventCount && linkedEventCount > 0
+              ? `Linked to ${linkedEventCount} event${linkedEventCount === 1 ? '' : 's'}`
+              : 'No linked events'}
+          </p>
+          <p className="text-[9pt] text-tertiary">Switch to edit mode to manage linked events.</p>
+        </div>
+      )}
 
-      {/* Color Picker */}
-      <div data-tour="map-feature-color-picker" className="px-3 py-2 border-b border-primary/6 flex items-center gap-2">
-        {TACTICAL_COLORS.map((tc) => {
-          const active = feature.style.color === tc.hex;
-          return (
-            <button
-              key={tc.hex}
-              type="button"
-              onClick={() => handleColorChange(tc.hex)}
-              className={`w-6 h-6 rounded-full active:scale-95 transition-all ${active ? 'ring-2 ring-offset-1 ring-primary/40' : 'opacity-70 hover:opacity-100'}`}
-              style={{ backgroundColor: tc.hex }}
-              aria-label={tc.name}
-            />
-          );
-        })}
-      </div>
+      {/* Color Picker — EDIT mode only. */}
+      {isEditMode && (
+        <div data-tour="map-feature-color-picker" className="px-3 py-2 border-b border-primary/6 flex items-center gap-2">
+          {TACTICAL_COLORS.map((tc) => {
+            const active = feature.style.color === tc.hex;
+            return (
+              <button
+                key={tc.hex}
+                type="button"
+                onClick={() => handleColorChange(tc.hex)}
+                className={`w-6 h-6 rounded-full active:scale-95 transition-all ${active ? 'ring-2 ring-offset-1 ring-primary/40' : 'opacity-70 hover:opacity-100'}`}
+                style={{ backgroundColor: tc.hex }}
+                aria-label={tc.name}
+              />
+            );
+          })}
+        </div>
+      )}
 
-      {/* Directions — routes only. Start point at top, one row per leg
-          (distance · bearing · 8-digit grid or waypoint name), end point and
-          total at the bottom. Tapping a leg fits the map to that segment. */}
-      {feature.type === 'route' && legs.length > 0 && startLabel && endLabel && (
+      {/* Directions — READ mode, routes only. Start point at top, one row per
+          leg (distance · bearing · 8-digit grid or waypoint name), end point
+          and total at the bottom. Tapping a leg fits the map to that segment. */}
+      {!isEditMode && feature.type === 'route' && legs.length > 0 && startLabel && endLabel && (
         <div data-tour="map-feature-directions" className="px-3 py-2 border-b border-primary/6 flex flex-col gap-1.5">
           <div className={`text-[10pt] ${startLabel.isWaypoint ? 'text-themeblue2 font-medium' : 'font-mono text-primary'}`}>
             {startLabel.label}
@@ -561,15 +600,22 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
         </div>
       )}
 
-      {/* Notes */}
-      <textarea
-        value={feature.notes ?? ''}
-        onChange={(e) => handleNotesChange(e.target.value)}
-        rows={3}
-        placeholder="Notes"
-        data-tour="map-feature-notes"
-        className="w-full px-3 py-2 bg-transparent text-[10pt] text-primary placeholder:text-tertiary resize-none focus:outline-none"
-      />
+      {/* Notes — editable in EDIT mode, read-only display in READ mode
+          (hidden entirely when no notes exist and the user isn't editing). */}
+      {isEditMode ? (
+        <textarea
+          value={feature.notes ?? ''}
+          onChange={(e) => handleNotesChange(e.target.value)}
+          rows={3}
+          placeholder="Notes"
+          data-tour="map-feature-notes"
+          className="w-full px-3 py-2 bg-transparent text-[10pt] text-primary placeholder:text-tertiary resize-none focus:outline-none"
+        />
+      ) : feature.notes ? (
+        <div className="px-3 py-2 text-[10pt] text-primary whitespace-pre-wrap" data-tour="map-feature-notes">
+          {feature.notes}
+        </div>
+      ) : null}
     </div>
   );
 }

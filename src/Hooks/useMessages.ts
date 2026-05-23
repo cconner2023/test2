@@ -13,8 +13,6 @@ import { createLogger } from '../Utilities/Logger'
 import { useAuth } from './useAuth'
 import { usePageVisibility } from './usePageVisibility'
 import { useSignalMessages } from './useSignalMessages'
-import { useSupabaseSubscription } from './useSupabaseSubscription'
-import type { SignalMessageRow } from '../lib/signal/transportTypes'
 import {
   fetchPeerBundle,
   fetchPeerBundleForDevice,
@@ -76,8 +74,6 @@ import {
   ensureSystemIdentity,
   encryptAsSystem,
   sendSystemEnvelopeToDevice,
-  drainSystemInbox,
-  onSystemIncomingMessage,
 } from '../lib/signal/systemIdentity'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { isCalendarEvent, routeCalendarEvent } from '../lib/calendarRouting'
@@ -473,43 +469,12 @@ export function useMessages(): UseMessagesReturn {
   const userId = user?.id ?? null
   const isPageVisible = usePageVisibility()
 
-  // Dev-only: drain system inbox on visibility resume so newly-arrived peer
-  // replies appear in the per-peer thread without a sign-out cycle. The
-  // realtime subscription below handles the live-tab case; this effect is
-  // the catch-up for messages that landed while the tab was hidden. Sign-in
-  // already kicks an initial drain.
-  useEffect(() => {
-    if (!isDevRole || !isAuthenticated || !isPageVisible) return
-    drainSystemInbox().catch(e =>
-      logger.warn('system inbox drain (visibility) failed:', e instanceof Error ? e.message : e)
-    )
-  }, [isDevRole, isAuthenticated, isPageVisible])
-
-  // Dev-only realtime subscription: surface user → SYSTEM replies live so
-  // notifications fire without waiting for tab focus. Selects rows where
-  // recipient_id = SYSTEM_USER_ID, which the dev-on-SYSTEM signal_messages
-  // RLS extension (20260522f) makes visible to the dev's session. Handler
-  // delegates to drainSystemInbox; the cursor in localStorage dedupes
-  // against the visibility-resume effect.
-  const handleSystemInboxInsert = useCallback(
-    (payload: { eventType: string }) => {
-      if (payload.eventType !== 'INSERT') return
-      drainSystemInbox().catch(e =>
-        logger.warn('system inbox drain (realtime) failed:', e instanceof Error ? e.message : e)
-      )
-    },
-    [],
-  )
-  useSupabaseSubscription<SignalMessageRow>({
-    shouldSubscribe: !!isDevRole && isAuthenticated && isPageVisible,
-    channelName: `system-inbox:${userId ?? 'anon'}`,
-    postgresFilter: {
-      table: 'signal_messages',
-      filter: `recipient_id=eq.${SYSTEM_USER_ID}`,
-    },
-    onPayload: handleSystemInboxInsert,
-    logger,
-  })
+  // System-inbox drain is admin-scoped: AdminDrawer / AdminUserDetail /
+  // AdminClinicDetail trigger drainSystemInbox() on mount + visibility resume.
+  // Sign-in still kicks an initial drain (useAuthStore) so the first admin
+  // open after a fresh session isn't empty. Keeping system traffic off the
+  // app-wide hook avoids the Realtime-RLS edge case where postgres_changes
+  // doesn't propagate rows matched only via is_dev()-gated predicates.
 
   // Register clinic as a system group so its messages are excluded from unread totals
   useEffect(() => {
@@ -523,17 +488,6 @@ export function useMessages(): UseMessagesReturn {
 
   // External listener ref — MessagesContext sets this to fire notifications
   const onIncomingRef = useRef<((msg: DecryptedSignalMessage) => void) | null>(null)
-
-  // Wire drainSystemInbox's incoming notifications into the same MessagesContext
-  // listener that handleIncomingMessage uses for normal peer replies. Without
-  // this, system-replies land in the messaging store but never trigger a
-  // notification toast/banner.
-  useEffect(() => {
-    if (!isDevRole) return
-    return onSystemIncomingMessage(msg => {
-      onIncomingRef.current?.(msg)
-    })
-  }, [isDevRole])
 
   // Load local device ID — retry until available
   useEffect(() => {
