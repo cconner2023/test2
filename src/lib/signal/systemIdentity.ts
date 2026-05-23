@@ -56,7 +56,7 @@ import {
 import { x3dhInitiate, x3dhRespond } from './x3dh'
 import { initSender, initReceiver, ratchetEncrypt, ratchetDecrypt } from './ratchet'
 import { seal, unseal, type SealedEnvelope } from './sealedSender'
-import { saveMessage, getTombstone } from './messageStore'
+import { saveMessage, getTombstone, deleteMessagesByOriginId } from './messageStore'
 import { useMessagingStore } from '../../stores/useMessagingStore'
 import { parseMessageContent } from './messageContent'
 import { isCalendarEvent, routeCalendarEvent } from '../calendarRouting'
@@ -72,6 +72,20 @@ import type { DecryptedSignalMessage, SignalMessageRow } from './transportTypes'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 
 const logger = createLogger('SystemIdentity')
+
+// ── Incoming-message listeners ──────────────────────────────────────────────
+//
+// drainSystemInbox writes decrypted messages directly into useMessagingStore,
+// so they appear in the dev's MessagesDrawer. Notifications, however, live in
+// the React layer (MessagesContext) and need a callback hook. We expose a
+// tiny pub/sub so consumers can register a notification handler without
+// threading callbacks through every drain caller (signIn, visibility, realtime).
+type SystemIncomingListener = (msg: DecryptedSignalMessage) => void
+const systemIncomingListeners = new Set<SystemIncomingListener>()
+export function onSystemIncomingMessage(cb: SystemIncomingListener): () => void {
+  systemIncomingListeners.add(cb)
+  return () => { systemIncomingListeners.delete(cb) }
+}
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -777,6 +791,40 @@ export async function drainSystemInbox(): Promise<number> {
         sessionMap.set(sessionKey, { state, ad: existing.ad })
       }
 
+      // Wire-framing 'delete': user → SYSTEM delete fanout. The decrypted
+      // body is { originIds }; remove those messages from the dev's local
+      // state + IDB and physically delete the original rows from Supabase.
+      // Also remove the delete envelope itself so SYSTEM-recipient rows
+      // don't accumulate. Supabase deletes rely on the dev-on-SYSTEM
+      // signal_messages RLS extension landed in 20260522f.
+      if (row.message_type === 'delete') {
+        try {
+          const parsed = JSON.parse(plaintext) as { originIds?: unknown }
+          const originIds = Array.isArray(parsed.originIds)
+            ? parsed.originIds.filter((x): x is string => typeof x === 'string')
+            : []
+          if (originIds.length > 0) {
+            useMessagingStore.getState().removeMessagesByOriginIds(originIds)
+            await deleteMessagesByOriginId(originIds)
+            const { error: origErr } = await supabase
+              .from('signal_messages')
+              .delete()
+              .eq('recipient_id', SYSTEM_USER_ID)
+              .in('origin_id', originIds)
+            if (origErr) logger.warn(`Failed to hard-delete originals for ${row.id}:`, origErr.message)
+          }
+          const { error: envErr } = await supabase
+            .from('signal_messages')
+            .delete()
+            .eq('id', row.id)
+          if (envErr) logger.warn(`Failed to hard-delete delete-envelope ${row.id}:`, envErr.message)
+        } catch (e) {
+          logger.warn(`System delete-envelope process failed for ${row.id}:`, e instanceof Error ? e.message : e)
+        }
+        processedIds.push(row.id)
+        continue
+      }
+
       // Route the decrypted payload.
       const { plaintext: displayText, content, replyTo } = parseMessageContent(plaintext)
       const isCal = isCalendarEvent(content)
@@ -808,6 +856,13 @@ export async function drainSystemInbox(): Promise<number> {
           await saveMessage(msg, devUserId)
         }
         useMessagingStore.getState().addMessage(msg)
+        // Fire notification listeners. Receipts/syncs route through the
+        // store-only path; user-visible replies (text, request) get a notify.
+        if (msg.messageType === 'initial' || msg.messageType === 'message' || msg.messageType === 'request') {
+          for (const listener of systemIncomingListeners) {
+            try { listener(msg) } catch (e) { logger.warn('System incoming listener threw:', e instanceof Error ? e.message : e) }
+          }
+        }
         if (isCal) routeCalendarEvent(content)
         // Serial await — overlay/feature routes share a single IDB row under RMW.
         else if (isOv) await routeMapOverlay(content).catch(() => {})

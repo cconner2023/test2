@@ -112,6 +112,7 @@ export function AdminUserDetail({
   // System-message compose popover (dev-only). Reuses the same pillRef anchor
   // as the reset-password popover so it lands next to the other actions.
   const [sysMsgAnchor, setSysMsgAnchor] = useState<DOMRect | null>(null)
+  const [vaultMissingOpen, setVaultMissingOpen] = useState(false)
   const messagesCtx = useMessagesContext()
 
   // Edit overlay — tap user card → PreviewOverlay anchored to card rect.
@@ -700,6 +701,10 @@ export function AdminUserDetail({
                   icon={MessageSquare}
                   label="Send system message"
                   onClick={() => {
+                    if (!user?.last_active_at) {
+                      setVaultMissingOpen(true)
+                      return
+                    }
                     const rect = pillRef.current?.getBoundingClientRect() ?? null
                     setSysMsgAnchor(rect)
                   }}
@@ -730,6 +735,15 @@ export function AdminUserDetail({
           onSend={async (text) => messagesCtx.sendSystemMessageToUser(user.id, text)}
         />
       )}
+
+      <ConfirmDialog
+        visible={vaultMissingOpen}
+        notifyOnly
+        variant="warning"
+        title="No vault yet"
+        subtitle={`${userName} hasn't signed in yet, so no message vault exists. They need to sign in once before they can receive system messages.`}
+        onCancel={() => setVaultMissingOpen(false)}
+      />
 
       {/* Reset password popover — anchored to corner ActionPill, confirmation via ConfirmDialog */}
       <PreviewOverlay

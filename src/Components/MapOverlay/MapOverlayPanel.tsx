@@ -331,6 +331,12 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   const [features, setFeatures] = useState<OverlayFeature[]>([]);
   const [drawMode, setDrawMode] = useState<DrawMode>('pan');
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
+  const [renamingFeature, setRenamingFeature] = useState(false);
+  const [draftFeatureName, setDraftFeatureName] = useState('');
+  useEffect(() => {
+    setRenamingFeature(false);
+    setDraftFeatureName('');
+  }, [selectedFeatureId]);
   // Transient single-tap / long-press marker. Does NOT commit a feature —
   // user must explicitly promote it via "Save as waypoint" in the temp-point
   // drawer. Prevents accidental waypoint litter from stray taps.
@@ -1915,7 +1921,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   onClose={() => setSelectedFeatureId(null)}
                   mobileOnly
                   fullHeight="90dvh"
-                  peekPosition={14}
+                  peekPosition={25}
                   noBackdrop
                   noDragDismiss
                   zIndex="z-[1010]"
@@ -1924,15 +1930,76 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                       || (selectedFeature?.type === 'waypoint' ? 'Waypoint'
                         : selectedFeature?.type === 'route' ? 'Route'
                         : 'Area'),
-                    rightContent: (
+                    titleNode: selectedFeature ? (
+                      renamingFeature ? (
+                        <input
+                          type="text"
+                          autoFocus
+                          value={draftFeatureName}
+                          onChange={(e) => setDraftFeatureName(e.target.value)}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onBlur={() => {
+                            const next = draftFeatureName.trim();
+                            if (next && next !== selectedFeature.label) {
+                              handleUpdateSelectedFeature({
+                                ...selectedFeature,
+                                label: next,
+                                updated_at: new Date().toISOString(),
+                              });
+                            }
+                            setRenamingFeature(false);
+                            setDraftFeatureName('');
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                            else if (e.key === 'Escape') {
+                              setRenamingFeature(false);
+                              setDraftFeatureName('');
+                            }
+                          }}
+                          placeholder={selectedFeature.label
+                            || (selectedFeature.type === 'waypoint' ? 'Waypoint'
+                              : selectedFeature.type === 'route' ? 'Route'
+                              : 'Area')}
+                          className="min-w-0 flex-1 bg-transparent text-[13pt] font-semibold text-primary placeholder:text-tertiary focus:outline-none"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => {
+                            setDraftFeatureName('');
+                            setRenamingFeature(true);
+                          }}
+                          className="min-w-0 flex-1 text-left truncate text-[13pt] font-semibold text-primary active:opacity-70 transition-opacity"
+                        >
+                          {selectedFeature.label
+                            || (selectedFeature.type === 'waypoint' ? 'Waypoint'
+                              : selectedFeature.type === 'route' ? 'Route'
+                              : 'Area')}
+                        </button>
+                      )
+                    ) : undefined,
+                    leftContent: (
                       <HeaderPill>
                         <PillButton
-                          icon={Move}
+                          icon={drawMode === 'drag' ? Check : Move}
                           iconSize={18}
-                          onClick={() => handleModeChange('drag')}
-                          label={drawMode === 'drag' ? 'Stop moving' : 'Move'}
+                          onClick={() => {
+                            if (drawMode === 'drag') {
+                              if (isDirty) handleSaveClick();
+                              handleModeChange('drag');
+                            } else {
+                              handleModeChange('drag');
+                            }
+                          }}
+                          label={drawMode === 'drag' ? 'Save & exit edit mode' : 'Edit feature'}
                           circleBg={drawMode === 'drag' ? 'bg-themeblue3 text-white' : undefined}
                         />
+                      </HeaderPill>
+                    ),
+                    rightContent: (
+                      <HeaderPill>
                         <PillButton icon={Trash2} iconSize={18} variant="danger" onClick={handleDeleteSelected} label="Delete" />
                         <PillButton icon={X} iconSize={18} onClick={() => setSelectedFeatureId(null)} label="Close" />
                       </HeaderPill>

@@ -27,6 +27,10 @@ export interface DrawerHeaderConfig {
     rightContentFill?: boolean;
     /** Optional content rendered below the title row */
     extraRow?: ReactNode;
+    /** When provided, replaces the read-only `<h2>{title}</h2>` slot — lets the
+     *  host render an editable input or other interactive title. `title` is
+     *  still used as the drawer's aria-label. */
+    titleNode?: ReactNode;
 }
 
 /** Private header component rendered by BaseDrawer when header config is provided */
@@ -40,6 +44,7 @@ function DrawerHeader({
     hideDefaultClose = false,
     rightContentFill = false,
     extraRow,
+    titleNode,
     onClose,
     isMobile,
     headerFaded,
@@ -85,9 +90,11 @@ function DrawerHeader({
                                     <PillButton icon={ChevronLeft} onClick={onBack!} label="Go back" compact={!isMobile} />
                                 </HeaderPill>
                             </div>
-                            <h2 className={`truncate ${isMobile ? 'text-[13pt] font-semibold text-primary' : 'text-[11pt] font-medium text-primary'}`}>
-                                {title}
-                            </h2>
+                            {titleNode ?? (
+                                <h2 className={`truncate ${isMobile ? 'text-[13pt] font-semibold text-primary' : 'text-[11pt] font-medium text-primary'}`}>
+                                    {title}
+                                </h2>
+                            )}
                             {badge && (
                                 <span className="text-[9pt] font-semibold text-themeyellow bg-themeyellow/15 px-2 py-0.5 rounded-full shrink-0 tracking-wide">
                                     {badge}
@@ -444,6 +451,7 @@ export function BaseDrawer({
                                     hideDefaultClose={header.hideDefaultClose}
                                     rightContentFill={header.rightContentFill}
                                     extraRow={header.extraRow}
+                                    titleNode={header.titleNode}
                                     onClose={handleClose}
                                     isMobile={useMobileLayout}
                                     headerFaded={headerFaded}
@@ -468,6 +476,7 @@ export function BaseDrawer({
                                     hideDefaultClose={header.hideDefaultClose}
                                     rightContentFill={header.rightContentFill}
                                     extraRow={header.extraRow}
+                                    titleNode={header.titleNode}
                                     onClose={handleClose}
                                     isMobile={useMobileLayout}
                                     headerFaded={headerFaded}

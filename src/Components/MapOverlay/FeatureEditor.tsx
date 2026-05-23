@@ -243,10 +243,6 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
     onUpdate({ ...feature, notes, updated_at: new Date().toISOString() });
   }, [feature, onUpdate]);
 
-  const handleLabelChange = useCallback((label: string) => {
-    onUpdate({ ...feature, label, updated_at: new Date().toISOString() });
-  }, [feature, onUpdate]);
-
   const handleCopyMgrs = useCallback(async () => {
     if (!mgrs || mgrs === 'Invalid') return;
     try {
@@ -257,8 +253,6 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
       // clipboard not available
     }
   }, [mgrs]);
-
-  const labelPlaceholder = feature.type === 'waypoint' ? 'Waypoint' : feature.type === 'route' ? 'Route' : 'Area';
 
   return (
     <div data-tour="map-feature-editor" className="flex flex-col pb-[calc(env(safe-area-inset-bottom)+3rem)]">
@@ -291,19 +285,6 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
           )}
         </div>
       )}
-      {/* Editable label — primary identifier for the feature. Mirrors the
-          desktop sidebar's title input so mobile can rename without an
-          external chrome row. */}
-      <div data-tour="map-feature-label" className="px-3 py-2 border-b border-primary/6">
-        <input
-          type="text"
-          value={feature.label}
-          onChange={(e) => handleLabelChange(e.target.value)}
-          placeholder={labelPlaceholder}
-          className="w-full bg-transparent text-[11pt] font-semibold text-primary placeholder:text-tertiary focus:outline-none"
-        />
-      </div>
-
       {/* Waypoint MGRS — copy affordance. Routes/areas surface grids in their
           directions section, so the bare MGRS row only renders for waypoints. */}
       {feature.type === 'waypoint' && (
