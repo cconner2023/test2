@@ -6,6 +6,8 @@ import { medList } from '../Data/MedData'
 import { stp68wTraining } from '../Data/TrainingTaskList'
 import { kbCategories } from '../Data/KnowledgeBaseCategories'
 import { useMessagingStore } from '../stores/useMessagingStore'
+import { useCalendarStore } from '../stores/useCalendarStore'
+import { useMapOverlaysStore, useMapOverlaysCache } from '../stores/useMapOverlaysStore'
 import { useClinicMedics } from './useClinicMedics'
 import { useAuth } from './useAuth'
 import { getDisplayName } from '../Utilities/nameUtils'
@@ -23,12 +25,17 @@ export function useSearch() {
     const searchTimeoutRef = useRef<number>(0)
 
     // ── Live chat search inputs (authenticated only) ─────────────────
-    const { isAuthenticated, user, profile } = useAuth()
+    const { isAuthenticated, user, profile, clinicId } = useAuth()
     const userId = user?.id ?? null
     const { medics } = useClinicMedics()
     const conversations = useMessagingStore(useShallow(s => s.conversations))
     const groups = useMessagingStore(useShallow(s => s.groups))
     const deletedConversations = useMessagingStore(useShallow(s => s.deletedConversations))
+
+    // ── Live calendar + map search inputs ────────────────────────────
+    const calendarEvents = useCalendarStore(useShallow(s => s.events))
+    useMapOverlaysCache(isAuthenticated ? clinicId : null)
+    const overlays = useMapOverlaysStore(useShallow(s => s.overlays))
 
     const selfMedic: ClinicMedic | null = useMemo(() => (
         userId
@@ -196,7 +203,7 @@ export function useSearch() {
         setSearchInput(value)
 
         if (!value.trim()) {
-            setSearchResults([])
+            setStaticResults([])
             setIsSearching(false)
             return
         }
@@ -343,9 +350,78 @@ export function useSearch() {
         return out.slice(0, 40)
     }, [searchInput, isAuthenticated, userId, selfMedic, medics, groups, conversations, deletedConversations])
 
+    const calendarResults = useMemo<SearchResultType[]>(() => {
+        const q = searchInput.trim().toLowerCase()
+        if (!q || !isAuthenticated) return []
+
+        const out: SearchResultType[] = []
+        for (const event of calendarEvents) {
+            const hay = [event.title, event.description, event.location, event.opord_notes]
+            if (!hay.some(h => h?.toLowerCase().includes(q))) continue
+            const date = event.start_time?.slice(0, 10) ?? ''
+            const subtitle = [date, event.category].filter(Boolean).join(' · ')
+            out.push({
+                type: 'calendar-event',
+                id: event.id,
+                icon: '📅',
+                text: event.title || '(untitled event)',
+                data: {
+                    eventId: event.id,
+                    eventSubtitle: subtitle,
+                },
+            })
+            if (out.length >= 20) break
+        }
+        return out
+    }, [searchInput, isAuthenticated, calendarEvents])
+
+    const mapResults = useMemo<SearchResultType[]>(() => {
+        const q = searchInput.trim().toLowerCase()
+        if (!q || !isAuthenticated) return []
+
+        const out: SearchResultType[] = []
+        for (const overlay of overlays) {
+            const overlayNameHit = overlay.name?.toLowerCase().includes(q)
+                || overlay.description?.toLowerCase().includes(q)
+            if (overlayNameHit) {
+                out.push({
+                    type: 'map-overlay',
+                    id: overlay.id,
+                    icon: '🗺️',
+                    text: overlay.name || '(untitled overlay)',
+                    data: {
+                        overlayId: overlay.id,
+                        overlayName: overlay.name,
+                    },
+                })
+                if (out.length >= 20) break
+            }
+            for (const feature of overlay.features) {
+                if (out.length >= 20) break
+                const label = feature.label?.toLowerCase()
+                const notes = feature.notes?.toLowerCase()
+                if (!label?.includes(q) && !notes?.includes(q)) continue
+                out.push({
+                    type: 'map-feature',
+                    id: `${overlay.id}:${feature.id}`,
+                    icon: feature.type === 'route' ? '➰' : feature.type === 'area' ? '⬛' : '📍',
+                    text: feature.label || `(${feature.type})`,
+                    data: {
+                        overlayId: overlay.id,
+                        overlayName: overlay.name,
+                        featureId: feature.id,
+                        featureSubtitle: overlay.name,
+                    },
+                })
+            }
+            if (out.length >= 20) break
+        }
+        return out
+    }, [searchInput, isAuthenticated, overlays])
+
     const searchResults = useMemo<SearchResultType[]>(
-        () => [...chatResults, ...staticResults],
-        [chatResults, staticResults],
+        () => [...chatResults, ...calendarResults, ...mapResults, ...staticResults],
+        [chatResults, calendarResults, mapResults, staticResults],
     )
 
     return {

@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { Plus, Building2, X, Inbox, Users, ChevronLeft, MessageCircleQuestion, MapPin } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from './BaseDrawer'
-import { MobileSearchBar } from './MobileSearchBar'
+import { SearchInput } from './SearchInput'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { DetailHeaderActions } from './Admin/DetailHeaderActions'
 import { useDetailEditState } from '../Hooks/useDetailEditState'
@@ -107,7 +107,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     // Search state
     const [searchQuery, setSearchQuery] = useState('')
-    const [searchFocused, setSearchFocused] = useState(false)
 
     // FAB action sheet
     const [showAddSheet, setShowAddSheet] = useState(false)
@@ -119,7 +118,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const pendingActionRef = useRef<(() => void) | null>(null)
 
     // Clear search when navigating between views (e.g., clicking a search result)
-    useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
+    useEffect(() => { setSearchQuery('') }, [view])
 
     const isMobile = useIsMobile()
     const isPageVisible = usePageVisibility()
@@ -867,11 +866,14 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     const renderMainView = () => (
         isMobile ? (
-            // Mobile: MobileSearchBar wraps content, island absolute over it
-            <div className="relative h-full">
-                <MobileSearchBar variant="admin" value={searchQuery} onChange={setSearchQuery} onFocusChange={setSearchFocused}>
+            // Mobile: inline primitive search bar above scrollable content
+            <div className="relative h-full flex flex-col">
+                <div className="shrink-0 px-3 py-2">
+                    <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto">
                     {searchQuery.trim() ? renderSearchResults() : renderTabLists()}
-                </MobileSearchBar>
+                </div>
                 {bottomIsland}
             </div>
         ) : (
@@ -894,7 +896,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             desktopPosition="left"
             desktopWidth="w-[90%]"
             header={headerConfig}
-            headerFaded={searchFocused}
             scrollDisabled
         >
             <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && view !== 'admin' ? swipeHandlers : undefined}>
@@ -912,13 +913,14 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                         : 'w-[260px] opacity-100 border-r border-tertiary/10'
                                 }`}
                             >
-                                <MobileSearchBar
-                                    variant="admin"
-                                    value={searchQuery}
-                                    onChange={setSearchQuery}
-                                    placeholder="Search..."
-                                    onFocusChange={setSearchFocused}
-                                >
+                                <div className="shrink-0 px-3 py-2">
+                                    <SearchInput
+                                        value={searchQuery}
+                                        onChange={setSearchQuery}
+                                        placeholder="Search..."
+                                    />
+                                </div>
+                                <div className="flex-1 min-h-0">
                                     <AdminSummary
                                         onSelectClinic={handleSelectClinic}
                                         onSelectUser={handleSelectUser}
@@ -928,7 +930,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                         activeUserId={selectedUser?.id}
                                         allSelected={view === 'admin'}
                                     />
-                                </MobileSearchBar>
+                                </div>
                             </div>
                             <div className="flex-1 min-w-0 overflow-hidden">
                                 {renderMainView()}

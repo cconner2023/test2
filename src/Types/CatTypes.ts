@@ -66,7 +66,7 @@ export interface differential {
 
 // Types/CatTypes.ts - Update SearchResultType
 export type SearchResultType = {
-    type: 'category' | 'CC' | 'training' | 'DDX' | 'medication' | 'screener' | 'calculator' | 'chat-contact' | 'chat-group' | 'chat-message';
+    type: 'category' | 'CC' | 'training' | 'DDX' | 'medication' | 'screener' | 'calculator' | 'chat-contact' | 'chat-group' | 'chat-message' | 'calendar-event' | 'map-overlay' | 'map-feature';
     id: number | string;
     icon: string;
     text: string;
@@ -89,6 +89,13 @@ export type SearchResultType = {
         peerName?: string;
         matchedText?: string;
         chatSubtitle?: string;
+        // Calendar / map routing
+        eventId?: string;
+        eventSubtitle?: string;
+        overlayId?: string;
+        overlayName?: string;
+        featureId?: string;
+        featureSubtitle?: string;
     };
 }
 

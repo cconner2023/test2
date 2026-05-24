@@ -6,7 +6,7 @@ import { useEditableClinicContent } from '../../Hooks/useEditableClinicContent';
 import type { UserTypes, PlanBlockKey, PlanOrderSet, PlanOrderTags } from '../../Data/User';
 import { PLAN_ORDER_CATEGORIES } from '../../Data/User';
 import { PreviewOverlay } from '../PreviewOverlay';
-import { MobileSearchBar } from '../MobileSearchBar';
+import { SearchInput } from '../SearchInput';
 import { TextInput } from '../FormInputs';
 import { ActionButton } from '../ActionButton';
 import { PlanAllBlocksPreview, CategoryPicker } from '../PlanBlockPreview';
@@ -183,13 +183,14 @@ export const PlanPanel = () => {
 
     return (
         <>
-            <MobileSearchBar
-                value={searchQuery}
-                onChange={setSearchQuery}
-                placeholder="Search order sets and tags..."
-                inheritScroll
-            >
-                <div className="px-5 py-4 space-y-5" data-tour="plan-settings-panel">
+            <div className="px-3 py-2">
+                <SearchInput
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    placeholder="Search order sets and tags..."
+                />
+            </div>
+            <div className="px-5 py-4 space-y-5" data-tour="plan-settings-panel">
                     <p className="text-[10pt] text-tertiary leading-relaxed">
                         Manage order tags and order sets for the plan section of your notes.
                         {(clinicPlanOrderTags || (clinicPlanOrderSets?.length ?? 0) > 0) && (
@@ -232,8 +233,7 @@ export const PlanPanel = () => {
                         })}
                         onTapNew={(anchor) => setTagPopover({ mode: 'new', anchor: anchor.getBoundingClientRect() })}
                     />
-                </div>
-            </MobileSearchBar>
+            </div>
 
             <TagEditPopover
                 state={tagPopover}

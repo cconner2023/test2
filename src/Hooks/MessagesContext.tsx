@@ -18,6 +18,7 @@ import { useMessageNotifications, type MessageNotification } from './useMessageN
 import { useMessagingStore } from '../stores/useMessagingStore'
 import { supabase } from '../lib/supabase'
 import { createLogger } from '../Utilities/Logger'
+import { onSystemMessage, SYSTEM_USER_ID } from '../lib/signal/systemIdentity'
 import type { DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 
@@ -31,7 +32,7 @@ interface MessagesContextValue extends UseMessagesReturn {
 const MessagesContext = createContext<MessagesContextValue | null>(null)
 
 export function MessagesProvider({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user } = useAuth()
+  const { isAuthenticated, user, isDevRole } = useAuth()
   const messages = useMessages()
   const { onIncomingRef, activePeerRef } = messages
   const { medics } = useClinicMedics()
@@ -145,6 +146,30 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
 
     return () => { onIncomingRef.current = null }
   }, [isAuthenticated, user?.id, nameMap, onIncomingRef, activePeerRef, notify])
+
+  // Dev-only: surface drained SYSTEM-recipient replies as the same toast.
+  // The drain (realtime + on-mount paths) saves to IDB + addMessage; this
+  // listener only adds the user-visible side effect. Skipping when the dev
+  // is already viewing the peer's system thread mirrors the personal-toast
+  // active-peer guard above. The synthetic SYSTEM peer never appears as a
+  // sender for user→SYSTEM replies — senderId is the replier's userId — but
+  // guard anyway so any future dev-self traffic doesn't toast itself.
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id || !isDevRole) return
+    const selfId = user.id
+    return onSystemMessage((msg: DecryptedSignalMessage) => {
+      if (msg.senderId === selfId || msg.senderId === SYSTEM_USER_ID) return
+      if (activePeerRef.current === msg.senderId) return
+      const senderName = nameMap.get(msg.senderId) ?? 'Unknown'
+      const preview = msg.plaintext || 'Photo'
+      notify({
+        peerId: msg.senderId,
+        senderName,
+        preview,
+        isGroup: false,
+      })
+    })
+  }, [isAuthenticated, user?.id, isDevRole, nameMap, activePeerRef, notify])
 
   // Memoize context value — only the action functions and notification state.
   // State reads go through useMessagingStore selectors directly.

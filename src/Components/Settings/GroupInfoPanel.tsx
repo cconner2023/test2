@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { X, UserPlus, UserMinus, LogOut, Pencil, Check } from 'lucide-react'
+import { X, UserPlus, UserMinus, LogOut, Pencil, Check, Mail, Hash, Send } from 'lucide-react'
 import { UserAvatar } from './UserAvatar'
+import { supabase } from '../../lib/supabase'
+import { useMessagingStore } from '../../stores/useMessagingStore'
+import { getMemberProfile } from '../../lib/supervisorService'
 import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 
@@ -42,6 +45,10 @@ export function GroupInfoPanel({
   const [showAddPicker, setShowAddPicker] = useState(false)
   const [editingName, setEditingName] = useState(false)
   const [nameText, setNameText] = useState(group.name)
+  const [lookupMode, setLookupMode] = useState<'none' | 'email' | 'code'>('none')
+  const [lookupValue, setLookupValue] = useState('')
+  const [lookupError, setLookupError] = useState<string | null>(null)
+  const [lookupLoading, setLookupLoading] = useState(false)
 
   const isAdmin = members.some(m => m.userId === userId && m.role === 'admin')
   const memberIds = new Set(members.map(m => m.userId))
@@ -70,6 +77,71 @@ export function GroupInfoPanel({
     const refreshed = await fetchMembers(group.groupId)
     setMembers(refreshed)
   }, [group.groupId, onRemoveMember, fetchMembers])
+
+  const closeAddPicker = useCallback(() => {
+    setShowAddPicker(false)
+    setLookupMode('none')
+    setLookupValue('')
+    setLookupError(null)
+  }, [])
+
+  const handleLookup = useCallback(async () => {
+    const value = lookupValue.trim()
+    setLookupError(null)
+    if (!value) return
+    if (lookupMode === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.toLowerCase())) {
+      setLookupError('Enter a valid email')
+      return
+    }
+    setLookupLoading(true)
+    try {
+      let medic: ClinicMedic | null = null
+      if (lookupMode === 'email') {
+        const { data, error } = await supabase.rpc('search_users', { query: value.toLowerCase() })
+        if (error || !data) { setLookupError('Lookup failed'); return }
+        const match = (data as Array<{ id: string; email?: string | null; first_name: string | null; last_name: string | null; middle_initial: string | null; rank: string | null; credential: string | null; avatar_id: string | null; clinic_id: string | null; clinic_name: string | null }>)
+          .find(r => r.email?.toLowerCase() === value.toLowerCase())
+        if (!match) { setLookupError('No user found with that email'); return }
+        medic = {
+          id: match.id,
+          firstName: match.first_name,
+          lastName: match.last_name,
+          middleInitial: match.middle_initial,
+          rank: match.rank,
+          credential: match.credential,
+          avatarId: match.avatar_id ?? null,
+          clinicId: match.clinic_id ?? undefined,
+          clinicName: match.clinic_name ?? undefined,
+        }
+      } else if (lookupMode === 'code') {
+        const result = await getMemberProfile(value)
+        if (!result.ok) { setLookupError('No user found with that code'); return }
+        medic = {
+          id: value,
+          firstName: result.data.firstName,
+          lastName: result.data.lastName,
+          middleInitial: result.data.middleInitial,
+          rank: result.data.rank,
+          credential: result.data.credential,
+          avatarId: null,
+        }
+      }
+      if (medic) {
+        if (memberIds.has(medic.id)) {
+          setLookupError('Already in group')
+          return
+        }
+        useMessagingStore.getState().setPeerProfile(medic)
+        await handleAddMember(medic.id)
+        setLookupValue('')
+        setLookupMode('none')
+      }
+    } catch {
+      setLookupError('Lookup failed')
+    } finally {
+      setLookupLoading(false)
+    }
+  }, [lookupMode, lookupValue, memberIds, handleAddMember])
 
   const nonMemberMedics = medics.filter(m => !memberIds.has(m.id))
 
@@ -122,7 +194,7 @@ export function GroupInfoPanel({
             <p className="text-[10pt] text-tertiary">{members.length} members</p>
             {isAdmin && (
               <button
-                onClick={() => setShowAddPicker(!showAddPicker)}
+                onClick={() => showAddPicker ? closeAddPicker() : setShowAddPicker(true)}
                 className="flex items-center gap-1 text-[10pt] text-themeblue2 hover:text-themeblue2/80"
               >
                 <UserPlus size={12} />
@@ -132,21 +204,76 @@ export function GroupInfoPanel({
           </div>
 
           {/* Add member picker */}
-          {showAddPicker && nonMemberMedics.length > 0 && (
-            <div className="mb-3 border border-primary/10 rounded-xl overflow-hidden">
-              {nonMemberMedics.map(medic => (
+          {showAddPicker && (
+            <div className="mb-3 space-y-2">
+              <div className="flex items-center gap-2">
                 <button
-                  key={medic.id}
-                  onClick={() => handleAddMember(medic.id)}
-                  className="flex items-center w-full px-3 py-2 gap-2 hover:bg-themewhite2 transition-colors"
+                  onClick={() => { setLookupMode('email'); setLookupValue(''); setLookupError(null) }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10pt] transition-colors
+                             ${lookupMode === 'email' ? 'bg-themeblue2 text-white' : 'bg-themewhite2 text-tertiary'}`}
                 >
-                  <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-7 h-7" />
-                  <span className="flex-1 text-sm text-primary truncate">
-                    {[medic.rank, medic.lastName].filter(Boolean).join(' ') || medic.firstName || 'Unknown'}
-                  </span>
-                  <UserPlus size={14} className="text-themeblue2/60" />
+                  <Mail size={12} />
+                  Email
                 </button>
-              ))}
+                <button
+                  onClick={() => { setLookupMode('code'); setLookupValue(''); setLookupError(null) }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10pt] transition-colors
+                             ${lookupMode === 'code' ? 'bg-themeblue2 text-white' : 'bg-themewhite2 text-tertiary'}`}
+                >
+                  <Hash size={12} />
+                  User Code
+                </button>
+              </div>
+
+              {lookupMode !== 'none' && (
+                <div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type={lookupMode === 'email' ? 'email' : 'text'}
+                      inputMode={lookupMode === 'email' ? 'email' : 'text'}
+                      value={lookupValue}
+                      onChange={e => { setLookupValue(e.target.value); if (lookupError) setLookupError(null) }}
+                      onKeyDown={e => { if (e.key === 'Enter' && lookupValue.trim() && !lookupLoading) { e.preventDefault(); handleLookup() } }}
+                      placeholder={lookupMode === 'email' ? 'user@example.com' : 'Paste user code'}
+                      autoFocus
+                      className="flex-1 px-3 py-2 rounded-lg bg-themewhite2 text-sm text-primary
+                                 outline-none focus:ring-1 focus:ring-themeblue2/40 placeholder:text-tertiary"
+                    />
+                    {lookupValue.trim() && !lookupLoading && (
+                      <button
+                        onClick={handleLookup}
+                        className="w-9 h-9 rounded-full bg-themeblue2 text-white flex items-center justify-center
+                                   active:scale-95 transition-all shrink-0"
+                      >
+                        <Send size={14} />
+                      </button>
+                    )}
+                  </div>
+                  {(lookupError || lookupLoading) && (
+                    <p className={`mt-1 text-[10pt] ${lookupError ? 'text-themeredred' : 'text-tertiary'}`}>
+                      {lookupLoading ? 'Looking up…' : lookupError}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {nonMemberMedics.length > 0 && (
+                <div className="border border-primary/10 rounded-xl overflow-hidden">
+                  {nonMemberMedics.map(medic => (
+                    <button
+                      key={medic.id}
+                      onClick={() => handleAddMember(medic.id)}
+                      className="flex items-center w-full px-3 py-2 gap-2 hover:bg-themewhite2 transition-colors"
+                    >
+                      <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-7 h-7" />
+                      <span className="flex-1 text-sm text-primary truncate">
+                        {[medic.rank, medic.lastName].filter(Boolean).join(' ') || medic.firstName || 'Unknown'}
+                      </span>
+                      <UserPlus size={14} className="text-themeblue2/60" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

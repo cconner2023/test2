@@ -58,7 +58,7 @@ import { initSender, initReceiver, ratchetEncrypt, ratchetDecrypt } from './ratc
 import { seal, unseal, type SealedEnvelope } from './sealedSender'
 import { saveMessage, getTombstone, deleteMessagesByOriginId } from './messageStore'
 import { useMessagingStore } from '../../stores/useMessagingStore'
-import { parseMessageContent } from './messageContent'
+import { parseMessageContent, type IntakeRequestContent } from './messageContent'
 import { isCalendarEvent, routeCalendarEvent } from '../calendarRouting'
 import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature } from '../mapOverlayRouting'
 import type {
@@ -187,6 +187,100 @@ let _cachedSystemKeys: SystemImportedKeys | null = null
 let _systemKeyReady: Promise<void> | null = null
 /** Bootstrap promise — coalesces concurrent bootstrap calls in the same session. */
 let _bootstrapInFlight: Promise<Result<void>> | null = null
+/** Single-flight lock for drainSystemInbox. Realtime can fire it rapidly. */
+let _drainInFlight: Promise<number> | null = null
+
+// ── IDB persistence for the wrapping CryptoKey ─────────────────────────────
+//
+// Without this, the dev's non-extractable wrapping key only lives for the
+// session that entered the password. Page refresh restores the auth token but
+// not the in-memory key, so ensureSystemIdentity returns no-identity until
+// the dev signs out + back in. Mirrors the pattern in
+// backupService.ts:103-150 (BACKUP_KEY_DB) so the security profile is
+// identical: AES-GCM CryptoKey is stored non-extractable; the browser
+// preserves the key handle but does not allow raw export. The salt sits
+// alongside as plain text (it's per-dev random and already visible in
+// system_identity_keys_per_dev.salt).
+
+const SYSTEM_KEY_DB = 'adtmc-system-key'
+const SYSTEM_KEY_STORE = 'keys'
+const SYSTEM_KEY_KEY_ID = 'wrapping-key'
+const SYSTEM_KEY_SALT_ID = 'wrapping-salt'
+
+function openSystemKeyDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(SYSTEM_KEY_DB, 1)
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(SYSTEM_KEY_STORE)) {
+        req.result.createObjectStore(SYSTEM_KEY_STORE)
+      }
+    }
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function persistSystemKeyToIdb(key: CryptoKey, saltHex: string): Promise<void> {
+  const db = await openSystemKeyDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(SYSTEM_KEY_STORE, 'readwrite')
+    const store = tx.objectStore(SYSTEM_KEY_STORE)
+    store.put(key, SYSTEM_KEY_KEY_ID)
+    store.put(saltHex, SYSTEM_KEY_SALT_ID)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+  db.close()
+}
+
+async function loadSystemKeyFromIdb(): Promise<{ key: CryptoKey; salt: string } | null> {
+  const db = await openSystemKeyDb()
+  const out = await new Promise<{ key: CryptoKey; salt: string } | null>((resolve, reject) => {
+    const tx = db.transaction(SYSTEM_KEY_STORE, 'readonly')
+    const store = tx.objectStore(SYSTEM_KEY_STORE)
+    const keyReq = store.get(SYSTEM_KEY_KEY_ID)
+    const saltReq = store.get(SYSTEM_KEY_SALT_ID)
+    tx.oncomplete = () => {
+      const key = keyReq.result as CryptoKey | undefined
+      const salt = saltReq.result as string | undefined
+      if (key && typeof salt === 'string') resolve({ key, salt })
+      else resolve(null)
+    }
+    tx.onerror = () => reject(tx.error)
+  })
+  db.close()
+  return out
+}
+
+async function clearSystemKeyFromIdb(): Promise<void> {
+  const db = await openSystemKeyDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(SYSTEM_KEY_STORE, 'readwrite')
+    const store = tx.objectStore(SYSTEM_KEY_STORE)
+    store.delete(SYSTEM_KEY_KEY_ID)
+    store.delete(SYSTEM_KEY_SALT_ID)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+  db.close()
+}
+
+// ── Decrypted-system-message listener (realtime → notification dispatch) ──
+//
+// Mirrors the onLoRaMessage pattern in signalService.ts. Fires AFTER the row
+// has been saved to IDB + pushed into useMessagingStore, so subscribers
+// (MessagesContext) can run side effects like toast + sound without
+// duplicating decrypt or storage work. Only emitted for routed conversation
+// messages, NOT delete envelopes / calendar / overlay / feature payloads —
+// those have their own routing and don't surface a system reply card.
+
+const _systemMessageListeners = new Set<(msg: DecryptedSignalMessage) => void>()
+
+/** Subscribe to decrypted system replies (dev-only). Returns an unsubscribe. */
+export function onSystemMessage(cb: (msg: DecryptedSignalMessage) => void): () => void {
+  _systemMessageListeners.add(cb)
+  return () => { _systemMessageListeners.delete(cb) }
+}
 
 /** Register the wrapping-key derivation promise (called from authService). */
 export function setSystemKeyReady(promise: Promise<void>): void {
@@ -200,6 +294,12 @@ export function clearSystemIdentity(): void {
   _cachedSystemKeys = null
   _systemKeyReady = null
   _bootstrapInFlight = null
+  _drainInFlight = null
+  _systemMessageListeners.clear()
+  // Fire-and-forget IDB clear so the next sign-in (possibly a different dev
+  // on the same browser) doesn't unwrap the previous dev's blob with stale
+  // cached state.
+  clearSystemKeyFromIdb().catch(() => { /* IDB unavailable */ })
 }
 
 // ── PBKDF2 wrapping-key derivation ──────────────────────────────────────────
@@ -267,6 +367,12 @@ export async function deriveAndCacheSystemWrappingKey(
   const saltBytes = hexToBytes(saltHex)
   _cachedWrappingKey = await deriveWrappingKey(password, saltBytes, iters)
   _cachedWrappingSalt = saltHex
+  // Persist so page refresh / PWA reopen doesn't force a re-sign-in to
+  // re-derive. Fire-and-forget — IDB failure isn't fatal; the cached
+  // module state still works for the current session.
+  persistSystemKeyToIdb(_cachedWrappingKey, saltHex).catch(() =>
+    logger.warn('Failed to persist system wrapping key to IDB'),
+  )
   logger.info('System wrapping key cached')
 }
 
@@ -462,6 +568,20 @@ async function bootstrapInternal(): Promise<Result<void>> {
     try { await _systemKeyReady } catch { /* fall through */ }
   }
 
+  // Session restored without password (page refresh / PWA reopen) — try IDB.
+  // Mirrors backupService.ts:469-471. The cached CryptoKey + salt are written
+  // by deriveAndCacheSystemWrappingKey on every password-bearing sign-in.
+  if (!_cachedWrappingKey || !_cachedWrappingSalt) {
+    try {
+      const loaded = await loadSystemKeyFromIdb()
+      if (loaded) {
+        _cachedWrappingKey = loaded.key
+        _cachedWrappingSalt = loaded.salt
+        logger.info('System wrapping key restored from IDB')
+      }
+    } catch { /* IDB unavailable */ }
+  }
+
   if (!_cachedWrappingKey || !_cachedWrappingSalt) {
     return err('System wrapping key not cached — sign-in did not run derive step (non-dev?)')
   }
@@ -641,17 +761,37 @@ export async function sendSystemEnvelopeToDevice(
 // ── Drain inbox ─────────────────────────────────────────────────────────────
 
 /**
+ * Public drain entrypoint. Coalesces concurrent calls — realtime can fire
+ * rapidly (one INSERT per new SYSTEM-recipient row) and each invocation
+ * re-reads the cursor + RPC-fetches the same rows; without a guard we'd
+ * decrypt the same rows in parallel and race the OTP-consumption OCC.
+ * In-flight callers all resolve to the same processed count.
+ */
+export async function drainSystemInbox(): Promise<number> {
+  if (_drainInFlight) return _drainInFlight
+  _drainInFlight = (async () => {
+    try {
+      return await _drainSystemInboxImpl()
+    } finally {
+      _drainInFlight = null
+    }
+  })()
+  return _drainInFlight
+}
+
+/**
  * Drain inbound messages addressed to SYSTEM_USER_ID and post the decrypted
  * results into the local messaging store under conversation key = peer userId
  * (the sender). v1 decrypts only InitialMessages — subsequent ratchet messages
  * from the same peer are treated as orphaned and skipped (mirrors vault).
  * Consumed OTPs are removed from the dev's wrapped blob and from the public
  * `signal_key_bundles` row via OCC update; conflicts log and skip rather than
- * retry (single-dev pilot).
+ * retry (single-dev pilot). Conversation-message routes also emit to
+ * `_systemMessageListeners` so MessagesContext can fire the standard toast.
  *
  * Returns the count of successfully decrypted+routed messages.
  */
-export async function drainSystemInbox(): Promise<number> {
+async function _drainSystemInboxImpl(): Promise<number> {
   const ensure = await ensureSystemIdentity()
   if (!ensure.ok) {
     logger.info('drainSystemInbox: system identity unavailable —', ensure.error)
@@ -703,6 +843,59 @@ export async function drainSystemInbox(): Promise<number> {
 
   for (const row of rows) {
     try {
+      // ─── Plaintext early-exit: anon-authored event-intake submission ─────
+      // submit_event_intake (rev6) fans out N+1 rows with sender_id=SYSTEM
+      // and a PLAINTEXT jsonb payload — bypassing the Signal envelope
+      // entirely. The intake bundle has no Signal keys and SYSTEM has no
+      // way to encrypt to itself, so the payload IS the content. The
+      // SealedEnvelope shape used below would crash on this row (no v /
+      // ephemeralKey / ciphertext fields). Discriminate on payload.kind
+      // before treating row.payload as an envelope. Existing dev-authored
+      // SYSTEM messages have SealedEnvelope shape (no `kind` field) and
+      // fall through to normal decrypt unchanged.
+      const maybeIntakePayload = row.payload as Record<string, unknown> | null
+      if (
+        row.message_type === 'system'
+        && maybeIntakePayload
+        && maybeIntakePayload.kind === 'intake-request'
+      ) {
+        const content: IntakeRequestContent = {
+          type: 'intake_request',
+          intake_id: String(maybeIntakePayload.intake_id),
+          requester_name: String(maybeIntakePayload.requester_name ?? ''),
+          requester_email: String(maybeIntakePayload.requester_email ?? ''),
+          requested_start: String(maybeIntakePayload.requested_start ?? ''),
+          requested_end: String(maybeIntakePayload.requested_end ?? ''),
+          title: String(maybeIntakePayload.title ?? ''),
+          ...(maybeIntakePayload.requester_org
+            ? { requester_org: String(maybeIntakePayload.requester_org) }
+            : {}),
+        }
+        const msg: DecryptedSignalMessage = {
+          id: row.id,
+          senderId: SYSTEM_USER_ID,
+          recipientId: SYSTEM_USER_ID,
+          plaintext: '[event intake — request]',
+          content,
+          messageType: 'system',
+          createdAt: row.created_at,
+          readAt: row.read_at,
+          ...(row.group_id && { groupId: row.group_id }),
+          originId: row.origin_id ?? undefined,
+        }
+        const { useAuthStore } = await import('../../stores/useAuthStore')
+        const devUserId = useAuthStore.getState().user?.id
+        if (devUserId) {
+          await saveMessage(msg, devUserId)
+        }
+        useMessagingStore.getState().addMessage(msg)
+        for (const cb of _systemMessageListeners) {
+          try { cb(msg) } catch { /* listener failures must not block drain */ }
+        }
+        processedIds.push(row.id)
+        continue
+      }
+
       const envelope = row.payload as unknown as SealedEnvelope
       const senderDeviceId = row.sender_device_id ?? 'unknown'
 
@@ -846,6 +1039,14 @@ export async function drainSystemInbox(): Promise<number> {
         // Serial await — overlay/feature routes share a single IDB row under RMW.
         else if (isOv) await routeMapOverlay(content).catch(() => {})
         else if (isFt) await routeMapFeature(content).catch(() => {})
+        else {
+          // Conversation reply — surface to notification dispatch. Out-of-band
+          // payloads (calendar/overlay/feature) and delete-envelopes don't
+          // produce a system-thread card, so they don't fire listeners.
+          for (const cb of _systemMessageListeners) {
+            try { cb(msg) } catch { /* listener failures must not block drain */ }
+          }
+        }
       }
 
       processedIds.push(row.id)

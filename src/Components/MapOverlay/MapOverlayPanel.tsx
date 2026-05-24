@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { CalendarEvent } from '../../Types/CalendarTypes';
 import { useSpring, animated } from '@react-spring/web';
-import { ChevronLeft, ChevronRight, Settings, MapPin, Route, Pentagon, Trash2, X, Ruler, RadioTower, Undo2, Activity, Pause, Play, Square, Plus, Check, Navigation, Layers, Pencil } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, MapPin, Route, Pentagon, Trash2, X, Ruler, RadioTower, Undo2, Activity, Pause, Play, Square, Plus, Check, Navigation, Layers, Pencil, Clock } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ActionSheet, type ActionSheetOption } from '../ActionSheet';
 import { ActionPill } from '../ActionPill';
@@ -359,6 +359,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const pushRecent = useMapSearchStore(s => s.pushRecent);
+  const recentSearches = useMapSearchStore(s => s.recentSearches);
+  const clearRecents = useMapSearchStore(s => s.clearRecents);
 
   // Measure tool
   const [measurePoints, setMeasurePoints] = useState<[number, number][]>([]);
@@ -1416,13 +1418,19 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
       if (target) handleOpenOverlay(target as MapOverlay);
     }
     setSelectedFeatureId(feature.id);
-    // Defer flyTo past handleOpenOverlay's 400ms fitBounds so this wins when switching
+    // Defer focus past handleOpenOverlay's 400ms fitBounds so this wins when switching
     if (feature.geometry.length > 0) {
-      const [lat, lng] = feature.geometry[0];
       const delay = switching ? 450 : 0;
-      setTimeout(() => mapRef.current?.flyTo(lat, lng), delay);
+      if (feature.type === 'waypoint') {
+        const [lat, lng] = feature.geometry[0];
+        const targetZoom = Math.max(mapZoom, 15);
+        setTimeout(() => mapRef.current?.flyTo(lat, lng, targetZoom), delay);
+      } else {
+        const bbox = computeOverlayBbox([feature]);
+        if (bbox) setTimeout(() => mapRef.current?.fitBounds(bbox), delay);
+      }
     }
-  }, [drawMode, overlayId, overlays, handleOpenOverlay]);
+  }, [drawMode, overlayId, overlays, handleOpenOverlay, mapZoom]);
 
   // Tour orchestrator hooks — let the guided Map tour drive selection and
   // settings without depending on click coordinates the tour can't compute.
@@ -1759,7 +1767,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                     value={searchQuery}
                     onChange={setSearchQuery}
                     onSubmit={handleSearchSubmit}
-                    onFocus={() => setSearchFocused(true)}
                     placeholder="Address, grid, lat/lng…"
                   />
                 </div>
@@ -1776,6 +1783,34 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   <Settings size={17} />
                 </button>
               </div>
+              {recentSearches.length > 0 && (
+                <div className="shrink-0 border-b border-primary/10 px-3 py-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[9pt] font-medium text-tertiary uppercase tracking-wide">Recent</span>
+                    <button
+                      type="button"
+                      onClick={clearRecents}
+                      className="text-[9pt] text-tertiary hover:text-primary"
+                      title="Clear recent searches"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto -mx-1">
+                    {recentSearches.map((entry) => (
+                      <button
+                        key={`${entry.ts}-${entry.label}`}
+                        type="button"
+                        onClick={() => handleSearchOverlaySelect({ lat: entry.lat, lng: entry.lng, label: entry.label })}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-themeblue2/10 active:scale-[0.98] text-left transition-all"
+                      >
+                        <Clock size={13} className="shrink-0 text-tertiary" />
+                        <span className="text-[10pt] text-primary truncate">{entry.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <MapOverlayTree
                 overlays={overlays}
                 activeOverlayId={overlayId}

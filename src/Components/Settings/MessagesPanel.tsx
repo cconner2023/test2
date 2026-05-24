@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
 import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, Pin, Users, Check, QrCode, Mail, Send, Plus, Hash } from 'lucide-react'
-import { useSpring, animated, type SpringValue } from '@react-spring/web'
-import { MobileSearchBar } from '../MobileSearchBar'
+import { useSpring, animated } from '@react-spring/web'
+import { SearchInput } from '../SearchInput'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { supabase } from '../../lib/supabase'
@@ -56,8 +56,6 @@ interface MessagesPanelProps {
   searchQuery: string
   onSearchClear: () => void
   onSearchChange: (value: string) => void
-  onSearchFocusChange?: (focused: boolean) => void
-  headerCollapse?: SpringValue<number>
 }
 
 // ── Long-press preview types + wrapper ────────────────────────────────────
@@ -220,8 +218,6 @@ function ConversationPane({
     const medicMap = new Map(medics.map(m => [m.id, m]))
     for (const [key, msgs] of Object.entries(conversations)) {
       if (key === userId) continue
-      // Skip system groups (e.g. calendar) — they are not user-facing chats
-      if (groups[key]?.systemType) continue
       const visibleMsgs = msgs.filter(m => m.messageType !== 'request-accepted' && !m.threadId)
       if (visibleMsgs.length === 0) continue
       const lastTime = visibleMsgs.at(-1)?.createdAt ?? ''
@@ -269,7 +265,6 @@ function ConversationPane({
     const messageMatches: { conversationKey: string; type: 'contact' | 'group'; medic?: typeof medics[0]; group?: typeof groups[string]; matchedText: string }[] = []
     for (const [key, msgs] of Object.entries(conversations)) {
       if (alreadyMatched.has(key)) continue
-      if (groups[key]?.systemType) continue
       for (const msg of msgs) {
         if (msg.threadId || msg.messageType === 'request-accepted') continue
         if (msg.plaintext?.toLowerCase().includes(q)) {
@@ -781,6 +776,8 @@ function GroupChatDetail({
   removeGroupMember,
   fetchGroupMembers,
   unavailableIds,
+  showGroupInfo,
+  onShowGroupInfo,
 }: {
   groupId: string
   group: GroupInfo
@@ -917,7 +914,7 @@ function GroupChatDetail({
 
 // ── Exported Panel ─────────────────────────────────────────────────────────
 
-export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelProps>(function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack, onCloseDrawer, searchQuery, onSearchClear, onSearchChange, onSearchFocusChange, headerCollapse }, ref) {
+export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelProps>(function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack, onCloseDrawer, searchQuery, onSearchClear, onSearchChange }, ref) {
   const messagesCtx = useMessagesContext()
   const { medics, loading } = useClinicMedics()
   const callActions = useCallActions()
@@ -993,9 +990,21 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     const peerList = Object.values(peerProfiles).filter(m => !(isDevRole && m.id === SYSTEM_USER_ID))
     if (peerList.length === 0) return medics
     const have = new Set(medics.map(m => m.id))
-    const extras = peerList.filter(m => !have.has(m.id))
+    // Outside-cluster peer profiles haunt the contact list forever otherwise:
+    // email/QR/code lookup writes the profile to IDB (so name/avatar can
+    // resolve later), but with zero messages we should hide the row from
+    // contact + conversation lists. Keep the profile in IDB — cheap, and lets
+    // it resurface instantly if a message arrives. Exception: the currently
+    // selected peer must remain in allMedics so name resolution works for a
+    // freshly-added contact whose chat is open but has no messages yet.
+    const extras = peerList.filter(m =>
+      !have.has(m.id) && (
+        (conversations[m.id]?.length ?? 0) > 0 ||
+        m.id === selectedPeerId
+      ),
+    )
     return extras.length === 0 ? medics : [...medics, ...extras]
-  }, [medics, peerProfiles, isDevRole])
+  }, [medics, peerProfiles, isDevRole, conversations, selectedPeerId])
 
   // Batch-check which contacts have active devices
   const medicIds = useMemo(() => allMedics.map(m => m.id), [allMedics])
@@ -1280,29 +1289,28 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   }
 
   return (
-    <animated.div
-      className="flex h-full relative"
-      style={headerCollapse ? { '--msg-header-collapse': headerCollapse } as React.CSSProperties : undefined}
-    >
+    <div className="flex h-full relative">
       {/* Conversation pane: full-width on mobile default view, w-80 sidebar on desktop */}
       {view === 'messages' && (
-        <div className="md:hidden flex flex-col w-full h-full overflow-hidden">
-          <MobileSearchBar
-            variant="messages"
-            value={searchQuery}
-            onChange={onSearchChange}
-            placeholder="Search..."
-            onFocusChange={onSearchFocusChange}
-            style={{ paddingTop: 'calc(var(--sat, 0px) + 4rem * (1 - var(--msg-header-collapse, 0)))' }}
-          >
+        <div
+          className="md:hidden flex flex-col w-full h-full overflow-hidden"
+          style={{ paddingTop: 'calc(var(--sat, 0px) + 4rem)' }}
+        >
+          <div className="shrink-0 px-3 py-2">
+            <SearchInput value={searchQuery} onChange={onSearchChange} placeholder="Search..." />
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto">
             <ConversationPane {...conversationPaneProps} tourVariant="mobile" />
-          </MobileSearchBar>
+          </div>
         </div>
       )}
       <div className="hidden md:flex md:flex-col w-80 shrink-0 border-r border-primary/10 overflow-hidden">
-        <MobileSearchBar variant="messages" value={searchQuery} onChange={onSearchChange} placeholder="Search..." onFocusChange={onSearchFocusChange}>
+        <div className="shrink-0 px-3 py-2">
+          <SearchInput value={searchQuery} onChange={onSearchChange} placeholder="Search..." />
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto">
           <ConversationPane {...conversationPaneProps} tourVariant="desktop" />
-        </MobileSearchBar>
+        </div>
       </div>
 
       {/* Main content area (chat detail on both, empty state on desktop) */}
@@ -1562,6 +1570,6 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
       />
 
       <ProvisionalDeviceModal />
-    </animated.div>
+    </div>
   )
 }))

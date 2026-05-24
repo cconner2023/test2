@@ -62,6 +62,13 @@ export interface CalendarEvent {
    * write done_by + done_at and ride the normal event update path.
    */
   pcc?: PCCAttachment | null
+  /**
+   * Outside event-intake linkage. Present when this event was created via the
+   * intake card's Approve action. useCalendarWrite.writeEvent fires
+   * mark_event_intake_approved + posts the intake-approved reply when this is
+   * set. Rides the Signal vault fanout like any other event field.
+   */
+  intake_id?: string
 }
 
 /** Snapshot of a PCC attached to a calendar event. Inherits ownership from event.assigned_to — anyone on the event can tick. */

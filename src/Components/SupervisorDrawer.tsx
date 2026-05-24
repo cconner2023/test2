@@ -3,7 +3,7 @@ import { Ban, X } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from './BaseDrawer'
 import { ContentWrapper } from './ContentWrapper'
 import { HeaderPill, PillButton } from './HeaderPill'
-import { MobileSearchBar } from './MobileSearchBar'
+import { SearchInput } from './SearchInput'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { UI_TIMING } from '../Utilities/constants'
@@ -53,10 +53,9 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
 
   const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
   const [taskSearchQuery, setTaskSearchQuery] = useState('')
-  const [searchFocused, setSearchFocused] = useState(false)
 
   // Clear search when navigating between views (e.g., clicking a search result)
-  useEffect(() => { setTaskSearchQuery(''); setSearchFocused(false) }, [view.screen])
+  useEffect(() => { setTaskSearchQuery('') }, [view.screen])
 
   // Tour: guided tour navigation events
   useEffect(() => {
@@ -561,23 +560,27 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     switch (view.screen) {
       case 'evaluate-select-task':
         return (
-          <MobileSearchBar variant="supervisor"
-            value={taskSearchQuery}
-            onChange={setTaskSearchQuery}
-            placeholder="Search STP tasks..."
-            onFocusChange={setSearchFocused}
-          >
-            <div className="px-4 py-3 md:p-5 pb-8 min-h-full">
-              <EvaluateFlow
-                soldier={view.soldier}
-                taskNumber={null}
-                taskTitle={null}
-                searchQuery={taskSearchQuery}
-                onSelectTask={handleSelectTask}
-                onSubmit={handleSubmitEvaluation}
+          <div className="h-full flex flex-col">
+            <div className="shrink-0 px-3 py-2">
+              <SearchInput
+                value={taskSearchQuery}
+                onChange={setTaskSearchQuery}
+                placeholder="Search STP tasks..."
               />
             </div>
-          </MobileSearchBar>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <div className="px-4 py-3 md:p-5 pb-8 min-h-full">
+                <EvaluateFlow
+                  soldier={view.soldier}
+                  taskNumber={null}
+                  taskTitle={null}
+                  searchQuery={taskSearchQuery}
+                  onSelectTask={handleSelectTask}
+                  onSubmit={handleSubmitEvaluation}
+                />
+              </div>
+            </div>
+          </div>
         )
 
       case 'evaluate-go-nogo':
@@ -628,21 +631,25 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
 
       case 'assign-task':
         return (
-          <MobileSearchBar variant="supervisor"
-            value={taskSearchQuery}
-            onChange={setTaskSearchQuery}
-            placeholder="Search tasks to assign..."
-            onFocusChange={setSearchFocused}
-          >
-            <div className="px-4 py-3 md:p-5 pb-8 min-h-full">
-              <AssignTaskFlow
-                soldier={view.soldier}
-                searchQuery={taskSearchQuery}
-                preSelectedTask={view.preSelectedTask}
-                onSubmit={handleSubmitAssignment}
+          <div className="h-full flex flex-col">
+            <div className="shrink-0 px-3 py-2">
+              <SearchInput
+                value={taskSearchQuery}
+                onChange={setTaskSearchQuery}
+                placeholder="Search tasks to assign..."
               />
             </div>
-          </MobileSearchBar>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <div className="px-4 py-3 md:p-5 pb-8 min-h-full">
+                <AssignTaskFlow
+                  soldier={view.soldier}
+                  searchQuery={taskSearchQuery}
+                  preSelectedTask={view.preSelectedTask}
+                  onSubmit={handleSubmitAssignment}
+                />
+              </div>
+            </div>
+          </div>
         )
 
       case 'main':
@@ -687,7 +694,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         desktopPosition="left"
         desktopWidth="w-[90%]"
         header={headerConfig}
-        headerFaded={searchFocused}
         scrollDisabled
       >
         <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && canSwipeBack ? swipeHandlers : undefined}>

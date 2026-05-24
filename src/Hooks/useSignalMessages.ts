@@ -21,13 +21,14 @@ import { scheduleBackup } from '../lib/signal/backupService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { processIncomingMessage, encryptMessage } from '../lib/signal/session'
 import { processClinicIncomingMessage } from '../lib/signal/clinicSession'
+import { drainSystemInbox, SYSTEM_USER_ID } from '../lib/signal/systemIdentity'
 import { processSenderKeyDistribution, senderKeyDecrypt } from '../lib/signal/senderKey'
 import { useMessagingStore } from '../stores/useMessagingStore'
 import type { SealedEnvelope } from '../lib/signal/sealedSender'
 import type { SignalMessageRow, DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { SyncMessagePayload } from '../lib/signal/transportTypes'
 import type { SenderKeyMessage, SenderKeyDistribution } from '../lib/signal/types'
-import { parseMessageContent } from '../lib/signal/messageContent'
+import { parseMessageContent, type IntakeRequestContent } from '../lib/signal/messageContent'
 import { isCalendarEvent, routeCalendarEvent } from '../lib/calendarRouting'
 import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature } from '../lib/mapOverlayRouting'
 import { errorBus } from '../lib/errorBus'
@@ -68,6 +69,8 @@ interface UseSignalMessagesOptions {
   localDeviceId: string | null
   clinicId: string | null
   clinicDeviceId: string | null
+  /** Dev-only: subscribe to SYSTEM-recipient rows and kick `drainSystemInbox`. */
+  isDevRole: boolean
   isAuthenticated: boolean
   isPageVisible: boolean
   onMessage: (message: DecryptedSignalMessage) => void
@@ -76,6 +79,44 @@ interface UseSignalMessagesOptions {
 
 async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<DecryptedSignalMessage | null> {
   try {
+    // ─── Plaintext early-exit: anon-authored event-intake submission ─────
+    // submit_event_intake (rev6) fans out N+1 rows per supervisor with
+    // sender_id=SYSTEM and a PLAINTEXT jsonb payload — bypassing the Signal
+    // envelope entirely. Without this short-circuit we would treat row.payload
+    // as a SealedEnvelope and crash inside processIncomingMessage (no
+    // v / ephemeralKey / ciphertext fields). Existing dev-authored SYSTEM
+    // messages encode as SealedEnvelope (no `kind` field), so the predicate
+    // is false for them and they fall through to normal decrypt unchanged.
+    if (row.message_type === 'system') {
+      const maybeIntake = row.payload as Record<string, unknown> | null
+      if (maybeIntake && maybeIntake.kind === 'intake-request') {
+        const content: IntakeRequestContent = {
+          type: 'intake_request',
+          intake_id: String(maybeIntake.intake_id),
+          requester_name: String(maybeIntake.requester_name ?? ''),
+          requester_email: String(maybeIntake.requester_email ?? ''),
+          requested_start: String(maybeIntake.requested_start ?? ''),
+          requested_end: String(maybeIntake.requested_end ?? ''),
+          title: String(maybeIntake.title ?? ''),
+          ...(maybeIntake.requester_org
+            ? { requester_org: String(maybeIntake.requester_org) }
+            : {}),
+        }
+        return {
+          id: row.id,
+          senderId: SYSTEM_USER_ID,
+          recipientId: row.recipient_id,
+          plaintext: '[event intake — request]',
+          content,
+          messageType: 'system' as const,
+          createdAt: row.created_at,
+          readAt: row.read_at,
+          ...(row.group_id && { groupId: row.group_id }),
+          originId: row.origin_id ?? undefined,
+        }
+      }
+    }
+
     const envelope = row.payload as unknown as SealedEnvelope
     const senderDeviceId = row.sender_device_id ?? 'unknown'
 
@@ -329,6 +370,7 @@ export function useSignalMessages({
   localDeviceId,
   clinicId,
   clinicDeviceId,
+  isDevRole,
   isAuthenticated,
   isPageVisible,
   onMessage,
@@ -769,6 +811,45 @@ export function useSignalMessages({
     channelName: `signal-messages:${userId}`,
     postgresFilter,
     onPayload: handlePayload,
+    logger,
+  })
+
+  // ── Dev-only: SYSTEM-recipient realtime channel ──────────────────────────
+  //
+  // 20260522f_system_first_class_entity added SELECT RLS so devs can observe
+  // recipient_id=SYSTEM rows; this hook is the client-side complement.
+  // Without it, user replies sit in the DB until something polls
+  // drainSystemInbox (sign-in, AdminDrawer mount, AdminUserDetail mount).
+  // Realtime closes that gap: every new SYSTEM-recipient row pokes the drain
+  // (single-flight inside drainSystemInbox), which decrypts + adds to the
+  // messaging store + fires onSystemMessage listeners (MessagesContext picks
+  // those up and renders the standard toast).
+
+  const handleSystemPayload = useCallback(
+    (payload: RealtimePostgresChangesPayload<SignalMessageRow>) => {
+      if (payload.eventType !== 'INSERT') return
+      // drainSystemInbox is self-coalescing — rapid inserts collapse into a
+      // single drain pass that picks up every new row past the cursor.
+      drainSystemInbox().catch(e =>
+        logger.warn('system realtime drain failed:', e instanceof Error ? e.message : e),
+      )
+    },
+    [],
+  )
+
+  const systemPostgresFilter = useMemo(
+    () => ({
+      table: 'signal_messages',
+      filter: `recipient_id=eq.${SYSTEM_USER_ID}`,
+    }),
+    [],
+  )
+
+  useSupabaseSubscription<SignalMessageRow>({
+    shouldSubscribe: isAuthenticated && isDevRole && isPageVisible,
+    channelName: `signal-system:${userId ?? 'anon'}`,
+    postgresFilter: systemPostgresFilter,
+    onPayload: handleSystemPayload,
     logger,
   })
 }

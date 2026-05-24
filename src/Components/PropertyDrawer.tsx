@@ -5,7 +5,7 @@ import { BaseDrawer } from './BaseDrawer'
 import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
 import { PropertyLocationMap, type MapNavHandle } from './Property/PropertyLocationMap'
 import { ContentWrapper } from './ContentWrapper'
-import { MobileSearchBar } from './MobileSearchBar'
+import { SearchInput } from './SearchInput'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ItemScanner } from './Property/ItemScanner'
 import { PropertyItemForm } from './Property/PropertyItemForm'
@@ -60,7 +60,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const mapRef = useRef<MapNavHandle>(null)
 
     const [searchQuery, setSearchQuery] = useState('')
-    const [searchFocused, setSearchFocused] = useState(false)
     const [selectedItem, setSelectedItem] = useState<LocalPropertyItem | null>(null)
     const [pendingDeleteItem, setPendingDeleteItem] = useState<LocalPropertyItem | null>(null)
     const [scanMode, setScanMode] = useState(false)
@@ -71,7 +70,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const addLocationTriggerRef = useRef<(() => void) | null>(null)
     const initRef = useRef(false)
 
-    useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
+    useEffect(() => { setSearchQuery('') }, [view])
 
     // Keep selectedItem fresh when store items update (e.g. after edit)
     useEffect(() => {
@@ -239,7 +238,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             desktopPosition="left"
             desktopWidth="w-[90%]"
             header={headerConfig}
-            headerFaded={searchFocused}
             scrollDisabled
         >
             <div className="h-full relative">
@@ -278,13 +276,17 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 ) : (
                     <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && view !== 'property' ? swipeHandlers : undefined}>
                         {isMobile ? (
-                            <MobileSearchBar variant="property"
-                                value={searchQuery}
-                                onChange={setSearchQuery}
-                                enabled={view === 'property'}
-                                onFocusChange={setSearchFocused}
-                            >
-                                <div className="h-full relative">
+                            <div className="h-full flex flex-col">
+                                {view === 'property' && (
+                                    <div className="shrink-0 px-3 py-2">
+                                        <SearchInput
+                                            value={searchQuery}
+                                            onChange={setSearchQuery}
+                                            placeholder="Search items..."
+                                        />
+                                    </div>
+                                )}
+                                <div className="flex-1 min-h-0 relative">
                                     <PropertyPanel
                                         isMobile={isMobile}
                                         view={view}
@@ -302,7 +304,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                                         onRegisterAddLocation={(t) => { addLocationTriggerRef.current = t }}
                                     />
                                 </div>
-                            </MobileSearchBar>
+                            </div>
                         ) : (
                             <div className="h-full relative">
                                 <PropertyPanel

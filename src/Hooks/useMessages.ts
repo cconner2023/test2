@@ -433,6 +433,14 @@ export interface UseMessagesReturn {
   sendSystemMessageToUser: (peerId: string, text: string) => Promise<boolean>
   /** Dev-only. Send a system-authored notice into a clinic system group, resolving/creating the group. */
   sendSystemMessageToClinic: (clinicId: string, text: string) => Promise<boolean>
+  /**
+   * Send a structured-content message to a group. Used for non-text replies
+   * (e.g. intake_status from useCalendarWrite). Caller supplies a precomputed
+   * originId — used as the message's originId on the wire so callers that
+   * need to address subsequent purge/delete envelopes can do so deterministically.
+   * Preview is the plaintext label derived from the content type.
+   */
+  sendGroupStructured: (groupId: string, content: MessageContent, originId: string, preview: string) => Promise<boolean>
   /** Send a text message to a group (encrypts to each member's devices). */
   sendGroupMessage: (groupId: string, text: string, threadId?: string) => Promise<boolean>
   /** Send an image to a group. */
@@ -641,6 +649,7 @@ export function useMessages(): UseMessagesReturn {
     localDeviceId: useMessagingStore.getState().localDeviceId,
     clinicId: clinicId ?? null,
     clinicDeviceId: useMessagingStore.getState().clinicDeviceId,
+    isDevRole,
     isAuthenticated: isAuthenticated && !!useMessagingStore.getState().localDeviceId,
     isPageVisible,
     onMessage: handleIncomingMessage,
@@ -1430,12 +1439,19 @@ export function useMessages(): UseMessagesReturn {
   const markAsRead = useCallback((peerId: string) => {
     activePeerRef.current = peerId
 
-    const msgs = useMessagingStore.getState().conversations[peerId]
+    const state = useMessagingStore.getState()
+    const msgs = state.conversations[peerId]
     if (!msgs) return
 
     const unreadIds = msgs
       .filter(m => m.senderId !== userId && !m.readAt)
       .map(m => m.id)
+
+    // No-op guard: nothing to mark + no stale unread count → skip the store
+    // write entirely. The store mutates conversations/unreadCounts by reference
+    // on every call, which re-renders subscribers and (when this is called
+    // from a ChatDetailView useEffect) creates an infinite update loop.
+    if (unreadIds.length === 0 && !(peerId in state.unreadCounts)) return
 
     // Clear local unread immediately
     store().markAsRead(peerId, unreadIds, new Date().toISOString())
@@ -1724,6 +1740,72 @@ export function useMessages(): UseMessagesReturn {
   // ── Group messaging ──────────────────────────────────────────────────────
 
   /** Send a text message to a group. */
+  /**
+   * Send a structured-content message to a group. Mirrors sendGroupMessage
+   * but accepts arbitrary MessageContent + a caller-supplied originId. The
+   * caller-supplied originId is what callers downstream (e.g. purge_intake)
+   * use to address subsequent delete envelopes.
+   */
+  const sendGroupStructured = useCallback(async (
+    groupId: string,
+    content: MessageContent,
+    originId: string,
+    preview: string,
+  ): Promise<boolean> => {
+    const localDeviceId = useMessagingStore.getState().localDeviceId
+    if (!userId || !localDeviceId) return false
+
+    const localId = crypto.randomUUID()
+    const now = new Date().toISOString()
+
+    addMessage({
+      id: localId,
+      senderId: userId,
+      recipientId: groupId,
+      plaintext: preview,
+      content,
+      messageType: 'message',
+      createdAt: now,
+      readAt: now,
+      status: 'sending',
+      groupId,
+      originId,
+    })
+
+    store().setSending(groupId, true)
+    try {
+      const serialized = serializeContent(content)
+
+      const membersResult = await fetchGroupMembersRpc(groupId)
+      if (!membersResult.ok) {
+        logger.error('Failed to fetch group members for structured send:', membersResult.error)
+        removeOptimisticMessage(groupId, localId)
+        return false
+      }
+
+      const result = await encryptAndSendToGroupMembers(userId, localDeviceId, groupId, serialized, originId, membersResult.data)
+      if (!result.ok) {
+        removeOptimisticMessage(groupId, localId)
+        return false
+      }
+
+      updateMessageStatus(groupId, localId, result.data)
+      sendSyncToOwnDevices(userId, localDeviceId, {
+        forPeerId: groupId, serialized, originalMessageType: 'message',
+        originalTimestamp: now, originalMessageId: result.data,
+      }, groupId, originId).catch(e =>
+        errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendGroupStructured', message: 'Failed to sync structured group message to own devices', timestamp: Date.now(), metadata: { error: e } })
+      )
+      return true
+    } catch (e) {
+      logger.error('sendGroupStructured error:', e instanceof Error ? e.message : e)
+      removeOptimisticMessage(groupId, localId)
+      return false
+    } finally {
+      store().setSending(groupId, false)
+    }
+  }, [userId, addMessage, updateMessageStatus, removeOptimisticMessage])
+
   const sendGroupMessage = useCallback(async (groupId: string, text: string, threadId?: string): Promise<boolean> => {
     const localDeviceId = useMessagingStore.getState().localDeviceId
     if (!userId || !localDeviceId) return false
@@ -2024,6 +2106,7 @@ export function useMessages(): UseMessagesReturn {
     deleteMessages,
     deleteConversation,
     sendGroupMessage,
+    sendGroupStructured,
     sendGroupImage,
     sendGroupVoice,
     createGroup,

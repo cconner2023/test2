@@ -436,7 +436,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
         {!isMobile ? (
           <div className="flex h-full">
             {/* Left pane — templates */}
-            <div className="w-[260px] shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50 pt-14">
+            <div className="w-[260px] shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50">
               <ProviderTemplateList
                 templates={templates}
                 onSelect={handleApplyTemplate}
@@ -452,7 +452,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                     <div className="text-[10pt] text-themeredred">{barcodeImport.error}</div>
                   </div>
                 )}
-                <div className="p-5 pt-14 pb-8">
+                <div className="p-5 pb-8">
                   {view === 'note' ? (
                     <ProviderNote
                       hpiNote={hpiNote}
@@ -561,7 +561,6 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
           >
             <ProviderTemplateList
               templates={templates}
-              hideHeader
               onSelect={(t) => { handleApplyTemplate(t); setTemplateDrawerOpen(false) }}
               onNew={handleTemplateNew}
               onEdit={handleTemplateEdit}

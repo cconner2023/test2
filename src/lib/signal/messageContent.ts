@@ -145,7 +145,44 @@ export interface MapFeatureContent {
   data: MapFeaturePayload
 }
 
-export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent
+/**
+ * Outside event-intake REQUEST content. Anon-authored, plaintext jsonb on
+ * the wire (submit_event_intake builds the payload literal directly; the
+ * SealedEnvelope crypto path is bypassed via decryptRow / drainSystemInbox
+ * early-exits). This variant is constructed ONLY inside those early-exits;
+ * it never reaches `serializeContent` and has no compact wire shape.
+ */
+export interface IntakeRequestContent {
+  type: 'intake_request'
+  intake_id: string
+  requester_name: string
+  requester_org?: string
+  requester_email: string
+  /** ISO timestamp string. */
+  requested_start: string
+  /** ISO timestamp string. */
+  requested_end: string
+  title: string
+}
+
+/**
+ * Outside event-intake STATUS update. Supervisor-authored reply posted after
+ * the intake is approved (an event with the matching intake_id was created).
+ * Signal-encrypted like any normal group message and rides serializeContent
+ * → parseMessageContent.
+ */
+export interface IntakeStatusContent {
+  type: 'intake_status'
+  kind: 'intake-approved'
+  intake_id: string
+  approved_by_user_id: string
+  approved_by_name: string
+  event_id: string
+  /** ISO timestamp string. */
+  approved_at: string
+}
+
+export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | IntakeRequestContent | IntakeStatusContent
 
 // ---- Compact wire shapes ----
 
@@ -205,7 +242,27 @@ interface WireMapFeature {
   f: Record<string, unknown>
 }
 
-type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature
+/**
+ * Compact wire shape for IntakeStatusContent. IntakeRequestContent has NO
+ * wire shape — the anon SQL function builds its jsonb literal directly.
+ */
+interface WireIntakeStatus {
+  t: 'is'
+  /** Status kind. v1 only ships intake-approved. */
+  k: 'intake-approved'
+  /** intake_id */
+  ii: string
+  /** approved_by_user_id */
+  abuid: string
+  /** approved_by_name */
+  abn: string
+  /** event_id */
+  eid: string
+  /** approved_at (ISO timestamp) */
+  at: string
+}
+
+type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature | WireIntakeStatus
 
 // ---- Serialization ----
 
@@ -267,6 +324,27 @@ export function serializeContent(content: MessageContent): string {
     }
     if (content.data.clinic_id) wire.c = content.data.clinic_id
     return JSON.stringify(wire)
+  }
+
+  if (content.type === 'intake_status') {
+    const wire: WireIntakeStatus = {
+      t: 'is',
+      k: content.kind,
+      ii: content.intake_id,
+      abuid: content.approved_by_user_id,
+      abn: content.approved_by_name,
+      eid: content.event_id,
+      at: content.approved_at,
+    }
+    return JSON.stringify(wire)
+  }
+
+  if (content.type === 'intake_request') {
+    // IntakeRequestContent is decrypt-only; it is constructed inside
+    // decryptRow / drainSystemInbox early-exits from the anon-built plaintext
+    // payload and never serialized. Defensive throw catches accidental
+    // attempts to re-broadcast a received intake-request as a normal message.
+    throw new Error('intake_request content is not serializable')
   }
 
   const wire: WireVoice = {
@@ -368,6 +446,21 @@ export function parseMessageContent(raw: string): ParsedContent {
           action,
           data: wire.d as MapOverlayPayload,
         } satisfies MapOverlayContent,
+      }
+    }
+
+    if (wire.t === 'is') {
+      return {
+        plaintext: '[event intake — approved]',
+        content: {
+          type: 'intake_status',
+          kind: wire.k,
+          intake_id: wire.ii,
+          approved_by_user_id: wire.abuid,
+          approved_by_name: wire.abn,
+          event_id: wire.eid,
+          approved_at: wire.at,
+        } satisfies IntakeStatusContent,
       }
     }
 

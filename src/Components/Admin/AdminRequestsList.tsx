@@ -470,7 +470,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
     <ConfirmDialog
       visible={!!confirmDeleteSystemPeerId}
       title="Delete this system thread?"
-      subtitle="Removes the thread for both sides. Permanent."
+      subtitle="Removes the thread from both sides. Permanent."
       confirmLabel="Delete"
       variant="danger"
       processing={deleteProcessing}
@@ -514,7 +514,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
         {showLoading ? (
           <AdminListSkeleton />
         ) : feedItems.length === 0 ? (
-          <EmptyState title={searchQuery ? 'No requests match your search.' : 'No pending requests'} />
+            <EmptyState title={searchQuery ? 'No items match your search.' : 'No pending items'} />
         ) : (
           <SectionCard className="divide-y divide-themeblue3/10">
             {feedItems.map(renderFeedItem)}

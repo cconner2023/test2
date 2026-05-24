@@ -4,7 +4,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useEditableClinicContent } from '../../Hooks/useEditableClinicContent';
 import type { UserTypes, TextExpander } from '../../Data/User';
 import { parseFieldText } from '../../Utilities/templateParser';
-import { MobileSearchBar } from '../MobileSearchBar';
+import { SearchInput } from '../SearchInput';
 import { TextExpanderManager } from './TextExpanderManager';
 import { TextExpanderEditPopover, type TextExpanderEditState, type ExpanderScope } from './TextExpanderEditPopover';
 import { ClusterEditButton } from './ClusterEditPicker';
@@ -153,13 +153,14 @@ export const TextTemplatesPanel = () => {
 
     return (
         <>
-            <MobileSearchBar
-                value={filter}
-                onChange={setFilter}
-                placeholder="Search shortcuts..."
-                inheritScroll
-            >
-                <div data-tour="expander-usage-hint" className="px-5 py-4 space-y-5">
+            <div className="px-3 py-2">
+                <SearchInput
+                    value={filter}
+                    onChange={setFilter}
+                    placeholder="Search shortcuts..."
+                />
+            </div>
+            <div data-tour="expander-usage-hint" className="px-5 py-4 space-y-5">
                     <p data-tour="expander-edit-hint" className="text-[10pt] text-tertiary leading-relaxed">
                         Autotext shortcuts that expand abbreviations as you type in your notes.
                         {clinicTextExpanders.length > 0 && (
@@ -181,8 +182,7 @@ export const TextTemplatesPanel = () => {
                             />
                         }
                     />
-                </div>
-            </MobileSearchBar>
+            </div>
 
             <TextExpanderEditPopover
                 state={editState}

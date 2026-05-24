@@ -19,10 +19,13 @@ import { useState, useCallback } from 'react'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { useCalendarVault } from './useCalendarVault'
 import { useAuth } from './useAuth'
+import { useMessagesContext } from './MessagesContext'
 import { getTombstones } from '../lib/calendarRouting'
 import { addCalendarTombstone, clearPendingVaultSend } from '../lib/calendarEventStore'
 import { deleteCompletionsByCalendarOriginId, relinkCompletionsByOriginId } from '../lib/trainingService'
+import { markEventIntakeApproved } from '../lib/eventIntakeService'
 import type { CalendarEvent } from '../Types/CalendarTypes'
+import type { IntakeStatusContent } from '../lib/signal/messageContent'
 import { createLogger } from '../Utilities/Logger'
 
 const logger = createLogger('CalendarWrite')
@@ -63,6 +66,12 @@ export function useCalendarWrite(): UseCalendarWriteResult {
   const { sendEvent, deleteEvents } = useCalendarVault()
   const { user } = useAuth()
   const userId = user?.id ?? null
+  const messages = useMessagesContext()
+  const userName =
+    (user?.user_metadata as Record<string, unknown> | undefined)?.full_name as string | undefined
+    ?? (user?.user_metadata as Record<string, unknown> | undefined)?.name as string | undefined
+    ?? user?.email
+    ?? 'Supervisor'
 
   // Rotate any training_completions' calendar_origin_id to the new originId
   // so the cascade link survives edits. No-op when unlinked or unauthenticated.
@@ -90,6 +99,39 @@ export function useCalendarWrite(): UseCalendarWriteResult {
       }
 
       relinkIfNeeded(oldOriginId, originId)
+
+      // Outside event-intake auto-flip. When this event was created via the
+      // intake card's Approve action it carries committed.intake_id; mark the
+      // intake row approved + post the intake-approved status reply to the
+      // clinic system group so other supervisors' cards collapse to the
+      // status line. vaultUpdate (drag) deliberately does NOT do this —
+      // re-firing on already-approved events must not re-post.
+      if (committed.intake_id && userId) {
+        try {
+          const flip = await markEventIntakeApproved(committed.intake_id, committed.id)
+          if (flip.ok && messages) {
+            const content: IntakeStatusContent = {
+              type: 'intake_status',
+              kind: 'intake-approved',
+              intake_id: committed.intake_id,
+              approved_by_user_id: userId,
+              approved_by_name: userName,
+              event_id: committed.id,
+              approved_at: new Date().toISOString(),
+            }
+            await messages.sendGroupStructured(
+              flip.data.group_id,
+              content,
+              flip.data.approved_origin_id,
+              '[event intake — approved]',
+            )
+          } else if (!flip.ok) {
+            logger.warn('mark_event_intake_approved failed:', flip.error)
+          }
+        } catch (e) {
+          logger.warn('intake approval flip failed:', e instanceof Error ? e.message : e)
+        }
+      }
     } catch (e) {
       logger.warn('writeEvent failed, committing without originId:', e)
       if (existing) {
@@ -100,7 +142,7 @@ export function useCalendarWrite(): UseCalendarWriteResult {
     } finally {
       setIsWriting(false)
     }
-  }, [sendEvent, deleteEvents, relinkIfNeeded])
+  }, [sendEvent, deleteEvents, relinkIfNeeded, userId, userName, messages])
 
   const vaultUpdate = useCallback((event: CalendarEvent): void => {
     const existing = useCalendarStore.getState().events.find(e => e.id === event.id)

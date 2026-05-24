@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+  <!-- Narrower CSP than the main app — injected at build time. -->
+  <!--CSP_PLACEHOLDER-->
+
+  <!--
+    Hash-fragment passcode (#p=...) is client-only. Referrer-Policy keeps
+    the URL out of any cross-origin Referer headers from outbound links.
+  -->
+  <meta name="referrer" content="no-referrer">
+
+  <!--
+    Intentionally NO <link rel="manifest">. The main app's manifest has
+    start_url=/test2/ — referencing it here would let anon visitors
+    "Install" the dev's main Beacon app to their home screen.
+  -->
+
+  <title>Event Request</title>
+</head>
+
+<body>
+  <div id="intake-root"></div>
+  <script type="module" src="/src/intake-entry.tsx"></script>
+</body>
+
+</html>

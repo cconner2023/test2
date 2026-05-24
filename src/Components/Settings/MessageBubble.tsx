@@ -4,6 +4,7 @@ import { ActionButton } from '../ActionButton'
 import { GESTURE_THRESHOLDS, isInteractiveTarget } from '../../Utilities/GestureUtils'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import { downloadDecryptedAttachment } from '../../lib/signal/attachmentService'
+import { IntakeRequestCard } from '../Messages/IntakeRequestCard'
 
 export type SwipeAction = 'reply' | 'delete'
 
@@ -137,6 +138,28 @@ export function MessageBubble({
 
   // request-accepted is an invisible signal — don't render
   if (message.messageType === 'request-accepted') return null
+
+  // Outside event-intake: the anon-authored intake-request lands as a system
+  // message with structured IntakeRequestContent. Render the dedicated card —
+  // visible to all supervisors-of-clinic; mint/rotate/kill UI stays dev-gated.
+  if (message.content?.type === 'intake_request') {
+    return (
+      <IntakeRequestCard
+        message={message}
+        content={message.content}
+        isOwn={isOwn}
+        avatar={avatar}
+        senderName={senderName}
+      />
+    )
+  }
+
+  // Intake-approved status replies fold into the parent IntakeRequestCard via
+  // its store subscription. Render nothing standalone — they exist on the
+  // wire so offline peers can reconcile their cards.
+  if (message.content?.type === 'intake_status') {
+    return null
+  }
 
   // System notices render as a centered, full-width card — no avatar, no
   // own/peer split, no status icons, no swipe-to-reply. Long-press still

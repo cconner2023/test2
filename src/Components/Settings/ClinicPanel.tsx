@@ -32,6 +32,7 @@ import { listLocations, type AdminLocation } from '../../lib/adminService'
 import { invalidate } from '../../stores/useInvalidationStore'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { UserAvatar } from './UserAvatar'
+import { IntakeMintSection } from './IntakeMintSection'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionButton } from '../ActionButton'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -693,6 +694,9 @@ export function ClinicPanel({
             {activeCode && <canvas ref={shareCanvasRef} style={{ display: 'none' }} />}
           </div>
         </section>
+
+        {/* ── Outside event intake (dev-wrapped) ─────────────────── */}
+        {clinicId && <IntakeMintSection clinicId={clinicId} />}
 
         {/* ── Associated ─────────────────────────────────────────── */}
         <section data-tour="clinic-associated">

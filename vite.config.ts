@@ -9,6 +9,18 @@ const BUILD_ID = 'A1'
 
 export default defineConfig({
   base: '/test2/',
+  build: {
+    rollupOptions: {
+      input: {
+        // Main Beacon app entry. Without naming inputs explicitly, Vite
+        // auto-discovers index.html only — adding intake.html as a sibling
+        // named input lets Vite emit a second tree-shaken bundle for the
+        // public outside-event-intake form.
+        main: resolve('index.html'),
+        intake: resolve('intake.html'),
+      },
+    },
+  },
   server: {
     // Explicit HMR WebSocket — Windows often fails with default auto-detection
     hmr: true,
@@ -30,9 +42,13 @@ export default defineConfig({
         let result = html.replace(/%APP_VERSION%/, APP_VERSION)
         // Inject CSP only in production builds (inline scripts break CSP in dev)
         if (ctx.bundle) {
-          // Hash allows the inline splash-screen theme-detection script
-          const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Zblva+Y24jGsap4fF/wYX94AXAYZOGIx/aCQnOc1mQ4='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co https://*.tile.openstreetmap.org https://*.tile.opentopomap.org https://server.arcgisonline.com https://basemap.nationalmap.gov; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://nominatim.openstreetmap.org https://*.googleapis.com https://*.firebaseio.com https://*.firebaseinstallations.googleapis.com wss://*.firebaseio.com https://fcmregistrations.googleapis.com; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self';">`
-          result = result.replace('<!--CSP_PLACEHOLDER-->', csp)
+          // Branch by filename so the public intake bundle gets a narrower
+          // CSP than the main app (no map tiles, no Firebase, no Google APIs,
+          // no blob workers — only Supabase). Rev6.1.
+          const isIntake = ctx.filename?.endsWith('intake.html')
+          const mainCsp = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Zblva+Y24jGsap4fF/wYX94AXAYZOGIx/aCQnOc1mQ4='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co https://*.tile.openstreetmap.org https://*.tile.opentopomap.org https://server.arcgisonline.com https://basemap.nationalmap.gov; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://nominatim.openstreetmap.org https://*.googleapis.com https://*.firebaseio.com https://*.firebaseinstallations.googleapis.com wss://*.firebaseio.com https://fcmregistrations.googleapis.com; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self';">`
+          const intakeCsp = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">`
+          result = result.replace('<!--CSP_PLACEHOLDER-->', isIntake ? intakeCsp : mainCsp)
         } else {
           result = result.replace('<!--CSP_PLACEHOLDER-->', '')
         }

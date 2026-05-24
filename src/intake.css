@@ -1,0 +1,63 @@
+/*
+ * Public outside-event-intake stylesheet.
+ *
+ * SEPARATE from src/App.css. Scoped source detection limits the emitted
+ * utility set to classes actually referenced under src/Components/Public/
+ * and the intake entry — keeps the anon bundle tight and ensures we don't
+ * accidentally surface main-app classes through this build.
+ */
+@import "tailwindcss" source(none);
+@source "./Components/Public";
+@source "./intake-entry.tsx";
+@source "../intake.html";
+
+/* Anon page has no theme picker — pin to the default-light palette so
+   themeblue/themewhite/etc. utilities resolve without a data-theme attr. */
+:root {
+  --color-themeredred: rgb(170, 65, 65, 1);
+  --color-themered: rgba(160, 105, 100, 1);
+  --color-themeyellow: rgba(255, 194, 34, 1);
+  --color-themegreen: rgba(96, 146, 92, 1);
+  --color-themewhite: rgba(255, 251, 251, 1);
+  --color-themewhite2: rgba(240, 242, 245, 1);
+  --color-themewhite3: rgba(255, 251, 251, 1);
+  --color-themegray1: rgba(196, 190, 190, 1);
+  --color-themeblue1: rgba(129, 161, 181, 1);
+  --color-themeblue2: rgba(21, 142, 172, 1);
+  --color-themeblue3: rgba(0, 66, 92, 1);
+  --color-primary: rgba(30, 30, 35, 1);
+  --color-secondary: rgba(70, 70, 80, 1);
+  --color-tertiary: rgba(103, 111, 120, 1);
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+}
+
+@theme {
+  --color-themeredred: var(--color-themeredred);
+  --color-themered: var(--color-themered);
+  --color-themeyellow: var(--color-themeyellow);
+  --color-themegreen: var(--color-themegreen);
+  --color-themewhite: var(--color-themewhite);
+  --color-themewhite2: var(--color-themewhite2);
+  --color-themewhite3: var(--color-themewhite3);
+  --color-themegray1: var(--color-themegray1);
+  --color-themeblue1: var(--color-themeblue1);
+  --color-themeblue2: var(--color-themeblue2);
+  --color-themeblue3: var(--color-themeblue3);
+  --color-primary: var(--color-primary);
+  --color-secondary: var(--color-secondary);
+  --color-tertiary: var(--color-tertiary);
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-themewhite);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--color-primary);
+}
+
+/* iOS Safari zooms on focus when input font-size < 16px. */
+input, select, textarea {
+  font-size: 16px !important;
+}

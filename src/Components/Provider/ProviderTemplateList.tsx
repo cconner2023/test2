@@ -15,8 +15,6 @@ import { PROVIDER_TOUR_TEMPLATE_PREFIX } from '../../Data/GuidedTourData'
 interface ProviderTemplateListProps {
   templates: ProviderNoteTemplate[]
   onSelect: (template: ProviderNoteTemplate) => void
-  /** Hide the section header (e.g. when rendered inside a drawer that already has a title) */
-  hideHeader?: boolean
   /** Opens the new-template editor anchored to the supplied rect */
   onNew?: (anchor: DOMRect) => void
   /** Opens the edit popover for the supplied template */
@@ -166,7 +164,7 @@ function TemplateRow({ template, onClick }: {
 
 // ── Main Component ──────────────────────────────────────────────────────────
 
-export function ProviderTemplateList({ templates, onSelect, hideHeader, onNew, onEdit }: ProviderTemplateListProps) {
+export function ProviderTemplateList({ templates, onSelect, onNew, onEdit }: ProviderTemplateListProps) {
   const isMobile = useIsMobile()
   const { profile } = useUserProfile()
   const expanders = profile.textExpanders ?? []
@@ -211,15 +209,10 @@ export function ProviderTemplateList({ templates, onSelect, hideHeader, onNew, o
 
   return (
     <div className="flex flex-col h-full">
-      {!hideHeader && (
-        <div className="px-3 pt-3 pb-2">
-          <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider">Templates</p>
-        </div>
-      )}
       {/* pt-5 gives the placement="overlay" ActionPill (top-0 -translate-y-1/2)
           enough room above the first card so the scroll container's overflow-y
           doesn't clip the pill's upper half. */}
-      <div className={`flex-1 overflow-y-auto px-2 pb-3 pt-5${hideHeader ? '' : ''}`}>
+      <div className="flex-1 overflow-y-auto px-2 pb-3 pt-5">
         {templates.length ? (
           <div className="relative">
             <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">

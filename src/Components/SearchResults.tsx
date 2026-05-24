@@ -24,6 +24,9 @@ const BADGE_CONFIG: Record<string, { label: string; className: string }> = {
     'chat-contact': { label: 'CHAT', className: 'bg-themeblue1/15 text-themeblue1' },
     'chat-group': { label: 'GROUP', className: 'bg-themeblue1/15 text-themeblue1' },
     'chat-message': { label: 'MESSAGE', className: 'bg-themeblue1/15 text-themeblue1' },
+    'calendar-event': { label: 'EVENT', className: 'bg-themepurple/15 text-themepurple' },
+    'map-overlay': { label: 'MAP', className: 'bg-themeyellow/15 text-themeyellow' },
+    'map-feature': { label: 'MAP PIN', className: 'bg-themeyellow/15 text-themeyellow' },
 }
 
 // Training type specific labels
@@ -147,6 +150,16 @@ export function SearchResults({
                                 {result.type === 'chat-contact' && result.data?.chatSubtitle && (
                                     <div className="text-[9pt] text-secondary mt-1 truncate">
                                         {result.data.chatSubtitle}
+                                    </div>
+                                )}
+                                {result.type === 'calendar-event' && result.data?.eventSubtitle && (
+                                    <div className="text-[9pt] text-secondary mt-1 truncate">
+                                        {result.data.eventSubtitle}
+                                    </div>
+                                )}
+                                {result.type === 'map-feature' && result.data?.featureSubtitle && (
+                                    <div className="text-[9pt] text-secondary mt-1 truncate">
+                                        {result.data.featureSubtitle}
                                     </div>
                                 )}
                             </div>

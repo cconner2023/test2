@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { ChevronRight, RotateCcw, Pin, Pill, BookOpen } from 'lucide-react'
-import { MobileSearchBar } from './MobileSearchBar'
+import { SearchInput } from './SearchInput'
 import { ActionButton } from './ActionButton'
 import { BaseDrawer } from './BaseDrawer'
 import { TrainingPanel, type TrainingView } from './Settings/TrainingPanel'
@@ -82,13 +82,12 @@ export function KnowledgeBaseDrawer({
     const [bloodOpen, setBloodOpen] = useState(false)
     const vsRef = useRef<VitalSignsCalculatorHandle>(null)
     const [searchQuery, setSearchQuery] = useState('')
-    const [searchFocused, setSearchFocused] = useState(false)
     const medevacReq = useMedevacStore(s => s.req)
     const setMedevacReq = useMedevacStore(s => s.setReq)
     const resetMedevacReq = useMedevacStore(s => s.resetReq)
 
     // Clear search when navigating between views (e.g., clicking a search result)
-    useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
+    useEffect(() => { setSearchQuery('') }, [view])
 
     // ── Deep-link / initial view handling ───────────────────────
     useEffect(() => {
@@ -280,11 +279,13 @@ export function KnowledgeBaseDrawer({
             fullHeight="90dvh"
             desktopPosition="left"
             header={headerConfig}
-            headerFaded={searchFocused}
         >
             <ContentWrapper slideDirection={slideDirection} swipeHandlers={canSwipeBack ? swipeHandlers : undefined}>
                 {view === 'home' && (
-                    <MobileSearchBar value={searchQuery} onChange={setSearchQuery} onFocusChange={setSearchFocused} inheritScroll dataTour="kb-search">
+                    <>
+                        <div className="px-3 py-2" data-tour="kb-search">
+                            <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
+                        </div>
                         <KBHome
                             onCategoryClick={handleCategoryClick}
                             searchQuery={searchQuery}
@@ -292,32 +293,40 @@ export function KnowledgeBaseDrawer({
                             onMedicationSelect={handleMedicationSelect}
                             tc3Mode={tc3Mode}
                         />
-                    </MobileSearchBar>
+                    </>
                 )}
                 {(view === 'training' || view === 'training-detail') && (
-                    <MobileSearchBar value={searchQuery} onChange={setSearchQuery} enabled={view === 'training'} onFocusChange={setSearchFocused} inheritScroll>
+                    <>
+                        {view === 'training' && (
+                            <div className="px-3 py-2">
+                                <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
+                            </div>
+                        )}
                         <TrainingPanel
                             view={view as TrainingView}
                             selectedTask={selectedTask}
                             onSelectTask={handleSelectTask}
                             searchQuery={searchQuery}
                         />
-                    </MobileSearchBar>
+                    </>
                 )}
                 {(view === 'medications' || view === 'medication-detail') && (
-                    <MobileSearchBar value={searchQuery} onChange={setSearchQuery} enabled={view === 'medications'} onFocusChange={setSearchFocused} inheritScroll>
+                    <>
+                        {view === 'medications' && (
+                            <div className="px-3 py-2">
+                                <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
+                            </div>
+                        )}
                         <MedicationContent
                             selectedMedication={selectedMedication}
                             onMedicationSelect={handleMedicationSelect}
                             tc3Mode={tc3Mode}
                             searchQuery={searchQuery}
                         />
-                    </MobileSearchBar>
+                    </>
                 )}
                 {view === 'screener' && activeScreener && (
-                    <MobileSearchBar value={searchQuery} onChange={setSearchQuery} enabled={false} onFocusChange={setSearchFocused} inheritScroll>
-                        <StandaloneScreener screenerConfig={activeScreener} />
-                    </MobileSearchBar>
+                    <StandaloneScreener screenerConfig={activeScreener} />
                 )}
                 {view === 'burn' && (
                     <BurnCalculator />

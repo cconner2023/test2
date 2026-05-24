@@ -70,11 +70,15 @@ export function ThemePickerPanel() {
                 const isSelected = themeName === def.name;
                 const pal = themeMode === 'dark' ? def.dark : def.light;
 
+                const selectTheme = () => { setThemeName(def.name); syncProfileField({ theme: `${def.name}-${themeMode}` }); };
                 return (
-                    <button
+                    <div
                         key={def.name}
-                        onClick={() => { setThemeName(def.name); syncProfileField({ theme: `${def.name}-${themeMode}` }); }}
-                        className={`w-full rounded-2xl border transition-all active:scale-[0.98] overflow-hidden text-left ${
+                        role="button"
+                        tabIndex={0}
+                        onClick={selectTheme}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectTheme(); } }}
+                        className={`w-full rounded-2xl border transition-all active:scale-[0.98] overflow-hidden text-left cursor-pointer ${
                             isSelected
                                 ? 'border-themeblue2/60 shadow-sm'
                                 : 'border-themeblue3/10 hover:border-themeblue3/20'
@@ -155,7 +159,7 @@ export function ThemePickerPanel() {
                                 <div className="w-5 h-5 shrink-0" />
                             )}
                         </div>
-                    </button>
+                    </div>
                 );
             })}
         </div>

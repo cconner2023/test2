@@ -1,8 +1,9 @@
 import { useRef, useEffect, memo, useState, useCallback } from 'react'
-import { Search, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { animated, type SpringValue } from '@react-spring/web'
 import { CategoryList } from './CategoryList'
 import { SearchResults } from './SearchResults'
+import { SearchInput } from './SearchInput'
 import { MissionBoardPanel } from './MissionBoard/MissionBoardPanel'
 import { useColumnCarousel } from '../Hooks/useColumnCarousel'
 import type { SearchResultType } from '../Types/CatTypes'
@@ -189,11 +190,6 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
     }
   }, [onSearchFocusChange, panelIndex, barHeight])
 
-  const handleColumnSearchClear = useCallback(() => {
-    onSearchChange?.('')
-    searchInputRef.current?.focus()
-  }, [onSearchChange])
-
   const handleColumnSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       if (hasSearch) {
@@ -245,34 +241,17 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
             {/* Search bar */}
             <div ref={searchBarRef} className="px-3 py-2">
               <div className="flex items-center gap-2">
-                <div className={`flex-1 min-w-0 flex items-center transition-colors duration-200 bg-themewhite text-tertiary rounded-full border shadow-xs ${
-                  searchFocused
-                    ? 'border-themeblue1/30 bg-themewhite2'
-                    : 'border-themeblue3/10'
-                }`}>
-                  <Search size={16} className="ml-3 shrink-0 text-tertiary" />
-                  <input
-                    ref={searchInputRef}
-                    data-tour="column-search"
-                    type="search"
-                    placeholder="Search..."
-                    value={searchInput}
-                    onChange={(e) => onSearchChange!(e.target.value)}
-                    onFocus={handleColumnSearchFocus}
-                    onBlur={handleColumnSearchBlur}
-                    onKeyDown={handleColumnSearchKeyDown}
-                    className="text-tertiary bg-transparent outline-none text-[12pt] w-full px-3 py-2 min-w-0 placeholder:text-tertiary [&::-webkit-search-cancel-button]:hidden"
-                  />
-                  {hasSearch && (
-                    <div
-                      className="flex items-center justify-center px-2 py-2 bg-themewhite2 rounded-r-full cursor-pointer active:scale-95 shrink-0"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={handleColumnSearchClear}
-                    >
-                      <X className="w-5 h-5 stroke-themeblue1" />
-                    </div>
-                  )}
-                </div>
+                <SearchInput
+                  ref={searchInputRef}
+                  value={searchInput}
+                  onChange={onSearchChange!}
+                  placeholder="Search..."
+                  onFocus={handleColumnSearchFocus}
+                  onBlur={handleColumnSearchBlur}
+                  onKeyDown={handleColumnSearchKeyDown}
+                  className="flex-1 min-w-0"
+                  dataTour="column-search"
+                />
                 {/* Close button — appears when focused */}
                 <div className={`transition-all duration-200 overflow-hidden ${
                   searchFocused ? 'w-10 opacity-100' : 'w-0 opacity-0'

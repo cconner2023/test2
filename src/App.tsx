@@ -411,6 +411,20 @@ case 'mapOverlay':
       return
     }
 
+    // Calendar event → open calendar drawer scoped to that event
+    if (result.type === 'calendar-event' && result.data?.eventId) {
+      navigation.openCalendarEvent(result.data.eventId)
+      search.clearSearch()
+      return
+    }
+
+    // Map overlay / feature → open the overlay drawer
+    if ((result.type === 'map-overlay' || result.type === 'map-feature') && result.data?.overlayId) {
+      navigation.setShowMapOverlayDrawer(true, result.data.overlayId, result.data.featureId ?? null)
+      search.clearSearch()
+      return
+    }
+
     // Screener / calculator → open KB to the right view
     if (result.type === 'screener' && result.data?.kbCategoryId) {
       navigation.setShowKnowledgeBase(true, 'screener', null, result.data.kbCategoryId)
@@ -426,7 +440,7 @@ case 'mapOverlay':
     // Navigation state change drives the grid column transition and Column A carousel
     navigation.handleNavigation(result)
     search.clearSearch()
-  }, [navigation.handleNavigation, search.clearSearch, navigation.setShowTrainingDrawer, navigation.isMobile, openTrainingTask, navigation.setShowKnowledgeBase, navigation.openMessagesConversation])
+  }, [navigation.handleNavigation, search.clearSearch, navigation.setShowTrainingDrawer, navigation.isMobile, openTrainingTask, navigation.setShowKnowledgeBase, navigation.openMessagesConversation, navigation.openCalendarEvent, navigation.setShowMapOverlayDrawer])
 
   const clearSearchAndCollapse = useCallback(() => {
     search.clearSearch()

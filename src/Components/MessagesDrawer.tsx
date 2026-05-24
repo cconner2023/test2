@@ -28,10 +28,9 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
     const [selectedPeerName, setSelectedPeerName] = useState<string | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
-    const [searchFocused, setSearchFocused] = useState(false)
 
     // Clear search when navigating between views (e.g., clicking a search result)
-    useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
+    useEffect(() => { setSearchQuery('') }, [view])
 
     const messagesCtx = useMessagesContext()
     const activePeerRef = messagesCtx?.activePeerRef ?? null
@@ -108,9 +107,9 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     const isMessagesActive = view === 'messages' || isConversationView
 
     // ── Header collapse spring (mirrors NavTop pattern in App.tsx) ─────
-    // Collapses on search focus (messages list) OR when entering a conversation view
+    // Collapses when entering a conversation view
     const headerCollapseSpring = useSpring({
-        collapse: isConversationView || (searchFocused && view === 'messages') ? 1 : 0,
+        collapse: isConversationView ? 1 : 0,
         config: { tension: 280, friction: 28 },
     })
 
@@ -128,8 +127,6 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             searchQuery={searchQuery}
             onSearchClear={() => setSearchQuery('')}
             onSearchChange={setSearchQuery}
-            onSearchFocusChange={setSearchFocused}
-            headerCollapse={headerCollapseSpring.collapse}
             tourVariant={isTourActive ? (isMobile ? 'mobile' : 'desktop') : undefined}
         />
     )
@@ -221,7 +218,6 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             mobileFullScreen={isConversationView}
             desktopPosition="right"
             desktopWidth={isMessagesActive ? 'w-[90%]' : undefined}
-            headerFaded={searchFocused}
         >
             <div className="h-full">
                 {panelContent}

@@ -95,7 +95,7 @@ function ForwardPicker({
       </div>
       <div className="flex-1 overflow-y-auto px-2 py-2">
         {sorted.length === 0 ? (
-          <p className="text-[10pt] text-tertiary text-center py-8">No contacts to forward to</p>
+          <p className="text-[10pt] text-tertiary text-center py-8">No contacts found</p>
         ) : (
           sorted.map(medic => (
             <ContactListItem key={medic.id} medic={medic} onClick={() => onSelect(medic)} />
@@ -667,7 +667,7 @@ export function ChatDetailView({
 
       <ConfirmDialog
         visible={!!pendingDelete}
-        title="Delete message? Permanent."
+        title="Permanently delete this message for everyone?."
         confirmLabel="Delete"
         variant="danger"
         onConfirm={handleConfirmDelete}
