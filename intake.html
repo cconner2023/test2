@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+  <!-- Narrower CSP than the main app — injected at build time. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+
+  <!--
+    Hash-fragment passcode (#p=...) is client-only. Referrer-Policy keeps
+    the URL out of any cross-origin Referer headers from outbound links.
+  -->
+  <meta name="referrer" content="no-referrer">
+
+  <!--
+    Intentionally NO <link rel="manifest">. The main app's manifest has
+    start_url=/test2/ — referencing it here would let anon visitors
+    "Install" the dev's main Beacon app to their home screen.
+  -->
+
+  <title>Event Request</title>
+  <script type="module" crossorigin src="/test2/assets/intake-KBRK9CHr.js"></script>
+  <link rel="modulepreload" crossorigin href="/test2/assets/index-BkOX8uXv.js">
+  <link rel="stylesheet" crossorigin href="/test2/assets/intake-Cu2WYPho.css">
+<link rel="manifest" href="/test2/manifest.webmanifest"></head>
+
+<body>
+  <div id="intake-root"></div>
+</body>
+
+</html>
