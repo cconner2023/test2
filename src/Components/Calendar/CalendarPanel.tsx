@@ -323,17 +323,22 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
   const selectedDateKey = toDateKey(selectedDate)
 
-  // Cluster scope: events rendered are those belonging to the active
-  // (operating-as) clinic, OR events from any reachable clinic where the
-  // current user is in assigned_to. The second clause is the home->loan
-  // assignment bleed-through — a soldier on loan still sees personal
-  // assignments from home when operating-as the loan clinic, and vice versa.
+  // Cluster scope: a loaned user can reach their home clinic plus every
+  // active loan, so events from any of those clinics render regardless of
+  // the operating-as toggle. The assigned_to clause is the safety net for
+  // legacy / mis-tagged events that don't carry a reachable clinic_id.
   const userId = user?.id ?? null
+  const reachableClinicIds = useMemo(() => {
+    const set = new Set<string>()
+    if (clinicId) set.add(clinicId)
+    for (const id of surrogateClinicIds) set.add(id)
+    return set
+  }, [clinicId, surrogateClinicIds])
   const filteredEvents = useMemo(() => {
     let out = events
-    if (activeClinicId) {
+    if (reachableClinicIds.size > 0) {
       out = out.filter(e =>
-        e.clinic_id === activeClinicId ||
+        reachableClinicIds.has(e.clinic_id) ||
         (userId !== null && e.assigned_to.includes(userId))
       )
     }
@@ -346,7 +351,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       out = out.filter(e => categoryFilter.includes(e.category))
     }
     return out
-  }, [events, personnelFilter, categoryFilter, activeClinicId, userId])
+  }, [events, personnelFilter, categoryFilter, reachableClinicIds, userId])
 
   const dayEvents = useMemo(() =>
     filteredEvents

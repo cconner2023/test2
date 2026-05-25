@@ -988,7 +988,11 @@ export function AdminUserDetail({
             x={clusterAction.x}
             y={clusterAction.y}
             items={items}
-            onClose={() => setClusterAction(null)}
+            // Functional update — ContextMenu fires onAction then onClose in the
+            // same handler. "Change home" sets kind='pick-home'; a plain
+            // setClusterAction(null) here would clobber it (last write wins in
+            // a React batch). Only clear if we're still on the home-row menu.
+            onClose={() => setClusterAction(curr => curr?.kind === 'home-row' ? null : curr)}
           />
         )
       })()}

@@ -64,9 +64,8 @@ export interface CalendarEvent {
   pcc?: PCCAttachment | null
   /**
    * Outside event-intake linkage. Present when this event was created via the
-   * intake card's Approve action. useCalendarWrite.writeEvent fires
-   * mark_event_intake_approved + posts the intake-approved reply when this is
-   * set. Rides the Signal vault fanout like any other event field.
+   * intake card's Approve action. Persisted for forensic traceability back to
+   * event_intake_requests. Rides the Signal vault fanout like any other event field.
    */
   intake_id?: string
 }

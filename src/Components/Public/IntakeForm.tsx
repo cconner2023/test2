@@ -160,7 +160,7 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
         <>
           <div className="pb-2">
             <p className="text-[9pt] font-semibold text-secondary tracking-widest uppercase">
-              {showStage2 ? 'Event Details' : 'Verify Unit'}
+              {showStage2 ? 'Event Details' : stage1.kind === 'resolved' ? stage1.clinicName : 'Verify Unit'}
             </p>
           </div>
 
@@ -188,11 +188,6 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
                 {stage1.kind === 'resolving' && (
                   <HintRow tone="muted">Checking…</HintRow>
                 )}
-                {stage1.kind === 'resolved' && (
-                  <HintRow tone="ok">
-                    Submitting to <span className="font-semibold text-primary">{stage1.clinicName}</span>
-                  </HintRow>
-                )}
                 {stage1.kind === 'unknown' && (
                   <HintRow tone="err">
                     No medical section is associated with this code. Confirm the code with your medical section POC.
@@ -216,12 +211,18 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
                   </>
                 )}
 
-                <div className="flex items-center justify-end gap-2 px-3 py-2">
+                <div className={`flex items-center justify-end gap-2 px-3 overflow-hidden transition-all duration-300 ease-out ${stage1Ready ? 'max-h-14 py-2 opacity-100' : 'max-h-0 py-0 opacity-0'}`}>
+                  <button
+                    type="button"
+                    onClick={() => setPassphrase('')}
+                    className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                  >
+                    <X size={16} />
+                  </button>
                   <button
                     type="button"
                     onClick={onContinue}
-                    disabled={!stage1Ready}
-                    className={`shrink-0 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white overflow-hidden transition-all duration-300 ease-out active:scale-95 ${stage1Ready ? 'w-9 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
+                    className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white active:scale-95 transition-all"
                   >
                     <Check size={16} />
                   </button>

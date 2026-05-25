@@ -1,12 +1,11 @@
 /**
  * Event Intake Service
  *
- * Thin wrapper layer over the event-intake Supabase RPCs. Pure I/O — no
- * messaging-side fanout lives here. The `purge_intake` / `purge_clinic_intake_conversation`
- * RPCs return the `deleted_origin_ids` + `group_id` that callers need to
- * post the standard `messageType='delete'` envelope; the fanout itself
- * lives in `useEventIntakeMessaging` so it can reuse the messaging-side
- * encrypt + send primitives from useMessages.
+ * Thin wrapper layer over the event-intake Supabase RPCs. Pure I/O. The
+ * triage actions (`intake_action` for approve/decline, `purge_clinic_intake_conversation`
+ * for bulk cleanup) handle their own messaging-side fanout server-side via
+ * plaintext SYSTEM-authored 'intake-delete' envelopes; callers just await
+ * the RPC and optimistically strip their local copy.
  *
  * SECURITY: passphrase plaintext is returned ONLY by the generate paths of
  * `mintEventIntakeCredential` / `rotateEventIntakePassphrase`. Callers must
@@ -169,44 +168,41 @@ export async function submitEventIntake(
 
 // ─── Triage (supervisor surface) ────────────────────────────────
 
-export interface MarkApprovedResult {
-  clinic_id: string
+/**
+ * Unified approve/decline for an outside event-intake request.
+ *
+ * Server-side: stamps `event_intake_requests.status` ('approved' | 'declined'),
+ * sets `event_id` on accepted, server-deletes the original intake-request
+ * signal_messages rows, and fans out plaintext SYSTEM-authored 'intake-delete'
+ * envelopes so live clients strip local state via the early-exit branch in
+ * useSignalMessages.decryptRow / systemIdentity.drainSystemInbox.
+ *
+ * Supersedes `purge_intake` + `mark_event_intake_approved`.
+ */
+export interface IntakeActionResult {
   group_id: string
-  approved_origin_id: string
-}
-
-export async function markEventIntakeApproved(
-  intakeId: string,
-  eventId: string,
-): Promise<Result<MarkApprovedResult>> {
-  const res = await callRpc(
-    () => supabase.rpc('mark_event_intake_approved', {
-      p_intake_id: intakeId,
-      p_event_id: eventId,
-    }),
-    'mark_event_intake_approved',
-    logger,
-  )
-  if (!res.ok) return res
-  return { ok: true, data: res.data as MarkApprovedResult }
-}
-
-export interface PurgeIntakeResult {
-  clinic_id: string
-  group_id: string
+  delete_origin_id: string
   deleted_origin_ids: string[]
 }
 
-export async function purgeIntake(
+export type IntakeAction = 'accepted' | 'declined'
+
+export async function intakeAction(
   intakeId: string,
-): Promise<Result<PurgeIntakeResult>> {
+  action: IntakeAction,
+  eventId?: string,
+): Promise<Result<IntakeActionResult>> {
   const res = await callRpc(
-    () => supabase.rpc('purge_intake', { p_intake_id: intakeId }),
-    'purge_intake',
+    () => supabase.rpc('intake_action', {
+      p_intake_id: intakeId,
+      p_action: action,
+      p_event_id: eventId ?? null,
+    }),
+    'intake_action',
     logger,
   )
   if (!res.ok) return res
-  return { ok: true, data: res.data as PurgeIntakeResult }
+  return { ok: true, data: res.data as IntakeActionResult }
 }
 
 export interface PurgeClinicIntakeResult {

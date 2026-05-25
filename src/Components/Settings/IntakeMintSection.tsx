@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import bwipjs from 'bwip-js/browser'
 import {
-  Copy, Check, RefreshCw, KeyRound, Trash2, Inbox, ExternalLink,
+  Copy, Check, RefreshCw, KeyRound, Trash2, Inbox, Dices,
 } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -10,7 +10,7 @@ import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { TextInput } from '../FormInputs'
-import { validatePasswordComplexity, SECURITY } from '../../lib/constants'
+import { validatePasswordComplexity } from '../../lib/constants'
 import {
   mintEventIntakeCredential,
   rotateEventIntakePasscode,
@@ -27,11 +27,30 @@ interface IntakeMintSectionProps {
   clinicId: string
 }
 
-type ChooserMode = 'manual' | 'generate'
-
 function intakeUrl(passcode: string): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
   return `${origin}/test2/intake.html#p=${passcode}`
+}
+
+// Curated, unambiguous lowercase words — readable enough to relay on a poster
+// or verbally, yet the digit + symbol suffix guarantees validatePasswordComplexity.
+const PASSPHRASE_WORDS = [
+  'falcon', 'river', 'cedar', 'anchor', 'summit', 'harbor', 'meadow', 'canyon',
+  'ember', 'quartz', 'willow', 'beacon', 'tundra', 'cobalt', 'marble', 'spruce',
+  'orchid', 'pewter', 'garnet', 'cypress', 'basalt', 'juniper', 'saffron', 'onyx',
+] as const
+
+function randomInt(max: number): number {
+  const buf = new Uint32Array(1)
+  crypto.getRandomValues(buf)
+  return buf[0] % max
+}
+
+function generatePassphrase(): string {
+  const words = Array.from({ length: 3 }, () => PASSPHRASE_WORDS[randomInt(PASSPHRASE_WORDS.length)])
+  const head = words[0][0].toUpperCase() + words[0].slice(1)
+  const symbols = '!@#$%&*?'
+  return `${[head, words[1], words[2]].join('-')}${randomInt(10)}${symbols[randomInt(symbols.length)]}`
 }
 
 /**
@@ -43,8 +62,9 @@ function intakeUrl(passcode: string): string {
  *   Live : card with passcode + URL on the left + QR canvas on the right,
  *          ActionPill overlay with Rotate-passcode / Rotate-passphrase / Kill.
  *
- * Mint / rotate-passphrase / reveal flows use PreviewOverlay anchored to the
- * triggering button (matches the rest of the settings UI).
+ * Mint / rotate-passphrase flows use PreviewOverlay anchored to the triggering
+ * button (matches the rest of the settings UI). The supervisor types a
+ * passphrase or taps the dice to fill a generated one inline before submitting.
  */
 export function IntakeMintSection({ clinicId }: IntakeMintSectionProps) {
   const { isDevRole } = useAuth()
@@ -59,21 +79,16 @@ export function IntakeMintSection({ clinicId }: IntakeMintSectionProps) {
   const [rotatePassphraseAnchor, setRotatePassphraseAnchor] = useState<DOMRect | null>(null)
   const [confirmRotatePasscode, setConfirmRotatePasscode] = useState(false)
   const [confirmKill, setConfirmKill] = useState(false)
-  const [reveal, setReveal] = useState<{ passphrase: string; passcode: string; anchor: DOMRect | null } | null>(null)
 
   // Per-flow input state.
-  const [mintMode, setMintMode] = useState<ChooserMode>('generate')
   const [mintPass1, setMintPass1] = useState('')
   const [mintPass2, setMintPass2] = useState('')
-  const [rotMode, setRotMode] = useState<ChooserMode>('generate')
   const [rotPass1, setRotPass1] = useState('')
   const [rotPass2, setRotPass2] = useState('')
 
   // Copy-state flashes.
   const [copiedPasscode, setCopiedPasscode] = useState(false)
   const [copiedUrl, setCopiedUrl] = useState(false)
-  const [copiedRevealPass, setCopiedRevealPass] = useState(false)
-  const [copiedPoster, setCopiedPoster] = useState(false)
 
   const cardRef = useRef<HTMLDivElement | null>(null)
 
@@ -115,7 +130,6 @@ export function IntakeMintSection({ clinicId }: IntakeMintSectionProps) {
 
   const openMint = useCallback((el: HTMLElement) => {
     setFormError(null)
-    setMintMode('generate')
     setMintPass1('')
     setMintPass2('')
     setMintAnchor(el.getBoundingClientRect())
@@ -123,7 +137,6 @@ export function IntakeMintSection({ clinicId }: IntakeMintSectionProps) {
 
   const openRotatePassphrase = useCallback(() => {
     setFormError(null)
-    setRotMode('generate')
     setRotPass1('')
     setRotPass2('')
     if (cardRef.current) setRotatePassphraseAnchor(cardRef.current.getBoundingClientRect())
@@ -131,57 +144,48 @@ export function IntakeMintSection({ clinicId }: IntakeMintSectionProps) {
 
   const closeMint = useCallback(() => { setMintAnchor(null); setFormError(null) }, [])
   const closeRotatePassphrase = useCallback(() => { setRotatePassphraseAnchor(null); setFormError(null) }, [])
-  const closeReveal = useCallback(() => setReveal(null), [])
+
+  const fillMint = useCallback(() => {
+    const p = generatePassphrase()
+    setMintPass1(p); setMintPass2(p); setFormError(null)
+  }, [])
+
+  const fillRotate = useCallback(() => {
+    const p = generatePassphrase()
+    setRotPass1(p); setRotPass2(p); setFormError(null)
+  }, [])
 
   const onMintConfirm = useCallback(async () => {
     setBusy(true)
     try {
-      if (mintMode === 'manual') {
-        const complaint = validatePasswordComplexity(mintPass1)
-        if (complaint) { setFormError(complaint); return }
-        if (mintPass1 !== mintPass2) { setFormError('Passphrases do not match'); return }
-      }
-      const res = await mintEventIntakeCredential(
-        clinicId,
-        mintMode === 'manual' ? { passphrase: mintPass1 } : {},
-      )
+      const complaint = validatePasswordComplexity(mintPass1)
+      if (complaint) { setFormError(complaint); return }
+      if (mintPass1 !== mintPass2) { setFormError('Passphrases do not match'); return }
+      const res = await mintEventIntakeCredential(clinicId, { passphrase: mintPass1 })
       if (!res.ok) { setFormError(res.error); return }
       setFormError(null)
-      const anchor = mintAnchor
       closeMint()
       await refresh()
-      if (res.data.passphraseWasGenerated && res.data.passphrase) {
-        setReveal({ passphrase: res.data.passphrase, passcode: res.data.passcode, anchor })
-      }
     } finally {
       setBusy(false)
     }
-  }, [mintMode, mintPass1, mintPass2, clinicId, mintAnchor, closeMint, refresh])
+  }, [mintPass1, mintPass2, clinicId, closeMint, refresh])
 
   const onRotatePassphraseConfirm = useCallback(async () => {
     setBusy(true)
     try {
-      if (rotMode === 'manual') {
-        const complaint = validatePasswordComplexity(rotPass1)
-        if (complaint) { setFormError(complaint); return }
-        if (rotPass1 !== rotPass2) { setFormError('Passphrases do not match'); return }
-      }
-      const res = await rotateEventIntakePassphrase(
-        clinicId,
-        rotMode === 'manual' ? { passphrase: rotPass1 } : {},
-      )
+      const complaint = validatePasswordComplexity(rotPass1)
+      if (complaint) { setFormError(complaint); return }
+      if (rotPass1 !== rotPass2) { setFormError('Passphrases do not match'); return }
+      const res = await rotateEventIntakePassphrase(clinicId, { passphrase: rotPass1 })
       if (!res.ok) { setFormError(res.error); return }
       setFormError(null)
-      const anchor = rotatePassphraseAnchor
       closeRotatePassphrase()
       await refresh()
-      if (res.data.passphraseWasGenerated && res.data.passphrase && credential) {
-        setReveal({ passphrase: res.data.passphrase, passcode: credential.passcode, anchor })
-      }
     } finally {
       setBusy(false)
     }
-  }, [rotMode, rotPass1, rotPass2, clinicId, rotatePassphraseAnchor, closeRotatePassphrase, refresh, credential])
+  }, [rotPass1, rotPass2, clinicId, closeRotatePassphrase, refresh])
 
   const onRotatePasscode = useCallback(async () => {
     setBusy(true)
@@ -214,16 +218,6 @@ export function IntakeMintSection({ clinicId }: IntakeMintSectionProps) {
       setTimeout(() => setFlag(false), 1500)
     } catch (e) { logger.warn('clipboard write failed', e) }
   }, [])
-
-  const posterText = useMemo(() => {
-    if (!reveal) return ''
-    const baseUrl = intakeUrl(reveal.passcode).replace(/#p=.*/, '')
-    return (
-      `Scan the QR or visit ${baseUrl} and enter unit code: ${reveal.passcode}\n`
-      + `Passphrase (required to submit): ${reveal.passphrase}\n\n`
-      + `Direct link: ${intakeUrl(reveal.passcode)}`
-    )
-  }, [reveal])
 
   if (!isDevRole) return null
   if (loading) return null
@@ -352,6 +346,11 @@ export function IntakeMintSection({ clinicId }: IntakeMintSectionProps) {
         footer={
           <ActionPill>
             <ActionButton
+              icon={Dices}
+              label="Random"
+              onClick={fillMint}
+            />
+            <ActionButton
               icon={Check}
               label="Mint"
               variant={busy ? 'disabled' : 'success'}
@@ -361,24 +360,20 @@ export function IntakeMintSection({ clinicId }: IntakeMintSectionProps) {
         }
       >
         <div className="px-3 py-2 space-y-2">
-          <ChooserRadio mode={mintMode} onChange={setMintMode} />
-          {mintMode === 'manual' && (
-            <>
-              <TextInput
-                label="Passphrase"
-                value={mintPass1}
-                onChange={setMintPass1}
-                placeholder="Passphrase"
-                hint={`Min ${SECURITY.MIN_PASSWORD_LENGTH} chars · upper · lower · digit · special`}
-              />
-              <TextInput
-                label="Confirm"
-                value={mintPass2}
-                onChange={setMintPass2}
-                placeholder="Confirm passphrase"
-              />
-            </>
-          )}
+          <TextInput
+            label="Passphrase"
+            value={mintPass1}
+            onChange={setMintPass1}
+            placeholder="Passphrase"
+            hint={mintPass1.length > 0 ? validatePasswordComplexity(mintPass1) : null}
+          />
+          <TextInput
+            label="Confirm"
+            value={mintPass2}
+            onChange={setMintPass2}
+            placeholder="Confirm passphrase"
+            hint={mintPass2.length > 0 && mintPass1 !== mintPass2 ? 'Passphrases do not match' : null}
+          />
           {formError && <p className="text-[10pt] text-themeredred px-1">{formError}</p>}
         </div>
       </PreviewOverlay>
@@ -393,6 +388,11 @@ export function IntakeMintSection({ clinicId }: IntakeMintSectionProps) {
         footer={
           <ActionPill>
             <ActionButton
+              icon={Dices}
+              label="Random"
+              onClick={fillRotate}
+            />
+            <ActionButton
               icon={Check}
               label="Rotate"
               variant={busy ? 'disabled' : 'success'}
@@ -402,69 +402,21 @@ export function IntakeMintSection({ clinicId }: IntakeMintSectionProps) {
         }
       >
         <div className="px-3 py-2 space-y-2">
-          <p className="text-[10pt] text-themeredred px-1">
-            Anyone using the current passphrase will be locked out. You must redistribute the new passphrase yourself — Beacon will not store it in a readable form.
-          </p>
-          <ChooserRadio mode={rotMode} onChange={setRotMode} />
-          {rotMode === 'manual' && (
-            <>
-              <TextInput
-                label="Passphrase"
-                value={rotPass1}
-                onChange={setRotPass1}
-                placeholder="New passphrase"
-                hint={`Min ${SECURITY.MIN_PASSWORD_LENGTH} chars · upper · lower · digit · special`}
-              />
-              <TextInput
-                label="Confirm"
-                value={rotPass2}
-                onChange={setRotPass2}
-                placeholder="Confirm new passphrase"
-              />
-            </>
-          )}
+          <TextInput
+            label="Passphrase"
+            value={rotPass1}
+            onChange={setRotPass1}
+            placeholder="New passphrase"
+            hint={rotPass1.length > 0 ? validatePasswordComplexity(rotPass1) : null}
+          />
+          <TextInput
+            label="Confirm"
+            value={rotPass2}
+            onChange={setRotPass2}
+            placeholder="Confirm new passphrase"
+            hint={rotPass2.length > 0 && rotPass1 !== rotPass2 ? 'Passphrases do not match' : null}
+          />
           {formError && <p className="text-[10pt] text-themeredred px-1">{formError}</p>}
-        </div>
-      </PreviewOverlay>
-
-      {/* ── Visible-once reveal (generate path only) ────────────── */}
-      <PreviewOverlay
-        isOpen={!!reveal}
-        onClose={closeReveal}
-        anchorRect={reveal?.anchor ?? null}
-        title="Save this passphrase"
-        maxWidth={420}
-        footer={
-          <ActionPill>
-            <ActionButton
-              icon={copiedRevealPass ? Check : Copy}
-              label="Copy passphrase"
-              onClick={() => reveal && copyText(reveal.passphrase, setCopiedRevealPass)}
-            />
-            <ActionButton
-              icon={copiedPoster ? Check : ExternalLink}
-              label="Copy poster text"
-              onClick={() => copyText(posterText, setCopiedPoster)}
-            />
-            <ActionButton
-              icon={Check}
-              label="I've saved this passphrase"
-              variant="success"
-              onClick={closeReveal}
-            />
-          </ActionPill>
-        }
-      >
-        <div className="px-3 py-2 space-y-2">
-          <p className="text-[10pt] text-tertiary">
-            This is the only time the passphrase will be shown in plaintext. After dismissal it cannot be recovered — you'll have to rotate it.
-          </p>
-          <div className="rounded-lg bg-white border border-tertiary/20 px-3 py-2">
-            <p className="text-[9pt] text-tertiary/60">Passcode</p>
-            <p className="font-mono text-[11pt] text-primary break-all">{reveal?.passcode}</p>
-            <p className="text-[9pt] text-tertiary/60 mt-2">Passphrase</p>
-            <p className="font-mono text-[13pt] text-primary break-all">{reveal?.passphrase}</p>
-          </div>
         </div>
       </PreviewOverlay>
 
@@ -490,30 +442,5 @@ export function IntakeMintSection({ clinicId }: IntakeMintSectionProps) {
         onCancel={() => setConfirmKill(false)}
       />
     </section>
-  )
-}
-
-function ChooserRadio({
-  mode, onChange,
-}: { mode: ChooserMode; onChange: (m: ChooserMode) => void }) {
-  return (
-    <div className="flex flex-col gap-1 px-1">
-      <label className="flex items-center gap-2 text-[10pt] text-primary">
-        <input
-          type="radio"
-          checked={mode === 'generate'}
-          onChange={() => onChange('generate')}
-        />
-        Generate a random passphrase
-      </label>
-      <label className="flex items-center gap-2 text-[10pt] text-primary">
-        <input
-          type="radio"
-          checked={mode === 'manual'}
-          onChange={() => onChange('manual')}
-        />
-        I'll set the passphrase
-      </label>
-    </div>
   )
 }

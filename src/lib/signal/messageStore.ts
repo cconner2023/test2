@@ -588,11 +588,19 @@ export async function deletePeerProfile(peerId: string): Promise<void> {
 
 // ---- Cleanup ----
 
-/** Wipe all stored messages. Called on sign-out. */
+/** Wipe all stored messages. Called on sign-out (linked-device path).
+ *  Also clears peerProfiles + both tombstone stores so a subsequent sign-in
+ *  on the same browser doesn't hydrate prior-account artifacts. Primary
+ *  logout uses destroyMessageStore which drops the whole DB. */
 export async function clearMessageStore(): Promise<void> {
   try {
     const db = await getDb()
-    await db.clear('messages')
+    await Promise.all([
+      db.clear('messages'),
+      db.clear('peerProfiles'),
+      db.clear('conversationTombstones'),
+      db.clear('originTombstones'),
+    ])
     logger.info('Cleared message store')
   } catch (err) {
     logger.warn('Failed to clear message store:', err)

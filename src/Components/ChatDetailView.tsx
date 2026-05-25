@@ -56,6 +56,10 @@ export interface ChatDetailViewProps {
    * path doesn't accept attachments — currently the admin system-conversation
    * view, which v1 routes through `sendSystemMessageToUser` (text only). */
   hideImageUpload?: boolean
+  /** When false, embedded intake-request cards render read-only (no
+   * Email/Approve/Decline pill). Set by the dev's AdminDrawer system view —
+   * intake actions belong to supervisors in the clinic system group. */
+  intakeActionable?: boolean
   children?: ReactNode
 }
 
@@ -167,6 +171,7 @@ export function ChatDetailView({
   mobileHeader,
   desktopHeader,
   hideImageUpload,
+  intakeActionable = true,
   children,
 }: ChatDetailViewProps) {
   const { user } = useAuth()
@@ -570,6 +575,7 @@ export function ChatDetailView({
                 onCancelEdit={handleCancelEdit}
                 threadReplyCount={!activeThreadId ? (threadReplyCounts[msg.originId ?? ''] ?? threadReplyCounts[msg.id]) : undefined}
                 onOpenThread={handleOpenThread}
+                intakeActionable={intakeActionable}
               />
               {isThreadRoot && msgs.length > 1 && (
                 <div className="flex items-center gap-2 my-2 px-2">

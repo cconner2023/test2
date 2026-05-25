@@ -8,6 +8,9 @@
  *   path (`messageType='system'`, trigger-enforced is_dev() + sender_id NOT
  *   NULL). The regular peer sendMessage is intentionally NOT wired here.
  * - Image upload + Forward are hidden — v1 system channel is text-only.
+ * - Embedded intake-request cards render read-only (intakeActionable=false):
+ *   Approve/Decline/Email belong to supervisors in the clinic system group,
+ *   not the dev acting from their drawer.
  *
  * AdminDrawer owns the surrounding chrome (mobile header via BaseDrawer,
  * desktop header via the right-pane), so mobileHeader/desktopHeader are null.
@@ -108,6 +111,7 @@ export function AdminSystemConversationView({ peerId, onBack }: AdminSystemConve
       isSelfChat={false}
       showForward={false}
       hideImageUpload
+      intakeActionable={false}
       emptyText="No system messages yet"
       mobileHeader={null}
       desktopHeader={null}

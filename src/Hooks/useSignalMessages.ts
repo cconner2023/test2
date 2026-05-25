@@ -115,6 +115,23 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
           originId: row.origin_id ?? undefined,
         }
       }
+      // intake_action RPC fans out plaintext SYSTEM-authored delete envelopes
+      // for the original intake-request fanout. Surface as a standard 'delete'
+      // typed message so the existing onDelete pipeline strips local state by
+      // origin_ids. No signal session involved — payload is plaintext.
+      if (maybeIntake && maybeIntake.kind === 'intake-delete') {
+        const rawOrigins = Array.isArray(maybeIntake.origin_ids) ? maybeIntake.origin_ids : []
+        const originIds = rawOrigins.filter((x): x is string => typeof x === 'string')
+        return {
+          id: row.id,
+          senderId: SYSTEM_USER_ID,
+          recipientId: row.recipient_id,
+          plaintext: JSON.stringify({ originIds }),
+          messageType: 'delete' as const,
+          createdAt: row.created_at,
+          readAt: row.read_at,
+        }
+      }
     }
 
     const envelope = row.payload as unknown as SealedEnvelope

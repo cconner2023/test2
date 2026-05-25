@@ -7,12 +7,12 @@ import { useMessagingStore } from '../../stores/useMessagingStore'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
-import { purgeIntake } from '../../lib/eventIntakeService'
+import { intakeAction } from '../../lib/eventIntakeService'
 import { deleteMessagesByOriginId as deleteMessagesByOriginIdFromDb } from '../../lib/signal/messageStore'
 import { formatSignature } from '../../Utilities/NoteFormatter'
 import { createLogger } from '../../Utilities/Logger'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
-import type { IntakeRequestContent, IntakeStatusContent } from '../../lib/signal/messageContent'
+import type { IntakeRequestContent } from '../../lib/signal/messageContent'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
 
 const logger = createLogger('IntakeRequestCard')
@@ -23,6 +23,10 @@ interface IntakeRequestCardProps {
   isOwn: boolean
   avatar?: React.ReactNode
   senderName?: string
+  /** When false, the card is read-only — no Email/Approve/Decline pill. The
+   * dev's AdminDrawer system view sets this: intake actions belong to
+   * supervisors in the clinic system group, not the dev from their drawer. */
+  actionable?: boolean
 }
 
 function formatTime(iso: string): string {
@@ -50,30 +54,20 @@ function formatWindow(startIso: string, endIso: string): string {
  * the mint/rotate/kill toggle UI in IntakeMintSection stays dev-gated so
  * unfinished features don't accidentally surface clinic-wide.
  */
-export function IntakeRequestCard({ message, content, isOwn, avatar, senderName }: IntakeRequestCardProps) {
+export function IntakeRequestCard({ message, content, isOwn, avatar, senderName, actionable = true }: IntakeRequestCardProps) {
   const { user, profile, clinicId } = useAuth()
   const { writeEvent } = useCalendarWrite()
   const messages = useMessagesContext()
   const [confirmDecline, setConfirmDecline] = useState(false)
   const [busy, setBusy] = useState(false)
 
-  // Card-folding: scan the current conversation for a matching intake-approved
-  // reply by intake_id and collapse the action row when found.
   const groupId = message.groupId ?? null
-  const status = useMessagingStore(s => {
-    if (!groupId) return null
-    const msgs = s.conversations[groupId] ?? []
-    for (const m of msgs) {
-      if (
-        m.content?.type === 'intake_status'
-        && m.content.kind === 'intake-approved'
-        && m.content.intake_id === content.intake_id
-      ) {
-        return m.content as IntakeStatusContent
-      }
-    }
-    return null
-  })
+
+  const stripLocal = useCallback((originIds: string[]) => {
+    if (originIds.length === 0) return
+    useMessagingStore.getState().removeMessagesByOriginIds(originIds)
+    deleteMessagesByOriginIdFromDb(originIds, new Date().toISOString()).catch(() => {})
+  }, [])
 
   const onEmail = useCallback(() => {
     const subject = `Event request — ${content.title}`
@@ -91,14 +85,12 @@ export function IntakeRequestCard({ message, content, isOwn, avatar, senderName 
   }, [content, profile])
 
   const onApprove = useCallback(async () => {
-    if (!user || !clinicId) return
+    if (!user || !clinicId || !groupId || !messages) return
     setBusy(true)
     try {
-      // Build a minimal CalendarEvent prefilled from the intake. v1 lands the
-      // event with category='appointment' and no room/assignees; the supervisor
-      // can edit it on the calendar afterwards. The intake_id field is what
-      // triggers useCalendarWrite.writeEvent's auto-flip (mark approved + post
-      // intake-approved reply to the clinic system group).
+      // v1 lands a minimal event (category='appointment', no room/assignees);
+      // supervisor edits it on the calendar afterwards. The intake_id field on
+      // the event row preserves the linkage for forensics.
       const now = new Date().toISOString()
       const newEvent: CalendarEvent = {
         id: crypto.randomUUID(),
@@ -124,59 +116,43 @@ export function IntakeRequestCard({ message, content, isOwn, avatar, senderName 
         intake_id: content.intake_id,
       }
       await writeEvent(newEvent)
+      // Visible supervisor reply in the system group thread.
+      await messages.sendGroupMessage(groupId, `${content.title} accepted`)
+      // Server stamps status='approved'+event_id, hard-deletes the original
+      // intake-request rows, and fans out SYSTEM-authored intake-delete
+      // envelopes that strip every live client's local state.
+      const res = await intakeAction(content.intake_id, 'accepted', newEvent.id)
+      if (!res.ok) {
+        logger.warn('intake_action accepted failed:', res.error)
+      }
+      stripLocal(message.originId ? [message.originId] : [])
     } catch (e) {
       logger.warn('approve failed:', e instanceof Error ? e.message : e)
     } finally {
       setBusy(false)
     }
-  }, [user, clinicId, content, writeEvent])
+  }, [user, clinicId, content, writeEvent, messages, groupId, stripLocal, message.originId])
 
   const onDeclineConfirm = useCallback(async () => {
+    if (!groupId || !messages) {
+      setConfirmDecline(false)
+      return
+    }
     setBusy(true)
     try {
-      const res = await purgeIntake(content.intake_id)
-      const serverOriginIds = res.ok ? res.data.deleted_origin_ids : []
+      await messages.sendGroupMessage(groupId, `${content.title} declined`)
+      const res = await intakeAction(content.intake_id, 'declined')
       if (!res.ok) {
-        // Server may legitimately 404 if a prior decline already purged the
-        // row server-side; still fall through and nuke the local copy so
-        // poisoned cards from before the local-cleanup fix can be dismissed.
-        logger.warn('purge_intake failed (still cleaning local copy):', res.error)
+        logger.warn('intake_action declined failed:', res.error)
       }
-      const originIds = Array.from(new Set([
-        ...serverOriginIds,
-        ...(message.originId ? [message.originId] : []),
-      ]))
-      if (originIds.length > 0) {
-        useMessagingStore.getState().removeMessagesByOriginIds(originIds)
-        deleteMessagesByOriginIdFromDb(originIds, new Date().toISOString()).catch(() => {})
-      }
-      // Fan out the standard messageType='delete' envelope so offline peers
-      // reconcile their local state. Intake-scoped: uses originIds returned by
-      // the RPC, never broadens to other group messages.
-      if (groupId && messages && serverOriginIds.length > 0) {
-        try {
-          // The existing deleteMessages primitive operates per-peer; for a
-          // group purge we walk the group's member ids from the store. The
-          // store's groupMembers[] is populated by useGroups; if absent we
-          // still hard-deleted server-side so peers will reconcile on next
-          // catch-up via the existing delete-envelope receive path elsewhere.
-          const { groupMembers } = useMessagingStore.getState()
-          const memberIds = groupMembers[groupId] ?? []
-          for (const peerId of memberIds) {
-            if (peerId === user?.id) continue
-            messages.deleteMessages(peerId, []).catch(() => {})
-          }
-        } catch {
-          // Best-effort fanout; server delete already succeeded.
-        }
-      }
+      stripLocal(message.originId ? [message.originId] : [])
     } catch (e) {
       logger.warn('decline failed:', e instanceof Error ? e.message : e)
     } finally {
       setBusy(false)
       setConfirmDecline(false)
     }
-  }, [content.intake_id, groupId, messages, user?.id, message.originId])
+  }, [content.intake_id, content.title, groupId, messages, stripLocal, message.originId])
 
   const windowLabel = useMemo(
     () => formatWindow(content.requested_start, content.requested_end),
@@ -185,7 +161,6 @@ export function IntakeRequestCard({ message, content, isOwn, avatar, senderName 
 
   const labelCx = isOwn ? 'text-white/60' : 'text-primary/50'
   const linkCx = isOwn ? 'underline text-white' : 'underline text-primary'
-  const statusCx = isOwn ? 'text-white/70' : 'text-tertiary'
   const timeCx = isOwn ? 'text-white/60' : 'text-tertiary'
 
   return (
@@ -224,21 +199,12 @@ export function IntakeRequestCard({ message, content, isOwn, avatar, senderName 
               </div>
             </div>
 
-            {status && (
-              <p className={`text-[9pt] mt-1 ${statusCx}`}>
-                Approved by {status.approved_by_name} ·{' '}
-                {new Date(status.approved_at).toLocaleString([], {
-                  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-                })}
-              </p>
-            )}
-
             <div className={`flex items-center gap-1 mt-0.5 ${timeCx}`}>
               <p className="text-[9pt]">{formatTime(message.createdAt)}</p>
             </div>
           </div>
 
-          {!status && (
+          {actionable && (
             <ActionPill shadow="sm" placement="overlay">
               <ActionButton icon={Mail} label="Email requester" onClick={onEmail} variant={busy ? 'disabled' : 'default'} />
               <ActionButton icon={Check} label="Approve and create event" onClick={onApprove} variant={busy ? 'disabled' : 'success'} />
@@ -248,17 +214,19 @@ export function IntakeRequestCard({ message, content, isOwn, avatar, senderName 
         </div>
       </div>
 
-      <ConfirmDialog
-        visible={confirmDecline}
-        title="Decline this event request?"
-        subtitle="Decline and remove this request? The requester won't be notified automatically — use Email first if you want to respond."
-        confirmLabel="Decline"
-        cancelLabel="Cancel"
-        variant="danger"
-        processing={busy}
-        onConfirm={onDeclineConfirm}
-        onCancel={() => setConfirmDecline(false)}
-      />
+      {actionable && (
+        <ConfirmDialog
+          visible={confirmDecline}
+          title="Decline this event request?"
+          subtitle="Decline and remove this request? The requester won't be notified automatically — use Email first if you want to respond."
+          confirmLabel="Decline"
+          cancelLabel="Cancel"
+          variant="danger"
+          processing={busy}
+          onConfirm={onDeclineConfirm}
+          onCancel={() => setConfirmDecline(false)}
+        />
+      )}
     </>
   )
 }

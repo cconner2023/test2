@@ -180,6 +180,16 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
   // ── Actions ──
 
   addMessage: (msg) => {
+    // Control-plane transport types are never user-visible conversation
+    // content. Normal receive paths already drop them (useSignalMessages
+    // decryptRow returns null for 'sender-key-distribution'; 'sender-key-message'
+    // is transformed to 'message' before reaching here). This is a store-boundary
+    // backstop so no path — a stale cached bundle, an offline-queue replay, a
+    // future drain branch — can ever render the raw sender-key-distribution JSON
+    // (chainKey/signingPublicKey) as a chat bubble.
+    if (msg.messageType === 'sender-key-distribution' || msg.messageType === 'sender-key-message') {
+      return
+    }
     const { deletedConversations, conversations, localUserId, systemGroupIds } = get()
     const userId = localUserId
 

@@ -25,6 +25,9 @@ interface MessageBubbleProps {
   onOpenThread?: (rootMessageId: string) => void
   /** Sender name to display above non-own bubbles in group chats. */
   senderName?: string
+  /** When false, embedded action cards (intake request) render read-only.
+   * Set by the dev's AdminDrawer system view. */
+  intakeActionable?: boolean
 }
 
 function formatTime(iso: string): string {
@@ -116,6 +119,7 @@ export function MessageBubble({
   threadReplyCount,
   onOpenThread,
   senderName,
+  intakeActionable = true,
 }: MessageBubbleProps) {
   const touchRef = useRef<{
     startX: number
@@ -150,15 +154,9 @@ export function MessageBubble({
         isOwn={isOwn}
         avatar={avatar}
         senderName={senderName}
+        actionable={intakeActionable}
       />
     )
-  }
-
-  // Intake-approved status replies fold into the parent IntakeRequestCard via
-  // its store subscription. Render nothing standalone — they exist on the
-  // wire so offline peers can reconcile their cards.
-  if (message.content?.type === 'intake_status') {
-    return null
   }
 
   // System notices render as a centered, full-width card — no avatar, no

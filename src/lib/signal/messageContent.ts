@@ -165,24 +165,7 @@ export interface IntakeRequestContent {
   title: string
 }
 
-/**
- * Outside event-intake STATUS update. Supervisor-authored reply posted after
- * the intake is approved (an event with the matching intake_id was created).
- * Signal-encrypted like any normal group message and rides serializeContent
- * → parseMessageContent.
- */
-export interface IntakeStatusContent {
-  type: 'intake_status'
-  kind: 'intake-approved'
-  intake_id: string
-  approved_by_user_id: string
-  approved_by_name: string
-  event_id: string
-  /** ISO timestamp string. */
-  approved_at: string
-}
-
-export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | IntakeRequestContent | IntakeStatusContent
+export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | IntakeRequestContent
 
 // ---- Compact wire shapes ----
 
@@ -242,27 +225,7 @@ interface WireMapFeature {
   f: Record<string, unknown>
 }
 
-/**
- * Compact wire shape for IntakeStatusContent. IntakeRequestContent has NO
- * wire shape — the anon SQL function builds its jsonb literal directly.
- */
-interface WireIntakeStatus {
-  t: 'is'
-  /** Status kind. v1 only ships intake-approved. */
-  k: 'intake-approved'
-  /** intake_id */
-  ii: string
-  /** approved_by_user_id */
-  abuid: string
-  /** approved_by_name */
-  abn: string
-  /** event_id */
-  eid: string
-  /** approved_at (ISO timestamp) */
-  at: string
-}
-
-type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature | WireIntakeStatus
+type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature
 
 // ---- Serialization ----
 
@@ -323,19 +286,6 @@ export function serializeContent(content: MessageContent): string {
       f: content.data.feature as unknown as Record<string, unknown>,
     }
     if (content.data.clinic_id) wire.c = content.data.clinic_id
-    return JSON.stringify(wire)
-  }
-
-  if (content.type === 'intake_status') {
-    const wire: WireIntakeStatus = {
-      t: 'is',
-      k: content.kind,
-      ii: content.intake_id,
-      abuid: content.approved_by_user_id,
-      abn: content.approved_by_name,
-      eid: content.event_id,
-      at: content.approved_at,
-    }
     return JSON.stringify(wire)
   }
 
@@ -446,21 +396,6 @@ export function parseMessageContent(raw: string): ParsedContent {
           action,
           data: wire.d as MapOverlayPayload,
         } satisfies MapOverlayContent,
-      }
-    }
-
-    if (wire.t === 'is') {
-      return {
-        plaintext: '[event intake — approved]',
-        content: {
-          type: 'intake_status',
-          kind: wire.k,
-          intake_id: wire.ii,
-          approved_by_user_id: wire.abuid,
-          approved_by_name: wire.abn,
-          event_id: wire.eid,
-          approved_at: wire.at,
-        } satisfies IntakeStatusContent,
       }
     }
 

@@ -896,6 +896,52 @@ async function _drainSystemInboxImpl(): Promise<number> {
         continue
       }
 
+      // intake_action RPC fans out plaintext SYSTEM-authored delete envelopes
+      // (kind='intake-delete'). Originals are server-deleted by the RPC; this
+      // branch handles dev's local state strip + cleans up the envelope row
+      // itself so SYSTEM-recipient rows don't accumulate.
+      if (
+        row.message_type === 'system'
+        && maybeIntakePayload
+        && maybeIntakePayload.kind === 'intake-delete'
+      ) {
+        try {
+          const rawOrigins = Array.isArray(maybeIntakePayload.origin_ids)
+            ? maybeIntakePayload.origin_ids
+            : []
+          const originIds = rawOrigins.filter((x): x is string => typeof x === 'string')
+          if (originIds.length > 0) {
+            useMessagingStore.getState().removeMessagesByOriginIds(originIds)
+            await deleteMessagesByOriginId(originIds)
+          }
+          const { error: envErr } = await supabase
+            .from('signal_messages')
+            .delete()
+            .eq('id', row.id)
+          if (envErr) logger.warn(`Failed to hard-delete intake-delete envelope ${row.id}:`, envErr.message)
+        } catch (e) {
+          logger.warn(`Intake-delete process failed for ${row.id}:`, e instanceof Error ? e.message : e)
+        }
+        processedIds.push(row.id)
+        continue
+      }
+
+      // Group sender-key control plane addressed to SYSTEM. SYSTEM is a member
+      // of the clinic system group, so every supervisor group reply fans a
+      // sender-key-distribution (and sender-key-message) copy at SYSTEM. SYSTEM
+      // never reads group content, so these are never used — consume without
+      // surfacing. Mirrors useSignalMessages.decryptRow returning null for
+      // sender-key-distribution; without this guard the distribution JSON
+      // unsealed cleanly and rendered as a chat bubble after intake
+      // accept/decline group replies.
+      if (
+        row.message_type === 'sender-key-distribution'
+        || row.message_type === 'sender-key-message'
+      ) {
+        processedIds.push(row.id)
+        continue
+      }
+
       const envelope = row.payload as unknown as SealedEnvelope
       const senderDeviceId = row.sender_device_id ?? 'unknown'
 

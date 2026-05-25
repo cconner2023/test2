@@ -434,11 +434,11 @@ export interface UseMessagesReturn {
   /** Dev-only. Send a system-authored notice into a clinic system group, resolving/creating the group. */
   sendSystemMessageToClinic: (clinicId: string, text: string) => Promise<boolean>
   /**
-   * Send a structured-content message to a group. Used for non-text replies
-   * (e.g. intake_status from useCalendarWrite). Caller supplies a precomputed
-   * originId — used as the message's originId on the wire so callers that
-   * need to address subsequent purge/delete envelopes can do so deterministically.
-   * Preview is the plaintext label derived from the content type.
+   * Send a structured-content message to a group. Used for non-text replies.
+   * Caller supplies a precomputed originId — used as the message's originId
+   * on the wire so callers that need to address subsequent purge/delete
+   * envelopes can do so deterministically. Preview is the plaintext label
+   * derived from the content type.
    */
   sendGroupStructured: (groupId: string, content: MessageContent, originId: string, preview: string) => Promise<boolean>
   /** Send a text message to a group (encrypts to each member's devices). */

@@ -415,6 +415,12 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     // adtmc-map-overlay-events DB and must be preserved across logout.
     clearAllPendingOverlaySends().catch(() => {})
 
+    // Wipe in-memory messaging state. clearAll() resets conversations,
+    // unreadCounts, peerProfiles, etc. — without this, a subsequent signIn
+    // (same browser, different account) merges the prior account's
+    // peerProfiles into the new account's hydration (see hydrateFromIdb).
+    import('./useMessagingStore').then(m => m.useMessagingStore.getState().clearAll()).catch(() => {})
+
     // IDB cleanup is awaited by signOut() before it resolves, preventing a
     // subsequent signIn from racing leftover account-A data into account-B
     // hydration (shared DB names — see MESSAGE_DB_NAME). The promise is

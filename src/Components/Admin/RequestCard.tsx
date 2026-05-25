@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useCallback, useMemo, useRef } from 'react'
 import { Clock, Building2, Trash2, UserCheck, X, HelpCircle, Check, RefreshCw, Mail } from 'lucide-react'
 import { TextInput, PickerInput, MultiPickerInput, UicPinInput } from '../FormInputs'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -102,13 +102,6 @@ export function RequestCard({
   )
 
   const formMatchedClinic = uic ? uicToClinic.get(uic.toUpperCase()) : undefined
-
-  // ── Auto-set clinic from UIC ────────────────────────────
-  useEffect(() => {
-    if (!isExpanded || !isPending || !uic || selectedClinicId) return
-    const matched = uicToClinic.get(uic.toUpperCase())
-    if (matched) setSelectedClinicId(matched.id)
-  }, [isExpanded, isPending, uic, uicToClinic, selectedClinicId])
 
   // ── Component → rank filtering ──────────────────────────
   const handleComponentChange = useCallback((val: string) => {
@@ -526,10 +519,20 @@ export function RequestCard({
               )}
               <UicPinInput value={uic} onChange={setUic} spread />
               <PickerInput value={selectedClinicId} onChange={setSelectedClinicId} options={clinicOptions} placeholder="Cluster" />
+              {formMatchedClinic && selectedClinicId !== formMatchedClinic.id && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedClinicId(formMatchedClinic.id)}
+                  className="w-full px-4 py-2 text-[9pt] text-themeblue2 flex items-center gap-1 border-b border-primary/6 hover:bg-themeblue2/5 active:bg-themeblue2/10 transition-colors text-left"
+                >
+                  <Building2 size={12} className="shrink-0" />
+                  UIC matches {formMatchedClinic.name} — tap to use
+                </button>
+              )}
               {formMatchedClinic && selectedClinicId === formMatchedClinic.id && (
                 <p className="px-4 py-2 text-[9pt] text-themegreen flex items-center gap-1 border-b border-primary/6">
                   <Building2 size={12} />
-                  Auto-matched from UIC
+                  Matches UIC
                 </p>
               )}
               <MultiPickerInput
