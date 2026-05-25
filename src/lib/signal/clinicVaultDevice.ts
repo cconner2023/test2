@@ -788,21 +788,39 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
   // table and don't get re-fetched/re-failed on every login. Only failure
   // paths reach this — successful decrypts stay in supabase to support
   // archive-mode replay (see header).
-  if (deadOriginIds.length > 0) {
-    supabase.rpc('hard_delete_clinic_vault_messages', {
-      p_clinic_id: clinicId,
-      p_origin_ids: deadOriginIds,
-    }).then(({ error }) => {
-      if (error) logger.warn('Vault dead-row cleanup RPC failed:', error.message)
-      else logger.info(`Vault dead-row cleanup: deleted ${deadOriginIds.length} undecryptable rows by origin_id`)
-    }).catch(() => { /* best-effort; next login retries */ })
-  }
-  if (deadRowIds.length > 0) {
-    supabase.from('signal_messages').delete().in('id', deadRowIds)
-      .then(({ error }) => {
-        if (error) logger.warn('Vault dead-row direct delete failed:', error.message)
-        else logger.info(`Vault dead-row cleanup: deleted ${deadRowIds.length} undecryptable rows by id`)
-      })
+  //
+  // CIRCUIT-BREAKER (added after the 2026-05-25 calendar nuke): NEVER purge
+  // when the entire batch failed to decrypt (processedCount === 0). A total
+  // failure means THIS session's keys/build can't read the archive — not that
+  // the rows are genuinely dead. The triggering incident was a stale-build
+  // client: it could not decrypt the newly-written (new-crypto-format) vault
+  // messages, marked all 18 'initial' rows dead, and purged the clinic's
+  // entire calendar archive that up-to-date clients depend on. The vault is
+  // the ONLY calendar store (no calendar_events table), so this is permanent
+  // data loss. Failing closed here turns a version-skew login into a harmless
+  // no-op: the rows survive and a healthy client re-judges them next drain.
+  if (processedCount === 0 && (deadOriginIds.length > 0 || deadRowIds.length > 0)) {
+    logger.warn(
+      `Clinic vault: ${deadOriginIds.length + deadRowIds.length} rows failed to decrypt and ZERO succeeded — ` +
+      `refusing to purge (likely stale build or bad session key). Archive preserved.`
+    )
+  } else {
+    if (deadOriginIds.length > 0) {
+      supabase.rpc('hard_delete_clinic_vault_messages', {
+        p_clinic_id: clinicId,
+        p_origin_ids: deadOriginIds,
+      }).then(({ error }) => {
+        if (error) logger.warn('Vault dead-row cleanup RPC failed:', error.message)
+        else logger.info(`Vault dead-row cleanup: deleted ${deadOriginIds.length} undecryptable rows by origin_id`)
+      }).catch(() => { /* best-effort; next login retries */ })
+    }
+    if (deadRowIds.length > 0) {
+      supabase.from('signal_messages').delete().in('id', deadRowIds)
+        .then(({ error }) => {
+          if (error) logger.warn('Vault dead-row direct delete failed:', error.message)
+          else logger.info(`Vault dead-row cleanup: deleted ${deadRowIds.length} undecryptable rows by id`)
+        })
+    }
   }
 
   // 6. Rotate SPK. OTPs are never consumed from the blob (see comment above).
