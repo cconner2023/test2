@@ -28,9 +28,7 @@ const dotLabel: Record<CompetencyStatus, string> = {
 }
 
 function readinessColor(pct: number): string {
-  if (pct >= 80) return 'bg-themegreen/15 text-themegreen'
-  if (pct >= 50) return 'bg-themeyellow/15 text-themeyellow'
-  return 'bg-themeredred/15 text-themeredred'
+  return pct >= 50 ? 'bg-themeblue3/15 text-themeblue3' : 'bg-themeredred/15 text-themeredred'
 }
 
 export function CompetencyMatrix({

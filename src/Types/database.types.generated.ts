@@ -708,7 +708,7 @@ export type Database = {
           id: string
           most_useful_feature: string | null
           needs_improvement: string | null
-          rating: number
+          rating: number | null
           user_id: string | null
         }
         Insert: {
@@ -719,7 +719,7 @@ export type Database = {
           id?: string
           most_useful_feature?: string | null
           needs_improvement?: string | null
-          rating: number
+          rating?: number | null
           user_id?: string | null
         }
         Update: {
@@ -730,7 +730,7 @@ export type Database = {
           id?: string
           most_useful_feature?: string | null
           needs_improvement?: string | null
-          rating?: number
+          rating?: number | null
           user_id?: string | null
         }
         Relationships: []
@@ -1000,6 +1000,7 @@ export type Database = {
           theme: string | null
           uic: string | null
           updated_at: string
+          voicemail_greeting: Json | null
         }
         Insert: {
           avatar_id?: string | null
@@ -1034,6 +1035,7 @@ export type Database = {
           theme?: string | null
           uic?: string | null
           updated_at?: string
+          voicemail_greeting?: Json | null
         }
         Update: {
           avatar_id?: string | null
@@ -1068,6 +1070,7 @@ export type Database = {
           theme?: string | null
           uic?: string | null
           updated_at?: string
+          voicemail_greeting?: Json | null
         }
         Relationships: [
           {
@@ -1725,6 +1728,7 @@ export type Database = {
           last_name: string
           middle_initial: string
           rank: string
+          voicemail_greeting: Json
         }[]
       }
       gc_read_signal_messages: {

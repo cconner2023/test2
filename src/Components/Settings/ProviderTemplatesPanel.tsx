@@ -47,7 +47,7 @@ export const ProviderTemplatesPanel = () => {
 
     return (
         <div className="h-full overflow-y-auto" data-tour="settings-provider-templates">
-            <div className="px-5 py-4 space-y-5">
+            <div className="px-5 pb-4 space-y-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
                 <p className="text-[10pt] text-tertiary leading-relaxed">
                     Compose note skeletons with HPI, exam, assessment, and plan presets. Apply them to pre-fill fields.
                 </p>

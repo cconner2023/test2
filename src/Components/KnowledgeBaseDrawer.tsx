@@ -279,6 +279,8 @@ export function KnowledgeBaseDrawer({
             fullHeight="90dvh"
             desktopPosition="left"
             header={headerConfig}
+            glassHeader
+            scrollResetKey={view}
         >
             <ContentWrapper slideDirection={slideDirection} swipeHandlers={canSwipeBack ? swipeHandlers : undefined}>
                 {view === 'home' && (
@@ -640,7 +642,7 @@ function KBHome({
                 ${idx > 0 ? 'border-t border-tertiary/8' : ''}
             `}
         >
-            <cat.icon size={18} className={cat.comingSoon ? 'text-tertiary' : 'text-primary'} />
+            <cat.icon size={18} className={`shrink-0 ${cat.comingSoon ? 'text-tertiary' : 'text-primary'}`} />
             <div className="flex-1 min-w-0 ml-3">
                 <p className={`text-sm font-medium ${cat.comingSoon ? 'text-tertiary' : 'text-primary'}`}>
                     {cat.label}
@@ -680,7 +682,7 @@ function KBHome({
                                     hover:bg-themewhite2 active:scale-95 cursor-pointer
                                     ${(pinnedCategories.length + idx) > 0 ? 'border-t border-tertiary/8' : ''}`}
                             >
-                                <Pill size={18} className="text-primary" />
+                                <Pill size={18} className="shrink-0 text-primary" />
                                 <div className="flex-1 min-w-0 ml-3">
                                     <p className="text-sm font-medium text-primary">{med.icon}</p>
                                     <p className="text-[9pt] text-tertiary">{med.text}</p>
@@ -704,7 +706,7 @@ function KBHome({
                                     hover:bg-themewhite2 active:scale-95 cursor-pointer
                                     ${(pinnedCategories.length + pinnedMeds.length + idx) > 0 ? 'border-t border-tertiary/8' : ''}`}
                             >
-                                <BookOpen size={18} className="text-primary" />
+                                <BookOpen size={18} className="shrink-0 text-primary" />
                                 <div className="flex-1 min-w-0 ml-3">
                                     <p className="text-sm font-medium text-primary">{task.text}</p>
                                     <p className="text-[9pt] text-tertiary font-mono">{task.icon}</p>

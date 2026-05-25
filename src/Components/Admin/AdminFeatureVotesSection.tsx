@@ -51,11 +51,15 @@ export function AdminFeatureVotesSection() {
   const [busy, setBusy] = useState(false)
 
   // New-cycle popover state
-  const newCycleBtnRef = useRef<HTMLButtonElement>(null)
   const [newCycleOpen, setNewCycleOpen] = useState(false)
   const [newCycleAnchor, setNewCycleAnchor] = useState<DOMRect | null>(null)
   const [newCycleTitle, setNewCycleTitle] = useState('')
   const [newCycleOptions, setNewCycleOptions] = useState<string[]>([''])
+
+  // Add-option popover (anchored to the header add icon) + draft, keyed by cycle id
+  const [optionDrafts, setOptionDrafts] = useState<Record<string, string>>({})
+  const [addOptionPopover, setAddOptionPopover] = useState<{ cycleId: string; anchor: DOMRect } | null>(null)
+  const addPillRef = useRef<HTMLDivElement>(null)
 
   const [confirmDeleteCycle, setConfirmDeleteCycle] = useState<string | null>(null)
   const [confirmCloseCycle, setConfirmCloseCycle] = useState<string | null>(null)
@@ -120,10 +124,10 @@ export function AdminFeatureVotesSection() {
     [cycleData]
   )
 
-  const openNewCyclePopover = () => {
+  const openNewCyclePopover = (anchor: HTMLElement) => {
     setNewCycleTitle('')
     setNewCycleOptions([''])
-    setNewCycleAnchor(newCycleBtnRef.current?.getBoundingClientRect() ?? null)
+    setNewCycleAnchor(anchor.getBoundingClientRect())
     setNewCycleOpen(true)
   }
 
@@ -219,6 +223,31 @@ export function AdminFeatureVotesSection() {
     await loadCycles()
   }
 
+  const openAddOptionPopover = (cycleId: string) => {
+    const rect = addPillRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setOptionDrafts((prev) => ({ ...prev, [cycleId]: '' }))
+    setAddOptionPopover({ cycleId, anchor: rect })
+  }
+
+  const handleAddOption = async (cycleId: string) => {
+    const title = (optionDrafts[cycleId] ?? '').trim()
+    if (!title) return
+    const existing = cycleData[cycleId]?.candidates.length ?? 0
+    if (existing >= MAX_OPTIONS_PER_CYCLE) return
+    setBusy(true)
+    setError(null)
+    const result = await addCandidate({ cycleId, title, sortOrder: existing })
+    setBusy(false)
+    if (!result.success) {
+      setError(result.error)
+      return
+    }
+    setOptionDrafts((prev) => ({ ...prev, [cycleId]: '' }))
+    setAddOptionPopover(null)
+    await loadCycleData(cycleId)
+  }
+
   const handleDeleteOption = async (cycleId: string, candidateId: string) => {
     setBusy(true)
     setError(null)
@@ -309,41 +338,62 @@ export function AdminFeatureVotesSection() {
 
         {error && <ErrorDisplay message={error} />}
 
-        {/* Active cycles — section header + overlay-pill add FAB riding the
-            top edge of the first card (canonical card-action-overlay pattern). */}
+        {/* Active cycle — only one exists at a time. The cycle name IS the section
+            header (with its action pill); the card below holds only the options.
+            Empty state's corner action creates a cycle. */}
         <section>
-          <p className="text-[9pt] font-semibold text-primary uppercase tracking-widest mb-2">Active cycles</p>
-          <div className="relative">
-            <ActionPill placement="overlay">
-              <button
-                ref={newCycleBtnRef}
-                onClick={openNewCyclePopover}
-                className="rounded-full flex items-center justify-center bg-themeblue2 text-white active:scale-95 transition-all"
-                aria-label="New cycle"
-                title="New cycle"
-              >
-                <Plus />
-              </button>
-            </ActionPill>
+          {activeCycles.length === 0 ? (
+            <>
+              <p className="text-[9pt] font-semibold text-primary uppercase tracking-widest mb-2">Active cycle</p>
+              <EmptyState
+                title="No active cycle"
+                action={{ icon: Plus, label: 'New cycle', onClick: openNewCyclePopover }}
+              />
+            </>
+          ) : (
+            activeCycles.map((cycle) => {
+              const data = cycleData[cycle.id]
+              const candidates = data?.candidates ?? []
+              const tally = data?.tally ?? {}
+              const total = totalVotesFor(cycle.id)
+              const canAddOption = candidates.length < MAX_OPTIONS_PER_CYCLE
 
-            {activeCycles.length === 0 ? (
-              <EmptyState title="No active cycles" />
-            ) : (
-              <div className="space-y-3">
-                {activeCycles.map((cycle) => {
-                const data = cycleData[cycle.id]
-                const candidates = data?.candidates ?? []
-                const tally = data?.tally ?? {}
-                const total = totalVotesFor(cycle.id)
+              return (
+                <div key={cycle.id}>
+                  {/* Section header = cycle name */}
+                  <div className="mb-2">
+                    <p className="text-[9pt] font-semibold text-primary uppercase tracking-widest truncate">{cycle.title}</p>
+                    {cycle.description && (
+                      <p className="text-[9pt] text-tertiary mt-0.5 line-clamp-1">{cycle.description}</p>
+                    )}
+                  </div>
 
-                return (
-                  <div
-                    key={cycle.id}
-                    className="w-full rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden"
-                  >
-                    {/* Options body */}
+                  {/* Options card + overlay action pill riding the top edge (lifted
+                      to a sibling of the overflow-hidden card so it isn't clipped) */}
+                  <div className="relative">
+                    <ActionPill ref={addPillRef} placement="overlay">
+                      {canAddOption && (
+                        <ActionButton
+                          icon={Plus}
+                          label="Add option"
+                          onClick={() => openAddOptionPopover(cycle.id)}
+                        />
+                      )}
+                      <ActionButton
+                        icon={Lock}
+                        label="Close cycle"
+                        onClick={() => setConfirmCloseCycle(cycle.id)}
+                      />
+                      <ActionButton
+                        icon={Trash2}
+                        label="Delete cycle"
+                        variant="danger"
+                        onClick={() => setConfirmDeleteCycle(cycle.id)}
+                      />
+                    </ActionPill>
+                    <div className="w-full rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
                     {candidates.length === 0 ? (
-                      <EmptyState title="No options" bordered={false} />
+                      <EmptyState title="No options yet" bordered={false} />
                     ) : (
                       <div className="divide-y divide-themeblue3/10">
                         {candidates.map((c) => {
@@ -383,40 +433,12 @@ export function AdminFeatureVotesSection() {
                         })}
                       </div>
                     )}
-
-                    {/* Info row: cycle title + action pill (theme-picker pattern) */}
-                    <div className="flex items-center gap-3 px-4 py-3 border-t border-themeblue3/10">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-primary truncate">{cycle.title}</p>
-                        {cycle.description && (
-                          <p className="text-[9pt] text-tertiary mt-0.5 line-clamp-1">{cycle.description}</p>
-                        )}
-                      </div>
-                      <ActionPill className="shrink-0">
-                        <button
-                          onClick={() => setConfirmCloseCycle(cycle.id)}
-                          className="w-9 h-9 rounded-full flex items-center justify-center bg-themeyellow/15 text-themeyellow active:scale-95 transition-all"
-                          aria-label="Close cycle"
-                          title="Close cycle"
-                        >
-                          <Lock size={14} />
-                        </button>
-                        <button
-                          onClick={() => setConfirmDeleteCycle(cycle.id)}
-                          className="w-9 h-9 rounded-full flex items-center justify-center bg-themeredred/15 text-themeredred active:scale-95 transition-all"
-                          aria-label="Delete cycle"
-                          title="Delete cycle"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </ActionPill>
                     </div>
                   </div>
-                )
-              })}
-              </div>
-            )}
-          </div>
+                </div>
+              )
+            })
+          )}
         </section>
 
         {/* Past cycles — compact list, historical only */}
@@ -433,14 +455,12 @@ export function AdminFeatureVotesSection() {
                     <span className="text-[9pt] text-tertiary shrink-0">
                       {total} vote{total === 1 ? '' : 's'}
                     </span>
-                    <button
+                    <ActionButton
+                      icon={Trash2}
+                      label="Delete cycle"
+                      variant="danger"
                       onClick={() => setConfirmDeleteCycle(c.id)}
-                      className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-themeredred hover:bg-themeredred/10 active:scale-95 transition-all"
-                      aria-label="Delete cycle"
-                      title="Delete cycle"
-                    >
-                      <Trash2 size={12} />
-                    </button>
+                    />
                   </div>
                 )
               })}
@@ -483,7 +503,7 @@ export function AdminFeatureVotesSection() {
                     value={opt}
                     onChange={(v) => updateOptionAt(idx, v)}
                     placeholder={newCycleOptions.length > 1 ? `Feature ${idx + 1}` : 'Feature'}
-                    maxLength={120}
+                    maxLength={280}
                   />
                 </div>
                 {isLast && canAddMoreOptions ? (
@@ -509,6 +529,38 @@ export function AdminFeatureVotesSection() {
             )
           })}
         </div>
+      </PreviewOverlay>
+
+      {/* Add-option popover — anchored to the header add icon */}
+      <PreviewOverlay
+        isOpen={!!addOptionPopover}
+        onClose={() => setAddOptionPopover(null)}
+        anchorRect={addOptionPopover?.anchor ?? null}
+        title="Add option"
+        maxWidth={340}
+        footer={
+          addOptionPopover ? (
+            <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+              <ActionButton
+                icon={busy ? Loader2 : Check}
+                label={busy ? 'Saving…' : 'Add option'}
+                onClick={() => handleAddOption(addOptionPopover.cycleId)}
+                variant={busy || !(optionDrafts[addOptionPopover.cycleId] ?? '').trim() ? 'disabled' : 'success'}
+              />
+            </div>
+          ) : undefined
+        }
+      >
+        {addOptionPopover && (
+          <TextInput
+            value={optionDrafts[addOptionPopover.cycleId] ?? ''}
+            onChange={(v) =>
+              setOptionDrafts((prev) => ({ ...prev, [addOptionPopover.cycleId]: v }))
+            }
+            placeholder="Feature option"
+            maxLength={280}
+          />
+        )}
       </PreviewOverlay>
 
       {/* Voters popover — anchored to the tapped option row */}
@@ -562,7 +614,7 @@ export function AdminFeatureVotesSection() {
               value={optionEditTitle}
               onChange={setOptionEditTitle}
               placeholder="Option title"
-              maxLength={120}
+              maxLength={280}
             />
           ) : (
             <div className="px-4 py-3">

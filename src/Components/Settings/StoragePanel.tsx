@@ -92,7 +92,7 @@ export function StoragePanel() {
     const hasTiles  = (stats?.map.tileSizeBytes ?? 0) > 0
 
     return (
-        <div className="px-5 py-4 space-y-3">
+        <div className="px-5 pb-4 space-y-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
             {/* Sync Queue */}
             <StorageCard
                 preview={

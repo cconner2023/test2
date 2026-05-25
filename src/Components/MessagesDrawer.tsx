@@ -1,8 +1,10 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useSpring, animated } from '@react-spring/web'
-import { ChevronLeft, Plus, X, Play, Headset, Info } from 'lucide-react'
+import { ChevronLeft, Plus, X, Play, Headset, Info, Settings } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { HeaderPill, PillButton } from './HeaderPill'
+import { PreviewOverlay } from './PreviewOverlay'
+import { VoicemailGreetingSection } from './Settings/VoicemailGreetingSection'
 import { MessagesPanel, type MessagesView, type MessagesPanelHandle } from './Settings/MessagesPanel'
 import { useMessagesContext } from '../Hooks/MessagesContext'
 import { useAuth } from '../Hooks/useAuth'
@@ -28,13 +30,15 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
     const [selectedPeerName, setSelectedPeerName] = useState<string | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
+    const [showSettings, setShowSettings] = useState(false)
+    const openSettings = useCallback(() => setShowSettings(true), [])
 
     // Clear search when navigating between views (e.g., clicking a search result)
     useEffect(() => { setSearchQuery('') }, [view])
 
     const messagesCtx = useMessagesContext()
     const activePeerRef = messagesCtx?.activePeerRef ?? null
-    const { user } = useAuth()
+    const { user, isDevRole } = useAuth()
     const { profile } = useUserProfile()
     const panelRef = useRef<MessagesPanelHandle>(null)
     const isMobile = useIsMobile()
@@ -127,6 +131,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             searchQuery={searchQuery}
             onSearchClear={() => setSearchQuery('')}
             onSearchChange={setSearchQuery}
+            onOpenSettings={isDevRole ? openSettings : undefined}
             tourVariant={isTourActive ? (isMobile ? 'mobile' : 'desktop') : undefined}
         />
     )
@@ -170,6 +175,36 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
         }
     }, [view, selectedPeerId, selectedGroupId, selectedPeerName, handleBack, handleClose, callActions])
 
+    // Messaging settings — mobile drawer + desktop popover, both share content
+    // (mirrors the calendar / map-overlay settings pattern).
+    // Dev-gated until voicemail is validated in prod.
+    const settingsSurface = !isDevRole ? null : isMobile ? (
+        <BaseDrawer
+            isVisible={showSettings}
+            onClose={() => setShowSettings(false)}
+            mobileOnly
+            fullHeight="75dvh"
+            zIndex="z-50"
+            header={{ title: 'Messaging settings', hideDefaultClose: false }}
+        >
+            <div className="px-4 py-3 pb-[max(1rem,var(--sab,0px))]">
+                <VoicemailGreetingSection />
+            </div>
+        </BaseDrawer>
+    ) : (
+        <PreviewOverlay
+            isOpen={showSettings}
+            onClose={() => setShowSettings(false)}
+            anchorRect={null}
+            title="Messaging settings"
+            maxWidth={360}
+        >
+            <div className="px-3 py-3 max-h-[70vh] overflow-y-auto">
+                <VoicemailGreetingSection />
+            </div>
+        </PreviewOverlay>
+    )
+
     // Mobile bypasses BaseDrawer: App.tsx owns the horizontal slide-in
     // transition for the conversation pane. BaseDrawer's vertical drawer
     // animation model would fight that animation. Intentional exception.
@@ -197,12 +232,14 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                         <h2 className="text-[13pt] font-semibold text-primary flex-1 truncate">Messages</h2>
                         <HeaderPill>
                             <PillButton icon={Plus} onClick={() => panelRef.current?.openNew()} label="New" />
+                            {isDevRole && <PillButton icon={Settings} onClick={openSettings} label="Settings" />}
                         </HeaderPill>
                     </div>
                 </animated.div>
                 <div className="h-full overflow-hidden">
                     {panelContent}
                 </div>
+                {settingsSurface}
             </div>
         )
     }
@@ -222,6 +259,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             <div className="h-full">
                 {panelContent}
             </div>
+            {settingsSurface}
         </BaseDrawer>
     )
 }

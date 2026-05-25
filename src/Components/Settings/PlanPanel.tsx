@@ -183,7 +183,7 @@ export const PlanPanel = () => {
 
     return (
         <>
-            <div className="px-3 py-2">
+            <div className="px-3 pb-2 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
                 <SearchInput
                     value={searchQuery}
                     onChange={setSearchQuery}

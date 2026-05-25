@@ -14,6 +14,7 @@ function waypointGlyphIcon(type: WaypointType): LucideIcon {
 }
 import { LoadingSpinner } from '../LoadingSpinner';
 import { BaseDrawer } from '../BaseDrawer';
+import { SubDrawer } from '../SubDrawer';
 import { HeaderPill, PillButton } from '../HeaderPill';
 import { SearchInput } from '../SearchInput';
 import { ContentWrapper } from '../ContentWrapper';
@@ -1739,6 +1740,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
       fullHeight="95dvh"
       desktopWidth="w-[90%]"
       header={drawerHeader}
+      glassHeader={isMobile}
+      scrollDisabled={isMobile}
     >
       <ContentWrapper slideDirection="">
         {/* ── Viewer ── */}
@@ -1869,7 +1872,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           <div className="flex flex-col flex-1 min-w-0 relative">
             {/* Error feedback */}
             {saveError && (
-              <div className={`px-4 pt-2 ${isMobile ? 'absolute top-16 left-0 right-0 z-[1002]' : ''}`}>
+              <div className={`px-4 pt-2 ${isMobile ? 'absolute left-0 right-0 z-[1002] top-[calc(var(--drawer-header-h,4rem)+0.5rem)]' : ''}`}>
                 <ErrorDisplay type="error" message={saveError} />
               </div>
             )}
@@ -1924,25 +1927,13 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   layers button in the header opens it; selecting an overlay/feature
                   closes it so the map stays visible. ── */}
               {isMobile && (
-                <BaseDrawer
+                <SubDrawer
                   isVisible={showMobileTree}
                   onClose={() => setShowMobileTree(false)}
-                  mobileOnly
-                  mobileFullScreen
-                  fullHeight="95dvh"
-                  zIndex="z-[1010]"
-                  header={{
-                    title: 'Overlays & settings',
-                    rightContent: (
-                      <HeaderPill>
-                        <PillButton icon={X} iconSize={18} onClick={() => setShowMobileTree(false)} label="Close" />
-                      </HeaderPill>
-                    ),
-                    hideDefaultClose: true,
-                  }}
+                  title="Overlays & settings"
                 >
                   <div className="flex flex-col h-full min-h-0 overflow-auto">
-                    <section>
+                    <section className="shrink-0">
                       <p className="px-4 pt-3 pb-1 text-[9pt] tracking-widest uppercase text-tertiary">Settings</p>
                       <MapSettingsBody
                         showGrid={showGrid}
@@ -1976,50 +1967,44 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                       />
                     </section>
                   </div>
-                </BaseDrawer>
+                </SubDrawer>
               )}
 
-              {/* ── Mobile: selected-feature editor in a partial-height drawer.
-                  Opens at 50% so the user can still see the map; drag up to expand. ── */}
+              {/* ── Mobile: selected-feature editor as a SubDrawer. Peeks at 25%
+                  with no backdrop so the map stays visible/interactive; drag up
+                  to expand. X closes (clears selection). ── */}
               {isMobile && (
-                <BaseDrawer
+                <SubDrawer
                   isVisible={!!selectedFeature}
                   onClose={() => setSelectedFeatureId(null)}
-                  mobileOnly
-                  fullHeight="90dvh"
-                  peekPosition={25}
+                  // Peek low + no backdrop so the map stays visible and
+                  // interactive while "Edit & move" lets the user drag points.
+                  peekPercent={25}
                   noBackdrop
-                  noDragDismiss
-                  zIndex="z-[1010]"
-                  header={{
-                    // Title shown in READ mode only. Edit mode hides the
-                    // header title so the body TextInput is the single
-                    // source of truth for the feature name.
-                    title: isFeatureEditMode
-                      ? ''
-                      : (selectedFeature?.label
-                        || (selectedFeature?.type === 'waypoint' ? 'Waypoint'
-                          : selectedFeature?.type === 'route' ? 'Route'
-                          : 'Area')),
-                    leftContent: (
-                      <HeaderPill>
-                        <PillButton
-                          icon={Pencil}
-                          iconSize={18}
-                          onClick={handleToggleFeatureEditMode}
-                          label={isFeatureEditMode ? 'Exit edit mode' : 'Edit & move'}
-                          circleBg={isFeatureEditMode ? 'bg-themeblue3 text-white' : undefined}
-                        />
-                      </HeaderPill>
-                    ),
-                    rightContent: (
-                      <HeaderPill>
-                        <PillButton icon={Trash2} iconSize={18} variant="danger" onClick={handleDeleteSelected} label="Delete" />
-                        <PillButton icon={X} iconSize={18} onClick={() => setSelectedFeatureId(null)} label="Close" />
-                      </HeaderPill>
-                    ),
-                    hideDefaultClose: true,
-                  }}
+                  // Title shown in READ mode only. Edit mode hides it so the
+                  // body TextInput is the single source of truth for the name.
+                  title={isFeatureEditMode
+                    ? ''
+                    : (selectedFeature?.label
+                      || (selectedFeature?.type === 'waypoint' ? 'Waypoint'
+                        : selectedFeature?.type === 'route' ? 'Route'
+                        : 'Area'))}
+                  leftContent={(
+                    <HeaderPill>
+                      <PillButton
+                        icon={Pencil}
+                        iconSize={18}
+                        onClick={handleToggleFeatureEditMode}
+                        label={isFeatureEditMode ? 'Exit edit mode' : 'Edit & move'}
+                        circleBg={isFeatureEditMode ? 'bg-themeblue3 text-white' : undefined}
+                      />
+                    </HeaderPill>
+                  )}
+                  rightContent={(
+                    <HeaderPill>
+                      <PillButton icon={Trash2} iconSize={18} variant="danger" onClick={handleDeleteSelected} label="Delete" />
+                    </HeaderPill>
+                  )}
                 >
                   {selectedFeature && (
                     <FeatureEditor
@@ -2040,91 +2025,79 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                       isEditMode={isFeatureEditMode}
                     />
                   )}
-                </BaseDrawer>
+                </SubDrawer>
               )}
 
               {/* ── Mobile: temp-point drawer. Transient — no feature is
                   committed until the user taps "Save as waypoint". ── */}
               {isMobile && (
-                <BaseDrawer
+                <SubDrawer
                   isVisible={!!tempPoint && !selectedFeature}
                   onClose={handleCloseTempPoint}
-                  mobileOnly
-                  fullHeight="60dvh"
-                  initialPosition={40}
+                  peekPercent={40}
+                  expandedPercent={60}
                   noBackdrop
-                  zIndex="z-[1010]"
-                  header={{
-                    title: 'Temp point',
-                    rightContent: (
-                      <HeaderPill>
-                        <PillButton icon={Check} iconSize={18} onClick={handlePromoteTempPoint} label="Save as waypoint" accent="success" />
-                        <PillButton
-                          icon={Navigation}
-                          iconSize={18}
-                          onClick={() => tempPoint && handleStartNavigation(tempPoint.lat, tempPoint.lng, null)}
-                          label="Navigate from here"
-                          accent="info"
-                        />
-                        <PillButton icon={X} iconSize={18} onClick={handleCloseTempPoint} label="Close" />
-                      </HeaderPill>
-                    ),
-                    hideDefaultClose: true,
-                  }}
+                  title="Temp point"
+                  rightContent={(
+                    <HeaderPill>
+                      <PillButton icon={Check} iconSize={18} onClick={handlePromoteTempPoint} label="Save as waypoint" accent="success" />
+                      <PillButton
+                        icon={Navigation}
+                        iconSize={18}
+                        onClick={() => tempPoint && handleStartNavigation(tempPoint.lat, tempPoint.lng, null)}
+                        label="Navigate from here"
+                        accent="info"
+                      />
+                    </HeaderPill>
+                  )}
                 >
                   {tempPoint && <TempPointBody lat={tempPoint.lat} lng={tempPoint.lng} />}
-                </BaseDrawer>
+                </SubDrawer>
               )}
 
               {/* ── Mobile: temp-route drawer (pin-to-pin navigation). Save
                   commits as a route feature; X discards. ── */}
               {isMobile && (
-                <BaseDrawer
+                <SubDrawer
                   isVisible={!!tempRoute && !tempPoint && !selectedFeature}
                   onClose={handleCloseTempRoute}
-                  mobileOnly
-                  fullHeight="60dvh"
-                  initialPosition={40}
+                  peekPercent={40}
+                  expandedPercent={60}
                   noBackdrop
-                  zIndex="z-[1010]"
-                  header={{
-                    title: 'Temp route',
-                    rightContent: (
-                      <HeaderPill>
-                        {tempRoute && tempRoute.history.length > 0 && (
-                          <PillButton
-                            icon={Undo2}
-                            iconSize={18}
-                            onClick={handleUndoTempRoute}
-                            label="Undo"
-                          />
-                        )}
-                        {tempRoute && tempRoute.points.length >= 2 && (
-                          <PillButton
-                            icon={Check}
-                            iconSize={18}
-                            onClick={handleSaveTempRouteAsFeature}
-                            label="Save as route"
-                            accent="success"
-                          />
-                        )}
-                        {tempRoute && tempRoute.points.length >= 3 && (
-                          <PillButton
-                            icon={Pentagon}
-                            iconSize={18}
-                            onClick={handleSaveTempRouteAsArea}
-                            label="Save as area"
-                            accent="success"
-                          />
-                        )}
-                        <PillButton icon={X} iconSize={18} onClick={handleCloseTempRoute} label="Close" />
-                      </HeaderPill>
-                    ),
-                    hideDefaultClose: true,
-                  }}
+                  title="Temp route"
+                  rightContent={(
+                    <HeaderPill>
+                      {tempRoute && tempRoute.history.length > 0 && (
+                        <PillButton
+                          icon={Undo2}
+                          iconSize={18}
+                          onClick={handleUndoTempRoute}
+                          label="Undo"
+                        />
+                      )}
+                      {tempRoute && tempRoute.points.length >= 2 && (
+                        <PillButton
+                          icon={Check}
+                          iconSize={18}
+                          onClick={handleSaveTempRouteAsFeature}
+                          label="Save as route"
+                          accent="success"
+                        />
+                      )}
+                      {tempRoute && tempRoute.points.length >= 3 && (
+                        <PillButton
+                          icon={Pentagon}
+                          iconSize={18}
+                          onClick={handleSaveTempRouteAsArea}
+                          label="Save as area"
+                          accent="success"
+                        />
+                      )}
+                    </HeaderPill>
+                  )}
                 >
                   {tempRoute && <TempRouteBody points={tempRoute.points} closed={tempRoute.closed} onRemoveVertex={handleRemoveTempRouteVertex} onAddVertex={handleAddTempRouteVertex} />}
-                </BaseDrawer>
+                </SubDrawer>
               )}
 
               {/* ── Bottom-right: contextual stack + Add FAB ── */}

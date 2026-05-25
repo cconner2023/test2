@@ -17,6 +17,15 @@ export interface SupervisorTestRecord {
   notes?: string           // optional supervisor comments
 }
 
+/** A user's custom voicemail greeting. `enc` is base64(IV + AES-GCM ciphertext)
+ *  of the audio blob, encrypted with the app-wide barcode key (getBarcodeKey)
+ *  so any authenticated caller can decrypt it. Operational audio only — no PHI. */
+export interface VoicemailGreeting {
+  enc: string
+  mime: string
+  dur: number
+}
+
 export interface ClinicMedic {
   id: string
   firstName: string | null
@@ -25,6 +34,7 @@ export interface ClinicMedic {
   rank: string | null
   credential: string | null
   avatarId: string | null
+  voicemailGreeting?: VoicemailGreeting | null
   /** Profile roles array — 'medic' | 'supervisor' | 'dev' | 'provider'. Used to identify providers in clinic-scoped UIs (e.g. Huddle view). */
   roles?: string[]
   clinicId?: string

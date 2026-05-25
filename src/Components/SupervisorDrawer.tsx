@@ -707,7 +707,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
                       medics={medics}
                       selection={treeSelection}
                       onSelect={handleTreeSelect}
-                      readinessForSoldier={readinessForSoldier}
                     />
                   </div>
                 </div>

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
-import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, Pin, Users, Check, QrCode, Mail, Send, Plus, Hash } from 'lucide-react'
+import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, Pin, Users, Check, QrCode, Mail, Send, Plus, Hash, Settings } from 'lucide-react'
 import { useSpring, animated } from '@react-spring/web'
 import { SearchInput } from '../SearchInput'
 import { HeaderPill, PillButton } from '../HeaderPill'
@@ -56,6 +56,7 @@ interface MessagesPanelProps {
   searchQuery: string
   onSearchClear: () => void
   onSearchChange: (value: string) => void
+  onOpenSettings?: () => void
 }
 
 // ── Long-press preview types + wrapper ────────────────────────────────────
@@ -914,7 +915,7 @@ function GroupChatDetail({
 
 // ── Exported Panel ─────────────────────────────────────────────────────────
 
-export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelProps>(function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack, onCloseDrawer, searchQuery, onSearchClear, onSearchChange }, ref) {
+export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelProps>(function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack, onCloseDrawer, searchQuery, onSearchClear, onSearchChange, onOpenSettings }, ref) {
   const messagesCtx = useMessagesContext()
   const { medics, loading } = useClinicMedics()
   const callActions = useCallActions()
@@ -1305,8 +1306,20 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         </div>
       )}
       <div className="hidden md:flex md:flex-col w-80 shrink-0 border-r border-primary/10 overflow-hidden">
-        <div className="shrink-0 px-3 py-2">
-          <SearchInput value={searchQuery} onChange={onSearchChange} placeholder="Search..." />
+        <div className="shrink-0 flex items-center gap-1.5 px-3 py-2">
+          <div className="flex-1 min-w-0">
+            <SearchInput value={searchQuery} onChange={onSearchChange} placeholder="Search..." />
+          </div>
+          {onOpenSettings && (
+            <button
+              onClick={onOpenSettings}
+              className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors active:scale-95 text-tertiary hover:text-primary"
+              aria-label="Messaging settings"
+              title="Messaging settings"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          )}
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto">
           <ConversationPane {...conversationPaneProps} tourVariant="desktop" />

@@ -14,15 +14,11 @@ type CoverageView =
   | { step: 'soldier-list'; task: FlatTask }
 
 function readinessColor(pct: number): string {
-  if (pct >= 80) return 'bg-themegreen'
-  if (pct >= 50) return 'bg-themeyellow'
-  return 'bg-themeredred'
+  return pct >= 50 ? 'bg-themeblue3/50' : 'bg-themeredred'
 }
 
 function readinessTextColor(pct: number): string {
-  if (pct >= 80) return 'text-themegreen'
-  if (pct >= 50) return 'text-themeyellow'
-  return 'text-themeredred'
+  return pct >= 50 ? 'text-themeblue3' : 'text-themeredred'
 }
 
 type CompetencyStatus = 'GO' | 'NO_GO' | 'UNTESTED'

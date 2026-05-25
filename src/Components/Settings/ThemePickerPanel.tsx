@@ -65,7 +65,7 @@ export function ThemePickerPanel() {
     const { syncProfileField } = useUserProfile();
 
     return (
-        <div data-tour="theme-picker-grid" className="px-5 py-4 space-y-3">
+        <div data-tour="theme-picker-grid" className="px-5 pb-4 space-y-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
             {THEME_DEFS.map((def) => {
                 const isSelected = themeName === def.name;
                 const pal = themeMode === 'dark' ? def.dark : def.light;

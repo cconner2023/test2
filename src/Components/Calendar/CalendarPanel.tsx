@@ -37,7 +37,7 @@ import { getInitials } from '../../Utilities/nameUtils'
 import type { CalendarEvent, EventFormData, EventStatus } from '../../Types/CalendarTypes'
 import {
   eventToFormData, toDateKey, eventFallsOnDate, generateId, createEmptyFormData,
-  PROVIDER_HUDDLE_TASK_ID, isEventEditable, isTemplateStructureMutable,
+  PROVIDER_HUDDLE_TASK_ID, isEventEditable, isTemplateStructureMutable, toLocalISOString,
 } from '../../Types/CalendarTypes'
 import { useClinicAppointmentTypes } from '../../Hooks/useClinicAppointmentTypes'
 import { shareCalendar, shareSingleEvent } from '../../lib/calendarExport'
@@ -62,6 +62,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const clearCalendarDrawerEventId = useNavigationStore(s => s.clearCalendarDrawerEventId)
   const pendingCalendarAction = useNavigationStore(s => s.pendingCalendarAction)
   const clearPendingCalendarAction = useNavigationStore(s => s.clearPendingCalendarAction)
+  const clearCalendarPrefill = useNavigationStore(s => s.clearCalendarPrefill)
 
   useEffect(() => {
     onPanelStateChange?.(panelView !== 'calendar')
@@ -164,6 +165,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const [newEventDateKey, setNewEventDateKey] = useState<string | undefined>(undefined)
   const [newEventHuddleTaskId, setNewEventHuddleTaskId] = useState<string | null>(null)
   const [newEventCategory, setNewEventCategory] = useState<'task' | null>(null)
+  const [newEventPrefill, setNewEventPrefill] = useState<{ title?: string; startISO?: string } | null>(null)
   const formIsTask = editingEvent ? editingEvent.category === 'task' : newEventCategory === 'task'
 
   const [duplicateHuddle, setDuplicateHuddle] = useState<{ eventId: string; rowName: string; medicLabel: string } | null>(null)
@@ -400,25 +402,31 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     }
   }, [isMobile, selectEvent])
 
-  const handleNewEvent = useCallback((forDateKey?: string, category?: 'task') => {
+  const handleNewEvent = useCallback((forDateKey?: string, category?: 'task', prefill?: { title?: string; startISO?: string } | null) => {
     setEditingEvent(null)
     setNewEventDateKey(forDateKey ?? selectedDateStr)
     setNewEventHuddleTaskId(null)
     setNewEventCategory(category ?? null)
+    setNewEventPrefill(prefill ?? null)
     setPanelView('form')
   }, [selectedDateStr])
 
-  // Deep-link from external sources (e.g. Mission Board "+") — open the new-event form on mount
+  // Deep-link from external sources (Mission Board "+", a detected date in a
+  // message, etc.) — open the new-event form on mount, applying any prefill.
   useEffect(() => {
     if (pendingCalendarAction !== 'new') return
-    handleNewEvent()
+    const prefill = useNavigationStore.getState().calendarPrefill
+    const dateKey = prefill?.startISO ? prefill.startISO.slice(0, 10) : undefined
+    handleNewEvent(dateKey, undefined, prefill)
     clearPendingCalendarAction()
-  }, [pendingCalendarAction, handleNewEvent, clearPendingCalendarAction])
+    clearCalendarPrefill()
+  }, [pendingCalendarAction, handleNewEvent, clearPendingCalendarAction, clearCalendarPrefill])
 
   const handleNewHuddleEvent = useCallback((forDateKey: string, taskId?: string) => {
     setEditingEvent(null)
     setNewEventDateKey(forDateKey)
     setNewEventHuddleTaskId(taskId ?? null)
+    setNewEventPrefill(null)
     setPanelView('form')
   }, [])
 
@@ -528,7 +536,20 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
    *  loaned medic creating an event lands it in the cluster they're currently
    *  viewing. EventForm picker may override per-event on dual-membership users. */
   const newEventInitialData = useMemo(() => {
-    const base = { ...createEmptyFormData(newEventDateKey), clinic_id: activeClinicId ?? null }
+    let base = { ...createEmptyFormData(newEventDateKey), clinic_id: activeClinicId ?? null }
+    // Prefill from a deep-link (e.g. a detected date in a message). Seeds the
+    // title and pins start_time to the parsed datetime; end defaults to +1h.
+    if (newEventPrefill) {
+      if (newEventPrefill.title) base = { ...base, title: newEventPrefill.title }
+      if (newEventPrefill.startISO) {
+        const start = new Date(newEventPrefill.startISO)
+        if (!Number.isNaN(start.getTime())) {
+          const end = new Date(start)
+          end.setHours(end.getHours() + 1)
+          base = { ...base, start_time: toLocalISOString(start), end_time: toLocalISOString(end) }
+        }
+      }
+    }
     if (newEventHuddleTaskId !== null) {
       return { ...base, category: 'huddle' as const, huddle_task_id: newEventHuddleTaskId }
     }
@@ -536,7 +557,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       return { ...base, category: 'task' as const }
     }
     return base
-  }, [newEventDateKey, newEventHuddleTaskId, newEventCategory, activeClinicId])
+  }, [newEventDateKey, newEventHuddleTaskId, newEventCategory, newEventPrefill, activeClinicId])
 
   const handleEditEvent = useCallback((id: string) => {
     const event = events.find(e => e.id === id)

@@ -63,7 +63,7 @@ export const FeatureVotesPanel = ({ onOpenFeedback }: Props) => {
   if (!isAuthenticated) {
     return (
       <div className="h-full overflow-y-auto">
-        <div className="px-5 py-8">
+        <div className="px-5 pb-8 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
           <EmptyState
             variant="gate"
             icon={<MessageCircleQuestion size={28} />}
@@ -78,7 +78,7 @@ export const FeatureVotesPanel = ({ onOpenFeedback }: Props) => {
   if (loading && !activeCycle) {
     return (
       <div className="h-full overflow-y-auto">
-        <div className="px-5 py-8 flex items-center justify-center text-tertiary">
+        <div className="px-5 pb-8 flex items-center justify-center text-tertiary pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
           <Loader2 size={18} className="animate-spin mr-2" />
           <span className="text-sm">Loading voting cycle…</span>
         </div>
@@ -89,7 +89,7 @@ export const FeatureVotesPanel = ({ onOpenFeedback }: Props) => {
   if (!activeCycle) {
     return (
       <div className="h-full overflow-y-auto">
-        <div className="px-5 py-8">
+        <div className="px-5 pb-8 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
           <EmptyState
             variant="gate"
             icon={<MessageCircleQuestion size={28} />}
@@ -103,7 +103,7 @@ export const FeatureVotesPanel = ({ onOpenFeedback }: Props) => {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="px-5 py-4 space-y-5">
+      <div className="px-5 pb-4 space-y-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
 
         {voteError && <ErrorDisplay message={voteError} />}
 

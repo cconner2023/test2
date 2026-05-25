@@ -7,6 +7,7 @@
 
 import { create } from 'zustand'
 import type { CallStatus, CallDirection, CallMode, CallPeer } from '../lib/webrtc/types'
+import { useAuthStore } from './useAuthStore'
 
 interface CallState {
   status: CallStatus
@@ -40,7 +41,11 @@ const initialState: CallState = {
   isVideoOff: false,
 }
 
-export const useCallStore = create<CallState & CallActions>()((set) => ({
+/** End reasons for an outgoing call that never connected — the caller may leave
+ *  a voicemail. The overlay stays open (auto-reset suppressed) in these cases. */
+const VOICEMAIL_REASONS = new Set(['No answer', 'Call declined', 'Failed to connect', 'Connection failed'])
+
+export const useCallStore = create<CallState & CallActions>()((set, get) => ({
   ...initialState,
 
   startRinging: (direction, peer, callMode) => {
@@ -56,8 +61,14 @@ export const useCallStore = create<CallState & CallActions>()((set) => ({
   },
 
   endCall: (reason) => {
+    const st = get()
     set({ status: 'ended', endReason: reason })
-    // Auto-reset to idle after 2 seconds
+    // Keep the overlay open so the caller can leave a voicemail when an
+    // outgoing call never connected. Otherwise auto-reset to idle after 2s.
+    // Dev-gated until voicemail is validated in prod — non-dev calls keep the
+    // original 2s auto-reset so they never get stuck in the ended state.
+    const canVoicemail = useAuthStore.getState().isDevRole && st.direction === 'outgoing' && st.connectedAt === null && VOICEMAIL_REASONS.has(reason)
+    if (canVoicemail) return
     setTimeout(() => {
       // Only reset if still in 'ended' state (avoid race with a new call)
       set((state) => (state.status === 'ended' ? initialState : state))
@@ -83,3 +94,12 @@ export const selectIsInCall = (state: CallState) =>
 
 /** True when the call UI overlay should be shown. */
 export const selectShowCallUI = (state: CallState) => state.status !== 'idle'
+
+/** True when the ended call is an outgoing, never-connected attempt the caller
+ *  can leave a voicemail for. */
+export const selectCanLeaveVoicemail = (state: CallState) =>
+  state.status === 'ended' &&
+  state.direction === 'outgoing' &&
+  state.connectedAt === null &&
+  !!state.endReason &&
+  VOICEMAIL_REASONS.has(state.endReason)

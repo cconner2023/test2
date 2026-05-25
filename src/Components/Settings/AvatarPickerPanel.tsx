@@ -21,7 +21,7 @@ export const AvatarPickerPanel = ({
 
     return (
         <div className="h-full overflow-y-auto">
-            <div className="px-4 py-3 md:p-5">
+            <div className="px-4 pb-3 md:px-5 md:pb-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
                 <div className="grid grid-cols-3 gap-4 justify-items-center md:grid-cols-4">
                     {/* Initials avatar */}
                     <button

@@ -21,7 +21,6 @@ import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { Certification } from '../../../Data/User'
 import type { TrainingCompletionUI } from '../../../lib/trainingService'
 import type { CalendarEvent } from '../../../Types/CalendarTypes'
-import { getCategoryMeta } from '../../../Types/CalendarTypes'
 import { createLogger } from '../../../Utilities/Logger'
 import { ActionPill } from '../../ActionPill'
 
@@ -45,15 +44,11 @@ function formatEventDate(evt: CalendarEvent): string {
 const logger = createLogger('SoldierProfile')
 
 function readinessColor(pct: number): string {
-  if (pct >= 80) return 'bg-themegreen'
-  if (pct >= 50) return 'bg-themeyellow'
-  return 'bg-themeredred'
+  return pct >= 50 ? 'bg-themeblue3/50' : 'bg-themeredred'
 }
 
 function readinessTextColor(pct: number): string {
-  if (pct >= 80) return 'text-themegreen'
-  if (pct >= 50) return 'text-themeyellow'
-  return 'text-themeredred'
+  return pct >= 50 ? 'text-themeblue3' : 'text-themeredred'
 }
 
 interface SoldierProfileProps {
@@ -388,24 +383,19 @@ export function SoldierProfile({
               <p className="text-sm text-tertiary px-4 py-3">No upcoming events in the next 14 days</p>
             ) : (
               <>
-                {scheduleShown.map((evt, idx) => {
-                  const meta = getCategoryMeta(evt.category)
-                  return (
-                    <button
-                      type="button"
-                      key={evt.id}
-                      onClick={() => onOpenEvent(evt.id)}
-                      className={`w-full text-left flex items-center gap-3 px-4 py-3 transition-colors hover:bg-themeblue3/5 ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
-                    >
-                      <div className={`w-2 h-2 rounded-full shrink-0 ${meta.solidColor}`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-primary truncate">{evt.title}</p>
-                        <p className="text-[9pt] text-tertiary">{formatEventDate(evt)}</p>
-                      </div>
-                      <span className="text-[9pt] text-tertiary shrink-0 capitalize">{evt.category}</span>
-                    </button>
-                  )
-                })}
+                {scheduleShown.map((evt, idx) => (
+                  <button
+                    type="button"
+                    key={evt.id}
+                    onClick={() => onOpenEvent(evt.id)}
+                    className={`w-full text-left flex items-center gap-3 px-4 py-3 transition-colors hover:bg-themeblue3/5 ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-primary truncate">{evt.title}</p>
+                      <p className="text-[9pt] text-tertiary">{formatEventDate(evt)}</p>
+                    </div>
+                  </button>
+                ))}
                 {scheduleHidden > 0 && (
                   <button
                     type="button"

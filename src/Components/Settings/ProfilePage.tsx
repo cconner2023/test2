@@ -339,7 +339,7 @@ export const ProfilePage = ({
 
     return (
         <div className="h-full overflow-y-auto">
-            <div className="px-5 py-4 space-y-5">
+            <div className="px-5 pb-4 space-y-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
                 {/* User Card */}
                 <section>
                     <div className="pb-2 flex items-center gap-2">

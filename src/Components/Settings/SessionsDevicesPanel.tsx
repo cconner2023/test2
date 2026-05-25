@@ -201,7 +201,7 @@ export function SessionsDevicesPanel() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="px-5 py-4 space-y-3">
+      <div className="px-5 pb-4 space-y-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
 
         {/* Add Device — primary only */}
         {isPrimary && addPhase === 'idle' && (

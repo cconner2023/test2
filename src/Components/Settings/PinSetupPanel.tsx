@@ -31,6 +31,7 @@ import {
   removeBiometric,
 } from '../../lib/biometricService'
 import { usePinLockoutTimer } from '../../Hooks/usePinLockoutTimer'
+import { VoicemailGreetingSection } from './VoicemailGreetingSection'
 
 type PinView = 'status' | 'set-new' | 'confirm-new' | 'verify-current' | 'change-new' | 'change-confirm'
 type PendingAction = 'change' | 'remove' | null
@@ -46,7 +47,7 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
   const [pinEnabled, setPinEnabled] = useState(isPinEnabled())
   const [appLockOn, setAppLockOn] = useState(isAppLockEnabled)
   const [timeoutMs, setTimeoutMs] = useState(getInactivityTimeoutMs)
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, isDevRole } = useAuth()
   const [firstPin, setFirstPin] = useState('')
   const { lockout, setLockout, error, setError } = usePinLockoutTimer()
   const [success, setSuccess] = useState('')
@@ -258,7 +259,7 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
 
     return (
       <div className="h-full overflow-y-auto">
-        <div className="px-5 py-4 space-y-5">
+        <div className="px-5 pb-4 space-y-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
 
           {success && <ErrorDisplay type="success" message={success} />}
           {error && <ErrorDisplay type="error" message={error} />}
@@ -428,6 +429,10 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
             </div>
           )}
 
+          {/* ── Voicemail ────────────────────────────────────────── */}
+          {/* Dev-gated until voicemail is validated in prod. */}
+          {isDevRole && <VoicemailGreetingSection />}
+
           {/* ── Permissions ──────────────────────────────────────── */}
           {(cameraPermission !== 'unsupported' || locationPermission !== 'unsupported') && (
             <div>
@@ -502,7 +507,7 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
   // PIN entry views (set, confirm, verify, change)
   return (
     <div className="h-full overflow-y-auto">
-      <div className="flex flex-col items-center px-4 py-3 md:p-5">
+      <div className="flex flex-col items-center px-4 pb-3 md:px-5 md:pb-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
         <div className="w-[220px]">
           <PinKeypad
             onSubmit={handleSubmit}

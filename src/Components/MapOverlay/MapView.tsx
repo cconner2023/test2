@@ -949,7 +949,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       )}
 
       {/* Attribution — collapsed info icon top-right so the Add FAB at bottom-right doesn't overlap it */}
-      <div className="absolute top-3 right-3 z-[1000] flex items-center gap-1.5">
+      <div className="absolute right-3 z-[1000] flex items-center gap-1.5 top-[calc(var(--drawer-header-h,0px)+0.75rem)]">
         {showAttribution && (
           <span className="text-[9pt] text-secondary bg-themewhite2/80 dark:bg-themewhite3/80
             backdrop-blur-sm px-2 py-0.5 rounded-md animate-fadeIn">

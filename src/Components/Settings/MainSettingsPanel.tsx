@@ -57,7 +57,7 @@ export const MainSettingsPanel = ({
 
     return (
         <div className="h-full overflow-y-auto">
-            <div className="px-5 py-4 space-y-5">
+            <div className="px-5 pb-4 space-y-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
                 {/* Profile card */}
                 <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
                     <div

@@ -431,6 +431,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       desktopWidth="w-[90%]"
       header={headerConfig}
       scrollDisabled
+      glassHeader={isMobile}
     >
       <div className="relative h-full">
         {!isMobile ? (
@@ -492,13 +493,15 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
               slideDirection={slideDirection}
               swipeHandlers={canSwipeBack ? swipeHandlers : undefined}
               scrollable
+              scrollResetKey={view}
             >
+              <div className="pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
               {barcodeImport.error && (
                 <div className="px-4 pt-2">
                   <div className="text-[10pt] text-themeredred">{barcodeImport.error}</div>
                 </div>
               )}
-              <div className="px-5 py-3 pb-[max(2rem,var(--sab,0px))]">
+              <div className="px-5 pb-[max(2rem,var(--sab,0px))]">
                 {view === 'note' ? (
                 <ProviderNote
                   hpiNote={hpiNote}
@@ -530,6 +533,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                 />
               )}
             </div>
+              </div>
             </ContentWrapper>
         )}
 

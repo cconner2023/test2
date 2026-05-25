@@ -156,7 +156,7 @@ export const ReleaseNotesPanel = ({ onOpenFeatureVotes }: ReleaseNotesPanelProps
 
     return (
         <div className="h-full overflow-y-auto">
-            <div className="px-5 py-4 space-y-5">
+            <div className="px-5 pb-4 space-y-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
                 <div>
                     <div className="flex items-center gap-2 mb-2">
                         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">App Version</p>

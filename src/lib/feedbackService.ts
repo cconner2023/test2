@@ -8,7 +8,7 @@ import { getErrorMessage } from '../Utilities/errorUtils'
 const logger = createLogger('FeedbackService')
 
 export interface FeedbackSubmission {
-  rating: number
+  rating: number | null
   comments?: string | null
   most_useful_feature?: string | null
   desired_feature?: string | null
@@ -19,7 +19,7 @@ export interface FeedbackRow {
   id: string
   user_id: string | null
   display_name: string | null
-  rating: number
+  rating: number | null
   comments: string | null
   most_useful_feature: string | null
   desired_feature: string | null
@@ -54,7 +54,7 @@ export async function submitFeedback(
     const { error: insertError } = await supabase.from('feedback').insert({
       user_id,
       display_name,
-      rating: data.rating,
+      rating: data.rating || null,
       comments: data.comments?.trim() || null,
       most_useful_feature: data.most_useful_feature?.trim() || null,
       desired_feature: data.desired_feature?.trim() || null,

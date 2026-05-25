@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Inbox, ChevronRight, ChevronDown, AlertTriangle, User, Building2 } from 'lucide-react'
+import { ChevronRight, ChevronDown, AlertTriangle, User, Building2 } from 'lucide-react'
 import { listClinics, listAllUsers, getAllAccountRequests } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import { useInvalidation } from '../../stores/useInvalidationStore'
@@ -212,9 +212,6 @@ export function AdminSummary({
             onClick={() => onSwitchTab('requests')}
             className="flex items-center gap-2 w-full text-left active:scale-[0.98] transition-all"
           >
-            <span className="w-7 h-7 rounded-full bg-themeyellow/10 flex items-center justify-center shrink-0">
-              <Inbox size={14} className="text-themeyellow" />
-            </span>
             <span className="text-[10pt] text-themeyellow flex-1">Pending Requests</span>
             <span className="text-[10pt] font-semibold text-themeyellow tabular-nums">{pendingCount}</span>
           </button>

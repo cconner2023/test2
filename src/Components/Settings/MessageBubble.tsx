@@ -1,10 +1,14 @@
-import { useRef, useCallback, useState, useEffect } from 'react'
-import { Check, CheckCheck, X, Reply, Trash2, Clock, MessageSquare, Play, Pause, Copy, Download } from 'lucide-react'
+import { useRef, useCallback, useState, useEffect, useMemo } from 'react'
+import { Check, CheckCheck, X, Reply, Trash2, Clock, MessageSquare, Play, Pause, Copy, Download, CalendarPlus } from 'lucide-react'
 import { ActionButton } from '../ActionButton'
 import { GESTURE_THRESHOLDS, isInteractiveTarget } from '../../Utilities/GestureUtils'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import { downloadDecryptedAttachment } from '../../lib/signal/attachmentService'
 import { IntakeRequestCard } from '../Messages/IntakeRequestCard'
+import { detectFirstDate } from '../../Utilities/dateDetect'
+import { useNavigationStore } from '../../stores/useNavigationStore'
+import { useAuthStore } from '../../stores/useAuthStore'
+import { toLocalISOString } from '../../Types/CalendarTypes'
 
 export type SwipeAction = 'reply' | 'delete'
 
@@ -137,6 +141,27 @@ export function MessageBubble({
   const audioRef = useRef<HTMLAudioElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [playProgress, setPlayProgress] = useState(0)
+
+  const requestNewCalendarEvent = useNavigationStore(s => s.requestNewCalendarEvent)
+  const isDevRole = useAuthStore(s => s.isDevRole)
+
+  // Detect a schedulable date in text content — drives the floating "add to
+  // calendar" affordance. Dev-gated for now. Runs on already-decrypted local
+  // plaintext only.
+  const detectedDate = useMemo(() => {
+    if (!isDevRole) return null
+    if (message.content && message.content.type !== 'text') return null
+    return detectFirstDate(message.plaintext ?? '')
+  }, [isDevRole, message.content, message.plaintext])
+
+  const handleAddToCalendar = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!detectedDate) return
+    requestNewCalendarEvent({
+      title: (message.plaintext ?? '').trim().slice(0, 80),
+      startISO: toLocalISOString(detectedDate.date),
+    })
+  }, [detectedDate, message.plaintext, requestNewCalendarEvent])
 
   const swipeEnabled = !isEditing
 
@@ -589,6 +614,21 @@ export function MessageBubble({
               </button>
             )}
           </div>
+
+          {/* Floating "add to calendar" affordance — surfaces when a date is
+              detected in text content. Sits at the bubble's top inner corner. */}
+          {detectedDate && !isEditing && (
+            <button
+              onClick={handleAddToCalendar}
+              title={`Add to calendar — ${detectedDate.date.toLocaleDateString()}`}
+              aria-label="Add to calendar"
+              className={`absolute -top-2 z-10 w-7 h-7 rounded-full bg-themeblue3 text-white shadow-sm
+                         flex items-center justify-center active:scale-95 transition-all
+                         ${isOwn ? '-left-2' : '-right-2'}`}
+            >
+              <CalendarPlus size={14} />
+            </button>
+          )}
         </div>
       </div>
 

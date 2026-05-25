@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { MessageSquare, Star, Trash2, Mail } from 'lucide-react'
+import { MessageSquare, Star, Trash2, Mail, MessageCircle } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
@@ -13,6 +13,9 @@ export interface FeedbackCardProps {
   setExpandedId: (id: string | null) => void
   setConfirmDeleteId: (id: string | null) => void
   setContextMenu: (v: { feedbackId: string; x: number; y: number } | null) => void
+  /** Open an in-app system-message compose for this feedback's author. Only
+   *  wired for authed feedback (user_id present) when messaging is available. */
+  onChat?: (anchorRect: DOMRect | null) => void
 }
 
 export function FeedbackCard({
@@ -22,6 +25,7 @@ export function FeedbackCard({
   setExpandedId,
   setConfirmDeleteId,
   setContextMenu,
+  onChat,
 }: FeedbackCardProps) {
   const isExpanded = expandedId === feedback.id
   const cardRef = useRef<HTMLDivElement>(null)
@@ -45,7 +49,9 @@ export function FeedbackCard({
     feedback.needs_improvement ||
     null
 
-  const stars = Array.from({ length: 5 }, (_, i) => i < feedback.rating)
+  const stars = feedback.rating != null
+    ? Array.from({ length: 5 }, (_, i) => i < feedback.rating!)
+    : null
 
   return (
     <>
@@ -67,15 +73,17 @@ export function FeedbackCard({
             <p className="text-sm font-medium text-primary truncate">
               {feedback.display_name || 'Anonymous'}
             </p>
-            <div className="flex items-center gap-1 mt-0.5">
-              {stars.map((filled, i) => (
-                <Star
-                  key={i}
-                  size={10}
-                  className={filled ? 'text-themeblue2 fill-themeblue2' : 'text-themeblue2/20'}
-                />
-              ))}
-            </div>
+            {stars && (
+              <div className="flex items-center gap-1 mt-0.5">
+                {stars.map((filled, i) => (
+                  <Star
+                    key={i}
+                    size={10}
+                    className={filled ? 'text-themeblue2 fill-themeblue2' : 'text-themeblue2/20'}
+                  />
+                ))}
+              </div>
+            )}
           </div>
           <span className="text-[9pt] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0 bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
             Feedback
@@ -106,6 +114,17 @@ export function FeedbackCard({
                 }}
               />
             )}
+            {onChat && (
+              <ActionButton
+                icon={MessageCircle}
+                label="Chat"
+                onClick={() => {
+                  const rect = cardRef.current?.getBoundingClientRect() ?? null
+                  handleClose()
+                  onChat(rect)
+                }}
+              />
+            )}
             <ActionButton
               icon={Trash2}
               label="Delete"
@@ -116,15 +135,17 @@ export function FeedbackCard({
         }
       >
         <div className="px-4 py-3 space-y-3" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center gap-1">
-            {stars.map((filled, i) => (
-              <Star
-                key={i}
-                size={16}
-                className={filled ? 'text-themeblue2 fill-themeblue2' : 'text-themeblue2/20'}
-              />
-            ))}
-          </div>
+          {stars && (
+            <div className="flex items-center gap-1">
+              {stars.map((filled, i) => (
+                <Star
+                  key={i}
+                  size={16}
+                  className={filled ? 'text-themeblue2 fill-themeblue2' : 'text-themeblue2/20'}
+                />
+              ))}
+            </div>
+          )}
 
           {feedback.most_useful_feature && (
             <div>

@@ -12,6 +12,14 @@ import type { CardState } from '../Hooks/useAlgorithm'
 
 type ViewState = 'main' | 'subcategory' | 'questions'
 
+/** Prefill for a deep-linked new calendar event (e.g. from a detected date in a message). */
+export interface CalendarPrefill {
+    /** Seed the event title. */
+    title?: string
+    /** Local datetime string "YYYY-MM-DDTHH:mm" to seed start_time. */
+    startISO?: string
+}
+
 export interface WriteNoteData {
     disposition: dispositionType;
     algorithmOptions: AlgorithmOptions[];
@@ -58,6 +66,7 @@ const CLOSE_ALL_DRAWERS = {
     calendarDrawerEventEditMode: false,
     calendarDrawerInitialDate: null as string | null,
     pendingCalendarAction: null as 'new' | null,
+    calendarPrefill: null as CalendarPrefill | null,
     showAdminDrawer: false,
     showSupervisorDrawer: false,
     showProviderDrawer: false,
@@ -100,6 +109,7 @@ interface NavigationState {
     calendarDrawerEventEditMode: boolean
     calendarDrawerInitialDate: string | null
     pendingCalendarAction: 'new' | null
+    calendarPrefill: CalendarPrefill | null
     showAdminDrawer: boolean
     showSupervisorDrawer: boolean
     showProviderDrawer: boolean
@@ -138,8 +148,9 @@ interface NavigationActions {
     openCalendarEventForEdit: (eventId: string) => void
     clearCalendarDrawerEventId: () => void
     clearCalendarDrawerInitialDate: () => void
-    requestNewCalendarEvent: () => void
+    requestNewCalendarEvent: (prefill?: CalendarPrefill) => void
     clearPendingCalendarAction: () => void
+    clearCalendarPrefill: () => void
     setShowAdminDrawer: (show: boolean) => void
     setShowSupervisorDrawer: (show: boolean) => void
     setShowProviderDrawer: (show: boolean) => void
@@ -182,6 +193,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     calendarDrawerEventEditMode: false,
     calendarDrawerInitialDate: null,
     pendingCalendarAction: null,
+    calendarPrefill: null,
     showAdminDrawer: false,
     showSupervisorDrawer: false,
     showProviderDrawer: false,
@@ -413,14 +425,17 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
 
     clearCalendarDrawerInitialDate: () => set({ calendarDrawerInitialDate: null }),
 
-    requestNewCalendarEvent: () => set((s) => ({
+    requestNewCalendarEvent: (prefill) => set((s) => ({
         ...CLOSE_ALL_DRAWERS,
         ...PRESERVED_FIELDS(s),
         showCalendarDrawer: true,
         pendingCalendarAction: 'new',
+        calendarPrefill: prefill ?? null,
     })),
 
     clearPendingCalendarAction: () => set({ pendingCalendarAction: null }),
+
+    clearCalendarPrefill: () => set({ calendarPrefill: null }),
 
     setShowAdminDrawer: (show) => set((s) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),

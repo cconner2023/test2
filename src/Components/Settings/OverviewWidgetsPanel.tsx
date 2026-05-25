@@ -54,7 +54,7 @@ export function OverviewWidgetsPanel() {
 
     return (
         <div className="h-full overflow-y-auto">
-            <div className="px-5 py-4 space-y-5">
+            <div className="px-5 pb-4 space-y-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
                 <p className="text-[10pt] text-tertiary leading-relaxed">
                     Choose up to 3 widgets shown in the mission overview. Hiding it removes the panel from the home screen.
                 </p>

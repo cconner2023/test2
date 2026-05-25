@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Trash2, Eye, Mail, Reply } from 'lucide-react'
+import { Trash2, Eye, Mail, Reply, MessageCircle } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { SectionCard } from '../Section'
 import { ContextMenu } from '../ContextMenu'
@@ -10,6 +10,7 @@ import { RequestCard } from './RequestCard'
 import { SuggestionCard } from './SuggestionCard'
 import { FeedbackCard } from './FeedbackCard'
 import { SystemConversationCard } from './SystemConversationCard'
+import { SystemMessageComposePopover } from './SystemMessageComposePopover'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useAdminSystemConversations, isSystemMessage, type AdminSystemConversation } from '../../Hooks/useAdminSystemConversations'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
@@ -75,6 +76,10 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [expandedSuggestionId, setExpandedSuggestionId] = useState<string | null>(null)
   const [expandedFeedbackId, setExpandedFeedbackId] = useState<string | null>(null)
+  // In-app system-message compose target (feedback author). anchorRect positions
+  // the popover — card rect from the footer Chat action, cursor point from the
+  // context menu. Only set for authed feedback (user_id) when messaging exists.
+  const [chatTarget, setChatTarget] = useState<{ feedback: FeedbackRow; anchorRect: DOMRect | null } | null>(null)
   const [contextMenu, setContextMenu] = useState<{ requestId: string; x: number; y: number } | null>(null)
   const [feedbackContextMenu, setFeedbackContextMenu] = useState<{ feedbackId: string; x: number; y: number } | null>(null)
   const [systemContextMenu, setSystemContextMenu] = useState<{ peerId: string; x: number; y: number } | null>(null)
@@ -342,6 +347,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
       setExpandedId={setExpandedFeedbackId}
       setConfirmDeleteId={setConfirmDeleteFeedbackId}
       setContextMenu={setFeedbackContextMenu}
+      onChat={messagesCtx && f.user_id ? (rect) => setChatTarget({ feedback: f, anchorRect: rect }) : undefined}
     />
   )
 
@@ -406,9 +412,19 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
         window.location.href = `mailto:${ctxEmail}?subject=${encodeURIComponent('ADTMC Web App Feedback')}&body=${encodeURIComponent(`${name},\n\nThanks for the feedback.\n\n`)}`
       },
     }] : []
+    const chatItem = (messagesCtx && ctxFeedback.user_id) ? [{
+      key: 'chat',
+      label: 'Chat',
+      icon: MessageCircle,
+      onAction: () => setChatTarget({
+        feedback: ctxFeedback,
+        anchorRect: new DOMRect(feedbackContextMenu.x, feedbackContextMenu.y, 0, 0),
+      }),
+    }] : []
     const items = [
       { key: 'view', label: 'View', icon: Eye, onAction: () => setExpandedFeedbackId(ctxFeedback.id) },
       ...emailItem,
+      ...chatItem,
       { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteFeedbackId(ctxFeedback.id) },
     ]
     return (
@@ -466,6 +482,21 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
     />
   )
 
+  const chatComposePopover = messagesCtx && chatTarget ? (
+    <SystemMessageComposePopover
+      anchorRect={chatTarget.anchorRect}
+      title={`Message ${chatTarget.feedback.display_name || 'user'}`}
+      onClose={() => setChatTarget(null)}
+      onSend={async (text) => {
+        const uid = chatTarget.feedback.user_id
+        if (!uid) return false
+        const sent = await messagesCtx.sendSystemMessageToUser(uid, text)
+        if (!sent) setNotify({ type: 'error', message: "Couldn't send — user may not have signed in yet." })
+        return sent
+      }}
+    />
+  ) : null
+
   const systemConfirmDialog = (
     <ConfirmDialog
       visible={!!confirmDeleteSystemPeerId}
@@ -503,6 +534,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
         {suggestionConfirmDialog}
         {feedbackConfirmDialog}
         {systemConfirmDialog}
+        {chatComposePopover}
         {notifyDialog}
       </>
     )
@@ -541,6 +573,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
       {suggestionConfirmDialog}
       {feedbackConfirmDialog}
       {systemConfirmDialog}
+      {chatComposePopover}
       {notifyDialog}
     </div>
   )

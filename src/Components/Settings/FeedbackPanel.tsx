@@ -3,9 +3,10 @@ import { Star, Check, CheckCircle, RefreshCw } from 'lucide-react'
 import { submitFeedback } from '../../lib/feedbackService'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { TextInput } from '../FormInputs'
+import { SectionCard, SectionHeader } from '../Section'
+import { EmptyState } from '../EmptyState'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useFeatureVotesStore } from '../../stores/useFeatureVotesStore'
-import { ActionPill } from '../ActionPill'
 
 export const FeedbackPanel = () => {
   const [rating, setRating] = useState(0)
@@ -13,7 +14,6 @@ export const FeedbackPanel = () => {
   const [mostUseful, setMostUseful] = useState('')
   const [desiredFeature, setDesiredFeature] = useState('')
   const [needsImprovement, setNeedsImprovement] = useState('')
-  const [contactConsent, setContactConsent] = useState(false)
 
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -22,9 +22,13 @@ export const FeedbackPanel = () => {
   const userId = useAuthStore((s) => s.user?.id)
   const markFeedbackEngagement = useFeatureVotesStore((s) => s.markFeedbackEngagement)
 
+  const hasContent =
+    rating > 0 ||
+    [mostUseful, desiredFeature, needsImprovement, comments].some((v) => v.trim())
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (rating === 0) return
+    if (!hasContent) return
 
     setSubmitting(true)
     setError(null)
@@ -50,16 +54,13 @@ export const FeedbackPanel = () => {
   if (submitted) {
     return (
       <div className="h-full overflow-y-auto">
-        <div className="px-5 py-4">
-          <div className="text-center py-12 animate-fadeInScale">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-themegreen/10 mb-4">
-              <CheckCircle size={32} className="text-themegreen" />
-            </div>
-            <h2 className="text-xl font-semibold text-primary mb-2">Thank You!</h2>
-            <p className="text-primary">
-              Your feedback has been submitted. We appreciate your input!
-            </p>
-          </div>
+        <div className="px-5 pb-4 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
+          <EmptyState
+            variant="gate"
+            icon={<CheckCircle size={32} className="text-themegreen" />}
+            title="Thank you!"
+            subtitle="Your feedback has been submitted. We appreciate your input!"
+          />
         </div>
       </div>
     )
@@ -67,7 +68,7 @@ export const FeedbackPanel = () => {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="px-5 py-4 space-y-4">
+      <div className="px-5 pb-4 space-y-4 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
 
         <p className="text-[10pt] text-primary leading-relaxed px-1">
           Help us improve by sharing your experience and suggestions.
@@ -78,11 +79,9 @@ export const FeedbackPanel = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
 
           {/* Rating card */}
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden px-4 py-3">
-            <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">
-              How would you rate your experience?
-            </span>
-            <div className="flex gap-1.5 mt-1.5">
+          <SectionCard className="px-4 py-3">
+            <SectionHeader>How would you rate your experience?</SectionHeader>
+            <div className="flex gap-1.5">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
                   key={star}
@@ -98,10 +97,10 @@ export const FeedbackPanel = () => {
                 </button>
               ))}
             </div>
-          </div>
+          </SectionCard>
 
           {/* Details card */}
-          <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+          <SectionCard>
             <TextInput
               value={mostUseful}
               onChange={setMostUseful}
@@ -130,35 +129,19 @@ export const FeedbackPanel = () => {
               />
             </label>
 
-            {/* Contact consent */}
-            <label className="flex items-start gap-2.5 cursor-pointer px-4 py-3 border-b border-primary/6 active:scale-[0.98] transition-transform select-none">
-              <input
-                type="checkbox"
-                checked={contactConsent}
-                onChange={(e) => setContactConsent(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className={`relative w-5 h-5 shrink-0 mt-0.5 rounded border transition-colors duration-200 ${
-                contactConsent ? 'bg-themeblue3 border-themeblue3' : 'border-themeblue3/20 bg-themewhite'
-              }`}>
-                {contactConsent && <Check size={14} className="absolute inset-0 m-auto text-white" />}
-              </div>
-              <span className="text-[9pt] text-primary leading-tight">
-                The developer can contact me regarding this feedback.
-              </span>
-            </label>
-
-            {/* Submit */}
-            <div className="flex items-center justify-end gap-2 px-3 py-2">
+            {/* Submit — full-row reveal once any content is present */}
+            <div className={`flex items-center justify-end gap-2 px-3 overflow-hidden transition-all duration-300 ease-out ${
+              hasContent ? 'max-h-14 py-2 opacity-100' : 'max-h-0 py-0 opacity-0'
+            }`}>
               <button
                 type="submit"
                 disabled={submitting}
-                className={`shrink-0 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white overflow-hidden transition-all duration-300 ease-out active:scale-95 disabled:opacity-30 ${rating > 0 ? 'w-9 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
+                className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
               >
                 {submitting ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
               </button>
             </div>
-          </div>
+          </SectionCard>
 
         </form>
 

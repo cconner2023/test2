@@ -7,6 +7,7 @@ import { GESTURE_THRESHOLDS, clamp } from '../Utilities/GestureUtils';
 import { DRAWER_TIMING } from '../Utilities/constants';
 import { useIsMobile } from '../Hooks/useIsMobile';
 import { useFocusKeepInView } from '../Hooks/useFocusKeepInView';
+import { useKeyboardInset } from '../Hooks/useKeyboardInset';
 
 /** Render prop type: children can receive handleClose for animated close */
 type DrawerRenderProp = (handleClose: () => void) => ReactNode;
@@ -49,7 +50,8 @@ function DrawerHeader({
     isMobile,
     headerFaded,
     mobileFullScreen,
-}: DrawerHeaderConfig & { onClose: () => void; isMobile: boolean; headerFaded?: boolean; mobileFullScreen?: boolean }) {
+    hideBorder,
+}: DrawerHeaderConfig & { onClose: () => void; isMobile: boolean; headerFaded?: boolean; mobileFullScreen?: boolean; hideBorder?: boolean }) {
     const verticalPad = isMobile
         ? (mobileFullScreen ? 'pt-[max(0.75rem,var(--sat,0px))] pb-2' : 'pb-2')
         : 'py-2.5';
@@ -75,7 +77,7 @@ function DrawerHeader({
                     transformOrigin: 'top center',
                 }}
             >
-                <div className={`${horizontalPad} ${verticalPad} ${headerFaded ? '' : 'border-b border-tertiary/10'}`}>
+                <div className={`${horizontalPad} ${verticalPad} ${headerFaded || hideBorder ? '' : 'border-b border-tertiary/10'}`}>
                     <div className="flex items-center justify-between">
                         <div className={`flex items-center gap-2 min-w-0 transition-all duration-200${rightContentFill ? ' w-0 overflow-hidden' : ''}`}>
                             {leftContent && <div className="shrink-0">{leftContent}</div>}
@@ -153,6 +155,18 @@ interface BaseDrawerProps {
     mobileFloating?: boolean;
     /** When true, fades the DrawerHeader content row (title, buttons) while keeping the drag handle visible. */
     headerFaded?: boolean;
+    /** PROTOTYPE: when true, the header floats as a blurred, translucent overlay
+     *  and content scrolls up behind it (iOS large-title style). The header's
+     *  measured height is published as the `--drawer-header-h` CSS var on the
+     *  panel root so consumers that own their scroll container (scrollDisabled)
+     *  can pad their content with `pt-[var(--drawer-header-h)]`. Opt-in so the
+     *  rest of the app keeps the static-header behavior. Default false. */
+    glassHeader?: boolean;
+    /** When this value changes, BaseDrawer's built-in scroll container resets to
+     *  the top. Use for multi-view drawers that reuse one scroller across internal
+     *  navigation (mimics the fresh-scroller-per-panel reset that scrollDisabled
+     *  layouts get for free). No-op when scrollDisabled (consumer owns scroll). */
+    scrollResetKey?: string | number;
     /** Skip the built-in scroll container. Header renders fixed above children.
      *  Use for sidebar layouts that manage per-pane scroll. Default false. */
     scrollDisabled?: boolean;
@@ -205,6 +219,8 @@ export function BaseDrawer({
     cardMode = false,
     mobileFloating = false,
     headerFaded = false,
+    glassHeader = false,
+    scrollResetKey,
     scrollDisabled = false,
     contentPadding,
     initialPosition = 100,
@@ -223,6 +239,28 @@ export function BaseDrawer({
     const isMobile = useIsMobile();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     useFocusKeepInView(scrollContainerRef, isVisible);
+
+    // Glass-header prototype: measure the floating header so content can be
+    // padded to clear it (and slide behind it). Published as --drawer-header-h.
+    const headerRef = useRef<HTMLDivElement>(null);
+    const [headerHeight, setHeaderHeight] = useState(0);
+    useEffect(() => {
+        if (!glassHeader || !headerRef.current) return;
+        const el = headerRef.current;
+        const measure = () => setHeaderHeight(el.offsetHeight);
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [glassHeader, isVisible, headerFaded, isMobile]);
+
+    // Reset the built-in scroller to top when the consumer's view key changes.
+    useEffect(() => {
+        if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
+    }, [scrollResetKey]);
+    // Lift the mobile drawer above the iOS soft keyboard. The layout viewport
+    // doesn't shrink for the keyboard, so a bottom:0 fixed drawer sits under it.
+    const keyboardInset = useKeyboardInset();
 
     const useMobileLayout = mobileOnly || isMobile;
 
@@ -411,8 +449,8 @@ export function BaseDrawer({
                     maxHeight: mobileHeight,
                     width: mobileFloating ? undefined : '100%',
                     bottom: cardMode
-                        ? '55dvh'
-                        : (mobileFloating ? 12 : 0),
+                        ? `calc(55dvh + ${keyboardInset}px)`
+                        : (mobileFloating ? 12 + keyboardInset : keyboardInset),
                     transform: `translateY(${100 - drawerPosition}%)`,
                     opacity: Math.min(1, drawerPosition / Math.max(10, restPosition)),
                     borderRadius: (cardMode || mobileFloating) ? '1.25rem' : (mobileFullScreen ? '0' : '1.25rem 1.25rem 0 0'),
@@ -422,6 +460,7 @@ export function BaseDrawer({
                         : (mobileFullScreen ? 'none' : '0 -4px 20px rgba(0, 0, 0, 0.1)'),
                     overflow: 'hidden',
                     visibility: isMounted ? 'visible' : 'hidden',
+                    ...(glassHeader ? { ['--drawer-header-h' as string]: `${headerHeight}px` } : {}),
                 } : {
                     bottom: cardMode ? '60%' : 0,
                     transition: 'opacity 250ms cubic-bezier(0.25, 0.1, 0.25, 1), transform 300ms cubic-bezier(0.32, 0.72, 0, 1), bottom 300ms cubic-bezier(0.32, 0.72, 0, 1)',
@@ -429,6 +468,7 @@ export function BaseDrawer({
                     transform: desktopOpen ? 'scale(1)' : 'scale(0.95)',
                     transformOrigin: desktopPosition === 'left' ? 'top left' : 'top right',
                     pointerEvents: desktopOpen ? 'auto' : 'none',
+                        ...(glassHeader ? { ['--drawer-header-h' as string]: `${headerHeight}px` } : {}),
                 }}
                 role="dialog"
                 aria-modal="true"
@@ -436,56 +476,54 @@ export function BaseDrawer({
                 {...(useMobileLayout && !header ? bindDrawerDrag() : {})}
                 onClick={useMobileLayout ? undefined : (e) => e.stopPropagation()}
             >
-                {header ? (
-                    scrollDisabled ? (
-                        /* Fixed header + raw children (sidebar layouts manage their own scroll) */
+                {header ? (() => {
+                    /* Header rendered once; in glass mode it floats as a blurred
+                     * translucent overlay so content scrolls up behind it. */
+                    const headerElement = (
+                        <div
+                            ref={glassHeader ? headerRef : undefined}
+                            className={glassHeader
+                                ? 'absolute top-0 inset-x-0 z-10 backdrop-blur-[2px] bg-themewhite3/15'
+                                : undefined}
+                            {...(useMobileLayout ? bindDrawerDrag() : {})}
+                        >
+                            <DrawerHeader
+                                title={header.title}
+                                showBack={header.showBack}
+                                onBack={header.onBack}
+                                badge={header.badge}
+                                leftContent={header.leftContent}
+                                rightContent={header.rightContent}
+                                hideDefaultClose={header.hideDefaultClose}
+                                rightContentFill={header.rightContentFill}
+                                extraRow={header.extraRow}
+                                titleNode={header.titleNode}
+                                onClose={handleClose}
+                                isMobile={useMobileLayout}
+                                headerFaded={headerFaded}
+                                mobileFullScreen={mobileFullScreen && useMobileLayout}
+                                hideBorder={glassHeader}
+                            />
+                        </div>
+                    );
+                    return scrollDisabled ? (
+                        /* Fixed header + raw children (sidebar layouts manage their own scroll).
+                         * In glass mode the consumer pads its own scroller via
+                         * pt-[var(--drawer-header-h)]. */
                         <>
-                            <div {...(useMobileLayout ? bindDrawerDrag() : {})}>
-                                <DrawerHeader
-                                    title={header.title}
-                                    showBack={header.showBack}
-                                    onBack={header.onBack}
-                                    badge={header.badge}
-                                    leftContent={header.leftContent}
-                                    rightContent={header.rightContent}
-                                    hideDefaultClose={header.hideDefaultClose}
-                                    rightContentFill={header.rightContentFill}
-                                    extraRow={header.extraRow}
-                                    titleNode={header.titleNode}
-                                    onClose={handleClose}
-                                    isMobile={useMobileLayout}
-                                    headerFaded={headerFaded}
-                                    mobileFullScreen={mobileFullScreen && useMobileLayout}
-                                />
-                            </div>
-                            <div className="flex-1 min-h-0">
+                            {headerElement}
+                            <div className={`flex-1 min-h-0${glassHeader ? ' isolate' : ''}`}>
                                 {resolvedChildren}
                             </div>
                         </>
                     ) : (
                         /* Static header + scrollable content */
                         <>
-                            <div {...(useMobileLayout ? bindDrawerDrag() : {})}>
-                                <DrawerHeader
-                                    title={header.title}
-                                    showBack={header.showBack}
-                                    onBack={header.onBack}
-                                    badge={header.badge}
-                                    leftContent={header.leftContent}
-                                    rightContent={header.rightContent}
-                                    hideDefaultClose={header.hideDefaultClose}
-                                    rightContentFill={header.rightContentFill}
-                                    extraRow={header.extraRow}
-                                    titleNode={header.titleNode}
-                                    onClose={handleClose}
-                                    isMobile={useMobileLayout}
-                                    headerFaded={headerFaded}
-                                    mobileFullScreen={mobileFullScreen && useMobileLayout}
-                                />
-                            </div>
+                                {headerElement}
                             <div
                                 ref={scrollContainerRef}
-                                className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain"
+                                className={`flex-1 min-h-0 overflow-y-auto overscroll-y-contain${glassHeader ? ' isolate' : ''}`}
+                                    style={glassHeader ? { paddingTop: headerHeight } : undefined}
                             >
                                 {contentPadding ? (
                                     <div className={contentPadding === 'standard' ? 'px-4 py-3 md:p-5 pb-8' : 'px-4 pb-6'}>
@@ -494,8 +532,8 @@ export function BaseDrawer({
                                 ) : resolvedChildren}
                             </div>
                         </>
-                    )
-                ) : resolvedChildren}
+                    );
+                })() : resolvedChildren}
             </div>
         </>
     );

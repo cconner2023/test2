@@ -22,7 +22,7 @@ const Row = ({ icon, iconColor, title, children, border = true }: {
 
 export const PrivacyPolicyPanel = () => (
   <div className="h-full overflow-y-auto">
-    <div className="px-5 py-4 space-y-4">
+    <div className="px-5 pb-4 space-y-4 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
 
       {/* ── Intro ── */}
       <div className="px-1">

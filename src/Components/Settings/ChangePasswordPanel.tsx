@@ -55,7 +55,7 @@ export const ChangePasswordPanel = () => {
     if (success) {
         return (
             <div className="h-full overflow-y-auto">
-                <div className="px-5 py-4 flex flex-col items-center justify-center pt-16">
+                <div className="px-5 pb-4 flex flex-col items-center justify-center pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
                     <div className="w-14 h-14 rounded-full bg-themegreen/10 flex items-center justify-center mb-4">
                         <CheckCircle size={28} className="text-themegreen" />
                     </div>
@@ -70,7 +70,7 @@ export const ChangePasswordPanel = () => {
 
     return (
         <div className="h-full overflow-y-auto">
-            <div className="px-4 py-3 md:p-5">
+            <div className="px-4 pb-3 md:px-5 md:pb-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
                 <ErrorDisplay message={error} centered />
 
                 <form onSubmit={handleSubmit}>

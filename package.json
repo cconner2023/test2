@@ -22,6 +22,7 @@
     "@use-gesture/react": "^10.3.1",
     "@zxing/library": "^0.21.3",
     "bwip-js": "^4.8.0",
+    "chrono-node": "^2.9.1",
     "firebase": "^12.11.0",
     "geomagnetism": "^0.2.0",
     "idb": "^8.0.3",

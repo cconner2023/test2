@@ -597,7 +597,7 @@ export function ClinicPanel({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
+      <div className="flex-1 overflow-y-auto px-5 pb-4 space-y-6 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
         {hookError && <ErrorDisplay message={hookError} />}
         {error && <ErrorDisplay message={error} />}
         {success && <ErrorDisplay type="success" message={success} />}

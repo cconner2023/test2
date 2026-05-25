@@ -389,6 +389,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
             desktopPosition="left"
             header={headerConfig}
             scrollDisabled
+            glassHeader
         >
             {(handleClose) => (
                 <div className="h-full overflow-y-auto overscroll-y-contain">

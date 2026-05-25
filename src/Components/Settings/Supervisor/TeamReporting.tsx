@@ -4,7 +4,6 @@ import { formatMedicName } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { TeamMetrics } from './supervisorHelpers'
 import type { CalendarEvent } from '../../../Types/CalendarTypes'
-import { getCategoryMeta } from '../../../Types/CalendarTypes'
 import { ActionButton } from '../../ActionButton'
 import { ActionPill } from '../../ActionPill'
 import { SupervisorClinicCardAction } from '../../SupervisorClinicSwitcher'
@@ -48,16 +47,15 @@ interface TeamReportingProps {
   showClusterSwitch?: boolean
 }
 
-function readinessColor(pct: number): string {
-  if (pct >= 80) return 'bg-themegreen'
-  if (pct >= 50) return 'bg-themeyellow'
-  return 'bg-themeredred'
+// Readiness/compliance/coverage use a two-tone scheme: faded operating-clinic
+// blue when passing, red when low. themeblue3 is the same accent the clinic
+// switcher uses to mark the clinic you're operating as.
+function metricBarColor(pct: number): string {
+  return pct >= 50 ? 'bg-themeblue3/50' : 'bg-themeredred'
 }
 
-function readinessTextColor(pct: number): string {
-  if (pct >= 80) return 'text-themegreen'
-  if (pct >= 50) return 'text-themeyellow'
-  return 'text-themeredred'
+function metricTextColor(pct: number): string {
+  return pct >= 50 ? 'text-themeblue3' : 'text-themeredred'
 }
 
 export function TeamReporting({
@@ -128,16 +126,16 @@ export function TeamReporting({
           <div className="flex items-center gap-2">
             <span className="text-[9pt] text-tertiary w-18 shrink-0">Readiness</span>
             <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
-              <div className={`h-full rounded-full ${readinessColor(metrics.teamReadinessPercent)}`} style={{ width: `${metrics.teamReadinessPercent}%` }} />
+              <div className={`h-full rounded-full ${metricBarColor(metrics.teamReadinessPercent)}`} style={{ width: `${metrics.teamReadinessPercent}%` }} />
             </div>
-            <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(metrics.teamReadinessPercent)}`}>{metrics.teamReadinessPercent}%</span>
+            <span className={`text-[9pt] font-medium w-8 text-right ${metricTextColor(metrics.teamReadinessPercent)}`}>{metrics.teamReadinessPercent}%</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[9pt] text-tertiary w-18 shrink-0">Compliance</span>
             <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
-              <div className={`h-full rounded-full ${readinessColor(metrics.certCompliancePercent)}`} style={{ width: `${metrics.certCompliancePercent}%` }} />
+              <div className={`h-full rounded-full ${metricBarColor(metrics.certCompliancePercent)}`} style={{ width: `${metrics.certCompliancePercent}%` }} />
             </div>
-            <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(metrics.certCompliancePercent)}`}>{metrics.certCompliancePercent}%</span>
+            <span className={`text-[9pt] font-medium w-8 text-right ${metricTextColor(metrics.certCompliancePercent)}`}>{metrics.certCompliancePercent}%</span>
           </div>
         </div>
       </button>
@@ -160,7 +158,6 @@ export function TeamReporting({
             ) : (
               <>
                 {scheduleShown.map((evt, idx) => {
-                  const meta = getCategoryMeta(evt.category)
                   return (
                     <button
                       type="button"
@@ -168,7 +165,6 @@ export function TeamReporting({
                       onClick={() => onOpenEvent(evt.id)}
                       className={`w-full text-left flex items-center gap-3 px-4 py-3 transition-colors hover:bg-themeblue3/5 ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
                     >
-                      <div className={`w-2 h-2 rounded-full shrink-0 ${meta.solidColor}`} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-primary truncate">{evt.title}</p>
                         <p className="text-[9pt] text-tertiary">{formatEventDate(evt)}</p>
@@ -248,11 +244,11 @@ export function TeamReporting({
                     <span className="text-[9pt] text-tertiary w-18 shrink-0">Readiness</span>
                     <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all ${readinessColor(entry.readinessPercent)}`}
+                        className={`h-full rounded-full transition-all ${metricBarColor(entry.readinessPercent)}`}
                         style={{ width: `${entry.readinessPercent}%` }}
                       />
                     </div>
-                    <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(entry.readinessPercent)}`}>
+                    <span className={`text-[9pt] font-medium w-8 text-right ${metricTextColor(entry.readinessPercent)}`}>
                       {entry.readinessPercent}%
                     </span>
                   </div>
@@ -260,11 +256,11 @@ export function TeamReporting({
                     <span className="text-[9pt] text-tertiary w-18 shrink-0">Compliance</span>
                     <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all ${readinessColor(entry.compliancePercent)}`}
+                        className={`h-full rounded-full transition-all ${metricBarColor(entry.compliancePercent)}`}
                         style={{ width: `${entry.compliancePercent}%` }}
                       />
                     </div>
-                    <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(entry.compliancePercent)}`}>
+                    <span className={`text-[9pt] font-medium w-8 text-right ${metricTextColor(entry.compliancePercent)}`}>
                       {entry.compliancePercent}%
                     </span>
                   </div>
@@ -313,12 +309,12 @@ export function TeamReporting({
                   aria-valuemax={100}
                 >
                   <div
-                    className={`h-full rounded-full transition-all ${readinessColor(gap.coveragePercent)}`}
+                    className={`h-full rounded-full transition-all ${metricBarColor(gap.coveragePercent)}`}
                     style={{ width: `${gap.coveragePercent}%` }}
                   />
                 </div>
               </div>
-              <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(gap.coveragePercent)}`}>
+              <span className={`text-[9pt] font-medium w-8 text-right ${metricTextColor(gap.coveragePercent)}`}>
                 {gap.coveragePercent}%
               </span>
             </button>

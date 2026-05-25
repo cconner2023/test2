@@ -40,7 +40,7 @@ export function LoRaPanel() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="px-4 py-3 md:p-5 space-y-4">
+      <div className="px-4 pb-3 md:px-5 md:pb-5 space-y-4 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
 
         {/* Status Card */}
         <div className="bg-themewhite2 rounded-xl p-4 border border-tertiary/10">
