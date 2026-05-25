@@ -63,6 +63,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const pendingCalendarAction = useNavigationStore(s => s.pendingCalendarAction)
   const clearPendingCalendarAction = useNavigationStore(s => s.clearPendingCalendarAction)
   const clearCalendarPrefill = useNavigationStore(s => s.clearCalendarPrefill)
+  const returnFromCalendar = useNavigationStore(s => s.returnFromCalendar)
 
   useEffect(() => {
     onPanelStateChange?.(panelView !== 'calendar')
@@ -631,7 +632,10 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     }
     setEditingEvent(null)
     setPanelView('calendar')
-  }, [editingEvent, writeEvent, activeClinicId, user])
+    // If this form was opened from a chat message (detected date), hop back to
+    // that message; no-op otherwise.
+    returnFromCalendar()
+  }, [editingEvent, writeEvent, activeClinicId, user, returnFromCalendar])
 
   const handleMoveEvent = useCallback((eventId: string, newStartTime: string) => {
     const events = useCalendarStore.getState().events
@@ -714,7 +718,9 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const handleFormCancel = useCallback(() => {
     setEditingEvent(null)
     setPanelView(selectedEventId ? 'detail' : 'calendar')
-  }, [selectedEventId])
+    // Cancelling a message-originated event still returns to that message.
+    returnFromCalendar()
+  }, [selectedEventId, returnFromCalendar])
 
   const handleDetailBack = useCallback(() => {
     selectEvent(null)

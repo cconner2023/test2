@@ -8,17 +8,22 @@
 // and isolation) and presents as a bottom sheet.
 //
 // UX contract (distinct from BaseDrawer):
-//  - Opens to a ~40% peek. Drag up expands toward full; drag down returns to
-//    peek. Drag NEVER dismisses — the X button is the only close path.
-//  - Full-width, rounded top, dim backdrop. The backdrop blocks the surface
-//    underneath but does NOT close on tap.
-//  - Content scrolls within the sheet.
+//  - THREE discrete states only: minimal (peek), full (expanded), closed. There
+//    is NO drag-to-resize — the old continuous height tracking fought the inner
+//    scroll and glitched on iOS. Tapping the grab handle SNAPS between peek and
+//    full; the X button closes. Transitions are pure CSS, like BottomSheet.
+//  - The sheet's HEIGHT (not a translate offset) is what snaps between peek and
+//    full, so the scroll region equals the revealed height in BOTH states — the
+//    user can scroll the whole body at peek without expanding to full.
+//  - Glass header (iOS large-title): the header floats as a blurred translucent
+//    overlay and content scrolls up behind it. Header height is measured and
+//    applied as the content's paddingTop.
+//  - Full-width, rounded top, optional dim backdrop. The backdrop blocks the
+//    surface underneath but does NOT close on tap.
 import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { useDrag } from '@use-gesture/react';
-import { X } from 'lucide-react';
+import { X, ChevronUp, ChevronDown } from 'lucide-react';
 import { HeaderPill, PillButton } from './HeaderPill';
-import { clamp } from '../Utilities/GestureUtils';
 import { DRAWER_TIMING } from '../Utilities/constants';
 import { useKeyboardInset } from '../Hooks/useKeyboardInset';
 
@@ -33,12 +38,12 @@ interface SubDrawerProps {
     rightContent?: ReactNode;
     /** Peek height as a percentage of the dynamic viewport (dvh). Default 40. */
     peekPercent?: number;
-    /** Expanded (drag-up) cap as a percentage of dvh. Default 92. */
+    /** Expanded (tap-to-expand) height as a percentage of dvh. Default 92. */
     expandedPercent?: number;
     /** z-index class for backdrop + sheet. Default 'z-[1200]' (above nested
      *  BaseDrawers, which top out around z-[1010]). */
     zIndex?: string;
-    /** Backdrop opacity at full peek. Default 0.4. */
+    /** Backdrop opacity when open. Default 0.4. */
     backdropOpacity?: number;
     /** Suppress the dim backdrop so the surface underneath (e.g. the map) stays
      *  visible and interactive outside the sheet's footprint. Default false. */
@@ -60,95 +65,80 @@ export function SubDrawer({
 }: SubDrawerProps) {
     const peek = Math.min(peekPercent, expandedPercent);
     const expanded = expandedPercent;
+    const canToggle = expanded > peek;
 
-    // `visible` is the dvh currently revealed: 0 = closed, [peek, expanded] open.
-    const [visible, setVisible] = useState(0);
-    const [isDragging, setIsDragging] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
+    // `shown` drives the slide (translateY 0 vs 100%); `isFull` drives which of
+    // the two discrete heights the sheet snaps to. Both animate via CSS — nothing
+    // tracks a finger, so there is no in-between height to stutter on iOS.
+    const [shown, setShown] = useState(false);
+    const [isFull, setIsFull] = useState(false);
 
     const keyboardInset = useKeyboardInset();
-    const animationFrameId = useRef<number>(0);
-    const closeTimeoutRef = useRef<number | null>(null);
-    const dragStartVisible = useRef(0);
+    const unmountTimer = useRef<number | null>(null);
 
-    // dvh → px conversion for translating drag movement (px) into dvh.
-    const dvhPx = () => (typeof window !== 'undefined' ? window.innerHeight / 100 : 8);
-
-    const animateTo = useCallback((target: number, onDone?: () => void) => {
-        if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
-        const start = visible;
-        const startTime = performance.now();
-        const duration = DRAWER_TIMING.TRANSITION;
-        const step = (now: number) => {
-            const progress = Math.min((now - startTime) / duration, 1);
-            const eased = 1 - Math.pow(1 - progress, 3); // cubic ease-out
-            setVisible(start + (target - start) * eased);
-            if (progress < 1) {
-                animationFrameId.current = requestAnimationFrame(step);
-            } else {
-                animationFrameId.current = 0;
-                if (onDone) {
-                    closeTimeoutRef.current = window.setTimeout(() => {
-                        onDone();
-                        closeTimeoutRef.current = null;
-                    }, DRAWER_TIMING.CLOSE_UNMOUNT_DELAY);
-                }
-            }
-        };
-        animationFrameId.current = requestAnimationFrame(step);
-    }, [visible]);
-
+    // Glass header: measure the floating header so the scroll body can pad to
+    // clear it (and slide up behind it).
+    const headerRef = useRef<HTMLDivElement>(null);
+    const [headerHeight, setHeaderHeight] = useState(0);
     useEffect(() => {
+        if (!isMounted || !headerRef.current) return;
+        const el = headerRef.current;
+        const measure = () => setHeaderHeight(el.offsetHeight);
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [isMounted, isVisible]);
+
+    // Open / external-close lifecycle.
+    useEffect(() => {
+        if (unmountTimer.current) {
+            clearTimeout(unmountTimer.current);
+            unmountTimer.current = null;
+        }
         if (isVisible) {
             setIsMounted(true);
-            setVisible(0);
-            const t = window.setTimeout(() => animateTo(peek), DRAWER_TIMING.OPEN_DELAY);
+            setShown(false);
+            setIsFull(false); // always open at peek
+            const t = window.setTimeout(() => setShown(true), DRAWER_TIMING.OPEN_DELAY);
             return () => window.clearTimeout(t);
         }
-        // External close (parent set isVisible false) — slide down then unmount.
-        // onClose already fired (parent drove the close), so just unmount.
-        if (isMounted) animateTo(0, () => setIsMounted(false));
+        // Parent closed us — slide down (CSS), then unmount.
+        setShown(false);
+        unmountTimer.current = window.setTimeout(() => {
+            setIsMounted(false);
+            unmountTimer.current = null;
+        }, DRAWER_TIMING.TRANSITION);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isVisible]);
 
     useEffect(() => () => {
-        if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
-        if (closeTimeoutRef.current) window.clearTimeout(closeTimeoutRef.current);
+        if (unmountTimer.current) window.clearTimeout(unmountTimer.current);
     }, []);
 
+    // X button: slide down, then unmount + notify parent (after the slide so the
+    // content stays painted through the close animation).
     const handleClose = useCallback(() => {
-        animateTo(0, () => { setIsMounted(false); onClose(); });
-    }, [animateTo, onClose]);
+        setShown(false);
+        if (unmountTimer.current) window.clearTimeout(unmountTimer.current);
+        unmountTimer.current = window.setTimeout(() => {
+            setIsMounted(false);
+            unmountTimer.current = null;
+            onClose();
+        }, DRAWER_TIMING.TRANSITION);
+    }, [onClose]);
 
-    const bindDrag = useDrag(
-        ({ active, first, movement: [, my], velocity: [, vy], direction: [, dy], event, cancel }) => {
-            if (first) {
-                const target = event?.target as HTMLElement;
-                if (!target?.closest('[data-drag-zone]')) { cancel(); return; }
-                dragStartVisible.current = visible;
-            }
-            if (active) {
-                setIsDragging(true);
-                // Drag up (my < 0) reveals more; clamp between peek and expanded —
-                // never below peek, so drag can't dismiss.
-                setVisible(clamp(dragStartVisible.current - my / dvhPx(), peek, expanded));
-            } else {
-                setIsDragging(false);
-                const midpoint = (peek + expanded) / 2;
-                const flung = vy > 0.5;
-                if (flung) {
-                    animateTo(dy > 0 ? peek : expanded); // fling down→peek, up→expanded
-                } else {
-                    animateTo(visible >= midpoint ? expanded : peek);
-                }
-            }
-        },
-        { axis: 'y', filterTaps: true, pointer: { touch: true } }
-    );
+    // Grab-handle tap: snap between peek and full. No-op when the consumer
+    // configured peek === expanded (single-height sheet).
+    const toggleExpanded = useCallback(() => {
+        if (!canToggle) return;
+        setIsFull(f => !f);
+    }, [canToggle]);
 
     if (!isMounted && !isVisible) return null;
 
-    const translateDvh = expanded - visible; // 0 = expanded, larger = lower
+    const heightDvh = isFull ? expanded : peek;
 
     return createPortal(
         <>
@@ -156,34 +146,51 @@ export function SubDrawer({
                 Omitted entirely when noBackdrop, so the map stays interactive. */}
             {!noBackdrop && (
                 <div
-                    className={`fixed inset-0 ${zIndex} bg-black ${isDragging ? '' : 'transition-opacity duration-300 ease-out'}`}
+                    className={`fixed inset-0 ${zIndex} bg-black transition-opacity duration-300 ease-out`}
                     style={{
-                        opacity: (Math.min(visible, peek) / peek) * backdropOpacity,
-                        pointerEvents: visible > 0 ? 'auto' : 'none',
+                        opacity: shown ? backdropOpacity : 0,
+                        pointerEvents: shown ? 'auto' : 'none',
                     }}
                 />
             )}
-            {/* Sheet */}
+            {/* Sheet — HEIGHT snaps between peek/full; translateY only slides it
+                in/out. overflow-hidden clips the glass header to the rounded top. */}
             <div
-                className={`fixed left-0 right-0 ${zIndex} bg-themewhite3 flex flex-col text-primary ${isDragging ? '' : 'transition-transform duration-300 ease-out'}`}
+                className={`fixed left-0 right-0 ${zIndex} bg-themewhite3 flex flex-col text-primary overflow-hidden transition-[transform,height] duration-300 ease-out`}
                 style={{
-                    height: `${expanded}dvh`,
+                    height: `${heightDvh}dvh`,
                     bottom: keyboardInset,
-                    transform: `translateY(${translateDvh}dvh)`,
+                    transform: `translateY(${shown ? 0 : 100}%)`,
                     borderRadius: '1.25rem 1.25rem 0 0',
                     boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.12)',
-                    willChange: isDragging ? 'transform' : 'auto',
                 }}
                 role="dialog"
                 aria-modal="true"
                 aria-label={title}
             >
-                {/* Header — drag zone + title + close */}
-                <div className="shrink-0" {...bindDrag()}>
-                    <div className="flex justify-center pt-1.5 pb-1" data-drag-zone style={{ touchAction: 'none' }}>
+                {/* Glass header — floats as a blurred translucent overlay; content
+                    scrolls up behind it (iOS large-title style). */}
+                <div
+                    ref={headerRef}
+                    className={`absolute top-0 inset-x-0 z-10 backdrop-blur-[2px] bg-themewhite3/15`}
+                >
+                    {/* Grab handle — taps to toggle peek/full */}
+                    <button
+                        type="button"
+                        onClick={toggleExpanded}
+                        disabled={!canToggle}
+                        aria-label={canToggle ? (isFull ? 'Minimize' : 'Expand') : undefined}
+                        className="w-full flex items-center justify-center gap-1.5 pt-1.5 pb-1 disabled:cursor-default"
+                        style={{ touchAction: 'manipulation' }}
+                    >
                         <div className="w-9 h-1 rounded-full bg-tertiary/25" />
-                    </div>
-                    <div className="px-4 pb-2 border-b border-tertiary/10" data-drag-zone style={{ touchAction: 'none' }}>
+                        {canToggle && (
+                            isFull
+                                ? <ChevronDown size={12} className="text-tertiary/50" />
+                                : <ChevronUp size={12} className="text-tertiary/50" />
+                        )}
+                    </button>
+                    <div className="px-4 pb-2">
                         <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
                                 {leftContent && <div className="shrink-0">{leftContent}</div>}
@@ -198,8 +205,13 @@ export function SubDrawer({
                         </div>
                     </div>
                 </div>
-                {/* Scrollable content */}
-                <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain pb-[max(0px,var(--sab,0px))]">
+                {/* Scrollable content — fills the full sheet height (behind the
+                    glass header), padded to clear it. Scroll region therefore
+                    equals the revealed height at BOTH peek and full. */}
+                <div
+                    className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain isolate pb-[max(0px,var(--sab,0px))]"
+                    style={{ paddingTop: headerHeight }}
+                >
                     {children}
                 </div>
             </div>

@@ -60,6 +60,16 @@ export interface ChatDetailViewProps {
    * Email/Approve/Decline pill). Set by the dev's AdminDrawer system view —
    * intake actions belong to supervisors in the clinic system group. */
   intakeActionable?: boolean
+  /** True when this conversation is a group — lets a detected-date message
+   * record the right return target for the calendar round-trip. */
+  conversationIsGroup?: boolean
+  /** Display name for the conversation, used when returning from calendar. */
+  conversationPeerName?: string | null
+  /** When set, scroll to and briefly highlight this message on open (e.g.
+   * returning from a calendar event opened off a detected date). */
+  scrollToMessageId?: string | null
+  /** Called once the scroll target has been honored, so the caller can clear it. */
+  onScrollConsumed?: () => void
   children?: ReactNode
 }
 
@@ -172,6 +182,10 @@ export function ChatDetailView({
   desktopHeader,
   hideImageUpload,
   intakeActionable = true,
+  conversationIsGroup = false,
+  conversationPeerName,
+  scrollToMessageId,
+  onScrollConsumed,
   children,
 }: ChatDetailViewProps) {
   const { user } = useAuth()
@@ -183,6 +197,7 @@ export function ChatDetailView({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [threadClosing, setThreadClosing] = useState(false)
+  const [highlightId, setHighlightId] = useState<string | null>(null)
   const messages = conversations[conversationId] ?? []
 
   const {
@@ -224,6 +239,24 @@ export function ChatDetailView({
     const el = scrollRef.current
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
   }, [activeThreadId ? messages.length : mainViewMessages.length])
+
+  // Scroll to and highlight a specific message — used when returning from a
+  // calendar event that was opened off a detected date. Retries on message
+  // arrival (history may still be loading); consumes only once it lands.
+  useEffect(() => {
+    if (!scrollToMessageId) return
+    const container = scrollRef.current
+    if (!container) return
+    const el = container.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(scrollToMessageId)}"]`)
+    if (!el) return
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    })
+    setHighlightId(scrollToMessageId)
+    onScrollConsumed?.()
+    const timer = setTimeout(() => setHighlightId(null), 1600)
+    return () => clearTimeout(timer)
+  }, [scrollToMessageId, mainViewMessages.length, onScrollConsumed])
 
   // Mark as read + fetch history on open
   useEffect(() => {
@@ -559,7 +592,7 @@ export function ChatDetailView({
           }
 
           return (
-            <div key={msg.id} data-tour={own && idx === lastOwnIdx ? 'messages-latest-bubble' : undefined}>
+            <div key={msg.id} data-message-id={msg.id} data-tour={own && idx === lastOwnIdx ? 'messages-latest-bubble' : undefined}>
               {dateSeparator}
               <MessageBubble
                 message={msg}
@@ -576,6 +609,10 @@ export function ChatDetailView({
                 threadReplyCount={!activeThreadId ? (threadReplyCounts[msg.originId ?? ''] ?? threadReplyCounts[msg.id]) : undefined}
                 onOpenThread={handleOpenThread}
                 intakeActionable={intakeActionable}
+                conversationId={conversationId}
+                conversationIsGroup={conversationIsGroup}
+                conversationPeerName={conversationPeerName}
+                highlighted={highlightId === msg.id}
               />
               {isThreadRoot && msgs.length > 1 && (
                 <div className="flex items-center gap-2 my-2 px-2">

@@ -694,6 +694,7 @@ case 'mapOverlay':
               initialPeerId={navigation.messagesInitialPeerId}
               initialGroupId={navigation.messagesInitialGroupId}
               initialPeerName={navigation.messagesInitialPeerName}
+              initialMessageId={navigation.messagesInitialMessageId}
             />
             </ErrorBoundary>
           </div>
@@ -760,6 +761,7 @@ case 'mapOverlay':
             initialPeerId={navigation.messagesInitialPeerId}
             initialGroupId={navigation.messagesInitialGroupId}
             initialPeerName={navigation.messagesInitialPeerName}
+            initialMessageId={navigation.messagesInitialMessageId}
           />
           </ErrorBoundary>
         )}

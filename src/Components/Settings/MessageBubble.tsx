@@ -32,6 +32,15 @@ interface MessageBubbleProps {
   /** When false, embedded action cards (intake request) render read-only.
    * Set by the dev's AdminDrawer system view. */
   intakeActionable?: boolean
+  /** Conversation key (peer or group id) — lets the detected-date affordance
+   * record where to return after the calendar event is saved/cancelled. */
+  conversationId?: string
+  /** True when conversationId is a group id. */
+  conversationIsGroup?: boolean
+  /** Conversation display name, for the header when we hop back. */
+  conversationPeerName?: string | null
+  /** Briefly ring this bubble — set when we return the user to it from calendar. */
+  highlighted?: boolean
 }
 
 function formatTime(iso: string): string {
@@ -124,6 +133,10 @@ export function MessageBubble({
   onOpenThread,
   senderName,
   intakeActionable = true,
+  conversationId,
+  conversationIsGroup = false,
+  conversationPeerName,
+  highlighted = false,
 }: MessageBubbleProps) {
   const touchRef = useRef<{
     startX: number
@@ -157,11 +170,21 @@ export function MessageBubble({
   const handleAddToCalendar = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     if (!detectedDate) return
-    requestNewCalendarEvent({
-      title: (message.plaintext ?? '').trim().slice(0, 80),
-      startISO: toLocalISOString(detectedDate.date),
-    })
-  }, [detectedDate, message.plaintext, requestNewCalendarEvent])
+    requestNewCalendarEvent(
+      {
+        title: (message.plaintext ?? '').trim().slice(0, 80),
+        startISO: toLocalISOString(detectedDate.date),
+      },
+      conversationId
+        ? {
+            conversationId,
+            isGroup: conversationIsGroup,
+            peerName: conversationPeerName,
+            messageId: message.id,
+          }
+        : undefined,
+    )
+  }, [detectedDate, message.plaintext, message.id, requestNewCalendarEvent, conversationId, conversationIsGroup, conversationPeerName])
 
   const swipeEnabled = !isEditing
 
@@ -538,6 +561,20 @@ export function MessageBubble({
           <div className="shrink-0 mb-0.5 mr-1.5">{avatar}</div>
         )}
 
+        {/* Detected-date affordance — rides inline to the left of the bubble.
+            Surfaces when text contains a schedulable date (dev-gated). */}
+        {detectedDate && !isEditing && (
+          <button
+            onClick={handleAddToCalendar}
+            title={`Add to calendar — ${detectedDate.date.toLocaleDateString()}`}
+            aria-label="Add to calendar"
+            className="shrink-0 self-center mr-1.5 w-7 h-7 rounded-full bg-themeblue3 text-white shadow-sm
+                       flex items-center justify-center active:scale-95 transition-all"
+          >
+            <CalendarPlus size={14} />
+          </button>
+        )}
+
         {/* Bubble wrapper — icons sit behind, bubble slides over them */}
         <div className="relative max-w-[75%]" style={{ touchAction: 'pan-y' }}>
           {/* Reply icon — starts at left edge behind bubble, parallaxes outward on swipe right */}
@@ -576,7 +613,8 @@ export function MessageBubble({
             <div
               className={`rounded-2xl ${isImage && !isVoice ? 'p-1.5' : 'px-3.5 py-2'}
                          ${isOwn ? 'bg-themeblue3 text-white rounded-br-md' : 'bg-themewhite2 text-primary rounded-bl-md'}
-                         ${tapped ? 'scale-[0.97]' : ''} transition-transform duration-150`}
+                         ${highlighted ? 'ring-2 ring-themeblue3/60 ring-offset-1' : ''}
+                         ${tapped ? 'scale-[0.97]' : ''} transition-all duration-300`}
             >
               {/* Sender name label (group chats) */}
               {senderName && !isOwn && (
@@ -614,21 +652,6 @@ export function MessageBubble({
               </button>
             )}
           </div>
-
-          {/* Floating "add to calendar" affordance — surfaces when a date is
-              detected in text content. Sits at the bubble's top inner corner. */}
-          {detectedDate && !isEditing && (
-            <button
-              onClick={handleAddToCalendar}
-              title={`Add to calendar — ${detectedDate.date.toLocaleDateString()}`}
-              aria-label="Add to calendar"
-              className={`absolute -top-2 z-10 w-7 h-7 rounded-full bg-themeblue3 text-white shadow-sm
-                         flex items-center justify-center active:scale-95 transition-all
-                         ${isOwn ? '-left-2' : '-right-2'}`}
-            >
-              <CalendarPlus size={14} />
-            </button>
-          )}
         </div>
       </div>
 

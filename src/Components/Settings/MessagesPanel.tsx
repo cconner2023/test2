@@ -57,6 +57,10 @@ interface MessagesPanelProps {
   onSearchClear: () => void
   onSearchChange: (value: string) => void
   onOpenSettings?: () => void
+  /** Scroll to + highlight this message in the open conversation (calendar round-trip). */
+  scrollToMessageId?: string | null
+  /** Called once the scroll target has landed, so the drawer can clear it. */
+  onScrollConsumed?: () => void
 }
 
 // ── Long-press preview types + wrapper ────────────────────────────────────
@@ -646,6 +650,8 @@ function ChatDetail({
   peerFirstName,
   peerLastName,
   unavailableIds,
+  scrollToMessageId,
+  onScrollConsumed,
 }: {
   peerId: string
   conversations: Record<string, DecryptedSignalMessage[]>
@@ -669,6 +675,8 @@ function ChatDetail({
   peerFirstName?: string | null
   peerLastName?: string | null
   unavailableIds: Map<string, UnavailableReason>
+  scrollToMessageId?: string | null
+  onScrollConsumed?: () => void
 }) {
   const { user } = useAuth()
   const userId = user?.id ?? ''
@@ -751,6 +759,10 @@ function ChatDetail({
       emptyText={isSelf ? 'Write a note...' : 'No messages'}
       mobileHeader={mobileHeader}
       desktopHeader={null}
+      conversationIsGroup={false}
+      conversationPeerName={peerName}
+      scrollToMessageId={scrollToMessageId}
+      onScrollConsumed={onScrollConsumed}
     />
   )
 }
@@ -779,6 +791,8 @@ function GroupChatDetail({
   unavailableIds,
   showGroupInfo,
   onShowGroupInfo,
+  scrollToMessageId,
+  onScrollConsumed,
 }: {
   groupId: string
   group: GroupInfo
@@ -801,6 +815,8 @@ function GroupChatDetail({
   unavailableIds: Map<string, UnavailableReason>
   showGroupInfo: boolean
   onShowGroupInfo: (show: boolean) => void
+  scrollToMessageId?: string | null
+  onScrollConsumed?: () => void
 }) {
   const { user } = useAuth()
   const userId = user?.id ?? ''
@@ -895,6 +911,10 @@ function GroupChatDetail({
       emptyText="No messages"
       mobileHeader={mobileHeader}
       desktopHeader={null}
+      conversationIsGroup={true}
+      conversationPeerName={group.name}
+      scrollToMessageId={scrollToMessageId}
+      onScrollConsumed={onScrollConsumed}
     >
       {showGroupInfo && (
         <GroupInfoPanel
@@ -915,7 +935,7 @@ function GroupChatDetail({
 
 // ── Exported Panel ─────────────────────────────────────────────────────────
 
-export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelProps>(function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack, onCloseDrawer, searchQuery, onSearchClear, onSearchChange, onOpenSettings }, ref) {
+export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelProps>(function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack, onCloseDrawer, searchQuery, onSearchClear, onSearchChange, onOpenSettings, scrollToMessageId, onScrollConsumed }, ref) {
   const messagesCtx = useMessagesContext()
   const { medics, loading } = useClinicMedics()
   const callActions = useCallActions()
@@ -1228,6 +1248,8 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         unavailableIds={unavailableIds}
         showGroupInfo={showGroupInfo}
         onShowGroupInfo={setShowGroupInfo}
+        scrollToMessageId={scrollToMessageId}
+        onScrollConsumed={onScrollConsumed}
       />
     )
   } else if (view === 'messages-chat' && selectedPeerId) {
@@ -1260,6 +1282,8 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         peerFirstName={peer?.firstName}
         peerLastName={peer?.lastName}
         unavailableIds={unavailableIds}
+        scrollToMessageId={scrollToMessageId}
+        onScrollConsumed={onScrollConsumed}
       />
     )
   } else {

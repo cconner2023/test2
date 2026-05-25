@@ -20,6 +20,19 @@ export interface CalendarPrefill {
     startISO?: string
 }
 
+/** Where to send the user back to after a deep-linked calendar event is saved
+ *  or cancelled — e.g. the chat message whose detected date opened the form. */
+export interface CalendarReturn {
+    /** Peer id (1:1) or group id. */
+    conversationId: string
+    /** True when conversationId is a group id. */
+    isGroup: boolean
+    /** Display name for the conversation header on reopen. */
+    peerName?: string | null
+    /** Message to scroll back to once the conversation reopens. */
+    messageId: string
+}
+
 export interface WriteNoteData {
     disposition: dispositionType;
     algorithmOptions: AlgorithmOptions[];
@@ -56,6 +69,7 @@ const CLOSE_ALL_DRAWERS = {
     messagesInitialPeerId: null as string | null,
     messagesInitialGroupId: null as string | null,
     messagesInitialPeerName: null as string | null,
+    messagesInitialMessageId: null as string | null,
     showPropertyDrawer: false,
     showLoRaDrawer: false,
     showMapOverlayDrawer: false,
@@ -67,6 +81,7 @@ const CLOSE_ALL_DRAWERS = {
     calendarDrawerInitialDate: null as string | null,
     pendingCalendarAction: null as 'new' | null,
     calendarPrefill: null as CalendarPrefill | null,
+    calendarReturnTo: null as CalendarReturn | null,
     showAdminDrawer: false,
     showSupervisorDrawer: false,
     showProviderDrawer: false,
@@ -99,6 +114,7 @@ interface NavigationState {
     messagesInitialPeerId: string | null
     messagesInitialGroupId: string | null
     messagesInitialPeerName: string | null
+    messagesInitialMessageId: string | null
     showPropertyDrawer: boolean
     showLoRaDrawer: boolean
     showMapOverlayDrawer: boolean
@@ -110,6 +126,7 @@ interface NavigationState {
     calendarDrawerInitialDate: string | null
     pendingCalendarAction: 'new' | null
     calendarPrefill: CalendarPrefill | null
+    calendarReturnTo: CalendarReturn | null
     showAdminDrawer: boolean
     showSupervisorDrawer: boolean
     showProviderDrawer: boolean
@@ -140,6 +157,7 @@ interface NavigationActions {
     setShowMessagesDrawer: (show: boolean) => void
     openMessagesConversation: (peerId: string | null, groupId: string | null, peerName: string | null) => void
     clearMessagesConversation: () => void
+    clearMessagesInitialMessageId: () => void
     setShowPropertyDrawer: (show: boolean) => void
     setShowLoRaDrawer: (show: boolean) => void
     setShowMapOverlayDrawer: (show: boolean, overlayId?: string | null, featureId?: string | null) => void
@@ -148,9 +166,12 @@ interface NavigationActions {
     openCalendarEventForEdit: (eventId: string) => void
     clearCalendarDrawerEventId: () => void
     clearCalendarDrawerInitialDate: () => void
-    requestNewCalendarEvent: (prefill?: CalendarPrefill) => void
+    requestNewCalendarEvent: (prefill?: CalendarPrefill, returnTo?: CalendarReturn) => void
     clearPendingCalendarAction: () => void
     clearCalendarPrefill: () => void
+    /** After a deep-linked event is saved/cancelled, reopen the originating
+     *  conversation scrolled to its message. No-op when no return target. */
+    returnFromCalendar: () => void
     setShowAdminDrawer: (show: boolean) => void
     setShowSupervisorDrawer: (show: boolean) => void
     setShowProviderDrawer: (show: boolean) => void
@@ -183,6 +204,10 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     showTrainingDrawer: false,
     trainingDrawerTaskId: null,
     showMessagesDrawer: false,
+    messagesInitialPeerId: null,
+    messagesInitialGroupId: null,
+    messagesInitialPeerName: null,
+    messagesInitialMessageId: null,
     showPropertyDrawer: false,
     showLoRaDrawer: false,
     showMapOverlayDrawer: false,
@@ -194,6 +219,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     calendarDrawerInitialDate: null,
     pendingCalendarAction: null,
     calendarPrefill: null,
+    calendarReturnTo: null,
     showAdminDrawer: false,
     showSupervisorDrawer: false,
     showProviderDrawer: false,
@@ -376,7 +402,10 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         messagesInitialPeerId: null,
         messagesInitialGroupId: null,
         messagesInitialPeerName: null,
+        messagesInitialMessageId: null,
     }),
+
+    clearMessagesInitialMessageId: () => set({ messagesInitialMessageId: null }),
 
     setShowPropertyDrawer: (show) => set((s) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),
@@ -425,17 +454,32 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
 
     clearCalendarDrawerInitialDate: () => set({ calendarDrawerInitialDate: null }),
 
-    requestNewCalendarEvent: (prefill) => set((s) => ({
+    requestNewCalendarEvent: (prefill, returnTo) => set((s) => ({
         ...CLOSE_ALL_DRAWERS,
         ...PRESERVED_FIELDS(s),
         showCalendarDrawer: true,
         pendingCalendarAction: 'new',
         calendarPrefill: prefill ?? null,
+        calendarReturnTo: returnTo ?? null,
     })),
 
     clearPendingCalendarAction: () => set({ pendingCalendarAction: null }),
 
     clearCalendarPrefill: () => set({ calendarPrefill: null }),
+
+    returnFromCalendar: () => {
+        const r = get().calendarReturnTo
+        if (!r) return
+        set((s) => ({
+            ...CLOSE_ALL_DRAWERS,
+            ...PRESERVED_FIELDS(s),
+            showMessagesDrawer: true,
+            messagesInitialPeerId: r.isGroup ? null : r.conversationId,
+            messagesInitialGroupId: r.isGroup ? r.conversationId : null,
+            messagesInitialPeerName: r.peerName ?? null,
+            messagesInitialMessageId: r.messageId,
+        }))
+    },
 
     setShowAdminDrawer: (show) => set((s) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),

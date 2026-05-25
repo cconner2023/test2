@@ -22,16 +22,19 @@ interface MessagesDrawerProps {
     initialPeerId?: string | null
     initialGroupId?: string | null
     initialPeerName?: string | null
+    initialMessageId?: string | null
 }
 
-export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroupId, initialPeerName }: MessagesDrawerProps) {
+export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroupId, initialPeerName, initialMessageId }: MessagesDrawerProps) {
     const [view, setView] = useState<MessagesView>('messages')
     const [selectedPeerId, setSelectedPeerId] = useState<string | null>(null)
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
     const [selectedPeerName, setSelectedPeerName] = useState<string | null>(null)
+    const [pendingScrollMsgId, setPendingScrollMsgId] = useState<string | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
     const [showSettings, setShowSettings] = useState(false)
     const openSettings = useCallback(() => setShowSettings(true), [])
+    const handleScrollConsumed = useCallback(() => setPendingScrollMsgId(null), [])
 
     // Clear search when navigating between views (e.g., clicking a search result)
     useEffect(() => { setSearchQuery('') }, [view])
@@ -52,6 +55,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             setSelectedGroupId(initialGroupId)
             setSelectedPeerId(null)
             setSelectedPeerName(initialPeerName ?? 'Group')
+            setPendingScrollMsgId(initialMessageId ?? null)
             setView('messages-group-chat')
             return true
         }
@@ -59,15 +63,17 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             setSelectedPeerId(initialPeerId)
             setSelectedGroupId(null)
             setSelectedPeerName(initialPeerName ?? 'Chat')
+            setPendingScrollMsgId(initialMessageId ?? null)
             setView('messages-chat')
             return true
         }
         return false
-    }, [isVisible, initialPeerId, initialGroupId, initialPeerName])
+    }, [isVisible, initialPeerId, initialGroupId, initialPeerName, initialMessageId])
 
     const handleSelectPeer = useCallback((medic: ClinicMedic) => {
         setSelectedPeerId(medic.id)
         setSelectedGroupId(null)
+        setPendingScrollMsgId(null)
         const isSelf = medic.id === user?.id
         const name = isSelf
             ? [profile.rank, profile.lastName].filter(Boolean).join(' ') || profile.firstName || 'Notes'
@@ -79,6 +85,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     const handleSelectGroup = useCallback((group: GroupInfo) => {
         setSelectedGroupId(group.groupId)
         setSelectedPeerId(null)
+        setPendingScrollMsgId(null)
         setSelectedPeerName(group.name)
         setView('messages-group-chat')
     }, [])
@@ -89,6 +96,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             setSelectedPeerId(null)
             setSelectedPeerName(null)
             setSelectedGroupId(null)
+            setPendingScrollMsgId(null)
             // eslint-disable-next-line react-hooks/immutability
             if (activePeerRef) activePeerRef.current = null
         }
@@ -99,6 +107,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
         setSelectedPeerId(null)
         setSelectedPeerName(null)
         setSelectedGroupId(null)
+        setPendingScrollMsgId(null)
         // eslint-disable-next-line react-hooks/immutability
         if (activePeerRef) activePeerRef.current = null
         onClose()
@@ -133,6 +142,8 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             onSearchChange={setSearchQuery}
             onOpenSettings={isDevRole ? openSettings : undefined}
             tourVariant={isTourActive ? (isMobile ? 'mobile' : 'desktop') : undefined}
+            scrollToMessageId={pendingScrollMsgId}
+            onScrollConsumed={handleScrollConsumed}
         />
     )
 

@@ -483,7 +483,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     switch (treeSelection.type) {
       case 'all-personnel':
         return (
-          <div className={isMobile ? 'h-full overflow-y-auto px-4 py-3 pb-8' : 'px-5 py-5 pb-8'}>
+          <div className={isMobile ? 'h-full overflow-y-auto px-4 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)] pb-8' : 'px-5 py-5 pb-8'}>
             <TeamReporting
               metrics={teamMetrics}
               medics={medics}
@@ -537,6 +537,13 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     }
   }
 
+  // Glass-header offset for mobile scroll panes — content scrolls up behind the
+  // translucent header (var published by BaseDrawer). Desktop renders these in
+  // the right pane below an in-flow header, so it keeps the prior className.
+  const scrollPaneCls = isMobile
+    ? 'px-4 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)] pb-8 min-h-full'
+    : 'px-4 py-3 md:p-5 pb-8 min-h-full'
+
   const renderContent = () => {
     // Loading state
     if (loading) {
@@ -561,7 +568,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       case 'evaluate-select-task':
         return (
           <div className="h-full flex flex-col">
-            <div className="shrink-0 px-3 py-2">
+            <div className={isMobile ? 'shrink-0 px-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.5rem)] pb-2' : 'shrink-0 px-3 py-2'}>
               <SearchInput
                 value={taskSearchQuery}
                 onChange={setTaskSearchQuery}
@@ -585,7 +592,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
 
       case 'evaluate-go-nogo':
         return (
-          <ScrollPane className="px-4 py-3 md:p-5 pb-8 min-h-full">
+          <ScrollPane className={scrollPaneCls}>
             <EvaluateFlow
               soldier={view.soldier}
               taskNumber={view.taskNumber}
@@ -600,7 +607,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       case 'coverage-tasks': {
         const areaTasks = testableTaskMap.get(view.areaName) ?? []
         return (
-          <ScrollPane className="px-4 py-3 md:p-5 pb-8 min-h-full">
+          <ScrollPane className={scrollPaneCls}>
             <CoverageTasksView
               areaName={view.areaName}
               tasks={areaTasks}
@@ -617,7 +624,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
 
       case 'coverage-task-evaluate':
         return (
-          <ScrollPane className="px-4 py-3 md:p-5 pb-8 min-h-full">
+          <ScrollPane className={scrollPaneCls}>
             <EvaluateFlow
               soldier={view.soldier}
               taskNumber={view.taskNumber}
@@ -632,7 +639,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       case 'assign-task':
         return (
           <div className="h-full flex flex-col">
-            <div className="shrink-0 px-3 py-2">
+            <div className={isMobile ? 'shrink-0 px-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.5rem)] pb-2' : 'shrink-0 px-3 py-2'}>
               <SearchInput
                 value={taskSearchQuery}
                 onChange={setTaskSearchQuery}
@@ -656,7 +663,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       default:
         // all-personnel manages its own scroll/layout
         if (treeSelection.type === 'all-personnel') return renderTreeContent()
-        return <ScrollPane className="px-4 py-3 md:p-5 pb-8 min-h-full">{renderTreeContent()}</ScrollPane>
+        return <ScrollPane className={scrollPaneCls}>{renderTreeContent()}</ScrollPane>
     }
   }
 
@@ -695,6 +702,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         desktopWidth="w-[90%]"
         header={headerConfig}
         scrollDisabled
+        glassHeader={isMobile}
       >
         <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && canSwipeBack ? swipeHandlers : undefined}>
           <div className="h-full relative">

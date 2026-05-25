@@ -644,10 +644,17 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     // Render detail content (user/clinic) — shared by mobile (full-width) and
     // desktop (right pane).
+    // Glass-header offset for mobile detail panes (var published by BaseDrawer).
+    // Desktop detail renders in the right pane below an in-flow sub-header, so
+    // no offset — falls back to the prior default className.
+    const detailScrollCls = isMobile
+        ? 'px-4 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)] pb-8'
+        : 'px-4 py-3 md:p-5 pb-8'
+
     const renderDetailContent = () => {
         if (view === 'admin-user-detail') {
             return (
-                <ScrollPane>
+                <ScrollPane className={detailScrollCls}>
                     <AdminUserDetail
                         user={selectedUser}
                         onUserUpdated={(u) => setSelectedUser(u)}
@@ -666,7 +673,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         }
         if (view === 'admin-clinic-detail') {
             return (
-                <ScrollPane>
+                <ScrollPane className={detailScrollCls}>
                     <AdminClinicDetail
                         clinic={selectedClinic}
                         onClinicUpdated={(c) => setSelectedClinic(c)}
@@ -688,8 +695,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         }
         if (view === 'admin-location-detail') {
             return (
-                <ScrollPane>
-                    <div className="px-5 pt-4 pb-8">
+                <ScrollPane className={detailScrollCls}>
+                    <div className="px-5 pb-8">
                         <AdminLocationDetail
                             location={selectedLocation}
                             onLocationUpdated={(l) => setSelectedLocation(l)}
@@ -707,8 +714,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         }
         if (view === 'admin-system-conversation' && selectedSystemPeerId) {
             // ChatDetailView owns its own scroll; do NOT wrap in ScrollPane.
+            // On mobile the glass header floats over the top — offset the chat
+            // surface so its composer/messages clear the translucent header.
             return (
-                <div className="h-full">
+                <div className={isMobile ? 'h-full pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]' : 'h-full'}>
                     <AdminSystemConversationView
                         peerId={selectedSystemPeerId}
                         onBack={isMobile ? handleBack : undefined}
@@ -866,12 +875,14 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     const renderMainView = () => (
         isMobile ? (
-            // Mobile: inline primitive search bar above scrollable content
-            <div className="relative h-full flex flex-col">
-                <div className="shrink-0 px-3 py-2">
-                    <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
-                </div>
-                <div className="flex-1 min-h-0 overflow-y-auto">
+            // Mobile: search bar + list share one scroller whose top sits at the
+            // panel top (behind the glass header), so content scrolls UP behind
+            // the translucent header. Search bar's top padding clears the header.
+            <div className="relative h-full">
+                <div className="h-full overflow-y-auto overscroll-y-contain">
+                    <div className="px-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.5rem)] pb-2">
+                        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
+                    </div>
                     {searchQuery.trim() ? renderSearchResults() : renderTabLists()}
                 </div>
                 {bottomIsland}
@@ -897,6 +908,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             desktopWidth="w-[90%]"
             header={headerConfig}
             scrollDisabled
+            glassHeader={isMobile}
         >
             <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && view !== 'admin' ? swipeHandlers : undefined}>
                 <div className="h-full relative">

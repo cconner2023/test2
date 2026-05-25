@@ -1684,6 +1684,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
 
   const headerTitle = overlayName.trim() ? `Map · ${overlayName.trim()}` : 'Map';
 
+  // The map drawer HEADER owns the one real search input (mobile + desktop).
+  // On mobile, focusing it opens MapSearchOverlay (a results-only screen — it
+  // no longer renders its own input, which would double-bar under the header
+  // since the drawer's glassHeader content is `isolate`d and can't be covered).
   const searchInputEl = (
     <SearchInput
       value={searchQuery}
@@ -1712,7 +1716,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           rightContent: (
             <div className="flex items-center w-full gap-2">
               <HeaderPill>
-                <PillButton icon={Layers} onClick={() => setShowMobileTree(prev => !prev)} label="Overlays & settings" />
+                {searchFocused
+                  ? <PillButton icon={ChevronLeft} onClick={() => setSearchFocused(false)} label="Back" />
+                  : <PillButton icon={Layers} onClick={() => setShowMobileTree(prev => !prev)} label="Overlays & settings" />}
               </HeaderPill>
               <div className="flex-1 min-w-0">{searchInputEl}</div>
               <HeaderPill>
@@ -1750,9 +1756,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           <MapSearchOverlay
             isVisible={searchFocused}
             value={searchQuery}
-            onChange={setSearchQuery}
-            onSubmit={handleSearchSubmit}
-            onClose={() => setSearchFocused(false)}
             onSelect={handleSearchOverlaySelect}
             waypoints={[
               ...features.filter(f => f.type === 'waypoint'),
@@ -1932,7 +1935,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   onClose={() => setShowMobileTree(false)}
                   title="Overlays & settings"
                 >
-                  <div className="flex flex-col h-full min-h-0 overflow-auto">
+                  <div className="flex flex-col">
                     <section className="shrink-0">
                       <p className="px-4 pt-3 pb-1 text-[9pt] tracking-widest uppercase text-tertiary">Settings</p>
                       <MapSettingsBody
@@ -1971,8 +1974,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
               )}
 
               {/* ── Mobile: selected-feature editor as a SubDrawer. Peeks at 25%
-                  with no backdrop so the map stays visible/interactive; drag up
-                  to expand. X closes (clears selection). ── */}
+                  with no backdrop so the map stays visible/interactive; tap the
+                  grab handle to expand. X closes (clears selection). ── */}
               {isMobile && (
                 <SubDrawer
                   isVisible={!!selectedFeature}

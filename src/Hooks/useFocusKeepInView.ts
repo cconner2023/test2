@@ -32,16 +32,28 @@ export function useFocusKeepInView(
     const scrollPendingIntoView = () => {
       lockWindowScroll()
       const target = pendingTarget
-      if (!target || !document.contains(target)) return
+      if (!target || !container || !document.contains(target)) return
 
+      // Scroll the CONTAINER's own scrollTop — never call target.scrollIntoView.
+      // scrollIntoView walks up and scrolls every scrollable ancestor including
+      // the document; for an input inside a position:fixed drawer that does NOT
+      // reveal the input (the drawer is fixed) but DOES drag the drawer off the
+      // top of the viewport. Moving scrollTop here keeps the drawer chrome put.
       const vv = window.visualViewport
-      const viewTop = vv ? vv.offsetTop : 0
-      const viewBottom = vv ? vv.offsetTop + vv.height : window.innerHeight
-      const rect = target.getBoundingClientRect()
+      const keyboardTop = vv ? vv.offsetTop + vv.height : window.innerHeight
+      const containerRect = container.getBoundingClientRect()
+      const targetRect = target.getBoundingClientRect()
       const PAD = 24
 
-      if (rect.bottom > viewBottom - PAD || rect.top < viewTop + PAD) {
-        target.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      // Visible band available to the scroller: its own top down to whichever is
+      // higher — its own bottom or the top of the soft keyboard.
+      const visibleTop = containerRect.top
+      const visibleBottom = Math.min(containerRect.bottom, keyboardTop)
+
+      if (targetRect.bottom > visibleBottom - PAD) {
+        container.scrollTop += targetRect.bottom - (visibleBottom - PAD)
+      } else if (targetRect.top < visibleTop + PAD) {
+        container.scrollTop -= (visibleTop + PAD) - targetRect.top
       }
     }
 

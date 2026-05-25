@@ -193,7 +193,7 @@ export function MapOverlayTree({
                   dataTour={overlayIdx === 0 ? 'map-overlay-row' : undefined}
                   className={`group flex items-center gap-1.5 py-2 pr-3 transition-colors ${
                     isActive
-                      ? 'bg-primary/5 border-l-2 border-l-primary/40'
+                      ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
                       : 'hover:bg-secondary/5 border-l-2 border-l-transparent'
                   }`}
                   style={{ paddingLeft: '12px' }}
@@ -312,7 +312,9 @@ export function MapOverlayTree({
                       onClick={() => onSelectFeature(feature, overlay.id)}
                       onOpenMenu={(x, y) => setFeatureContextMenu({ overlayId: overlay.id, featureId: feature.id, x, y })}
                       className={`w-full flex items-center py-1.5 pr-3 text-left transition-colors ${
-                        isSelected ? 'bg-themeblue3/10' : 'hover:bg-secondary/5'
+                        isSelected
+                          ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
+                          : 'hover:bg-secondary/5 border-l-2 border-l-transparent'
                       }`}
                       style={{ paddingLeft: '46px' }}
                     >

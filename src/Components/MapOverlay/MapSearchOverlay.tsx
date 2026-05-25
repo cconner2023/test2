@@ -1,9 +1,10 @@
-/** Full-screen search overlay shown when the map search input is focused.
- *  Search bar + recent list + waypoints-from-overlays list. Mobile-first. */
+/** Map search RESULTS screen, shown while the map drawer header's search input
+ *  is focused. It renders the recents + waypoint lists only — the search INPUT
+ *  lives in the map drawer header (the single source of truth). This screen sits
+ *  BELOW that glass header (the drawer's content area is `isolate`d, so an
+ *  overlay here can't cover the header anyway) and clears it via top padding. */
 import { useMemo } from 'react'
-import { ChevronLeft, Clock, MapPin, Trash2 } from 'lucide-react'
-import { SearchInput } from '../SearchInput'
-import { HeaderPill, PillButton } from '../HeaderPill'
+import { Clock, MapPin, Trash2 } from 'lucide-react'
 import { Section, SectionCard } from '../Section'
 import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
@@ -23,10 +24,9 @@ export interface SearchOverlaySelection {
 
 interface MapSearchOverlayProps {
   isVisible: boolean
+  /** Current query — typed into the map header's SearchInput. Used here only to
+   *  filter the pins list and to tailor the empty-state hint. */
   value: string
-  onChange: (v: string) => void
-  onSubmit: () => void
-  onClose: () => void
   onSelect: (sel: SearchOverlaySelection) => void
   waypoints: OverlayFeature[]
 }
@@ -45,9 +45,6 @@ function timeAgo(ts: number): string {
 export function MapSearchOverlay({
   isVisible,
   value,
-  onChange,
-  onSubmit,
-  onClose,
   onSelect,
   waypoints,
 }: MapSearchOverlayProps) {
@@ -66,29 +63,12 @@ export function MapSearchOverlay({
 
   return (
     <div
-      className="fixed inset-0 z-[1020] bg-themewhite3 flex flex-col"
+      className="absolute inset-0 z-[1020] bg-themewhite3 overflow-y-auto"
       role="dialog"
-      aria-label="Map search"
+      aria-label="Map search results"
     >
-      {/* Header — back arrow + search input. Safe-area top padding mirrors
-          MessagesPanel / ChatDetailView so the search bar clears the iOS notch. */}
-      <div className="shrink-0 flex items-center gap-2 px-3 pb-2 pt-[max(0.5rem,var(--sat,0px))] border-b border-tertiary/10 bg-themewhite3">
-        <HeaderPill>
-          <PillButton icon={ChevronLeft} onClick={onClose} label="Back" />
-        </HeaderPill>
-        <div className="flex-1 min-w-0">
-          <SearchInput
-            value={value}
-            onChange={onChange}
-            onSubmit={onSubmit}
-            placeholder="Address, grid, lat/lng…"
-            autoFocus
-          />
-        </div>
-      </div>
-
-      {/* Body — scroll */}
-      <div className="flex-1 overflow-y-auto px-3 pt-4 pb-6">
+      {/* Body — top padding clears the drawer's floating glass header. */}
+      <div className="px-3 pb-6 pt-[calc(var(--drawer-header-h,3.5rem)+1rem)]">
         {/* Recents */}
         {recentSearches.length > 0 && (
           <Section title="Recent">
