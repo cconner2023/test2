@@ -5,10 +5,16 @@ import App from './App.tsx'
 import { checkSupabaseConnection } from './lib/supabase.ts'
 import { createLogger } from './Utilities/Logger.ts'
 import { initSW } from './lib/swService.ts'
+import { setupIOSViewport } from './lib/viewport/iosViewport.ts'
 
 // Register service worker immediately — before React mounts so update detection
 // works even when the user is on the login screen.
 initSW()
+
+// iOS Safari keyboard/scroll lock: position:fixed shell + visualViewport-driven
+// --vh. Must run before first paint so the document is locked from the start.
+// No-op off iOS. Pairs with the html.is-ios rules in App.css.
+setupIOSViewport()
 
 const logger = createLogger('App')
 

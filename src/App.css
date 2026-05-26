@@ -430,6 +430,33 @@ html {
   -webkit-overflow-scrolling: auto !important;
 }
 
+/* iOS Safari keyboard / scroll lock — driver in src/lib/viewport/iosViewport.ts.
+   position:fixed is the ONLY thing that stops iOS from scrolling the document to
+   a focused input (overflow:hidden does not) — that scroll is what flings fixed
+   drawers off the top. Height tracks the visual viewport via --vh so the keyboard
+   shrinks the app region. The transform on body makes it the containing block for
+   position:fixed drawers, so their `bottom:0` resolves to the visible (--vh)
+   region — above the keyboard — instead of the full layout viewport.
+   Scoped to html.is-ios; every other platform is untouched. */
+html.is-ios,
+html.is-ios body {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: calc(var(--vh, 1vh) * 100);
+  overflow: hidden;
+}
+
+html.is-ios body {
+  transform: translateZ(0);
+}
+
+html.is-ios #root {
+  height: 100%;
+}
+
 input, select, textarea {
   font-size: 16px !important; /* Minimum 16px prevents zoom on iOS */
 }
