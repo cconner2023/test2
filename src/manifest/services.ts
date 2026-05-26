@@ -317,13 +317,12 @@ export const services = {
   },
 
   // ─── WebRTC ────────────────────────────────────────────────────
-  'webrtc/callSignaling': {
-    path: 'lib/webrtc/callSignaling.ts',
+  'webrtc/callSignalBus': {
+    path: 'lib/webrtc/callSignalBus.ts',
     tables: { reads: [], writes: [] },
     idb: [],
-    exports: ['initiateCall', 'answerCall', 'declineCall', 'hangupCall',
-              'sendIceCandidate', 'buildChannelName'],
-    note: 'Uses Supabase Realtime Broadcast, not tables',
+    exports: ['onCallSignal', 'emitCallSignal'],
+    note: 'In-memory pub/sub bridging the Signal decrypt path (useSignalMessages) to useCall. Call signaling rides signal_messages as message_type=call-signal; no Realtime side-channel.',
   },
   'webrtc/webrtcService': {
     path: 'lib/webrtc/webrtcService.ts',
@@ -331,12 +330,6 @@ export const services = {
     idb: [],
     exports: ['createPeerConnection', 'addLocalStream', 'addRemoteStream',
               'setMute', 'setVideoEnabled'],
-  },
-  'webrtc/signalingCrypto': {
-    path: 'lib/webrtc/signalingCrypto.ts',
-    tables: { reads: [], writes: [] },
-    idb: [],
-    exports: ['createSignalingCrypto', 'encryptSignaling', 'decryptSignaling'],
   },
 
   // ─── Caching ───────────────────────────────────────────────────

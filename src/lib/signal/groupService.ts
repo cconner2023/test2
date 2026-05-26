@@ -95,3 +95,27 @@ export async function removeGroupMember(groupId: string, userId: string): Promis
     'removeGroupMember', logger,
   )
 }
+
+/** Promote a member to primary (DB role 'admin'). Caller must be a primary. */
+export async function promoteGroupMember(groupId: string, userId: string): Promise<Result<void>> {
+  return callRpc(
+    () => supabase.rpc('promote_group_member', { p_group_id: groupId, p_user_id: userId }),
+    'promoteGroupMember', logger,
+  )
+}
+
+/** Demote a primary back to member. Refuses to demote the last primary. */
+export async function demoteGroupMember(groupId: string, userId: string): Promise<Result<void>> {
+  return callRpc(
+    () => supabase.rpc('demote_group_member', { p_group_id: groupId, p_user_id: userId }),
+    'demoteGroupMember', logger,
+  )
+}
+
+/** Purge the entire group — deletes its messages and the group itself. Primary only. */
+export async function purgeGroup(groupId: string): Promise<Result<void>> {
+  return callRpc(
+    () => supabase.rpc('purge_message_group', { p_group_id: groupId }),
+    'purgeGroup', logger,
+  )
+}

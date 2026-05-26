@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback } from 'react'
-import { X, UserPlus, UserMinus, LogOut, Pencil, Check, Mail, Hash, Send } from 'lucide-react'
+import { X, UserPlus, UserMinus, LogOut, Pencil, Check, Mail, Hash, Send, ShieldCheck, ShieldOff, Trash2 } from 'lucide-react'
 import { UserAvatar } from './UserAvatar'
 import { PreviewOverlay } from '../PreviewOverlay'
+import { ConfirmDialog } from '../ConfirmDialog'
 import { supabase } from '../../lib/supabase'
 import { useMessagingStore } from '../../stores/useMessagingStore'
 import { getMemberProfile } from '../../lib/supervisorService'
 import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
+
+type ActionResult = { ok: boolean; error?: string }
 
 interface GroupInfoPanelProps {
   isOpen: boolean
@@ -18,6 +21,9 @@ interface GroupInfoPanelProps {
   onRename: (groupId: string, name: string) => Promise<void>
   onAddMember: (groupId: string, userId: string) => Promise<void>
   onRemoveMember: (groupId: string, userId: string) => Promise<void>
+  onPromoteMember: (groupId: string, userId: string) => Promise<ActionResult>
+  onDemoteMember: (groupId: string, userId: string) => Promise<ActionResult>
+  onPurge: (groupId: string) => Promise<ActionResult>
   fetchMembers: (groupId: string) => Promise<GroupMember[]>
 }
 
@@ -42,6 +48,9 @@ export function GroupInfoPanel({
   onRename,
   onAddMember,
   onRemoveMember,
+  onPromoteMember,
+  onDemoteMember,
+  onPurge,
   fetchMembers,
 }: GroupInfoPanelProps) {
   const [members, setMembers] = useState<GroupMember[]>([])
@@ -52,13 +61,18 @@ export function GroupInfoPanel({
   const [lookupValue, setLookupValue] = useState('')
   const [lookupError, setLookupError] = useState<string | null>(null)
   const [lookupLoading, setLookupLoading] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [confirmPurge, setConfirmPurge] = useState(false)
 
-  const isAdmin = members.some(m => m.userId === userId && m.role === 'admin')
+  const isPrimary = members.some(m => m.userId === userId && m.role === 'admin')
+  const primaryCount = members.filter(m => m.role === 'admin').length
   const memberIds = new Set(members.map(m => m.userId))
 
   useEffect(() => {
     if (!isOpen) return
     fetchMembers(group.groupId).then(setMembers)
+    setActionError(null)
+    setConfirmPurge(false)
   }, [isOpen, group.groupId, fetchMembers])
 
   const handleRename = useCallback(async () => {
@@ -81,6 +95,27 @@ export function GroupInfoPanel({
     const refreshed = await fetchMembers(group.groupId)
     setMembers(refreshed)
   }, [group.groupId, onRemoveMember, fetchMembers])
+
+  const handlePromote = useCallback(async (memberId: string) => {
+    setActionError(null)
+    const res = await onPromoteMember(group.groupId, memberId)
+    if (!res.ok) { setActionError(res.error ?? 'Could not promote'); return }
+    setMembers(await fetchMembers(group.groupId))
+  }, [group.groupId, onPromoteMember, fetchMembers])
+
+  const handleDemote = useCallback(async (memberId: string) => {
+    setActionError(null)
+    const res = await onDemoteMember(group.groupId, memberId)
+    if (!res.ok) { setActionError(res.error ?? 'Could not demote'); return }
+    setMembers(await fetchMembers(group.groupId))
+  }, [group.groupId, onDemoteMember, fetchMembers])
+
+  const handlePurge = useCallback(async () => {
+    setActionError(null)
+    const res = await onPurge(group.groupId)
+    if (!res.ok) { setActionError(res.error ?? 'Could not purge'); setConfirmPurge(false) }
+    // on success the parent navigates away and this panel unmounts
+  }, [group.groupId, onPurge])
 
   const closeAddPicker = useCallback(() => {
     setShowAddPicker(false)
@@ -157,11 +192,19 @@ export function GroupInfoPanel({
       title="Group Info"
       previewMaxHeight="55dvh"
       actions={[
+        ...(isPrimary ? [{
+          key: 'purge',
+          label: 'Purge group',
+          icon: Trash2,
+          variant: 'danger' as const,
+          closesOnAction: false,
+          onAction: () => setConfirmPurge(true),
+        }] : []),
         {
           key: 'leave',
           label: 'Leave',
           icon: LogOut,
-          variant: 'danger',
+          variant: 'danger' as const,
           onAction: () => onLeave(group.groupId),
         },
       ]}
@@ -190,7 +233,7 @@ export function GroupInfoPanel({
           ) : (
             <>
               <p className="flex-1 text-base font-medium text-primary">{group.name}</p>
-              {isAdmin && (
+              {isPrimary && (
                 <button onClick={() => setEditingName(true)} className="p-1.5 rounded-full hover:bg-primary/5">
                   <Pencil size={14} className="text-tertiary" />
                 </button>
@@ -203,7 +246,7 @@ export function GroupInfoPanel({
         <div className="px-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10pt] text-tertiary">{members.length} members</p>
-            {isAdmin && (
+            {isPrimary && (
               <button
                 onClick={() => showAddPicker ? closeAddPicker() : setShowAddPicker(true)}
                 className="flex items-center gap-1 text-[10pt] text-themeblue2 hover:text-themeblue2/80"
@@ -213,6 +256,10 @@ export function GroupInfoPanel({
               </button>
             )}
           </div>
+
+          {actionError && (
+            <p className="mb-2 text-[10pt] text-themeredred">{actionError}</p>
+          )}
 
           {/* Add member picker */}
           {showAddPicker && (
@@ -300,20 +347,55 @@ export function GroupInfoPanel({
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-primary truncate">{getMemberName(member)}</p>
                 {member.role === 'admin' && (
-                  <span className="text-[9pt] text-themeblue2 font-medium">Admin</span>
+                  <span className="text-[9pt] text-themeblue2 font-medium">Primary</span>
                 )}
               </div>
-              {isAdmin && member.userId !== userId && (
-                <button
-                  onClick={() => handleRemoveMember(member.userId)}
-                  className="p-1.5 rounded-full hover:bg-themeredred/10 active:scale-95 transition-all"
-                >
-                  <UserMinus size={14} className="text-red-400" />
-                </button>
+              {isPrimary && (
+                <div className="flex items-center gap-0.5 shrink-0">
+                  {member.role === 'admin' ? (
+                    // Demote — hidden for the last primary (can't strand the group)
+                    primaryCount > 1 && (
+                      <button
+                        onClick={() => handleDemote(member.userId)}
+                        title="Remove primary"
+                        className="p-1.5 rounded-full hover:bg-primary/5 active:scale-95 transition-all"
+                      >
+                        <ShieldOff size={14} className="text-tertiary" />
+                      </button>
+                    )
+                  ) : (
+                    <button
+                      onClick={() => handlePromote(member.userId)}
+                      title="Make primary"
+                      className="p-1.5 rounded-full hover:bg-themeblue2/10 active:scale-95 transition-all"
+                    >
+                      <ShieldCheck size={14} className="text-themeblue2" />
+                    </button>
+                  )}
+                  {member.userId !== userId && (
+                    <button
+                      onClick={() => handleRemoveMember(member.userId)}
+                      title="Remove from group"
+                      className="p-1.5 rounded-full hover:bg-themeredred/10 active:scale-95 transition-all"
+                    >
+                      <UserMinus size={14} className="text-red-400" />
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           ))}
           </div>
+
+          <ConfirmDialog
+            visible={confirmPurge}
+            title="Purge this group?"
+            subtitle="Deletes the conversation and all its messages for everyone. This can't be undone."
+            confirmLabel="Purge"
+            variant="danger"
+            onConfirm={handlePurge}
+            onCancel={() => setConfirmPurge(false)}
+          />
         </div>
       }
     />

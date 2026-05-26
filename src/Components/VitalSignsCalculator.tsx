@@ -214,7 +214,8 @@ export const VitalSignsCalculator = forwardRef<VitalSignsCalculatorHandle, Vital
     ]
 
     if (bmiInfo && bmiCategory) {
-        cells.push({
+        // BMI is derived from Ht/Wt — slot it in just above LMP (the trailing date cell)
+        cells.splice(cells.length - 1, 0, {
             key: 'bmi', label: 'BMI',
             hint: { text: bmiCategory.label, color: bmiCategory.color },
             input: <span className={`text-sm font-medium ${bmiCategory.color}`}>{bmiInfo.display}</span>,

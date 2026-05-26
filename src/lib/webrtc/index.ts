@@ -9,13 +9,6 @@ export type {
   CallDirection,
   CallMode,
   CallPeer,
-  SignalingEvent,
-  CallOfferPayload,
-  CallAnswerPayload,
-  IceCandidatePayload,
-  CallHangupPayload,
-  CallDeclinePayload,
-  SignalingPayload,
 } from './types'
 
 export { RTC_CONFIG, RING_TIMEOUT_MS } from './types'
@@ -25,17 +18,7 @@ export { RTC_CONFIG, RING_TIMEOUT_MS } from './types'
 export type { WebRTCService, WebRTCCallbacks } from './webrtcService'
 export { createWebRTCService } from './webrtcService'
 
-// ---- Signaling ----
+// ---- Call signaling (rides the Signal message transport — see callSignalBus) ----
 
-export type { CallSignaling } from './callSignaling'
-export {
-  buildChannelName,
-  createCallSignaling,
-  listenForIncomingCalls,
-  sendCallOffer,
-} from './callSignaling'
-
-// ---- Signaling Crypto ----
-
-export type { SignalingCrypto } from './signalingCrypto'
-export { createSignalingCrypto } from './signalingCrypto'
+export type { CallSignalKind, CallSignalBody, IncomingCallSignal } from './callSignalBus'
+export { onCallSignal, emitCallSignal } from './callSignalBus'

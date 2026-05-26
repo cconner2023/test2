@@ -20,6 +20,7 @@ export type SignalMessageType =
   | 'sender-key-message'        // Group message encrypted with sender key (pre-encrypted, no Double Ratchet)
   | 'clinic-vault'              // Clinic entity shared-key message (symmetric AES, no Signal session required)
   | 'system'                    // System-authored notice (dev-only insert; renders as centered card, no reply)
+  | 'call-signal'               // WebRTC call signaling (offer/answer/ice/hangup/decline) — control-plane, never user-visible, decrypted-through-session like sender-key-distribution
 
 // ---- Device Hierarchy ----
 

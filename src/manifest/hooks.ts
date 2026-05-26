@@ -57,7 +57,7 @@ export const hooks = {
   useClinicNameResolver:  { path: 'Hooks/useClinicNameResolver.ts',  stores: [], services: ['supabase'], purpose: 'Resolve clinic name from ID with module-level cache' },
 
   // ─── Calls ─────────────────────────────────────────────────────
-  useCall:                { path: 'Hooks/useCall.ts',                stores: ['useCallStore', 'useAuthStore'], services: ['webrtc/webrtcService', 'webrtc/callSignaling'], purpose: 'WebRTC call orchestration (audio & video)' },
+  useCall:                { path: 'Hooks/useCall.ts',                stores: ['useCallStore', 'useAuthStore'], services: ['webrtc/webrtcService', 'webrtc/callSignalBus'], purpose: 'WebRTC call orchestration (audio & video). Signaling rides the Signal transport (useMessagesContext.sendCallSignal + onCallSignal); session = call auth gate.' },
 
   // ─── LoRa ──────────────────────────────────────────────────────
   useLoRaStatus:          { path: 'Hooks/useLoRaStatus.ts',          stores: [], services: ['signal/signalService', 'lora/types'], purpose: 'Reactive LoRa mesh connection state and stats polling' },

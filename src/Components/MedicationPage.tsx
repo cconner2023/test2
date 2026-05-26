@@ -1,13 +1,9 @@
-import { Pin } from 'lucide-react'
 import type { medListTypes } from "../Data/MedData"
 import { Section, SectionCard } from './Section'
-import { ActionPill } from './ActionPill'
 
 interface MedicationPageProps {
     medication: medListTypes
     onBack?: () => void
-    isFavorite?: boolean
-    onToggleFavorite?: () => void
 }
 
 function IconList({ items }: { items: Array<{ icon: string; text: string }> }) {
@@ -81,27 +77,9 @@ export function MedicationSections({ medication }: { medication: medListTypes })
     )
 }
 
-export function MedicationPage({ medication, isFavorite, onToggleFavorite }: MedicationPageProps) {
+export function MedicationPage({ medication }: MedicationPageProps) {
     return (
         <div className="flex flex-col h-full w-full">
-            {onToggleFavorite && (
-                <div className="flex justify-end px-4 pt-2">
-                    <ActionPill>
-                        <button
-                            type="button"
-                            onClick={onToggleFavorite}
-                            aria-label={isFavorite ? 'Unpin' : 'Pin'}
-                            title={isFavorite ? 'Unpin' : 'Pin'}
-                            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
-                                isFavorite ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
-                            }`}
-                        >
-                            <Pin className="w-4 h-4" />
-                        </button>
-                    </ActionPill>
-                </div>
-            )}
-
             <div className="flex-1 overflow-y-auto px-4 py-3 pb-12">
                 <MedicationSections medication={medication} />
             </div>

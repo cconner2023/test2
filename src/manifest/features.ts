@@ -206,8 +206,8 @@ export const features = {
   calls: {
     label: 'Voice & Video Calls (WebRTC)',
     store: 'useCallStore',
-    services: ['webrtc/webrtcService', 'webrtc/callSignaling', 'webrtc/signalingCrypto'],
-    tables: [], // signaling via Supabase Realtime Broadcast, no tables
+    services: ['webrtc/webrtcService', 'webrtc/callSignalBus'],
+    tables: ['signal_messages'], // signaling rides signal_messages as message_type='call-signal' (Signal session = the call authorization gate); media is DTLS-SRTP P2P
     idb: [],
     components: 'Components/Settings/CallOverlay.tsx',
     drawer: null, // overlay

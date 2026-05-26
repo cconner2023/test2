@@ -119,11 +119,7 @@ export function MedicationContent({
     if (selectedMedication) {
         return (
             <div className="px-4 pb-4">
-                <MedicationPage
-                    medication={selectedMedication}
-                    isFavorite={pinnedKB.includes('med:' + selectedMedication.icon)}
-                    onToggleFavorite={() => togglePinKB('med:' + selectedMedication.icon)}
-                />
+                <MedicationPage medication={selectedMedication} />
             </div>
         )
     }

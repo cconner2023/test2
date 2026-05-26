@@ -787,6 +787,9 @@ function GroupChatDetail({
   renameGroup,
   addGroupMember,
   removeGroupMember,
+  promoteGroupMember,
+  demoteGroupMember,
+  purgeGroup,
   fetchGroupMembers,
   unavailableIds,
   showGroupInfo,
@@ -811,6 +814,9 @@ function GroupChatDetail({
   renameGroup: (groupId: string, name: string) => Promise<void>
   addGroupMember: (groupId: string, userId: string) => Promise<void>
   removeGroupMember: (groupId: string, userId: string) => Promise<void>
+  promoteGroupMember: (groupId: string, userId: string) => Promise<{ ok: boolean; error?: string }>
+  demoteGroupMember: (groupId: string, userId: string) => Promise<{ ok: boolean; error?: string }>
+  purgeGroup: (groupId: string) => Promise<{ ok: boolean; error?: string }>
   fetchGroupMembers: (groupId: string) => Promise<GroupMember[]>
   unavailableIds: Map<string, UnavailableReason>
   showGroupInfo: boolean
@@ -872,6 +878,12 @@ function GroupChatDetail({
     onBack?.()
   }, [leaveGroup, onBack])
 
+  const handlePurge = useCallback(async (gid: string) => {
+    const res = await purgeGroup(gid)
+    if (res.ok) onBack?.()
+    return res
+  }, [purgeGroup, onBack])
+
   const mobileHeader = (
     <div className="md:hidden shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center">
       <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
@@ -926,6 +938,9 @@ function GroupChatDetail({
         onRename={renameGroup}
         onAddMember={addGroupMember}
         onRemoveMember={removeGroupMember}
+        onPromoteMember={promoteGroupMember}
+        onDemoteMember={demoteGroupMember}
+        onPurge={handlePurge}
         fetchMembers={fetchGroupMembers}
       />
     </ChatDetailView>
@@ -1211,6 +1226,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     deleteConversation,
     getRequestStatusForPeer, sendGroupMessage, sendGroupImage, sendGroupVoice,
     createGroup, leaveGroup, renameGroup, addGroupMember, removeGroupMember,
+    promoteGroupMember, demoteGroupMember, purgeGroup,
     fetchGroupMembers, fetchGroupHistory,
   } = messagesCtx
 
@@ -1243,6 +1259,9 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         renameGroup={renameGroup}
         addGroupMember={addGroupMember}
         removeGroupMember={removeGroupMember}
+        promoteGroupMember={promoteGroupMember}
+        demoteGroupMember={demoteGroupMember}
+        purgeGroup={purgeGroup}
         fetchGroupMembers={fetchGroupMembers}
         unavailableIds={unavailableIds}
         showGroupInfo={showGroupInfo}

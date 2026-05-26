@@ -2,23 +2,25 @@
  * useCall — Orchestration hook for WebRTC calls (audio & video).
  *
  * Mounted once via CallProvider. Manages the full call lifecycle:
- * signaling subscription, WebRTC setup, media playback, and cleanup.
+ * signaling, WebRTC setup, media playback, and cleanup.
+ *
+ * Signaling rides the SIGNAL MESSAGE TRANSPORT (message_type='call-signal'),
+ * not an open Realtime side-channel. The Signal session is the authorization
+ * gate — a call can only be placed to a peer we can establish a session with.
+ * Outgoing signals go via useMessagesContext().sendCallSignal; incoming signals
+ * arrive (decrypted) on the callSignalBus, fed by useSignalMessages.decryptRow.
+ * Media (DTLS-SRTP) is unchanged.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from './useAuth'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useCallStore } from '../stores/useCallStore'
+import { useMessagesContext } from './MessagesContext'
 import { createWebRTCService, type WebRTCService } from '../lib/webrtc/webrtcService'
-import {
-  createCallSignaling,
-  listenForIncomingCalls,
-  sendCallOffer,
-  buildChannelName,
-  type CallSignaling,
-} from '../lib/webrtc/callSignaling'
+import { onCallSignal, type IncomingCallSignal, type CallSignalBody } from '../lib/webrtc/callSignalBus'
 import { RING_TIMEOUT_MS } from '../lib/webrtc/types'
-import type { CallMode, CallPeer, CallOfferPayload, SignalingPayload } from '../lib/webrtc/types'
+import type { CallMode, CallPeer } from '../lib/webrtc/types'
 import { createLogger } from '../Utilities/Logger'
 
 const logger = createLogger('UseCall')
@@ -39,10 +41,20 @@ export function useCall(): CallActions {
   const { user } = useAuth()
   const userId = user?.id ?? null
 
-  const signalingRef = useRef<CallSignaling | null>(null)
+  const messages = useMessagesContext()
+  // Stable ref to the send fn so callbacks/subscriptions don't re-bind on every render.
+  const sendCallSignalRef = useRef(messages?.sendCallSignal ?? null)
+  useEffect(() => {
+    sendCallSignalRef.current = messages?.sendCallSignal ?? null
+  }, [messages?.sendCallSignal])
+
   const webrtcRef = useRef<WebRTCService | null>(null)
   const ringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pendingOfferRef = useRef<CallOfferPayload | null>(null)
+  const pendingOfferRef = useRef<IncomingCallSignal | null>(null)
+  /** The active call's id — scopes incoming signals; stale-call signals are ignored. */
+  const activeCallIdRef = useRef<string | null>(null)
+  /** The peer userId we address outgoing signals to. */
+  const peerIdRef = useRef<string | null>(null)
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
@@ -67,6 +79,17 @@ export function useCall(): CallActions {
     }
   }, [])
 
+  // ── Outgoing signal helper ────────────────────────────────────────────────
+
+  const emit = useCallback((peerId: string, body: CallSignalBody) => {
+    const send = sendCallSignalRef.current
+    if (!send) {
+      logger.warn('Cannot send call signal — messaging not ready')
+      return
+    }
+    send(peerId, body).catch((err) => logger.warn('Call signal send failed:', err))
+  }, [])
+
   // ── Cleanup helper ──────────────────────────────────────────────────────
 
   const cleanupCall = useCallback(() => {
@@ -76,9 +99,9 @@ export function useCall(): CallActions {
     }
     webrtcRef.current?.cleanup()
     webrtcRef.current = null
-    signalingRef.current?.leave()
-    signalingRef.current = null
     pendingOfferRef.current = null
+    peerIdRef.current = null
+    activeCallIdRef.current = null
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = null
     }
@@ -94,7 +117,9 @@ export function useCall(): CallActions {
 
     const stream = await svc.init({
       onIceCandidate: (candidate) => {
-        signalingRef.current?.sendIceCandidate(candidate)
+        const pid = peerIdRef.current
+        const cid = activeCallIdRef.current
+        if (pid && cid) emit(pid, { callId: cid, k: 'ice', cand: candidate })
       },
       onTrack: (remote) => {
         setRemoteStream(remote)
@@ -114,88 +139,84 @@ export function useCall(): CallActions {
 
     setLocalStream(stream)
     return svc
-  }, [cleanupCall])
+  }, [cleanupCall, emit])
 
-  // ── Signaling message handler ───────────────────────────────────────────
-
-  const handleSignalingMessage = useCallback((payload: SignalingPayload) => {
-    const store = useCallStore.getState()
-
-    switch (payload.event) {
-      case 'call-answer':
-        logger.info('Received call answer')
-        store.setConnecting()
-        webrtcRef.current?.handleAnswer(payload.answer).catch((err) => {
-          logger.error('Failed to handle answer:', err)
-          store.endCall('Failed to connect')
-          cleanupCall()
-        })
-        break
-
-      case 'ice-candidate':
-        webrtcRef.current?.addIceCandidate(payload.candidate).catch(() => {})
-        break
-
-      case 'call-hangup':
-        logger.info('Peer hung up')
-        store.endCall('Peer hung up')
-        cleanupCall()
-        break
-
-      case 'call-decline':
-        logger.info('Peer declined')
-        store.endCall('Call declined')
-        cleanupCall()
-        break
-
-      default:
-        break
-    }
-  }, [cleanupCall])
-
-  // ── Listen for incoming calls (always on when authenticated) ────────────
+  // ── Incoming signal subscription (always on when authenticated) ───────────
 
   useEffect(() => {
     if (!userId) return
 
-    const cleanup = listenForIncomingCalls(userId, (offerPayload) => {
+    const unsub = onCallSignal((sig) => {
       const store = useCallStore.getState()
 
-      // Ignore if already in a call
-      if (store.status !== 'idle') {
-        logger.warn('Ignoring incoming call — already in a call')
+      // A fresh offer = an incoming call.
+      if (sig.k === 'offer') {
+        if (store.status !== 'idle') {
+          logger.warn('Ignoring incoming call — already in a call')
+          return
+        }
+        logger.info('Incoming call from', sig.callerName)
+        activeCallIdRef.current = sig.callId
+        peerIdRef.current = sig.senderId
+        pendingOfferRef.current = sig
+
+        store.startRinging('incoming', {
+          userId: sig.senderId,
+          displayName: sig.callerName ?? 'Unknown',
+        }, sig.mode ?? 'audio')
+
+        // Auto-decline after timeout
+        ringTimeoutRef.current = setTimeout(() => {
+          const current = useCallStore.getState()
+          if (current.status === 'ringing' && current.direction === 'incoming') {
+            emit(sig.senderId, { callId: sig.callId, k: 'decline' })
+            current.endCall('No answer')
+            cleanupCall()
+          }
+        }, RING_TIMEOUT_MS)
         return
       }
 
-      logger.info('Incoming call from', offerPayload.callerName)
-      pendingOfferRef.current = offerPayload
+      // Everything else must match the active call (ignore stale/replayed rows).
+      if (!activeCallIdRef.current || sig.callId !== activeCallIdRef.current) return
 
-      store.startRinging('incoming', {
-        userId: offerPayload.callerId,
-        displayName: offerPayload.callerName,
-      }, offerPayload.callMode ?? 'audio')
+      switch (sig.k) {
+        case 'answer':
+          if (!sig.sdp) break
+          logger.info('Received call answer')
+          store.setConnecting()
+          webrtcRef.current?.handleAnswer(sig.sdp).catch((err) => {
+            logger.error('Failed to handle answer:', err)
+            store.endCall('Failed to connect')
+            cleanupCall()
+          })
+          break
 
-      // Auto-decline after timeout
-      ringTimeoutRef.current = setTimeout(() => {
-        const current = useCallStore.getState()
-        if (current.status === 'ringing' && current.direction === 'incoming') {
-          // Join the pairwise channel briefly to send decline
-          const sig = createCallSignaling(offerPayload.pairwiseChannel)
-          sig.join(() => {})
-          setTimeout(() => {
-            sig.sendDecline()
-            setTimeout(() => sig.leave(), 500)
-          }, 500)
-          current.endCall('No answer')
+        case 'ice':
+          if (sig.cand) webrtcRef.current?.addIceCandidate(sig.cand).catch(() => {})
+          break
+
+        case 'hangup':
+          logger.info('Peer hung up')
+          store.endCall('Peer hung up')
           cleanupCall()
-        }
-      }, RING_TIMEOUT_MS)
+          break
+
+        case 'decline':
+          logger.info('Peer declined')
+          store.endCall('Call declined')
+          cleanupCall()
+          break
+
+        default:
+          break
+      }
     })
 
-    return cleanup
-  }, [userId, cleanupCall])
+    return unsub
+  }, [userId, cleanupCall, emit])
 
-  // ── Sync mute state to WebRTC ───────────────────────────────────────────
+  // ── Sync mute / video state to WebRTC ─────────────────────────────────────
 
   const isMuted = useCallStore((s) => s.isMuted)
   useEffect(() => {
@@ -211,6 +232,10 @@ export function useCall(): CallActions {
 
   const startCallInternal = useCallback((peer: CallPeer, mode: CallMode) => {
     if (!userId) return
+    if (!sendCallSignalRef.current) {
+      logger.warn('Cannot start call — messaging not ready')
+      return
+    }
     const store = useCallStore.getState()
     if (store.status !== 'idle') {
       logger.warn('Cannot start call — already in a call')
@@ -218,20 +243,16 @@ export function useCall(): CallActions {
     }
 
     const video = mode === 'video'
-    const pairwiseChannel = buildChannelName(userId, peer.userId)
+    const callId = crypto.randomUUID()
+    activeCallIdRef.current = callId
+    peerIdRef.current = peer.userId
 
     store.startRinging('outgoing', peer, mode)
 
-    // Join pairwise channel first so we can receive answer/ICE
-    const sig = createCallSignaling(pairwiseChannel)
-    signalingRef.current = sig
-    sig.join(handleSignalingMessage)
-
-    // Init WebRTC, create offer, send to peer (with ephemeral key for encryption)
+    // Init WebRTC, create offer, send to peer over the Signal session.
     initWebRTC(video).then(async (svc) => {
       const offer = await svc.createOffer()
-      const ephemeralKey = await sig.getEphemeralKey()
-      await sendCallOffer(userId, callerNameRef.current, peer.userId, offer, pairwiseChannel, ephemeralKey, mode)
+      emit(peer.userId, { callId, k: 'offer', sdp: offer, mode, callerName: callerNameRef.current })
       logger.info('Outgoing call started to', peer.displayName)
 
       // Ring timeout
@@ -247,7 +268,7 @@ export function useCall(): CallActions {
       store.endCall(video ? 'Camera/microphone access denied' : 'Microphone access denied')
       cleanupCall()
     })
-  }, [userId, initWebRTC, handleSignalingMessage, cleanupCall])
+  }, [userId, initWebRTC, cleanupCall, emit])
 
   const startCall = useCallback((peer: CallPeer) => {
     startCallInternal(peer, 'audio')
@@ -259,12 +280,13 @@ export function useCall(): CallActions {
 
   const acceptCall = useCallback(() => {
     const offer = pendingOfferRef.current
-    if (!offer) {
+    if (!offer || !offer.sdp) {
       logger.warn('No pending offer to accept')
       return
     }
 
-    const video = (offer.callMode ?? 'audio') === 'video'
+    const video = (offer.mode ?? 'audio') === 'video'
+    const offerSdp = offer.sdp
 
     if (ringTimeoutRef.current) {
       clearTimeout(ringTimeoutRef.current)
@@ -273,19 +295,10 @@ export function useCall(): CallActions {
 
     useCallStore.getState().setConnecting()
 
-    // Join pairwise channel
-    const sig = createCallSignaling(offer.pairwiseChannel)
-    signalingRef.current = sig
-    // Set caller's ephemeral key for signaling encryption
-    if (offer.ephemeralKey) {
-      sig.setPeerEphemeralKey(offer.ephemeralKey)
-    }
-    sig.join(handleSignalingMessage)
-
-    // Init WebRTC, handle the offer, send answer (with our ephemeral key)
+    // peerIdRef + activeCallIdRef were set when the offer arrived.
     initWebRTC(video).then(async (svc) => {
-      const answer = await svc.handleOffer(offer.offer)
-      sig.sendAnswer(answer)
+      const answer = await svc.handleOffer(offerSdp)
+      emit(offer.senderId, { callId: offer.callId, k: 'answer', sdp: answer })
       pendingOfferRef.current = null
       logger.info('Call accepted')
     }).catch((err) => {
@@ -293,28 +306,24 @@ export function useCall(): CallActions {
       useCallStore.getState().endCall(video ? 'Camera/microphone access denied' : 'Microphone access denied')
       cleanupCall()
     })
-  }, [initWebRTC, handleSignalingMessage, cleanupCall])
+  }, [initWebRTC, cleanupCall, emit])
 
   const declineCall = useCallback(() => {
     const offer = pendingOfferRef.current
     if (offer) {
-      // Join pairwise channel briefly to send decline
-      const sig = createCallSignaling(offer.pairwiseChannel)
-      sig.join(() => {})
-      setTimeout(() => {
-        sig.sendDecline()
-        setTimeout(() => sig.leave(), 500)
-      }, 500)
+      emit(offer.senderId, { callId: offer.callId, k: 'decline' })
     }
     useCallStore.getState().endCall('Call declined')
     cleanupCall()
-  }, [cleanupCall])
+  }, [cleanupCall, emit])
 
   const hangUp = useCallback(() => {
-    signalingRef.current?.sendHangup()
+    const pid = peerIdRef.current
+    const cid = activeCallIdRef.current
+    if (pid && cid) emit(pid, { callId: cid, k: 'hangup' })
     useCallStore.getState().endCall('Call ended')
     cleanupCall()
-  }, [cleanupCall])
+  }, [cleanupCall, emit])
 
   const toggleMute = useCallback(() => {
     useCallStore.getState().toggleMute()

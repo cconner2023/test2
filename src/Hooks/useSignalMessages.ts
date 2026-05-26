@@ -29,6 +29,7 @@ import type { SignalMessageRow, DecryptedSignalMessage } from '../lib/signal/tra
 import type { SyncMessagePayload } from '../lib/signal/transportTypes'
 import type { SenderKeyMessage, SenderKeyDistribution } from '../lib/signal/types'
 import { parseMessageContent, type IntakeRequestContent } from '../lib/signal/messageContent'
+import { emitCallSignal, type CallSignalBody } from '../lib/webrtc/callSignalBus'
 import { isCalendarEvent, routeCalendarEvent } from '../lib/calendarRouting'
 import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature } from '../lib/mapOverlayRouting'
 import { errorBus } from '../lib/errorBus'
@@ -290,6 +291,23 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
       return null
     }
 
+    // Call signaling: WebRTC offer/answer/ICE/hangup/decline ride the pairwise
+    // session as control-plane (mirrors sender-key-distribution). Decrypt, route
+    // to the call layer via the bus, and never surface as a chat message.
+    if (row.message_type === 'call-signal') {
+      try {
+        const { plaintext: rawPlaintext, senderUuid } = await processIncomingMessage(
+          senderDeviceId, envelope, myUuid
+        )
+        const body = JSON.parse(rawPlaintext) as CallSignalBody
+        emitCallSignal({ ...body, senderId: senderUuid })
+      } catch (e) {
+        logger.warn(`Failed to process call-signal ${row.id}:`, e instanceof Error ? e.message : e)
+      }
+      // Never user-visible.
+      return null
+    }
+
     // Legacy clinic-vault messages (V1 symmetric encryption) — skip, handled elsewhere.
     if (row.message_type === 'clinic-vault') {
       return null
@@ -508,7 +526,7 @@ export function useSignalMessages({
         // (e.g. recipient on a fresh provisional tab) permanently loses the row,
         // which is exactly how request-accepted disappears and the gate sticks.
         if (!decrypted) {
-          if (row.message_type === 'sender-key-distribution') {
+          if (row.message_type === 'sender-key-distribution' || row.message_type === 'call-signal') {
             processedRowIds.push(row.id)
           }
           continue
@@ -625,7 +643,7 @@ export function useSignalMessages({
 
       decryptRow(row, myUuid).then((decrypted) => {
         if (!decrypted) {
-          if (row.message_type === 'sender-key-distribution') {
+          if (row.message_type === 'sender-key-distribution' || row.message_type === 'call-signal') {
             markMessagesRead([row.id]).catch(() => {})
           }
           return
@@ -705,7 +723,7 @@ export function useSignalMessages({
           // stay unread so catch-up retries on the next session (after sessions
           // restore from backup, pre-keys replenish, etc.). Marking them read here
           // is how request-accepted rows on fresh-X3DH paths disappear permanently.
-          if (row.message_type === 'sender-key-distribution') {
+          if (row.message_type === 'sender-key-distribution' || row.message_type === 'call-signal') {
             markMessagesRead([row.id]).catch(() => {})
           }
           return

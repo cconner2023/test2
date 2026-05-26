@@ -448,15 +448,34 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
 
       // Filter out conversations that have active tombstones
       const filtered: Record<string, DecryptedSignalMessage[]> = {}
+      // Control-plane transport types a pre-guard build may have persisted to
+      // IDB. addMessage guards the live receive path, but hydration loads
+      // straight from IDB and bypasses it — without this, stale
+      // sender-key-distribution / sender-key-message rows render as raw-JSON
+      // chat bubbles after logout/refresh even though the wire is clean.
+      // Collect their ids to purge from IDB so they don't accumulate.
+      const staleControlPlaneIds: string[] = []
+      const dropControlPlane = (msgs: DecryptedSignalMessage[]) =>
+        msgs.filter(m => {
+          if (m.messageType === 'sender-key-distribution' || m.messageType === 'sender-key-message') {
+            staleControlPlaneIds.push(m.id)
+            return false
+          }
+          return true
+        })
       for (const [key, msgs] of Object.entries(convos)) {
+        const visible = dropControlPlane(msgs)
         const tombstoneAt = tombstones[key]
         if (tombstoneAt) {
           // Keep only messages genuinely newer than the tombstone
-          const newer = msgs.filter(m => m.createdAt >= tombstoneAt)
+          const newer = visible.filter(m => m.createdAt >= tombstoneAt)
           if (newer.length > 0) filtered[key] = newer
         } else {
-          filtered[key] = msgs
+          filtered[key] = visible
         }
+      }
+      if (staleControlPlaneIds.length > 0) {
+        deleteMessagesFromDb(staleControlPlaneIds).catch(() => {})
       }
 
       // Load localDeviceId if not yet set

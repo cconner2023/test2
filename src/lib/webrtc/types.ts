@@ -13,51 +13,8 @@ export interface CallPeer {
   displayName: string
 }
 
-// ── Signaling events ─────────────────────────────────────────────────────────
-
-export type SignalingEvent =
-  | 'call-offer'
-  | 'call-answer'
-  | 'ice-candidate'
-  | 'call-hangup'
-  | 'call-decline'
-
-export interface CallOfferPayload {
-  event: 'call-offer'
-  callerId: string
-  callerName: string
-  offer: RTCSessionDescriptionInit
-  pairwiseChannel: string
-  /** Caller's ephemeral ECDH public key (base64) for signaling encryption. */
-  ephemeralKey?: string
-  /** Audio-only or video call. Defaults to 'audio' for backward compat. */
-  callMode?: CallMode
-}
-
-export interface CallAnswerPayload {
-  event: 'call-answer'
-  answer: RTCSessionDescriptionInit
-}
-
-export interface IceCandidatePayload {
-  event: 'ice-candidate'
-  candidate: RTCIceCandidateInit
-}
-
-export interface CallHangupPayload {
-  event: 'call-hangup'
-}
-
-export interface CallDeclinePayload {
-  event: 'call-decline'
-}
-
-export type SignalingPayload =
-  | CallOfferPayload
-  | CallAnswerPayload
-  | IceCandidatePayload
-  | CallHangupPayload
-  | CallDeclinePayload
+// Call signaling shapes live in ./callSignalBus (CallSignalBody/IncomingCallSignal) —
+// signaling rides the Signal message transport, not a Realtime side-channel.
 
 // ── WebRTC config ────────────────────────────────────────────────────────────
 

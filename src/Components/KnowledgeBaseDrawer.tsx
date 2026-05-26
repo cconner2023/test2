@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { ChevronRight, RotateCcw, Pin, Pill, BookOpen } from 'lucide-react'
 import { SearchInput } from './SearchInput'
 import { ActionButton } from './ActionButton'
+import { HeaderPill, PillButton } from './HeaderPill'
 import { BaseDrawer } from './BaseDrawer'
 import { TrainingPanel, type TrainingView } from './Settings/TrainingPanel'
 import { MedicationContent } from './MedicationContent'
@@ -14,6 +15,7 @@ import { HeatCategoryCalculator } from './HeatCategoryCalculator'
 import { BloodProductsReference } from './BloodProductsReference'
 import { NineLineKB, NineLineExport } from './Reports/NineLineKB'
 import { BottomSheet } from './BottomSheet'
+import { DatePickerCalendar } from './FormInputs'
 import { PreviewOverlay } from './PreviewOverlay'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import { useAuthStore } from '../stores/useAuthStore'
@@ -73,12 +75,17 @@ export function KnowledgeBaseDrawer({
     initialMedevacReq,
 }: KnowledgeBaseDrawerProps) {
     const tc3Mode = useAuthStore((s) => s.profile.tc3Mode) ?? false
+    const { pinnedKB, togglePinKB } = useNavPreferencesStore(
+        useShallow(s => ({ pinnedKB: s.pinnedKB, togglePinKB: s.togglePinKB }))
+    )
     const [view, setView] = useState<KBView>('home')
     const [selectedTask, setSelectedTask] = useState<subjectAreaArrayOptions | null>(null)
     const [selectedMedication, setSelectedMedication] = useState<medListTypes | null>(null)
     const [activeScreener, setActiveScreener] = useState<ScreenerConfig | null>(null)
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
     const [calculatorOpen, setCalculatorOpen] = useState(false)
+    const [lmpPicker, setLmpPicker] = useState(false)
+    const [vitals, setVitals] = useState<Record<string, string>>({})
     const [bloodOpen, setBloodOpen] = useState(false)
     const vsRef = useRef<VitalSignsCalculatorHandle>(null)
     const [searchQuery, setSearchQuery] = useState('')
@@ -255,8 +262,25 @@ export function KnowledgeBaseDrawer({
                 return { title: selectedTask?.text || 'Task', showBack: true, onBack: handleBack }
             case 'medications':
                 return { title: tc3Mode ? 'TC3 Medications' : 'Medications', showBack: true, onBack: handleBack }
-            case 'medication-detail':
-                return { title: selectedMedication?.text || 'Medication', showBack: true, onBack: handleBack }
+            case 'medication-detail': {
+                const pinId = selectedMedication ? 'med:' + selectedMedication.icon : null
+                const isPinned = pinId ? pinnedKB.includes(pinId) : false
+                return {
+                    title: selectedMedication?.text || 'Medication',
+                    showBack: true,
+                    onBack: handleBack,
+                    rightContent: pinId ? (
+                        <HeaderPill>
+                            <PillButton
+                                icon={Pin}
+                                label={isPinned ? 'Unpin' : 'Pin'}
+                                onClick={() => togglePinKB(pinId)}
+                                circleBg={isPinned ? 'bg-themeblue2 text-white' : undefined}
+                            />
+                        </HeaderPill>
+                    ) : undefined,
+                }
+            }
             case 'screener':
                 return { title: activeScreener?.title || 'Screener', showBack: true, onBack: handleBack }
             case 'burn':
@@ -270,7 +294,7 @@ export function KnowledgeBaseDrawer({
             default:
                 return { title: 'Knowledge Base' }
         }
-    }, [view, selectedTask, selectedMedication, activeScreener, tc3Mode, handleBack])
+    }, [view, selectedTask, selectedMedication, activeScreener, tc3Mode, handleBack, pinnedKB, togglePinKB])
 
     return (
         <BaseDrawer
@@ -354,17 +378,34 @@ export function KnowledgeBaseDrawer({
             {/* Overlay calculators/references */}
             <PreviewOverlay
                 isOpen={calculatorOpen}
-                onClose={() => setCalculatorOpen(false)}
+                onClose={() => { setCalculatorOpen(false); setLmpPicker(false) }}
                 anchorRect={null}
-                title="Vital Signs"
+                title={lmpPicker ? 'LMP' : 'Vital Signs'}
+                onBack={lmpPicker ? () => setLmpPicker(false) : undefined}
                 maxWidth={390}
-                footer={
+                footer={lmpPicker ? undefined : (
                     <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
                         <ActionButton icon={RotateCcw} label="Clear" onClick={() => vsRef.current?.reset()} />
                     </div>
-                }
+                )}
             >
-                <VitalSignsCalculator ref={vsRef} />
+                {lmpPicker ? (
+                    <div className="py-1">
+                        <DatePickerCalendar
+                            value={vitals.lmp || ''}
+                            onChange={(v) => setVitals(prev => ({ ...prev, lmp: v }))}
+                            onClose={() => setLmpPicker(false)}
+                            maxDate={new Date().toISOString().slice(0, 10)}
+                        />
+                    </div>
+                ) : (
+                    <VitalSignsCalculator
+                        ref={vsRef}
+                        value={vitals}
+                        onChange={setVitals}
+                        onRequestLmpPicker={() => setLmpPicker(true)}
+                    />
+                )}
             </PreviewOverlay>
 <BottomSheet title="Blood Products" isOpen={bloodOpen} onClose={() => setBloodOpen(false)} maxHeight="60dvh" draggable={false}>
                 <BloodProductsReference />

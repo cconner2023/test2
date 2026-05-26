@@ -1573,6 +1573,18 @@ export type Database = {
         Args: { p_group_id: string; p_user_id: string }
         Returns: undefined
       }
+      promote_group_member: {
+        Args: { p_group_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      demote_group_member: {
+        Args: { p_group_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      purge_message_group: {
+        Args: { p_group_id: string }
+        Returns: undefined
+      }
       admin_create_user: {
         Args: {
           p_component?: string

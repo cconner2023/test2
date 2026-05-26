@@ -32,6 +32,9 @@ import {
   renameGroup as renameGroupRpc,
   addGroupMember as addGroupMemberRpc,
   removeGroupMember as removeGroupMemberRpc,
+  promoteGroupMember as promoteGroupMemberRpc,
+  demoteGroupMember as demoteGroupMemberRpc,
+  purgeGroup as purgeGroupRpc,
   fetchGroupMembers as fetchGroupMembersRpc,
 } from '../lib/signal/groupService'
 import type { GroupInfo, GroupMember } from '../lib/signal/groupTypes'
@@ -68,6 +71,7 @@ import {
   serializeContent,
 } from '../lib/signal/messageContent'
 import type { MessageContent, ImageContent, VoiceContent, ReplyTo } from '../lib/signal/messageContent'
+import type { CallSignalBody } from '../lib/webrtc/callSignalBus'
 import { getOrCreateClinicSystemGroup } from '../lib/systemMessageService'
 import {
   SYSTEM_USER_ID,
@@ -286,6 +290,51 @@ async function encryptAndSendToPeer(
 }
 
 /**
+ * Encrypt and send a WebRTC call-signal control message to a peer's devices.
+ *
+ * Mirrors encryptAndSendToPeer's session/fan-out logic but stamps every row
+ * `message_type='call-signal'` so the receiver's decryptRow routes it to the
+ * call layer (callSignalBus) and never surfaces it as a chat message. The
+ * Signal session is the authorization gate — a call cannot be placed to a peer
+ * we can't establish a session with. `silent` suppresses local message
+ * notifications/receipts (control-plane); background FCM wake is governed by the
+ * out-of-repo dispatcher independently.
+ */
+async function encryptAndSendCallSignal(
+  userId: string,
+  localDeviceId: string,
+  peerId: string,
+  serialized: string,
+): Promise<Result<string>> {
+  const devicesResult = await fetchPeerDevices(peerId)
+  const peerDevices = devicesResult.ok ? devicesResult.data : []
+
+  if (peerDevices.length > 0) {
+    const fanOutInputs = await encryptForAllDevices(peerId, peerDevices, serialized, userId)
+    for (const input of fanOutInputs) input.messageType = 'call-signal'
+    if (fanOutInputs.length === 0) return errResult('Could not encrypt call signal for any peer device')
+    const sendResult = await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs, undefined, undefined, true)
+    if (!sendResult.ok) return errResult(sendResult.error)
+    return okResult(sendResult.data[0])
+  }
+
+  // Legacy single-device path. A fresh session sends an X3DH initial envelope;
+  // the row is still labelled 'call-signal' (processIncomingMessage decrypts
+  // initial + ratchet envelopes transparently regardless of the row label).
+  const sessionExists = await hasSession(peerId, 'unknown')
+  if (!sessionExists) {
+    const bundleResult = await fetchPeerBundle(peerId)
+    if (!bundleResult.ok) return errResult(bundleResult.error)
+    const bundle = rpcResultToBundle(bundleResult.data)
+    const peerDeviceId = bundle.deviceId || 'unknown'
+    const initialMessage = await createOutboundSession(peerId, peerDeviceId, bundle, serialized, userId)
+    return sendSignalMessage(userId, peerId, initialMessage, 'call-signal', localDeviceId, peerDeviceId, undefined, undefined)
+  }
+  const encrypted = await encryptMessage(peerId, 'unknown', serialized, userId)
+  return sendSignalMessage(userId, peerId, encrypted, 'call-signal', localDeviceId, undefined, undefined, undefined)
+}
+
+/**
  * Ensure we have a sender key for the group, generating and distributing one if needed.
  *
  * Distribution is sent via pairwise 1:1 sessions to every group member who does not
@@ -415,6 +464,9 @@ export interface UseMessagesReturn {
   sendImage: (peerId: string, file: File) => Promise<boolean>
   /** Send a voice note to a peer. Encrypts, uploads, and sends via Signal. */
   sendVoice: (peerId: string, recording: VoiceRecordingResult) => Promise<boolean>
+  /** Send a WebRTC call-signal control message to a peer over the Signal session
+   *  (message_type='call-signal'). Control-plane — never surfaces as a chat message. */
+  sendCallSignal: (peerId: string, signal: CallSignalBody) => Promise<boolean>
   /** Accept a message request from a peer, opening the conversation. */
   acceptRequest: (peerId: string) => Promise<void>
   /** Get the request status for a given peer. */
@@ -455,8 +507,14 @@ export interface UseMessagesReturn {
   renameGroup: (groupId: string, name: string) => Promise<void>
   /** Add a member to a group (admin only). */
   addGroupMember: (groupId: string, userId: string) => Promise<void>
-  /** Remove a member from a group (admin only). */
+  /** Remove a member from a group (primary only). */
   removeGroupMember: (groupId: string, userId: string) => Promise<void>
+  /** Promote a member to primary (primary only). Returns an error string on failure. */
+  promoteGroupMember: (groupId: string, userId: string) => Promise<{ ok: boolean; error?: string }>
+  /** Demote a primary to member (primary only). Refuses to demote the last primary. */
+  demoteGroupMember: (groupId: string, userId: string) => Promise<{ ok: boolean; error?: string }>
+  /** Purge the entire group — messages + group (primary only). */
+  purgeGroup: (groupId: string) => Promise<{ ok: boolean; error?: string }>
   /** Fetch group members. */
   fetchGroupMembers: (groupId: string) => Promise<GroupMember[]>
   /** Fetch group message history from Supabase. */
@@ -1294,6 +1352,24 @@ export function useMessages(): UseMessagesReturn {
     }
   }, [userId, addMessage, updateMessageStatus, removeOptimisticMessage])
 
+  // Send a WebRTC call-signal control message to a peer. Rides the Signal
+  // session (the authorization gate); never surfaces as a chat message.
+  const sendCallSignal = useCallback(async (peerId: string, signal: CallSignalBody): Promise<boolean> => {
+    const localDeviceId = useMessagingStore.getState().localDeviceId
+    if (!userId || !localDeviceId) return false
+    try {
+      const result = await encryptAndSendCallSignal(userId, localDeviceId, peerId, JSON.stringify(signal))
+      if (!result.ok) {
+        logger.warn('sendCallSignal failed:', result.error)
+        return false
+      }
+      return true
+    } catch (e) {
+      logger.error('sendCallSignal error:', e instanceof Error ? e.message : e)
+      return false
+    }
+  }, [userId])
+
   const sendVoice = useCallback(async (peerId: string, recording: VoiceRecordingResult): Promise<boolean> => {
     const localDeviceId = useMessagingStore.getState().localDeviceId
     if (!userId || !localDeviceId) return false
@@ -2095,6 +2171,39 @@ export function useMessages(): UseMessagesReturn {
     await refreshGroups()
   }, [refreshGroups])
 
+  /** Promote a member to primary. */
+  const promoteGroupMemberFn = useCallback(async (groupId: string, memberId: string): Promise<{ ok: boolean; error?: string }> => {
+    const result = await promoteGroupMemberRpc(groupId, memberId)
+    if (!result.ok) {
+      logger.error('promoteGroupMember failed:', result.error)
+      return { ok: false, error: result.error }
+    }
+    await refreshGroups()
+    return { ok: true }
+  }, [refreshGroups])
+
+  /** Demote a primary back to member. */
+  const demoteGroupMemberFn = useCallback(async (groupId: string, memberId: string): Promise<{ ok: boolean; error?: string }> => {
+    const result = await demoteGroupMemberRpc(groupId, memberId)
+    if (!result.ok) {
+      logger.error('demoteGroupMember failed:', result.error)
+      return { ok: false, error: result.error }
+    }
+    await refreshGroups()
+    return { ok: true }
+  }, [refreshGroups])
+
+  /** Purge the entire group — messages + group. */
+  const purgeGroupFn = useCallback(async (groupId: string): Promise<{ ok: boolean; error?: string }> => {
+    const result = await purgeGroupRpc(groupId)
+    if (!result.ok) {
+      logger.error('purgeGroup failed:', result.error)
+      return { ok: false, error: result.error }
+    }
+    store().removeGroup(groupId)
+    return { ok: true }
+  }, [])
+
   /** Fetch group members. */
   const fetchGroupMembersFn = useCallback(async (groupId: string): Promise<GroupMember[]> => {
     const result = await fetchGroupMembersRpc(groupId)
@@ -2127,6 +2236,7 @@ export function useMessages(): UseMessagesReturn {
     sendMessage,
     sendImage,
     sendVoice,
+    sendCallSignal,
     sendSystemMessageToUser,
     sendSystemMessageToClinic,
     acceptRequest,
@@ -2145,6 +2255,9 @@ export function useMessages(): UseMessagesReturn {
     renameGroup: renameGroupFn,
     addGroupMember: addGroupMemberFn,
     removeGroupMember: removeGroupMemberFn,
+    promoteGroupMember: promoteGroupMemberFn,
+    demoteGroupMember: demoteGroupMemberFn,
+    purgeGroup: purgeGroupFn,
     fetchGroupMembers: fetchGroupMembersFn,
     fetchGroupHistory,
     refreshGroups,
