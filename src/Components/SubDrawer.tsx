@@ -25,7 +25,6 @@ import { createPortal } from 'react-dom';
 import { X, ChevronUp, ChevronDown } from 'lucide-react';
 import { HeaderPill, PillButton } from './HeaderPill';
 import { DRAWER_TIMING } from '../Utilities/constants';
-import { useKeyboardInset } from '../Hooks/useKeyboardInset';
 
 interface SubDrawerProps {
     isVisible: boolean;
@@ -74,7 +73,6 @@ export function SubDrawer({
     const [shown, setShown] = useState(false);
     const [isFull, setIsFull] = useState(false);
 
-    const keyboardInset = useKeyboardInset();
     const unmountTimer = useRef<number | null>(null);
 
     // Glass header: measure the floating header so the scroll body can pad to
@@ -159,7 +157,7 @@ export function SubDrawer({
                 className={`fixed left-0 right-0 ${zIndex} bg-themewhite3 flex flex-col text-primary overflow-hidden transition-[transform,height] duration-300 ease-out`}
                 style={{
                     height: `${heightDvh}dvh`,
-                    bottom: keyboardInset,
+                    bottom: 0,
                     transform: `translateY(${shown ? 0 : 100}%)`,
                     borderRadius: '1.25rem 1.25rem 0 0',
                     boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.12)',

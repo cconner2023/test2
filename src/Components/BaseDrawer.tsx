@@ -6,8 +6,6 @@ import { HeaderPill, PillButton } from './HeaderPill';
 import { GESTURE_THRESHOLDS, clamp } from '../Utilities/GestureUtils';
 import { DRAWER_TIMING } from '../Utilities/constants';
 import { useIsMobile } from '../Hooks/useIsMobile';
-import { useFocusKeepInView } from '../Hooks/useFocusKeepInView';
-import { useKeyboardInset } from '../Hooks/useKeyboardInset';
 
 /** Render prop type: children can receive handleClose for animated close */
 type DrawerRenderProp = (handleClose: () => void) => ReactNode;
@@ -238,7 +236,6 @@ export function BaseDrawer({
 
     const isMobile = useIsMobile();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
-    useFocusKeepInView(scrollContainerRef, isVisible);
 
     // Glass-header prototype: measure the floating header so content can be
     // padded to clear it (and slide behind it). Published as --drawer-header-h.
@@ -258,9 +255,6 @@ export function BaseDrawer({
     useEffect(() => {
         if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
     }, [scrollResetKey]);
-    // Lift the mobile drawer above the iOS soft keyboard. The layout viewport
-    // doesn't shrink for the keyboard, so a bottom:0 fixed drawer sits under it.
-    const keyboardInset = useKeyboardInset();
 
     const useMobileLayout = mobileOnly || isMobile;
 
@@ -449,8 +443,8 @@ export function BaseDrawer({
                     maxHeight: mobileHeight,
                     width: mobileFloating ? undefined : '100%',
                     bottom: cardMode
-                        ? `calc(55dvh + ${keyboardInset}px)`
-                        : (mobileFloating ? 12 + keyboardInset : keyboardInset),
+                        ? '55dvh'
+                        : (mobileFloating ? 12 : 0),
                     transform: `translateY(${100 - drawerPosition}%)`,
                     opacity: Math.min(1, drawerPosition / Math.max(10, restPosition)),
                     borderRadius: (cardMode || mobileFloating) ? '1.25rem' : (mobileFullScreen ? '0' : '1.25rem 1.25rem 0 0'),
