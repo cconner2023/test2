@@ -1636,23 +1636,54 @@ export function useMessages(): UseMessagesReturn {
     const deletePayload = JSON.stringify({ originIds })
     const deleteOriginId = crypto.randomUUID()
 
+    const isGroup = !!useMessagingStore.getState().groups[peerId]
+
     try {
-      // SYSTEM has no persistent receiver ratchet across drain batches — every
-      // user → SYSTEM send must be a fresh X3DH InitialMessage, including
-      // deletes. Mirrors the sendMessage(SYSTEM) short-circuit above.
-      if (peerId === SYSTEM_USER_ID) {
-        await deleteSessionsForPeer(SYSTEM_USER_ID)
-      }
-      const devicesResult = await fetchPeerDevices(peerId)
-      if (devicesResult.ok && devicesResult.data.length > 0) {
-        const fanOutInputs = await encryptForAllDevices(peerId, devicesResult.data, deletePayload, userId)
-        for (const input of fanOutInputs) {
-          input.messageType = 'delete'
+      if (isGroup) {
+        // Group delete: peerId is a groupId, which owns no user_devices rows, so
+        // the 1:1 fan-out below (fetchPeerDevices(groupId)) reaches nobody and the
+        // other members never learn the message was deleted. Fan the 'delete'
+        // envelope pairwise to every OTHER member's devices instead (own devices
+        // are covered by the own-device sync block below). messageType='delete'
+        // routes through the recipient's existing delete branch
+        // (processIncomingMessage → deleteMessagesByOriginId); it deliberately
+        // does NOT use the sender-key channel, where it would decrypt as a normal
+        // 'message' and render the {originIds} JSON as a chat bubble.
+        const membersResult = await fetchGroupMembersRpc(peerId)
+        if (membersResult.ok) {
+          for (const member of membersResult.data) {
+            if (member.userId === userId) continue
+            const devicesResult = await fetchPeerDevices(member.userId)
+            if (!devicesResult.ok || devicesResult.data.length === 0) continue
+            const fanOutInputs = await encryptForAllDevices(member.userId, devicesResult.data, deletePayload, userId)
+            for (const input of fanOutInputs) {
+              input.messageType = 'delete'
+            }
+            if (fanOutInputs.length > 0) {
+              await sendMessageFanOut(userId, localDeviceId, member.userId, fanOutInputs, peerId, deleteOriginId).catch(e =>
+                logger.warn(`Failed to send group delete to ${member.userId}:`, e instanceof Error ? e.message : e)
+              )
+            }
+          }
         }
-        if (fanOutInputs.length > 0) {
-          await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs, undefined, deleteOriginId).catch(e =>
-            logger.warn('Failed to send delete to peer devices:', e instanceof Error ? e.message : e)
-          )
+      } else {
+        // SYSTEM has no persistent receiver ratchet across drain batches — every
+        // user → SYSTEM send must be a fresh X3DH InitialMessage, including
+        // deletes. Mirrors the sendMessage(SYSTEM) short-circuit above.
+        if (peerId === SYSTEM_USER_ID) {
+          await deleteSessionsForPeer(SYSTEM_USER_ID)
+        }
+        const devicesResult = await fetchPeerDevices(peerId)
+        if (devicesResult.ok && devicesResult.data.length > 0) {
+          const fanOutInputs = await encryptForAllDevices(peerId, devicesResult.data, deletePayload, userId)
+          for (const input of fanOutInputs) {
+            input.messageType = 'delete'
+          }
+          if (fanOutInputs.length > 0) {
+            await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs, undefined, deleteOriginId).catch(e =>
+              logger.warn('Failed to send delete to peer devices:', e instanceof Error ? e.message : e)
+            )
+          }
         }
       }
     } catch (e) {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { X, UserPlus, UserMinus, LogOut, Pencil, Check, Mail, Hash, Send } from 'lucide-react'
 import { UserAvatar } from './UserAvatar'
+import { PreviewOverlay } from '../PreviewOverlay'
 import { supabase } from '../../lib/supabase'
 import { useMessagingStore } from '../../stores/useMessagingStore'
 import { getMemberProfile } from '../../lib/supervisorService'
@@ -8,6 +9,7 @@ import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 
 interface GroupInfoPanelProps {
+  isOpen: boolean
   group: GroupInfo
   userId: string
   medics: ClinicMedic[]
@@ -31,6 +33,7 @@ function getMemberName(member: GroupMember): string {
 }
 
 export function GroupInfoPanel({
+  isOpen,
   group,
   userId,
   medics,
@@ -54,8 +57,9 @@ export function GroupInfoPanel({
   const memberIds = new Set(members.map(m => m.userId))
 
   useEffect(() => {
+    if (!isOpen) return
     fetchMembers(group.groupId).then(setMembers)
-  }, [group.groupId, fetchMembers])
+  }, [isOpen, group.groupId, fetchMembers])
 
   const handleRename = useCallback(async () => {
     const trimmed = nameText.trim()
@@ -146,18 +150,25 @@ export function GroupInfoPanel({
   const nonMemberMedics = medics.filter(m => !memberIds.has(m.id))
 
   return (
-    <div className="absolute inset-0 z-10 bg-themewhite3 flex flex-col">
-      {/* Header */}
-      <div className="shrink-0 px-4 py-3 border-b border-primary/10 flex items-center justify-between">
-        <p className="text-sm font-medium text-primary">Group Info</p>
-        <button onClick={onClose} className="p-1.5 rounded-full hover:bg-primary/5 active:scale-95 transition-all">
-          <X size={18} className="text-tertiary" />
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto">
-        {/* Group name */}
-        <div className="px-4 py-4 flex items-center gap-3">
+    <PreviewOverlay
+      isOpen={isOpen}
+      onClose={onClose}
+      anchorRect={null}
+      title="Group Info"
+      previewMaxHeight="55dvh"
+      actions={[
+        {
+          key: 'leave',
+          label: 'Leave',
+          icon: LogOut,
+          variant: 'danger',
+          onAction: () => onLeave(group.groupId),
+        },
+      ]}
+      preview={
+        <div className="pb-2">
+          {/* Group name */}
+          <div className="px-4 py-3 flex items-center gap-3">
           {editingName ? (
             <div className="flex-1 flex items-center gap-2">
               <input
@@ -302,20 +313,9 @@ export function GroupInfoPanel({
               )}
             </div>
           ))}
+          </div>
         </div>
-      </div>
-
-      {/* Leave group button */}
-      <div className="shrink-0 px-4 py-3 border-t border-primary/10">
-        <button
-          onClick={() => onLeave(group.groupId)}
-          className="w-full py-2.5 rounded-full border border-red-200 text-sm font-medium
-                     text-red-500 active:scale-95 transition-all flex items-center justify-center gap-2"
-        >
-          <LogOut size={14} />
-          Leave Group
-        </button>
-      </div>
-    </div>
+      }
+    />
   )
 }

@@ -916,19 +916,18 @@ function GroupChatDetail({
       scrollToMessageId={scrollToMessageId}
       onScrollConsumed={onScrollConsumed}
     >
-      {showGroupInfo && (
-        <GroupInfoPanel
-          group={group}
-          userId={userId}
-          medics={medics}
-          onClose={() => onShowGroupInfo(false)}
-          onLeave={handleLeave}
-          onRename={renameGroup}
-          onAddMember={addGroupMember}
-          onRemoveMember={removeGroupMember}
-          fetchMembers={fetchGroupMembers}
-        />
-      )}
+      <GroupInfoPanel
+        isOpen={showGroupInfo}
+        group={group}
+        userId={userId}
+        medics={medics}
+        onClose={() => onShowGroupInfo(false)}
+        onLeave={handleLeave}
+        onRename={renameGroup}
+        onAddMember={addGroupMember}
+        onRemoveMember={removeGroupMember}
+        fetchMembers={fetchGroupMembers}
+      />
     </ChatDetailView>
   )
 }
