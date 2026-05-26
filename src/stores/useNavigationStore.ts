@@ -71,6 +71,7 @@ const CLOSE_ALL_DRAWERS = {
     messagesInitialPeerName: null as string | null,
     messagesInitialMessageId: null as string | null,
     showPropertyDrawer: false,
+    propertyDrawerItemId: null as string | null,
     showLoRaDrawer: false,
     showMapOverlayDrawer: false,
     mapOverlayDrawerOverlayId: null as string | null,
@@ -116,6 +117,7 @@ interface NavigationState {
     messagesInitialPeerName: string | null
     messagesInitialMessageId: string | null
     showPropertyDrawer: boolean
+    propertyDrawerItemId: string | null
     showLoRaDrawer: boolean
     showMapOverlayDrawer: boolean
     mapOverlayDrawerOverlayId: string | null
@@ -158,7 +160,8 @@ interface NavigationActions {
     openMessagesConversation: (peerId: string | null, groupId: string | null, peerName: string | null) => void
     clearMessagesConversation: () => void
     clearMessagesInitialMessageId: () => void
-    setShowPropertyDrawer: (show: boolean) => void
+    setShowPropertyDrawer: (show: boolean, itemId?: string | null) => void
+    clearPropertyDrawerItemId: () => void
     setShowLoRaDrawer: (show: boolean) => void
     setShowMapOverlayDrawer: (show: boolean, overlayId?: string | null, featureId?: string | null) => void
     setShowCalendarDrawer: (show: boolean, initialDate?: string | null) => void
@@ -209,6 +212,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     messagesInitialPeerName: null,
     messagesInitialMessageId: null,
     showPropertyDrawer: false,
+    propertyDrawerItemId: null,
     showLoRaDrawer: false,
     showMapOverlayDrawer: false,
     mapOverlayDrawerOverlayId: null,
@@ -407,11 +411,14 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
 
     clearMessagesInitialMessageId: () => set({ messagesInitialMessageId: null }),
 
-    setShowPropertyDrawer: (show) => set((s) => ({
+    setShowPropertyDrawer: (show, itemId) => set((s) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),
         ...PRESERVED_FIELDS(s),
         showPropertyDrawer: show,
+        propertyDrawerItemId: show ? (itemId ?? null) : null,
     })),
+
+    clearPropertyDrawerItemId: () => set({ propertyDrawerItemId: null }),
 
     setShowLoRaDrawer: (show) => set((s) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),

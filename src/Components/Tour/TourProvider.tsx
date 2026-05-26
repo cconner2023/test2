@@ -493,6 +493,21 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       return
     }
 
+    // ── messaging:open-share — open the + attachment picker (Share menu) ──
+    if (action === 'messaging:open-share') {
+      window.dispatchEvent(new CustomEvent('tour:messaging-open-share'))
+      await waitForTarget('messages-share', 3000)
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+
+    // ── messaging:close-share — dismiss the Share menu before continuing ──
+    if (action === 'messaging:close-share') {
+      window.dispatchEvent(new CustomEvent('tour:messaging-close-share'))
+      await new Promise(r => setTimeout(r, 300))
+      return
+    }
+
     // ── messaging:send-note — send a test note to self ──
     if (action === 'messaging:send-note') {
       window.dispatchEvent(new CustomEvent('tour:messaging-send-note'))

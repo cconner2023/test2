@@ -70,6 +70,8 @@ export interface TourDefinition {
 //   'close:all'              — close all drawers + sidenav
 //   'expander:demo:*'        — text expander tour demo actions (open-and-type, submit, build-*, accept, finish)
 //   'messaging:open-self-chat' — dismiss provisional modal, open self-chat
+//   'messaging:open-share'    — open the + attachment picker (Share menu)
+//   'messaging:close-share'   — dismiss the Share menu before continuing
 //   'messaging:send-note'     — send a test note to self
 //   'messaging:send-reply'    — send a threaded reply to the test note
 //   'messaging:open-thread'   — open thread view on the test note
@@ -812,6 +814,15 @@ const messagingTour: TourDefinition = {
       beforeStep: 'messaging:open-self-chat',
       delay: 600,
       duration: 5000,
+    },
+    {
+      target: 'messages-share',
+      text: 'Tap "+" to share into a chat — a photo, calendar event, map overlay, or property item. Only an opaque reference travels; the recipient opens it in their own app.',
+      placement: 'top',
+      beforeStep: 'messaging:open-share',
+      afterStep: 'messaging:close-share',
+      delay: 400,
+      duration: 6000,
     },
     {
       target: 'messages-latest-bubble',

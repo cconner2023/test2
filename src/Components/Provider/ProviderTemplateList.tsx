@@ -209,10 +209,12 @@ export function ProviderTemplateList({ templates, onSelect, onNew, onEdit }: Pro
 
   return (
     <div className="flex flex-col h-full">
-      {/* pt-5 gives the placement="overlay" ActionPill (top-0 -translate-y-1/2)
-          enough room above the first card so the scroll container's overflow-y
-          doesn't clip the pill's upper half. */}
-      <div className="flex-1 overflow-y-auto px-2 pb-3 pt-5">
+      {/* Top padding clears the placement="overlay" ActionPill (top-0 -translate-y-1/2):
+          the pill's upper half (~20px) + shadow rides above the first card, and this
+          scroll container's overflow-y would otherwise clip it. Desktop left pane sits
+          flush under the fixed drawer header with no breathing room, so it needs more
+          headroom than the mobile picker. */}
+      <div className={`flex-1 overflow-y-auto px-2 pb-3 ${isMobile ? 'pt-5' : 'pt-8'}`}>
         {templates.length ? (
           <div className="relative">
             <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">

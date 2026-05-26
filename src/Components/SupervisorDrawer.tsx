@@ -483,7 +483,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     switch (treeSelection.type) {
       case 'all-personnel':
         return (
-          <div className={isMobile ? 'h-full overflow-y-auto px-4 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)] pb-8' : 'px-5 py-5 pb-8'}>
+          <div className={isMobile ? 'h-full overflow-y-auto px-4 pt-[calc(var(--drawer-header-h,3.5rem)+1.75rem)] pb-8' : 'px-5 py-5 pb-8'}>
             <TeamReporting
               metrics={teamMetrics}
               medics={medics}

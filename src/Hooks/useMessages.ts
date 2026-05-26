@@ -462,6 +462,13 @@ export interface UseMessagesReturn {
   sendMessage: (peerId: string, text: string, threadId?: string) => Promise<boolean>
   /** Send an image to a peer. Compresses, encrypts, uploads, and sends via Signal. */
   sendImage: (peerId: string, file: File) => Promise<boolean>
+  /**
+   * Send a structured-content message to a peer (1:1). Mirrors sendMessage's
+   * accepted-conversation path but accepts arbitrary MessageContent + a
+   * caller-supplied originId. Used for non-text payloads like shared object
+   * references. Only valid in an open (received/accepted) conversation.
+   */
+  sendStructured: (peerId: string, content: MessageContent, originId: string, preview: string) => Promise<boolean>
   /** Send a voice note to a peer. Encrypts, uploads, and sends via Signal. */
   sendVoice: (peerId: string, recording: VoiceRecordingResult) => Promise<boolean>
   /** Send a WebRTC call-signal control message to a peer over the Signal session
@@ -1005,6 +1012,91 @@ export function useMessages(): UseMessagesReturn {
       store().setSending(peerId, false)
     }
   }, [userId, addMessage, updateMessageStatus, removeOptimisticMessage, buildReplyTo])
+
+  /**
+   * Send a structured-content message to a peer (1:1). The caller-supplied
+   * originId is used as the message's originId on the wire. Only sends in an
+   * open conversation (received/accepted) — refuses on 'none'/'sent' so a
+   * shared-ref card can't open a fresh request thread.
+   */
+  const sendStructured = useCallback(async (
+    peerId: string,
+    content: MessageContent,
+    originId: string,
+    preview: string,
+  ): Promise<boolean> => {
+    const localDeviceId = useMessagingStore.getState().localDeviceId
+    if (!userId || !localDeviceId) return false
+
+    // Self-notes: encrypt to own devices only.
+    if (peerId === userId) {
+      const localId = crypto.randomUUID()
+      const now = new Date().toISOString()
+      addMessage({
+        id: localId, senderId: userId, recipientId: userId, plaintext: preview,
+        content, messageType: 'message', createdAt: now, readAt: now,
+        status: 'sending', originId,
+      })
+      try {
+        const serialized = serializeContent(content)
+        const devicesResult = await fetchOwnDevices(userId)
+        const otherDevices = devicesResult.ok ? devicesResult.data.filter(d => d.deviceId !== localDeviceId) : []
+        if (otherDevices.length > 0) {
+          const fanOutInputs = await encryptForAllDevices(userId, otherDevices, serialized, userId)
+          if (fanOutInputs.length > 0) {
+            await sendMessageFanOut(userId, localDeviceId, userId, fanOutInputs, undefined, originId)
+          }
+        }
+        const confirmedId = crypto.randomUUID()
+        updateMessageStatus(userId, localId, confirmedId)
+        saveMessage({
+          id: confirmedId, senderId: userId, recipientId: userId, plaintext: preview,
+          content, messageType: 'message', createdAt: now, readAt: now, originId,
+        }, userId).catch(() => {})
+        return true
+      } catch (e) {
+        logger.error('sendStructured (self) error:', e instanceof Error ? e.message : e)
+        removeOptimisticMessage(userId, localId)
+        return false
+      }
+    }
+
+    const status = getRequestStatus(useMessagingStore.getState().conversations[peerId], userId)
+    if (status === 'none' || status === 'sent') return false
+
+    const localId = crypto.randomUUID()
+    const now = new Date().toISOString()
+    addMessage({
+      id: localId, senderId: userId, recipientId: peerId, plaintext: preview,
+      content, messageType: 'message', createdAt: now, readAt: null,
+      status: 'sending', originId,
+    })
+
+    store().setSending(peerId, true)
+    try {
+      const serialized = serializeContent(content)
+      const result = await encryptAndSendToPeer(userId, localDeviceId, peerId, serialized, 'message', undefined, originId)
+      if (!result.ok) {
+        logger.error('Failed to send structured message:', result.error)
+        removeOptimisticMessage(peerId, localId)
+        return false
+      }
+      updateMessageStatus(peerId, localId, result.data)
+      sendSyncToOwnDevices(userId, localDeviceId, {
+        forPeerId: peerId, serialized, originalMessageType: 'message',
+        originalTimestamp: now, originalMessageId: result.data,
+      }, undefined, originId).catch(e =>
+        errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendStructured', message: 'Failed to sync structured message to own devices', timestamp: Date.now(), metadata: { error: e } })
+      )
+      return true
+    } catch (e) {
+      logger.error('sendStructured error:', e instanceof Error ? e.message : e)
+      removeOptimisticMessage(peerId, localId)
+      return false
+    } finally {
+      store().setSending(peerId, false)
+    }
+  }, [userId, addMessage, updateMessageStatus, removeOptimisticMessage])
 
   /**
    * Send a system-authored notice to a single user. Dev-only — the
@@ -2235,6 +2327,7 @@ export function useMessages(): UseMessagesReturn {
   return {
     sendMessage,
     sendImage,
+    sendStructured,
     sendVoice,
     sendCallSignal,
     sendSystemMessageToUser,

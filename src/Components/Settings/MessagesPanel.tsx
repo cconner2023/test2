@@ -32,13 +32,19 @@ import { useLongPress } from '../../Hooks/useLongPress'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
+import type { MessageContent } from '../../lib/signal/messageContent'
 import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
 import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
 import { getMemberProfile } from '../../lib/supervisorService'
 import { SYSTEM_USER_ID } from '../../lib/signal/systemIdentity'
-import { isSystemMessage } from '../../Hooks/useAdminSystemConversations'
+import { isSystemMessage, isIntakeRequest } from '../../Hooks/useAdminSystemConversations'
+import { CallsPane } from './CallsPane'
+import { useCallHistory, type CallHistoryEntry } from '../../Hooks/useCallHistory'
 
 export type MessagesView = 'messages' | 'messages-chat' | 'messages-group-chat'
+
+/** Messaging surface lens — conversations (Chat) vs call history (Calls). */
+export type MessagingLens = 'chat' | 'calls'
 
 export interface MessagesPanelHandle {
   openNew: () => void
@@ -57,6 +63,10 @@ interface MessagesPanelProps {
   onSearchClear: () => void
   onSearchChange: (value: string) => void
   onOpenSettings?: () => void
+  /** Active lens — 'chat' (conversations) or 'calls' (call history). */
+  lens?: MessagingLens
+  /** Switch the active lens (desktop sidebar toggle). */
+  onLensChange?: (lens: MessagingLens) => void
   /** Scroll to + highlight this message in the open conversation (calendar round-trip). */
   scrollToMessageId?: string | null
   /** Called once the scroll target has landed, so the drawer can clear it. */
@@ -633,6 +643,7 @@ function ChatDetail({
   medics,
   sendMessage,
   sendImage,
+  sendStructured,
   sendVoice,
   sending,
   markAsRead,
@@ -658,6 +669,7 @@ function ChatDetail({
   medics: ClinicMedic[]
   sendMessage: (peerId: string, text: string, threadId?: string) => Promise<boolean>
   sendImage: (peerId: string, file: File) => Promise<boolean>
+  sendStructured: (peerId: string, content: MessageContent, originId: string, preview: string) => Promise<boolean>
   sendVoice: (peerId: string, recording: any) => Promise<boolean>
   sending: boolean
   markAsRead: (peerId: string) => void
@@ -731,6 +743,7 @@ function ChatDetail({
       medics={medics}
       sendMessage={sendMessage}
       sendImage={sendImage}
+      sendStructured={sendStructured}
       sendVoice={sendVoice}
       editMessage={editMessage}
       deleteMessages={deleteMessages}
@@ -776,6 +789,7 @@ function GroupChatDetail({
   medics,
   sendGroupMessage,
   sendGroupImage,
+  sendGroupStructured,
   sendGroupVoice,
   sending,
   markAsRead,
@@ -803,6 +817,7 @@ function GroupChatDetail({
   medics: ClinicMedic[]
   sendGroupMessage: (groupId: string, text: string, threadId?: string) => Promise<boolean>
   sendGroupImage: (groupId: string, file: File) => Promise<boolean>
+  sendGroupStructured: (groupId: string, content: MessageContent, originId: string, preview: string) => Promise<boolean>
   sendGroupVoice: (groupId: string, recording: any) => Promise<boolean>
   sending: boolean
   markAsRead: (peerId: string) => void
@@ -910,6 +925,7 @@ function GroupChatDetail({
       medics={medics}
       sendMessage={sendGroupMessage}
       sendImage={sendGroupImage}
+      sendStructured={sendGroupStructured}
       sendVoice={sendGroupVoice}
       editMessage={editMessage}
       deleteMessages={deleteMessages}
@@ -949,7 +965,7 @@ function GroupChatDetail({
 
 // ── Exported Panel ─────────────────────────────────────────────────────────
 
-export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelProps>(function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack, onCloseDrawer, searchQuery, onSearchClear, onSearchChange, onOpenSettings, scrollToMessageId, onScrollConsumed }, ref) {
+export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelProps>(function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack, onCloseDrawer, searchQuery, onSearchClear, onSearchChange, onOpenSettings, lens = 'chat', onLensChange, scrollToMessageId, onScrollConsumed }, ref) {
   const messagesCtx = useMessagesContext()
   const { medics, loading } = useClinicMedics()
   const callActions = useCallActions()
@@ -1003,7 +1019,10 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     if (!isDevRole) return rawConversations
     const out: Record<string, typeof rawConversations[string]> = {}
     for (const [key, msgs] of Object.entries(rawConversations)) {
-      const filtered = msgs.filter(m => !isSystemMessage(m))
+      // Strip operator↔user system traffic (it lives in the AdminDrawer), but
+      // KEEP outside event-intake requests: a dev triages their own cluster's
+      // intakes here in normal Messages (they arrive in the cluster system group).
+      const filtered = msgs.filter(m => !isSystemMessage(m) || isIntakeRequest(m))
       if (filtered.length > 0) out[key] = filtered
     }
     return out
@@ -1044,6 +1063,12 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   // Batch-check which contacts have active devices
   const medicIds = useMemo(() => allMedics.map(m => m.id), [allMedics])
   const unavailableIds = usePeerAvailability(medicIds)
+
+  // Calls lens — call history + tap-to-redial.
+  const callHistory = useCallHistory(allMedics)
+  const handleRedial = useCallback((entry: CallHistoryEntry) => {
+    callActions?.startCall({ userId: entry.peerId, displayName: getDisplayName(entry.peer) })
+  }, [callActions])
 
   const closeEmailLookup = useCallback(() => {
     setEmailLookupOpen(false)
@@ -1221,10 +1246,10 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   }
 
   const {
-    sendMessage, sendImage, sendVoice,
+    sendMessage, sendImage, sendStructured, sendVoice,
     markAsRead, fetchHistory, acceptRequest, editMessage, deleteMessages,
     deleteConversation,
-    getRequestStatusForPeer, sendGroupMessage, sendGroupImage, sendGroupVoice,
+    getRequestStatusForPeer, sendGroupMessage, sendGroupImage, sendGroupStructured, sendGroupVoice,
     createGroup, leaveGroup, renameGroup, addGroupMember, removeGroupMember,
     promoteGroupMember, demoteGroupMember, purgeGroup,
     fetchGroupMembers, fetchGroupHistory,
@@ -1248,6 +1273,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         medics={allMedics}
         sendGroupMessage={sendGroupMessage}
         sendGroupImage={sendGroupImage}
+        sendGroupStructured={sendGroupStructured}
         sendGroupVoice={sendGroupVoice}
         sending={activeSending}
         markAsRead={markAsRead}
@@ -1283,6 +1309,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         medics={allMedics}
         sendMessage={sendMessage}
         sendImage={sendImage}
+        sendStructured={sendStructured}
         sendVoice={sendVoice}
         sending={activeSending}
         markAsRead={markAsRead}
@@ -1331,20 +1358,24 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     onSearchClear,
   }
 
+  // Chat lens → conversations; Calls lens → call history (tap to redial).
+  const renderPane = (tourVariant: 'mobile' | 'desktop') =>
+    lens === 'calls'
+      ? <CallsPane entries={callHistory} onRedial={handleRedial} searchQuery={searchQuery} />
+      : <ConversationPane {...conversationPaneProps} tourVariant={tourVariant} />
+
   return (
     <div className="flex h-full relative">
       {/* Conversation pane: full-width on mobile default view, w-80 sidebar on desktop */}
       {view === 'messages' && (
-        <div
-          className="md:hidden flex flex-col w-full h-full overflow-hidden"
-          style={{ paddingTop: 'calc(var(--sat, 0px) + 4rem)' }}
-        >
-          <div className="shrink-0 px-3 py-2">
+        <div className="md:hidden w-full h-full overflow-y-auto overscroll-y-contain">
+          {/* iOS large-title glass: one full-height scroller. Search is the first
+              item — padded to clear the floating glass header (var(--sat)+4.375rem)
+              — so it and the list rows scroll UP behind the frosted header. */}
+          <div className="px-3 pt-[calc(var(--sat,0px)+4.375rem+0.5rem)] pb-2">
             <SearchInput value={searchQuery} onChange={onSearchChange} placeholder="Search..." />
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            <ConversationPane {...conversationPaneProps} tourVariant="mobile" />
-          </div>
+          {renderPane('mobile')}
         </div>
       )}
       <div className="hidden md:flex md:flex-col w-80 shrink-0 border-r border-primary/10 overflow-hidden">
@@ -1363,8 +1394,26 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
             </button>
           )}
         </div>
+        {onLensChange && (
+          <div className="shrink-0 border-b border-primary/10 pb-1">
+            {(['chat', 'calls'] as const).map(l => (
+              <button
+                key={l}
+                onClick={() => onLensChange(l)}
+                className={`w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 ${
+                  lens === l
+                    ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
+                    : 'hover:bg-secondary/5'
+                }`}
+              >
+                <span className="text-[10pt] font-medium text-primary truncate flex-1">{l === 'chat' ? 'Chat' : 'Calls'}</span>
+                {lens === l && <Check size={14} className="text-themeblue2 shrink-0" />}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="flex-1 min-h-0 overflow-y-auto">
-          <ConversationPane {...conversationPaneProps} tourVariant="desktop" />
+          {renderPane('desktop')}
         </div>
       </div>
 

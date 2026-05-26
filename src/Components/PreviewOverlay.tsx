@@ -82,6 +82,10 @@ interface PreviewOverlayProps {
   /** When provided, scopes the popover to this container (absolute instead of fixed).
    *  The container element must have `position: relative` and a defined height. */
   containerRef?: React.RefObject<HTMLElement | null>
+  /** Position the card adjacent to `anchorRect` (above the anchor, left-aligned)
+   *  instead of centering it. Use for button-triggered pickers so the popover
+   *  reads as attached to its trigger rather than floating in the middle. */
+  anchored?: boolean
   /** Override the z-index tier. Backdrop sits at this value, content at `zIndex + 15`.
    *  Bump above Z.POPOVER (80) when nesting a popover inside another popover. */
   zIndex?: number
@@ -109,6 +113,7 @@ export function PreviewOverlay({
   addPrefix,
   containerRef,
   rightFooter,
+  anchored = false,
   zIndex = Z.POPOVER,
 }: PreviewOverlayProps) {
   const [filter, setFilter] = useState('')
@@ -181,16 +186,43 @@ export function PreviewOverlay({
           ? (anchorRect.top + anchorRect.height / 2) - (containerRect?.top ?? 0)
           : (containerRect?.height ?? window.innerHeight) / 2
 
+        // Anchored mode: park the card just above the trigger, left-aligned to it
+        // and clamped inside the container — so it reads as attached to the button.
+        const cardW = typeof maxWidth === 'number' ? maxWidth : 340
+        const useAnchored = anchored && !!anchorRect
+        const pad = 8
+        const gap = 8
+        let anchorStyle: React.CSSProperties = {}
+        if (useAnchored) {
+          const cRect = containerRect ?? { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }
+          const anchorLeft = anchorRect!.left - cRect.left
+          const anchorTop = anchorRect!.top - cRect.top
+          const anchorCenterX = anchorLeft + anchorRect!.width / 2
+          const left = Math.max(pad, Math.min(anchorLeft, cRect.width - cardW - pad))
+          const bottom = cRect.height - anchorTop + gap
+          anchorStyle = {
+            left,
+            bottom,
+            width: cardW,
+            maxHeight: anchorTop - gap - pad,
+            transformOrigin: `${anchorCenterX - left}px 100%`,
+          }
+        }
+
         return (
           <div
-            className={`${posClass} inset-0 flex flex-col items-center justify-center pointer-events-none px-6 py-10`}
+            className={`${posClass} inset-0 pointer-events-none ${useAnchored ? '' : 'flex flex-col items-center justify-center px-6 py-10'}`}
             style={{ zIndex: baseZ + 15 }}
           >
             <div
-              className="pointer-events-auto w-full max-h-full"
+              className={useAnchored ? 'pointer-events-auto absolute' : 'pointer-events-auto w-full max-h-full'}
               style={{
-                maxWidth: typeof maxWidth === 'number' ? maxWidth : maxWidth ?? 340,
-                transformOrigin: `${originX}px ${originY}px`,
+                ...(useAnchored
+                  ? anchorStyle
+                  : {
+                      maxWidth: typeof maxWidth === 'number' ? maxWidth : maxWidth ?? 340,
+                      transformOrigin: `${originX}px ${originY}px`,
+                    }),
                 transform: visible ? 'scale(1)' : 'scale(0.88)',
                 opacity: visible ? 1 : 0,
                 transition: 'transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 200ms ease-out',

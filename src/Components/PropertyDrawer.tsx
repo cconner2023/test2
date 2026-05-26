@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { Pencil, X, Trash2, List, Map as MapIcon, ScanLine, Plus } from 'lucide-react'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { BaseDrawer } from './BaseDrawer'
+import { BottomIsland, IslandButton } from './BottomIsland'
 import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
 import { PropertyLocationMap, type MapNavHandle } from './Property/PropertyLocationMap'
 import { ContentWrapper } from './ContentWrapper'
@@ -19,6 +20,7 @@ import { ActionSheet } from './ActionSheet'
 import { UI_TIMING } from '../Utilities/constants'
 import { usePropertyStore } from '../stores/usePropertyStore'
 import { useAuthStore } from '../stores/useAuthStore'
+import { useNavigationStore } from '../stores/useNavigationStore'
 import { useShallow } from 'zustand/react/shallow'
 import { exportPropertyCSV } from '../Utilities/PropertyCSV'
 import { PropertyCSVImportSheet } from './Property/PropertyCSVImportSheet'
@@ -88,6 +90,20 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             init()
         }
     }, [isVisible, init])
+
+    // Deep-link: open straight to an item when navigated here with a focus id
+    // (e.g. tapping a shared property card in a chat). Waits for items to load.
+    const propertyDrawerItemId = useNavigationStore(s => s.propertyDrawerItemId)
+    const clearPropertyDrawerItemId = useNavigationStore(s => s.clearPropertyDrawerItemId)
+    useEffect(() => {
+        if (!isVisible || !propertyDrawerItemId) return
+        const item = items.find(i => i.id === propertyDrawerItemId)
+        if (item) {
+            setSelectedItem(item)
+            setView('property-detail')
+            clearPropertyDrawerItemId()
+        }
+    }, [isVisible, propertyDrawerItemId, items, clearPropertyDrawerItemId])
 
     const isMobile = useIsMobile()
 
@@ -238,6 +254,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             desktopPosition="left"
             desktopWidth="w-[90%]"
             header={headerConfig}
+            glassHeader={isMobile && view === 'property' && !mapView}
             scrollDisabled
         >
             <div className="h-full relative">
@@ -276,34 +293,24 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 ) : (
                     <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && view !== 'property' ? swipeHandlers : undefined}>
                         {isMobile ? (
-                            <div className="h-full flex flex-col">
-                                {view === 'property' && (
-                                    <div className="shrink-0 px-3 py-2">
-                                        <SearchInput
-                                            value={searchQuery}
-                                            onChange={setSearchQuery}
-                                            placeholder="Search items..."
-                                        />
-                                    </div>
-                                )}
-                                <div className="flex-1 min-h-0 relative">
-                                    <PropertyPanel
-                                        isMobile={isMobile}
-                                        view={view}
-                                        searchQuery={searchQuery}
-                                        selectedItem={selectedItem}
-                                        onSelectItem={handleSelectItem}
-                                        onEditItem={handleEditItem}
-                                        onDeleteItem={isSupervisorRole ? handleDeleteItem : undefined}
-                                        onAddItem={handleAddItem}
-                                        onBack={handleBack}
-                                        onDrilldownChange={setDrilldownPath}
-                                        locationListRef={locationListRef}
-                                        onEnrollItem={(item) => setEnrollingItem(item)}
-                                        onRegisterAddItem={(t) => { addItemTriggerRef.current = t }}
-                                        onRegisterAddLocation={(t) => { addLocationTriggerRef.current = t }}
-                                    />
-                                </div>
+                            <div className="h-full">
+                                <PropertyPanel
+                                    isMobile={isMobile}
+                                    view={view}
+                                    searchQuery={searchQuery}
+                                    onSearchChange={setSearchQuery}
+                                    selectedItem={selectedItem}
+                                    onSelectItem={handleSelectItem}
+                                    onEditItem={handleEditItem}
+                                    onDeleteItem={isSupervisorRole ? handleDeleteItem : undefined}
+                                    onAddItem={handleAddItem}
+                                    onBack={handleBack}
+                                    onDrilldownChange={setDrilldownPath}
+                                    locationListRef={locationListRef}
+                                    onEnrollItem={(item) => setEnrollingItem(item)}
+                                    onRegisterAddItem={(t) => { addItemTriggerRef.current = t }}
+                                    onRegisterAddLocation={(t) => { addLocationTriggerRef.current = t }}
+                                />
                             </div>
                         ) : (
                             <div className="h-full relative">
@@ -328,28 +335,17 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 )}
 
                 {(view === 'property' || mapView) && (
-                    <div className="absolute bottom-4 inset-x-0 flex items-center justify-center z-30 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
-                        <div data-tour="property-view-toggle" className="flex items-center gap-1.5 rounded-full bg-themewhite border border-tertiary/20 px-0.5 py-0.5 shadow-lg pointer-events-auto">
-                            <button
-                                onClick={() => { setMapView(false) }}
-                                className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${!mapView ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
-                            >
-                                <List className="w-5 h-5" />
-                            </button>
-                            <button
-                                onClick={() => setScanMode(true)}
-                                className="w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 text-tertiary hover:text-primary"
-                            >
-                                <ScanLine className="w-5 h-5" />
-                            </button>
-                            <button
-                                onClick={() => { setMapView(true) }}
-                                className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${mapView ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
-                            >
-                                <MapIcon className="w-5 h-5" />
-                            </button>
-                        </div>
-                    </div>
+                    <BottomIsland z="z-30" tour="property-view-toggle">
+                        <IslandButton active={!mapView} onClick={() => setMapView(false)} label="List">
+                            <List className="w-5 h-5" />
+                        </IslandButton>
+                        <IslandButton onClick={() => setScanMode(true)} label="Scan">
+                            <ScanLine className="w-5 h-5" />
+                        </IslandButton>
+                        <IslandButton active={mapView} onClick={() => setMapView(true)} label="Map">
+                            <MapIcon className="w-5 h-5" />
+                        </IslandButton>
+                    </BottomIsland>
                 )}
 
                 {view === 'property' && !mapView && (

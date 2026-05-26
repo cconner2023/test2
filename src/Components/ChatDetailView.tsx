@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
 import { ArrowUp, X, Plus, Mic, ChevronLeft, Copy, Pencil, Download, Reply, Trash2, Forward } from 'lucide-react'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MessageBubble } from './Settings/MessageBubble'
+import { SharedObjectPicker } from './Messages/SharedObjectPicker'
+import type { MessageContent } from '../lib/signal/messageContent'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import { ContactListItem } from './Settings/ContactListItem'
 import { useAuth } from '../Hooks/useAuth'
@@ -31,6 +33,10 @@ export interface ChatDetailViewProps {
   medics: ClinicMedic[]
   sendMessage: (id: string, text: string, threadId?: string) => Promise<boolean>
   sendImage: (id: string, file: File) => Promise<boolean>
+  /** Send a structured-content message (e.g. a shared object reference). When
+   * supplied, the composer's + button opens an attachment menu (photo + share
+   * event / map). When omitted, + falls back to the direct photo picker. */
+  sendStructured?: (id: string, content: MessageContent, originId: string, preview: string) => Promise<boolean>
   sendVoice?: (id: string, recording: VoiceRecordingResult) => Promise<boolean>
   editMessage: (id: string, msgId: string, text: string) => void
   deleteMessages: (id: string, msgIds: string[]) => void
@@ -164,6 +170,7 @@ export function ChatDetailView({
   medics,
   sendMessage,
   sendImage,
+  sendStructured,
   sendVoice,
   editMessage,
   deleteMessages,
@@ -188,13 +195,29 @@ export function ChatDetailView({
   onScrollConsumed,
   children,
 }: ChatDetailViewProps) {
-  const { user } = useAuth()
+  const { user, clinicId } = useAuth()
   const userId = user?.id ?? ''
   const signalReady = useAuthStore(s => s.signalReady)
   const [text, setText] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const conversationRef = useRef<HTMLDivElement>(null)
+  const [attachOpen, setAttachOpen] = useState(false)
+  const [attachAnchorRect, setAttachAnchorRect] = useState<DOMRect | null>(null)
+  const attachBtnRef = useRef<HTMLButtonElement>(null)
+
+  const openAttachMenu = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    setAttachAnchorRect(e.currentTarget.getBoundingClientRect())
+    setAttachOpen(true)
+  }, [])
+
+  const handleShareObject = useCallback((content: MessageContent) => {
+    if (!sendStructured) return
+    const originId = crypto.randomUUID()
+    const preview = content.type === 'shared_ref' ? content.label : 'Shared item'
+    void sendStructured(conversationId, content, originId, preview)
+  }, [sendStructured, conversationId])
 
   const [threadClosing, setThreadClosing] = useState(false)
   const [highlightId, setHighlightId] = useState<string | null>(null)
@@ -297,13 +320,23 @@ export function ChatDetailView({
       if (tourIds.length > 0) deleteMessages(conversationId, tourIds)
     }
 
+    const handleOpenShare = () => {
+      if (attachBtnRef.current) setAttachAnchorRect(attachBtnRef.current.getBoundingClientRect())
+      setAttachOpen(true)
+    }
+    const handleCloseShare = () => setAttachOpen(false)
+
     window.addEventListener('tour:messaging-send-note', handleSendNote)
     window.addEventListener('tour:messaging-send-reply', handleSendReply)
     window.addEventListener('tour:messaging-cleanup', handleCleanup)
+    window.addEventListener('tour:messaging-open-share', handleOpenShare)
+    window.addEventListener('tour:messaging-close-share', handleCloseShare)
     return () => {
       window.removeEventListener('tour:messaging-send-note', handleSendNote)
       window.removeEventListener('tour:messaging-send-reply', handleSendReply)
       window.removeEventListener('tour:messaging-cleanup', handleCleanup)
+      window.removeEventListener('tour:messaging-open-share', handleOpenShare)
+      window.removeEventListener('tour:messaging-close-share', handleCloseShare)
     }
   }, [isSelfChat, conversationId, userId, messages, sendMessage, deleteMessages, setActiveThreadId])
 
@@ -494,9 +527,11 @@ export function ChatDetailView({
             <div className="flex items-end gap-2">
               {canUploadImage && (
                 <button
-                  onClick={() => fileInputRef.current?.click()}
+                  ref={attachBtnRef}
+                  onClick={e => sendStructured ? openAttachMenu(e) : fileInputRef.current?.click()}
                   disabled={sending}
-                  className="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all shrink-0"
+                  className={`w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all shrink-0
+                              ${attachOpen ? 'rotate-45' : ''}`}
                 >
                   <Plus size={18} className="text-tertiary" />
                 </button>
@@ -637,8 +672,20 @@ export function ChatDetailView({
   const showThread = !!activeThreadId
 
   return (
-    <div className="flex flex-col h-full relative" {...mainSwipeBack}>
+    <div ref={conversationRef} className="flex flex-col h-full relative" {...mainSwipeBack}>
       {renderMessageList(mainViewMessages, emptyText, true)}
+
+      {sendStructured && (
+        <SharedObjectPicker
+          isOpen={attachOpen}
+          anchorRect={attachAnchorRect}
+          containerRef={conversationRef}
+          clinicId={clinicId ?? null}
+          onClose={() => setAttachOpen(false)}
+          onPickPhoto={() => fileInputRef.current?.click()}
+          onPick={handleShareObject}
+        />
+      )}
       {!showThread && blockedReason && (
         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center px-6 pointer-events-none">
           <p className="text-[10pt] text-tertiary text-center max-w-[90%]">

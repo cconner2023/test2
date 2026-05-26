@@ -12,6 +12,7 @@
  *   Calendar event: { t: "e", a: "c"|"u"|"d", d: {...} }
  *   Map overlay:    { t: "o", a: "c"|"u"|"d", d: {...} }   ← overlay metadata + (legacy) full feature set
  *   Map feature:    { t: "mf", a: "c"|"u"|"d", o, c?, f }  ← single feature within a parent overlay
+ *   Shared ref:     { t: "r", k: "ce"|"mo", id, l, s?, f? } ← chat-visible deep link to a clustered object
  */
 
 import type { EventCategory, EventStatus } from '../../Types/CalendarTypes'
@@ -165,7 +166,32 @@ export interface IntakeRequestContent {
   title: string
 }
 
-export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | IntakeRequestContent
+/**
+ * Chat-visible reference to an object that already lives in the clinic cluster
+ * (a calendar event or a map overlay). Carries ONLY an opaque id + an
+ * operator-supplied label — never the object's payload, never PHI. The
+ * recipient resolves the LIVE object from their own vault-synced IndexedDB;
+ * tapping the rendered card deep-links into the calendar / map drawer.
+ *
+ * Distinct from the e/o/mf SYNC envelopes (those fan out to the vault and never
+ * render as a bubble). A shared_ref is authored into a 1:1 or group thread and
+ * renders as a tappable card.
+ */
+export interface SharedRefContent {
+  type: 'shared_ref'
+  /** Which domain object this references. */
+  refKind: 'calendar-event' | 'map-overlay' | 'property-item'
+  /** Opaque id — calendar event id, overlay id, or property item id. Clinic-scoped. */
+  refId: string
+  /** Operator-supplied display label. Operational vocabulary ONLY — no PHI. */
+  label: string
+  /** Secondary line (date, waypoint count, etc.). Operational only. */
+  subLabel?: string
+  /** Optional sub-reference into an overlay (a specific feature/waypoint). */
+  featureId?: string
+}
+
+export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | SharedRefContent | IntakeRequestContent
 
 // ---- Compact wire shapes ----
 
@@ -225,7 +251,17 @@ interface WireMapFeature {
   f: Record<string, unknown>
 }
 
-type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature
+interface WireSharedRef {
+  t: 'r'
+  /** kind: 'ce' calendar event | 'mo' map overlay | 'pi' property item */
+  k: 'ce' | 'mo' | 'pi'
+  id: string
+  l: string
+  s?: string
+  f?: string
+}
+
+type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature | WireSharedRef
 
 // ---- Serialization ----
 
@@ -286,6 +322,19 @@ export function serializeContent(content: MessageContent): string {
       f: content.data.feature as unknown as Record<string, unknown>,
     }
     if (content.data.clinic_id) wire.c = content.data.clinic_id
+    return JSON.stringify(wire)
+  }
+
+  if (content.type === 'shared_ref') {
+    const kindMap = { 'calendar-event': 'ce', 'map-overlay': 'mo', 'property-item': 'pi' } as const
+    const wire: WireSharedRef = {
+      t: 'r',
+      k: kindMap[content.refKind],
+      id: content.refId,
+      l: content.label,
+    }
+    if (content.subLabel) wire.s = content.subLabel
+    if (content.featureId) wire.f = content.featureId
     return JSON.stringify(wire)
   }
 
@@ -413,6 +462,21 @@ export function parseMessageContent(raw: string): ParsedContent {
             feature: wire.f as unknown as MapFeaturePayload['feature'],
           },
         } satisfies MapFeatureContent,
+      }
+    }
+
+    if (wire.t === 'r') {
+      const refKind = wire.k === 'ce' ? 'calendar-event' : wire.k === 'pi' ? 'property-item' : 'map-overlay'
+      return {
+        plaintext: wire.l,
+        content: {
+          type: 'shared_ref',
+          refKind,
+          refId: wire.id,
+          label: wire.l,
+          ...(wire.s && { subLabel: wire.s }),
+          ...(wire.f && { featureId: wire.f }),
+        } satisfies SharedRefContent,
       }
     }
   } catch {

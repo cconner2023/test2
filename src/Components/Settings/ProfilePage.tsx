@@ -8,7 +8,6 @@ import { useNavigationStore } from '../../stores/useNavigationStore';
 import { useCertifications } from '../../Hooks/useCertifications';
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime';
 import { useIsMobile } from '../../Hooks/useIsMobile';
-import { getCategoryMeta } from '../../Types/CalendarTypes';
 import type { CalendarEvent } from '../../Types/CalendarTypes';
 import type { Component } from '../../Data/User';
 import { credentials, components, ranksByComponent } from '../../Data/User';
@@ -475,18 +474,15 @@ export const ProfilePage = ({
                             ) : (
                                 myEvents.map((evt, idx) => {
                                     const isPast = new Date(evt.end_time) < now
-                                    const meta = getCategoryMeta(evt.category)
                                     return (
                                         <div
                                             key={evt.id}
                                             className={`flex items-center gap-3 px-4 py-3 transition-opacity ${idx > 0 ? 'border-t border-tertiary/8' : ''} ${isPast ? 'opacity-50' : ''}`}
                                         >
-                                            <div className={`w-2 h-2 rounded-full shrink-0 ${meta.solidColor}`} />
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-medium text-primary truncate">{evt.title}</p>
                                                 <p className="text-[9pt] text-tertiary">{formatEventDate(evt)}</p>
                                             </div>
-                                            <span className="text-[9pt] text-tertiary shrink-0 capitalize">{evt.category}</span>
                                         </div>
                                     )
                                 })

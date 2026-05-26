@@ -1,11 +1,12 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useSpring, animated } from '@react-spring/web'
-import { ChevronLeft, Plus, X, Play, Headset, Info, Settings } from 'lucide-react'
+import { ChevronLeft, Plus, X, Play, Headset, Info, Settings, MessageSquare } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
+import { BottomIsland, IslandButton } from './BottomIsland'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { PreviewOverlay } from './PreviewOverlay'
 import { VoicemailGreetingSection } from './Settings/VoicemailGreetingSection'
-import { MessagesPanel, type MessagesView, type MessagesPanelHandle } from './Settings/MessagesPanel'
+import { MessagesPanel, type MessagesView, type MessagesPanelHandle, type MessagingLens } from './Settings/MessagesPanel'
 import { useMessagesContext } from '../Hooks/MessagesContext'
 import { useAuth } from '../Hooks/useAuth'
 import { useUserProfile } from '../Hooks/useUserProfile'
@@ -32,6 +33,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     const [selectedPeerName, setSelectedPeerName] = useState<string | null>(null)
     const [pendingScrollMsgId, setPendingScrollMsgId] = useState<string | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
+    const [lens, setLens] = useState<MessagingLens>('chat')
     const [showSettings, setShowSettings] = useState(false)
     const openSettings = useCallback(() => setShowSettings(true), [])
     const handleScrollConsumed = useCallback(() => setPendingScrollMsgId(null), [])
@@ -141,6 +143,8 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             onSearchClear={() => setSearchQuery('')}
             onSearchChange={setSearchQuery}
             onOpenSettings={isDevRole ? openSettings : undefined}
+            lens={lens}
+            onLensChange={setLens}
             tourVariant={isTourActive ? (isMobile ? 'mobile' : 'desktop') : undefined}
             scrollToMessageId={pendingScrollMsgId}
             onScrollConsumed={handleScrollConsumed}
@@ -186,23 +190,10 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
         }
     }, [view, selectedPeerId, selectedGroupId, selectedPeerName, handleBack, handleClose, callActions])
 
-    // Messaging settings — mobile drawer + desktop popover, both share content
-    // (mirrors the calendar / map-overlay settings pattern).
+    // Messaging settings — PreviewOverlay popover on both mobile + desktop
+    // (mirrors MapSettingsDrawer, which is overlay-only).
     // Dev-gated until voicemail is validated in prod.
-    const settingsSurface = !isDevRole ? null : isMobile ? (
-        <BaseDrawer
-            isVisible={showSettings}
-            onClose={() => setShowSettings(false)}
-            mobileOnly
-            fullHeight="75dvh"
-            zIndex="z-50"
-            header={{ title: 'Messaging settings', hideDefaultClose: false }}
-        >
-            <div className="px-4 py-3 pb-[max(1rem,var(--sab,0px))]">
-                <VoicemailGreetingSection />
-            </div>
-        </BaseDrawer>
-    ) : (
+    const settingsSurface = !isDevRole ? null : (
         <PreviewOverlay
             isOpen={showSettings}
             onClose={() => setShowSettings(false)}
@@ -236,7 +227,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                         ),
                     }}
                 >
-                    <div className="shrink-0 px-3 py-3 pt-[max(0.75rem,var(--sat,0px))] flex items-center gap-2 backdrop-blur-xs bg-themewhite3/80">
+                    <div className="shrink-0 px-3 py-3 pt-[max(0.75rem,var(--sat,0px))] flex items-center gap-2 backdrop-blur-[2px] bg-themewhite3/15">
                         <HeaderPill>
                             <PillButton icon={ChevronLeft} onClick={handleClose} label="Back" />
                         </HeaderPill>
@@ -250,6 +241,16 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                 <div className="h-full overflow-hidden">
                     {panelContent}
                 </div>
+                {/* Bottom-center island: Chat | Calls lens toggle (list view only) */}
+                {view === 'messages' && (
+                    <BottomIsland role="tablist" ariaLabel="Message view">
+                        {([['chat', MessageSquare, 'Chat'], ['calls', Headset, 'Calls']] as const).map(([l, Icon, label]) => (
+                            <IslandButton key={l} active={lens === l} onClick={() => setLens(l)} label={label} role="tab">
+                                <Icon className="w-5 h-5" />
+                            </IslandButton>
+                        ))}
+                    </BottomIsland>
+                )}
                 {settingsSurface}
             </div>
         )

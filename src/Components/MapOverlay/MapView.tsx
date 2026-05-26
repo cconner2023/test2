@@ -5,6 +5,7 @@ import { latLngToMgrs } from '../../lib/mgrsFormat';
 import { Plus, Minus, Info, Copy, ClipboardCheck, LocateFixed, Map as MapIcon, Globe, Mountain, MountainSnow } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { PreviewOverlay } from '../PreviewOverlay';
+import { BottomIsland } from '../BottomIsland';
 import { ActionPill } from '../ActionPill';
 import { useTheme } from '../../Utilities/ThemeContext';
 import { createThemedTileLayer, getTileTheme } from './ThemedTileLayer';
@@ -880,8 +881,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       </div>
 
       {/* Bottom-center island: basemap | locate | coord readout */}
-      <div className="absolute bottom-4 inset-x-0 flex items-center justify-center z-[1000] pointer-events-none pb-[max(0rem,var(--sab,0px))]">
-        <div data-tour="map-control-island" className="flex items-center gap-1 rounded-full bg-themewhite2/95 dark:bg-themewhite3/95 backdrop-blur-sm border border-tertiary/20 px-1 py-1 shadow-lg pointer-events-auto max-w-[calc(100%-7rem)]">
+      <BottomIsland z="z-[1000]" tour="map-control-island" barClassName="max-w-[calc(100%-7rem)]">
           <button
             type="button"
             onClick={() => setShowBasemapPicker(v => !v)}
@@ -916,8 +916,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
           >
             <LocateFixed size={16} />
           </button>
-        </div>
-      </div>
+      </BottomIsland>
 
       {/* Basemap picker — ActionPill row, floats above the island's basemap glyph
           (mirrors the waypoint pin glyph picker convention) */}

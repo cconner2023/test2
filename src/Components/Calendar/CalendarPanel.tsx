@@ -13,6 +13,7 @@ import { InfiniteScrollCalendar } from './InfiniteScrollCalendar'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { ActionSheet } from '../ActionSheet'
 import { BaseDrawer } from '../BaseDrawer'
+import { BottomIsland, IslandButton } from '../BottomIsland'
 import { CalendarCSVImportSheet } from './CalendarCSVImportSheet'
 import { TemplateGeneratorPanel, type TemplateGeneratorHandle } from './TemplateGeneratorPanel'
 import { BlockTemplatedPanel, type BlockTemplatedHandle } from './BlockTemplatedPanel'
@@ -925,49 +926,30 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             )}
           </div>
 
-          <div className="absolute bottom-4 inset-x-0 flex items-center justify-center z-20 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
-            <div data-tour="calendar-view-switcher" className="flex items-center gap-1.5 rounded-full bg-themewhite border border-tertiary/20 px-0.5 py-0.5 shadow-lg pointer-events-auto">
-              <button
-                data-tour="calendar-view-month"
-                onClick={() => setViewMode('month')}
-                className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
-                  viewMode === 'month' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
-                }`}
-                title="Month"
-              >
-                <CalendarDays className="w-5 h-5" />
-              </button>
-              <button
-                data-tour="calendar-view-day"
-                onClick={() => setViewMode('day')}
-                className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
-                  viewMode === 'day' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
-                }`}
-                title="Day"
-              >
-                <Clock className="w-5 h-5" />
-              </button>
-              <button
-                data-tour="calendar-view-troops"
-                onClick={() => setViewMode('troops')}
-                className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
-                  viewMode === 'troops' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
-                }`}
-                title="Troops to Task"
-              >
-                <Users2 className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
-              <button
-                data-tour="calendar-add-event"
-                onClick={() => setShowAddSheet(true)}
-                className="w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 bg-themeblue3 text-white active:scale-95"
-              >
-                <Plus className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
+          <BottomIsland
+            tour="calendar-view-switcher"
+            fab={
+              <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
+                <button
+                  data-tour="calendar-add-event"
+                  onClick={() => setShowAddSheet(true)}
+                  className="w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 bg-themeblue3 text-white active:scale-95"
+                >
+                  <Plus className="w-5 h-5" />
+                </button>
+              </div>
+            }
+          >
+            <IslandButton active={viewMode === 'month'} onClick={() => setViewMode('month')} label="Month" tour="calendar-view-month">
+              <CalendarDays className="w-5 h-5" />
+            </IslandButton>
+            <IslandButton active={viewMode === 'day'} onClick={() => setViewMode('day')} label="Day" tour="calendar-view-day">
+              <Clock className="w-5 h-5" />
+            </IslandButton>
+            <IslandButton active={viewMode === 'troops'} onClick={() => setViewMode('troops')} label="Troops to Task" tour="calendar-view-troops">
+              <Users2 className="w-5 h-5" />
+            </IslandButton>
+          </BottomIsland>
 
           {/* Mobile form drawer — uses BaseDrawer for consistent animation/drag */}
           <BaseDrawer

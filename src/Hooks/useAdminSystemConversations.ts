@@ -27,6 +27,16 @@ export function isSystemMessage(msg: DecryptedSignalMessage): boolean {
 }
 
 /**
+ * Outside event-intake requests ride the system channel (`messageType='system'`)
+ * but are NOT operator↔user system conversation traffic — they're clinic-scoped
+ * group messages a supervisor (or the provisioning dev) triages in their normal
+ * Messages drawer. They must never populate the dev's admin system console.
+ */
+export function isIntakeRequest(msg: DecryptedSignalMessage): boolean {
+  return msg.content?.type === 'intake_request'
+}
+
+/**
  * Dev-only selector: per-peer system threads, sorted by most-recent activity.
  *
  * On the dev's side both directions of system traffic key under the OTHER
@@ -54,6 +64,7 @@ export function useAdminSystemConversations(): AdminSystemConversation[] {
       let last: DecryptedSignalMessage | null = null
       for (const m of msgs) {
         if (!isSystemMessage(m)) continue
+        if (isIntakeRequest(m)) continue // intake requests belong in normal Messages, not the admin console
         if (!last || m.createdAt > last.createdAt) last = m
       }
       if (!last) continue

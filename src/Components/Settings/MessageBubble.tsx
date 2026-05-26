@@ -1,5 +1,5 @@
 import { useRef, useCallback, useState, useEffect, useMemo } from 'react'
-import { Check, CheckCheck, X, Reply, Trash2, Clock, MessageSquare, Play, Pause, Copy, Download, CalendarPlus } from 'lucide-react'
+import { Check, CheckCheck, X, Reply, Trash2, Clock, MessageSquare, Play, Pause, Copy, Download, CalendarPlus, Calendar, Map as MapIcon, Package, ChevronRight } from 'lucide-react'
 import { ActionButton } from '../ActionButton'
 import { GESTURE_THRESHOLDS, isInteractiveTarget } from '../../Utilities/GestureUtils'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
@@ -156,7 +156,24 @@ export function MessageBubble({
   const [playProgress, setPlayProgress] = useState(0)
 
   const requestNewCalendarEvent = useNavigationStore(s => s.requestNewCalendarEvent)
+  const openCalendarEvent = useNavigationStore(s => s.openCalendarEvent)
+  const setShowMapOverlayDrawer = useNavigationStore(s => s.setShowMapOverlayDrawer)
+  const setShowPropertyDrawer = useNavigationStore(s => s.setShowPropertyDrawer)
   const isDevRole = useAuthStore(s => s.isDevRole)
+
+  const sharedRef = message.content?.type === 'shared_ref' ? message.content : null
+
+  const handleOpenRef = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!sharedRef) return
+    if (sharedRef.refKind === 'calendar-event') {
+      openCalendarEvent(sharedRef.refId)
+    } else if (sharedRef.refKind === 'property-item') {
+      setShowPropertyDrawer(true, sharedRef.refId)
+    } else {
+      setShowMapOverlayDrawer(true, sharedRef.refId, sharedRef.featureId ?? null)
+    }
+  }, [sharedRef, openCalendarEvent, setShowMapOverlayDrawer, setShowPropertyDrawer])
 
   // Detect a schedulable date in text content — drives the floating "add to
   // calendar" affordance. Dev-gated for now. Runs on already-decrypted local
@@ -400,6 +417,28 @@ export function MessageBubble({
   // ── Render content ────────────────────────────────────────────────────
 
   const renderContent = () => {
+    if (sharedRef) {
+      const RefIcon = sharedRef.refKind === 'calendar-event' ? Calendar : sharedRef.refKind === 'property-item' ? Package : MapIcon
+      return (
+        <button
+          onClick={handleOpenRef}
+          className={`flex items-center gap-2.5 min-w-[180px] max-w-[240px] -mx-1 px-2 py-1 rounded-lg active:scale-[0.98] transition-all text-left
+                     ${isOwn ? 'hover:bg-white/10' : 'hover:bg-primary/5'}`}
+        >
+          <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isOwn ? 'bg-white/20' : 'bg-themeblue3/10'}`}>
+            <RefIcon size={17} className={isOwn ? 'text-white' : 'text-themeblue3'} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className={`text-sm font-medium truncate ${isOwn ? 'text-white' : 'text-primary'}`}>{sharedRef.label}</p>
+            {sharedRef.subLabel && (
+              <p className={`text-[9pt] truncate ${isOwn ? 'text-white/70' : 'text-tertiary'}`}>{sharedRef.subLabel}</p>
+            )}
+          </div>
+          <ChevronRight size={16} className={`shrink-0 ${isOwn ? 'text-white/60' : 'text-tertiary'}`} />
+        </button>
+      )
+    }
+
     if (isEditing && !isImage) {
       return (
         <div className="flex flex-col gap-1.5">

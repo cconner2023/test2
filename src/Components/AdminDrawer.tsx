@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { Plus, Building2, X, Inbox, Users, ChevronLeft, MessageCircleQuestion, MapPin } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from './BaseDrawer'
+import { BottomIsland, IslandButton } from './BottomIsland'
 import { SearchInput } from './SearchInput'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { DetailHeaderActions } from './Admin/DetailHeaderActions'
@@ -760,50 +761,34 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     // Bottom island — tab switcher (centered) + FAB (right), matching Property/Calendar pattern
     const bottomIsland = (
-        <div className="absolute bottom-4 inset-x-0 flex items-center justify-center z-20 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
-            {/* Centered tab switcher */}
-            <div
-                role="tablist"
-                aria-label="Admin sections"
-                className="bg-themewhite2/90 dark:bg-themewhite3/90 backdrop-blur-sm rounded-full shadow-sm border border-tertiary/10 flex items-center p-1 gap-1 pointer-events-auto"
-            >
-                {visibleTabs.map((tab) => {
-                    const TabIcon = TAB_ICONS[tab]
-                    const label = TAB_LABELS[tab]
-                    const selected = activeTab === tab
-                    return (
+        <BottomIsland
+            role="tablist"
+            ariaLabel="Admin sections"
+            fab={
+                // FAB — absolute right, aligned to island. Hidden on tabs that don't create entities (requests = approval workflow, feature-votes = inline mgmt).
+                activeTab !== 'feature-votes' && activeTab !== 'requests' && !(activeTab === 'locations' && !isDevRole) ? (
+                    <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
                         <button
-                            key={tab}
-                            role="tab"
-                            aria-selected={selected}
-                            onClick={() => handleTabChange(tab)}
-                            aria-label={label}
-                            title={label}
-                            className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors active:scale-95 ${
-                                selected
-                                    ? 'bg-themeblue2 text-white shadow-sm'
-                                    : 'text-tertiary hover:text-primary'
-                            }`}
+                            onClick={() => setShowAddSheet(true)}
+                            className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
+                            title="Add new"
                         >
-                            <TabIcon size={18} />
+                            <Plus className="w-5 h-5" />
                         </button>
-                    )
-                })}
-            </div>
-
-            {/* FAB — absolute right, aligned to island. Hidden on tabs that don't create entities (requests = approval workflow, feature-votes = inline mgmt). */}
-            {activeTab !== 'feature-votes' && activeTab !== 'requests' && !(activeTab === 'locations' && !isDevRole) && (
-                <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
-                    <button
-                        onClick={() => setShowAddSheet(true)}
-                        className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
-                        title="Add new"
-                    >
-                        <Plus className="w-5 h-5" />
-                    </button>
-                </div>
-            )}
-        </div>
+                    </div>
+                ) : null
+            }
+        >
+            {visibleTabs.map((tab) => {
+                const TabIcon = TAB_ICONS[tab]
+                const label = TAB_LABELS[tab]
+                return (
+                    <IslandButton key={tab} active={activeTab === tab} onClick={() => handleTabChange(tab)} label={label} role="tab">
+                        <TabIcon size={18} />
+                    </IslandButton>
+                )
+            })}
+        </BottomIsland>
     )
 
     // Shared: list content for active tab (no search wrapper)

@@ -399,13 +399,24 @@ export const PropertyPanel = memo(function PropertyPanel({
     )
   }
 
-  // Mobile layout
+  // Mobile layout — single scroller filling the panel; search + list scroll
+  // UP behind the glass header (content top sits at the panel top, padded to
+  // clear the floating header via --drawer-header-h).
   return (
     <>
-      <div data-tour="property-locations" className="flex flex-col h-full overflow-hidden">
+      <div data-tour="property-locations" className="h-full overflow-y-auto">
+        {onSearchChange && (
+          <div className="px-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.5rem)] pb-1">
+            <SearchInput
+              value={searchQuery}
+              onChange={onSearchChange}
+              placeholder="Search items..."
+            />
+          </div>
+        )}
         {renderNewLocationForm()}
 
-        <div className="flex-1 overflow-y-auto">
+        <div>
           <PropertyLocationList
             ref={locationListRef as React.Ref<import('./PropertyLocationList').PropertyLocationListHandle>}
             locations={visibleLocations}
