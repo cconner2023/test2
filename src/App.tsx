@@ -38,6 +38,7 @@ import { ErrorBoundary } from './Components/ErrorBoundary'
 import { MessagesProvider, useMessagesContext } from './Hooks/MessagesContext'
 import { CallProvider } from './Hooks/CallContext'
 import { CallOverlay } from './Components/Settings/CallOverlay'
+import { OncallCallModal } from './Components/Messages/OncallCallModal'
 import { MessageNotificationToast } from './Components/MessageNotificationToast'
 import { TourProvider } from './Components/Tour/TourProvider'
 import { PushNotificationToast } from './Components/PushNotificationToast'
@@ -824,6 +825,7 @@ case 'mapOverlay':
         {!updateVisible && <InstallPrompt onVisibilityChange={setInstallVisible} />}
       </div>
       <CallOverlay />
+      <OncallCallModal />
       <MessageToastBridge onTap={handleNotificationTap} />
       <PushToastBridge />
       <FeatureVotePrompt

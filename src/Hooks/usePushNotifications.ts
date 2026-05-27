@@ -65,6 +65,11 @@ export function usePushNotifications() {
           else if (view === 'admin') nav.setShowAdminDrawer(true)
           else if (view === 'clinicNotes') nav.setShowProviderDrawer(true)
           else if (view === 'calendar') nav.setShowCalendarDrawer(true)
+          // On-call ring + voicemail-delivered notifications. The live ring
+          // modal (OncallCallModal) is mounted globally and surfaces from the
+          // realtime ring row once foregrounded; the voicemail card lives in the
+          // messages surface — both just need the PWA foregrounded here.
+          else if (view === 'oncall' || view === 'voicemail') nav.setShowMessagesDrawer(true)
         } else {
           // Default: open messages for signal_message notifications
           useNavigationStore.getState().setShowMessagesDrawer(true)

@@ -166,6 +166,42 @@ export interface IntakeRequestContent {
   title: string
 }
 
+/** Voicemail payload carried inline in a resolved oncall-call card. The audio is
+ *  AES-256-GCM ciphertext (base64, IV-prepended); the AES key is sealed to the
+ *  clinic voicemail pubkey (see src/lib/oncallSeal.ts). Server stores ciphertext
+ *  only — the no-PHI-on-wire invariant holds (operational audio, E2E-encrypted). */
+export interface OncallVoicemailData {
+  /** base64(IV ‖ AES-GCM audio ciphertext). */
+  audio: string
+  mime: string
+  duration: number
+  waveform: number[]
+  /** base64(IV ‖ AES-GCM) of the audio key, wrapped to the clinic voicemail key. */
+  sealed_key: string
+  /** base64 raw ephemeral P-256 pubkey used for the seal. */
+  ephemeral_pub: string
+  /** base64 HKDF salt. */
+  nonce: string
+}
+
+/**
+ * Resolved outside→on-call CALL card — the durable record of one on-call call,
+ * SYSTEM-authored plaintext jsonb (like IntakeRequestContent). Decrypt-only:
+ * constructed inside the decryptRow / drainSystemInbox oncall early-exits, never
+ * serialized. The live ring (oncall-ring) is NOT a content type — it routes to
+ * the call layer via the oncall signal bus and is never stored as a card.
+ */
+export interface OncallCallContent {
+  type: 'oncall_call'
+  call_id: string
+  clinic_id: string
+  requester_name: string
+  outcome: 'connected_ended' | 'declined' | 'missed' | 'voicemail'
+  /** ISO timestamp string. */
+  ended_at: string
+  voicemail?: OncallVoicemailData
+}
+
 /**
  * Chat-visible reference to an object that already lives in the clinic cluster
  * (a calendar event or a map overlay). Carries ONLY an opaque id + an
@@ -191,7 +227,31 @@ export interface SharedRefContent {
   featureId?: string
 }
 
-export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | SharedRefContent | IntakeRequestContent
+/**
+ * Outside→cluster ONE-WAY message card — an outside party (QR + passphrase) drops a
+ * sealed text note to the whole clinic cluster. SYSTEM-authored; the body is SEALED to
+ * the clinic inbound pubkey (oncall_recipient_pub) with the SAME envelope as voicemail
+ * audio — never plaintext at rest. Decrypt-only (constructed in the decryptRow oncall
+ * early-exit, never serialized). Decryption capability = cluster membership.
+ */
+export interface OutsideMessageContent {
+  type: 'outside_message'
+  message_id: string
+  clinic_id: string
+  requester_name: string
+  sealed: {
+    /** base64(IV ‖ AES-GCM ciphertext) of the UTF-8 message body. */
+    ciphertext: string
+    /** base64(IV ‖ AES-GCM) of the body key, sealed to the clinic inbound key. */
+    sealed_key: string
+    /** base64 raw ephemeral P-256 pubkey used for the seal. */
+    ephemeral_pub: string
+    /** base64 HKDF salt. */
+    nonce: string
+  }
+}
+
+export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | SharedRefContent | IntakeRequestContent | OncallCallContent | OutsideMessageContent
 
 // ---- Compact wire shapes ----
 
@@ -344,6 +404,12 @@ export function serializeContent(content: MessageContent): string {
     // payload and never serialized. Defensive throw catches accidental
     // attempts to re-broadcast a received intake-request as a normal message.
     throw new Error('intake_request content is not serializable')
+  }
+
+  if (content.type === 'oncall_call') {
+    // Decrypt-only, like intake_request — built inside the oncall early-exits
+    // from SYSTEM-authored plaintext jsonb, never re-broadcast as a message.
+    throw new Error('oncall_call content is not serializable')
   }
 
   const wire: WireVoice = {

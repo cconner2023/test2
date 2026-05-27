@@ -7,15 +7,24 @@ const logger = createLogger('CalendarPersist')
 
 type CalendarViewMode = 'month' | 'day' | 'troops'
 export type CalendarDaySpan = 1 | 3
+/**
+ * Troops-to-Task timeline granularity — the width of one cell on the same 24h
+ * multi-day scroll axis:
+ *   'hour'     — 1 cell = 1 hour (default; original implementation)
+ *   'expanded' — 1 cell = 20 min (finer; zoom in)
+ *   'day'      — 1 cell = 1 day (longitudinal projection; zoom out)
+ */
+export type CalendarT2TZoom = 'hour' | 'expanded' | 'day'
 
 const PREFS_KEY = 'beacon.calendar.prefs'
 
 interface CalendarPrefs {
   daySpan: CalendarDaySpan
   hideWeekends: boolean
+  t2tZoom: CalendarT2TZoom
 }
 
-const DEFAULT_PREFS: CalendarPrefs = { daySpan: 1, hideWeekends: false }
+const DEFAULT_PREFS: CalendarPrefs = { daySpan: 1, hideWeekends: false, t2tZoom: 'hour' }
 
 function loadPrefs(): CalendarPrefs {
   if (typeof window === 'undefined') return DEFAULT_PREFS
@@ -26,6 +35,7 @@ function loadPrefs(): CalendarPrefs {
     return {
       daySpan: parsed.daySpan === 3 ? 3 : 1,
       hideWeekends: !!parsed.hideWeekends,
+      t2tZoom: parsed.t2tZoom === 'expanded' || parsed.t2tZoom === 'day' ? parsed.t2tZoom : 'hour',
     }
   } catch {
     return DEFAULT_PREFS
@@ -57,6 +67,8 @@ interface CalendarState {
   daySpan: CalendarDaySpan
   /** Hide Sat/Sun in month + day views. Persisted to localStorage. */
   hideWeekends: boolean
+  /** Troops-to-Task timeline cell granularity. Persisted to localStorage. */
+  t2tZoom: CalendarT2TZoom
   /** True once the initial IDB hydration is complete. */
   hydrated: boolean
   /** True once the clinic vault replay has finished (or been skipped). */
@@ -89,6 +101,7 @@ interface CalendarActions {
   clearHydrationError: () => void
   setDaySpan: (span: CalendarDaySpan) => void
   setHideWeekends: (hide: boolean) => void
+  setT2TZoom: (zoom: CalendarT2TZoom) => void
 }
 
 export type CalendarStore = CalendarState & CalendarActions
@@ -162,6 +175,7 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   monthLabel: new Date().toLocaleDateString('en-US', { month: 'long' }),
   daySpan: loadPrefs().daySpan,
   hideWeekends: loadPrefs().hideWeekends,
+  t2tZoom: loadPrefs().t2tZoom,
   hydrated: false,
   vaultReplayDone: false,
   hydrationError: false,
@@ -231,11 +245,15 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   setVaultReplayDone: (done) => set({ vaultReplayDone: done }),
   clearHydrationError: () => set({ hydrationError: false }),
   setDaySpan: (span) => set((s) => {
-    savePrefs({ daySpan: span, hideWeekends: s.hideWeekends })
+    savePrefs({ daySpan: span, hideWeekends: s.hideWeekends, t2tZoom: s.t2tZoom })
     return { daySpan: span }
   }),
   setHideWeekends: (hide) => set((s) => {
-    savePrefs({ daySpan: s.daySpan, hideWeekends: hide })
+    savePrefs({ daySpan: s.daySpan, hideWeekends: hide, t2tZoom: s.t2tZoom })
     return { hideWeekends: hide }
+  }),
+  setT2TZoom: (zoom) => set((s) => {
+    savePrefs({ daySpan: s.daySpan, hideWeekends: s.hideWeekends, t2tZoom: zoom })
+    return { t2tZoom: zoom }
   }),
 })))

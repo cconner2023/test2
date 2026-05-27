@@ -58,7 +58,7 @@ import { initSender, initReceiver, ratchetEncrypt, ratchetDecrypt } from './ratc
 import { seal, unseal, type SealedEnvelope } from './sealedSender'
 import { saveMessage, getTombstone, deleteMessagesByOriginId } from './messageStore'
 import { useMessagingStore } from '../../stores/useMessagingStore'
-import { parseMessageContent, type IntakeRequestContent } from './messageContent'
+import { parseMessageContent, type IntakeRequestContent, type OncallCallContent } from './messageContent'
 import { isCalendarEvent, routeCalendarEvent } from '../calendarRouting'
 import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature } from '../mapOverlayRouting'
 import type {
@@ -922,6 +922,73 @@ async function _drainSystemInboxImpl(): Promise<number> {
         } catch (e) {
           logger.warn(`Intake-delete process failed for ${row.id}:`, e instanceof Error ? e.message : e)
         }
+        processedIds.push(row.id)
+        continue
+      }
+
+      // ── Outside→on-call. The dev/SYSTEM surface is OBSERVE-ONLY: the live
+      // ring (oncall-ring) + its cancel are transient call control, never a card
+      // and never a dev modal — consume without surfacing. Only the resolved
+      // oncall-call card is stored (rendered observe-only, actionable=false).
+      if (
+        row.message_type === 'system'
+        && maybeIntakePayload
+        && (maybeIntakePayload.kind === 'oncall-ring' || maybeIntakePayload.kind === 'oncall-ring-cancel')
+      ) {
+        processedIds.push(row.id)
+        continue
+      }
+      if (
+        row.message_type === 'system'
+        && maybeIntakePayload
+        && maybeIntakePayload.kind === 'oncall-call'
+      ) {
+        const content: OncallCallContent = {
+          type: 'oncall_call',
+          call_id: String(maybeIntakePayload.call_id),
+          clinic_id: String(maybeIntakePayload.clinic_id),
+          requester_name: String(maybeIntakePayload.requester_name ?? ''),
+          outcome: maybeIntakePayload.outcome as OncallCallContent['outcome'],
+          ended_at: String(maybeIntakePayload.ended_at ?? ''),
+          ...(maybeIntakePayload.voicemail
+            ? { voicemail: maybeIntakePayload.voicemail as OncallCallContent['voicemail'] }
+            : {}),
+        }
+        const msg: DecryptedSignalMessage = {
+          id: row.id,
+          senderId: SYSTEM_USER_ID,
+          recipientId: SYSTEM_USER_ID,
+          plaintext: '[on-call]',
+          content,
+          messageType: 'system',
+          createdAt: row.created_at,
+          readAt: row.read_at,
+          ...(row.group_id && { groupId: row.group_id }),
+          originId: row.origin_id ?? undefined,
+        }
+        const { useAuthStore } = await import('../../stores/useAuthStore')
+        const devUserId = useAuthStore.getState().user?.id
+        if (devUserId) {
+          await saveMessage(msg, devUserId)
+        }
+        useMessagingStore.getState().addMessage(msg)
+        for (const cb of _systemMessageListeners) {
+          try { cb(msg) } catch { /* listener failures must not block drain */ }
+        }
+        processedIds.push(row.id)
+        continue
+      }
+
+      // Outside→cluster one-way message. The dev/SYSTEM copy exists for push authz
+      // (send-push-notification resolves the clinic from it) and is not a dev-facing
+      // surface — the sealed body is for cluster members. Consume without surfacing;
+      // skipping also avoids the SealedEnvelope decrypt path below choking on the
+      // plaintext jsonb row (the rev8 control-plane fall-through bug).
+      if (
+        row.message_type === 'system'
+        && maybeIntakePayload
+        && maybeIntakePayload.kind === 'outside-message'
+      ) {
         processedIds.push(row.id)
         continue
       }

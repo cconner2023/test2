@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { X, Settings as SettingsIcon, Check, ChevronLeft, ChevronRight, CalendarDays, CalendarOff, Square, Columns3 } from 'lucide-react'
+import { X, Settings as SettingsIcon, Check, ChevronLeft, ChevronRight, CalendarDays, CalendarOff, Square, Columns3, Clock, Grid2x2, CalendarRange } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { HeaderPill, PillButton } from './HeaderPill'
@@ -42,6 +42,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         monthLabel, viewMode, rosterSearchQuery, setRosterSearchQuery,
         selectedDate, setSelectedDate,
         daySpan, setDaySpan, hideWeekends, setHideWeekends,
+        t2tZoom, setT2TZoom,
         categoryFilter, setCategoryFilter,
     } = useCalendarStore(useShallow(s => ({
         events: s.events,
@@ -58,6 +59,8 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         setDaySpan: s.setDaySpan,
         hideWeekends: s.hideWeekends,
         setHideWeekends: s.setHideWeekends,
+        t2tZoom: s.t2tZoom,
+        setT2TZoom: s.setT2TZoom,
         categoryFilter: s.categoryFilter,
         setCategoryFilter: s.setCategoryFilter,
     })))
@@ -212,6 +215,17 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                 ],
                 daySpan,
                 setDaySpan,
+            )}
+            {renderIconToggleCard<typeof t2tZoom>(
+                'Troops to Task',
+                t2tZoom === 'expanded' ? '20-minute cells' : t2tZoom === 'day' ? 'One cell per day' : 'One cell per hour',
+                [
+                    { value: 'hour', icon: Clock, ariaLabel: 'Hourly cells' },
+                    { value: 'expanded', icon: Grid2x2, ariaLabel: '20-minute cells' },
+                    { value: 'day', icon: CalendarRange, ariaLabel: 'Daily cells' },
+                ],
+                t2tZoom,
+                setT2TZoom,
             )}
             {isSupervisorRole && <CalendarClinicEditor />}
         </div>
@@ -378,7 +392,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                                     data-tour="calendar-settings"
                                     onClick={() => setShowSettings(true)}
                                     className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors active:scale-95 ${
-                                        hideWeekends || daySpan !== 1
+                                        hideWeekends || daySpan !== 1 || t2tZoom !== 'hour'
                                             ? 'bg-themeblue3/10 text-themeblue3'
                                             : 'text-tertiary hover:text-primary'
                                     }`}

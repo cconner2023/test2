@@ -6,8 +6,8 @@ import type { LucideIcon } from 'lucide-react'
 import type { CalendarEvent, EventStatus, PCCAttachment } from '../../Types/CalendarTypes'
 import { PCCChecklistCard } from './PCCChecklistCard'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
-import { SectionHeader } from '../Section'
-import { getCategoryMeta, formatShortDayLabel, isEventEditable, isUnscheduledTemplate } from '../../Types/CalendarTypes'
+import { SectionHeader, SectionCard } from '../Section'
+import { formatShortDayLabel, isEventEditable, isUnscheduledTemplate } from '../../Types/CalendarTypes'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { HeaderPill, PillButton } from '../HeaderPill'
@@ -84,7 +84,8 @@ const STATUS_TRIGGER_COLOR: Record<EventStatus, string> = {
 
 export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, onCancelTemplate, apptTypeNames = [], canDeleteTemplate, onStatusChange, onUpdatePcc, assignedNames = [], linkedPropertyItems = [], overlayOptions, hideHeader }: EventDetailPanelProps) {
   const isMobile = useIsMobile()
-  const cat = getCategoryMeta(event.category)
+  const txt = isMobile ? 'text-sm' : 'text-[10pt]'
+  const rowPad = isMobile ? 'px-4 py-3' : 'px-3 py-2.5'
   const isSupervisor = useAuthStore(s => s.isSupervisorRole)
   const openMapOverlay = useNavigationStore(s => s.setShowMapOverlayDrawer)
   const editable = isEventEditable(event, isSupervisor)
@@ -161,106 +162,102 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-primary">{event.title}</h2>
 
-          <div className="flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${cat.color}`} />
-            <SectionHeader>{cat.label}</SectionHeader>
-          </div>
-
-          <div>
-            <SectionHeader>Date</SectionHeader>
-            <p className={`text-primary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>
-              {formatDateTime(event.start_time, event.all_day)}
-              {!event.all_day && (
-                <span className="text-tertiary"> — {formatDateTime(event.end_time, false)}</span>
-              )}
-              {event.report_time && (
-                <span className="text-tertiary"> · Report: {event.report_time}</span>
-              )}
-            </p>
-          </div>
-
-          <div>
-            <SectionHeader>Assigned</SectionHeader>
-            <div className="flex items-center gap-2 flex-wrap">
-              {assignedNames.length === 0 ? (
-                <span className={`text-tertiary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>Unassigned</span>
-              ) : (
-                assignedNames.map((person) => (
-                  <span key={person.id} className={`inline-flex items-center gap-1.5 text-primary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>
-                    <UserAvatar
-                      avatarId={person.avatarId}
-                      firstName={person.firstName}
-                      lastName={person.lastName}
-                      className={isMobile ? 'w-6 h-6' : 'w-5 h-5'}
-                    />
-                    <span>{person.name}</span>
-                  </span>
-                ))
-              )}
-            </div>
-          </div>
-
-          {(() => {
-            const fullIds = event.linked_overlays ?? []
-            const featureAnchors = (event.linked_features ?? []).filter(f => !fullIds.includes(f.overlay_id))
-            const hasLocation = !!event.location
-            const hasMaps = !!overlayOptions && (fullIds.length > 0 || featureAnchors.length > 0)
-            if (!hasLocation && !hasMaps) return null
-            const overlayFor = (id: string) => overlayOptions?.find(o => o.id === id)
-            const txt = isMobile ? 'text-sm' : 'text-[10pt]'
-            type Row = { key: string; name: string; lat?: number; lng?: number; onClick: () => void }
-            const rows: Row[] = []
-            for (const id of fullIds) {
-              const o = overlayFor(id)
-              rows.push({
-                key: `full-${id}`,
-                name: o?.name ?? '—',
-                lat: o?.center?.[0],
-                lng: o?.center?.[1],
-                onClick: () => openMapOverlay(true, id),
-              })
-            }
-            for (const f of featureAnchors) {
-              const o = overlayFor(f.overlay_id)
-              const feat = o?.features?.find(x => x.id === f.feature_id)
-              rows.push({
-                key: `feat-${f.overlay_id}-${f.feature_id}`,
-                name: feat?.label ?? '(feature)',
-                lat: feat?.lat,
-                lng: feat?.lng,
-                onClick: () => openMapOverlay(true, f.overlay_id, f.feature_id),
-              })
-            }
-            return (
-              <div>
-                <SectionHeader>Where</SectionHeader>
-                {hasLocation && (
-                  <p className={`text-primary ${txt}`}>{event.location}</p>
+          <SectionCard className="divide-y divide-themeblue3/10">
+            <div className={rowPad}>
+              <SectionHeader>Date</SectionHeader>
+              <p className={`text-primary ${txt}`}>
+                {formatDateTime(event.start_time, event.all_day)}
+                {!event.all_day && (
+                  <span className="text-tertiary"> — {formatDateTime(event.end_time, false)}</span>
                 )}
-                {hasMaps && (
-                  <div className={`flex flex-col gap-2 ${hasLocation ? 'mt-2' : ''}`}>
-                    {rows.map(r => (
-                      <LinkedLocationRow key={r.key} name={r.name} lat={r.lat} lng={r.lng} onClick={r.onClick} txt={txt} />
-                    ))}
-                  </div>
+                {event.report_time && (
+                  <span className="text-tertiary"> · Report: {event.report_time}</span>
+                )}
+              </p>
+            </div>
+
+            <div className={rowPad}>
+              <SectionHeader>Assigned</SectionHeader>
+              <div className="flex items-center gap-2 flex-wrap">
+                {assignedNames.length === 0 ? (
+                  <span className={`text-tertiary ${txt}`}>Unassigned</span>
+                ) : (
+                  assignedNames.map((person) => (
+                    <span key={person.id} className={`inline-flex items-center gap-1.5 text-primary ${txt}`}>
+                      <UserAvatar
+                        avatarId={person.avatarId}
+                        firstName={person.firstName}
+                        lastName={person.lastName}
+                        className={isMobile ? 'w-6 h-6' : 'w-5 h-5'}
+                      />
+                      <span>{person.name}</span>
+                    </span>
+                  ))
                 )}
               </div>
-            )
-          })()}
-
-          {event.uniform && (
-            <div>
-              <SectionHeader>Uniform</SectionHeader>
-              <p className={`text-primary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{event.uniform}</p>
             </div>
-          )}
 
-          {event.description && (
-            <div>
-              <SectionHeader>Notes</SectionHeader>
-              <p className={`text-primary whitespace-pre-wrap ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{event.description}</p>
-            </div>
-          )}
+            {(() => {
+              const fullIds = event.linked_overlays ?? []
+              const featureAnchors = (event.linked_features ?? []).filter(f => !fullIds.includes(f.overlay_id))
+              const hasLocation = !!event.location
+              const hasMaps = !!overlayOptions && (fullIds.length > 0 || featureAnchors.length > 0)
+              if (!hasLocation && !hasMaps) return null
+              const overlayFor = (id: string) => overlayOptions?.find(o => o.id === id)
+              type Row = { key: string; name: string; lat?: number; lng?: number; onClick: () => void }
+              const rows: Row[] = []
+              for (const id of fullIds) {
+                const o = overlayFor(id)
+                rows.push({
+                  key: `full-${id}`,
+                  name: o?.name ?? '—',
+                  lat: o?.center?.[0],
+                  lng: o?.center?.[1],
+                  onClick: () => openMapOverlay(true, id),
+                })
+              }
+              for (const f of featureAnchors) {
+                const o = overlayFor(f.overlay_id)
+                const feat = o?.features?.find(x => x.id === f.feature_id)
+                rows.push({
+                  key: `feat-${f.overlay_id}-${f.feature_id}`,
+                  name: feat?.label ?? '(feature)',
+                  lat: feat?.lat,
+                  lng: feat?.lng,
+                  onClick: () => openMapOverlay(true, f.overlay_id, f.feature_id),
+                })
+              }
+              return (
+                <div className={rowPad}>
+                  <SectionHeader>Where</SectionHeader>
+                  {hasLocation && (
+                    <p className={`text-primary ${txt}`}>{event.location}</p>
+                  )}
+                  {hasMaps && (
+                    <div className={`flex flex-col gap-2 ${hasLocation ? 'mt-2' : ''}`}>
+                      {rows.map(r => (
+                        <LinkedLocationRow key={r.key} name={r.name} lat={r.lat} lng={r.lng} onClick={r.onClick} txt={txt} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
+            {event.uniform && (
+              <div className={rowPad}>
+                <SectionHeader>Uniform</SectionHeader>
+                <p className={`text-primary ${txt}`}>{event.uniform}</p>
+              </div>
+            )}
+
+            {event.description && (
+              <div className={rowPad}>
+                <SectionHeader>Notes</SectionHeader>
+                <p className={`text-primary whitespace-pre-wrap ${txt}`}>{event.description}</p>
+              </div>
+            )}
+          </SectionCard>
         </div>
 
         {/* Pre-Combat Check */}

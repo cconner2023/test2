@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from 'react'
 import {
   Building2,
   Camera,
@@ -33,6 +33,9 @@ import { invalidate } from '../../stores/useInvalidationStore'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { UserAvatar } from './UserAvatar'
 import { IntakeMintSection } from './IntakeMintSection'
+import { ToggleSwitch } from './ToggleSwitch'
+import { supabase } from '../../lib/supabase'
+import { toggleOncallPresence } from '../../lib/oncallService'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionButton } from '../ActionButton'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -217,6 +220,77 @@ export function ClinicPanel({
     () => [...assignedMembers, ...loanedInMembers],
     [assignedMembers, loanedInMembers],
   )
+
+  // ─── Outside on-call roster (GATE 3) ───────────────────────────────
+  // GATE-2 "allow calls" AND "allow text messaging" live on the intake card
+  // (IntakeMintSection); it reports up via onOncallEnabledChange whether EITHER is
+  // on (both ping clinics.oncall). While relevant, each personnel row gets a
+  // per-member on-call toggle. clinics.oncall is the live roster (public SELECT);
+  // writes go through the SECURITY DEFINER toggle_oncall_presence RPC.
+  const [oncallRosterShown, setOncallRosterShown] = useState(false)
+  const [oncall, setOncall] = useState<string[]>([])
+  const [oncallPending, setOncallPending] = useState<string | null>(null)
+
+  const loadOncallRoster = useCallback(async () => {
+    if (!clinicId) { setOncall([]); return }
+    const { data } = await supabase.from('clinics').select('oncall').eq('id', clinicId).maybeSingle()
+    setOncall(((data as { oncall?: string[] } | null)?.oncall) ?? [])
+  }, [clinicId])
+
+  useEffect(() => { void loadOncallRoster() }, [loadOncallRoster])
+
+  const toggleMemberOncall = useCallback(async (userId: string) => {
+    if (!clinicId || oncallPending) return
+    const isOn = oncall.includes(userId)
+    setOncallPending(userId)
+    setOncall((prev) => (isOn ? prev.filter((id) => id !== userId) : [...prev, userId])) // optimistic
+    const res = await toggleOncallPresence(clinicId, userId, !isOn)
+    if (!res.ok) await loadOncallRoster() // revert to server truth on failure
+    setOncallPending(null)
+  }, [clinicId, oncallPending, oncall, loadOncallRoster])
+
+  // Roster row — tap the identity area to open the edit popover; when "allow
+  // calls" is on, a trailing per-member on-call toggle is appended (kept a
+  // sibling of the popover trigger to avoid nesting interactive elements).
+  const renderMemberRow = (member: (typeof members)[number], subtitle: string, badge: ReactNode) => {
+    const isOn = oncall.includes(member.id)
+    return (
+      <div key={member.id} className="w-full flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-secondary/5 transition-all">
+        <button
+          type="button"
+          onClick={(e) => openMemberPopover(member.id, e.currentTarget)}
+          className="flex items-center gap-3 flex-1 min-w-0 text-left active:scale-95 transition-transform"
+        >
+          <UserAvatar
+            avatarId={member.avatarId}
+            firstName={member.firstName}
+            lastName={member.lastName}
+            className="w-8 h-8"
+          />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate text-primary">
+              {member.rank && <span>{member.rank} </span>}
+              {member.lastName}, {member.firstName}
+              {member.middleInitial ? ` ${member.middleInitial}.` : ''}
+            </p>
+            <p className="text-[9pt] text-tertiary truncate">{subtitle}</p>
+          </div>
+        </button>
+        {badge}
+        {oncallRosterShown && (
+          <button
+            type="button"
+            onClick={() => void toggleMemberOncall(member.id)}
+            disabled={oncallPending === member.id}
+            aria-label={isOn ? 'On-call' : 'Off-call'}
+            className={`shrink-0 active:scale-95 transition-all ${oncallPending === member.id ? 'opacity-50' : ''}`}
+          >
+            <ToggleSwitch checked={isOn} />
+          </button>
+        )}
+      </div>
+    )
+  }
 
   // Associated clinic popover
   const assocFabRef = useRef<HTMLDivElement>(null)
@@ -695,8 +769,14 @@ export function ClinicPanel({
           </div>
         </section>
 
-        {/* ── Outside event intake (dev-wrapped) ─────────────────── */}
-        {clinicId && <IntakeMintSection clinicId={clinicId} />}
+        {/* ── Outside event intake + on-call "allow calls" (dev-wrapped) ── */}
+        {clinicId && (
+          <IntakeMintSection
+            clinicId={clinicId}
+            oncallCount={oncall.length}
+            onOncallEnabledChange={setOncallRosterShown}
+          />
+        )}
 
         {/* ── Associated ─────────────────────────────────────────── */}
         <section data-tour="clinic-associated">
@@ -759,35 +839,14 @@ export function ClinicPanel({
                   <div className="space-y-3">
                     {assignedMembers.length > 0 && (
                       <div className="space-y-1">
-                        {assignedMembers.map((member) => (
-                          <button
-                            key={member.id}
-                            type="button"
-                            onClick={(e) => openMemberPopover(member.id, e.currentTarget)}
-                            className="w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left hover:bg-secondary/5 active:scale-95 transition-all"
-                          >
-                            <UserAvatar
-                              avatarId={member.avatarId}
-                              firstName={member.firstName}
-                              lastName={member.lastName}
-                              className="w-8 h-8"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate text-primary">
-                                {member.rank && <span>{member.rank} </span>}
-                                {member.lastName}, {member.firstName}
-                                {member.middleInitial ? ` ${member.middleInitial}.` : ''}
-                              </p>
-                              <p className="text-[9pt] text-tertiary truncate">
-                                {member.credential || ''}
-                              </p>
-                            </div>
-                            {member.surrogateClinicId && (
-                              <span className="shrink-0 text-[9pt] px-1.5 py-0.5 rounded-full bg-themeyellow/15 text-themeyellow font-medium border border-themeyellow/30">
-                                Loaned out
-                              </span>
-                            )}
-                          </button>
+                        {assignedMembers.map((member) => renderMemberRow(
+                          member,
+                          member.credential || '',
+                          member.surrogateClinicId ? (
+                            <span className="shrink-0 text-[9pt] px-1.5 py-0.5 rounded-full bg-themeyellow/15 text-themeyellow font-medium border border-themeyellow/30">
+                              Loaned out
+                            </span>
+                          ) : null,
                         ))}
                       </div>
                     )}
@@ -797,33 +856,12 @@ export function ClinicPanel({
                           Loaned In ({loanedInMembers.length})
                         </p>
                         <div className="space-y-1">
-                          {loanedInMembers.map((member) => (
-                            <button
-                              key={member.id}
-                              type="button"
-                              onClick={(e) => openMemberPopover(member.id, e.currentTarget)}
-                              className="w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left hover:bg-secondary/5 active:scale-95 transition-all"
-                            >
-                              <UserAvatar
-                                avatarId={member.avatarId}
-                                firstName={member.firstName}
-                                lastName={member.lastName}
-                                className="w-8 h-8"
-                              />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate text-primary">
-                                  {member.rank && <span>{member.rank} </span>}
-                                  {member.lastName}, {member.firstName}
-                                  {member.middleInitial ? ` ${member.middleInitial}.` : ''}
-                                </p>
-                                <p className="text-[9pt] text-tertiary truncate">
-                                  {[member.credential, member.clinicName].filter(Boolean).join(' · ')}
-                                </p>
-                              </div>
-                              <span className="shrink-0 text-[9pt] px-1.5 py-0.5 rounded-full bg-themeblue2/10 text-themeblue2 font-medium border border-themeblue2/30">
-                                Loaned in
-                              </span>
-                            </button>
+                          {loanedInMembers.map((member) => renderMemberRow(
+                            member,
+                            [member.credential, member.clinicName].filter(Boolean).join(' · '),
+                            <span className="shrink-0 text-[9pt] px-1.5 py-0.5 rounded-full bg-themeblue2/10 text-themeblue2 font-medium border border-themeblue2/30">
+                              Loaned in
+                            </span>,
                           ))}
                         </div>
                       </div>

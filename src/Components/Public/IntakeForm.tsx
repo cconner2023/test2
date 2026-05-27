@@ -3,6 +3,8 @@ import { Check, X, RefreshCw } from 'lucide-react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { DateTimeRow, combineDateTime } from './IntakePickers'
 import { IntakeRejectDialog } from './IntakeRejectDialog'
+import { OncallCallView } from './OncallCallView'
+import { submitClusterMessage } from '../../lib/oncallAnonService'
 
 interface IntakeFormProps {
   supabase: SupabaseClient
@@ -13,7 +15,7 @@ interface IntakeFormProps {
 type Stage1State =
   | { kind: 'idle' }
   | { kind: 'resolving' }
-  | { kind: 'resolved'; clinicName: string }
+  | { kind: 'resolved'; clinicName: string; oncallEnabled: boolean; messageEnabled: boolean; recipientPub: string | null }
   | { kind: 'unknown' }
 
 type SubmitState =
@@ -26,9 +28,11 @@ type SubmitState =
  * Public outside-event-intake form. Two-stage UX matching the main app's
  * LoginScreen visual language (logo, card surface, circular reveal action).
  *
- * Server validates passphrase ONLY at submit time. We do NOT pre-verify the
- * passphrase via any anon RPC — that would hand callers a network-speed
- * enumeration oracle that bypasses the bcrypt cost.
+ * Stage 1 gates on the passphrase before the event form is revealed or an
+ * on-call ring is placed: Continue calls verify_event_intake_credential, which
+ * runs the same bcrypt + dummy-hash check as submit_event_intake. submit/
+ * request_oncall re-check server-side regardless — the early verify is a UX
+ * gate, not the security boundary.
  */
 export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
   const [passcode, setPasscode] = useState(initialPasscode)
@@ -44,6 +48,28 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
   const [endTime, setEndTime] = useState('')
   const [title, setTitle] = useState('')
   const [submit, setSubmit] = useState<SubmitState>({ kind: 'idle' })
+  const [callActive, setCallActive] = useState(false)
+  const [verifying, setVerifying] = useState(false)
+  // After the passphrase is accepted, outside callers pick a channel: submit an
+  // event request or place a live call. Only offered when the section allows
+  // calls; otherwise event request is the only path and no chooser is shown.
+  const [channel, setChannel] = useState<'event' | 'call' | 'message'>('event')
+  // One-way text message to the cluster (when the section allows it). Composed
+  // after the passphrase is accepted; sealed to the clinic inbound key before send.
+  const [messageActive, setMessageActive] = useState(false)
+  const [messageBody, setMessageBody] = useState('')
+  const [submittedVia, setSubmittedVia] = useState<'event' | 'message'>('event')
+
+  // Bad passphrase / on-call disabled during request_oncall — same recovery as a
+  // rejected event submission: clear both credential fields, show the reject card.
+  const handleCallReject = useCallback(() => {
+    setCallActive(false)
+    setShowStage2(false)
+    setPasscode('')
+    setPassphrase('')
+    setStage1({ kind: 'idle' })
+    setSubmit({ kind: 'rejected' })
+  }, [])
 
   const resolveCode = useCallback(async (code: string) => {
     if (!code) { setStage1({ kind: 'idle' }); return }
@@ -54,8 +80,14 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
         setStage1({ kind: 'unknown' })
         return
       }
-      const clinicName = (data as { clinic_name?: string }).clinic_name ?? ''
-      setStage1({ kind: 'resolved', clinicName })
+      const resolved = data as { clinic_name?: string; oncall_enabled?: boolean; outside_message_enabled?: boolean; recipient_pub?: string | null }
+      setStage1({
+        kind: 'resolved',
+        clinicName: resolved.clinic_name ?? '',
+        oncallEnabled: resolved.oncall_enabled === true,
+        messageEnabled: resolved.outside_message_enabled === true,
+        recipientPub: resolved.recipient_pub ?? null,
+      })
     } catch {
       setStage1({ kind: 'unknown' })
     }
@@ -65,11 +97,40 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
     if (initialPasscode) resolveCode(initialPasscode)
   }, [initialPasscode, resolveCode])
 
-  const onContinue = useCallback(() => {
+  const onContinue = useCallback(async () => {
     if (stage1.kind !== 'resolved') return
-    if (passphrase.trim().length === 0) return
-    setShowStage2(true)
-  }, [stage1, passphrase])
+    if (passphrase.trim().length === 0 || verifying) return
+    setVerifying(true)
+    try {
+      const { error } = await supabase.rpc('verify_event_intake_credential', {
+        p_passcode: passcode,
+        p_passphrase: passphrase.trim(),
+      })
+      if (error) {
+        // Bad passphrase — same recovery as a rejected submission: clear both
+        // credential fields, drop to stage 1, surface the reject card.
+        setShowStage2(false)
+        setPasscode('')
+        setPassphrase('')
+        setStage1({ kind: 'idle' })
+        setSubmit({ kind: 'rejected' })
+        return
+      }
+      if (channel === 'call' && stage1.oncallEnabled) {
+        setCallActive(true)
+        return
+      }
+      if (channel === 'message' && stage1.messageEnabled) {
+        setMessageActive(true)
+        return
+      }
+      setShowStage2(true)
+    } catch {
+      setSubmit({ kind: 'rejected' })
+    } finally {
+      setVerifying(false)
+    }
+  }, [supabase, stage1, passphrase, passcode, channel, verifying])
 
   const onSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
@@ -107,7 +168,49 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
     }
   }, [supabase, name, org, email, startDate, startTime, endDate, endTime, title, passcode, passphrase])
 
+  // One-way cluster message: seal the body to the clinic inbound key (inside
+  // submitClusterMessage) and fan it to the cluster. Same reject recovery as event.
+  const onSubmitMessage = useCallback(async () => {
+    if (stage1.kind !== 'resolved' || !stage1.recipientPub) return
+    if (name.trim().length === 0 || messageBody.trim().length === 0) return
+    setSubmit({ kind: 'submitting' })
+    const ok = await submitClusterMessage(supabase, {
+      passcode,
+      passphrase: passphrase.trim(),
+      requesterName: name.trim(),
+      recipientPubB64: stage1.recipientPub,
+      body: messageBody.trim(),
+    })
+    if (!ok) {
+      setMessageActive(false)
+      setPasscode('')
+      setPassphrase('')
+      setStage1({ kind: 'idle' })
+      setSubmit({ kind: 'rejected' })
+      return
+    }
+    setSubmittedVia('message')
+    setSubmit({ kind: 'submitted' })
+    setMessageActive(false)
+  }, [supabase, stage1, name, messageBody, passcode, passphrase])
+
+  // A dead QR / shared link: arrived with a passcode baked into the URL that
+  // didn't resolve. Show a neutral dead-end instead of the inviting form — the
+  // 200 static shell stays live for everyone (no HTTP enumeration oracle), but a
+  // human who scanned a stale poster gets a clear "this link is dead" instead of
+  // an open form. Manual mistyped entry (no initialPasscode) keeps the inline
+  // hint so the requester can correct the code in place.
+  const deadLink = Boolean(initialPasscode) && stage1.kind === 'unknown'
+
   const stage1Ready = stage1.kind === 'resolved' && passphrase.trim().length > 0
+
+  if (deadLink) {
+    return (
+      <Shell>
+        <Glitch404 />
+      </Shell>
+    )
+  }
   const stage2Ready =
     name.trim().length > 0 &&
     email.trim().length > 0 &&
@@ -131,8 +234,8 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
           </svg>
         </div>
         {submit.kind !== 'submitted' && (
-          <div className="text-[10pt] text-secondary tracking-[2px]">
-            Outside Event Request
+          <div className="text-[10pt] text-secondary">
+            Medical Knowledge Repository and Operational Network
           </div>
         )}
       </div>
@@ -150,10 +253,79 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
             <p className="text-[9pt] font-semibold text-secondary tracking-widest uppercase">Submitted</p>
           </div>
           <div className="rounded-2xl bg-themewhite2 overflow-hidden px-4 py-4">
-            <p className="text-sm font-medium text-primary mb-1.5">Request sent</p>
-            <p className="text-[10pt] text-secondary leading-relaxed">
-              Your event request has been delivered to the medical section. <span className="font-medium text-primary">{email}</span>.
+            <p className="text-sm font-medium text-primary mb-1.5">
+              {submittedVia === 'message' ? 'Message sent' : 'Request sent'}
             </p>
+            <p className="text-[10pt] text-secondary leading-relaxed">
+              {submittedVia === 'message'
+                ? 'Your message has been delivered to the medical section.'
+                : <>Your event request has been delivered to the medical section. <span className="font-medium text-primary">{email}</span>.</>}
+            </p>
+          </div>
+        </>
+      ) : callActive ? (
+        <OncallCallView
+          supabase={supabase}
+          passcode={passcode}
+          passphrase={passphrase.trim()}
+          clinicName={stage1.kind === 'resolved' ? stage1.clinicName : ''}
+          onReject={handleCallReject}
+          onClose={() => setCallActive(false)}
+        />
+      ) : messageActive ? (
+        <>
+          <div className="pb-2">
+            <p className="text-[9pt] font-semibold text-secondary tracking-widest uppercase">Message</p>
+          </div>
+          <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+            {stage1.kind === 'resolved' && (
+              <div className="px-4 py-2.5 border-b border-primary/6 bg-themewhite/30">
+                <p className="text-[9pt] text-tertiary uppercase tracking-widest">For</p>
+                <p className="text-sm font-medium text-primary">{stage1.clinicName}</p>
+              </div>
+            )}
+            <Row>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Your name *"
+                className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none"
+              />
+            </Row>
+            <HintRow tone="warn">Operational info only — no patient names or medical details.</HintRow>
+            <Row>
+              <textarea
+                value={messageBody}
+                onChange={(e) => setMessageBody(e.target.value)}
+                placeholder="Message *"
+                rows={4}
+                maxLength={2000}
+                className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
+              />
+            </Row>
+            <div className="flex items-center justify-end gap-2 px-3 py-2">
+              <button
+                type="button"
+                onClick={() => setMessageActive(false)}
+                className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+              >
+                <X size={16} />
+              </button>
+              {(() => {
+                const messageReady = name.trim().length > 0 && messageBody.trim().length > 0 && stage1.kind === 'resolved' && !!stage1.recipientPub
+                return (
+                  <button
+                    type="button"
+                    onClick={() => void onSubmitMessage()}
+                    disabled={submit.kind === 'submitting' || !messageReady}
+                    className={`shrink-0 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white overflow-hidden transition-all duration-300 ease-out active:scale-95 ${messageReady ? 'w-9 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
+                  >
+                    {submit.kind === 'submitting' ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
+                  </button>
+                )
+              })()}
+            </div>
           </div>
         </>
       ) : (
@@ -208,6 +380,32 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
                         className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none font-mono"
                       />
                     </Row>
+
+                    {/* Channel pick — event request vs. live call vs. one-way message,
+                        using the calendar filter-row primitive. Only when calls and/or
+                        messaging are allowed; otherwise event request is the lone path. */}
+                    {(stage1.oncallEnabled || stage1.messageEnabled) && ([
+                      { key: 'event' as const, label: 'Event request' },
+                      ...(stage1.oncallEnabled ? [{ key: 'call' as const, label: 'Call' }] : []),
+                      ...(stage1.messageEnabled ? [{ key: 'message' as const, label: 'Message' }] : []),
+                    ]).map(({ key, label }) => {
+                      const selected = channel === key
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setChannel(key)}
+                          className={`w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 ${
+                            selected
+                              ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
+                              : 'hover:bg-secondary/5'
+                          }`}
+                        >
+                          <span className="text-[10pt] font-medium text-primary truncate flex-1">{label}</span>
+                          {selected && <Check size={14} className="text-themeblue2 shrink-0" />}
+                        </button>
+                      )
+                    })}
                   </>
                 )}
 
@@ -222,9 +420,10 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
                   <button
                     type="button"
                     onClick={onContinue}
+                    disabled={verifying}
                     className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white active:scale-95 transition-all"
                   >
-                    <Check size={16} />
+                    {verifying ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
                   </button>
                 </div>
               </div>
@@ -323,6 +522,111 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
         Not affiliated with or endorsed by the Department of Defense.
       </p>
     </Shell>
+  )
+}
+
+/**
+ * Static glitch dead-link graphic shown when a baked-in URL passcode fails to
+ * resolve. Mirrors a classic 404 art piece — circular outline frozen mid-tear:
+ * horizontal slice bands of the ring are displaced sideways with a chromatic
+ * fringe (themeblue3 / themered), the "404" is torn into offset CSS slices, and
+ * solid data-blocks are scattered around. Pure cosmetic client-side surface
+ * (the HTTP shell is always 200); no app branding, no animation.
+ */
+function Glitch404() {
+  const BLUE = 'var(--color-themeblue3)'
+  const RED = 'var(--color-themered)'
+  const INK = 'var(--color-primary)'
+  const BG = 'var(--color-themewhite)'
+  const CX = 120, CY = 110, R = 96, SW = 10
+
+  // Horizontal strips of the ring torn out and kicked sideways. `c` is the solid
+  // color the displaced arc is repainted in — the slice reads as a chunk of the
+  // shape physically offset, not a translucent colour sliding over it.
+  const ringBands = [
+    { y: 42, h: 11, dx: -14, c: BLUE },
+    { y: 84, h: 7, dx: 16, c: RED },
+    { y: 114, h: 12, dx: -18, c: BLUE },
+    { y: 152, h: 8, dx: 13, c: RED },
+    { y: 180, h: 12, dx: -10, c: BLUE },
+  ]
+  // Hard cuts: background-coloured rects punched through the ring so the circle
+  // looks broken/fragmented rather than intact.
+  const ringCuts = [
+    { y: 138, h: 4 },
+  ]
+
+  return (
+    <div className="flex flex-col items-center justify-center select-none">
+      <div className="relative w-96 h-80">
+        <svg viewBox="0 0 240 220" className="w-full h-full" fill="none">
+          <defs>
+            {ringBands.map((b, i) => (
+              <clipPath key={i} id={`ringBand${i}`}>
+                <rect x="0" y={b.y} width="240" height={b.h} />
+              </clipPath>
+            ))}
+            {/* soft blur on the chromatic colouring — bleeds the blue/red so it
+                reads as light leaking off the torn edges, not a crisp outline */}
+            <filter id="ringColorBlur" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="2.2" />
+            </filter>
+          </defs>
+
+          {/* scattered solid data-blocks + static marks */}
+          <g strokeWidth="3" strokeLinecap="round">
+            <rect x="194" y="32" width="20" height="6" fill={BLUE} stroke="none" />
+            <rect x="200" y="42" width="11" height="5" fill={RED} stroke="none" />
+            <rect x="24" y="58" width="22" height="7" fill={RED} stroke="none" />
+            <rect x="214" y="128" width="18" height="6" fill={RED} stroke="none" />
+            <rect x="8" y="142" width="15" height="5" fill={BLUE} stroke="none" />
+            <rect x="170" y="188" width="10" height="10" fill={BLUE} stroke="none" />
+            <rect x="52" y="20" width="7" height="7" fill={RED} stroke="none" />
+            <rect x="30" y="196" width="13" height="5" fill={BLUE} stroke="none" />
+            <line x1="198" y1="178" x2="212" y2="178" stroke={RED} />
+            <line x1="32" y1="168" x2="46" y2="168" stroke={BLUE} />
+            <line x1="36" y1="174" x2="44" y2="174" stroke={BLUE} />
+          </g>
+
+          {/* base ring — solid ink with a soft, blurred chromatic fringe */}
+          <g filter="url(#ringColorBlur)">
+            <circle cx={CX} cy={CY} r={R} stroke={BLUE} strokeWidth={SW} opacity="0.55" transform="translate(-4,0)" />
+            <circle cx={CX} cy={CY} r={R} stroke={RED} strokeWidth={SW} opacity="0.55" transform="translate(4,0)" />
+          </g>
+          <circle cx={CX} cy={CY} r={R} stroke={INK} strokeWidth={SW} />
+
+          {/* torn slices — each strip erased in place, then repainted offset in a
+              soft-blurred solid colour so it reads as a displaced chunk of ring */}
+          {ringBands.map((b, i) => (
+            <g key={i} clipPath={`url(#ringBand${i})`}>
+              <rect x="0" y={b.y} width="240" height={b.h} fill={BG} />
+              <circle cx={CX} cy={CY} r={R} stroke={b.c} strokeWidth={SW} filter="url(#ringColorBlur)" transform={`translate(${b.dx},0)`} />
+            </g>
+          ))}
+
+          {/* hard cuts — break the circle */}
+          {ringCuts.map((c, i) => (
+            <rect key={i} x="0" y={c.y} width="240" height={c.h} fill={BG} />
+          ))}
+        </svg>
+
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          {/* semibold 404 with a crisp chromatic fringe (no blur, no slices) */}
+          <span
+            className="text-[56pt] font-semibold leading-none tracking-tight"
+            style={{ color: INK, textShadow: `4px 0 ${BLUE}, -4px 0 ${RED}` }}
+          >
+            404
+          </span>
+          <div
+            className="mt-2 text-[10pt] font-semibold tracking-[0.18em] lowercase"
+            style={{ color: INK, textShadow: `1px 0 ${BLUE}, -1px 0 ${RED}` }}
+          >
+            page no longer exists
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 

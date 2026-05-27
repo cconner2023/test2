@@ -28,8 +28,10 @@ import type { SealedEnvelope } from '../lib/signal/sealedSender'
 import type { SignalMessageRow, DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { SyncMessagePayload } from '../lib/signal/transportTypes'
 import type { SenderKeyMessage, SenderKeyDistribution } from '../lib/signal/types'
-import { parseMessageContent, type IntakeRequestContent } from '../lib/signal/messageContent'
+import { parseMessageContent, type IntakeRequestContent, type OncallCallContent, type OutsideMessageContent } from '../lib/signal/messageContent'
 import { emitCallSignal, type CallSignalBody } from '../lib/webrtc/callSignalBus'
+import { emitOncallRing } from '../lib/webrtc/oncallSignalBus'
+import { saveWrappedVoicemailKey } from '../lib/oncallKeyStore'
 import { isCalendarEvent, routeCalendarEvent } from '../lib/calendarRouting'
 import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature } from '../lib/mapOverlayRouting'
 import { errorBus } from '../lib/errorBus'
@@ -131,6 +133,88 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
           messageType: 'delete' as const,
           createdAt: row.created_at,
           readAt: row.read_at,
+        }
+      }
+
+      // ── Outside→on-call (SYSTEM-authored plaintext, anon-gated RPC fanout) ──
+      // The LIVE ring rides the oncall signal bus (like call-signal), never a
+      // chat card. request_oncall fans oncall-ring; accept_oncall fans
+      // oncall-ring-cancel. Surface to the call layer and return null.
+      if (maybeIntake && maybeIntake.kind === 'oncall-ring') {
+        try {
+          emitOncallRing({
+            kind: 'ring',
+            callId: String(maybeIntake.call_id),
+            clinicId: String(maybeIntake.clinic_id),
+            requesterName: String(maybeIntake.requester_name ?? ''),
+            sdpOffer: maybeIntake.sdp_offer as RTCSessionDescriptionInit,
+          })
+        } catch (e) {
+          logger.warn(`Failed to route oncall-ring ${row.id}:`, e instanceof Error ? e.message : e)
+        }
+        return null
+      }
+      if (maybeIntake && maybeIntake.kind === 'oncall-ring-cancel') {
+        emitOncallRing({ kind: 'cancel', callId: String(maybeIntake.call_id) })
+        return null
+      }
+      // Voicemail private-key delivery: persist the still-sealed envelope; it is
+      // unwrapped lazily at play-time. No signal crypto on this path.
+      if (maybeIntake && maybeIntake.kind === 'oncall-key-wrap') {
+        if (maybeIntake.clinic_id && maybeIntake.wrapped_private_key) {
+          saveWrappedVoicemailKey(String(maybeIntake.clinic_id), maybeIntake.wrapped_private_key)
+        }
+        return null
+      }
+      // Resolved CALL card — the durable record (connected / missed / declined /
+      // voicemail). Built decrypt-only like intake-request; stored + rendered.
+      if (maybeIntake && maybeIntake.kind === 'oncall-call') {
+        const content: OncallCallContent = {
+          type: 'oncall_call',
+          call_id: String(maybeIntake.call_id),
+          clinic_id: String(maybeIntake.clinic_id),
+          requester_name: String(maybeIntake.requester_name ?? ''),
+          outcome: maybeIntake.outcome as OncallCallContent['outcome'],
+          ended_at: String(maybeIntake.ended_at ?? ''),
+          ...(maybeIntake.voicemail
+            ? { voicemail: maybeIntake.voicemail as OncallCallContent['voicemail'] }
+            : {}),
+        }
+        return {
+          id: row.id,
+          senderId: SYSTEM_USER_ID,
+          recipientId: row.recipient_id,
+          plaintext: '[on-call]',
+          content,
+          messageType: 'system' as const,
+          createdAt: row.created_at,
+          readAt: row.read_at,
+          ...(row.group_id && { groupId: row.group_id }),
+          originId: row.origin_id ?? undefined,
+        }
+      }
+      // Outside→cluster ONE-WAY message card — sealed text body (same envelope as
+      // voicemail audio). Built decrypt-only; the body is unsealed lazily at render
+      // (OutsideMessageCard), exactly like a voicemail. No signal crypto on this path.
+      if (maybeIntake && maybeIntake.kind === 'outside-message') {
+        const content: OutsideMessageContent = {
+          type: 'outside_message',
+          message_id: String(maybeIntake.message_id),
+          clinic_id: String(maybeIntake.clinic_id),
+          requester_name: String(maybeIntake.requester_name ?? ''),
+          sealed: maybeIntake.sealed as OutsideMessageContent['sealed'],
+        }
+        return {
+          id: row.id,
+          senderId: SYSTEM_USER_ID,
+          recipientId: row.recipient_id,
+          plaintext: '[message]',
+          content,
+          messageType: 'system' as const,
+          createdAt: row.created_at,
+          readAt: row.read_at,
+          ...(row.group_id && { groupId: row.group_id }),
+          originId: row.origin_id ?? undefined,
         }
       }
     }

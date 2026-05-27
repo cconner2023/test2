@@ -128,31 +128,31 @@ export interface EventFormData {
 }
 
 export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: string; solidColor: string; hidden?: boolean; devOnly?: boolean }[] = [
-  { value: 'training',    label: 'Training',    color: 'bg-themeyellow/20',  solidColor: 'bg-themeyellow' },
-  { value: 'duty',        label: 'Duty',        color: 'bg-themeredred/20',  solidColor: 'bg-themeredred' },
-  { value: 'range',       label: 'Range',       color: 'bg-themeblue2/20',   solidColor: 'bg-themeblue2' },
-  { value: 'appointment', label: 'Appointment', color: 'bg-themeblue1/20',   solidColor: 'bg-themeblue1' },
-  { value: 'mission',     label: 'Mission',     color: 'bg-themegreen/20',   solidColor: 'bg-themegreen' },
-  { value: 'medevac',     label: 'MEDEVAC',     color: 'bg-themeredred/20',  solidColor: 'bg-themeredred' },
-  { value: 'huddle',      label: 'Huddle',      color: 'bg-themeblue3/20',   solidColor: 'bg-themeblue3' },
-  { value: 'leave',       label: 'Leave',       color: 'bg-tertiary/15',     solidColor: 'bg-tertiary' },
-  { value: 'other',       label: 'Other',       color: 'bg-tertiary/20',     solidColor: 'bg-tertiary' },
-  { value: 'templated',   label: 'Templated',   color: 'bg-themeblue1/15',   solidColor: 'bg-themeblue1', hidden: true },
-  { value: 'task',        label: 'Task',        color: 'bg-themepurple/20',  solidColor: 'bg-themepurple' },
+  { value: 'training',    label: 'Training',    color: 'bg-themeblue3/20',  solidColor: 'bg-themeblue3' },
+  { value: 'duty',        label: 'Duty',        color: 'bg-themeblue3/20',  solidColor: 'bg-themeblue3' },
+  { value: 'range',       label: 'Range',       color: 'bg-themeblue3/20',  solidColor: 'bg-themeblue3' },
+  { value: 'appointment', label: 'Appointment', color: 'bg-themeblue3/20',  solidColor: 'bg-themeblue3' },
+  { value: 'mission',     label: 'Mission',     color: 'bg-tertiary/20',    solidColor: 'bg-tertiary' },
+  { value: 'medevac',     label: 'MEDEVAC',     color: 'bg-tertiary/20',    solidColor: 'bg-tertiary' },
+  { value: 'huddle',      label: 'Huddle',      color: 'bg-tertiary/20',    solidColor: 'bg-tertiary' },
+  { value: 'leave',       label: 'Leave',       color: 'bg-tertiary/15',    solidColor: 'bg-tertiary' },
+  { value: 'other',       label: 'Other',       color: 'bg-tertiary/20',    solidColor: 'bg-tertiary' },
+  { value: 'templated',   label: 'Templated',   color: 'bg-themeblue3/15',  solidColor: 'bg-themeblue3', hidden: true },
+  { value: 'task',        label: 'Task',        color: 'bg-tertiary/20',    solidColor: 'bg-tertiary' },
 ]
 
 export const CATEGORY_BG_MAP: Record<EventCategory, string> = {
-  training: 'bg-themeyellow/20 border-themeyellow/30 text-primary',
-  duty: 'bg-themeredred/20 border-themeredred/30 text-primary',
-  range: 'bg-themeblue2/20 border-themeblue2/30 text-primary',
-  appointment: 'bg-themeblue1/20 border-themeblue1/30 text-primary',
-  mission: 'bg-themegreen/20 border-themegreen/30 text-primary',
-  medevac: 'bg-themeredred/20 border-themeredred/30 text-primary',
-  huddle: 'bg-themeblue3/20 border-themeblue3/30 text-primary',
+  training: 'bg-themeblue3/20 border-themeblue3/30 text-primary',
+  duty: 'bg-themeblue3/20 border-themeblue3/30 text-primary',
+  range: 'bg-themeblue3/20 border-themeblue3/30 text-primary',
+  appointment: 'bg-themeblue3/20 border-themeblue3/30 text-primary',
+  mission: 'bg-tertiary/20 border-tertiary/20 text-secondary',
+  medevac: 'bg-tertiary/20 border-tertiary/20 text-secondary',
+  huddle: 'bg-tertiary/20 border-tertiary/20 text-secondary',
   leave: 'bg-tertiary/10 border-tertiary/20 text-tertiary',
   other: 'bg-tertiary/20 border-tertiary/20 text-secondary',
-  templated: 'bg-themeblue1/10 border-themeblue1/25 text-primary',
-  task: 'bg-themepurple/15 border-themepurple/30 text-primary',
+  templated: 'bg-themeblue3/10 border-themeblue3/25 text-primary',
+  task: 'bg-tertiary/20 border-tertiary/20 text-secondary',
 }
 
 export function getCategoryMeta(category: EventCategory) {

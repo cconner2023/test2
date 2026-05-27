@@ -5,6 +5,8 @@ import { GESTURE_THRESHOLDS, isInteractiveTarget } from '../../Utilities/Gesture
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import { downloadDecryptedAttachment } from '../../lib/signal/attachmentService'
 import { IntakeRequestCard } from '../Messages/IntakeRequestCard'
+import { OncallCallCard } from '../Messages/OncallCallCard'
+import { OutsideMessageCard } from '../Messages/OutsideMessageCard'
 import { detectFirstDate } from '../../Utilities/dateDetect'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useAuthStore } from '../../stores/useAuthStore'
@@ -220,6 +222,30 @@ export function MessageBubble({
         avatar={avatar}
         senderName={senderName}
         actionable={intakeActionable}
+      />
+    )
+  }
+
+  // Resolved outside→on-call card: connected / missed / declined / voicemail.
+  if (message.content?.type === 'oncall_call') {
+    return (
+      <OncallCallCard
+        content={message.content}
+        createdAt={message.createdAt}
+        onLongPress={(x, y) => onLongPress?.(message, x, y)}
+        messageId={message.id}
+      />
+    )
+  }
+
+  // Outside→cluster one-way message card: sealed text note from an outside party.
+  if (message.content?.type === 'outside_message') {
+    return (
+      <OutsideMessageCard
+        content={message.content}
+        createdAt={message.createdAt}
+        onLongPress={(x, y) => onLongPress?.(message, x, y)}
+        messageId={message.id}
       />
     )
   }

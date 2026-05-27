@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import bwipjs from 'bwip-js/browser'
 import {
-  Copy, Check, RefreshCw, KeyRound, Trash2, Inbox, Dices,
+  Copy, Check, RefreshCw, KeyRound, Trash2, Inbox, Dices, Headset, MessageSquare,
 } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -19,12 +19,20 @@ import {
   getEventIntakeCredential,
   type IntakeCredentialMetadata,
 } from '../../lib/eventIntakeService'
+import { enableOncall, disableOncall, enableOutsideMessaging, disableOutsideMessaging, provisionInboundKey } from '../../lib/oncallService'
+import { ToggleSwitch } from './ToggleSwitch'
 import { createLogger } from '../../Utilities/Logger'
 
 const logger = createLogger('IntakeMintSection')
 
 interface IntakeMintSectionProps {
   clinicId: string
+  /** Count of cluster members currently on-call — drives the "Allow calls" subtitle. */
+  oncallCount?: number
+  /** Notifies the parent when the on-call roster becomes relevant — i.e. either
+   *  GATE-2 "allow calls" OR "allow text messaging" is on. Both ping clinics.oncall,
+   *  so the personnel roster shows per-member on-call toggles whenever either is enabled. */
+  onOncallEnabledChange?: (enabled: boolean) => void
 }
 
 function intakeUrl(passcode: string): string {
@@ -66,13 +74,18 @@ function generatePassphrase(): string {
  * button (matches the rest of the settings UI). The supervisor types a
  * passphrase or taps the dice to fill a generated one inline before submitting.
  */
-export function IntakeMintSection({ clinicId }: IntakeMintSectionProps) {
+export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledChange }: IntakeMintSectionProps) {
   const { isDevRole } = useAuth()
   const [credential, setCredential] = useState<IntakeCredentialMetadata | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [oncallBusy, setOncallBusy] = useState(false)
+  const [msgBusy, setMsgBusy] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
+
+  const oncallEnabled = credential?.oncall_enabled === true
+  const messageEnabled = credential?.outside_message_enabled === true
 
   // Anchor rects + open flags for each overlay surface.
   const [mintAnchor, setMintAnchor] = useState<DOMRect | null>(null)
@@ -111,6 +124,34 @@ export function IntakeMintSection({ clinicId }: IntakeMintSectionProps) {
   }, [clinicId])
 
   useEffect(() => { refresh() }, [refresh])
+
+  // Surface on-call-roster relevance to the parent so the personnel roster renders
+  // per-member on-call toggles whenever an outside channel that pings on-call is
+  // enabled — calls OR text messaging (both target clinics.oncall).
+  useEffect(() => { onOncallEnabledChange?.(oncallEnabled || messageEnabled) }, [oncallEnabled, messageEnabled, onOncallEnabledChange])
+
+  const toggleOncall = useCallback(async () => {
+    if (oncallBusy) return
+    setOncallBusy(true)
+    try {
+      const res = oncallEnabled ? await disableOncall(clinicId) : await enableOncall(clinicId)
+      if (res.ok) await refresh()
+    } finally {
+      setOncallBusy(false)
+    }
+  }, [oncallBusy, oncallEnabled, clinicId, refresh])
+
+  const toggleMessage = useCallback(async () => {
+    if (msgBusy) return
+    setMsgBusy(true)
+    try {
+      const res = messageEnabled ? await disableOutsideMessaging(clinicId) : await enableOutsideMessaging(clinicId)
+      if (res.ok) await refresh()
+    } finally {
+      setMsgBusy(false)
+    }
+  }, [msgBusy, messageEnabled, clinicId, refresh])
+
 
   const url = credential ? intakeUrl(credential.passcode) : ''
 
@@ -163,6 +204,9 @@ export function IntakeMintSection({ clinicId }: IntakeMintSectionProps) {
       if (mintPass1 !== mintPass2) { setFormError('Passphrases do not match'); return }
       const res = await mintEventIntakeCredential(clinicId, { passphrase: mintPass1 })
       if (!res.ok) { setFormError(res.error); return }
+      // The clinic inbound key (seals voicemail + outside text) is minted WITH the
+      // credential — no separate toggle. Best-effort: enabling a channel self-heals if missed.
+      try { await provisionInboundKey(clinicId) } catch (e) { logger.warn('inbound key provisioning failed at mint:', e instanceof Error ? e.message : e) }
       setFormError(null)
       closeMint()
       await refresh()
@@ -192,6 +236,9 @@ export function IntakeMintSection({ clinicId }: IntakeMintSectionProps) {
     try {
       const res = await rotateEventIntakePasscode(clinicId)
       if (!res.ok) { setLoadError(res.error); return }
+      // Rotate the inbound key alongside the code — CLEAN SLATE: undelivered/unread
+      // sealed voicemails + messages sealed to the old key become unrecoverable (intended).
+      try { await provisionInboundKey(clinicId) } catch (e) { logger.warn('inbound key rotation failed:', e instanceof Error ? e.message : e) }
       setConfirmRotatePasscode(false)
       await refresh()
     } finally {
@@ -309,6 +356,56 @@ export function IntakeMintSection({ clinicId }: IntakeMintSectionProps) {
                 </div>
               </div>
             </div>
+
+            {/* GATE-2 — "Allow calls": master toggle that lets outside callers
+                ring the on-call roster over the same QR/passphrase credential. */}
+            <div
+              onClick={oncallBusy ? undefined : () => void toggleOncall()}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (!oncallBusy && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); void toggleOncall() } }}
+              className={`flex items-center gap-3 px-4 py-3.5 border-t border-primary/6 transition-all ${oncallBusy ? 'opacity-50' : 'cursor-pointer hover:bg-themeblue2/5 active:scale-95'}`}
+            >
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${oncallEnabled ? 'bg-themeblue3/15' : 'bg-tertiary/10'}`}>
+                <Headset size={18} className={oncallEnabled ? 'text-themeblue3' : 'text-tertiary'} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-medium ${oncallEnabled ? 'text-primary' : 'text-tertiary'}`}>Allow calls</p>
+                <p className="text-[9pt] text-tertiary mt-0.5">
+                  {oncallEnabled
+                    ? `${oncallCount} member${oncallCount === 1 ? '' : 's'} on-call`
+                    : 'Outside callers cannot request a live call'}
+                </p>
+              </div>
+              <ToggleSwitch checked={oncallEnabled} />
+            </div>
+
+            {/* The clinic inbound key (seals voicemail + outside text) is NOT a visible
+                control — it is minted with the credential and rotated with the passcode
+                (see onMintConfirm / onRotatePasscode). No manual rotate row. */}
+
+            {/* GATE-2 "allow text messaging": outside party drops a one-way sealed note to
+                the cluster over the same QR/passphrase credential. Pings on-call. */}
+            <div
+              onClick={msgBusy ? undefined : () => void toggleMessage()}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (!msgBusy && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); void toggleMessage() } }}
+              className={`flex items-center gap-3 px-4 py-3.5 border-t border-primary/6 transition-all ${msgBusy ? 'opacity-50' : 'cursor-pointer hover:bg-themeblue2/5 active:scale-95'}`}
+            >
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${messageEnabled ? 'bg-themeblue3/15' : 'bg-tertiary/10'}`}>
+                <MessageSquare size={18} className={messageEnabled ? 'text-themeblue3' : 'text-tertiary'} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-medium ${messageEnabled ? 'text-primary' : 'text-tertiary'}`}>Allow text messaging</p>
+                <p className="text-[9pt] text-tertiary mt-0.5">
+                  {messageEnabled
+                    ? 'Outside senders can drop a sealed one-way note to the cluster'
+                    : 'Outside senders cannot message the cluster'}
+                </p>
+              </div>
+              <ToggleSwitch checked={messageEnabled} />
+            </div>
           </div>
 
           <ActionPill shadow="sm" placement="overlay">
@@ -423,7 +520,7 @@ export function IntakeMintSection({ clinicId }: IntakeMintSectionProps) {
       <ConfirmDialog
         visible={confirmRotatePasscode}
         title="Rotate passcode?"
-        subtitle="The current QR will stop working. Reprint your poster before redistributing."
+        subtitle="The current QR will stop working — reprint your poster before redistributing. This also rotates the clinic inbound key: any voicemails or messages left but not yet opened become unrecoverable."
         confirmLabel="Rotate"
         variant="warning"
         processing={busy}

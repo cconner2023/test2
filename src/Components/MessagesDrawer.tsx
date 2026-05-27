@@ -6,6 +6,7 @@ import { BottomIsland, IslandButton } from './BottomIsland'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { PreviewOverlay } from './PreviewOverlay'
 import { VoicemailGreetingSection } from './Settings/VoicemailGreetingSection'
+import { OncallPresenceSection } from './Settings/OncallPresenceSection'
 import { MessagesPanel, type MessagesView, type MessagesPanelHandle, type MessagingLens } from './Settings/MessagesPanel'
 import { useMessagesContext } from '../Hooks/MessagesContext'
 import { useAuth } from '../Hooks/useAuth'
@@ -201,7 +202,8 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             title="Messaging settings"
             maxWidth={360}
         >
-            <div className="px-3 py-3 max-h-[70vh] overflow-y-auto">
+            <div className="px-3 py-3 max-h-[70vh] overflow-y-auto space-y-4">
+                <OncallPresenceSection />
                 <VoicemailGreetingSection />
             </div>
         </PreviewOverlay>

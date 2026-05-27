@@ -374,6 +374,24 @@ export function ChatDetailView({
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
   }, [handleSend])
 
+  // Force the text/plain clipboard flavor on paste. iOS Safari otherwise picks
+  // the text/html flavor (e.g. from WriteNote's copyWithHtml dual-flavor copy)
+  // and mangles block boundaries — line breaks come through as %20 artifacts.
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const plain = e.clipboardData.getData('text/plain')
+    if (!plain) return // image / no-text paste — let useImagePaste handle it
+    e.preventDefault()
+    const el = e.currentTarget
+    const start = el.selectionStart ?? text.length
+    const end = el.selectionEnd ?? text.length
+    const next = text.slice(0, start) + plain + text.slice(end)
+    setText(next)
+    requestAnimationFrame(() => {
+      const pos = start + plain.length
+      el.setSelectionRange(pos, pos)
+    })
+  }, [text])
+
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
@@ -543,6 +561,7 @@ export function ChatDetailView({
                   rows={1}
                   value={text}
                   onChange={e => setText(e.target.value)}
+                  onPaste={handlePaste}
                   onKeyDown={handleKeyDown}
                   onFocus={() => requestAnimationFrame(() => {
                     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })

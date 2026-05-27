@@ -67,16 +67,16 @@ function assignLanesAbs(events: CalendarEvent[]): number[] {
 // ─── Task list constants ─────────────────────────────────────────────────────
 
 export const CATEGORY_STRIPE: Record<EventCategory, string> = {
-  training:    'bg-themeyellow',
-  duty:        'bg-themeredred',
-  range:       'bg-themeblue2',
-  appointment: 'bg-themeblue1',
-  mission:     'bg-themegreen',
-  medevac:     'bg-themeredred',
-  huddle:      'bg-themeblue3',
-  task:        'bg-themepurple',
+  training:    'bg-themeblue3',
+  duty:        'bg-themeblue3',
+  range:       'bg-themeblue3',
+  appointment: 'bg-themeblue3',
+  mission:     'bg-tertiary',
+  medevac:     'bg-tertiary',
+  huddle:      'bg-tertiary',
+  task:        'bg-tertiary',
   leave:       'bg-tertiary/60',
-  templated:   'bg-themeblue1/60',
+  templated:   'bg-themeblue3/60',
   other:       'bg-tertiary/50',
 }
 

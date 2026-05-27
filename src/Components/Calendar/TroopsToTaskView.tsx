@@ -1,6 +1,7 @@
 import { useMemo, useCallback, useRef, useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
+import type { CalendarT2TZoom } from '../../stores/useCalendarStore'
 import { getCategoryMeta, PROVIDER_HUDDLE_TASK_ID, toDateKey, formatShortDayLabel, STATUS_META } from '../../Types/CalendarTypes'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import { UserAvatar } from '../Settings/UserAvatar'
@@ -34,11 +35,27 @@ interface TroopsToTaskViewProps {
    * duplicate detection + confirmation modal.
    */
   onAssignMedicToHuddle?: (medicId: string, taskId: string, forDateKey: string, providerId?: string) => void
+  /** Timeline cell granularity. Changing this remounts the view (keyed in CalendarPanel). */
+  zoom?: CalendarT2TZoom
 }
 
-const HOUR_COL_WIDTH = 80
-const HOURS_PER_DAY = 24
-const DAY_WIDTH = HOURS_PER_DAY * HOUR_COL_WIDTH // 1920px
+/** Background vertical gridlines for one row — same tick cadence as the time header. */
+function DayGrid({ days, ticks, dayWidth }: { days: DaySlot[]; ticks: DayTick[]; dayWidth: number }) {
+  return (
+    <>
+      {days.map((day, dayIdx) =>
+        ticks.map(t => (
+          <div
+            key={`${day.dateKey}-${t.minutes}`}
+            className={`absolute top-0 bottom-0 ${tickBorder(t.kind)}`}
+            style={{ left: dayIdx * dayWidth + t.offset, width: t.width }}
+          />
+        )),
+      )}
+    </>
+  )
+}
+
 const NAME_COL_WIDTH = 180
 const DAYS_BUFFER = 7 // 7 before + 7 after = 15 days
 const LOAD_THRESHOLD = 2 // days from edge before loading more
@@ -47,6 +64,64 @@ const LANE_HEIGHT_HUDDLE = 32
 const LANE_GAP = 2
 const ROW_PAD = 4 // top + bottom padding inside row
 const TIME_HEADER_HEIGHT = 28 // px — used to offset the sticky huddle band
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+
+/**
+ * Per-zoom geometry. All three modes share the same continuous time→px axis and
+ * the same infinite multi-day scroll; only the cell unit (and thus px-per-hour,
+ * gridline cadence, and whether events snap to whole days) changes.
+ */
+interface ZoomCfg {
+  pxPerHour: number
+  dayWidth: number
+  /** Gridline / header-tick spacing within a day, in minutes. */
+  tickMinutes: number
+  /** Day mode: collapse each event to the whole-day cells it touches. */
+  snapToDay: boolean
+}
+
+const ZOOM_CFG: Record<CalendarT2TZoom, ZoomCfg> = {
+  // 1 cell = 1 hour — original implementation.
+  hour:     { pxPerHour: 80,      dayWidth: 1920, tickMinutes: 60,   snapToDay: false },
+  // 1 cell = 20 min — finer grid, ~1.5× zoom.
+  expanded: { pxPerHour: 120,     dayWidth: 2880, tickMinutes: 20,   snapToDay: false },
+  // 1 cell = 1 day — longitudinal projection, zoomed out.
+  day:      { pxPerHour: 110 / 24, dayWidth: 110, tickMinutes: 1440, snapToDay: true },
+}
+
+type TickKind = 'day' | 'hour' | 'sub'
+interface DayTick {
+  minutes: number
+  offset: number
+  width: number
+  kind: TickKind
+  /** Hour label ("0100") for hour ticks; day ticks render the day label instead. */
+  label: string
+}
+
+/** Ticks within a single day for the given zoom — identical for every day, so memoize per cfg. */
+function buildTicks(cfg: ZoomCfg): DayTick[] {
+  const out: DayTick[] = []
+  const cellW = cfg.pxPerHour * (cfg.tickMinutes / 60)
+  for (let m = 0; m < 1440; m += cfg.tickMinutes) {
+    const kind: TickKind = m === 0 ? 'day' : m % 60 === 0 ? 'hour' : 'sub'
+    out.push({
+      minutes: m,
+      offset: (m / 60) * cfg.pxPerHour,
+      width: cellW,
+      kind,
+      label: m % 60 === 0 ? `${String(m / 60).padStart(2, '0')}00` : '',
+    })
+  }
+  return out
+}
+
+const tickBorder = (kind: TickKind): string =>
+  kind === 'day'
+    ? 'border-l-2 border-l-primary/20'
+    : kind === 'hour'
+      ? 'border-l border-l-primary/10'
+      : 'border-l border-l-primary/5'
 
 interface DaySlot {
   date: Date
@@ -70,20 +145,30 @@ function generateDays(centerDate: Date, before: number, after: number): DaySlot[
 }
 
 /** Position an event block relative to the timeline origin (first day, hour 0) */
-function getEventPosition(event: CalendarEvent, days: DaySlot[]) {
+function getEventPosition(event: CalendarEvent, days: DaySlot[], cfg: ZoomCfg) {
   const firstDayMs = days[0].date.getTime()
-  const lastDayEndMs = days[days.length - 1].date.getTime() + 24 * 60 * 60 * 1000
+  const lastDayEndMs = days[days.length - 1].date.getTime() + MS_PER_DAY
 
   const startMs = Math.max(new Date(event.start_time).getTime(), firstDayMs)
   const endMs = Math.min(new Date(event.end_time).getTime(), lastDayEndMs)
 
   if (endMs <= firstDayMs || startMs >= lastDayEndMs) return null
 
+  // Day mode: snap to the whole-day cells the event touches, so a longitudinal
+  // glance shows which days a medic is committed regardless of intra-day timing.
+  if (cfg.snapToDay) {
+    const startDay = Math.floor((startMs - firstDayMs) / MS_PER_DAY)
+    const endDay = Math.floor((endMs - firstDayMs - 1) / MS_PER_DAY) // inclusive; midnight-end stays in prior day
+    const left = startDay * cfg.dayWidth
+    const width = Math.max((endDay - startDay + 1) * cfg.dayWidth, cfg.dayWidth)
+    return { left, width }
+  }
+
   const startHoursFromOrigin = (startMs - firstDayMs) / (1000 * 60 * 60)
   const endHoursFromOrigin = (endMs - firstDayMs) / (1000 * 60 * 60)
 
-  const left = startHoursFromOrigin * HOUR_COL_WIDTH
-  const width = Math.max((endHoursFromOrigin - startHoursFromOrigin) * HOUR_COL_WIDTH, 30)
+  const left = startHoursFromOrigin * cfg.pxPerHour
+  const width = Math.max((endHoursFromOrigin - startHoursFromOrigin) * cfg.pxPerHour, 30)
 
   return { left, width }
 }
@@ -96,11 +181,11 @@ interface PositionedEvent {
 }
 
 /** Assign non-overlapping lanes to events, sorted by start time */
-function assignLanes(assignments: CalendarEvent[], days: DaySlot[]): PositionedEvent[] {
+function assignLanes(assignments: CalendarEvent[], days: DaySlot[], cfg: ZoomCfg): PositionedEvent[] {
   const positioned: PositionedEvent[] = []
 
   for (const event of assignments) {
-    const pos = getEventPosition(event, days)
+    const pos = getEventPosition(event, days, cfg)
     if (!pos) continue
     positioned.push({ event, left: pos.left, width: pos.width, lane: 0 })
   }
@@ -121,7 +206,9 @@ function assignLanes(assignments: CalendarEvent[], days: DaySlot[]): PositionedE
   return positioned
 }
 
-export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onSelectEvent, onEventContextMenu, onDateChange, onNewHuddleEvent, onAssignMedicToHuddle }: TroopsToTaskViewProps) {
+export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onSelectEvent, onEventContextMenu, onDateChange, onNewHuddleEvent, onAssignMedicToHuddle, zoom = 'hour' }: TroopsToTaskViewProps) {
+  const cfg = ZOOM_CFG[zoom]
+  const ticks = useMemo(() => buildTicks(cfg), [cfg])
   const eventContextHandler = useCallback((eventId: string) => onEventContextMenu
     ? (e: { preventDefault: () => void; stopPropagation: () => void; clientX: number; clientY: number }) => {
         e.preventDefault()
@@ -158,8 +245,8 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
     const dayIndex = days.findIndex(d => d.dateKey === nowKey)
     if (dayIndex < 0) return null
     const fractionalHours = now.getHours() + now.getMinutes() / 60
-    return dayIndex * DAY_WIDTH + fractionalHours * HOUR_COL_WIDTH
-  }, [days])
+    return dayIndex * cfg.dayWidth + fractionalHours * cfg.pxPerHour
+  }, [days, cfg])
 
   // Update now-line every 60 seconds
   useEffect(() => {
@@ -169,7 +256,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
     return () => clearInterval(interval)
   }, [computeNowX])
 
-  const totalWidth = NAME_COL_WIDTH + days.length * DAY_WIDTH
+  const totalWidth = NAME_COL_WIDTH + days.length * cfg.dayWidth
 
   // Filter to timed events that fall within our buffered range
   const visibleEvents = useMemo(() => {
@@ -195,8 +282,8 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
   // primitive as orphan-huddle / provider lanes — so tasks render with the
   // identical bar geometry as any other all-day event in this view.
   const taskCategoryLanes = useMemo(
-    () => assignLanes(visibleEvents.filter(e => e.category === 'task'), days),
-    [visibleEvents, days],
+    () => assignLanes(visibleEvents.filter(e => e.category === 'task'), days, cfg),
+    [visibleEvents, days, cfg],
   )
 
   // Assignments per medic — lane-resolved
@@ -212,14 +299,14 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
     }
     const map = new Map<string, PositionedEvent[]>()
     for (const [id, evts] of raw) {
-      map.set(id, assignLanes(evts, days))
+      map.set(id, assignLanes(evts, days, cfg))
     }
     return map
-  }, [medics, nonHuddleEvents, days])
+  }, [medics, nonHuddleEvents, days, cfg])
 
   const unassignedLanes = useMemo(() =>
-    assignLanes(nonHuddleEvents.filter(e => e.assigned_to.length === 0), days),
-    [nonHuddleEvents, days]
+    assignLanes(nonHuddleEvents.filter(e => e.assigned_to.length === 0), days, cfg),
+    [nonHuddleEvents, days, cfg]
   )
 
   // ── Huddle band — sectioned: providers row(s) + one row per supervisor-defined task ──
@@ -266,8 +353,8 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
    * how many users hold the provider role.
    */
   const providerLanesAll = useMemo(
-    () => assignLanes(providerEvents, days),
-    [providerEvents, days],
+    () => assignLanes(providerEvents, days, cfg),
+    [providerEvents, days, cfg],
   )
 
   /** Per-task huddle event lanes — keyed by task id. */
@@ -275,15 +362,15 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
     const map = new Map<string, PositionedEvent[]>()
     for (const task of huddleTasks) {
       const evts = taskEvents.filter(e => e.huddle_task_id === task.id)
-      map.set(task.id, assignLanes(evts, days))
+      map.set(task.id, assignLanes(evts, days, cfg))
     }
     return map
-  }, [huddleTasks, taskEvents, days])
+  }, [huddleTasks, taskEvents, days, cfg])
 
   /** Lane-stacked orphan huddle events (no task, no provider). */
   const orphanHuddleLanes = useMemo(
-    () => assignLanes(orphanHuddleEvents, days),
-    [orphanHuddleEvents, days],
+    () => assignLanes(orphanHuddleEvents, days, cfg),
+    [orphanHuddleEvents, days, cfg],
   )
 
   const medicById = useMemo(() => {
@@ -326,7 +413,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
     if (todayIndex >= 0) {
       // Center on current time within today
       const fractionalHours = now.getHours() + now.getMinutes() / 60
-      const nowX = todayIndex * DAY_WIDTH + fractionalHours * HOUR_COL_WIDTH
+      const nowX = todayIndex * cfg.dayWidth + fractionalHours * cfg.pxPerHour
       const sl = Math.max(0, nowX - viewportWidth / 2)
       el.scrollLeft = sl
       el.style.setProperty('--sl', String(sl))
@@ -335,14 +422,14 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
       // Fallback: center on the selected date
       const dayIndex = days.findIndex(d => d.dateKey === toDateKey(date))
       if (dayIndex >= 0) {
-        const dayLeft = dayIndex * DAY_WIDTH
-        const sl = Math.max(0, dayLeft - viewportWidth / 2 + DAY_WIDTH / 2)
+        const dayLeft = dayIndex * cfg.dayWidth
+        const sl = Math.max(0, dayLeft - viewportWidth / 2 + cfg.dayWidth / 2)
         el.scrollLeft = sl
         el.style.setProperty('--sl', String(sl))
         initialScrollDone.current = true
       }
     }
-  }, [days, date])
+  }, [days, date, cfg])
 
   // Re-center when date changes externally (nav buttons)
   const prevDateRef = useRef(toDateKey(date))
@@ -361,10 +448,10 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
       return
     }
 
-    const dayLeft = dayIndex * DAY_WIDTH
+    const dayLeft = dayIndex * cfg.dayWidth
     const viewportWidth = el.clientWidth - NAME_COL_WIDTH
-    el.scrollTo({ left: Math.max(0, dayLeft - viewportWidth / 2 + DAY_WIDTH / 2), behavior: 'smooth' })
-  }, [date, days])
+    el.scrollTo({ left: Math.max(0, dayLeft - viewportWidth / 2 + cfg.dayWidth / 2), behavior: 'smooth' })
+  }, [date, days, cfg])
 
   // IntersectionObserver to detect which day is visible → update label
   useEffect(() => {
@@ -404,7 +491,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
     el.style.setProperty('--sl', String(el.scrollLeft))
 
     const { scrollLeft, scrollWidth, clientWidth } = el
-    const dayPixelWidth = DAY_WIDTH
+    const dayPixelWidth = cfg.dayWidth
 
     // Near left edge — prepend days
     if (scrollLeft < dayPixelWidth * LOAD_THRESHOLD) {
@@ -415,7 +502,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
       setDays(prev => [...newDays, ...prev])
       // Maintain scroll position
       requestAnimationFrame(() => {
-        el.scrollLeft += newDays.length * DAY_WIDTH
+        el.scrollLeft += newDays.length * cfg.dayWidth
       })
     }
 
@@ -427,7 +514,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
       const newDays = generateDays(newFirst, 0, DAYS_BUFFER - 1)
       setDays(prev => [...prev, ...newDays])
     }
-  }, [days])
+  }, [days, cfg])
 
   const prevDay = useCallback(() => {
     const d = new Date(date)
@@ -499,22 +586,20 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
             </button>
           </div>
 
-          {/* Hour labels with day dividers */}
-          {days.map((day, dayIdx) => (
+          {/* Tick labels with day dividers — cadence follows the zoom (hour / 20-min / day) */}
+          {days.map(day => (
             <div key={day.dateKey} className="flex shrink-0" ref={(el) => setDayRef(day.dateKey, el)} data-day-key={day.dateKey}>
-              {Array.from({ length: HOURS_PER_DAY }, (_, h) => (
+              {ticks.map(t => (
                 <div
-                  key={h}
-                  className={`px-1 py-1.5 ${
-                    h === 0 ? 'border-l-2 border-l-primary/20' : 'border-l border-l-primary/5'
-                  }`}
-                  style={{ width: HOUR_COL_WIDTH }}
+                  key={t.minutes}
+                  className={`px-1 py-1.5 ${tickBorder(t.kind)}`}
+                  style={{ width: t.width }}
                 >
-                  {h === 0 ? (
-                    <span className="text-[9pt] font-semibold text-primary">{day.label}</span>
-                  ) : (
-                    <span className="text-[9pt] font-mono text-tertiary">{String(h).padStart(2, '0')}00</span>
-                  )}
+                  {t.kind === 'day' ? (
+                    <span className="text-[9pt] font-semibold text-primary truncate">{day.label}</span>
+                  ) : t.kind === 'hour' ? (
+                    <span className="text-[9pt] font-mono text-tertiary">{t.label}</span>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -557,17 +642,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
                   <span className="text-[9pt] font-semibold uppercase tracking-wider text-tertiary truncate">Provider</span>
                 </div>
                 <div className="flex-1 relative">
-                  {days.map((day, dayIdx) => (
-                    Array.from({ length: HOURS_PER_DAY }, (_, h) => (
-                      <div
-                        key={`${day.dateKey}-${h}`}
-                        className={`absolute top-0 bottom-0 ${
-                          h === 0 ? 'border-l-2 border-l-primary/20' : 'border-l border-l-primary/5'
-                        }`}
-                        style={{ left: dayIdx * DAY_WIDTH + h * HOUR_COL_WIDTH, width: HOUR_COL_WIDTH }}
-                      />
-                    ))
-                  )).flat()}
+                  <DayGrid days={days} ticks={ticks} dayWidth={cfg.dayWidth} />
                   {positioned.map(({ event, left, width, lane }) => {
                     const assignees = event.assigned_to
                       .map(id => medicById.get(id))
@@ -650,17 +725,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
                   <span className="text-[9pt] font-semibold uppercase tracking-wider text-tertiary truncate">{task.name}</span>
                 </div>
                 <div className="flex-1 relative">
-                  {days.map((day, dayIdx) => (
-                    Array.from({ length: HOURS_PER_DAY }, (_, h) => (
-                      <div
-                        key={`${day.dateKey}-${h}`}
-                        className={`absolute top-0 bottom-0 ${
-                          h === 0 ? 'border-l-2 border-l-primary/20' : 'border-l border-l-primary/5'
-                        }`}
-                        style={{ left: dayIdx * DAY_WIDTH + h * HOUR_COL_WIDTH, width: HOUR_COL_WIDTH }}
-                      />
-                    ))
-                  )).flat()}
+                  <DayGrid days={days} ticks={ticks} dayWidth={cfg.dayWidth} />
                   {positioned.map(({ event, left, width, lane }) => {
                     const assignees = event.assigned_to
                       .map(id => medicById.get(id))
@@ -715,17 +780,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
                   <span className="text-[9pt] font-semibold uppercase tracking-wider text-tertiary truncate">Other huddle</span>
                 </div>
                 <div className="flex-1 relative">
-                  {days.map((day, dayIdx) => (
-                    Array.from({ length: HOURS_PER_DAY }, (_, h) => (
-                      <div
-                        key={`${day.dateKey}-${h}`}
-                        className={`absolute top-0 bottom-0 ${
-                          h === 0 ? 'border-l-2 border-l-primary/20' : 'border-l border-l-primary/5'
-                        }`}
-                        style={{ left: dayIdx * DAY_WIDTH + h * HOUR_COL_WIDTH, width: HOUR_COL_WIDTH }}
-                      />
-                    ))
-                  )).flat()}
+                  <DayGrid days={days} ticks={ticks} dayWidth={cfg.dayWidth} />
                   {orphanHuddleLanes.map(({ event, left, width, lane }) => (
                     <button
                       key={event.id}
@@ -761,17 +816,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
               </div>
               <div className="flex-1 relative">
                 {/* Hour grid lines with day dividers — matches medic-lane background */}
-                {days.map((day, dayIdx) => (
-                  Array.from({ length: HOURS_PER_DAY }, (_, h) => (
-                    <div
-                      key={`${day.dateKey}-${h}`}
-                      className={`absolute top-0 bottom-0 ${
-                        h === 0 ? 'border-l-2 border-l-primary/20' : 'border-l border-l-primary/5'
-                      }`}
-                      style={{ left: dayIdx * DAY_WIDTH + h * HOUR_COL_WIDTH, width: HOUR_COL_WIDTH }}
-                    />
-                  ))
-                )).flat()}
+                <DayGrid days={days} ticks={ticks} dayWidth={cfg.dayWidth} />
 
                 {/* Event blocks — same shape as medic-lane events; title sticks on horizontal scroll via --sl */}
                 {taskCategoryLanes.map(({ event, left, width, lane }) => {
@@ -839,17 +884,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
 
               <div className="flex-1 relative">
                 {/* Hour grid lines with day dividers */}
-                {days.map((day, dayIdx) => (
-                  Array.from({ length: HOURS_PER_DAY }, (_, h) => (
-                    <div
-                      key={`${day.dateKey}-${h}`}
-                      className={`absolute top-0 bottom-0 ${
-                        h === 0 ? 'border-l-2 border-l-primary/20' : 'border-l border-l-primary/5'
-                      }`}
-                      style={{ left: dayIdx * DAY_WIDTH + h * HOUR_COL_WIDTH, width: HOUR_COL_WIDTH }}
-                    />
-                  ))
-                )).flat()}
+                <DayGrid days={days} ticks={ticks} dayWidth={cfg.dayWidth} />
 
                 {/* Event blocks — stacked in lanes */}
                 {positioned.map(({ event, left, width, lane }) => {
@@ -901,17 +936,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
                 <span className="text-[9pt] font-semibold text-themeredred">UNASSIGNED</span>
               </div>
               <div className="flex-1 relative">
-                {days.map((day, dayIdx) => (
-                  Array.from({ length: HOURS_PER_DAY }, (_, h) => (
-                    <div
-                      key={`${day.dateKey}-${h}`}
-                      className={`absolute top-0 bottom-0 ${
-                        h === 0 ? 'border-l-2 border-l-primary/20' : 'border-l border-l-primary/5'
-                      }`}
-                      style={{ left: dayIdx * DAY_WIDTH + h * HOUR_COL_WIDTH, width: HOUR_COL_WIDTH }}
-                    />
-                  ))
-                )).flat()}
+                <DayGrid days={days} ticks={ticks} dayWidth={cfg.dayWidth} />
 
                 {unassignedLanes.map(({ event, left, width, lane }) => (
                   <button

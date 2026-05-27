@@ -107,6 +107,12 @@ export interface IntakeCredentialMetadata {
   passcode_rotated_at: string
   passphrase_rotated_at: string
   created_at: string
+  /** GATE-2 master "allow calls" toggle (get_event_intake_credential extension). */
+  oncall_enabled?: boolean
+  /** Whether a clinic voicemail key has been generated (get_event_intake_credential extension). */
+  oncall_has_key?: boolean
+  /** GATE-2 "allow text messaging" toggle — outside→cluster one-way sealed message. */
+  outside_message_enabled?: boolean
 }
 
 export async function getEventIntakeCredential(

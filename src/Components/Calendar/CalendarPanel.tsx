@@ -258,6 +258,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     vaultReplayDone,
     hydrationError, clearHydrationError,
     daySpan,
+    t2tZoom,
     categoryFilter, setCategoryFilter,
   } = useCalendarStore(useShallow(s => ({
     viewMode: s.currentView,
@@ -275,6 +276,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     hydrationError: s.hydrationError,
     clearHydrationError: s.clearHydrationError,
     daySpan: s.daySpan,
+    t2tZoom: s.t2tZoom,
     categoryFilter: s.categoryFilter,
     setCategoryFilter: s.setCategoryFilter,
   })))
@@ -910,11 +912,13 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
             {viewMode === 'troops' && (
               <TroopsToTaskView
+                key={`t2t-${t2tZoom}`}
                 date={selectedDate}
                 events={filteredEvents}
                 medics={ownClinicMedics}
                 rooms={activeRooms}
                 huddleTasks={sortedHuddleTasks}
+                zoom={t2tZoom}
                 onSelectEvent={handleSelectEvent}
                 onEventContextMenu={handleEventContextMenu}
                 onAssign={assignPersonnel}
