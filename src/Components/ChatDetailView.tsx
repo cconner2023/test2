@@ -481,7 +481,7 @@ export function ChatDetailView({
       // Mobile: overlay the composer on top of the conversation so the iOS
       // keyboard floats the input up without resizing the message list.
       // Desktop: normal flex child below the scroll area.
-      <div className="absolute inset-x-0 bottom-3 z-10 md:static md:inset-auto md:bottom-auto md:shrink-0">
+      <div className="absolute inset-x-0 bottom-0 z-10 backdrop-blur-[2px] bg-themewhite3/15 pb-[max(0rem,var(--sab,0px))] md:static md:inset-auto md:bottom-auto md:shrink-0 md:bg-transparent md:backdrop-blur-none md:pb-0">
         {someUnavailable && <UnavailableBanner participants={participants} />}
 
         {replyingTo && !activeThreadId && (
@@ -601,7 +601,7 @@ export function ChatDetailView({
   const renderMessageList = (msgs: DecryptedSignalMessage[], emptyLabel: string, showHeaders = false, headerOverride?: ReactNode) => (
     <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden" onScroll={closeContextMenu}>
       {showHeaders && (
-        <div className="sticky top-0 z-10 backdrop-blur-sm bg-themewhite3/80 animate-fadeIn">
+        <div className="sticky top-0 z-10 backdrop-blur-[2px] bg-themewhite3/15 animate-fadeIn">
           {headerOverride ?? (<>{mobileHeader}{desktopHeader}</>)}
         </div>
       )}

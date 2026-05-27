@@ -113,6 +113,22 @@ export interface IntakeCredentialMetadata {
   oncall_has_key?: boolean
   /** GATE-2 "allow text messaging" toggle — outside→cluster one-way sealed message. */
   outside_message_enabled?: boolean
+  /** Duration (s) of the cluster voicemail greeting, or null if none is set. Presence
+   *  flag for the settings row — the audio blob is fetched separately via getOncallGreeting. */
+  oncall_greeting_dur?: number | null
+}
+
+/**
+ * Cluster voicemail greeting — the operational announcement an OUTSIDE caller hears
+ * when their on-call call goes unanswered. PLAINTEXT base64 (the anon caller holds no
+ * key, so it can't be sealed like inbound voicemail/text; it's a deliberately-public
+ * announcement, no PHI). Mirror of the per-user profiles.voicemail_greeting, at clinic
+ * scope. `audio` = base64 of the raw recording blob.
+ */
+export interface OncallGreeting {
+  audio: string
+  mime: string
+  dur: number
 }
 
 export async function getEventIntakeCredential(
@@ -127,7 +143,41 @@ export async function getEventIntakeCredential(
   if (res.data === null || res.data === undefined) {
     return { ok: true, data: null }
   }
-  return { ok: true, data: res.data as IntakeCredentialMetadata }
+  // `oncall_greeting_dur` arrives as text (jsonb ->> 'dur') — coerce to a number.
+  const raw = res.data as IntakeCredentialMetadata & { oncall_greeting_dur?: unknown }
+  const durRaw = raw.oncall_greeting_dur
+  return {
+    ok: true,
+    data: {
+      ...raw,
+      oncall_greeting_dur: durRaw == null ? null : Number(durRaw),
+    },
+  }
+}
+
+/** Set (or clear, with `null`) the cluster voicemail greeting. Supervisor-gated. */
+export async function setOncallGreeting(
+  clinicId: string,
+  greeting: OncallGreeting | null,
+): Promise<Result<void>> {
+  return await callRpc(
+    () => supabase.rpc('set_oncall_greeting', { p_clinic_id: clinicId, p_greeting: greeting }),
+    'set_oncall_greeting',
+    logger,
+  )
+}
+
+/** Fetch the full cluster greeting audio (for settings playback). Supervisor-gated. */
+export async function getOncallGreeting(
+  clinicId: string,
+): Promise<Result<OncallGreeting | null>> {
+  const res = await callRpc(
+    () => supabase.rpc('get_oncall_greeting', { p_clinic_id: clinicId }),
+    'get_oncall_greeting',
+    logger,
+  )
+  if (!res.ok) return res
+  return { ok: true, data: (res.data as OncallGreeting | null) ?? null }
 }
 
 // ─── Anon submission surface (called by intake bundle only) ─────

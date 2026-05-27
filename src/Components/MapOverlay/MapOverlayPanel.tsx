@@ -2041,17 +2041,16 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   expandedPercent={60}
                   noBackdrop
                   title="Temp point"
-                  rightContent={(
-                    <HeaderPill>
-                      <PillButton icon={Check} iconSize={18} onClick={handlePromoteTempPoint} label="Save as waypoint" accent="success" />
+                  actions={(
+                    <>
+                      <PillButton icon={Check} iconSize={18} onClick={handlePromoteTempPoint} label="Save as waypoint" />
                       <PillButton
                         icon={Navigation}
                         iconSize={18}
                         onClick={() => tempPoint && handleStartNavigation(tempPoint.lat, tempPoint.lng, null)}
                         label="Navigate from here"
-                        accent="info"
                       />
-                    </HeaderPill>
+                    </>
                   )}
                 >
                   {tempPoint && <TempPointBody lat={tempPoint.lat} lng={tempPoint.lng} />}
@@ -2068,8 +2067,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   expandedPercent={60}
                   noBackdrop
                   title="Temp route"
-                  rightContent={(
-                    <HeaderPill>
+                  actions={(
+                    <>
                       {tempRoute && tempRoute.history.length > 0 && (
                         <PillButton
                           icon={Undo2}
@@ -2080,11 +2079,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                       )}
                       {tempRoute && tempRoute.points.length >= 2 && (
                         <PillButton
-                          icon={Check}
+                          icon={Route}
                           iconSize={18}
                           onClick={handleSaveTempRouteAsFeature}
                           label="Save as route"
-                          accent="success"
                         />
                       )}
                       {tempRoute && tempRoute.points.length >= 3 && (
@@ -2093,10 +2091,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                           iconSize={18}
                           onClick={handleSaveTempRouteAsArea}
                           label="Save as area"
-                          accent="success"
                         />
                       )}
-                    </HeaderPill>
+                    </>
                   )}
                 >
                   {tempRoute && <TempRouteBody points={tempRoute.points} closed={tempRoute.closed} onRemoveVertex={handleRemoveTempRouteVertex} onAddVertex={handleAddTempRouteVertex} />}
@@ -2416,13 +2413,12 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-tertiary/10">
                     <div className="text-[10pt] font-semibold text-primary truncate flex-1 min-w-0">Temp point</div>
                     <HeaderPill>
-                      <PillButton icon={Check} iconSize={18} onClick={handlePromoteTempPoint} label="Save as waypoint" accent="success" />
+                      <PillButton icon={Check} iconSize={18} onClick={handlePromoteTempPoint} label="Save as waypoint" />
                       <PillButton
                         icon={Navigation}
                         iconSize={18}
                         onClick={() => handleStartNavigation(tempPoint.lat, tempPoint.lng, null)}
                         label="Navigate from here"
-                        accent="info"
                       />
                       <PillButton icon={X} iconSize={18} onClick={handleCloseTempPoint} label="Close" />
                     </HeaderPill>
@@ -2445,11 +2441,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                         disabled={tempRoute.history.length === 0}
                       />
                       <PillButton
-                        icon={Check}
+                        icon={Route}
                         iconSize={18}
                         onClick={handleSaveTempRouteAsFeature}
                         label="Save as route"
-                        accent="success"
                         disabled={tempRoute.points.length < 2}
                       />
                       <PillButton
@@ -2457,7 +2452,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                         iconSize={18}
                         onClick={handleSaveTempRouteAsArea}
                         label="Save as area"
-                        accent="success"
                         disabled={tempRoute.points.length < 3}
                       />
                       <PillButton icon={X} iconSize={18} onClick={handleCloseTempRoute} label="Close" />

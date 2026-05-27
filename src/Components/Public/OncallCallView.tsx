@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Phone, PhoneOff, Mic, MicOff, X } from 'lucide-react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createOncallPeer, type OncallPeer } from '../../lib/webrtc/oncallPeer'
-import { requestOncall, pollOncallSignal, markOncallMissedAnon } from '../../lib/oncallAnonService'
+import { requestOncall, pollOncallSignal, markOncallMissedAnon, type OncallGreetingWire } from '../../lib/oncallAnonService'
 import { OncallVoicemailRecorder } from './OncallVoicemailRecorder'
 
 const RING_TIMEOUT_MS = 30_000
@@ -37,6 +37,7 @@ export function OncallCallView({ supabase, passcode, passphrase, clinicName, onR
   const peerRef = useRef<OncallPeer | null>(null)
   const callIdRef = useRef<string | null>(null)
   const recipientPubRef = useRef<string | null>(null)
+  const greetingRef = useRef<OncallGreetingWire | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const deadlineRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -151,6 +152,7 @@ export function OncallCallView({ supabase, passcode, passphrase, clinicName, onR
       }
       callIdRef.current = res.data.call_id
       recipientPubRef.current = res.data.recipient_pub
+      greetingRef.current = res.data.voicemail_greeting
       setTargetCount(res.data.push_target_count)
       if (res.data.push_target_count === 0) {
         goVoicemail()
@@ -262,6 +264,7 @@ export function OncallCallView({ supabase, passcode, passphrase, clinicName, onR
           passphrase={passphrase}
           callId={callIdRef.current}
           recipientPub={recipientPubRef.current}
+          greeting={greetingRef.current}
           onClose={closeFromVoicemail}
         />
       )}

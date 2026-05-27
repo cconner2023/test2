@@ -6,7 +6,7 @@ import { BottomIsland, IslandButton } from './BottomIsland'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { PreviewOverlay } from './PreviewOverlay'
 import { VoicemailGreetingSection } from './Settings/VoicemailGreetingSection'
-import { OncallPresenceSection } from './Settings/OncallPresenceSection'
+import { MessagingOncallSettings } from './Settings/MessagingOncallSettings'
 import { MessagesPanel, type MessagesView, type MessagesPanelHandle, type MessagingLens } from './Settings/MessagesPanel'
 import { useMessagesContext } from '../Hooks/MessagesContext'
 import { useAuth } from '../Hooks/useAuth'
@@ -44,7 +44,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
 
     const messagesCtx = useMessagesContext()
     const activePeerRef = messagesCtx?.activePeerRef ?? null
-    const { user, isDevRole } = useAuth()
+    const { user } = useAuth()
     const { profile } = useUserProfile()
     const panelRef = useRef<MessagesPanelHandle>(null)
     const isMobile = useIsMobile()
@@ -143,7 +143,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             searchQuery={searchQuery}
             onSearchClear={() => setSearchQuery('')}
             onSearchChange={setSearchQuery}
-            onOpenSettings={isDevRole ? openSettings : undefined}
+            onOpenSettings={openSettings}
             lens={lens}
             onLensChange={setLens}
             tourVariant={isTourActive ? (isMobile ? 'mobile' : 'desktop') : undefined}
@@ -192,9 +192,11 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     }, [view, selectedPeerId, selectedGroupId, selectedPeerName, handleBack, handleClose, callActions])
 
     // Messaging settings — PreviewOverlay popover on both mobile + desktop
-    // (mirrors MapSettingsDrawer, which is overlay-only).
-    // Dev-gated until voicemail is validated in prod.
-    const settingsSurface = !isDevRole ? null : (
+    // (mirrors MapSettingsDrawer, which is overlay-only). Layout matches Calendar
+    // Settings: text-tertiary section headers + themewhite2 cards. On-call roster
+    // is open to all cluster members; the Outside-contact card self-gates to
+    // supervisor/dev inside MessagingOncallSettings.
+    const settingsSurface = (
         <PreviewOverlay
             isOpen={showSettings}
             onClose={() => setShowSettings(false)}
@@ -202,8 +204,8 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             title="Messaging settings"
             maxWidth={360}
         >
-            <div className="px-3 py-3 max-h-[70vh] overflow-y-auto space-y-4">
-                <OncallPresenceSection />
+            <div className="px-5 py-4 max-h-[70vh] overflow-y-auto space-y-6">
+                <MessagingOncallSettings />
                 <VoicemailGreetingSection />
             </div>
         </PreviewOverlay>
@@ -236,7 +238,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                         <h2 className="text-[13pt] font-semibold text-primary flex-1 truncate">Messages</h2>
                         <HeaderPill>
                             <PillButton icon={Plus} onClick={() => panelRef.current?.openNew()} label="New" />
-                            {isDevRole && <PillButton icon={Settings} onClick={openSettings} label="Settings" />}
+                            <PillButton icon={Settings} onClick={openSettings} label="Settings" />
                         </HeaderPill>
                     </div>
                 </animated.div>

@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Mic, Square, Check, RefreshCw, X } from 'lucide-react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { startRecording } from '../../Utilities/voiceUtils'
+import { base64ToBytes } from '../../lib/base64Utils'
 import { generateAudioKey, encryptAudio, sealAudioKey } from '../../lib/oncallSeal'
-import { submitOncallVoicemail } from '../../lib/oncallAnonService'
+import { submitOncallVoicemail, type OncallGreetingWire } from '../../lib/oncallAnonService'
 
 const MAX_SECONDS = 60
 
@@ -14,24 +15,58 @@ interface Props {
   callId: string
   /** base64 SPKI of the clinic voicemail pubkey. Voicemail is unavailable if null. */
   recipientPub: string | null
+  /** Plaintext cluster greeting — auto-played once before recording, if set. */
+  greeting: OncallGreetingWire | null
   onClose: () => void
 }
 
-type State = 'idle' | 'recording' | 'sending' | 'done' | 'error' | 'unavailable'
+type State = 'greeting' | 'idle' | 'recording' | 'sending' | 'done' | 'error' | 'unavailable'
 
 /**
  * Outside-bundle voicemail composer. Records (≤60s), AES-GCM-encrypts the blob,
  * seals the audio key to the clinic voicemail pubkey, and delivers it inline via
  * submit_oncall_voicemail. No `src/lib/signal/*` import — the seal is WebCrypto ECDH.
  */
-export function OncallVoicemailRecorder({ supabase, passcode, passphrase, callId, recipientPub, onClose }: Props) {
-  const [state, setState] = useState<State>(recipientPub ? 'idle' : 'unavailable')
+export function OncallVoicemailRecorder({ supabase, passcode, passphrase, callId, recipientPub, greeting, onClose }: Props) {
+  const [state, setState] = useState<State>(
+    !recipientPub ? 'unavailable' : greeting ? 'greeting' : 'idle',
+  )
   const [seconds, setSeconds] = useState(0)
   const controllerRef = useRef<Awaited<ReturnType<typeof startRecording>> | null>(null)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const greetingAudioRef = useRef<HTMLAudioElement | null>(null)
+  const greetingUrlRef = useRef<string | null>(null)
 
   const stopTicker = useCallback(() => {
     if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null }
+  }, [])
+
+  // Auto-play the cluster greeting once, then fall through to the recorder. A
+  // play failure (autoplay blocked, decode error) just advances to recording —
+  // the greeting is a courtesy, never a gate.
+  useEffect(() => {
+    if (state !== 'greeting') return
+    if (!greeting) { setState('idle'); return }
+    let cancelled = false
+    try {
+      const blob = new Blob([base64ToBytes(greeting.audio) as BlobPart], { type: greeting.mime || 'audio/webm' })
+      const url = URL.createObjectURL(blob)
+      greetingUrlRef.current = url
+      const audio = new Audio(url)
+      greetingAudioRef.current = audio
+      const advance = () => { if (!cancelled) setState('idle') }
+      audio.onended = advance
+      audio.onerror = advance
+      audio.play().catch(advance)
+    } catch {
+      setState('idle')
+    }
+    return () => { cancelled = true }
+  }, [state, greeting])
+
+  const skipGreeting = useCallback(() => {
+    greetingAudioRef.current?.pause()
+    setState('idle')
   }, [])
 
   const finish = useCallback(async () => {
@@ -76,6 +111,8 @@ export function OncallVoicemailRecorder({ supabase, passcode, passphrase, callId
   useEffect(() => () => {
     stopTicker()
     controllerRef.current?.cancel()
+    greetingAudioRef.current?.pause()
+    if (greetingUrlRef.current) URL.revokeObjectURL(greetingUrlRef.current)
   }, [stopTicker])
 
   return (
@@ -88,6 +125,24 @@ export function OncallVoicemailRecorder({ supabase, passcode, passphrase, callId
           <p className="text-[10pt] text-secondary leading-relaxed">
             Voicemail isn’t set up for this medical section. Please try calling again later.
           </p>
+        )}
+
+        {state === 'greeting' && (
+          <>
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <span className="w-2 h-2 rounded-full bg-themeblue3 animate-pulse" />
+              <span className="text-sm font-medium text-primary">Playing greeting…</span>
+            </div>
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={skipGreeting}
+                className="h-9 px-4 rounded-full flex items-center justify-center bg-themewhite text-secondary text-[10pt] font-medium active:scale-95 transition-all"
+              >
+                Skip
+              </button>
+            </div>
+          </>
         )}
 
         {state === 'idle' && (

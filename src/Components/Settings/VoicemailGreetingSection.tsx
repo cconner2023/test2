@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Voicemail, Mic, Play, Pause, Trash2, X, Check } from 'lucide-react'
 import { useVoiceRecorder } from '../../Hooks/useVoiceRecorder'
 import { ConfirmDialog } from '../ConfirmDialog'
+import { Section, SectionCard } from '../Section'
 import {
   getOwnGreeting,
   saveOwnGreeting,
@@ -83,11 +84,8 @@ export function VoicemailGreetingSection() {
   }, [])
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-2">
-        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Voicemail</p>
-      </div>
-      <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+    <Section title="Voicemail" className="">
+      <SectionCard>
 
         {isRecording ? (
           <div className="flex items-center gap-2 px-4 py-3.5">
@@ -166,7 +164,7 @@ export function VoicemailGreetingSection() {
           </div>
         )}
 
-      </div>
+      </SectionCard>
 
       <ConfirmDialog
         visible={confirmDelete}
@@ -178,6 +176,6 @@ export function VoicemailGreetingSection() {
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(false)}
       />
-    </div>
+    </Section>
   )
 }

@@ -7,10 +7,19 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { generateAudioKey, encryptText, sealAudioKey } from './oncallSeal'
 
+/** Plaintext cluster voicemail greeting played to the caller on no-answer (null if none). */
+export interface OncallGreetingWire {
+  audio: string
+  mime: string
+  dur: number
+}
+
 export interface RequestOncallResult {
   call_id: string
   /** base64 SPKI of the clinic voicemail pubkey (null if none configured). */
   recipient_pub: string | null
+  /** Cluster voicemail greeting — plaintext, played before recording on no-answer. */
+  voicemail_greeting: OncallGreetingWire | null
   push_target_count: number
 }
 

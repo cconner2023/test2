@@ -769,15 +769,6 @@ export function ClinicPanel({
           </div>
         </section>
 
-        {/* ── Outside event intake + on-call "allow calls" (dev-wrapped) ── */}
-        {clinicId && (
-          <IntakeMintSection
-            clinicId={clinicId}
-            oncallCount={oncall.length}
-            onOncallEnabledChange={setOncallRosterShown}
-          />
-        )}
-
         {/* ── Associated ─────────────────────────────────────────── */}
         <section data-tour="clinic-associated">
           <div className="pb-2 flex items-center gap-2">
@@ -821,6 +812,15 @@ export function ClinicPanel({
             </ActionPill>
           </div>
         </section>
+
+        {/* ── Outside contact (event intake + allow calls/messaging, dev-wrapped) ── */}
+        {clinicId && (
+          <IntakeMintSection
+            clinicId={clinicId}
+            oncallCount={oncall.length}
+            onOncallEnabledChange={setOncallRosterShown}
+          />
+        )}
 
         {/* ── Users (supervisor-gated) ───────────────────────────── */}
         {isSupervisorRole && clinicId && (

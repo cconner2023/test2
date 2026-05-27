@@ -21,6 +21,7 @@ import {
 } from '../../lib/eventIntakeService'
 import { enableOncall, disableOncall, enableOutsideMessaging, disableOutsideMessaging, provisionInboundKey } from '../../lib/oncallService'
 import { ToggleSwitch } from './ToggleSwitch'
+import { OncallGreetingRow } from './OncallGreetingRow'
 import { createLogger } from '../../Utilities/Logger'
 
 const logger = createLogger('IntakeMintSection')
@@ -75,7 +76,7 @@ function generatePassphrase(): string {
  * passphrase or taps the dice to fill a generated one inline before submitting.
  */
 export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledChange }: IntakeMintSectionProps) {
-  const { isDevRole } = useAuth()
+  const { isSupervisorRole, isDevRole } = useAuth()
   const [credential, setCredential] = useState<IntakeCredentialMetadata | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -266,14 +267,14 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
     } catch (e) { logger.warn('clipboard write failed', e) }
   }, [])
 
-  if (!isDevRole) return null
+  if (!isSupervisorRole && !isDevRole) return null
   if (loading) return null
 
   return (
     <section data-tour="clinic-event-intake">
       <div className="pb-2 flex items-center gap-2">
         <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">
-          Event intake
+          Outside contact
         </p>
       </div>
 
@@ -379,6 +380,16 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
               </div>
               <ToggleSwitch checked={oncallEnabled} />
             </div>
+
+            {/* Cluster voicemail greeting — the announcement an outside caller hears when
+                their on-call call goes unanswered. Only relevant when calls are allowed. */}
+            {oncallEnabled && (
+              <OncallGreetingRow
+                clinicId={clinicId}
+                initialDur={credential.oncall_greeting_dur ?? null}
+                onChanged={refresh}
+              />
+            )}
 
             {/* The clinic inbound key (seals voicemail + outside text) is NOT a visible
                 control — it is minted with the credential and rotated with the passcode

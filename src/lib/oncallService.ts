@@ -16,6 +16,27 @@ import { wrapForVaultRecipient } from './signal/oncallKeyWrap'
 
 const logger = createLogger('Oncall')
 
+// ─── Outside-contact status (any cluster member) ───
+/** Whether GATE-2 "allow calls" and/or "allow text messaging" are on for the
+ *  cluster. Membership-gated (not supervisor) so any member's messaging settings
+ *  can decide whether the on-call roster is worth showing. */
+export async function getOutsideContactStatus(
+  clinicId: string,
+): Promise<Result<{ oncall_enabled: boolean; outside_message_enabled: boolean }>> {
+  const res = await callRpc<{ oncall_enabled?: boolean; outside_message_enabled?: boolean } | null>(
+    () => supabase.rpc('get_clinic_outside_contact_status', { p_clinic_id: clinicId }),
+    'get_clinic_outside_contact_status', logger,
+  )
+  if (!res.ok) return res
+  return {
+    ok: true,
+    data: {
+      oncall_enabled: res.data?.oncall_enabled === true,
+      outside_message_enabled: res.data?.outside_message_enabled === true,
+    },
+  }
+}
+
 // ─── GATE 3: presence (any cluster member toggles self or teammate) ───
 export async function toggleOncallPresence(
   clinicId: string,

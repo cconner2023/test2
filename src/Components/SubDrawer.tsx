@@ -35,6 +35,9 @@ interface SubDrawerProps {
     leftContent?: ReactNode;
     /** Optional content rendered on the right of the header, before the close button. */
     rightContent?: ReactNode;
+    /** Optional PillButtons rendered INSIDE the close pill, before the X — so
+     *  header actions read as one cluster with close instead of a detached pill. */
+    actions?: ReactNode;
     /** Peek height as a percentage of the dynamic viewport (dvh). Default 40. */
     peekPercent?: number;
     /** Expanded (tap-to-expand) height as a percentage of dvh. Default 92. */
@@ -56,6 +59,7 @@ export function SubDrawer({
     children,
     leftContent,
     rightContent,
+    actions,
     peekPercent = 40,
     expandedPercent = 92,
     zIndex = 'z-[1200]',
@@ -197,6 +201,7 @@ export function SubDrawer({
                             <div className="flex items-center gap-2 shrink-0">
                                 {rightContent}
                                 <HeaderPill>
+                                    {actions}
                                     <PillButton icon={X} onClick={handleClose} label="Close" />
                                 </HeaderPill>
                             </div>
