@@ -47,7 +47,7 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
   const [pinEnabled, setPinEnabled] = useState(isPinEnabled())
   const [appLockOn, setAppLockOn] = useState(isAppLockEnabled)
   const [timeoutMs, setTimeoutMs] = useState(getInactivityTimeoutMs)
-  const { isAuthenticated, isDevRole } = useAuth()
+  const { isAuthenticated } = useAuth()
   const [firstPin, setFirstPin] = useState('')
   const { lockout, setLockout, error, setError } = usePinLockoutTimer()
   const [success, setSuccess] = useState('')
@@ -430,8 +430,7 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
           )}
 
           {/* ── Voicemail ────────────────────────────────────────── */}
-          {/* Dev-gated until voicemail is validated in prod. */}
-          {isDevRole && <VoicemailGreetingSection />}
+          <VoicemailGreetingSection />
 
           {/* ── Permissions ──────────────────────────────────────── */}
           {(cameraPermission !== 'unsupported' || locationPermission !== 'unsupported') && (

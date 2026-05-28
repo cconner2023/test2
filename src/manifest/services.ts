@@ -371,7 +371,7 @@ export const services = {
     path: 'lib/featureFlags.ts',
     tables: { reads: [], writes: [] },
     idb: [],
-    exports: ['LORA_MESH_ENABLED', 'GUIDED_TOURS_ENABLED', 'BURN_CALCULATOR_ENABLED', 'BLOOD_PRODUCTS_ENABLED'],
+    exports: ['LORA_MESH_ENABLED', 'GUIDED_TOURS_ENABLED', 'BURN_CALCULATOR_ENABLED'],
   },
   soundService: {
     path: 'lib/soundService.ts',

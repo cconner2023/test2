@@ -12,7 +12,6 @@ import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { VitalSignsCalculator, type VitalSignsCalculatorHandle } from './VitalSignsCalculator'
 import { BurnCalculator } from './BurnCalculator'
 import { HeatCategoryCalculator } from './HeatCategoryCalculator'
-import { BloodProductsReference } from './BloodProductsReference'
 import { NineLineKB, NineLineExport } from './Reports/NineLineKB'
 import { BottomSheet } from './BottomSheet'
 import { DatePickerCalendar } from './FormInputs'
@@ -28,7 +27,7 @@ import { stp68wTraining } from '../Data/TrainingTaskList'
 import { getTaskData } from '../Data/TrainingData'
 import { Check } from 'lucide-react'
 import { UI_TIMING } from '../Utilities/constants'
-import { BURN_CALCULATOR_ENABLED, BLOOD_PRODUCTS_ENABLED } from '../lib/featureFlags'
+import { BURN_CALCULATOR_ENABLED } from '../lib/featureFlags'
 import type { subjectAreaArrayOptions } from '../Types/CatTypes'
 import { medList, type medListTypes } from '../Data/MedData'
 import { tc3MedList } from '../Data/TC3MedData'
@@ -86,7 +85,6 @@ export function KnowledgeBaseDrawer({
     const [calculatorOpen, setCalculatorOpen] = useState(false)
     const [lmpPicker, setLmpPicker] = useState(false)
     const [vitals, setVitals] = useState<Record<string, string>>({})
-    const [bloodOpen, setBloodOpen] = useState(false)
     const vsRef = useRef<VitalSignsCalculatorHandle>(null)
     const [searchQuery, setSearchQuery] = useState('')
     const medevacReq = useMedevacStore(s => s.req)
@@ -162,11 +160,6 @@ export function KnowledgeBaseDrawer({
             setView('heat-category')
             return
         }
-        if (category.id === 'blood-products') {
-            setBloodOpen(true)
-            return
-        }
-
         handleSlideAnimation('left')
         switch (category.id) {
             case 'medications':
@@ -236,7 +229,6 @@ export function KnowledgeBaseDrawer({
     const handleClose = useCallback(() => {
         setSearchQuery('')
         setCalculatorOpen(false)
-        setBloodOpen(false)
         setView('home')
         setSelectedTask(null)
         setSelectedMedication(null)
@@ -407,9 +399,6 @@ export function KnowledgeBaseDrawer({
                     />
                 )}
             </PreviewOverlay>
-<BottomSheet title="Blood Products" isOpen={bloodOpen} onClose={() => setBloodOpen(false)} maxHeight="60dvh" draggable={false}>
-                <BloodProductsReference />
-            </BottomSheet>
         </BaseDrawer>
     )
 }
@@ -427,10 +416,9 @@ type KBSearchResult = {
 
 // ── KB Home View ────────────────────────────────────────────────────────────
 
-// Feature-gated IDs — hidden unless flag on or dev role
+// Feature-gated IDs — hidden when the flag is off.
 const GATED_KB_IDS: Record<string, boolean> = {
     burn: BURN_CALCULATOR_ENABLED,
-    'blood-products': BLOOD_PRODUCTS_ENABLED,
 }
 
 function KBHome({
@@ -446,7 +434,6 @@ function KBHome({
     onMedicationSelect: (medication: medListTypes) => void
     tc3Mode: boolean
 }) {
-    const isDevRole = useAuthStore((s) => s.isDevRole)
     const { pinnedKB, togglePinKB } = useNavPreferencesStore(
         useShallow(s => ({ pinnedKB: s.pinnedKB, togglePinKB: s.togglePinKB }))
     )
@@ -458,10 +445,9 @@ function KBHome({
     const visibleCategories = useMemo(() =>
         kbCategories.filter(cat => {
             const flag = GATED_KB_IDS[cat.id]
-            if (flag === undefined) return true // not gated
-            return flag || isDevRole
+            return flag === undefined ? true : flag
         }),
-    [isDevRole])
+    [])
 
     const grouped = useMemo(() => {
         const map = new Map<string, KBCategory[]>()

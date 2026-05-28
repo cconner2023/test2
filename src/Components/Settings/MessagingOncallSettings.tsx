@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../Hooks/useAuth'
+import { useBetaBypass } from '../../lib/betaFeatures'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { toggleOncallPresence, getOutsideContactStatus } from '../../lib/oncallService'
@@ -23,7 +24,8 @@ import { UserAvatar } from './UserAvatar'
  * so the panel reads the same as Calendar Settings.
  */
 export function MessagingOncallSettings() {
-  const { user, clinicId: assignedClinicId, supervisingClinicId, isSupervisorRole, isDevRole } = useAuth()
+  const { user, clinicId: assignedClinicId, supervisingClinicId, isSupervisorRole } = useAuth()
+  const outsideContactBeta = useBetaBypass('outsideContact')
   const clinicId = supervisingClinicId ?? assignedClinicId
   const userId = user?.id ?? null
 
@@ -73,8 +75,8 @@ export function MessagingOncallSettings() {
 
   return (
     <>
-      {/* ── Outside contact (supervisor / dev) ───────────────────────── */}
-      {(isSupervisorRole || isDevRole) && clinicId && (
+      {/* ── Outside contact (supervisor + dev-beta) ──────────────────── */}
+      {(isSupervisorRole || outsideContactBeta) && clinicId && (
         <IntakeMintSection
           clinicId={clinicId}
           oncallCount={oncall.length}

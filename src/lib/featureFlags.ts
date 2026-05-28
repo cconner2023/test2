@@ -23,9 +23,3 @@ export const GUIDED_TOURS_ENABLED = true;
  * calculator is available in the Knowledge Base calculators section.
  */
 export const BURN_CALCULATOR_ENABLED = true;
-
-/**
- * BLOOD_PRODUCTS_ENABLED: When true, the Blood Products quick reference
- * (MTP, DCR, transfusion protocols) is available in the Knowledge Base.
- */
-export const BLOOD_PRODUCTS_ENABLED = false;

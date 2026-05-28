@@ -4,6 +4,7 @@ import {
   Copy, Check, RefreshCw, KeyRound, Trash2, Inbox, Dices, Headset, MessageSquare,
 } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
+import { useBetaBypass } from '../../lib/betaFeatures'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { EmptyState } from '../EmptyState'
 import { ActionPill } from '../ActionPill'
@@ -76,7 +77,8 @@ function generatePassphrase(): string {
  * passphrase or taps the dice to fill a generated one inline before submitting.
  */
 export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledChange }: IntakeMintSectionProps) {
-  const { isSupervisorRole, isDevRole } = useAuth()
+  const { isSupervisorRole } = useAuth()
+  const outsideContactBeta = useBetaBypass('outsideContact')
   const [credential, setCredential] = useState<IntakeCredentialMetadata | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -278,7 +280,7 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
     } catch (e) { logger.warn('clipboard write failed', e) }
   }, [])
 
-  if (!isSupervisorRole && !isDevRole) return null
+  if (!isSupervisorRole && !outsideContactBeta) return null
   if (loading) return null
 
   return (

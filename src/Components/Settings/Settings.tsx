@@ -26,6 +26,7 @@ import { deleteOwnAccount } from '../../lib/authService';
 import { PANEL, PANEL_TARGET, type PanelId, type SettingsItem } from './SettingsTypes';
 import { UI_TIMING } from '../../Utilities/constants';
 import { GUIDED_TOURS_ENABLED } from '../../lib/featureFlags';
+import { useBetaFlag } from '../../lib/betaFeatures';
 import { MainSettingsPanel } from './MainSettingsPanel';
 import { AvatarPickerPanel } from './AvatarPickerPanel';
 import { ContentWrapper } from '../ContentWrapper';
@@ -62,6 +63,7 @@ export const Settings = ({
     const prevVisibleRef = useRef(false);
     const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
     const { user, signOut, isAuthenticated, isDevRole, isSupervisorRole, clinicId } = useAuth();
+    const whisperNetVisible = useBetaFlag('whisperNet');
     const hasUnvotedCycle = useFeatureVotesStore(selectHasUnvotedActiveCycle);
     const [clinicEditing, setClinicEditing] = useState(false);
     const [clinicSaveRequested, setClinicSaveRequested] = useState(false);
@@ -225,12 +227,12 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
             items.push(
                 { type: 'header', label: 'Utilities' },
                 opt(PANEL.STORAGE, <HardDrive size={20} />, 'Local Storage', 'Cached data and sync status'),
-                ...(isDevRole ? [opt(PANEL.LORA, <Radio size={20} />, 'WhisperNet', 'LoRa mesh offline messaging')] : []),
+                ...(whisperNetVisible ? [opt(PANEL.LORA, <Radio size={20} />, 'WhisperNet', 'LoRa mesh offline messaging')] : []),
             );
         }
 
         return items;
-    }, [themeName, handleItemClick, isDevRole, isAuthenticated, isSupervisorRole, profile.clinicName, updateProfile, hasUnvotedCycle]);
+    }, [themeName, handleItemClick, isDevRole, isAuthenticated, isSupervisorRole, profile.clinicName, updateProfile, hasUnvotedCycle, whisperNetVisible]);
 
     // Swipe-back for sub-panels (mobile touch only)
     const swipeHandlers = useSwipeBack(

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { Check, ClipboardCheck, Loader2, MapPin, Package, Plus, Trash2, Type, X } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
-import { useAuthStore } from '../../stores/useAuthStore'
+import { useBetaFlag } from '../../lib/betaFeatures'
 import { useClinicPreCombatChecks } from '../../Hooks/useClinicPreCombatChecks'
 import { useClinicPropertyPickers } from '../../Hooks/useClinicPropertyPickers'
 import {
@@ -33,7 +33,7 @@ interface PCCEditorState {
 
 export function PreCombatChecksSection() {
   const { clinicId: assignedClinicId, supervisingClinicId } = useAuth()
-  const isDevRole = useAuthStore(s => s.isDevRole)
+  const canEditTemplates = useBetaFlag('preCombatChecksTemplates')
   const clinicId = supervisingClinicId ?? assignedClinicId
   const templates = useClinicPreCombatChecks(clinicId)
   const { items: propertyItems, locations: propertyLocations } = useClinicPropertyPickers(clinicId)
@@ -190,8 +190,8 @@ export function PreCombatChecksSection() {
                     <button
                       key={tpl.id}
                       type="button"
-                      onClick={(e) => isDevRole && openEdit(tpl, e.currentTarget)}
-                      disabled={!isDevRole}
+                      onClick={(e) => canEditTemplates && openEdit(tpl, e.currentTarget)}
+                      disabled={!canEditTemplates}
                       className="w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left hover:bg-secondary/5 active:scale-95 disabled:active:scale-100 transition-all"
                     >
                       <div className="w-8 h-8 rounded-full flex items-center justify-center bg-tertiary/10 shrink-0">
@@ -207,7 +207,7 @@ export function PreCombatChecksSection() {
               )}
             </div>
           </div>
-          {isDevRole && (
+          {canEditTemplates && (
             <ActionPill ref={fabRef} shadow="sm" placement="overlay">
               <ActionButton icon={Plus} label="New pre-combat check" onClick={openNew} />
             </ActionPill>

@@ -10,7 +10,6 @@ import { useState, useEffect, useRef } from 'react'
 import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff } from 'lucide-react'
 import { useCallStore, selectShowCallUI, selectCanLeaveVoicemail } from '../../stores/useCallStore'
 import { useCallActions } from '../../Hooks/CallContext'
-import { useAuth } from '../../Hooks/useAuth'
 import { CallVoicemailControls } from './CallVoicemailControls'
 
 function formatElapsed(ms: number): string {
@@ -63,8 +62,7 @@ export function CallOverlay() {
   const isMuted = useCallStore((s) => s.isMuted)
   const callMode = useCallStore((s) => s.callMode)
   const isVideoOff = useCallStore((s) => s.isVideoOff)
-  const { isDevRole } = useAuth()
-  const canLeaveVoicemail = useCallStore(selectCanLeaveVoicemail) && isDevRole
+  const canLeaveVoicemail = useCallStore(selectCanLeaveVoicemail)
   const resetCall = useCallStore((s) => s.reset)
   const actions = useCallActions()
 
