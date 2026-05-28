@@ -1,16 +1,7 @@
 import { Package } from 'lucide-react'
-import type { CalendarEvent, EventCategory } from '../../Types/CalendarTypes'
+import type { CalendarEvent } from '../../Types/CalendarTypes'
 import { useLongPress } from '../../Hooks/useLongPress'
-
-const CATEGORY_STRIPE: Record<EventCategory, string> = {
-  training: 'bg-themeblue3',
-  duty: 'bg-themeblue3',
-  range: 'bg-themeblue3',
-  appointment: 'bg-themeblue3',
-  mission: 'bg-tertiary',
-  medevac: 'bg-tertiary',
-  other: 'bg-tertiary/50',
-}
+import { useCategoryColors } from '../../Hooks/useCategoryColors'
 
 interface MissionEventBarProps {
   event: CalendarEvent
@@ -24,7 +15,8 @@ interface MissionEventBarProps {
 }
 
 export function MissionEventBar({ event, isAssigned, width, left, top, height, onClick, onContextMenu }: MissionEventBarProps) {
-  const stripe = CATEGORY_STRIPE[event.category]
+  const { resolve: resolveCategoryColor } = useCategoryColors()
+  const stripe = resolveCategoryColor(event.category, event.color).solid
   const isCompleted = event.status === 'completed' || event.status === 'cancelled'
   const isActive = event.status === 'in_progress'
   const { isPressing, ...longPressHandlers } = useLongPress(onContextMenu ?? (() => {}))

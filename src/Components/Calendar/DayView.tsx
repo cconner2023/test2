@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState, useCallback, useEffect } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
-import { getCategoryMeta, STATUS_META, DAY_START_HOUR, DAY_END_HOUR, HOUR_HEIGHT_PX, toLocalISOString, toDateKey } from '../../Types/CalendarTypes'
+import { STATUS_META, DAY_START_HOUR, DAY_END_HOUR, HOUR_HEIGHT_PX, toLocalISOString, toDateKey } from '../../Types/CalendarTypes'
+import { useCategoryColors } from '../../Hooks/useCategoryColors'
 import { formatHour, getEventPosition, resolveOverlaps } from './timeGrid'
 
 interface DayViewProps {
@@ -44,6 +45,7 @@ function formatSnappedTime(minutes: number): string {
 }
 
 export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventContextMenu, onDayContextMenu, onPrevDay, onNextDay, onDateTap }: DayViewProps) {
+  const { resolve: resolveCategoryColor } = useCategoryColors()
   const scrollRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<ActiveDrag | null>(null)
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -220,7 +222,6 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
           {allDayEvents.length > 0 && (
             <div className="px-3 py-2 border-b border-primary/10 space-y-1">
               {allDayEvents.map(e => {
-                const cat = getCategoryMeta(e.category)
                 const sm = STATUS_META[e.status]
                 return (
                   <button
@@ -234,7 +235,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
                     }}
                     className={`w-full text-left rounded flex items-stretch gap-1 overflow-hidden bg-primary/5 ${sm.opacity} active:scale-95 transition-all duration-200`}
                   >
-                    <div className={`w-0.5 shrink-0 rounded-full ${cat.solidColor}`} />
+                    <div className={`w-0.5 shrink-0 rounded-full ${resolveCategoryColor(e.category, e.color).solid}`} />
                     <span className={`flex-1 truncate text-[10pt] text-primary py-1 pr-2 ${sm.strikethrough ? 'line-through' : ''}`}>{e.title}</span>
                   </button>
                 )
@@ -303,7 +304,6 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
             const isDimmed = isDragging && dragEventId !== event.id
             const resolvedTop = isBeingDragged ? minutesToTop(snappedMinutes) : top
             const sm = STATUS_META[event.status]
-            const cat = getCategoryMeta(event.category)
 
             return (
               <div
@@ -337,7 +337,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
                   transition: isBeingDragged ? 'none' : undefined,
                 }}
               >
-                <div className={`w-0.5 shrink-0 rounded-full ${cat.solidColor}`} />
+                <div className={`w-0.5 shrink-0 rounded-full ${resolveCategoryColor(event.category, event.color).solid}`} />
                 <div className="flex-1 min-w-0 px-1.5 py-1 relative">
                   {sm.pulse && (
                     <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-themeblue1 animate-pulse shrink-0" />

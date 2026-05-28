@@ -9,9 +9,13 @@
 //
 // UX contract (distinct from BaseDrawer):
 //  - THREE discrete states only: minimal (peek), full (expanded), closed. There
-//    is NO drag-to-resize — the old continuous height tracking fought the inner
-//    scroll and glitched on iOS. Tapping the grab handle SNAPS between peek and
-//    full; the X button closes. Transitions are pure CSS, like BottomSheet.
+//    is NO continuous drag-to-resize — the old height tracking fought the inner
+//    scroll and glitched on iOS. Instead the sheet snaps between peek and full
+//    via OVERSCROLL: pulling past the bottom of the content expands peek→full,
+//    pulling past the top shrinks full→peek. Snaps are accumulated past a small
+//    threshold so a normal scroll-to-edge doesn't trip them. The grab handle
+//    still taps to toggle as a secondary affordance; the X button closes.
+//    Transitions are pure CSS, like BottomSheet.
 //  - The sheet's HEIGHT (not a translate offset) is what snaps between peek and
 //    full, so the scroll region equals the revealed height in BOTH states — the
 //    user can scroll the whole body at peek without expanding to full.
@@ -79,6 +83,15 @@ export function SubDrawer({
 
     const unmountTimer = useRef<number | null>(null);
 
+    // Overscroll-driven snap: accumulate drag/wheel travel once the scroll body
+    // is pinned at an edge, and snap when it crosses OVERSCROLL_SNAP. Reset when
+    // the body leaves the edge or the gesture ends, so only sustained pull-past
+    // -the-edge motion flips state (a normal scroll-to-edge won't).
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const lastTouchY = useRef(0);
+    const overscroll = useRef(0);
+    const OVERSCROLL_SNAP = 64; // px of pull past the edge to flip state
+
     // Glass header: measure the floating header so the scroll body can pad to
     // clear it (and slide up behind it).
     const headerRef = useRef<HTMLDivElement>(null);
@@ -137,6 +150,41 @@ export function SubDrawer({
         if (!canToggle) return;
         setIsFull(f => !f);
     }, [canToggle]);
+
+    // Feed accumulated overscroll travel (px) in one axis: positive = pulling
+    // past the TOP (finger/wheel toward content start), negative = pulling past
+    // the BOTTOM. Snaps full→peek on enough top-pull, peek→full on enough
+    // bottom-pull. No-op for single-height sheets (peek === expanded).
+    const applyOverscroll = useCallback((delta: number) => {
+        if (!canToggle) return;
+        const el = scrollRef.current;
+        if (!el) return;
+        const atTop = el.scrollTop <= 0;
+        const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+        if (!isFull && atBottom && delta < 0) {
+            overscroll.current += -delta;
+            if (overscroll.current > OVERSCROLL_SNAP) { setIsFull(true); overscroll.current = 0; }
+        } else if (isFull && atTop && delta > 0) {
+            overscroll.current += delta;
+            if (overscroll.current > OVERSCROLL_SNAP) { setIsFull(false); overscroll.current = 0; }
+        } else {
+            overscroll.current = 0;
+        }
+    }, [canToggle, isFull]);
+
+    const onTouchStart = useCallback((e: React.TouchEvent) => {
+        lastTouchY.current = e.touches[0].clientY;
+        overscroll.current = 0;
+    }, []);
+    const onTouchMove = useCallback((e: React.TouchEvent) => {
+        const y = e.touches[0].clientY;
+        applyOverscroll(y - lastTouchY.current); // +down (toward top) / -up (toward bottom)
+        lastTouchY.current = y;
+    }, [applyOverscroll]);
+    const onTouchEnd = useCallback(() => { overscroll.current = 0; }, []);
+    const onWheel = useCallback((e: React.WheelEvent) => {
+        applyOverscroll(-e.deltaY); // wheel down (deltaY>0) = toward bottom
+    }, [applyOverscroll]);
 
     if (!isMounted && !isVisible) return null;
 
@@ -212,6 +260,11 @@ export function SubDrawer({
                     glass header), padded to clear it. Scroll region therefore
                     equals the revealed height at BOTH peek and full. */}
                 <div
+                    ref={scrollRef}
+                    onTouchStart={onTouchStart}
+                    onTouchMove={onTouchMove}
+                    onTouchEnd={onTouchEnd}
+                    onWheel={onWheel}
                     className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain isolate pb-[max(0px,var(--sab,0px))]"
                     style={{ paddingTop: headerHeight }}
                 >

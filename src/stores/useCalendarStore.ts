@@ -1,5 +1,5 @@
 import { create, type StateCreator } from 'zustand'
-import type { CalendarEvent, EventCategory } from '../Types/CalendarTypes'
+import type { CalendarEvent, EventCategory, CategoryColorMap } from '../Types/CalendarTypes'
 import { putCalendarEvent, deleteCalendarEvent, addCalendarTombstone } from '../lib/calendarEventStore'
 import { createLogger } from '../Utilities/Logger'
 
@@ -69,6 +69,13 @@ interface CalendarState {
   hideWeekends: boolean
   /** Troops-to-Task timeline cell granularity. Persisted to localStorage. */
   t2tZoom: CalendarT2TZoom
+  /**
+   * Clinic-default per-category colors (shared layer). NOT persisted — synced
+   * from clinics.calendar_category_colors by useClinicCategoryColorsSync, mounted
+   * once per calendar surface so leaf components read it via cheap selector
+   * instead of each firing its own fetch.
+   */
+  clinicCategoryColors: CategoryColorMap
   /** True once the initial IDB hydration is complete. */
   hydrated: boolean
   /** True once the clinic vault replay has finished (or been skipped). */
@@ -102,6 +109,8 @@ interface CalendarActions {
   setDaySpan: (span: CalendarDaySpan) => void
   setHideWeekends: (hide: boolean) => void
   setT2TZoom: (zoom: CalendarT2TZoom) => void
+  /** Replace the synced clinic-default color map (called by useClinicCategoryColorsSync). */
+  setClinicCategoryColors: (colors: CategoryColorMap) => void
 }
 
 export type CalendarStore = CalendarState & CalendarActions
@@ -176,6 +185,7 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   daySpan: loadPrefs().daySpan,
   hideWeekends: loadPrefs().hideWeekends,
   t2tZoom: loadPrefs().t2tZoom,
+  clinicCategoryColors: {},
   hydrated: false,
   vaultReplayDone: false,
   hydrationError: false,
@@ -256,4 +266,5 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
     savePrefs({ daySpan: s.daySpan, hideWeekends: s.hideWeekends, t2tZoom: zoom })
     return { t2tZoom: zoom }
   }),
+  setClinicCategoryColors: (colors) => set({ clinicCategoryColors: colors }),
 })))

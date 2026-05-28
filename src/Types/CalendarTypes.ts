@@ -12,6 +12,8 @@ export interface CalendarEvent {
   title: string
   description: string | null
   category: EventCategory
+  /** Per-event color override (swatch id). Absent/null = use the clinic category default. */
+  color?: CategorySwatchId | null
   status: EventStatus
   start_time: string
   end_time: string
@@ -96,6 +98,8 @@ export interface EventFormData {
   title: string
   description: string
   category: EventCategory
+  /** Per-event color override (swatch id). null = use the clinic category default. */
+  color: CategorySwatchId | null
   status: EventStatus
   start_time: string
   end_time: string
@@ -160,6 +164,45 @@ export function getCategoryMeta(category: EventCategory) {
 }
 
 /**
+ * Per-category calendar color palette. One quiet default ('blue') plus four opt-in
+ * accents. Tokens are theme CSS-var-backed Tailwind classes (defined in App.css for
+ * every theme) so swatches recolor automatically with the active theme. Class strings
+ * are written LITERALLY so Tailwind's JIT keeps them. All usage is background-only.
+ *
+ * Layers resolve a swatch: per-event override (CalendarEvent.color) > clinic
+ * category default > 'blue'. See src/Hooks/useCategoryColors.ts (resolver),
+ * useClinicCategoryColorsSync (clinic default → store), CategoryColorSettings
+ * (supervisor editor), and the per-event picker in EventForm.
+ */
+export type CategorySwatchId = 'blue' | 'green' | 'amber' | 'red' | 'purple'
+
+export const DEFAULT_SWATCH: CategorySwatchId = 'blue'
+
+export interface CategorySwatch {
+  id: CategorySwatchId
+  label: string
+  /** Tinted dot / soft fill — replaces the legacy `EVENT_CATEGORIES.color`. */
+  dot: string
+  /** Solid stripe / bar fill — replaces the legacy `EVENT_CATEGORIES.solidColor`. */
+  solid: string
+  /** Card background (tint + border + safe text) — replaces `CATEGORY_BG_MAP`. */
+  bg: string
+}
+
+export const CATEGORY_SWATCHES: Record<CategorySwatchId, CategorySwatch> = {
+  blue:   { id: 'blue',   label: 'Blue',   dot: 'bg-themeblue3/20',  solid: 'bg-themeblue3',  bg: 'bg-themeblue3/20 border-themeblue3/30 text-primary' },
+  green:  { id: 'green',  label: 'Green',  dot: 'bg-themegreen/20',  solid: 'bg-themegreen',  bg: 'bg-themegreen/20 border-themegreen/30 text-primary' },
+  amber:  { id: 'amber',  label: 'Amber',  dot: 'bg-themeyellow/20', solid: 'bg-themeyellow', bg: 'bg-themeyellow/20 border-themeyellow/30 text-primary' },
+  red:    { id: 'red',    label: 'Red',    dot: 'bg-themered/20',    solid: 'bg-themered',    bg: 'bg-themered/20 border-themered/30 text-primary' },
+  purple: { id: 'purple', label: 'Purple', dot: 'bg-themepurple/20', solid: 'bg-themepurple', bg: 'bg-themepurple/20 border-themepurple/30 text-primary' },
+}
+
+export const CATEGORY_SWATCH_IDS: CategorySwatchId[] = ['blue', 'green', 'amber', 'red', 'purple']
+
+/** Map of category → clinic/personal-chosen swatch. Partial — absent = fall back. */
+export type CategoryColorMap = Partial<Record<EventCategory, CategorySwatchId>>
+
+/**
  * Edit/move gate. Templated events are open to all auth users (medics schedule into slots
  * by editing the title and may reschedule via drag). Delete is gated separately via
  * isTemplateStructureMutable so the underlying template grid stays intact.
@@ -206,6 +249,7 @@ export function createEmptyFormData(forDateKey?: string): EventFormData {
     title: '',
     description: '',
     category: 'other',
+    color: null,
     status: 'pending',
     start_time: toLocalISOString(start),
     end_time: toLocalISOString(end),
@@ -230,6 +274,7 @@ export function eventToFormData(event: CalendarEvent): EventFormData {
     title: event.title,
     description: event.description ?? '',
     category: event.category,
+    color: event.color ?? null,
     status: event.status,
     start_time: event.start_time.slice(0, 16),
     end_time: event.end_time.slice(0, 16),

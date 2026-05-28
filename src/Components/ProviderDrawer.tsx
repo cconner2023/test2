@@ -3,6 +3,7 @@ import { ScanLine, X, LayoutTemplate } from 'lucide-react'
 import { ImportInputBar } from './ImportInputBar'
 import { ImportResultPopover } from './ImportResultPopover'
 import { BaseDrawer } from './BaseDrawer'
+import { SubDrawer } from './SubDrawer'
 import { ContentWrapper } from './ContentWrapper'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
@@ -553,15 +554,15 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
           isMobile={isMobile}
         />
 
-        {/* Mobile template picker drawer */}
+        {/* Mobile template picker — SubDrawer (not a nested BaseDrawer, which
+            would be trapped under this drawer's glass header) */}
         {isMobile && (
-          <BaseDrawer
+          <SubDrawer
             isVisible={templateDrawerOpen}
             onClose={() => setTemplateDrawerOpen(false)}
-            mobileOnly
-            fullHeight="90dvh"
-            zIndex="z-50"
-            header={{ title: 'Templates' }}
+            title="Templates"
+            peekPercent={55}
+            expandedPercent={90}
           >
             <ProviderTemplateList
               templates={templates}
@@ -569,7 +570,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
               onNew={handleTemplateNew}
               onEdit={handleTemplateEdit}
             />
-          </BaseDrawer>
+          </SubDrawer>
         )}
 
         <ProviderTemplateEditPopover
@@ -577,6 +578,9 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
           onClose={() => setTemplateEditState(null)}
           onSave={handleTemplateSave}
           onDelete={handleTemplateDelete}
+          // On mobile the editor opens while the Templates SubDrawer (z-[1200])
+          // is still mounted, so it must sit above the sheet.
+          zIndex={isMobile ? 1300 : undefined}
         />
       </div>
     </BaseDrawer>

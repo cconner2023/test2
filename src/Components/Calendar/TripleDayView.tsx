@@ -1,7 +1,8 @@
 import { useMemo, useRef, useEffect } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
-import { getCategoryMeta, STATUS_META, DAY_START_HOUR, DAY_END_HOUR, HOUR_HEIGHT_PX, toDateKey, eventFallsOnDate, formatShortDayLabel } from '../../Types/CalendarTypes'
+import { STATUS_META, DAY_START_HOUR, DAY_END_HOUR, HOUR_HEIGHT_PX, toDateKey, eventFallsOnDate, formatShortDayLabel } from '../../Types/CalendarTypes'
+import { useCategoryColors } from '../../Hooks/useCategoryColors'
 import { formatHour, getEventPosition, resolveOverlaps } from './timeGrid'
 
 interface TripleDayViewProps {
@@ -27,6 +28,7 @@ interface ColumnData {
 }
 
 export function TripleDayView({ date, events, onSelectEvent, onEventContextMenu, onDayContextMenu, onPrevDay, onNextDay, onDateTap }: TripleDayViewProps) {
+  const { resolve: resolveCategoryColor } = useCategoryColors()
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const hours = useMemo(() => Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, i) => DAY_START_HOUR + i), [])
@@ -128,7 +130,6 @@ export function TripleDayView({ date, events, onSelectEvent, onEventContextMenu,
               {columns.map(col => (
                 <div key={col.dateKey} className="px-1 py-1 space-y-1 border-l border-primary/10 min-h-[28px]">
                   {col.allDay.map(e => {
-                    const cat = getCategoryMeta(e.category)
                     const sm = STATUS_META[e.status]
                     return (
                       <button
@@ -142,7 +143,7 @@ export function TripleDayView({ date, events, onSelectEvent, onEventContextMenu,
                         }}
                         className={`w-full text-left rounded flex items-stretch gap-1 overflow-hidden bg-primary/5 ${sm.opacity} active:scale-95 transition-all duration-200`}
                       >
-                        <div className={`w-0.5 shrink-0 rounded-full ${cat.solidColor}`} />
+                        <div className={`w-0.5 shrink-0 rounded-full ${resolveCategoryColor(e.category, e.color).solid}`} />
                         <span className={`flex-1 truncate text-[9pt] text-primary py-0.5 pr-1 ${sm.strikethrough ? 'line-through' : ''}`}>{e.title}</span>
                       </button>
                     )
@@ -206,7 +207,6 @@ export function TripleDayView({ date, events, onSelectEvent, onEventContextMenu,
                 const leftPct = (lane / totalCols) * 100
                 const widthPct = 100 / totalCols - 1
                 const sm = STATUS_META[event.status]
-                const cat = getCategoryMeta(event.category)
                 return (
                   <div
                     key={event.id}
@@ -230,7 +230,7 @@ export function TripleDayView({ date, events, onSelectEvent, onEventContextMenu,
                       width: `${widthPct}%`,
                     }}
                   >
-                    <div className={`w-0.5 shrink-0 rounded-full ${cat.solidColor}`} />
+                    <div className={`w-0.5 shrink-0 rounded-full ${resolveCategoryColor(event.category, event.color).solid}`} />
                     <div className="flex-1 min-w-0 px-1 py-0.5 relative">
                       {sm.pulse && (
                         <div className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-themeblue1 animate-pulse shrink-0" />

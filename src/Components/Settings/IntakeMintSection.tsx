@@ -106,8 +106,11 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
 
   const cardRef = useRef<HTMLDivElement | null>(null)
 
-  const refresh = useCallback(async () => {
-    setLoading(true)
+  // `silent` reconciles in place without flipping `loading` — toggles/greeting
+  // saves use it so the card never unmounts (`if (loading) return null` below),
+  // which is what caused the whole-card repaint glitch on toggle.
+  const refresh = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const res = await getEventIntakeCredential(clinicId)
       if (res.ok) {
@@ -120,7 +123,7 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
         setCredential(null)
       }
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [clinicId])
 
@@ -134,9 +137,13 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
   const toggleOncall = useCallback(async () => {
     if (oncallBusy) return
     setOncallBusy(true)
+    // Optimistically flip the flag so the toggle + greeting row animate at once;
+    // reconcile silently (no unmount), revert on failure.
+    setCredential((c) => (c ? { ...c, oncall_enabled: !oncallEnabled } : c))
     try {
       const res = oncallEnabled ? await disableOncall(clinicId) : await enableOncall(clinicId)
-      if (res.ok) await refresh()
+      if (res.ok) await refresh(true)
+      else setCredential((c) => (c ? { ...c, oncall_enabled: oncallEnabled } : c))
     } finally {
       setOncallBusy(false)
     }
@@ -145,9 +152,11 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
   const toggleMessage = useCallback(async () => {
     if (msgBusy) return
     setMsgBusy(true)
+    setCredential((c) => (c ? { ...c, outside_message_enabled: !messageEnabled } : c))
     try {
       const res = messageEnabled ? await disableOutsideMessaging(clinicId) : await enableOutsideMessaging(clinicId)
-      if (res.ok) await refresh()
+      if (res.ok) await refresh(true)
+      else setCredential((c) => (c ? { ...c, outside_message_enabled: messageEnabled } : c))
     } finally {
       setMsgBusy(false)
     }
@@ -168,7 +177,9 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
     } catch {
       // QR render failure is non-critical
     }
-  }, [credential])
+    // Keyed on passcode only — a silent refresh hands back a new credential
+    // object with the same passcode, and we must not redraw (flicker) the QR.
+  }, [credential?.passcode])
 
   const openMint = useCallback((el: HTMLElement) => {
     setFormError(null)
@@ -382,14 +393,23 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
             </div>
 
             {/* Cluster voicemail greeting — the announcement an outside caller hears when
-                their on-call call goes unanswered. Only relevant when calls are allowed. */}
-            {oncallEnabled && (
-              <OncallGreetingRow
-                clinicId={clinicId}
-                initialDur={credential.oncall_greeting_dur ?? null}
-                onChanged={refresh}
-              />
-            )}
+                their on-call call goes unanswered. Only relevant when calls are allowed.
+                Kept mounted and collapsed via the grid-rows [0fr]→[1fr] trick so it
+                slides in/out instead of hard-mounting (which re-painted the card). */}
+            <div
+              aria-hidden={!oncallEnabled}
+              className={`grid transition-all duration-300 ease-out ${
+                oncallEnabled ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+              }`}
+            >
+              <div className="overflow-hidden">
+                <OncallGreetingRow
+                  clinicId={clinicId}
+                  initialDur={credential.oncall_greeting_dur ?? null}
+                  onChanged={() => void refresh(true)}
+                />
+              </div>
+            </div>
 
             {/* The clinic inbound key (seals voicemail + outside text) is NOT a visible
                 control — it is minted with the credential and rotated with the passcode

@@ -213,6 +213,7 @@ export type Database = {
         Row: {
           appointment_types: Json
           associated_clinic_ids: string[]
+          calendar_category_colors: Json
           child_clinic_ids: string[]
           created_at: string
           encryption_key: string
@@ -239,6 +240,7 @@ export type Database = {
         Insert: {
           appointment_types?: Json
           associated_clinic_ids?: string[]
+          calendar_category_colors?: Json
           child_clinic_ids?: string[]
           created_at?: string
           encryption_key?: string
@@ -265,6 +267,7 @@ export type Database = {
         Update: {
           appointment_types?: Json
           associated_clinic_ids?: string[]
+          calendar_category_colors?: Json
           child_clinic_ids?: string[]
           created_at?: string
           encryption_key?: string
@@ -2049,6 +2052,10 @@ export type Database = {
       }
       supervisor_update_clinic_appointment_types: {
         Args: { p_clinic_id: string; p_types: Json }
+        Returns: undefined
+      }
+      supervisor_update_clinic_calendar_colors: {
+        Args: { p_clinic_id: string; p_colors: Json }
         Returns: undefined
       }
       supervisor_update_clinic_exercises: {

@@ -208,13 +208,14 @@ export function ProviderTemplateList({ templates, onSelect, onNew, onEdit }: Pro
   ] : []
 
   return (
-    <div className="flex flex-col h-full">
+    <div className={isMobile ? 'flex flex-col' : 'flex flex-col h-full'}>
       {/* Top padding clears the placement="overlay" ActionPill (top-0 -translate-y-1/2):
           the pill's upper half (~20px) + shadow rides above the first card, and this
           scroll container's overflow-y would otherwise clip it. Desktop left pane sits
           flush under the fixed drawer header with no breathing room, so it needs more
-          headroom than the mobile picker. */}
-      <div className={`flex-1 overflow-y-auto px-2 pb-3 ${isMobile ? 'pt-5' : 'pt-8'}`}>
+          headroom than the mobile picker. On mobile the SubDrawer owns the scroller
+          (glass-header gotcha — a nested overflow-auto body won't paint behind it). */}
+      <div className={`px-2 pb-3 ${isMobile ? 'pt-5' : 'flex-1 overflow-y-auto pt-8'}`}>
         {templates.length ? (
           <div className="relative">
             <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
@@ -259,6 +260,9 @@ export function ProviderTemplateList({ templates, onSelect, onNew, onEdit }: Pro
         }
         previewMaxHeight={isMobile ? '50dvh' : '40dvh'}
         actions={menuActions}
+        // On mobile this list lives inside the Templates SubDrawer (body portal
+        // at z-[1200]); the menu would otherwise be trapped under the sheet.
+        zIndex={isMobile ? 1300 : undefined}
       />
     </div>
   )

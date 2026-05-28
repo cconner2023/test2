@@ -2,7 +2,8 @@ import { useMemo, useCallback, useRef, useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
 import type { CalendarT2TZoom } from '../../stores/useCalendarStore'
-import { getCategoryMeta, PROVIDER_HUDDLE_TASK_ID, toDateKey, formatShortDayLabel, STATUS_META } from '../../Types/CalendarTypes'
+import { PROVIDER_HUDDLE_TASK_ID, toDateKey, formatShortDayLabel, STATUS_META } from '../../Types/CalendarTypes'
+import { useCategoryColors } from '../../Hooks/useCategoryColors'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useIsMobile } from '../../Hooks/useIsMobile'
@@ -207,6 +208,7 @@ function assignLanes(assignments: CalendarEvent[], days: DaySlot[], cfg: ZoomCfg
 }
 
 export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onSelectEvent, onEventContextMenu, onDateChange, onNewHuddleEvent, onAssignMedicToHuddle, zoom = 'hour' }: TroopsToTaskViewProps) {
+  const { resolve: resolveCategoryColor } = useCategoryColors()
   const cfg = ZOOM_CFG[zoom]
   const ticks = useMemo(() => buildTicks(cfg), [cfg])
   const eventContextHandler = useCallback((eventId: string) => onEventContextMenu
@@ -820,7 +822,6 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
 
                 {/* Event blocks — same shape as medic-lane events; title sticks on horizontal scroll via --sl */}
                 {taskCategoryLanes.map(({ event, left, width, lane }) => {
-                  const cat = getCategoryMeta(event.category)
                   return (
                     <button
                       key={event.id}
@@ -834,7 +835,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
                         height: LANE_HEIGHT,
                       }}
                     >
-                      <div className={`w-0.5 shrink-0 rounded-full ${cat.solidColor}`} />
+                      <div className={`w-0.5 shrink-0 rounded-full ${resolveCategoryColor(event.category, event.color).solid}`} />
                       <p
                         className="absolute inset-y-0 right-0 text-[9pt] font-normal truncate text-primary pr-1.5"
                         style={{
@@ -888,7 +889,6 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
 
                 {/* Event blocks — stacked in lanes */}
                 {positioned.map(({ event, left, width, lane }) => {
-                  const cat = getCategoryMeta(event.category)
                   return (
                     <button
                       key={event.id}
@@ -902,7 +902,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
                         height: LANE_HEIGHT,
                       }}
                     >
-                      <div className={`w-0.5 shrink-0 rounded-full ${cat.solidColor}`} />
+                      <div className={`w-0.5 shrink-0 rounded-full ${resolveCategoryColor(event.category, event.color).solid}`} />
                       <p
                         className="absolute inset-y-0 right-0 text-[9pt] font-normal truncate text-primary pr-1.5"
                         style={{

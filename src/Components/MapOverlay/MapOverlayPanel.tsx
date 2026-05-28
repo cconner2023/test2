@@ -4,6 +4,7 @@ import { useSpring, animated } from '@react-spring/web';
 import { ChevronLeft, ChevronRight, Settings, MapPin, Route, Pentagon, Trash2, X, Ruler, RadioTower, Undo2, Activity, Pause, Play, Square, Plus, Check, Navigation, Layers, Pencil, Clock } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ActionSheet, type ActionSheetOption } from '../ActionSheet';
+import { AddFab } from '../AddFab';
 import { ActionPill } from '../ActionPill';
 import { ConfirmDialog } from '../ConfirmDialog';
 
@@ -2181,8 +2182,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
 
                 {/* Add FAB — opens a context menu of create tools (Pin / Route / Area / Measure / Track).
                     Lights up + swaps glyph while a create mode is active; tap again to exit to pan. */}
-                <button
-                  data-tour="map-add-fab"
+                <AddFab
+                  tour="map-add-fab"
+                  size="lg"
+                  tray={false}
                   onClick={() => {
                     const inCreateMode = drawMode === 'pin' || drawMode === 'route' || drawMode === 'area' || drawMode === 'track' || drawMode === 'measure';
                     if (inCreateMode) {
@@ -2191,8 +2194,15 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                     }
                     setAddSheet('root');
                   }}
-                  className="relative w-12 h-12 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-all pointer-events-auto bg-themeblue3 text-white"
-                  title={
+                  icon={
+                    drawMode === 'pin' ? MapPin
+                      : drawMode === 'route' ? Route
+                      : drawMode === 'area' ? Pentagon
+                      : drawMode === 'track' ? Activity
+                      : drawMode === 'measure' ? Ruler
+                      : Plus
+                  }
+                  label={
                     drawMode === 'pin' ? 'Exit pin mode'
                       : drawMode === 'route' ? 'Exit route mode'
                       : drawMode === 'area' ? 'Exit area mode'
@@ -2200,17 +2210,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                       : drawMode === 'measure' ? 'Exit measure mode'
                       : 'Add to map'
                   }
-                >
-                  {drawMode === 'pin' ? <MapPin className="w-5 h-5" />
-                    : drawMode === 'route' ? <Route className="w-5 h-5" />
-                    : drawMode === 'area' ? <Pentagon className="w-5 h-5" />
-                    : drawMode === 'track' ? <Activity className="w-5 h-5" />
-                    : drawMode === 'measure' ? <Ruler className="w-5 h-5" />
-                    : <Plus className="w-5 h-5" />}
-                  {recorder.status === 'recording' && (
+                  badge={recorder.status === 'recording' ? (
                     <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-themeredred animate-pulse" />
-                  )}
-                </button>
+                  ) : undefined}
+                />
               </div>
 
               {/* Add ActionSheet — root condenses to 'New overlay', 'New feature', 'Import'.
@@ -2540,6 +2543,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
         variant="danger"
         onConfirm={handleConfirmDeleteOverlay}
         onCancel={() => setConfirmDeleteOverlayId(null)}
+        // Launched from the overlay-tree SubDrawer (portals to body at z-[1200]) —
+        // sit above it so the confirm isn't trapped under the sheet.
+        zIndex={1300}
       />
       <ConfirmDialog
         visible={!!confirmDeleteFeature}
@@ -2549,6 +2555,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
         variant="danger"
         onConfirm={handleConfirmDeleteFeature}
         onCancel={() => setConfirmDeleteFeature(null)}
+        // Launched from the selected-feature editor SubDrawer (body portal at
+        // z-[1200], noBackdrop) — bump above it.
+        zIndex={1300}
       />
       <ConfirmDialog
         visible={confirmDiscardClose}
@@ -2562,6 +2571,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           performClose();
         }}
         onCancel={() => setConfirmDiscardClose(false)}
+        // Can fire while a SubDrawer (body portal at z-[1200]) is still mounted —
+        // keep the confirm on top.
+        zIndex={1300}
       />
     </BaseDrawer>
   );

@@ -2,10 +2,11 @@ import { type RefObject, useState, useEffect, useRef, useLayoutEffect } from 're
 import { Clock, Play, CheckCircle2, Ban, CircleDashed } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { toDateKey, formatShortDayLabel } from '../../Types/CalendarTypes'
-import type { CalendarEvent, EventCategory, EventStatus } from '../../Types/CalendarTypes'
+import type { CalendarEvent, EventStatus } from '../../Types/CalendarTypes'
 import { MissionEventBar } from './MissionEventBar'
 import { type ContextMenuItem } from '../ContextMenu'
 import { useLongPress } from '../../Hooks/useLongPress'
+import { useCategoryColors } from '../../Hooks/useCategoryColors'
 
 // ─── Gantt constants ────────────────────────────────────────────────────────
 
@@ -65,20 +66,6 @@ function assignLanesAbs(events: CalendarEvent[]): number[] {
 }
 
 // ─── Task list constants ─────────────────────────────────────────────────────
-
-export const CATEGORY_STRIPE: Record<EventCategory, string> = {
-  training:    'bg-themeblue3',
-  duty:        'bg-themeblue3',
-  range:       'bg-themeblue3',
-  appointment: 'bg-themeblue3',
-  mission:     'bg-tertiary',
-  medevac:     'bg-tertiary',
-  huddle:      'bg-tertiary',
-  task:        'bg-tertiary',
-  leave:       'bg-tertiary/60',
-  templated:   'bg-themeblue3/60',
-  other:       'bg-tertiary/50',
-}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -155,7 +142,8 @@ const STATUS_CIRCLE: Partial<Record<string, string>> = {
 }
 
 export function TaskRow({ event, onClick, onContextMenu }: { event: CalendarEvent; onClick: () => void; onContextMenu: (x: number, y: number) => void }) {
-  const stripe = CATEGORY_STRIPE[event.category]
+  const { resolve: resolveCategoryColor } = useCategoryColors()
+  const stripe = resolveCategoryColor(event.category, event.color).solid
   const isDone   = event.status === 'completed' || event.status === 'cancelled'
   const isActive = event.status === 'in_progress'
   const circleColor = STATUS_CIRCLE[event.status]

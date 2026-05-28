@@ -1,7 +1,8 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
-import { Plus, Building2, X, Inbox, Users, ChevronLeft, MessageCircleQuestion, MapPin } from 'lucide-react'
+import { Building2, X, Inbox, Users, ChevronLeft, MessageCircleQuestion, MapPin } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from './BaseDrawer'
 import { BottomIsland, IslandButton } from './BottomIsland'
+import { AddFab } from './AddFab'
 import { SearchInput } from './SearchInput'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { DetailHeaderActions } from './Admin/DetailHeaderActions'
@@ -767,15 +768,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             fab={
                 // FAB — absolute right, aligned to island. Hidden on tabs that don't create entities (requests = approval workflow, feature-votes = inline mgmt).
                 activeTab !== 'feature-votes' && activeTab !== 'requests' && !(activeTab === 'locations' && !isDevRole) ? (
-                    <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
-                        <button
-                            onClick={() => setShowAddSheet(true)}
-                            className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
-                            title="Add new"
-                        >
-                            <Plus className="w-5 h-5" />
-                        </button>
-                    </div>
+                    <AddFab label="Add new" onClick={() => setShowAddSheet(true)} className="absolute right-4" />
                 ) : null
             }
         >

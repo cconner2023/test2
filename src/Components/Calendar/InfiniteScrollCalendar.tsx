@@ -1,7 +1,8 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
-import { getCategoryMeta, STATUS_META, toDateKey } from '../../Types/CalendarTypes'
+import { STATUS_META, toDateKey } from '../../Types/CalendarTypes'
+import { useCategoryColors } from '../../Hooks/useCategoryColors'
 import { useLongPressDrag } from '../../Hooks/useLongPressDrag'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 
@@ -141,7 +142,7 @@ interface EventPillProps {
 }
 
 function EventPill({ event, eventId, onTap, onContextMenu, isDragging, dragHandlers }: EventPillProps) {
-  const cat = getCategoryMeta(event.category)
+  const { resolve: resolveCategoryColor } = useCategoryColors()
   const sm = STATUS_META[event.status]
   return (
     <div
@@ -160,7 +161,7 @@ function EventPill({ event, eventId, onTap, onContextMenu, isDragging, dragHandl
       className={`w-full rounded flex items-center gap-1 overflow-hidden text-[9pt] md:text-[9pt] leading-tight font-normal transition-opacity duration-150 cursor-pointer active:scale-95 bg-primary/5 ${isDragging ? 'opacity-30' : sm.opacity} ${sm.pulse ? 'animate-pulse' : ''}`}
       style={{ height: LANE_HEIGHT - 2 }}
     >
-      <div className={`w-0.5 self-stretch shrink-0 rounded-full ${cat.solidColor}`} />
+      <div className={`w-0.5 self-stretch shrink-0 rounded-full ${resolveCategoryColor(event.category, event.color).solid}`} />
       <span className={`truncate text-primary pr-0.5 ${sm.strikethrough ? 'line-through' : ''}`}>{event.title}</span>
     </div>
   )
@@ -180,6 +181,7 @@ export function InfiniteScrollCalendar({
   scrollTargetDate,
   scrollNonce,
 }: InfiniteScrollCalendarProps) {
+  const { resolve: resolveCategoryColor } = useCategoryColors()
   const hideWeekends = useCalendarStore(s => s.hideWeekends)
   const scrollRef = useRef<HTMLDivElement>(null)
   const weekRefs = useRef<Map<string, HTMLDivElement>>(new Map())
@@ -386,7 +388,6 @@ export function InfiniteScrollCalendar({
             >
               {/* Multi-day bars — absolutely positioned over day cells */}
               {weekMultiDay.map(seg => {
-                const cat = getCategoryMeta(seg.event.category)
                 const isDrag = dragState.draggedEventId === seg.event.id
                 const sm = STATUS_META[seg.event.status]
                 const colCount = week.days.length
@@ -415,7 +416,7 @@ export function InfiniteScrollCalendar({
                       height: LANE_HEIGHT - 2,
                     }}
                   >
-                    <div className={`w-0.5 self-stretch shrink-0 ${seg.isStart ? 'rounded-l' : ''} ${cat.solidColor}`} />
+                    <div className={`w-0.5 self-stretch shrink-0 ${seg.isStart ? 'rounded-l' : ''} ${resolveCategoryColor(seg.event.category, seg.event.color).solid}`} />
                     <span className={`truncate text-primary px-1 ${sm.strikethrough ? 'line-through' : ''}`}>{seg.event.title}</span>
                   </div>
                 )
@@ -543,7 +544,7 @@ export function InfiniteScrollCalendar({
           }}
         >
           <span
-            className={`w-2 h-2 rounded-full shrink-0 ${getCategoryMeta(ghostEvent.category).solidColor}`}
+            className={`w-2 h-2 rounded-full shrink-0 ${resolveCategoryColor(ghostEvent.category, ghostEvent.color).solid}`}
           />
           {ghostEvent.title}
         </div>,

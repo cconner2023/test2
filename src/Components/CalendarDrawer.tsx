@@ -454,6 +454,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                         mobileOnly
                         fullHeight="75dvh"
                         zIndex="z-50"
+                        glassHeader
                         header={{ title: 'Calendar Settings', hideDefaultClose: false }}
                     >
                         <div data-tour="calendar-controls-drawer" className="pb-[max(1rem,var(--sab,0px))]">

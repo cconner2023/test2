@@ -49,8 +49,13 @@ function DrawerHeader({
     headerFaded,
     mobileFullScreen,
     hideBorder,
-}: DrawerHeaderConfig & { onClose: () => void; isMobile: boolean; headerFaded?: boolean; mobileFullScreen?: boolean; hideBorder?: boolean }) {
-    const verticalPad = isMobile
+    glass,
+}: DrawerHeaderConfig & { onClose: () => void; isMobile: boolean; headerFaded?: boolean; mobileFullScreen?: boolean; hideBorder?: boolean; glass?: boolean }) {
+    // In glass mode the frosted band hugs the button row, so drop the vertical
+    // padding that would otherwise let the blur extend beyond the buttons.
+    const verticalPad = glass
+        ? (isMobile && mobileFullScreen ? 'pt-[max(0.75rem,var(--sat,0px))]' : '')
+        : isMobile
         ? (mobileFullScreen ? 'pt-[max(0.75rem,var(--sat,0px))] pb-2' : 'pb-2')
         : 'py-2.5';
     const horizontalPad = isMobile && mobileFullScreen ? 'px-3' : 'px-5';
@@ -75,7 +80,7 @@ function DrawerHeader({
                     transformOrigin: 'top center',
                 }}
             >
-                <div className={`${horizontalPad} ${verticalPad} ${headerFaded || hideBorder ? '' : 'border-b border-tertiary/10'}`}>
+                <div className={`${horizontalPad} ${verticalPad} ${glass ? 'backdrop-blur-[2px] bg-themewhite3/15' : ''} ${headerFaded || hideBorder ? '' : 'border-b border-tertiary/10'}`}>
                     <div className="flex items-center justify-between">
                         <div className={`flex items-center gap-2 min-w-0 transition-all duration-200${rightContentFill ? ' w-0 overflow-hidden' : ''}`}>
                             {leftContent && <div className="shrink-0">{leftContent}</div>}
@@ -477,7 +482,7 @@ export function BaseDrawer({
                         <div
                             ref={glassHeader ? headerRef : undefined}
                             className={glassHeader
-                                ? 'absolute top-0 inset-x-0 z-10 backdrop-blur-[2px] bg-themewhite3/15'
+                                ? 'absolute top-0 inset-x-0 z-10'
                                 : undefined}
                             {...(useMobileLayout ? bindDrawerDrag() : {})}
                         >
@@ -497,6 +502,7 @@ export function BaseDrawer({
                                 headerFaded={headerFaded}
                                 mobileFullScreen={mobileFullScreen && useMobileLayout}
                                 hideBorder={glassHeader}
+                                glass={glassHeader}
                             />
                         </div>
                     );

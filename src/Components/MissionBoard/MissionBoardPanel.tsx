@@ -27,8 +27,10 @@ import { MissionMapCard } from './MissionMapCard'
 import { WeatherWidget } from './WeatherWidget'
 import {
   TaskRow, statusMenuItems,
-  offsetDate, CATEGORY_STRIPE,
+  offsetDate,
 } from './MissionGantt'
+import { useCategoryColors } from '../../Hooks/useCategoryColors'
+import { useClinicCategoryColorsSync } from '../../Hooks/useClinicCategoryColors'
 import { ContextMenu } from '../ContextMenu'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
@@ -216,7 +218,8 @@ function KanbanCard({ event, onTap, onContext }: {
   onContext: (x: number, y: number) => void
 }) {
   const { isPressing, ...longPressHandlers } = useLongPress(onContext)
-  const stripe = CATEGORY_STRIPE[event.category] ?? 'bg-tertiary/50'
+  const { resolve: resolveCategoryColor } = useCategoryColors()
+  const stripe = resolveCategoryColor(event.category, event.color).solid
   const isDone = event.status === 'completed' || event.status === 'cancelled'
   return (
     <button
@@ -252,6 +255,8 @@ interface MissionBoardPanelProps {
 
 export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps) {
   const { isAuthenticated, clinicId } = useAuth()
+  useClinicCategoryColorsSync(clinicId)
+  const { resolve: resolveCategoryColor } = useCategoryColors()
   const setShowCalendarDrawer = useNavigationStore(s => s.setShowCalendarDrawer)
   const openCalendarEvent = useNavigationStore(s => s.openCalendarEvent)
   const openCalendarEventForEdit = useNavigationStore(s => s.openCalendarEventForEdit)
@@ -570,7 +575,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
                 {lanes.map((lane, li) => (
                   <div key={li} className="grid grid-cols-7 gap-0.5">
                     {lane.map(we => {
-                      const stripe = CATEGORY_STRIPE[we.event.category] ?? 'bg-tertiary/50'
+                      const stripe = resolveCategoryColor(we.event.category, we.event.color).solid
                       const isDone = we.event.status === 'completed' || we.event.status === 'cancelled'
                       return (
                         <button

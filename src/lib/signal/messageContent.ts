@@ -15,7 +15,7 @@
  *   Shared ref:     { t: "r", k: "ce"|"mo", id, l, s?, f? } ← chat-visible deep link to a clustered object
  */
 
-import type { EventCategory, EventStatus } from '../../Types/CalendarTypes'
+import type { EventCategory, EventStatus, CategorySwatchId } from '../../Types/CalendarTypes'
 import type { OverlayFeature } from '../../Types/MapOverlayTypes'
 
 // ---- Content Types ----
@@ -70,6 +70,8 @@ export interface CalendarEventPayload {
   title?: string
   description?: string | null
   category?: EventCategory
+  /** Per-event color override (swatch id). Operational/cosmetic only — not PHI. */
+  color?: CategorySwatchId | null
   status?: EventStatus
   start_time?: string
   end_time?: string

@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Clock, Plus, Users2, CalendarDays, X, Check, Pencil, Trash2, CalendarPlus, Play, CheckCircle2, Ban, Share2, CircleDashed } from 'lucide-react'
+import { Clock, Users2, CalendarDays, X, Check, Pencil, Trash2, CalendarPlus, Play, CheckCircle2, Ban, Share2, CircleDashed } from 'lucide-react'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { useShallow } from 'zustand/react/shallow'
 import { useIsMobile } from '../../Hooks/useIsMobile'
@@ -14,6 +14,7 @@ import { ConfirmDialog } from '../ConfirmDialog'
 import { ActionSheet } from '../ActionSheet'
 import { BaseDrawer } from '../BaseDrawer'
 import { BottomIsland, IslandButton } from '../BottomIsland'
+import { AddFab } from '../AddFab'
 import { CalendarCSVImportSheet } from './CalendarCSVImportSheet'
 import { TemplateGeneratorPanel, type TemplateGeneratorHandle } from './TemplateGeneratorPanel'
 import { BlockTemplatedPanel, type BlockTemplatedHandle } from './BlockTemplatedPanel'
@@ -41,6 +42,7 @@ import {
   PROVIDER_HUDDLE_TASK_ID, isEventEditable, isTemplateStructureMutable, toLocalISOString,
 } from '../../Types/CalendarTypes'
 import { useClinicAppointmentTypes } from '../../Hooks/useClinicAppointmentTypes'
+import { useClinicCategoryColorsSync } from '../../Hooks/useClinicCategoryColors'
 import { shareCalendar, shareSingleEvent } from '../../lib/calendarExport'
 
 type PanelView = 'calendar' | 'detail' | 'form' | 'template' | 'block'
@@ -104,6 +106,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const { writeOverlay } = useMapOverlayWrite()
   const apptTypes = useClinicAppointmentTypes(activeClinicId)
   const apptTypeNames = useMemo(() => apptTypes.map(t => t.name), [apptTypes])
+  useClinicCategoryColorsSync(activeClinicId)
   const [isFormPending, setIsFormPending] = useState(false)
 
   // Kick off IDB hydration + vault subscription
@@ -581,6 +584,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           title: data.title,
           description: data.description || null,
           category: data.category,
+          color: data.color ?? null,
           status: data.status,
           start_time: data.start_time,
           end_time: data.end_time,
@@ -608,6 +612,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           title: data.title,
           description: data.description || null,
           category: data.category,
+          color: data.color ?? null,
           status: 'pending',
           start_time: data.start_time,
           end_time: data.end_time,
@@ -773,6 +778,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       title: data.title,
       description: data.description || null,
       category: data.category,
+      color: data.color ?? null,
       status: data.status,
       start_time: data.start_time,
       end_time: data.end_time,
@@ -933,15 +939,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           <BottomIsland
             tour="calendar-view-switcher"
             fab={
-              <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
-                <button
-                  data-tour="calendar-add-event"
-                  onClick={() => setShowAddSheet(true)}
-                  className="w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 bg-themeblue3 text-white active:scale-95"
-                >
-                  <Plus className="w-5 h-5" />
-                </button>
-              </div>
+              <AddFab tour="calendar-add-event" label="Add event" onClick={() => setShowAddSheet(true)} className="absolute right-4" />
             }
           >
             <IslandButton active={viewMode === 'month'} onClick={() => setViewMode('month')} label="Month" tour="calendar-view-month">

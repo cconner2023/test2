@@ -2,7 +2,8 @@ import { useState, useCallback, useImperativeHandle, forwardRef, useEffect } fro
 import { Package } from 'lucide-react'
 import { LocationPicker } from './LocationPicker'
 import type { EventFormData, EventCategory, EventStatus, PCCSubtask } from '../../Types/CalendarTypes'
-import { createEmptyFormData, EVENT_CATEGORIES, MILITARY_TIME_OPTIONS, militaryToHHMM, hhmmToMilitary } from '../../Types/CalendarTypes'
+import { createEmptyFormData, EVENT_CATEGORIES, MILITARY_TIME_OPTIONS, militaryToHHMM, hhmmToMilitary, CATEGORY_SWATCH_IDS, CATEGORY_SWATCHES } from '../../Types/CalendarTypes'
+import { useCategoryColors } from '../../Hooks/useCategoryColors'
 import type { ClinicPreCombatCheck } from '../../lib/supervisorService'
 import { TextInput, PickerInput, DatePickerInput, TimeInput } from '../FormInputs'
 import { UserAvatar } from '../Settings/UserAvatar'
@@ -90,6 +91,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
   function EventForm({ initialData, onSave, isEditing, medics, propertyItems, overlayOptions, roomOptions, huddleTaskOptions, clinicOptions, pccTemplateOptions, isDev, onCreateOverlay }, ref) {
     const isMobile = useIsMobile()
     const isDevRole = useAuthStore(s => s.isDevRole)
+    const { resolve: resolveCategoryColor } = useCategoryColors()
     const [form, setForm] = useState<EventFormData>(initialData ?? createEmptyFormData())
     const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -248,6 +250,32 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                 placeholder="Category *"
                 required
               />
+            </div>
+          )}
+
+          {form.category !== 'templated' && (
+            <div className="border-b border-primary/6 last:border-b-0">
+              <div className="flex items-center gap-2 px-4 py-3">
+                {/* No override yet → the clinic category default shows pre-selected. */}
+                {(() => {
+                  const effective = form.color ?? resolveCategoryColor(form.category, null).id
+                  return CATEGORY_SWATCH_IDS.map(id => {
+                    const sw = CATEGORY_SWATCHES[id]
+                    const selected = effective === id
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => updateField('color', id)}
+                        aria-label={sw.label}
+                        className={`h-6 w-6 rounded-full ${sw.solid} transition-transform active:scale-90 ${
+                          selected ? 'ring-2 ring-offset-2 ring-offset-themewhite ring-primary' : 'opacity-40'
+                        }`}
+                      />
+                    )
+                  })
+                })()}
+              </div>
             </div>
           )}
 

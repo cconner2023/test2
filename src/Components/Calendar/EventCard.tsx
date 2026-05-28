@@ -1,6 +1,7 @@
 import { Clock, MapPin } from 'lucide-react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
 import { getCategoryMeta } from '../../Types/CalendarTypes'
+import { useCategoryColors } from '../../Hooks/useCategoryColors'
 
 interface EventCardProps {
   event: CalendarEvent
@@ -16,6 +17,8 @@ function formatTime(iso: string, allDay: boolean): string {
 
 export function EventCard({ event, onSelect, onContextMenu }: EventCardProps) {
   const cat = getCategoryMeta(event.category)
+  const { resolve } = useCategoryColors()
+  const swatch = resolve(event.category, event.color)
 
   return (
     <button
@@ -29,7 +32,7 @@ export function EventCard({ event, onSelect, onContextMenu }: EventCardProps) {
       className="w-full text-left rounded-xl border border-primary/10 bg-themewhite p-3 transition-all duration-200 hover:border-primary/20 active:scale-95"
     >
       <div className="flex items-start gap-3">
-        <div className={`mt-0.5 h-2.5 w-2.5 rounded-full shrink-0 ${cat.color}`} />
+        <div className={`mt-0.5 h-2.5 w-2.5 rounded-full shrink-0 ${swatch.dot}`} />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-primary truncate">{event.title}</p>
           <div className="flex items-center gap-3 mt-1">

@@ -19,6 +19,7 @@ import { ConfirmDialog } from '../ConfirmDialog'
 import { ErrorPill } from '../ErrorPill'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { PreCombatChecksSection } from './PreCombatChecksSection'
+import { CategoryColorSettings } from './CategoryColorSettings'
 
 export function CalendarClinicEditor() {
   // Pivot on the supervisor toggle so editing rooms / huddle tasks /
@@ -377,6 +378,8 @@ export function CalendarClinicEditor() {
           )}
         </div>
       </section>
+
+      <CategoryColorSettings />
 
       <PreviewOverlay
         isOpen={!!roomPopover}

@@ -49,9 +49,13 @@ interface Props {
     onClose: () => void;
     onSave: (entry: ProviderNoteTemplate, isNew: boolean) => void;
     onDelete: (id: string) => void;
+    /** Override the base z-index tier. Bump above the Templates SubDrawer
+     *  (body portal at z-[1200]) when launched from the mobile picker; the
+     *  nested PE/Plan overlays auto-bump above this via the overlay stack. */
+    zIndex?: number;
 }
 
-export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete }: Props) {
+export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete, zIndex }: Props) {
     const { orderTags, instructionTags, orderSets } = useMergedNoteContent();
     const isOpen = !!state;
     const isEdit = state?.mode === 'edit';
@@ -135,6 +139,7 @@ export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete }
             title={isEdit ? 'Edit template' : 'New template'}
             maxWidth={520}
             previewMaxHeight="60dvh"
+            zIndex={zIndex}
             footer={
                 <ActionPill>
                     <ActionButton

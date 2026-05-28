@@ -6,6 +6,8 @@ import { validateRpcResult } from './validators'
 import { validatePasswordComplexity } from './constants'
 import { encryptWithRawKey, decryptWithRawKey } from './cryptoService'
 import type { TextExpander, PlanOrderTags, PlanOrderSet } from '../Data/User'
+import type { CategoryColorMap } from '../Types/CalendarTypes'
+import type { Json } from '../Types/database.types.generated'
 
 const logger = createLogger('SupervisorService')
 
@@ -464,6 +466,25 @@ export async function updateSupervisorClinicAppointmentTypes(
     return succeed()
   } catch (error) {
     logger.error('Failed to update clinic appointment types:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+// ─── Update Clinic Calendar Category Colors (dedicated RPC) ────────────────
+
+export async function updateSupervisorClinicCalendarColors(
+  clinicId: string,
+  colors: CategoryColorMap,
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('supervisor_update_clinic_calendar_colors', {
+      p_clinic_id: clinicId,
+      p_colors: colors as Json,
+    })
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to update clinic calendar colors:', error)
     return fail(getErrorMessage(error))
   }
 }

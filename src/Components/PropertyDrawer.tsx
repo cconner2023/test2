@@ -1,8 +1,9 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Pencil, X, Trash2, List, Map as MapIcon, ScanLine, Plus } from 'lucide-react'
+import { Pencil, X, Trash2, List, Map as MapIcon, ScanLine } from 'lucide-react'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { BaseDrawer } from './BaseDrawer'
 import { BottomIsland, IslandButton } from './BottomIsland'
+import { AddFab } from './AddFab'
 import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
 import { PropertyLocationMap, type MapNavHandle } from './Property/PropertyLocationMap'
 import { ContentWrapper } from './ContentWrapper'
@@ -349,15 +350,12 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 )}
 
                 {view === 'property' && !mapView && (
-                    <div className="absolute bottom-4 right-4 z-30 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pb-[max(0.25rem,calc(var(--sab,0px)+0.25rem))]">
-                        <button
-                            data-tour="property-add-fab"
-                            onClick={() => setShowAddSheet(true)}
-                            className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
-                        >
-                            <Plus className="w-5 h-5" />
-                        </button>
-                    </div>
+                    <AddFab
+                        tour="property-add-fab"
+                        label="Add"
+                        onClick={() => setShowAddSheet(true)}
+                        className="absolute bottom-4 right-4 z-30 pb-[max(0.25rem,calc(var(--sab,0px)+0.25rem))]"
+                    />
                 )}
             </div>
 
