@@ -5,7 +5,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { generateAudioKey, encryptText, sealAudioKey } from './oncallSeal'
+import { generateAudioKey, encryptText, sealAudioKey, sealKeyToRawP256 } from './oncallSeal'
 
 /** Plaintext cluster voicemail greeting played to the caller on no-answer (null if none). */
 export interface OncallGreetingWire {
@@ -124,25 +124,41 @@ export interface IntakeDetail {
   title: string
 }
 
+/** One clinic supervisor the intake detail is sealed to — user_id + their RAW
+ *  (65-byte) P-256 vault identity pubkey, from resolve_event_intake_code. */
+export interface IntakeRecipient {
+  user_id: string
+  dhPubB64: string
+}
+
 /**
- * Outside→cluster EVENT-INTAKE submission. The whole detail blob is SEALED to the
- * clinic inbound key (oncall_recipient_pub) BEFORE it leaves the device — the server
- * only ever stores ciphertext, exactly like submitClusterMessage / the voicemail
- * audio. Closes the one outside lane that used to put requester PII (and any patient
- * identifiers a caller might type) in cleartext at rest. `recipientPubB64` is the
- * clinic inbound pubkey from resolve_event_intake_code; absent → the clinic has no
- * key and intake cannot be sealed (caller must surface an unavailable state).
+ * Outside→cluster EVENT-INTAKE submission. The detail is encrypted ONCE with a
+ * per-request AES key K; K is then sealed PER SUPERVISOR to each supervisor's vault
+ * identity pubkey (`recipients`, from resolve_event_intake_code.intake_recipients).
+ * Supervisor-scoped and INDEPENDENT of the on-call inbound key — each supervisor
+ * opens their own seal with their vault key; no shared clinic key, no wrap
+ * distribution. The server only ever stores ciphertext, never plaintext PII. An
+ * empty recipient set → no supervisor can read it, so the caller must surface an
+ * unavailable state rather than submit.
  */
 export async function submitEventIntake(
   supabase: SupabaseClient,
-  args: { passcode: string; passphrase: string; recipientPubB64: string; detail: IntakeDetail },
+  args: { passcode: string; passphrase: string; recipients: IntakeRecipient[]; detail: IntakeDetail },
 ): Promise<boolean> {
-  let sealedPayload: { ciphertext: string; sealed_key: string; ephemeral_pub: string; nonce: string }
+  if (args.recipients.length === 0) return false
+  let sealedPayload: {
+    ciphertext: string
+    recipients: Array<{ user_id: string; sealed_key: string; ephemeral_pub: string; nonce: string }>
+  }
   try {
     const key = await generateAudioKey()
     const ciphertext = await encryptText(key, JSON.stringify(args.detail))
-    const sealed = await sealAudioKey(key, args.recipientPubB64)
-    sealedPayload = { ciphertext, ...sealed }
+    const recipients: Array<{ user_id: string; sealed_key: string; ephemeral_pub: string; nonce: string }> = []
+    for (const r of args.recipients) {
+      const sealed = await sealKeyToRawP256(key, r.dhPubB64)
+      recipients.push({ user_id: r.user_id, ...sealed })
+    }
+    sealedPayload = { ciphertext, recipients }
   } catch {
     return false
   }

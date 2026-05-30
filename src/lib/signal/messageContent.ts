@@ -150,28 +150,33 @@ export interface MapFeatureContent {
 
 /**
  * Outside event-intake REQUEST content. Anon-authored. The human-readable detail
- * (requester name/org/email, window, title) is SEALED to the clinic inbound key
- * (oncall_recipient_pub) with the SAME envelope as voicemail audio / outside text
- * — the server stores ciphertext only, never plaintext PII. Only intake_id +
- * clinic_id ride cleartext (routing + lifecycle). Decrypt-only: constructed inside
- * the decryptRow / drainSystemInbox early-exits, never serialized; the body is
- * unsealed lazily at render (IntakeRequestCard), exactly like an outside message.
- * Decryption capability = cluster membership.
+ * (requester name/org/email, window, title) is encrypted ONCE with a per-request
+ * AES key K (→ `ciphertext`); K is then sealed PER SUPERVISOR to each clinic
+ * supervisor's portable vault identity DH pubkey (→ `recipients`). Intake is
+ * supervisor-scoped and INDEPENDENT of the on-call inbound key — each supervisor
+ * opens their own entry with getVaultIdentityDh(); no shared clinic key, no wrap
+ * distribution. The server stores ciphertext only, never plaintext PII. Only
+ * intake_id + clinic_id ride cleartext (routing + lifecycle). Decrypt-only:
+ * constructed inside the decryptRow / drainSystemInbox early-exits, never
+ * serialized; the body is unsealed lazily at render (IntakeRequestCard).
  */
 export interface IntakeRequestContent {
   type: 'intake_request'
   intake_id: string
   clinic_id: string
-  sealed: {
-    /** base64(IV ‖ AES-GCM ciphertext) of the JSON-encoded IntakeDetail. */
-    ciphertext: string
-    /** base64(IV ‖ AES-GCM) of the body key, sealed to the clinic inbound key. */
+  /** base64(IV ‖ AES-GCM ciphertext) of the JSON-encoded IntakeDetail. */
+  ciphertext: string
+  /** One seal of the body key K per clinic supervisor. The viewing supervisor finds
+   *  their own user_id and unseals with their vault DH private key (unsealAudioKey). */
+  recipients: Array<{
+    user_id: string
+    /** base64(IV ‖ AES-GCM) of K, sealed to this supervisor's vault DH pubkey. */
     sealed_key: string
     /** base64 raw ephemeral P-256 pubkey used for the seal. */
     ephemeral_pub: string
     /** base64 HKDF salt. */
     nonce: string
-  }
+  }>
 }
 
 /** Voicemail payload carried inline in a resolved oncall-call card. The audio is

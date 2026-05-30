@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
-import { ArrowUp, X, Plus, Mic, ChevronLeft, Copy, Pencil, Download, Reply, Trash2, Forward } from 'lucide-react'
+import { ArrowUp, X, Plus, Mic, Copy, Pencil, Download, Reply, Trash2, Forward } from 'lucide-react'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MessageBubble } from './Settings/MessageBubble'
 import { SharedObjectPicker } from './Messages/SharedObjectPicker'
@@ -348,6 +348,20 @@ export function ChatDetailView({
     }, 200)
   }, [setActiveThreadId])
 
+  // The thread overlay reuses the conversation header (no separate thread bar).
+  // When a thread is open, its back button should pop the thread back to the
+  // conversation rather than leave the conversation. The header is built by the
+  // panel, so we intercept its back (tagged data-chat-back) in the capture phase
+  // before the panel's onBack fires.
+  const handleHeaderBackCapture = useCallback((e: React.MouseEvent) => {
+    if (!activeThreadId) return
+    if ((e.target as HTMLElement).closest('[data-chat-back]')) {
+      e.preventDefault()
+      e.stopPropagation()
+      handleCloseThread()
+    }
+  }, [activeThreadId, handleCloseThread])
+
   // Image paste
   const handlePastedImage = useCallback(async (file: File) => {
     const success = await sendImage(conversationId, file)
@@ -598,100 +612,129 @@ export function ChatDetailView({
 
   // ── Message list ────────────────────────────────────────────────────────
 
-  const renderMessageList = (msgs: DecryptedSignalMessage[], emptyLabel: string, showHeaders = false, headerOverride?: ReactNode) => (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden" onScroll={closeContextMenu}>
-      {showHeaders && (
-        <div className="sticky top-0 z-10 backdrop-blur-[2px] bg-themewhite3/15 animate-fadeIn">
-          {headerOverride ?? (<>{mobileHeader}{desktopHeader}</>)}
-        </div>
-      )}
-      <div className="px-4 pt-3 pb-28 md:pb-3">
-      {msgs.length === 0 ? (
-        <div className="flex items-center justify-center h-full">
-          <p className="text-[10pt] text-tertiary">{emptyLabel}</p>
-        </div>
-      ) : (
-        (() => {
-          // Find the last own-message index for tour targeting
-          let lastOwnIdx = -1
-          for (let i = msgs.length - 1; i >= 0; i--) { if (msgs[i].senderId === userId) { lastOwnIdx = i; break } }
-          return msgs.map((msg, idx) => {
-          const own = msg.senderId === userId
-          const isThreadRoot = activeThreadId && msg.id === activeThreadId && idx === 0
+  // When pinnedRoot is set (thread view), the first message is the thread root:
+  // it rides pinned + highlighted in the sticky header region so context stays
+  // visible while scrolling, and the remaining replies render below a separator.
+  const renderMessageList = (msgs: DecryptedSignalMessage[], emptyLabel: string, showHeaders = false, headerOverride?: ReactNode, pinnedRoot = false) => {
+    const rootMsg = pinnedRoot && msgs.length > 0 ? msgs[0] : null
+    const listMsgs = pinnedRoot ? msgs.slice(1) : msgs
 
-          // Date separator: show when the day changes between messages
-          let dateSeparator: React.ReactNode = null
-          const msgDate = new Date(msg.createdAt)
-          const prevDate = idx > 0 ? new Date(msgs[idx - 1].createdAt) : null
-          const showDate = idx === 0 || !prevDate
-            || msgDate.getFullYear() !== prevDate.getFullYear()
-            || msgDate.getMonth() !== prevDate.getMonth()
-            || msgDate.getDate() !== prevDate.getDate()
-          if (showDate) {
-            const today = new Date()
-            const yesterday = new Date()
-            yesterday.setDate(yesterday.getDate() - 1)
-            const isToday = msgDate.toDateString() === today.toDateString()
-            const isYesterday = msgDate.toDateString() === yesterday.toDateString()
-            const label = isToday ? 'Today'
-              : isYesterday ? 'Yesterday'
-              : msgDate.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })
-            dateSeparator = (
-              <div className="flex justify-center my-2">
-                <span className="text-[9pt] font-medium text-tertiary px-2.5 py-0.5 rounded-full bg-themewhite/70 backdrop-blur-sm">
-                  {label}
-                </span>
-              </div>
-            )
-          }
+    // Find the last own-message index (within the scrolling list) for tour targeting
+    let lastOwnIdx = -1
+    for (let i = listMsgs.length - 1; i >= 0; i--) { if (listMsgs[i].senderId === userId) { lastOwnIdx = i; break } }
 
-          return (
-            <div key={msg.id} data-message-id={msg.id} data-tour={own && idx === lastOwnIdx ? 'messages-latest-bubble' : undefined}>
-              {dateSeparator}
-              <MessageBubble
-                message={msg}
-                isOwn={own}
-                avatar={resolveAvatar(msg, own)}
-                senderName={resolveSenderName?.(msg)}
-                onLongPress={handleLongPress}
-                onSwipeAction={handleSwipeAction}
-                isEditing={editingMessageId === msg.id}
-                editText={editingMessageId === msg.id ? editText : undefined}
-                onEditTextChange={setEditText}
-                onSaveEdit={handleSaveEdit}
-                onCancelEdit={handleCancelEdit}
-                threadReplyCount={!activeThreadId ? (threadReplyCounts[msg.originId ?? ''] ?? threadReplyCounts[msg.id]) : undefined}
-                onOpenThread={handleOpenThread}
-                intakeActionable={intakeActionable}
-                conversationId={conversationId}
-                conversationIsGroup={conversationIsGroup}
-                conversationPeerName={conversationPeerName}
-                highlighted={highlightId === msg.id}
-              />
-              {isThreadRoot && msgs.length > 1 && (
-                <div className="flex items-center gap-2 my-2 px-2">
+    const bubbleRow = (msg: DecryptedSignalMessage, idx: number) => {
+      const own = msg.senderId === userId
+
+      // Date separator: show when the day changes between messages
+      let dateSeparator: ReactNode = null
+      const msgDate = new Date(msg.createdAt)
+      const prevDate = idx > 0 ? new Date(listMsgs[idx - 1].createdAt) : null
+      const showDate = idx === 0 || !prevDate
+        || msgDate.getFullYear() !== prevDate.getFullYear()
+        || msgDate.getMonth() !== prevDate.getMonth()
+        || msgDate.getDate() !== prevDate.getDate()
+      if (showDate) {
+        const today = new Date()
+        const yesterday = new Date()
+        yesterday.setDate(yesterday.getDate() - 1)
+        const isToday = msgDate.toDateString() === today.toDateString()
+        const isYesterday = msgDate.toDateString() === yesterday.toDateString()
+        const label = isToday ? 'Today'
+          : isYesterday ? 'Yesterday'
+          : msgDate.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })
+        dateSeparator = (
+          <div className="flex justify-center my-2">
+            <span className="text-[9pt] font-medium text-tertiary px-2.5 py-0.5 rounded-full bg-themewhite/70 backdrop-blur-sm">
+              {label}
+            </span>
+          </div>
+        )
+      }
+
+      return (
+        <div key={msg.id} data-message-id={msg.id} data-tour={own && idx === lastOwnIdx ? 'messages-latest-bubble' : undefined}>
+          {dateSeparator}
+          <MessageBubble
+            message={msg}
+            isOwn={own}
+            avatar={resolveAvatar(msg, own)}
+            senderName={resolveSenderName?.(msg)}
+            onLongPress={handleLongPress}
+            onSwipeAction={handleSwipeAction}
+            isEditing={editingMessageId === msg.id}
+            editText={editingMessageId === msg.id ? editText : undefined}
+            onEditTextChange={setEditText}
+            onSaveEdit={handleSaveEdit}
+            onCancelEdit={handleCancelEdit}
+            threadReplyCount={!activeThreadId ? (threadReplyCounts[msg.originId ?? ''] ?? threadReplyCounts[msg.id]) : undefined}
+            onOpenThread={handleOpenThread}
+            intakeActionable={intakeActionable}
+            conversationId={conversationId}
+            conversationIsGroup={conversationIsGroup}
+            conversationPeerName={conversationPeerName}
+            highlighted={highlightId === msg.id}
+          />
+        </div>
+      )
+    }
+
+    return (
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden" onScroll={closeContextMenu}>
+        {showHeaders && (
+          <div className="sticky top-0 z-10 backdrop-blur-[2px] bg-themewhite3/15 animate-fadeIn">
+            {headerOverride ?? (<>{mobileHeader}{desktopHeader}</>)}
+            {rootMsg && (
+              <div className="px-2 pt-1 pb-1.5 border-b border-primary/10 bg-themewhite3/85">
+                <div data-message-id={rootMsg.id}>
+                  <MessageBubble
+                    message={rootMsg}
+                    isOwn={rootMsg.senderId === userId}
+                    avatar={resolveAvatar(rootMsg, rootMsg.senderId === userId)}
+                    senderName={resolveSenderName?.(rootMsg)}
+                    onLongPress={handleLongPress}
+                    onSwipeAction={handleSwipeAction}
+                    intakeActionable={intakeActionable}
+                    conversationId={conversationId}
+                    conversationIsGroup={conversationIsGroup}
+                    conversationPeerName={conversationPeerName}
+                    highlighted
+                  />
+                </div>
+                <div className="flex items-center gap-2 mt-1 px-2">
                   <div className="flex-1 border-b border-primary/10" />
-                  <span className="text-[9pt] text-tertiary shrink-0">
-                    {msgs.length - 1} {msgs.length - 1 === 1 ? 'reply' : 'replies'}
+                  <span className="text-[9pt] font-medium text-tertiary shrink-0">
+                    {listMsgs.length === 0
+                      ? 'No replies yet'
+                      : `${listMsgs.length} ${listMsgs.length === 1 ? 'reply' : 'replies'}`}
                   </span>
                   <div className="flex-1 border-b border-primary/10" />
                 </div>
-              )}
-            </div>
-          )
-        })
-        })()
-      )}
+              </div>
+            )}
+          </div>
+        )}
+        <div className="px-4 pt-3 pb-28 md:pb-3">
+          {listMsgs.length === 0 ? (
+            pinnedRoot ? null : (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-[10pt] text-tertiary">{emptyLabel}</p>
+              </div>
+            )
+          ) : (
+            listMsgs.map((msg, idx) => bubbleRow(msg, idx))
+          )}
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   // ── Main view ───────────────────────────────────────────────────────────
 
   const showThread = !!activeThreadId
 
   return (
-    <div ref={conversationRef} className="flex flex-col h-full relative" {...mainSwipeBack}>
+    <div ref={conversationRef} className="flex flex-col h-full relative" onClickCapture={handleHeaderBackCapture} {...mainSwipeBack}>
       {renderMessageList(mainViewMessages, emptyText, true)}
 
       {sendStructured && (
@@ -740,17 +783,7 @@ export function ChatDetailView({
           className={`absolute inset-0 z-20 flex flex-col bg-themewhite3 transition-opacity duration-200 ${threadClosing ? 'opacity-0' : 'animate-fadeIn'}`}
           {...threadSwipeBack}
         >
-          {renderMessageList(threadMessages, 'No messages', true,
-            <div className="shrink-0 px-3 py-3 pt-[max(0.75rem,var(--sat,0px))] flex items-center">
-              <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
-                <button onClick={handleCloseThread} className="w-[3.0625rem] h-[3.0625rem] rounded-full flex items-center justify-center active:scale-95 transition-transform">
-                  <ChevronLeft className="w-6 h-6 text-tertiary" />
-                </button>
-              </div>
-              <p className="flex-1 text-sm font-medium text-primary truncate mx-3">Thread</p>
-              <div className="w-12 shrink-0" />
-            </div>
-          )}
+          {renderMessageList(threadMessages, 'No messages', true, undefined, true)}
           {contextMenu && contextMsg && (() => {
             const isOwn = contextMsg.senderId === userId
             const isMedia = contextMsg.content?.type === 'image' || contextMsg.content?.type === 'voice'

@@ -97,7 +97,8 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
           type: 'intake_request',
           intake_id: String(maybeIntake.intake_id),
           clinic_id: String(maybeIntake.clinic_id ?? ''),
-          sealed: maybeIntake.sealed as IntakeRequestContent['sealed'],
+          ciphertext: String(maybeIntake.ciphertext ?? ''),
+          recipients: (maybeIntake.recipients ?? []) as IntakeRequestContent['recipients'],
         }
         return {
           id: row.id,

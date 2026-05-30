@@ -1,5 +1,5 @@
 import { useRef, useCallback, useState, useEffect, useMemo } from 'react'
-import { Check, CheckCheck, X, Reply, Trash2, Clock, MessageSquare, Play, Pause, Copy, Download, CalendarPlus, Calendar, Map as MapIcon, Package, ChevronRight, MoreHorizontal } from 'lucide-react'
+import { Check, CheckCheck, X, Reply, Trash2, Clock, Play, Pause, Copy, Download, CalendarPlus, Calendar, Map as MapIcon, Package, ChevronRight, MoreHorizontal } from 'lucide-react'
 import { ActionButton } from '../ActionButton'
 import { GESTURE_THRESHOLDS, isInteractiveTarget } from '../../Utilities/GestureUtils'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
@@ -661,9 +661,10 @@ export function MessageBubble({
           </button>
         )}
 
-        {/* Detected-date affordance — rides inline to the left of the bubble.
-            Surfaces when text contains a schedulable date (dev-gated). */}
-        {detectedDate && !isEditing && (
+        {/* Detected-date affordance — rides on the same side as the ellipses
+            (own → left, peer → right). Surfaces when text contains a schedulable
+            date (dev-gated). */}
+        {isOwn && detectedDate && !isEditing && (
           <button
             onClick={handleAddToCalendar}
             title={`Add to calendar — ${detectedDate.date.toLocaleDateString()}`}
@@ -675,12 +676,10 @@ export function MessageBubble({
           </button>
         )}
 
-        {/* Bubble wrapper — icons sit behind, bubble slides over them.
-            Text-like content gets a min-w-[240px] floor so headered bubbles look uniform;
-            images/voice carry their own intrinsic sizing so we don't force whitespace on them. */}
+        {/* Bubble wrapper — icons sit behind, bubble slides over them. */}
         <div
           className="relative max-w-[65%]"
-          style={{ touchAction: 'pan-y', minWidth: isImage || isVoice ? undefined : 240 }}
+          style={{ touchAction: 'pan-y' }}
         >
           {/* Reply icon — starts at left edge behind bubble, parallaxes outward on swipe right */}
           {swipeEnabled && (
@@ -757,12 +756,24 @@ export function MessageBubble({
                            text-themeblue2 hover:bg-themeblue2/10 active:scale-95 transition-all
                            ${isOwn ? 'ml-auto' : ''}`}
               >
-                <MessageSquare size={10} />
                 {threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}
               </button>
             )}
           </div>
         </div>
+
+        {/* Detected-date affordance for peer bubbles — right side, beside the ellipses. */}
+        {!isOwn && detectedDate && !isEditing && (
+          <button
+            onClick={handleAddToCalendar}
+            title={`Add to calendar — ${detectedDate.date.toLocaleDateString()}`}
+            aria-label="Add to calendar"
+            className="shrink-0 self-center ml-1.5 w-7 h-7 rounded-full bg-themeblue3 text-white shadow-sm
+                       flex items-center justify-center active:scale-95 transition-all"
+          >
+            <CalendarPlus size={14} />
+          </button>
+        )}
 
         {/* Hover ellipses (desktop only) — right of peer bubble */}
         {!isOwn && onLongPress && (

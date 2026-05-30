@@ -863,7 +863,8 @@ async function _drainSystemInboxImpl(): Promise<number> {
           type: 'intake_request',
           intake_id: String(maybeIntakePayload.intake_id),
           clinic_id: String(maybeIntakePayload.clinic_id ?? ''),
-          sealed: maybeIntakePayload.sealed as IntakeRequestContent['sealed'],
+          ciphertext: String(maybeIntakePayload.ciphertext ?? ''),
+          recipients: (maybeIntakePayload.recipients ?? []) as IntakeRequestContent['recipients'],
         }
         const msg: DecryptedSignalMessage = {
           id: row.id,

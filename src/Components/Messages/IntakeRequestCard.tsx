@@ -10,10 +10,8 @@ import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
 import { intakeAction } from '../../lib/eventIntakeService'
 import { deleteMessagesByOriginId as deleteMessagesByOriginIdFromDb } from '../../lib/signal/messageStore'
-import { getWrappedVoicemailKey } from '../../lib/oncallKeyStore'
-import { unsealAudioKey, decryptText, importVoicemailPrivateKey } from '../../lib/oncallSeal'
-import { unwrapFromVault } from '../../lib/signal/oncallKeyWrap'
-import type { SealedEnvelope } from '../../lib/signal/sealedSender'
+import { unsealAudioKey, decryptText } from '../../lib/oncallSeal'
+import { getVaultIdentityDh } from '../../lib/signal/vaultDevice'
 import type { IntakeDetail } from '../../lib/oncallAnonService'
 import { formatSignature } from '../../Utilities/NoteFormatter'
 import { createLogger } from '../../Utilities/Logger'
@@ -77,23 +75,26 @@ export function IntakeRequestCard({ message, content, isOwn, avatar, senderName,
 
   const groupId = message.groupId ?? null
 
-  // Unseal the request detail with the clinic inbound key from the device vault —
-  // identical to OutsideMessageCard / voicemail playback. Decryption capability =
-  // cluster membership; the server only ever stored ciphertext.
+  // Unseal the request detail with MY own vault identity key. Intake is sealed
+  // per-supervisor: find the recipient entry addressed to me, open the body key
+  // with my portable vault DH private key, then decrypt the shared ciphertext. No
+  // shared clinic key, no on-call coupling — capability is simply "I'm a clinic
+  // supervisor with my vault restored on this device". A dev observing a clinic
+  // they don't supervise has no entry → stays locked (must not read requester PII).
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      const wrapped = getWrappedVoicemailKey(content.clinic_id) as SealedEnvelope | null
       const myUuid = useAuthStore.getState().user?.id
-      if (!wrapped || !myUuid) { setDecryptError(true); return }
+      const mine = myUuid ? content.recipients?.find(r => r.user_id === myUuid) : undefined
+      if (!myUuid || !mine) { setDecryptError(true); return }
       try {
-        const privPkcs8 = await unwrapFromVault(wrapped, myUuid)
-        const priv = await importVoicemailPrivateKey(privPkcs8)
+        const vault = await getVaultIdentityDh(myUuid)
+        if (!vault) { if (!cancelled) setDecryptError(true); return }
         const aesKey = await unsealAudioKey(
-          { sealed_key: content.sealed.sealed_key, ephemeral_pub: content.sealed.ephemeral_pub, nonce: content.sealed.nonce },
-          priv,
+          { sealed_key: mine.sealed_key, ephemeral_pub: mine.ephemeral_pub, nonce: mine.nonce },
+          vault.dhPrivateKey,
         )
-        const json = await decryptText(aesKey, content.sealed.ciphertext)
+        const json = await decryptText(aesKey, content.ciphertext)
         const parsed = JSON.parse(json) as IntakeDetail
         if (!cancelled) setDetail(parsed)
       } catch {

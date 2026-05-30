@@ -714,7 +714,7 @@ function ChatDetail({
   const mobileHeader = (
     <div className="md:hidden shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center">
       <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
-        <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
+        <button data-chat-back onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
           <ChevronLeft className="w-6 h-6 text-tertiary" />
         </button>
       </div>
@@ -902,7 +902,7 @@ function GroupChatDetail({
   const mobileHeader = (
     <div className="md:hidden shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center">
       <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
-        <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
+        <button data-chat-back onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
           <ChevronLeft className="w-6 h-6 text-tertiary" />
         </button>
       </div>
