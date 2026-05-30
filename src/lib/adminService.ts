@@ -583,24 +583,50 @@ export interface AdminLocation {
   parent_id: string | null
 }
 
+// Session cache for the location taxonomy. It's tiny (~50–200 rows), canonical,
+// and almost never changes, yet listLocations() is called on mount from ~7
+// surfaces (ClinicPanel, SupervisorDrawer, MapOverlayPanel, admin screens) with
+// no caching — a repeated PostgREST egress source. Cache the resolved set for
+// the session, de-dupe concurrent fetches, and bust on any location mutation.
+let locationsCache: AdminLocation[] | null = null
+let locationsInflight: Promise<AdminLocation[]> | null = null
+
+/** Invalidate the listLocations() session cache. Called after location mutations. */
+export function clearLocationsCache(): void {
+  locationsCache = null
+  locationsInflight = null
+}
+
 /**
  * List all non-archived locations. Authenticated read; small set (~50–200 rows).
+ * Result is cached for the session (see clearLocationsCache) and concurrent
+ * callers share one round-trip.
  */
 export async function listLocations(): Promise<AdminLocation[]> {
-  try {
-    const { data, error } = await supabase
-      .from('locations')
-      .select('id, country_code, subdivision, installation, sub_area, display_name, timezone, command, lat, lon, parent_id')
-      .is('archived_at', null)
-      .order('country_code')
-      .order('installation')
-      .order('sub_area')
-    if (error) throw error
-    return (data || []) as AdminLocation[]
-  } catch (error) {
-    logger.error('Failed to list locations:', error)
-    return []
-  }
+  if (locationsCache) return locationsCache
+  if (locationsInflight) return locationsInflight
+
+  locationsInflight = (async () => {
+    try {
+      const { data, error } = await supabase
+        .from('locations')
+        .select('id, country_code, subdivision, installation, sub_area, display_name, timezone, command, lat, lon, parent_id')
+        .is('archived_at', null)
+        .order('country_code')
+        .order('installation')
+        .order('sub_area')
+      if (error) throw error
+      const rows = (data || []) as AdminLocation[]
+      locationsCache = rows // only cache successes — failures retry next call
+      return rows
+    } catch (error) {
+      logger.error('Failed to list locations:', error)
+      return []
+    } finally {
+      locationsInflight = null
+    }
+  })()
+  return locationsInflight
 }
 
 /**
@@ -640,6 +666,7 @@ export async function createLocation(data: {
       .select('id')
       .single()
     if (error) return fail(error.message)
+    clearLocationsCache()
     return succeed({ id: result.id })
   } catch (error) {
     logger.error('Failed to create location:', error)
@@ -672,6 +699,7 @@ export async function updateLocation(
       .update(updates)
       .eq('id', id)
     if (error) return fail(error.message)
+    clearLocationsCache()
     return succeed({})
   } catch (error) {
     logger.error('Failed to update location:', error)
@@ -690,6 +718,7 @@ export async function archiveLocation(id: string): Promise<ServiceResult<Record<
       .update({ archived_at: new Date().toISOString() })
       .eq('id', id)
     if (error) return fail(error.message)
+    clearLocationsCache()
     return succeed({})
   } catch (error) {
     logger.error('Failed to archive location:', error)

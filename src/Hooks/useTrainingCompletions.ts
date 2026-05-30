@@ -183,6 +183,36 @@ async function migrateSupervisorTests(userId: string): Promise<number> {
   return migrated;
 }
 
+// ── Shared initial-sync coordinator ──────────────────────────
+// ~4 components mount useTrainingCompletions (TrainingPanel ×2, TrainingDrawer,
+// SupervisorDrawer); each init() previously fired its own fullSync() network
+// pull+push on mount → a training_completions GET fan-out (a top PostgREST
+// egress source). fullSync is idempotent (last-write-wins reconcile + queue
+// push), so the initial pull is shared here: concurrent mounts await ONE
+// in-flight fullSync, and remounts within the TTL skip the network entirely and
+// rely on the local IDB read + realtime + the connectivity-listener resync path.
+let trainingInitSyncInflight: Promise<void> | null = null
+let trainingInitSyncUser: string | null = null
+let trainingInitSyncAt = 0
+const TRAINING_INIT_SYNC_TTL_MS = 30_000
+
+async function ensureInitialTrainingSync(userId: string): Promise<void> {
+  if (trainingInitSyncInflight) return trainingInitSyncInflight
+  if (trainingInitSyncUser === userId && Date.now() - trainingInitSyncAt < TRAINING_INIT_SYNC_TTL_MS) {
+    return // synced for this user very recently — skip the redundant network round-trip
+  }
+  trainingInitSyncInflight = (async () => {
+    try {
+      await fullSync(userId)
+    } finally {
+      trainingInitSyncUser = userId
+      trainingInitSyncAt = Date.now()
+      trainingInitSyncInflight = null
+    }
+  })()
+  return trainingInitSyncInflight
+}
+
 // ── Hook ─────────────────────────────────────────────────────
 
 /**
@@ -284,7 +314,9 @@ export function useTrainingCompletions() {
             // fullSync() handles reconciliation (pull) + push in one call.
             // reconcileTrainingCompletionsWithServer() inside fullSync does the
             // same last-write-wins merge that was previously duplicated here.
-            await fullSync(userId);
+            // Deduped across concurrent mounts via the shared coordinator so N
+            // consumers don't each fire their own pull on mount.
+            await ensureInitialTrainingSync(userId);
           } catch (err) {
             logger.warn('Initial sync failed, using local data:', err);
           } finally {
