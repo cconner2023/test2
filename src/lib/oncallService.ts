@@ -12,7 +12,9 @@ import { createLogger } from '../Utilities/Logger'
 import { callRpc } from './result'
 import type { Result } from './result'
 import { generateVoicemailKeypair } from './oncallSeal'
-import { wrapForVaultRecipient } from './signal/oncallKeyWrap'
+import { wrapForVaultRecipient, unwrapFromVault } from './signal/oncallKeyWrap'
+import { getWrappedVoicemailKey } from './oncallKeyStore'
+import type { SealedEnvelope } from './signal/sealedSender'
 
 const logger = createLogger('Oncall')
 
@@ -73,9 +75,11 @@ export async function markOncallEnded(callId: string): Promise<void> {
 
 // ─── GATE 2: supervisor master toggle + voicemail key lifecycle ───
 
-/** Wrap the freshly generated voicemail private key to every cluster member and
- *  fan the oncall-key-wrap SYSTEM messages. Best-effort per member. */
-async function distributeVoicemailKey(clinicId: string, credentialId: string, privPkcs8B64: string, version: number): Promise<void> {
+/** Wrap a voicemail private key to every cluster member and fan the
+ *  oncall-key-wrap SYSTEM messages. Best-effort per member. The key is sealed to
+ *  each member's portable VAULT identity (get_oncall_wrap_targets returns the
+ *  device_id='vault' bundle), so any of their devices can later open it. */
+async function distributeVoicemailKey(clinicId: string, credentialId: string, privPkcs8B64: string): Promise<void> {
   const me = (await supabase.auth.getUser()).data.user?.id
   if (!me) throw new Error('not authenticated')
 
@@ -96,6 +100,9 @@ async function distributeVoicemailKey(clinicId: string, credentialId: string, pr
     }
   }
 
+  // p_wrapper_version is int4 — seconds (not Date.now() ms, which overflows int4
+  // and would make the whole distribute RPC throw, silently dropping every wrap).
+  const version = Math.floor(Date.now() / 1000)
   await callRpc(
     () => supabase.rpc('distribute_oncall_key', {
       p_clinic_id: clinicId,
@@ -127,7 +134,51 @@ export async function provisionInboundKey(clinicId: string): Promise<Result<true
   )
   if (!res.ok) return res
   const credentialId = (res.data as { credential_id: string }).credential_id
-  await distributeVoicemailKey(clinicId, credentialId, privPkcs8B64, Date.now())
+  await distributeVoicemailKey(clinicId, credentialId, privPkcs8B64)
+  return { ok: true, data: true }
+}
+
+/**
+ * SELF-HEAL: re-wrap the EXISTING inbound key to all current cluster members,
+ * additively (no new keypair, no set_clinic_inbound_key → no clean slate, so
+ * in-flight sealed voicemails/messages stay readable). Heals members who joined
+ * AFTER the last mint/rotate, or whose device never received / lost the wrap.
+ *
+ * Requires THIS device to still hold the wrapped inbound key in localStorage and
+ * be able to open it (vault identity). If it can't, there is nothing to
+ * redistribute from here — returns ok:false without erroring loudly (the next
+ * passcode rotation re-provisions from scratch). Best-effort, idempotent: peers
+ * who already hold the wrap just re-save the same envelope.
+ */
+export async function redistributeInboundKey(clinicId: string): Promise<Result<true>> {
+  const me = (await supabase.auth.getUser()).data.user?.id
+  if (!me) return { ok: false, error: 'not authenticated' }
+
+  const wrapped = getWrappedVoicemailKey(clinicId) as SealedEnvelope | null
+  if (!wrapped) return { ok: false, error: 'no inbound key held on this device' }
+
+  let privPkcs8B64: string
+  try {
+    privPkcs8B64 = await unwrapFromVault(wrapped, me)
+  } catch (e) {
+    logger.warn('redistribute: cannot open local inbound key:', e instanceof Error ? e.message : e)
+    return { ok: false, error: 'cannot open local inbound key' }
+  }
+
+  const credRes = await callRpc<{ id?: string } | null>(
+    () => supabase.rpc('get_event_intake_credential', { p_clinic_id: clinicId }),
+    'get_event_intake_credential', logger,
+  )
+  if (!credRes.ok) return credRes
+  const credentialId = credRes.data?.id
+  if (!credentialId) return { ok: false, error: 'no credential for clinic' }
+
+  try {
+    await distributeVoicemailKey(clinicId, credentialId, privPkcs8B64)
+  } catch (e) {
+    logger.warn('redistribute: distribute failed:', e instanceof Error ? e.message : e)
+    return { ok: false, error: 'distribute failed' }
+  }
   return { ok: true, data: true }
 }
 

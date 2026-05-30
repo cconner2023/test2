@@ -20,7 +20,7 @@ import {
   getEventIntakeCredential,
   type IntakeCredentialMetadata,
 } from '../../lib/eventIntakeService'
-import { enableOncall, disableOncall, enableOutsideMessaging, disableOutsideMessaging, provisionInboundKey } from '../../lib/oncallService'
+import { enableOncall, disableOncall, enableOutsideMessaging, disableOutsideMessaging, provisionInboundKey, redistributeInboundKey } from '../../lib/oncallService'
 import { ToggleSwitch } from './ToggleSwitch'
 import { OncallGreetingRow } from './OncallGreetingRow'
 import { createLogger } from '../../Utilities/Logger'
@@ -76,6 +76,10 @@ function generatePassphrase(): string {
  * button (matches the rest of the settings UI). The supervisor types a
  * passphrase or taps the dice to fill a generated one inline before submitting.
  */
+/** Clinics whose inbound key this session has already opportunistically
+ *  re-distributed — so the self-heal fires at most once per clinic per load. */
+const _healedClinics = new Set<string>()
+
 export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledChange }: IntakeMintSectionProps) {
   const { isSupervisorRole } = useAuth()
   const outsideContactBeta = useBetaBypass('outsideContact')
@@ -130,6 +134,19 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
   }, [clinicId])
 
   useEffect(() => { refresh() }, [refresh])
+
+  // SELF-HEAL: when a supervisor who holds the inbound key opens this surface,
+  // opportunistically re-wrap the EXISTING key to all current cluster members
+  // (additive — no rotation, no clean slate). This covers members who joined
+  // after the last mint/rotate, or whose device never got the wrap, so their
+  // intake / voicemail / outside-message cards become decryptable. Best-effort,
+  // once per clinic per session; no-ops on devices that don't hold the key.
+  useEffect(() => {
+    if (!credential?.oncall_has_key) return
+    if (_healedClinics.has(clinicId)) return
+    _healedClinics.add(clinicId)
+    void redistributeInboundKey(clinicId).catch(() => {})
+  }, [credential?.oncall_has_key, clinicId])
 
   // Surface on-call-roster relevance to the parent so the personnel roster renders
   // per-member on-call toggles whenever an outside channel that pings on-call is

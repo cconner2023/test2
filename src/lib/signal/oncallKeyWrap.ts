@@ -14,6 +14,7 @@
  */
 
 import { loadLocalIdentity } from './keyStore'
+import { getVaultIdentityDh } from './vaultDevice'
 import { seal, unseal, type SealedEnvelope } from './sealedSender'
 
 /** Wrap the voicemail private key (PKCS8 base64) to one recipient's vault. */
@@ -28,12 +29,17 @@ export async function wrapForVaultRecipient(
   return seal({ k: privPkcs8B64 }, myUuid, me, recipientUuid, recipientDhKeyB64)
 }
 
-/** Unwrap a received voicemail key envelope → the PKCS8-base64 private key. */
+/** Unwrap a received voicemail key envelope → the PKCS8-base64 private key.
+ *  The wrap is sealed to the recipient's portable VAULT identity (the
+ *  device_id='vault' bundle that get_oncall_wrap_targets selects), NOT this
+ *  physical device's local identity — so any device that has restored the vault
+ *  from the password backup can open it (re-login / new device / cleared
+ *  localStorage all recover). */
 export async function unwrapFromVault(envelope: SealedEnvelope, myUuid: string): Promise<string> {
-  const me = await loadLocalIdentity()
-  if (!me) throw new Error('local identity unavailable')
+  const vault = await getVaultIdentityDh(myUuid)
+  if (!vault) throw new Error('vault identity unavailable')
   // skipExpiry: a key-wrap may sit unread for days, like vault messages.
-  const { inner } = await unseal(envelope, myUuid, me.dhPrivateKey, me.dhPublicKeyBase64, { skipExpiry: true })
+  const { inner } = await unseal(envelope, myUuid, vault.dhPrivateKey, vault.dhPublicKeyBase64, { skipExpiry: true })
   const k = (inner as { k?: unknown }).k
   if (typeof k !== 'string') throw new Error('malformed oncall key wrap')
   return k

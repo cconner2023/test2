@@ -132,6 +132,11 @@ interface VaultKeyBundle {
 
 let cachedVaultKey: CryptoKey | null = null
 
+/** Cached vault identity DH keypair, keyed by user — recovered lazily for
+ *  unsealing content addressed to the portable vault identity (e.g. the clinic
+ *  inbound-key wrap). Cleared on sign-out alongside cachedVaultKey. */
+let _cachedVaultDh: { userId: string; dhPrivateKey: CryptoKey; dhPublicKeyBase64: string } | null = null
+
 /** Promise that resolves when the vault wrapping key derivation completes.
  *  processVaultMessages awaits this so it doesn't race with the PBKDF2
  *  derivation that runs fire-and-forget from signIn().
@@ -429,6 +434,7 @@ export async function deriveAndCacheVaultKey(
 /** Clear cached vault key (called on sign-out). */
 export function clearVaultKey(): void {
   cachedVaultKey = null
+  _cachedVaultDh = null
   _vaultKeyReady = null
   // Drop any stashed drain ack — it belongs to the prior session and would
   // otherwise mark-read / replenish under the wrong identity if a different
@@ -529,6 +535,37 @@ async function recoverVaultKeys(row: VaultDeviceKeysRow): Promise<VaultPrivateKe
 
   const blob = await decryptBlob(row.encrypted_blob, row.iv, cachedVaultKey)
   return importVaultKeys(blob)
+}
+
+/**
+ * Recover the user's portable vault identity DH keypair, for unsealing content
+ * sealed to the vault bundle (device_id='vault') — i.e. the clinic inbound-key
+ * wrap (oncallKeyWrap). Unlike loadLocalIdentity() (this physical device's key),
+ * the vault identity is restored from the password backup on ANY device, so a
+ * re-login / new device / cleared localStorage can still open the wrap.
+ *
+ * Returns null if there is no vault row or the wrapping key isn't cached yet
+ * (caller treats that as "can't decrypt on this device" — same as a missing key).
+ * Cached for the session; invalidated by clearVaultKey().
+ */
+export async function getVaultIdentityDh(
+  userId: string,
+): Promise<{ dhPrivateKey: CryptoKey; dhPublicKeyBase64: string } | null> {
+  if (_cachedVaultDh && _cachedVaultDh.userId === userId) {
+    return { dhPrivateKey: _cachedVaultDh.dhPrivateKey, dhPublicKeyBase64: _cachedVaultDh.dhPublicKeyBase64 }
+  }
+  const { data: vaultRow } = await supabase
+    .from('vault_device_keys')
+    .select('*')
+    .eq('user_id', userId)
+    .single()
+  if (!vaultRow) return null
+  // Wait for the PBKDF2 derivation that runs fire-and-forget from signIn().
+  try { if (_vaultKeyReady) await _vaultKeyReady } catch { /* fall through */ }
+  if (!cachedVaultKey) return null
+  const keys = await recoverVaultKeys(vaultRow as VaultDeviceKeysRow)
+  _cachedVaultDh = { userId, dhPrivateKey: keys.dhPrivateKey, dhPublicKeyBase64: keys.dhPublicKeyBase64 }
+  return { dhPrivateKey: keys.dhPrivateKey, dhPublicKeyBase64: keys.dhPublicKeyBase64 }
 }
 
 // ---- Vault Message Processing ----
