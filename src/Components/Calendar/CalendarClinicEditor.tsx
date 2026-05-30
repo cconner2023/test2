@@ -21,7 +21,16 @@ import { PreviewOverlay } from '../PreviewOverlay'
 import { PreCombatChecksSection } from './PreCombatChecksSection'
 import { CategoryColorSettings } from './CategoryColorSettings'
 
-export function CalendarClinicEditor() {
+// Which slice of clinic config this editor renders.
+//  - 'clinic'   → Pre-Combat Checks only (shown in Settings/ClinicPanel)
+//  - 'calendar' → Huddle Tasks, Rooms, Appointment Types, Category Colors (CalendarDrawer settings)
+// Each section lives in exactly one surface so clinic management holds only
+// clinic concerns and calendar settings hold only calendar concerns.
+export type ClinicEditorVariant = 'clinic' | 'calendar'
+
+export function CalendarClinicEditor({ variant = 'clinic' }: { variant?: ClinicEditorVariant } = {}) {
+  const showClinic = variant === 'clinic'
+  const showCalendar = variant === 'calendar'
   // Pivot on the supervisor toggle so editing rooms / huddle tasks /
   // appointment types targets the active clinic context (assigned by default,
   // surrogate when toggled).
@@ -256,9 +265,9 @@ export function CalendarClinicEditor() {
         </div>
       )}
 
-      <PreCombatChecksSection />
+      {showClinic && <PreCombatChecksSection />}
 
-      <section data-tour="clinic-huddle-tasks">
+      {showCalendar && <section data-tour="clinic-huddle-tasks">
         <div className="pb-2">
           <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Huddle Tasks</p>
         </div>
@@ -296,9 +305,9 @@ export function CalendarClinicEditor() {
             </ActionPill>
           )}
         </div>
-      </section>
+      </section>}
 
-      <section data-tour="clinic-rooms">
+      {showCalendar && <section data-tour="clinic-rooms">
         <div className="pb-2 flex items-center gap-2">
           <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Rooms</p>
         </div>
@@ -336,9 +345,9 @@ export function CalendarClinicEditor() {
             </ActionPill>
           )}
         </div>
-      </section>
+      </section>}
 
-      <section data-tour="clinic-appointment-types">
+      {showCalendar && <section data-tour="clinic-appointment-types">
         <div className="pb-2">
           <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Appointment Types</p>
         </div>
@@ -377,9 +386,9 @@ export function CalendarClinicEditor() {
             </ActionPill>
           )}
         </div>
-      </section>
+      </section>}
 
-      <CategoryColorSettings />
+      {showCalendar && <CategoryColorSettings />}
 
       <PreviewOverlay
         isOpen={!!roomPopover}

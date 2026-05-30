@@ -862,14 +862,8 @@ async function _drainSystemInboxImpl(): Promise<number> {
         const content: IntakeRequestContent = {
           type: 'intake_request',
           intake_id: String(maybeIntakePayload.intake_id),
-          requester_name: String(maybeIntakePayload.requester_name ?? ''),
-          requester_email: String(maybeIntakePayload.requester_email ?? ''),
-          requested_start: String(maybeIntakePayload.requested_start ?? ''),
-          requested_end: String(maybeIntakePayload.requested_end ?? ''),
-          title: String(maybeIntakePayload.title ?? ''),
-          ...(maybeIntakePayload.requester_org
-            ? { requester_org: String(maybeIntakePayload.requester_org) }
-            : {}),
+          clinic_id: String(maybeIntakePayload.clinic_id ?? ''),
+          sealed: maybeIntakePayload.sealed as IntakeRequestContent['sealed'],
         }
         const msg: DecryptedSignalMessage = {
           id: row.id,

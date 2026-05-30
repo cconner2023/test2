@@ -1969,7 +1969,7 @@ export type Database = {
         Returns: Json
       }
       submit_event_intake: {
-        Args: { p_passcode: string; p_passphrase: string; p_payload: Json }
+        Args: { p_passcode: string; p_passphrase: string; p_sealed: Json }
         Returns: Json
       }
       supervisor_add_member: {

@@ -4,7 +4,6 @@ import {
   Camera,
   ImagePlus,
   Check,
-  Stethoscope,
   Plus,
   Trash2,
   Loader2,
@@ -879,21 +878,8 @@ export function ClinicPanel({
           </section>
         )}
 
-        {/* ── PCC / Huddle / Rooms / Appt Types (shared with calendar settings) ── */}
-        <CalendarClinicEditor />
-
-        {/* Clinic Note Content callout */}
-        {isSupervisorRole && (
-          <div className="rounded-xl border border-themeblue2/15 bg-themeblue2/5 px-4 py-3 flex items-center gap-3">
-            <Stethoscope size={18} className="text-themeblue2 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-primary">Cluster Note Templates</p>
-              <p className="text-[9pt] text-tertiary mt-0.5">
-                Manage shared text shortcuts and order sets in Note Content
-              </p>
-            </div>
-          </div>
-        )}
+        {/* ── Pre-Combat Checks (clinic-only; huddle/rooms/appt types/colors live in calendar settings) ── */}
+        <CalendarClinicEditor variant="clinic" />
 
       </div>
 

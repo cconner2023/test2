@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { Copy, Check, X as XIcon, ChevronDown, Spline, Hexagon } from 'lucide-react';
+import { Copy, Check, ChevronDown, Spline, Hexagon } from 'lucide-react';
 import { latLngToMgrs } from '../../lib/mgrsFormat';
 import { latLngToUTM } from './utmProjection';
 import type { OverlayFeature, WaypointType } from '../../Types/MapOverlayTypes';
@@ -34,12 +34,6 @@ interface FeatureEditorProps {
   linkedEventCount?: number;
   /** Open the per-feature event multi-pick popover anchored to the supplied element. */
   onOpenLinksEditor?: (anchor: HTMLElement) => void;
-  /** True when the overlay has unsaved feature/geometry edits. Drives the Save/Cancel pills. */
-  isDirty?: boolean;
-  /** Commit the draft through the overlay's diff-based save pipeline. */
-  onSave?: () => void;
-  /** Discard the draft and revert features to the last-saved snapshot. */
-  onCancel?: () => void;
   /** When true, swap the body into form-edit chrome: TextInput for label,
    *  PickerInput-style rows for TC3 + linked events. Read mode shows
    *  informational rows and action affordances only. */
@@ -91,7 +85,7 @@ function nearestWaypointLabel(
   return best ? best.label : null;
 }
 
-export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, onStartNavigation, linkedEventCount, onOpenLinksEditor, isDirty, onSave, onCancel, isEditMode = false }: FeatureEditorProps) {
+export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, onStartNavigation, linkedEventCount, onOpenLinksEditor, isEditMode = false }: FeatureEditorProps) {
   const [copied, setCopied] = useState(false);
   const bearingReference = useMapPrefsStore(s => s.bearingReference);
   // Phase 4.1 — TC3 link integration. We subscribe with selectors so the
@@ -328,35 +322,9 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
 
   return (
     <div data-tour="map-feature-editor" className="flex flex-col pb-[calc(env(safe-area-inset-bottom)+3rem)]">
-      {/* Draft Save/Cancel — only renders when the overlay has unsaved edits.
-          Sits at the top so it's reachable without scrolling on tall editors. */}
-      {isDirty && (onSave || onCancel) && (
-        <div className="px-3 py-2 border-b border-primary/6 flex items-center gap-2 bg-themeblue3/5">
-          <span className="flex-1 text-[10pt] text-tertiary">Unsaved changes</span>
-          {onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
-              aria-label="Discard changes"
-              title="Discard changes"
-            >
-              <XIcon size={15} />
-            </button>
-          )}
-          {onSave && (
-            <button
-              type="button"
-              onClick={onSave}
-              className="w-9 h-9 rounded-full flex items-center justify-center text-themewhite bg-themeblue3 active:scale-95 transition-all"
-              aria-label="Save changes"
-              title="Save changes"
-            >
-              <Check size={15} />
-            </button>
-          )}
-        </div>
-      )}
+      {/* Save/Cancel for the draft now live in the drawer/pane header pill
+          cluster (see MapOverlayPanel) — the Pencil toggle swaps to Check + X
+          while in edit mode. No in-body banner. */}
       {/* ─────────────────────────── EDIT MODE ───────────────────────────
           Form-field chrome: label TextInput, glyph picker, color picker,
           TC3 + linked-events PickerInput selectors, notes textarea.

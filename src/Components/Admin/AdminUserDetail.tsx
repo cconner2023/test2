@@ -42,6 +42,8 @@ import {
   setUserLoans,
   listUserLoans,
   createUser,
+  updateUserEmail,
+  isValidEmail,
 } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import { ClinicPickerInput } from './AdminPickers'
@@ -148,6 +150,7 @@ export function AdminUserDetail({
   const [clusterBusy, setClusterBusy] = useState(false)
 
   // ── Edit state ──────────────────────────────────────────────────────
+  const [editEmail, setEditEmail] = useState('')
   const [editFirstName, setEditFirstName] = useState('')
   const [editLastName, setEditLastName] = useState('')
   const [editMiddleInitial, setEditMiddleInitial] = useState('')
@@ -241,6 +244,7 @@ export function AdminUserDetail({
   const prevEditingRef = useRef(false)
   useEffect(() => {
     if (editing && !prevEditingRef.current) {
+      setEditEmail(user?.email || '')
       setEditFirstName(user?.first_name || '')
       setEditLastName(user?.last_name || '')
       setEditMiddleInitial(user?.middle_initial || '')
@@ -278,7 +282,8 @@ export function AdminUserDetail({
     if (!editing) { onPendingChangesChange?.(false); return }
     const sameLoans = editLoanClinicIds.size === originalLoanClinicIds.size
       && Array.from(editLoanClinicIds).every((id) => originalLoanClinicIds.has(id))
-    const changed = editFirstName !== (user?.first_name || '')
+    const changed = editEmail !== (user?.email || '')
+      || editFirstName !== (user?.first_name || '')
       || editLastName !== (user?.last_name || '')
       || editMiddleInitial !== (user?.middle_initial || '')
       || editCredential !== (user?.credential || '')
@@ -290,7 +295,7 @@ export function AdminUserDetail({
       || !sameStringSet(editRoles, user?.roles ?? ['medic'])
 
     onPendingChangesChange?.(changed)
-  }, [editing, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editLoanClinicIds, originalLoanClinicIds, editRoles, user, onPendingChangesChange])
+  }, [editing, editEmail, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editLoanClinicIds, originalLoanClinicIds, editRoles, user, onPendingChangesChange])
 
   // ── Handlers ────────────────────────────────────────────────────────
 
@@ -374,6 +379,13 @@ export function AdminUserDetail({
 
     if (!user) return
 
+    const trimmedEmail = editEmail.trim().toLowerCase()
+    const emailChanged = trimmedEmail !== (user.email || '').toLowerCase()
+    if (emailChanged && !isValidEmail(editEmail)) {
+      setError('Enter a valid email address.')
+      return
+    }
+
     setSaving(true)
     setError(null)
 
@@ -394,6 +406,9 @@ export function AdminUserDetail({
     const plan: StepResult[] = [
       { key: 'profile', label: 'Profile fields applied', ok: false, pending: true },
     ]
+    if (emailChanged) {
+      plan.push({ key: 'email', label: 'Email updated', ok: false, pending: true })
+    }
     if (rolesChanged) {
       plan.push({ key: 'roles', label: `Roles set (${chosenRoles.join(', ')})`, ok: false, pending: true })
     }
@@ -441,6 +456,16 @@ export function AdminUserDetail({
         label: 'Profile fields applied',
         ok: r.success,
         error: r.success ? undefined : (r.error || 'Failed to update profile'),
+      })
+    }
+
+    if (emailChanged && !alreadyOk('email')) {
+      const r = await updateUserEmail(user.id, trimmedEmail)
+      upsert({
+        key: 'email',
+        label: 'Email updated',
+        ok: r.success,
+        error: r.success ? undefined : (r.error || 'Failed to update email'),
       })
     }
 
@@ -496,7 +521,7 @@ export function AdminUserDetail({
     setSaving(false)
     // Partial failure — overlay reverts from modal mode to form+steps so the
     // admin can adjust and retry. The alreadyOk() guard skips the successes.
-  }, [user, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editLoanClinicIds, originalLoanClinicIds, editRoles, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated, stepResults])
+  }, [user, editEmail, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editLoanClinicIds, originalLoanClinicIds, editRoles, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated, stepResults])
 
   // ── Save requested trigger ───────────────────────────────────────────
   useEffect(() => {
@@ -848,9 +873,18 @@ export function AdminUserDetail({
                 className="w-11 h-11"
               />
               <div className="flex-1 min-w-0">
-                <p className="text-[9pt] font-normal text-tertiary">{user.email}</p>
+                <p className="text-sm font-medium text-primary truncate">{userName}</p>
               </div>
             </div>
+            <TextInput
+              value={editEmail}
+              onChange={setEditEmail}
+              placeholder="Email *"
+              type="email"
+              required
+              currentValue={editEmail !== (user.email || '') ? user.email : undefined}
+              hint={editEmail.length > 0 && !isValidEmail(editEmail) ? 'Enter a valid email address.' : undefined}
+            />
             <TextInput value={editFirstName} onChange={setEditFirstName} placeholder="First Name *" required />
             <div className="flex items-stretch border-b border-primary/6">
               <div className="flex-1 min-w-0">

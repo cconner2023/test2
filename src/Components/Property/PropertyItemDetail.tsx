@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react'
-import { ScanLine, ArrowRightLeft, GitMerge, Plus, Minus, Check, X } from 'lucide-react'
+import { ScanLine, ArrowRightLeft, GitMerge, Plus, Minus, Check, X, MessageSquare } from 'lucide-react'
 import { SectionCard } from '../Section'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
 import { usePropertyStore } from '../../stores/usePropertyStore'
+import { useShareToChat } from '../Messages/ShareToChatPicker'
 
 interface PropertyItemDetailProps {
   item: LocalPropertyItem
@@ -45,6 +46,18 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
   const [showMergeSheet, setShowMergeSheet] = useState(false)
   const [splitQty, setSplitQty] = useState(1)
   const [splitTargetId, setSplitTargetId] = useState<string | null>(null)
+
+  const { share: shareToChat, picker: shareToChatPicker } = useShareToChat()
+  const handleShareToChat = () => {
+    const qty = item.is_serialized ? (item.serial_number ? `SN ${item.serial_number}` : 'Serialized') : `Qty ${item.quantity}`
+    shareToChat({
+      type: 'shared_ref',
+      refKind: 'property-item',
+      refId: item.id,
+      label: item.name || item.nomenclature || 'Item',
+      subLabel: item.nsn ? `${qty} · NSN ${item.nsn}` : qty,
+    })
+  }
 
   const mergeCandidates = useMemo(() =>
     items.filter(i =>
@@ -163,6 +176,16 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
       )}
 
       {/* Action buttons */}
+      <button
+        onClick={handleShareToChat}
+        className={`w-full flex items-center justify-center gap-2 rounded-2xl border border-tertiary/20 bg-themewhite2 font-medium text-secondary active:scale-95 transition-all duration-200 ${
+          isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-[10pt]'
+        }`}
+      >
+        <MessageSquare className={isMobile ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
+        Share to chat
+      </button>
+
       <button
         onClick={onEnroll}
         className={`w-full flex items-center justify-center gap-2 rounded-2xl border border-tertiary/20 bg-themewhite2 font-medium text-secondary active:scale-95 transition-all duration-200 ${
@@ -318,6 +341,8 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
           </div>
         </>
       )}
+
+      {shareToChatPicker}
     </div>
   )
 }

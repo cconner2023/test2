@@ -1995,13 +1995,30 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                         : 'Area'))}
                   leftContent={(
                     <HeaderPill>
-                      <PillButton
-                        icon={Pencil}
-                        iconSize={18}
-                        onClick={handleToggleFeatureEditMode}
-                        label={isFeatureEditMode ? 'Exit edit mode' : 'Edit & move'}
-                        circleBg={isFeatureEditMode ? 'bg-themeblue3 text-white' : undefined}
-                      />
+                      {isFeatureEditMode ? (
+                        <>
+                          <PillButton
+                            icon={X}
+                            iconSize={18}
+                            onClick={handleCancelAndExitEdit}
+                            label="Discard changes"
+                          />
+                          <PillButton
+                            icon={Check}
+                            iconSize={18}
+                            onClick={handleSaveAndExitEdit}
+                            label="Save changes"
+                            accent={isDirty ? 'info' : undefined}
+                          />
+                        </>
+                      ) : (
+                        <PillButton
+                          icon={Pencil}
+                          iconSize={18}
+                          onClick={handleToggleFeatureEditMode}
+                          label="Edit & move"
+                        />
+                      )}
                     </HeaderPill>
                   )}
                   rightContent={(
@@ -2023,9 +2040,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                         return n + (explicit || implied ? 1 : 0)
                       }, 0)}
                       onOpenLinksEditor={(anchor) => handleOpenFeatureLinksEditor(selectedFeature.overlay_id, selectedFeature.id, anchor)}
-                      isDirty={isDirty}
-                      onSave={handleSaveAndExitEdit}
-                      onCancel={handleCancelAndExitEdit}
                       isEditMode={isFeatureEditMode}
                     />
                   )}
@@ -2481,15 +2495,19 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                     )}
                     {isFeatureEditMode && <div className="flex-1" />}
                     <HeaderPill>
-                      <PillButton
-                        icon={Pencil}
-                        iconSize={18}
-                        onClick={handleToggleFeatureEditMode}
-                        label={isFeatureEditMode ? 'Exit edit mode' : 'Edit & move'}
-                        circleBg={isFeatureEditMode ? 'bg-themeblue3 text-white' : undefined}
-                      />
-                      <PillButton icon={Trash2} iconSize={18} variant="danger" onClick={handleDeleteSelected} label="Delete" />
-                      <PillButton icon={X} iconSize={18} onClick={() => setSelectedFeatureId(null)} label="Close" />
+                      {isFeatureEditMode ? (
+                        <>
+                          <PillButton icon={X} iconSize={18} onClick={handleCancelAndExitEdit} label="Discard changes" />
+                          <PillButton icon={Check} iconSize={18} onClick={handleSaveAndExitEdit} label="Save changes" accent={isDirty ? 'info' : undefined} />
+                          <PillButton icon={Trash2} iconSize={18} variant="danger" onClick={handleDeleteSelected} label="Delete" />
+                        </>
+                      ) : (
+                        <>
+                          <PillButton icon={Pencil} iconSize={18} onClick={handleToggleFeatureEditMode} label="Edit & move" />
+                          <PillButton icon={Trash2} iconSize={18} variant="danger" onClick={handleDeleteSelected} label="Delete" />
+                          <PillButton icon={X} iconSize={18} onClick={() => setSelectedFeatureId(null)} label="Close" />
+                        </>
+                      )}
                     </HeaderPill>
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto">
@@ -2505,9 +2523,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                         return n + (explicit || implied ? 1 : 0)
                       }, 0)}
                       onOpenLinksEditor={(anchor) => handleOpenFeatureLinksEditor(selectedFeature.overlay_id, selectedFeature.id, anchor)}
-                      isDirty={isDirty}
-                      onSave={handleSaveAndExitEdit}
-                      onCancel={handleCancelAndExitEdit}
                       isEditMode={isFeatureEditMode}
                     />
                   </div>

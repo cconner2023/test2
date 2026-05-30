@@ -65,6 +65,31 @@ export function MapSettingsBody({ showGrid, onToggleGrid }: MapSettingsBodyProps
             </button>
           </div>
 
+          {/* Always-on labels toggle — off = labels only on selected feature */}
+          <div data-tour="map-settings-label-mode" className="flex items-center justify-between px-4 py-3 border-t border-themeblue3/10">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 shrink-0 rounded-full bg-themewhite flex items-center justify-center text-tertiary">
+                <Tag size={17} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-primary">Always show labels</p>
+                <p className="text-[10pt] text-tertiary truncate">Off: only the selected feature</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLabelMode(labelMode === 'always' ? 'selected' : 'always')}
+              aria-pressed={labelMode === 'always'}
+              className={`shrink-0 w-11 h-6 rounded-full relative transition-colors duration-200
+                ${labelMode === 'always' ? 'bg-themeblue3' : 'bg-tertiary/20'}`}
+            >
+              <span
+                className={`absolute top-0.5 w-5 h-5 rounded-full bg-themewhite shadow-sm transition-all duration-200
+                  ${labelMode === 'always' ? 'left-[1.375rem]' : 'left-0.5'}`}
+              />
+            </button>
+          </div>
+
           {/* Bearing reference — icon row + compact right-aligned pill */}
           <div data-tour="map-settings-bearing-ref" className="flex items-center justify-between px-4 py-3 border-t border-themeblue3/10">
             <div className="flex items-center gap-3 min-w-0">
@@ -130,31 +155,6 @@ export function MapSettingsBody({ showGrid, onToggleGrid }: MapSettingsBodyProps
                 );
               })}
             </div>
-          </div>
-
-          {/* Always-on labels toggle — off = labels only on selected feature */}
-          <div data-tour="map-settings-label-mode" className="flex items-center justify-between px-4 py-3 border-t border-themeblue3/10">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 shrink-0 rounded-full bg-themewhite flex items-center justify-center text-tertiary">
-                <Tag size={17} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-primary">Always show labels</p>
-                <p className="text-[10pt] text-tertiary truncate">Off: only the selected feature</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setLabelMode(labelMode === 'always' ? 'selected' : 'always')}
-              aria-pressed={labelMode === 'always'}
-              className={`shrink-0 w-11 h-6 rounded-full relative transition-colors duration-200
-                ${labelMode === 'always' ? 'bg-themeblue3' : 'bg-tertiary/20'}`}
-            >
-              <span
-                className={`absolute top-0.5 w-5 h-5 rounded-full bg-themewhite shadow-sm transition-all duration-200
-                  ${labelMode === 'always' ? 'left-[1.375rem]' : 'left-0.5'}`}
-              />
-            </button>
           </div>
         </div>
       </div>

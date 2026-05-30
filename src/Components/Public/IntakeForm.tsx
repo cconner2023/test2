@@ -4,7 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { DateTimeRow, combineDateTime } from './IntakePickers'
 import { IntakeRejectDialog } from './IntakeRejectDialog'
 import { OncallCallView } from './OncallCallView'
-import { submitClusterMessage } from '../../lib/oncallAnonService'
+import { submitClusterMessage, submitEventIntake } from '../../lib/oncallAnonService'
 
 interface IntakeFormProps {
   supabase: SupabaseClient
@@ -28,11 +28,14 @@ type SubmitState =
  * Public outside-event-intake form. Two-stage UX matching the main app's
  * LoginScreen visual language (logo, card surface, circular reveal action).
  *
- * Stage 1 gates on the passphrase before the event form is revealed or an
- * on-call ring is placed: Continue calls verify_event_intake_credential, which
- * runs the same bcrypt + dummy-hash check as submit_event_intake. submit/
- * request_oncall re-check server-side regardless — the early verify is a UX
- * gate, not the security boundary.
+ * Stage 1 collects the passcode + passphrase, then Continue advances to the
+ * chosen channel (event form / call / message). There is NO separate verify
+ * round-trip: the terminal action (submit_event_intake / request_oncall /
+ * submit_cluster_message) is the single bcrypt check, and each is per-credential
+ * rate-limited server-side. A dedicated verify RPC was removed because it was a
+ * pure passphrase oracle — unlimited yes/no guessing with no side effect. The
+ * cost is that a wrong passphrase is caught at submit, not at Continue; the
+ * existing reject-and-reset recovery handles that.
  */
 export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
   const [passcode, setPasscode] = useState(initialPasscode)
@@ -49,7 +52,6 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
   const [title, setTitle] = useState('')
   const [submit, setSubmit] = useState<SubmitState>({ kind: 'idle' })
   const [callActive, setCallActive] = useState(false)
-  const [verifying, setVerifying] = useState(false)
   // After the passphrase is accepted, outside callers pick a channel: submit an
   // event request or place a live call. Only offered when the section allows
   // calls; otherwise event request is the only path and no chooser is shown.
@@ -97,76 +99,68 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
     if (initialPasscode) resolveCode(initialPasscode)
   }, [initialPasscode, resolveCode])
 
-  const onContinue = useCallback(async () => {
+  const onContinue = useCallback(() => {
     if (stage1.kind !== 'resolved') return
-    if (passphrase.trim().length === 0 || verifying) return
-    setVerifying(true)
-    try {
-      const { error } = await supabase.rpc('verify_event_intake_credential', {
-        p_passcode: passcode,
-        p_passphrase: passphrase.trim(),
-      })
-      if (error) {
-        // Bad passphrase — same recovery as a rejected submission: clear both
-        // credential fields, drop to stage 1, surface the reject card.
-        setShowStage2(false)
-        setPasscode('')
-        setPassphrase('')
-        setStage1({ kind: 'idle' })
-        setSubmit({ kind: 'rejected' })
-        return
-      }
-      if (channel === 'call' && stage1.oncallEnabled) {
-        setCallActive(true)
-        return
-      }
-      if (channel === 'message' && stage1.messageEnabled) {
-        setMessageActive(true)
-        return
-      }
-      setShowStage2(true)
-    } catch {
-      setSubmit({ kind: 'rejected' })
-    } finally {
-      setVerifying(false)
+    if (passphrase.trim().length === 0) return
+    // No verify round-trip (the oracle is gone) — just advance to the chosen
+    // channel. The terminal action does the single bcrypt check + rate-limit.
+    if (channel === 'call' && stage1.oncallEnabled) {
+      setCallActive(true)
+      return
     }
-  }, [supabase, stage1, passphrase, passcode, channel, verifying])
+    if (channel === 'message' && stage1.messageEnabled) {
+      setMessageActive(true)
+      return
+    }
+    setShowStage2(true)
+  }, [stage1, passphrase, channel])
 
   const onSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
+    if (stage1.kind !== 'resolved') return
     const startDt = combineDateTime(startDate, startTime)
     const endDt = combineDateTime(endDate, endTime)
     if (!startDt || !endDt) return
+    // Intake is now sealed to the clinic inbound key, so a key is required. A
+    // credential minted before sealing (no key) can't take events until its
+    // passcode is rotated to provision one — surface the standard reject.
+    if (!stage1.recipientPub) {
+      setSubmit({ kind: 'rejected' })
+      setShowStage2(false)
+      setPasscode('')
+      setPassphrase('')
+      setStage1({ kind: 'idle' })
+      return
+    }
     setSubmit({ kind: 'submitting' })
-    try {
-      const payload = {
+    // Seal the detail (incl. any identifiers a requester might type) to the
+    // clinic inbound key before it leaves the device — server stores ciphertext.
+    const ok = await submitEventIntake(supabase, {
+      passcode,
+      passphrase: passphrase.trim(),
+      recipientPubB64: stage1.recipientPub,
+      detail: {
         requester_name: name.trim(),
         requester_org: org.trim() || null,
         requester_email: email.trim(),
         requested_start: startDt.toISOString(),
         requested_end: endDt.toISOString(),
         title: title.trim(),
-      }
-      const { error } = await supabase.rpc('submit_event_intake', {
-        p_passcode: passcode,
-        p_passphrase: passphrase.trim(),
-        p_payload: payload,
-      })
-      if (error) {
-        setSubmit({ kind: 'rejected' })
-        // Drop back to stage 1 with both credential fields cleared so the
-        // requester re-enters from scratch.
-        setShowStage2(false)
-        setPasscode('')
-        setPassphrase('')
-        setStage1({ kind: 'idle' })
-        return
-      }
-      setSubmit({ kind: 'submitted' })
-    } catch {
+      },
+    })
+    if (!ok) {
       setSubmit({ kind: 'rejected' })
+      // Drop back to stage 1 with both credential fields cleared so the
+      // requester re-enters from scratch.
+      setShowStage2(false)
+      setPasscode('')
+      setPassphrase('')
+      setStage1({ kind: 'idle' })
+      return
     }
-  }, [supabase, name, org, email, startDate, startTime, endDate, endTime, title, passcode, passphrase])
+    setSubmittedVia('event')
+    setSubmit({ kind: 'submitted' })
+  }, [supabase, stage1, name, org, email, startDate, startTime, endDate, endTime, title, passcode, passphrase])
 
   // One-way cluster message: seal the body to the clinic inbound key (inside
   // submitClusterMessage) and fan it to the cluster. Same reject recovery as event.
@@ -420,10 +414,9 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
                   <button
                     type="button"
                     onClick={onContinue}
-                    disabled={verifying}
                     className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white active:scale-95 transition-all"
                   >
-                    {verifying ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
+                    <Check size={16} />
                   </button>
                 </div>
               </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Pencil, X, Share2, Map as MapIcon, Copy, Check, Printer, Image, Ban, CircleDashed, Play, CheckCircle2, Clock } from 'lucide-react'
+import { Pencil, X, Share2, Map as MapIcon, Copy, Check, Printer, Image, Ban, CircleDashed, Play, CheckCircle2, Clock, MessageSquare } from 'lucide-react'
 import { reverseGeocode } from '../MapOverlay/searchResolver'
 import { latLngToUTM } from '../MapOverlay/utmProjection'
 import type { LucideIcon } from 'lucide-react'
@@ -14,6 +14,7 @@ import { HeaderPill, PillButton } from '../HeaderPill'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { shareSingleEvent } from '../../lib/calendarExport'
 import { useIsMobile } from '../../Hooks/useIsMobile'
+import { useShareToChat } from '../Messages/ShareToChatPicker'
 import { medevacToText, medevacToCompact, copyToClipboard, printReport } from '../../lib/reportExport'
 import { BarcodeDisplay } from '../Barcode'
 
@@ -104,6 +105,17 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
   const [copiedDm, setCopiedDm] = useState<'image' | 'code' | null>(null)
   const barcodeRef = useRef<HTMLDivElement>(null)
 
+  const { share: shareToChat, picker: shareToChatPicker } = useShareToChat()
+  const handleShareToChat = () => {
+    shareToChat({
+      type: 'shared_ref',
+      refKind: 'calendar-event',
+      refId: event.id,
+      label: event.title || 'Event',
+      subLabel: formatDateTime(event.start_time, event.all_day),
+    })
+  }
+
   function handleMedevacCopy() {
     if (!event.medevac_data) return
     copyToClipboard(medevacToText(event.medevac_data)).then(() => {
@@ -147,6 +159,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
                 <PillButton icon={StatusIcon} iconSize={16} onClick={openStatusMenu} label="Status" />
               </div>
             )}
+            <PillButton icon={MessageSquare} iconSize={16} onClick={handleShareToChat} label="Share to chat" />
             <PillButton icon={Share2} iconSize={16} onClick={() => shareSingleEvent(event).catch(() => {})} label="Add to phone calendar" />
             {showCancelTemplate && (
               <PillButton icon={Ban} iconSize={16} onClick={() => onCancelTemplate?.(event.id)} label="Cancel appointment" />
@@ -368,6 +381,8 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
           <ContextMenu x={statusMenu.x} y={statusMenu.y} onClose={() => setStatusMenu(null)} items={items} />
         )
       })()}
+
+      {shareToChatPicker}
     </div>
   )
 }

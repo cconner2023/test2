@@ -96,14 +96,8 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
         const content: IntakeRequestContent = {
           type: 'intake_request',
           intake_id: String(maybeIntake.intake_id),
-          requester_name: String(maybeIntake.requester_name ?? ''),
-          requester_email: String(maybeIntake.requester_email ?? ''),
-          requested_start: String(maybeIntake.requested_start ?? ''),
-          requested_end: String(maybeIntake.requested_end ?? ''),
-          title: String(maybeIntake.title ?? ''),
-          ...(maybeIntake.requester_org
-            ? { requester_org: String(maybeIntake.requester_org) }
-            : {}),
+          clinic_id: String(maybeIntake.clinic_id ?? ''),
+          sealed: maybeIntake.sealed as IntakeRequestContent['sealed'],
         }
         return {
           id: row.id,

@@ -30,7 +30,6 @@ type State = 'name' | 'placing' | 'ringing' | 'connecting' | 'connected' | 'voic
 export function OncallCallView({ supabase, passcode, passphrase, clinicName, onReject, onClose }: Props) {
   const [state, setState] = useState<State>('name')
   const [name, setName] = useState('')
-  const [targetCount, setTargetCount] = useState(0)
   const [elapsed, setElapsed] = useState(0)
   const [muted, setMuted] = useState(false)
 
@@ -153,8 +152,9 @@ export function OncallCallView({ supabase, passcode, passphrase, clinicName, onR
       callIdRef.current = res.data.call_id
       recipientPubRef.current = res.data.recipient_pub
       greetingRef.current = res.data.voicemail_greeting
-      setTargetCount(res.data.push_target_count)
-      if (res.data.push_target_count === 0) {
+      // No exact on-call headcount any more (staffing recon) — just ring vs
+      // straight-to-voicemail when nobody is on-call.
+      if (!res.data.will_ring) {
         goVoicemail()
         return
       }
@@ -228,7 +228,7 @@ export function OncallCallView({ supabase, passcode, passphrase, clinicName, onR
             <Phone size={26} className="text-themeblue3 animate-pulse" />
           </div>
           <p className="text-sm font-medium text-primary mb-1">
-            {state === 'placing' ? 'Connecting…' : state === 'connecting' ? 'Answering…' : `Ringing ${targetCount} medic${targetCount === 1 ? '' : 's'}…`}
+            {state === 'placing' ? 'Connecting…' : state === 'connecting' ? 'Answering…' : 'Ringing on-call…'}
           </p>
           <p className="text-[10pt] text-secondary">{state === 'ringing' ? 'This can take up to 30 seconds.' : 'Please wait.'}</p>
           <div className="flex justify-center mt-5">

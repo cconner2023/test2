@@ -1,14 +1,12 @@
-import { useState, useCallback, useMemo, useRef } from 'react';
-import { LogOut, ChevronRight, Trash2, Calendar, Check, Copy, QrCode, Share2, Pencil, RefreshCw, CheckCircle, Plus, KeyRound } from 'lucide-react';
+import { useState, useCallback, useRef } from 'react';
+import { LogOut, ChevronRight, Trash2, Check, Copy, QrCode, Share2, Pencil, RefreshCw, CheckCircle, Plus, KeyRound } from 'lucide-react';
 import bwipjs from 'bwip-js';
 import { useAuth } from '../../Hooks/useAuth';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { useCalendarStore } from '../../stores/useCalendarStore';
 import { useNavigationStore } from '../../stores/useNavigationStore';
 import { useCertifications } from '../../Hooks/useCertifications';
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime';
 import { useIsMobile } from '../../Hooks/useIsMobile';
-import type { CalendarEvent } from '../../Types/CalendarTypes';
 import type { Component } from '../../Data/User';
 import { credentials, components, ranksByComponent } from '../../Data/User';
 import { useAvatar } from '../../Utilities/AvatarContext';
@@ -29,23 +27,6 @@ import { submitProfileChangeRequest } from '../../lib/accountRequestService';
 import { PickerInput } from '../FormInputs';
 import { ErrorDisplay } from '../ErrorDisplay';
 
-function formatEventDate(evt: CalendarEvent): string {
-  const start = new Date(evt.start_time)
-  const today = new Date(); today.setHours(0, 0, 0, 0)
-  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1)
-  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1)
-  const eventDay = new Date(start); eventDay.setHours(0, 0, 0, 0)
-
-  let dayLabel: string
-  if (eventDay.getTime() === today.getTime()) dayLabel = 'Today'
-  else if (eventDay.getTime() === yesterday.getTime()) dayLabel = 'Yesterday'
-  else if (eventDay.getTime() === tomorrow.getTime()) dayLabel = 'Tomorrow'
-  else dayLabel = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-
-  if (evt.all_day) return dayLabel
-  return `${dayLabel} · ${start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
-}
-
 interface ProfilePageProps {
     onAvatarClick: () => void;
     onNavigate: (panel: 'change-password') => void;
@@ -64,31 +45,9 @@ export const ProfilePage = ({
     const { profile, user } = useAuth();
     const userEmail = useAuthStore(s => s.user?.email ?? '');
     const deviceRole = useAuthStore(s => s.deviceRole);
-    const calendarEvents = useCalendarStore(s => s.events);
-    const setShowSettings = useNavigationStore(s => s.setShowSettings);
-    const setShowCalendarDrawer = useNavigationStore(s => s.setShowCalendarDrawer);
-    const now = useMemo(() => new Date(), []);
 
     const { certs, loading: certsLoading, addCert, updateCert, removeCert } = useCertifications();
     const showCertsLoading = useMinLoadTime(certsLoading);
-
-    const myEvents = useMemo(() => {
-        if (!user?.id) return []
-        const past7 = new Date(now); past7.setDate(past7.getDate() - 7)
-        const future14 = new Date(now); future14.setDate(future14.getDate() + 14)
-        return calendarEvents
-            .filter(e => {
-                const start = new Date(e.start_time)
-                const end = new Date(e.end_time)
-                return end >= past7 && start <= future14 && e.status !== 'cancelled' && e.assigned_to.includes(user.id)
-            })
-            .sort((a, b) => a.start_time.localeCompare(b.start_time))
-    }, [calendarEvents, user?.id, now])
-
-    const handleOpenCalendar = useCallback(() => {
-        setShowSettings(false)
-        setShowCalendarDrawer(true)
-    }, [setShowSettings, setShowCalendarDrawer])
 
     // Sign out / delete dialogs
     const [showSignOut, setShowSignOut] = useState(false);
@@ -461,38 +420,6 @@ export const ProfilePage = ({
                     </div>
                 </section>
 
-
-                {/* Schedule */}
-                <div>
-                    <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">
-                        Schedule
-                    </p>
-                    <div className="relative">
-                        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-                            {myEvents.length === 0 ? (
-                                <p className="text-sm text-tertiary px-4 py-3">No events in the next 14 days</p>
-                            ) : (
-                                myEvents.map((evt, idx) => {
-                                    const isPast = new Date(evt.end_time) < now
-                                    return (
-                                        <div
-                                            key={evt.id}
-                                            className={`flex items-center gap-3 px-4 py-3 transition-opacity ${idx > 0 ? 'border-t border-tertiary/8' : ''} ${isPast ? 'opacity-50' : ''}`}
-                                        >
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-primary truncate">{evt.title}</p>
-                                                <p className="text-[9pt] text-tertiary">{formatEventDate(evt)}</p>
-                                            </div>
-                                        </div>
-                                    )
-                                })
-                            )}
-                        </div>
-                        <ActionPill shadow="sm" placement="overlay">
-                            <ActionButton icon={Calendar} label="View in calendar" onClick={handleOpenCalendar} />
-                        </ActionPill>
-                    </div>
-                </div>
 
                 {/* Account Actions */}
                 <div className="rounded-2xl border border-themeredred/10 bg-themewhite2 overflow-hidden">

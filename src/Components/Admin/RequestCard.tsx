@@ -19,6 +19,8 @@ import {
   setUserRoles,
   setUserClinic,
   sendApprovalEmail,
+  updateAccountRequestEmail,
+  isValidEmail,
 } from '../../lib/adminService'
 import type { AdminClinic } from '../../lib/adminService'
 import type { AccountRequest } from '../../lib/accountRequestService'
@@ -73,6 +75,7 @@ export function RequestCard({
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
 
   // ── Form state (only used when expanded + pending) ──────
+  const [email, setEmail] = useState(request.email || '')
   const [firstName, setFirstName] = useState(request.first_name || '')
   const [lastName, setLastName] = useState(request.last_name || '')
   const [middleInitial, setMiddleInitial] = useState(request.middle_initial || '')
@@ -128,8 +131,20 @@ export function RequestCard({
 
     // Step 1: create account — non-idempotent, never retried once successful.
     let userId = approvedUserId
-    let email = approvedEmail
+    let approvedEmailLocal = approvedEmail
     if (!alreadyOk('approve')) {
+      // Persist any email correction first — approve_account_request bakes the
+      // stored account_requests.email into auth.users, so fixing it here (before
+      // the account exists) is the earliest, surgery-free catch for typos.
+      const trimmedEmail = email.trim().toLowerCase()
+      if (trimmedEmail !== (request.email || '').toLowerCase()) {
+        const upd = await updateAccountRequestEmail(request.id, trimmedEmail)
+        if (!upd.success) {
+          setError(upd.error || 'Failed to update email')
+          setProcessing(false)
+          return
+        }
+      }
       const r = await approveAccountRequest(request.id)
       if (!r.success) {
         // Approval itself failed — surface as top-level error so the form
@@ -139,9 +154,9 @@ export function RequestCard({
         return
       }
       userId = r.userId
-      email = r.email
+      approvedEmailLocal = r.email
       setApprovedUserId(userId)
-      setApprovedEmail(email)
+      setApprovedEmail(approvedEmailLocal)
       upsert({ key: 'approve', label: 'Account created', ok: true })
       setStepResults([...next])
     }
@@ -196,8 +211,8 @@ export function RequestCard({
     }
 
     // Step 5: approval email
-    if (email && !alreadyOk('email')) {
-      const r = await sendApprovalEmail(email)
+    if (approvedEmailLocal && !alreadyOk('email')) {
+      const r = await sendApprovalEmail(approvedEmailLocal)
       upsert({
         key: 'email',
         label: 'Approval email sent',
@@ -220,12 +235,16 @@ export function RequestCard({
       })
     }
   }, [
-    request, firstName, lastName, middleInitial, credential, component, rank, uic,
+    request, email, firstName, lastName, middleInitial, credential, component, rank, uic,
     roles, selectedClinicId, onApproved, onRefresh,
     stepResults, approvedUserId, approvedEmail,
   ])
 
   const handleApprove = useCallback(() => {
+    if (!isValidEmail(email)) {
+      setError('Enter a valid email address.')
+      return
+    }
     if (uic.trim().length !== 6) {
       setError('UIC must be exactly 6 characters.')
       return
@@ -235,7 +254,7 @@ export function RequestCard({
       return
     }
     runApproveSteps()
-  }, [uic, roles, runApproveSteps])
+  }, [email, uic, roles, runApproveSteps])
 
   const handleRetryFailed = useCallback(() => {
     setStepResults(prev => prev.map(s => s.ok ? s : { ...s, error: undefined }))
@@ -318,7 +337,7 @@ export function RequestCard({
       ? 'Approve request'
       : 'Rejected request'
 
-  const canApprove = uic.length === 6 && roles.length > 0 && !processing
+  const canApprove = isValidEmail(email) && uic.length === 6 && roles.length > 0 && !processing
   // Once the account is created, the form is locked into "post-approve" mode:
   // Reject is gone (account exists), Approve becomes Retry-failed or Done.
   const accountCreated = approvedUserId !== null
@@ -503,6 +522,14 @@ export function RequestCard({
                   {request.notes || 'No justification provided'}
                 </p>
               </div>
+              <TextInput
+                value={email}
+                onChange={setEmail}
+                placeholder="Email *"
+                type="email"
+                required
+                hint={email.length > 0 && !isValidEmail(email) ? 'Enter a valid email address.' : undefined}
+              />
               <TextInput value={firstName} onChange={setFirstName} placeholder="First Name *" required />
               <div className="flex items-stretch border-b border-primary/6">
                 <div className="flex-1 min-w-0">

@@ -1195,3 +1195,60 @@ export async function updateUserProfile(
     return fail(getErrorMessage(error))
   }
 }
+
+/** Loose client-side email shape check — server re-validates authoritatively. */
+export function isValidEmail(email: string): boolean {
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())
+}
+
+/**
+ * Update an existing user's login email. Dev only.
+ * Email lives in auth.users + auth.identities (not profiles), so this goes
+ * through the admin_update_user_email RPC which updates both and preserves
+ * the confirmed state. The user keeps their password and logs in with the
+ * corrected address.
+ */
+export async function updateUserEmail(
+  userId: string,
+  email: string
+): Promise<ServiceResult> {
+  try {
+    const currentUser = useAuthStore.getState().user
+    if (!currentUser) return fail('Not authenticated')
+
+    const { error } = await supabase.rpc('admin_update_user_email', {
+      target_user_id: userId,
+      new_email: email,
+    })
+
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to update user email:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+/**
+ * Correct a pending account request's email before approval — the earliest
+ * point a typo can be caught, before any auth account is created. Dev has
+ * UPDATE RLS on account_requests (same path as reopenAccountRequest).
+ */
+export async function updateAccountRequestEmail(
+  requestId: string,
+  email: string
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase
+      .from('account_requests')
+      .update({ email: email.trim().toLowerCase() })
+      .eq('id', requestId)
+      .eq('status', 'pending')
+
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to update request email:', error)
+    return fail(getErrorMessage(error))
+  }
+}

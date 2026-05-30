@@ -157,19 +157,15 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         setShowDatePopover(false)
     }, [setSelectedDate])
 
-    // Layout prefs — two cards, each with icon-action-item toggle (mirrors ThemePickerPanel light/dark toggle)
-    const renderIconToggleCard = <T extends string | number | boolean>(
+    // View prefs — borderless rows (label + icon-toggle pill) stacked inside one card
+    const renderIconToggleRow = <T extends string | number | boolean>(
         label: string,
-        tagline: string,
         options: { value: T; icon: LucideIcon; ariaLabel: string }[],
         current: T,
         onPick: (v: T) => void,
     ) => (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-themeblue3/10 bg-themewhite2">
-            <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-primary">{label}</p>
-                <p className="text-[9pt] text-tertiary mt-0.5">{tagline}</p>
-            </div>
+        <div className="flex items-center gap-3 px-4 py-2.5">
+            <p className="flex-1 min-w-0 text-sm font-medium text-primary">{label}</p>
             <ActionPill className="shrink-0">
                 {options.map(opt => {
                     const isActive = current === opt.value
@@ -195,39 +191,39 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
     )
 
     const layoutSection = (
-        <div className="px-5 py-4 space-y-3">
-            {renderIconToggleCard<boolean>(
-                'Weekends',
-                hideWeekends ? 'Mon — Fri' : 'Mon — Sun',
-                [
-                    { value: false, icon: CalendarDays, ariaLabel: 'Show weekends' },
-                    { value: true, icon: CalendarOff, ariaLabel: 'Hide weekends' },
-                ],
-                hideWeekends,
-                setHideWeekends,
-            )}
-            {renderIconToggleCard<typeof daySpan>(
-                'Day view',
-                daySpan === 3 ? 'Three days at a time' : 'One day at a time',
-                [
-                    { value: 1, icon: Square, ariaLabel: 'Single day' },
-                    { value: 3, icon: Columns3, ariaLabel: 'Triple day' },
-                ],
-                daySpan,
-                setDaySpan,
-            )}
-            {renderIconToggleCard<typeof t2tZoom>(
-                'Troops to Task',
-                t2tZoom === 'expanded' ? '20-minute cells' : t2tZoom === 'day' ? 'One cell per day' : 'One cell per hour',
-                [
-                    { value: 'hour', icon: Clock, ariaLabel: 'Hourly cells' },
-                    { value: 'expanded', icon: Grid2x2, ariaLabel: '20-minute cells' },
-                    { value: 'day', icon: CalendarRange, ariaLabel: 'Daily cells' },
-                ],
-                t2tZoom,
-                setT2TZoom,
-            )}
-            {isSupervisorRole && <CalendarClinicEditor />}
+        <div className="px-5 py-4 space-y-2">
+            <p className="px-1 text-[10pt] font-medium text-tertiary uppercase tracking-wide">View</p>
+            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 py-1.5 divide-y divide-themeblue3/10">
+                {renderIconToggleRow<boolean>(
+                    'Weekends',
+                    [
+                        { value: false, icon: CalendarDays, ariaLabel: 'Show weekends' },
+                        { value: true, icon: CalendarOff, ariaLabel: 'Hide weekends' },
+                    ],
+                    hideWeekends,
+                    setHideWeekends,
+                )}
+                {renderIconToggleRow<typeof daySpan>(
+                    'Day view',
+                    [
+                        { value: 1, icon: Square, ariaLabel: 'Single day' },
+                        { value: 3, icon: Columns3, ariaLabel: 'Triple day' },
+                    ],
+                    daySpan,
+                    setDaySpan,
+                )}
+                {renderIconToggleRow<typeof t2tZoom>(
+                    'Troops to Task',
+                    [
+                        { value: 'hour', icon: Clock, ariaLabel: 'Hourly cells' },
+                        { value: 'expanded', icon: Grid2x2, ariaLabel: '20-minute cells' },
+                        { value: 'day', icon: CalendarRange, ariaLabel: 'Daily cells' },
+                    ],
+                    t2tZoom,
+                    setT2TZoom,
+                )}
+            </div>
+            {isSupervisorRole && <CalendarClinicEditor variant="calendar" />}
         </div>
     )
 

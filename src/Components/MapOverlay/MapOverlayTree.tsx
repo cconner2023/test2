@@ -1,8 +1,9 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
-import { ChevronRight, ChevronDown, Eye, EyeOff, Pencil, Trash2, X, Check, ArrowDownToLine, Wifi, Loader2, Plus, CalendarClock, Link2, Link2Off } from 'lucide-react';
+import { ChevronRight, ChevronDown, Eye, EyeOff, Pencil, Trash2, X, Check, ArrowDownToLine, Wifi, Loader2, Plus, CalendarClock, Link2, Link2Off, MessageSquare } from 'lucide-react';
 import { ContextMenu } from '../ContextMenu';
 import { EmptyState } from '../EmptyState';
 import { useLongPress } from '../../Hooks/useLongPress';
+import { useShareToChat } from '../Messages/ShareToChatPicker';
 import type { LocalMapOverlay, OverlayFeature } from '../../Types/MapOverlayTypes';
 import type { TileMetadata } from '../../lib/mapTileService';
 
@@ -127,6 +128,28 @@ export function MapOverlayTree({
   const renameInputRef = useRef<HTMLInputElement>(null);
   const [contextMenu, setContextMenu] = useState<{ overlayId: string; x: number; y: number } | null>(null);
   const [featureContextMenu, setFeatureContextMenu] = useState<{ overlayId: string; featureId: string; x: number; y: number } | null>(null);
+
+  const { share: shareToChat, picker: shareToChatPicker } = useShareToChat();
+  const shareOverlay = useCallback((overlay: LocalMapOverlay) => {
+    const count = overlay.features?.length ?? 0;
+    shareToChat({
+      type: 'shared_ref',
+      refKind: 'map-overlay',
+      refId: overlay.id,
+      label: overlay.name || 'Untitled overlay',
+      subLabel: overlay.description || `${count} ${count === 1 ? 'feature' : 'features'}`,
+    });
+  }, [shareToChat]);
+  const shareFeature = useCallback((overlay: LocalMapOverlay, feature: OverlayFeature) => {
+    shareToChat({
+      type: 'shared_ref',
+      refKind: 'map-overlay',
+      refId: overlay.id,
+      featureId: feature.id,
+      label: feature.label || 'Waypoint',
+      subLabel: overlay.name || 'Overlay',
+    });
+  }, [shareToChat]);
 
   const sorted = useMemo(
     () => [...overlays].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()),
@@ -346,6 +369,7 @@ export function MapOverlayTree({
             onClose={() => setContextMenu(null)}
             items={[
               { key: 'rename', label: 'Rename', icon: Pencil, onAction: () => startRename(overlay) },
+              { key: 'share-to-chat', label: 'Share to chat', icon: MessageSquare, onAction: () => shareOverlay(overlay) },
               isLinked
                 ? { key: 'unlink', label: 'Unlink event', icon: Link2Off, onAction: () => onUnlinkEvent(overlay.id) }
                 : {
@@ -392,6 +416,7 @@ export function MapOverlayTree({
             onClose={() => setFeatureContextMenu(null)}
             items={[
               { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onSelectFeature(feature, overlay.id) },
+              { key: 'share-to-chat', label: 'Share to chat', icon: MessageSquare, onAction: () => shareFeature(overlay, feature) },
               {
                 key: 'manage-links',
                 label: 'Manage event links…',
@@ -406,6 +431,8 @@ export function MapOverlayTree({
           />
         );
       })()}
+
+      {shareToChatPicker}
     </div>
   );
 }

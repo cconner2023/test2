@@ -1,5 +1,5 @@
 import { useRef, useCallback, useState, useEffect, useMemo } from 'react'
-import { Check, CheckCheck, X, Reply, Trash2, Clock, MessageSquare, Play, Pause, Copy, Download, CalendarPlus, Calendar, Map as MapIcon, Package, ChevronRight } from 'lucide-react'
+import { Check, CheckCheck, X, Reply, Trash2, Clock, MessageSquare, Play, Pause, Copy, Download, CalendarPlus, Calendar, Map as MapIcon, Package, ChevronRight, MoreHorizontal } from 'lucide-react'
 import { ActionButton } from '../ActionButton'
 import { GESTURE_THRESHOLDS, isInteractiveTarget } from '../../Utilities/GestureUtils'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
@@ -119,6 +119,7 @@ function formatDuration(seconds: number): string {
 
 const SWIPE_THRESHOLD = 80
 const SWIPE_MAX = 120
+const TRUNCATE_THRESHOLD = 280
 
 export function MessageBubble({
   message,
@@ -153,6 +154,7 @@ export function MessageBubble({
   const deleteIconRef = useRef<HTMLDivElement>(null)
   const [showFullImage, setShowFullImage] = useState(false)
   const [tapped, setTapped] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [playProgress, setPlayProgress] = useState(0)
@@ -435,6 +437,15 @@ export function MessageBubble({
     onLongPress?.(message, e.clientX, e.clientY)
   }, [message, onLongPress])
 
+  // Hover-only ellipses (desktop) — anchors the context menu to its own rect
+  // so the menu lands beside the message even without a pointer event.
+  const handleEllipsesClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    onLongPress?.(message, rect.left + rect.width / 2, rect.top + rect.height / 2)
+  }, [message, onLongPress])
+
   const handleImageTap = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     if (fullImageUrl) setShowFullImage(true)
@@ -614,16 +625,40 @@ export function MessageBubble({
       )
     }
 
-    return <p className="text-sm whitespace-pre-wrap break-words">{message.plaintext}</p>
+    const fullText = message.plaintext ?? ''
+    const shouldTruncate = fullText.length > TRUNCATE_THRESHOLD
+    const displayText = !expanded && shouldTruncate
+      ? fullText.slice(0, TRUNCATE_THRESHOLD).trimEnd() + '…'
+      : fullText
+    return (
+      <>
+        <p className="text-sm whitespace-pre-wrap break-words">{displayText}</p>
+        {shouldTruncate && (
+          <button
+            onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}
+            className={`text-[9pt] font-semibold mt-1 ${isOwn ? 'text-white/85 hover:text-white' : 'text-themeblue2 hover:text-themeblue3'} transition-colors`}
+          >
+            {expanded ? 'Show less' : 'Show more'}
+          </button>
+        )}
+      </>
+    )
   }
 
   return (
     <>
-      {/* Full-width layout container */}
-      <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} items-end px-1 mb-1.5`}>
-        {/* Avatar for received messages */}
-        {!isOwn && avatar && (
-          <div className="shrink-0 mb-0.5 mr-1.5">{avatar}</div>
+      {/* Full-width layout container — group enables hover-only ellipsis on desktop */}
+      <div className={`group flex ${isOwn ? 'justify-end' : 'justify-start'} items-center px-1 mb-1.5`}>
+        {/* Hover ellipses (desktop only) — left of own bubble */}
+        {isOwn && onLongPress && (
+          <button
+            onClick={handleEllipsesClick}
+            aria-label="Message actions"
+            className="hidden md:flex shrink-0 mr-1.5 w-7 h-7 rounded-full hover:bg-primary/10
+                       items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <MoreHorizontal size={14} className="text-tertiary" />
+          </button>
         )}
 
         {/* Detected-date affordance — rides inline to the left of the bubble.
@@ -640,8 +675,13 @@ export function MessageBubble({
           </button>
         )}
 
-        {/* Bubble wrapper — icons sit behind, bubble slides over them */}
-        <div className="relative max-w-[75%]" style={{ touchAction: 'pan-y' }}>
+        {/* Bubble wrapper — icons sit behind, bubble slides over them.
+            Text-like content gets a min-w-[240px] floor so headered bubbles look uniform;
+            images/voice carry their own intrinsic sizing so we don't force whitespace on them. */}
+        <div
+          className="relative max-w-[65%]"
+          style={{ touchAction: 'pan-y', minWidth: isImage || isVoice ? undefined : 240 }}
+        >
           {/* Reply icon — starts at left edge behind bubble, parallaxes outward on swipe right */}
           {swipeEnabled && (
             <div
@@ -681,9 +721,14 @@ export function MessageBubble({
                          ${highlighted ? 'ring-2 ring-themeblue3/60 ring-offset-1' : ''}
                          ${tapped ? 'scale-[0.97]' : ''} transition-all duration-300`}
             >
-              {/* Sender name label (group chats) */}
-              {senderName && !isOwn && (
-                <p className="text-[9pt] font-semibold text-themeblue2 mb-0.5">{senderName}</p>
+              {/* In-bubble header — avatar + sender name, separator line, then body.
+                  Group chats only (senderName present); 1:1 conversations skip the header
+                  since the peer is already identified by the conversation chrome. */}
+              {!isOwn && senderName && (
+                <div className={`flex items-center gap-1.5 ${isImage && !isVoice ? 'px-1 pt-1' : ''} pb-1.5 mb-1.5 border-b border-current/10`}>
+                  {avatar && <div className="shrink-0">{avatar}</div>}
+                  <span className="text-[9pt] font-semibold text-themeblue2 truncate">{senderName}</span>
+                </div>
               )}
               {renderContent()}
               <div className={`flex items-center gap-1 mt-0.5 ${isImage && !isVoice ? 'px-1.5' : ''} ${isOwn ? 'text-white/60' : 'text-tertiary'}`}>
@@ -718,6 +763,18 @@ export function MessageBubble({
             )}
           </div>
         </div>
+
+        {/* Hover ellipses (desktop only) — right of peer bubble */}
+        {!isOwn && onLongPress && (
+          <button
+            onClick={handleEllipsesClick}
+            aria-label="Message actions"
+            className="hidden md:flex shrink-0 ml-1.5 w-7 h-7 rounded-full hover:bg-primary/10
+                       items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <MoreHorizontal size={14} className="text-tertiary" />
+          </button>
+        )}
       </div>
 
       {/* Full-size image overlay */}

@@ -20,7 +20,10 @@ export interface RequestOncallResult {
   recipient_pub: string | null
   /** Cluster voicemail greeting — plaintext, played before recording on no-answer. */
   voicemail_greeting: OncallGreetingWire | null
-  push_target_count: number
+  /** Whether ANYONE will be paged (→ ring) vs nobody on-call (→ straight to voicemail).
+   *  Replaces the old push_target_count: the exact on-call headcount was staffing recon
+   *  and no longer leaves the server. */
+  will_ring: boolean
 }
 
 export async function requestOncall(
@@ -107,6 +110,49 @@ export async function markOncallMissedAnon(
   callId: string,
 ): Promise<void> {
   await supabase.rpc('mark_oncall_missed_anon', { p_passcode: passcode, p_call_id: callId })
+}
+
+/** The human-readable event-intake detail — sealed before it leaves the device. */
+export interface IntakeDetail {
+  requester_name: string
+  requester_org: string | null
+  requester_email: string
+  /** ISO timestamp. */
+  requested_start: string
+  /** ISO timestamp. */
+  requested_end: string
+  title: string
+}
+
+/**
+ * Outside→cluster EVENT-INTAKE submission. The whole detail blob is SEALED to the
+ * clinic inbound key (oncall_recipient_pub) BEFORE it leaves the device — the server
+ * only ever stores ciphertext, exactly like submitClusterMessage / the voicemail
+ * audio. Closes the one outside lane that used to put requester PII (and any patient
+ * identifiers a caller might type) in cleartext at rest. `recipientPubB64` is the
+ * clinic inbound pubkey from resolve_event_intake_code; absent → the clinic has no
+ * key and intake cannot be sealed (caller must surface an unavailable state).
+ */
+export async function submitEventIntake(
+  supabase: SupabaseClient,
+  args: { passcode: string; passphrase: string; recipientPubB64: string; detail: IntakeDetail },
+): Promise<boolean> {
+  let sealedPayload: { ciphertext: string; sealed_key: string; ephemeral_pub: string; nonce: string }
+  try {
+    const key = await generateAudioKey()
+    const ciphertext = await encryptText(key, JSON.stringify(args.detail))
+    const sealed = await sealAudioKey(key, args.recipientPubB64)
+    sealedPayload = { ciphertext, ...sealed }
+  } catch {
+    return false
+  }
+
+  const { error } = await supabase.rpc('submit_event_intake', {
+    p_passcode: args.passcode,
+    p_passphrase: args.passphrase,
+    p_sealed: sealedPayload,
+  })
+  return !error
 }
 
 /**

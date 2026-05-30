@@ -195,32 +195,12 @@ export async function resolveEventIntakeCode(
   return { ok: true, data: { clinicName: data.clinic_name as string } }
 }
 
-export interface IntakeSubmitPayload {
-  requester_name: string
-  requester_org: string | null
-  requester_email: string
-  requested_start: string
-  requested_end: string
-  title: string
-}
-
-export async function submitEventIntake(
-  passcode: string,
-  passphrase: string,
-  payload: IntakeSubmitPayload,
-): Promise<Result<{ status: 'submitted' }>> {
-  const res = await callRpc(
-    () => supabase.rpc('submit_event_intake', {
-      p_passcode: passcode,
-      p_passphrase: passphrase,
-      p_payload: payload,
-    }),
-    'submit_event_intake',
-    logger,
-  )
-  if (!res.ok) return res
-  return { ok: true, data: { status: 'submitted' } }
-}
+// NOTE: the event-intake SUBMISSION path lives in src/lib/oncallAnonService.ts
+// (submitEventIntake), which runs in the signal-free anon bundle and seals the
+// detail to the clinic inbound key before it leaves the device. It is NOT here:
+// this module imports the main authed `./supabase` client and the seal helpers
+// are anon-bundle-scoped. The former plaintext wrapper + IntakeSubmitPayload were
+// removed when intake moved to the sealed envelope.
 
 // ─── Triage (supervisor surface) ────────────────────────────────
 
