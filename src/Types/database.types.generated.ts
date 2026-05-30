@@ -223,6 +223,7 @@ export type Database = {
           location: string | null
           location_id: string | null
           name: string
+          oncall: string[]
           parent_clinic_id: string | null
           plan_instruction_tags: Json | null
           plan_order_sets: Json | null
@@ -250,6 +251,7 @@ export type Database = {
           location?: string | null
           location_id?: string | null
           name: string
+          oncall?: string[]
           parent_clinic_id?: string | null
           plan_instruction_tags?: Json | null
           plan_order_sets?: Json | null
@@ -277,6 +279,7 @@ export type Database = {
           location?: string | null
           location_id?: string | null
           name?: string
+          oncall?: string[]
           parent_clinic_id?: string | null
           plan_instruction_tags?: Json | null
           plan_order_sets?: Json | null
@@ -438,6 +441,10 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          oncall_enabled: boolean
+          oncall_recipient_pub: string | null
+          oncall_voicemail_greeting: Json | null
+          outside_message_enabled: boolean
           passcode: string
           passcode_rotated_at: string
           passphrase_hash: string
@@ -448,6 +455,10 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          oncall_enabled?: boolean
+          oncall_recipient_pub?: string | null
+          oncall_voicemail_greeting?: Json | null
+          outside_message_enabled?: boolean
           passcode: string
           passcode_rotated_at?: string
           passphrase_hash: string
@@ -458,6 +469,10 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          oncall_enabled?: boolean
+          oncall_recipient_pub?: string | null
+          oncall_voicemail_greeting?: Json | null
+          outside_message_enabled?: boolean
           passcode?: string
           passcode_rotated_at?: string
           passphrase_hash?: string
@@ -481,14 +496,14 @@ export type Database = {
           event_id: string | null
           id: string
           intake_request_origin_id: string | null
-          requested_end: string
-          requested_start: string
-          requester_email: string
-          requester_name: string
+          requested_end: string | null
+          requested_start: string | null
+          requester_email: string | null
+          requester_name: string | null
           requester_org: string | null
           status: string
           submitted_at: string
-          title: string
+          title: string | null
         }
         Insert: {
           approved_origin_id?: string | null
@@ -497,14 +512,14 @@ export type Database = {
           event_id?: string | null
           id?: string
           intake_request_origin_id?: string | null
-          requested_end: string
-          requested_start: string
-          requester_email: string
-          requester_name: string
+          requested_end?: string | null
+          requested_start?: string | null
+          requester_email?: string | null
+          requester_name?: string | null
           requester_org?: string | null
           status?: string
           submitted_at?: string
-          title: string
+          title?: string | null
         }
         Update: {
           approved_origin_id?: string | null
@@ -513,14 +528,14 @@ export type Database = {
           event_id?: string | null
           id?: string
           intake_request_origin_id?: string | null
-          requested_end?: string
-          requested_start?: string
-          requester_email?: string
-          requester_name?: string
+          requested_end?: string | null
+          requested_start?: string | null
+          requester_email?: string | null
+          requester_name?: string | null
           requester_org?: string | null
           status?: string
           submitted_at?: string
-          title?: string
+          title?: string | null
         }
         Relationships: [
           {
@@ -737,6 +752,35 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      intake_auth_throttle: {
+        Row: {
+          credential_id: string
+          fail_count: number
+          locked_until: string | null
+          window_start: string
+        }
+        Insert: {
+          credential_id: string
+          fail_count?: number
+          locked_until?: string | null
+          window_start?: string
+        }
+        Update: {
+          credential_id?: string
+          fail_count?: number
+          locked_until?: string | null
+          window_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intake_auth_throttle_credential_id_fkey"
+            columns: ["credential_id"]
+            isOneToOne: true
+            referencedRelation: "event_intake_credentials"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       location_tags: {
         Row: {
@@ -1408,6 +1452,60 @@ export type Database = {
         }
         Relationships: []
       }
+      signal_messages_delete_audit: {
+        Row: {
+          application_name: string | null
+          audit_id: number
+          deleted_at: string
+          deleted_by: string | null
+          group_id: string | null
+          is_vault_row: boolean | null
+          message_id: string
+          message_type: string | null
+          origin_id: string | null
+          recipient_device_id: string | null
+          recipient_id: string | null
+          row_created_at: string | null
+          sender_device_id: string | null
+          sender_id: string | null
+          txid: number
+        }
+        Insert: {
+          application_name?: string | null
+          audit_id?: number
+          deleted_at?: string
+          deleted_by?: string | null
+          group_id?: string | null
+          is_vault_row?: boolean | null
+          message_id: string
+          message_type?: string | null
+          origin_id?: string | null
+          recipient_device_id?: string | null
+          recipient_id?: string | null
+          row_created_at?: string | null
+          sender_device_id?: string | null
+          sender_id?: string | null
+          txid?: number
+        }
+        Update: {
+          application_name?: string | null
+          audit_id?: number
+          deleted_at?: string
+          deleted_by?: string | null
+          group_id?: string | null
+          is_vault_row?: boolean | null
+          message_id?: string
+          message_type?: string | null
+          origin_id?: string | null
+          recipient_device_id?: string | null
+          recipient_id?: string | null
+          row_created_at?: string | null
+          sender_device_id?: string | null
+          sender_id?: string | null
+          txid?: number
+        }
+        Relationships: []
+      }
       system_identity_keys_per_dev: {
         Row: {
           created_at: string
@@ -1561,31 +1659,46 @@ export type Database = {
         Args: { p_clinic_id: string }
         Returns: undefined
       }
+      _ensure_clinic_oncall_group: {
+        Args: { p_clinic_id: string }
+        Returns: string
+      }
       _ensure_clinic_system_group_for_intake: {
         Args: { p_clinic_id: string }
         Returns: string
       }
+      _intake_throttle_apply_fail: {
+        Args: { p_cred: string }
+        Returns: undefined
+      }
+      _intake_throttle_assert: { Args: { p_cred: string }; Returns: undefined }
+      _intake_throttle_fail: { Args: { p_cred: string }; Returns: undefined }
+      _intake_throttle_reset: { Args: { p_cred: string }; Returns: undefined }
       _is_valid_passphrase: { Args: { p: string }; Returns: boolean }
+      _oncall_resolve: {
+        Args: {
+          p_actor?: string
+          p_call_id: string
+          p_clinic_id: string
+          p_outcome: string
+          p_voicemail?: Json
+        }
+        Returns: undefined
+      }
+      _oncall_ring_set: { Args: { p_clinic_id: string }; Returns: string[] }
       _random_passphrase: { Args: never; Returns: string }
       _random_unambiguous: { Args: { p_len: number }; Returns: string }
       _resolve_active_clinic_invite_id: {
         Args: { p_clinic_id: string }
         Returns: string
       }
+      _sanitize_outside_name: { Args: { p: string }; Returns: string }
+      accept_oncall: {
+        Args: { p_answer_sdp: Json; p_call_id: string }
+        Returns: Json
+      }
       add_group_member: {
         Args: { p_group_id: string; p_user_id: string }
-        Returns: undefined
-      }
-      promote_group_member: {
-        Args: { p_group_id: string; p_user_id: string }
-        Returns: undefined
-      }
-      demote_group_member: {
-        Args: { p_group_id: string; p_user_id: string }
-        Returns: undefined
-      }
-      purge_message_group: {
-        Args: { p_group_id: string }
         Returns: undefined
       }
       admin_create_user: {
@@ -1654,6 +1767,10 @@ export type Database = {
         Args: { p_clinic_ids: string[]; p_user_id: string }
         Returns: undefined
       }
+      admin_update_user_email: {
+        Args: { new_email: string; target_user_id: string }
+        Returns: Json
+      }
       approve_account_request: {
         Args: { admin_user_id: string; request_id: string }
         Returns: Json
@@ -1702,8 +1819,55 @@ export type Database = {
         Args: { p_member_ids: string[]; p_name: string }
         Returns: Json
       }
+      dblink: { Args: { "": string }; Returns: Record<string, unknown>[] }
+      dblink_cancel_query: { Args: { "": string }; Returns: string }
+      dblink_close: { Args: { "": string }; Returns: string }
+      dblink_connect: { Args: { "": string }; Returns: string }
+      dblink_connect_u: { Args: { "": string }; Returns: string }
+      dblink_current_query: { Args: never; Returns: string }
+      dblink_disconnect:
+        | { Args: never; Returns: string }
+        | { Args: { "": string }; Returns: string }
+      dblink_error_message: { Args: { "": string }; Returns: string }
+      dblink_exec: { Args: { "": string }; Returns: string }
+      dblink_fdw_validator: {
+        Args: { catalog: unknown; options: string[] }
+        Returns: undefined
+      }
+      dblink_get_connections: { Args: never; Returns: string[] }
+      dblink_get_notify:
+        | { Args: { conname: string }; Returns: Record<string, unknown>[] }
+        | { Args: never; Returns: Record<string, unknown>[] }
+      dblink_get_pkey: {
+        Args: { "": string }
+        Returns: Database["public"]["CompositeTypes"]["dblink_pkey_results"][]
+        SetofOptions: {
+          from: "*"
+          to: "dblink_pkey_results"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      dblink_get_result: {
+        Args: { "": string }
+        Returns: Record<string, unknown>[]
+      }
+      dblink_is_busy: { Args: { "": string }; Returns: number }
+      demote_group_member: {
+        Args: { p_group_id: string; p_user_id: string }
+        Returns: undefined
+      }
       disassociate_clinic: {
         Args: { p_clinic_id: string; p_peer_clinic_id: string }
+        Returns: Json
+      }
+      distribute_oncall_key: {
+        Args: {
+          p_clinic_id: string
+          p_credential_id: string
+          p_wrapper_version: number
+          p_wraps: Json
+        }
         Returns: Json
       }
       drain_system_inbox: {
@@ -1768,6 +1932,10 @@ export type Database = {
         }[]
       }
       get_clinic_invites: { Args: never; Returns: Json }
+      get_clinic_outside_contact_status: {
+        Args: { p_clinic_id: string }
+        Returns: Json
+      }
       get_current_user_clinic_id: { Args: never; Returns: string }
       get_event_intake_credential: {
         Args: { p_clinic_id: string }
@@ -1793,6 +1961,14 @@ export type Database = {
       get_my_clinic_id: { Args: never; Returns: string }
       get_my_roles: { Args: never; Returns: string[] }
       get_note_author_display: { Args: { p_user_id: string }; Returns: string }
+      get_oncall_greeting: { Args: { p_clinic_id: string }; Returns: Json }
+      get_oncall_wrap_targets: {
+        Args: { p_clinic_id: string }
+        Returns: {
+          identity_dh_key: string
+          user_id: string
+        }[]
+      }
       get_or_create_clinic_calendar_group: {
         Args: { p_clinic_id: string }
         Returns: Json
@@ -1800,6 +1976,13 @@ export type Database = {
       get_or_create_clinic_system_group: {
         Args: { p_clinic_id: string }
         Returns: Json
+      }
+      get_peer_identity_dh_keys: {
+        Args: { p_user_ids: string[] }
+        Returns: {
+          identity_dh_key: string
+          user_id: string
+        }[]
       }
       get_push_tokens: {
         Args: { p_user_ids: string[] }
@@ -1820,6 +2003,10 @@ export type Database = {
         Returns: number
       }
       init_or_get_system_identity: { Args: never; Returns: Json }
+      intake_action: {
+        Args: { p_action: string; p_event_id?: string; p_intake_id: string }
+        Returns: Json
+      }
       is_dev: { Args: never; Returns: boolean }
       is_supervisor_of: { Args: { target_user_id: string }; Returns: boolean }
       kill_event_intake_credential: {
@@ -1827,8 +2014,9 @@ export type Database = {
         Returns: undefined
       }
       leave_message_group: { Args: { p_group_id: string }; Returns: undefined }
-      mark_event_intake_approved: {
-        Args: { p_event_id: string; p_intake_id: string }
+      mark_oncall_ended: { Args: { p_call_id: string }; Returns: Json }
+      mark_oncall_missed_anon: {
+        Args: { p_call_id: string; p_passcode: string }
         Returns: Json
       }
       mark_signal_messages_read: {
@@ -1839,12 +2027,20 @@ export type Database = {
         Args: { p_clinic_id: string; p_passphrase?: string }
         Returns: Json
       }
+      poll_oncall_signal: {
+        Args: { p_call_id: string; p_passcode: string }
+        Returns: Json
+      }
       primary_logout_all: { Args: never; Returns: Json }
+      promote_group_member: {
+        Args: { p_group_id: string; p_user_id: string }
+        Returns: undefined
+      }
       purge_clinic_intake_conversation: {
         Args: { p_clinic_id: string }
         Returns: Json
       }
-      purge_intake: { Args: { p_intake_id: string }; Returns: Json }
+      purge_message_group: { Args: { p_group_id: string }; Returns: undefined }
       redeem_clinic_invite: { Args: { p_code: string }; Returns: Json }
       register_device_with_role: {
         Args: {
@@ -1869,6 +2065,15 @@ export type Database = {
       rename_message_group: {
         Args: { p_group_id: string; p_name: string }
         Returns: undefined
+      }
+      request_oncall: {
+        Args: {
+          p_passcode: string
+          p_passphrase: string
+          p_requester_name: string
+          p_sdp_offer: Json
+        }
+        Returns: Json
       }
       resolve_event_intake_code: { Args: { p_passcode: string }; Returns: Json }
       rotate_event_intake_passcode: {
@@ -1931,6 +2136,30 @@ export type Database = {
         Args: { p_messages: Json }
         Returns: string[]
       }
+      set_clinic_inbound_key: {
+        Args: { p_clinic_id: string; p_recipient_pub_b64: string }
+        Returns: Json
+      }
+      set_oncall_greeting: {
+        Args: { p_clinic_id: string; p_greeting: Json }
+        Returns: Json
+      }
+      set_oncall_master: {
+        Args: {
+          p_clinic_id: string
+          p_enabled: boolean
+          p_recipient_pub_b64?: string
+        }
+        Returns: Json
+      }
+      set_outside_message_enabled: {
+        Args: {
+          p_clinic_id: string
+          p_enabled: boolean
+          p_recipient_pub_b64?: string
+        }
+        Returns: Json
+      }
       set_system_identity: {
         Args: {
           p_bundle: Json
@@ -1968,8 +2197,32 @@ export type Database = {
         }
         Returns: Json
       }
+      submit_cluster_message: {
+        Args: {
+          p_passcode: string
+          p_passphrase: string
+          p_requester_name: string
+          p_sealed: Json
+        }
+        Returns: Json
+      }
       submit_event_intake: {
         Args: { p_passcode: string; p_passphrase: string; p_sealed: Json }
+        Returns: Json
+      }
+      submit_oncall_voicemail: {
+        Args: {
+          p_audio: string
+          p_call_id: string
+          p_duration: number
+          p_ephemeral_pub: string
+          p_mime: string
+          p_nonce: string
+          p_passcode: string
+          p_passphrase: string
+          p_sealed_key: string
+          p_waveform: Json
+        }
         Returns: Json
       }
       supervisor_add_member: {
@@ -2092,6 +2345,10 @@ export type Database = {
         Args: { p_clinic_id: string; p_workouts: Json }
         Returns: undefined
       }
+      toggle_oncall_presence: {
+        Args: { p_clinic_id: string; p_on: boolean; p_user_id: string }
+        Returns: Json
+      }
       trim_signal_backups: { Args: { p_keep?: number }; Returns: number }
       update_own_security_settings:
         | {
@@ -2163,7 +2420,10 @@ export type Database = {
       user_role: "medic" | "supervisor" | "dev" | "provider"
     }
     CompositeTypes: {
-      [_ in never]: never
+      dblink_pkey_results: {
+        position: number | null
+        colname: string | null
+      }
     }
   }
 }
