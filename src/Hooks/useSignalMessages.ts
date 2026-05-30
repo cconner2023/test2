@@ -28,7 +28,7 @@ import type { SealedEnvelope } from '../lib/signal/sealedSender'
 import type { SignalMessageRow, DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { SyncMessagePayload } from '../lib/signal/transportTypes'
 import type { SenderKeyMessage, SenderKeyDistribution } from '../lib/signal/types'
-import { parseMessageContent, type IntakeRequestContent, type OncallCallContent, type OutsideMessageContent } from '../lib/signal/messageContent'
+import { parseMessageContent, type OncallCallContent, type OutsideMessageContent } from '../lib/signal/messageContent'
 import { emitCallSignal, type CallSignalBody } from '../lib/webrtc/callSignalBus'
 import { emitOncallRing } from '../lib/webrtc/oncallSignalBus'
 import { saveWrappedVoicemailKey } from '../lib/oncallKeyStore'
@@ -82,37 +82,14 @@ interface UseSignalMessagesOptions {
 
 async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<DecryptedSignalMessage | null> {
   try {
-    // ─── Plaintext early-exit: anon-authored event-intake submission ─────
-    // submit_event_intake (rev6) fans out N+1 rows per supervisor with
-    // sender_id=SYSTEM and a PLAINTEXT jsonb payload — bypassing the Signal
-    // envelope entirely. Without this short-circuit we would treat row.payload
-    // as a SealedEnvelope and crash inside processIncomingMessage (no
-    // v / ephemeralKey / ciphertext fields). Existing dev-authored SYSTEM
-    // messages encode as SealedEnvelope (no `kind` field), so the predicate
-    // is false for them and they fall through to normal decrypt unchanged.
+    // ─── Plaintext early-exit: SYSTEM-authored control messages ─────
+    // Event-intake REQUESTS are now real per-device SealedEnvelopes authored by
+    // the intake edge function (sender_device_id='edge'), so they have NO `kind`
+    // field and fall through to processIncomingMessage like any group message.
+    // Only the intake-DELETE control message stays plaintext (no session, just an
+    // origin-id list), so it still needs this short-circuit.
     if (row.message_type === 'system') {
       const maybeIntake = row.payload as Record<string, unknown> | null
-      if (maybeIntake && maybeIntake.kind === 'intake-request') {
-        const content: IntakeRequestContent = {
-          type: 'intake_request',
-          intake_id: String(maybeIntake.intake_id),
-          clinic_id: String(maybeIntake.clinic_id ?? ''),
-          ciphertext: String(maybeIntake.ciphertext ?? ''),
-          recipients: (maybeIntake.recipients ?? []) as IntakeRequestContent['recipients'],
-        }
-        return {
-          id: row.id,
-          senderId: SYSTEM_USER_ID,
-          recipientId: row.recipient_id,
-          plaintext: '[event intake — request]',
-          content,
-          messageType: 'system' as const,
-          createdAt: row.created_at,
-          readAt: row.read_at,
-          ...(row.group_id && { groupId: row.group_id }),
-          originId: row.origin_id ?? undefined,
-        }
-      }
       // intake_action RPC fans out plaintext SYSTEM-authored delete envelopes
       // for the original intake-request fanout. Surface as a standard 'delete'
       // typed message so the existing onDelete pipeline strips local state by
@@ -859,6 +836,9 @@ export function useSignalMessages({
     () => ({
       table: 'signal_messages',
       filter: `recipient_id=eq.${userId}`,
+      // INSERT-only: handler discards non-inserts, and '*' would re-broadcast
+      // the full encrypted payload over realtime on every markRead UPDATE.
+      event: 'INSERT' as const,
     }),
     [userId],
   )
@@ -908,6 +888,7 @@ export function useSignalMessages({
     () => ({
       table: 'signal_messages',
       filter: `recipient_id=eq.${clinicId}`,
+      event: 'INSERT' as const,
     }),
     [clinicId],
   )
@@ -955,6 +936,7 @@ export function useSignalMessages({
     () => ({
       table: 'signal_messages',
       filter: `recipient_id=eq.${SYSTEM_USER_ID}`,
+      event: 'INSERT' as const,
     }),
     [],
   )

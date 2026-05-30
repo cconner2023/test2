@@ -16,8 +16,9 @@
  * The cert signature is verified on unseal to authenticate the sender.
  */
 
-import { uint8ToBase64, base64ToUint8 } from '../../Utilities/textCodec'
-import { importDhPublicKey, importSigningPublicKey, verifySignature, performDh } from './keyManager'
+import { uint8ToBase64, base64ToUint8 } from '../base64Utils'
+// From keyPrimitives directly (not keyManager→keyStore→idb) for Deno-importability.
+import { importDhPublicKey, importSigningPublicKey, verifySignature, performDh } from './keyPrimitives'
 import type { StoredLocalIdentity } from './types'
 
 // ---- Internal Crypto Helpers ----

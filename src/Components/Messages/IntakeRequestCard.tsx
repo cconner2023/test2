@@ -1,18 +1,14 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useMemo, useCallback, useState } from 'react'
 import { Mail, Check, X, ShieldAlert } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
 import { useCalendarWrite } from '../../Hooks/useCalendarWrite'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import { useMessagingStore } from '../../stores/useMessagingStore'
-import { useAuthStore } from '../../stores/useAuthStore'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
 import { intakeAction } from '../../lib/eventIntakeService'
 import { deleteMessagesByOriginId as deleteMessagesByOriginIdFromDb } from '../../lib/signal/messageStore'
-import { unsealAudioKey, decryptText } from '../../lib/oncallSeal'
-import { getVaultIdentityDh } from '../../lib/signal/vaultDevice'
-import type { IntakeDetail } from '../../lib/oncallAnonService'
 import { formatSignature } from '../../Utilities/NoteFormatter'
 import { createLogger } from '../../Utilities/Logger'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
@@ -57,12 +53,11 @@ function formatWindow(startIso: string, endIso: string): string {
  * group conversation. All supervisors-of-clinic see and can act on the card;
  * the mint/rotate/kill toggle UI in IntakeMintSection stays dev-gated.
  *
- * The request detail is SEALED to the clinic inbound key (same envelope + key as
- * voicemail audio / outside text): unwrap the clinic key from the vault, unseal
- * the per-request AES key, decrypt the JSON detail. The server never holds the
- * requester's name/email/title in cleartext. Until the body decrypts, the card
- * shows a locked state and actions are withheld. The header is marked EXTERNAL ·
- * UNVERIFIED so an outside-authored card can't be mistaken for a teammate's.
+ * The request was authored by the intake edge function as a real SYSTEM group
+ * message (per-device X3DH) and decrypted by the standard Signal pipeline — so
+ * `content` already holds the cleartext detail; the card just renders it. The
+ * server only ever stored ciphertext. The header is marked EXTERNAL · UNVERIFIED
+ * so an outside-authored card can't be mistaken for a teammate's.
  */
 export function IntakeRequestCard({ message, content, isOwn, avatar, senderName, actionable = true }: IntakeRequestCardProps) {
   const { user, profile, clinicId } = useAuth()
@@ -70,39 +65,8 @@ export function IntakeRequestCard({ message, content, isOwn, avatar, senderName,
   const messages = useMessagesContext()
   const [confirmDecline, setConfirmDecline] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [detail, setDetail] = useState<IntakeDetail | null>(null)
-  const [decryptError, setDecryptError] = useState(false)
 
   const groupId = message.groupId ?? null
-
-  // Unseal the request detail with MY own vault identity key. Intake is sealed
-  // per-supervisor: find the recipient entry addressed to me, open the body key
-  // with my portable vault DH private key, then decrypt the shared ciphertext. No
-  // shared clinic key, no on-call coupling — capability is simply "I'm a clinic
-  // supervisor with my vault restored on this device". A dev observing a clinic
-  // they don't supervise has no entry → stays locked (must not read requester PII).
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      const myUuid = useAuthStore.getState().user?.id
-      const mine = myUuid ? content.recipients?.find(r => r.user_id === myUuid) : undefined
-      if (!myUuid || !mine) { setDecryptError(true); return }
-      try {
-        const vault = await getVaultIdentityDh(myUuid)
-        if (!vault) { if (!cancelled) setDecryptError(true); return }
-        const aesKey = await unsealAudioKey(
-          { sealed_key: mine.sealed_key, ephemeral_pub: mine.ephemeral_pub, nonce: mine.nonce },
-          vault.dhPrivateKey,
-        )
-        const json = await decryptText(aesKey, content.ciphertext)
-        const parsed = JSON.parse(json) as IntakeDetail
-        if (!cancelled) setDetail(parsed)
-      } catch {
-        if (!cancelled) setDecryptError(true)
-      }
-    })()
-    return () => { cancelled = true }
-  }, [content])
 
   const stripLocal = useCallback((originIds: string[]) => {
     if (originIds.length === 0) return
@@ -111,42 +75,41 @@ export function IntakeRequestCard({ message, content, isOwn, avatar, senderName,
   }, [])
 
   const onEmail = useCallback(() => {
-    if (!detail) return
-    const subject = `Event request — ${detail.title}`
+    const subject = `Event request — ${content.title}`
     const summary =
-      `From: ${detail.requester_name}${detail.requester_org ? ` — ${detail.requester_org}` : ''}\n`
-      + `Email: ${detail.requester_email}\n`
-      + `Window: ${formatWindow(detail.requested_start, detail.requested_end)}\n`
-      + `Title: ${detail.title}`
+      `From: ${content.requester_name}${content.requester_org ? ` — ${content.requester_org}` : ''}\n`
+      + `Email: ${content.requester_email}\n`
+      + `Window: ${formatWindow(content.requested_start, content.requested_end)}\n`
+      + `Title: ${content.title}`
     const signature = profile ? formatSignature(profile) : ''
     const body = `Team member,\n\n${summary}\n\n${signature}`
-    const url = `mailto:${encodeURIComponent(detail.requester_email)}`
+    const url = `mailto:${encodeURIComponent(content.requester_email)}`
       + `?subject=${encodeURIComponent(subject)}`
       + `&body=${encodeURIComponent(body)}`
     window.open(url, '_blank')
-  }, [detail, profile])
+  }, [content, profile])
 
   const onApprove = useCallback(async () => {
-    if (!user || !clinicId || !groupId || !messages || !detail) return
+    if (!user || !clinicId || !groupId || !messages) return
     setBusy(true)
     try {
       // v1 lands a minimal event (category='appointment', no room/assignees);
       // supervisor edits it on the calendar afterwards. The intake_id field on
       // the event row preserves the linkage for forensics. The requester detail
-      // moves from the sealed wire payload into the clinic-internal (vault-
-      // encrypted) calendar event on explicit supervisor approval.
+      // moves from the (E2E-encrypted) wire message into the clinic-internal
+      // (vault-encrypted) calendar event on explicit supervisor approval.
       const now = new Date().toISOString()
       const newEvent: CalendarEvent = {
         id: crypto.randomUUID(),
         clinic_id: clinicId,
-        title: `${detail.requester_name} — ${detail.title}`,
-        description: detail.requester_org
-          ? `Outside intake from ${detail.requester_org} (${detail.requester_email})`
-          : `Outside intake — ${detail.requester_email}`,
+        title: `${content.requester_name} — ${content.title}`,
+        description: content.requester_org
+          ? `Outside intake from ${content.requester_org} (${content.requester_email})`
+          : `Outside intake — ${content.requester_email}`,
         category: 'appointment',
         status: 'scheduled',
-        start_time: detail.requested_start,
-        end_time: detail.requested_end,
+        start_time: content.requested_start,
+        end_time: content.requested_end,
         all_day: false,
         location: null,
         opord_notes: null,
@@ -161,7 +124,7 @@ export function IntakeRequestCard({ message, content, isOwn, avatar, senderName,
       }
       await writeEvent(newEvent)
       // Visible supervisor reply in the system group thread.
-      await messages.sendGroupMessage(groupId, `${detail.title} accepted`)
+      await messages.sendGroupMessage(groupId, `${content.title} accepted`)
       // Server stamps status='approved'+event_id, hard-deletes the original
       // intake-request rows, and fans out SYSTEM-authored intake-delete
       // envelopes that strip every live client's local state.
@@ -175,7 +138,7 @@ export function IntakeRequestCard({ message, content, isOwn, avatar, senderName,
     } finally {
       setBusy(false)
     }
-  }, [user, clinicId, content.intake_id, detail, writeEvent, messages, groupId, stripLocal, message.originId])
+  }, [user, clinicId, content, writeEvent, messages, groupId, stripLocal, message.originId])
 
   const onDeclineConfirm = useCallback(async () => {
     if (!groupId || !messages) {
@@ -184,8 +147,7 @@ export function IntakeRequestCard({ message, content, isOwn, avatar, senderName,
     }
     setBusy(true)
     try {
-      const label = detail?.title ?? 'Request'
-      await messages.sendGroupMessage(groupId, `${label} declined`)
+      await messages.sendGroupMessage(groupId, `${content.title} declined`)
       const res = await intakeAction(content.intake_id, 'declined')
       if (!res.ok) {
         logger.warn('intake_action declined failed:', res.error)
@@ -197,21 +159,17 @@ export function IntakeRequestCard({ message, content, isOwn, avatar, senderName,
       setBusy(false)
       setConfirmDecline(false)
     }
-  }, [content.intake_id, detail, groupId, messages, stripLocal, message.originId])
+  }, [content, groupId, messages, stripLocal, message.originId])
 
   const windowLabel = useMemo(
-    () => (detail ? formatWindow(detail.requested_start, detail.requested_end) : ''),
-    [detail],
+    () => formatWindow(content.requested_start, content.requested_end),
+    [content.requested_start, content.requested_end],
   )
 
   const labelCx = isOwn ? 'text-white/60' : 'text-primary/50'
   const linkCx = isOwn ? 'underline text-white' : 'underline text-primary'
   const timeCx = isOwn ? 'text-white/60' : 'text-tertiary'
   const badgeCx = isOwn ? 'text-white/70 bg-white/10' : 'text-themeyellow bg-themeyellow/10'
-
-  // Actions are withheld until the body decrypts — you can't approve/email what
-  // you can't read, and a decline still works off intake_id alone.
-  const canDecline = actionable && (detail !== null || decryptError)
 
   return (
     <>
@@ -236,31 +194,25 @@ export function IntakeRequestCard({ message, content, isOwn, avatar, senderName,
               External · Unverified
             </div>
 
-            {detail ? (
-              <div className="space-y-1 text-[10pt]">
-                <div>
-                  <span className={labelCx}>From:</span>{' '}
-                  {detail.requester_name}
-                  {detail.requester_org ? ` — ${detail.requester_org}` : ''}
-                </div>
-                <div>
-                  <span className={labelCx}>Email:</span>{' '}
-                  <a className={linkCx} href={`mailto:${detail.requester_email}`}>
-                    {detail.requester_email}
-                  </a>
-                </div>
-                <div>
-                  <span className={labelCx}>Window:</span> {windowLabel}
-                </div>
-                <div>
-                  <span className={labelCx}>Title:</span> {detail.title}
-                </div>
+            <div className="space-y-1 text-[10pt]">
+              <div>
+                <span className={labelCx}>From:</span>{' '}
+                {content.requester_name}
+                {content.requester_org ? ` — ${content.requester_org}` : ''}
               </div>
-            ) : decryptError ? (
-              <p className="text-[10pt] text-themeredred">Request couldn’t be decrypted on this device.</p>
-            ) : (
-              <p className={`text-[10pt] ${labelCx}`}>Decrypting…</p>
-            )}
+              <div>
+                <span className={labelCx}>Email:</span>{' '}
+                <a className={linkCx} href={`mailto:${content.requester_email}`}>
+                  {content.requester_email}
+                </a>
+              </div>
+              <div>
+                <span className={labelCx}>Window:</span> {windowLabel}
+              </div>
+              <div>
+                <span className={labelCx}>Title:</span> {content.title}
+              </div>
+            </div>
 
             <div className={`flex items-center gap-1 mt-0.5 ${timeCx}`}>
               <p className="text-[9pt]">{formatTime(message.createdAt)}</p>
@@ -269,9 +221,9 @@ export function IntakeRequestCard({ message, content, isOwn, avatar, senderName,
 
           {actionable && (
             <ActionPill shadow="sm" placement="overlay">
-              <ActionButton icon={Mail} label="Email requester" onClick={onEmail} variant={busy || !detail ? 'disabled' : 'default'} />
-              <ActionButton icon={Check} label="Approve and create event" onClick={onApprove} variant={busy || !detail ? 'disabled' : 'success'} />
-              <ActionButton icon={X} label="Decline and remove request" onClick={() => setConfirmDecline(true)} variant={busy || !canDecline ? 'disabled' : 'danger'} />
+              <ActionButton icon={Mail} label="Email requester" onClick={onEmail} variant={busy ? 'disabled' : 'default'} />
+              <ActionButton icon={Check} label="Approve and create event" onClick={onApprove} variant={busy ? 'disabled' : 'success'} />
+              <ActionButton icon={X} label="Decline and remove request" onClick={() => setConfirmDecline(true)} variant={busy ? 'disabled' : 'danger'} />
             </ActionPill>
           )}
         </div>

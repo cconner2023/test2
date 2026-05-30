@@ -149,34 +149,27 @@ export interface MapFeatureContent {
 }
 
 /**
- * Outside event-intake REQUEST content. Anon-authored. The human-readable detail
- * (requester name/org/email, window, title) is encrypted ONCE with a per-request
- * AES key K (→ `ciphertext`); K is then sealed PER SUPERVISOR to each clinic
- * supervisor's portable vault identity DH pubkey (→ `recipients`). Intake is
- * supervisor-scoped and INDEPENDENT of the on-call inbound key — each supervisor
- * opens their own entry with getVaultIdentityDh(); no shared clinic key, no wrap
- * distribution. The server stores ciphertext only, never plaintext PII. Only
- * intake_id + clinic_id ride cleartext (routing + lifecycle). Decrypt-only:
- * constructed inside the decryptRow / drainSystemInbox early-exits, never
- * serialized; the body is unsealed lazily at render (IntakeRequestCard).
+ * Outside event-intake REQUEST content. Authored by the intake EDGE FUNCTION as a
+ * normal SYSTEM group message (per-device X3DH, sender_device_id='edge') — so the
+ * Signal Double-Ratchet/sealed-sender envelope provides the encryption end-to-end
+ * and these fields are the DECRYPTED plaintext. It rides the standard group message
+ * pipeline (decrypt → backup → vault → delete → render) with no bespoke crypto. The
+ * server only ever stores ciphertext; event_intake_requests PHI columns stay NULL.
+ * Both serializable (edge builds it) and parseable (recipient renders it as the
+ * IntakeRequestCard). intake_id is the lifecycle handle for approve/decline.
  */
 export interface IntakeRequestContent {
   type: 'intake_request'
   intake_id: string
   clinic_id: string
-  /** base64(IV ‖ AES-GCM ciphertext) of the JSON-encoded IntakeDetail. */
-  ciphertext: string
-  /** One seal of the body key K per clinic supervisor. The viewing supervisor finds
-   *  their own user_id and unseals with their vault DH private key (unsealAudioKey). */
-  recipients: Array<{
-    user_id: string
-    /** base64(IV ‖ AES-GCM) of K, sealed to this supervisor's vault DH pubkey. */
-    sealed_key: string
-    /** base64 raw ephemeral P-256 pubkey used for the seal. */
-    ephemeral_pub: string
-    /** base64 HKDF salt. */
-    nonce: string
-  }>
+  requester_name: string
+  requester_org: string | null
+  requester_email: string
+  /** ISO timestamp. */
+  requested_start: string
+  /** ISO timestamp. */
+  requested_end: string
+  title: string
 }
 
 /** Voicemail payload carried inline in a resolved oncall-call card. The audio is
@@ -334,7 +327,27 @@ interface WireSharedRef {
   f?: string
 }
 
-type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature | WireSharedRef
+/** Outside event-intake request, authored by the edge fn inside the Signal envelope. */
+interface WireIntake {
+  t: 'ir'
+  id: string
+  /** clinic id */
+  c: string
+  /** requester name */
+  n: string
+  /** requester org (optional) */
+  o?: string
+  /** requester email */
+  e: string
+  /** requested start (ISO) */
+  s: string
+  /** requested end (ISO) */
+  d: string
+  /** title */
+  ti: string
+}
+
+type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature | WireSharedRef | WireIntake
 
 // ---- Serialization ----
 
@@ -412,11 +425,21 @@ export function serializeContent(content: MessageContent): string {
   }
 
   if (content.type === 'intake_request') {
-    // IntakeRequestContent is decrypt-only; it is constructed inside
-    // decryptRow / drainSystemInbox early-exits from the anon-built plaintext
-    // payload and never serialized. Defensive throw catches accidental
-    // attempts to re-broadcast a received intake-request as a normal message.
-    throw new Error('intake_request content is not serializable')
+    // Serialized by the intake edge function as the plaintext INSIDE the SYSTEM
+    // sealed envelope (then E2E-encrypted by the ratchet). Parsed back on the
+    // recipient into the IntakeRequestCard.
+    const wire: WireIntake = {
+      t: 'ir',
+      id: content.intake_id,
+      c: content.clinic_id,
+      n: content.requester_name,
+      e: content.requester_email,
+      s: content.requested_start,
+      d: content.requested_end,
+      ti: content.title,
+    }
+    if (content.requester_org) wire.o = content.requester_org
+    return JSON.stringify(wire)
   }
 
   if (content.type === 'oncall_call') {
@@ -556,6 +579,23 @@ export function parseMessageContent(raw: string): ParsedContent {
           ...(wire.s && { subLabel: wire.s }),
           ...(wire.f && { featureId: wire.f }),
         } satisfies SharedRefContent,
+      }
+    }
+
+    if (wire.t === 'ir') {
+      return {
+        plaintext: '[event intake — request]',
+        content: {
+          type: 'intake_request',
+          intake_id: wire.id,
+          clinic_id: wire.c,
+          requester_name: wire.n,
+          requester_org: wire.o ?? null,
+          requester_email: wire.e,
+          requested_start: wire.s,
+          requested_end: wire.d,
+          title: wire.ti,
+        } satisfies IntakeRequestContent,
       }
     }
   } catch {

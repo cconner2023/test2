@@ -93,7 +93,17 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
         setView('messages-group-chat')
     }, [])
 
+    // ChatDetailView registers a closer here while a thread is open. Back (both
+    // the mobile conversation header and the desktop BaseDrawer header route
+    // through handleBack) pops the thread first, then leaves the conversation.
+    const threadBackRef = useRef<(() => boolean) | null>(null)
+    const registerThreadBack = useCallback((closer: (() => boolean) | null) => {
+        // eslint-disable-next-line react-hooks/immutability
+        threadBackRef.current = closer
+    }, [])
+
     const handleBack = useCallback(() => {
+        if (threadBackRef.current?.()) return
         if (view === 'messages-chat' || view === 'messages-group-chat') {
             setView('messages')
             setSelectedPeerId(null)
@@ -144,6 +154,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             onSearchClear={() => setSearchQuery('')}
             onSearchChange={setSearchQuery}
             onOpenSettings={openSettings}
+            registerThreadBack={registerThreadBack}
             lens={lens}
             onLensChange={setLens}
             tourVariant={isTourActive ? (isMobile ? 'mobile' : 'desktop') : undefined}

@@ -23,9 +23,11 @@
  */
 
 import { createLogger } from '../../Utilities/Logger'
-import { uint8ToBase64, base64ToUint8 } from '../../Utilities/textCodec'
+import { uint8ToBase64, base64ToUint8 } from '../base64Utils'
 import { SIGNAL } from '../constants'
-import { performDh, importDhPublicKey, importSigningPublicKey, verifySignature } from './keyManager'
+// Import the crypto primitives from keyPrimitives directly (NOT keyManager, which
+// pulls in keyStore→idb) so this module is Deno-importable by the intake edge fn.
+import { performDh, importDhPublicKey, importSigningPublicKey, verifySignature } from './keyPrimitives'
 import { kdfX3dh } from './kdf'
 import { concat } from './cryptoUtils'
 import type { StoredLocalIdentity, PublicKeyBundle } from './types'

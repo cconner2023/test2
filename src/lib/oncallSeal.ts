@@ -123,38 +123,8 @@ export async function sealAudioKey(audioKey: CryptoKey, recipientSpkiB64: string
 }
 
 /**
- * Seal the raw key K to a recipient's RAW (65-byte uncompressed) P-256 ECDH public
- * key — the format a Signal vault `identity_dh_key` is stored in. Sibling of
- * sealAudioKey (which imports an SPKI pubkey); shares the same ephemeral-ECDH →
- * HKDF → AES-GCM envelope, so unsealAudioKey opens it with the recipient's vault DH
- * private key. Used for per-supervisor event-intake seals (no on-call key involved).
- */
-export async function sealKeyToRawP256(key: CryptoKey, recipientRawB64: string): Promise<SealedKey> {
-  const rawK = new Uint8Array(await crypto.subtle.exportKey('raw', key))
-  const recipientPub = await crypto.subtle.importKey(
-    'raw',
-    base64ToBytes(recipientRawB64) as BufferSource,
-    { name: 'ECDH', namedCurve: 'P-256' },
-    false,
-    [],
-  )
-  const eph = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits'])
-  const shared = await crypto.subtle.deriveBits({ name: 'ECDH', public: recipientPub }, eph.privateKey, 256)
-  const salt = crypto.getRandomValues(new Uint8Array(16))
-  const wrapKey = await deriveWrapKey(shared, salt, 'encrypt')
-  const sealed = await aesGcmEncrypt(wrapKey, rawK)
-  const ephRaw = new Uint8Array(await crypto.subtle.exportKey('raw', eph.publicKey))
-  return {
-    sealed_key: bytesToBase64(sealed),
-    ephemeral_pub: bytesToBase64(ephRaw),
-    nonce: bytesToBase64(salt),
-  }
-}
-
-/**
  * Unseal the audio key K using the clinic voicemail PRIVATE key (a P-256 ECDH
- * CryptoKey the medic already unwrapped from their vault) — also opens a
- * sealKeyToRawP256 envelope with a supervisor's vault DH private key.
+ * CryptoKey the medic already unwrapped from their vault).
  */
 export async function unsealAudioKey(sealed: SealedKey, recipientPriv: CryptoKey): Promise<CryptoKey> {
   const ephPub = await crypto.subtle.importKey(

@@ -25,6 +25,13 @@ interface PostgresChangesFilter {
   schema?: string
   table: string
   filter?: string
+  /**
+   * Which row events to subscribe to. Defaults to '*'. Narrow to 'INSERT'
+   * when the handler only acts on inserts — '*' makes Postgres re-broadcast
+   * the FULL new row over realtime on every UPDATE/DELETE (egress the client
+   * then discards). Append-only consumers should always pin 'INSERT'.
+   */
+  event?: 'INSERT' | 'UPDATE' | 'DELETE' | '*'
 }
 
 interface UseSupabaseSubscriptionOptions<TRow extends Record<string, unknown>> {
@@ -80,7 +87,7 @@ export function useSupabaseSubscription<TRow extends Record<string, unknown>>({
       .on<TRow>(
         'postgres_changes',
         {
-          event: '*',
+          event: postgresFilter.event ?? '*',
           schema: postgresFilter.schema ?? 'public',
           table: postgresFilter.table,
           ...(postgresFilter.filter ? { filter: postgresFilter.filter } : {}),
@@ -106,5 +113,5 @@ export function useSupabaseSubscription<TRow extends Record<string, unknown>>({
     // caller's identity values (userId, clinicId, etc.) change, which
     // should trigger a re-subscription.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldSubscribe, channelName, postgresFilter.table, postgresFilter.filter, cleanup])
+  }, [shouldSubscribe, channelName, postgresFilter.table, postgresFilter.filter, postgresFilter.event, cleanup])
 }

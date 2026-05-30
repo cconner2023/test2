@@ -14,9 +14,10 @@
  */
 
 import { createLogger } from '../../Utilities/Logger'
-import { uint8ToBase64, base64ToUint8 } from '../../Utilities/textCodec'
+import { uint8ToBase64, base64ToUint8 } from '../base64Utils'
 import { SIGNAL } from '../constants'
-import { performDh, importDhPublicKey } from './keyManager'
+// From keyPrimitives directly (not keyManager→keyStore→idb) for Deno-importability.
+import { performDh, importDhPublicKey } from './keyPrimitives'
 import { kdfRootKey, kdfChainKey } from './kdf'
 import { concat } from './cryptoUtils'
 import type { RatchetState, RatchetKeyPair, MessageHeader, EncryptedMessage } from './types'

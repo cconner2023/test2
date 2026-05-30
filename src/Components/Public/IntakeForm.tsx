@@ -22,8 +22,6 @@ type Stage1State =
       messageEnabled: boolean
       /** On-call inbound key (calls/voicemail/text). NOT used for event intake. */
       recipientPub: string | null
-      /** Per-supervisor vault pubkeys the event-intake detail is sealed to. */
-      intakeRecipients: Array<{ user_id: string; dh_pub: string }>
     }
   | { kind: 'unknown' }
 
@@ -96,7 +94,6 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
         oncall_enabled?: boolean
         outside_message_enabled?: boolean
         recipient_pub?: string | null
-        intake_recipients?: Array<{ user_id: string; dh_pub: string }>
       }
       setStage1({
         kind: 'resolved',
@@ -104,7 +101,6 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
         oncallEnabled: resolved.oncall_enabled === true,
         messageEnabled: resolved.outside_message_enabled === true,
         recipientPub: resolved.recipient_pub ?? null,
-        intakeRecipients: Array.isArray(resolved.intake_recipients) ? resolved.intake_recipients : [],
       })
     } catch {
       setStage1({ kind: 'unknown' })
@@ -137,24 +133,14 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
     const startDt = combineDateTime(startDate, startTime)
     const endDt = combineDateTime(endDate, endTime)
     if (!startDt || !endDt) return
-    // Intake is sealed per-supervisor to each supervisor's vault key. No keyed
-    // supervisor (none signed in / no vault) → nobody could read it; surface the
-    // standard reject instead of submitting an unreadable request.
-    if (stage1.intakeRecipients.length === 0) {
-      setSubmit({ kind: 'rejected' })
-      setShowStage2(false)
-      setPasscode('')
-      setPassphrase('')
-      setStage1({ kind: 'idle' })
-      return
-    }
     setSubmit({ kind: 'submitting' })
-    // Seal the detail (incl. any identifiers a requester might type) to each
-    // supervisor's vault key before it leaves the device — server stores ciphertext.
+    // Hand the detail (cleartext, over TLS) to the intake-submit edge function,
+    // which authors it as a SYSTEM group message to the clinic's supervisors. The
+    // edge returns a uniform {ok:false} on any failure (no passphrase oracle); we
+    // surface the standard reject + reset on false.
     const ok = await submitEventIntake(supabase, {
       passcode,
       passphrase: passphrase.trim(),
-      recipients: stage1.intakeRecipients.map(r => ({ user_id: r.user_id, dhPubB64: r.dh_pub })),
       detail: {
         requester_name: name.trim(),
         requester_org: org.trim() || null,

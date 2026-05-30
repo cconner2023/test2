@@ -8,7 +8,7 @@
  * Uses Web Crypto API exclusively (zero external dependencies).
  */
 
-import { uint8ToBase64, base64ToUint8 } from '../../Utilities/textCodec'
+import { uint8ToBase64, base64ToUint8 } from '../base64Utils'
 
 // ---- Info strings (application-specific context for domain separation) ----
 

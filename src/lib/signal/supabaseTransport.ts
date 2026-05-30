@@ -16,6 +16,18 @@ import type { SignalMessageRow } from './transportTypes'
 
 const logger = createLogger('SupabaseTransport')
 
+/**
+ * Unread catch-up horizon. Rows older than this are NOT re-fetched — they are
+ * permanently undecryptable past the pre-key / SPK rotation window, yet
+ * fetchUnread re-pulls full payloads on every foreground (egress leak). This
+ * is a FETCH floor only: read_at is never written, so decrypt-retry semantics
+ * are unchanged (legit transient failures resolve within a session or two,
+ * far inside this window — see the 2026-04-26 request-accepted disappearance
+ * bug, which forbids markRead-on-decrypt-failure). Content beyond this window
+ * recovers via backup/vault, not the unread queue.
+ */
+const UNREAD_FETCH_HORIZON_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
+
 export class SupabaseTransport implements SignalTransport {
   name = 'supabase'
 
@@ -125,11 +137,13 @@ export class SupabaseTransport implements SignalTransport {
     const readIds = (readRows ?? []).map(r => r.message_id)
 
     return this.runQuery<SignalMessageRow[]>(() => {
+      const horizon = new Date(Date.now() - UNREAD_FETCH_HORIZON_MS).toISOString()
       let query = supabase
         .from('signal_messages')
         .select('*')
         .eq('recipient_id', userId)
         .is('read_at', null)
+        .gte('created_at', horizon)
         .order('created_at', { ascending: true })
 
       if (readIds.length > 0) {

@@ -5,7 +5,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { generateAudioKey, encryptText, sealAudioKey, sealKeyToRawP256 } from './oncallSeal'
+import { generateAudioKey, encryptText, sealAudioKey } from './oncallSeal'
 
 /** Plaintext cluster voicemail greeting played to the caller on no-answer (null if none). */
 export interface OncallGreetingWire {
@@ -124,51 +124,24 @@ export interface IntakeDetail {
   title: string
 }
 
-/** One clinic supervisor the intake detail is sealed to — user_id + their RAW
- *  (65-byte) P-256 vault identity pubkey, from resolve_event_intake_code. */
-export interface IntakeRecipient {
-  user_id: string
-  dhPubB64: string
-}
-
 /**
- * Outside→cluster EVENT-INTAKE submission. The detail is encrypted ONCE with a
- * per-request AES key K; K is then sealed PER SUPERVISOR to each supervisor's vault
- * identity pubkey (`recipients`, from resolve_event_intake_code.intake_recipients).
- * Supervisor-scoped and INDEPENDENT of the on-call inbound key — each supervisor
- * opens their own seal with their vault key; no shared clinic key, no wrap
- * distribution. The server only ever stores ciphertext, never plaintext PII. An
- * empty recipient set → no supervisor can read it, so the caller must surface an
- * unavailable state rather than submit.
+ * Outside→cluster EVENT-INTAKE submission. Hands the detail (cleartext, over TLS) to
+ * the `intake-submit` EDGE FUNCTION, which authors it as a real SYSTEM group message
+ * (per-device X3DH) to every clinic supervisor — so the Signal envelope encrypts it
+ * end-to-end and it rides the normal group pipeline (backup/delete/vault/render). No
+ * client-side crypto here; the anon bundle stays signal-free. The server only ever
+ * stores ciphertext; event_intake_requests PHI columns stay NULL. Returns false on
+ * any failure (the edge returns a uniform {ok:false} — no passphrase oracle).
  */
 export async function submitEventIntake(
   supabase: SupabaseClient,
-  args: { passcode: string; passphrase: string; recipients: IntakeRecipient[]; detail: IntakeDetail },
+  args: { passcode: string; passphrase: string; detail: IntakeDetail },
 ): Promise<boolean> {
-  if (args.recipients.length === 0) return false
-  let sealedPayload: {
-    ciphertext: string
-    recipients: Array<{ user_id: string; sealed_key: string; ephemeral_pub: string; nonce: string }>
-  }
-  try {
-    const key = await generateAudioKey()
-    const ciphertext = await encryptText(key, JSON.stringify(args.detail))
-    const recipients: Array<{ user_id: string; sealed_key: string; ephemeral_pub: string; nonce: string }> = []
-    for (const r of args.recipients) {
-      const sealed = await sealKeyToRawP256(key, r.dhPubB64)
-      recipients.push({ user_id: r.user_id, ...sealed })
-    }
-    sealedPayload = { ciphertext, recipients }
-  } catch {
-    return false
-  }
-
-  const { error } = await supabase.rpc('submit_event_intake', {
-    p_passcode: args.passcode,
-    p_passphrase: args.passphrase,
-    p_sealed: sealedPayload,
+  const { data, error } = await supabase.functions.invoke('intake-submit', {
+    body: { passcode: args.passcode, passphrase: args.passphrase, detail: args.detail },
   })
-  return !error
+  if (error) return false
+  return (data as { ok?: boolean } | null)?.ok === true
 }
 
 /**

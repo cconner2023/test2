@@ -10,7 +10,7 @@
  * private keys never leave the device.
  */
 
-import { uint8ToBase64, base64ToUint8 } from '../../Utilities/textCodec'
+import { uint8ToBase64, base64ToUint8 } from '../base64Utils'
 import { SIGNAL } from '../constants'
 
 // ---- Curve Parameters ----

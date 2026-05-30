@@ -71,6 +71,9 @@ interface MessagesPanelProps {
   scrollToMessageId?: string | null
   /** Called once the scroll target has landed, so the drawer can clear it. */
   onScrollConsumed?: () => void
+  /** Register a thread-back closer with the owning drawer so its back handler
+   * pops an open thread before leaving the conversation. */
+  registerThreadBack?: (closer: (() => boolean) | null) => void
 }
 
 // ── Long-press preview types + wrapper ────────────────────────────────────
@@ -663,6 +666,7 @@ function ChatDetail({
   unavailableIds,
   scrollToMessageId,
   onScrollConsumed,
+  registerThreadBack,
 }: {
   peerId: string
   conversations: Record<string, DecryptedSignalMessage[]>
@@ -689,6 +693,7 @@ function ChatDetail({
   unavailableIds: Map<string, UnavailableReason>
   scrollToMessageId?: string | null
   onScrollConsumed?: () => void
+  registerThreadBack?: (closer: (() => boolean) | null) => void
 }) {
   const { user } = useAuth()
   const userId = user?.id ?? ''
@@ -711,13 +716,17 @@ function ChatDetail({
 
   const canCall = !isSelf && (requestStatus === 'accepted' || requestStatus === 'none') && (onStartCall || onStartVideoCall)
 
+  const backButton = (
+    <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
+      <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
+        <ChevronLeft className="w-6 h-6 text-tertiary" />
+      </button>
+    </div>
+  )
+
   const mobileHeader = (
     <div className="md:hidden shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center">
-      <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
-        <button data-chat-back onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
-          <ChevronLeft className="w-6 h-6 text-tertiary" />
-        </button>
-      </div>
+      {backButton}
       <p className="flex-1 text-sm font-medium text-primary truncate mx-3">
         {peerName ?? (isSelf ? 'Notes' : 'Chat')}
       </p>
@@ -772,6 +781,7 @@ function ChatDetail({
       emptyText={isSelf ? 'Write a note...' : 'No messages'}
       mobileHeader={mobileHeader}
       desktopHeader={null}
+      registerThreadBack={registerThreadBack}
       conversationIsGroup={false}
       conversationPeerName={peerName}
       scrollToMessageId={scrollToMessageId}
@@ -810,6 +820,7 @@ function GroupChatDetail({
   onShowGroupInfo,
   scrollToMessageId,
   onScrollConsumed,
+  registerThreadBack,
 }: {
   groupId: string
   group: GroupInfo
@@ -838,6 +849,7 @@ function GroupChatDetail({
   onShowGroupInfo: (show: boolean) => void
   scrollToMessageId?: string | null
   onScrollConsumed?: () => void
+  registerThreadBack?: (closer: (() => boolean) | null) => void
 }) {
   const { user } = useAuth()
   const userId = user?.id ?? ''
@@ -899,13 +911,17 @@ function GroupChatDetail({
     return res
   }, [purgeGroup, onBack])
 
+  const backButton = (
+    <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
+      <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
+        <ChevronLeft className="w-6 h-6 text-tertiary" />
+      </button>
+    </div>
+  )
+
   const mobileHeader = (
     <div className="md:hidden shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center">
-      <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
-        <button data-chat-back onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
-          <ChevronLeft className="w-6 h-6 text-tertiary" />
-        </button>
-      </div>
+      {backButton}
       <div className="flex-1 min-w-0 text-center mx-3">
         <p className="text-sm font-medium text-primary truncate">{group.name}</p>
         <p className="text-[9pt] text-tertiary">{group.memberCount} members</p>
@@ -939,6 +955,7 @@ function GroupChatDetail({
       emptyText="No messages"
       mobileHeader={mobileHeader}
       desktopHeader={null}
+      registerThreadBack={registerThreadBack}
       conversationIsGroup={true}
       conversationPeerName={group.name}
       scrollToMessageId={scrollToMessageId}
@@ -965,7 +982,7 @@ function GroupChatDetail({
 
 // ── Exported Panel ─────────────────────────────────────────────────────────
 
-export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelProps>(function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack, onCloseDrawer, searchQuery, onSearchClear, onSearchChange, onOpenSettings, lens = 'chat', onLensChange, scrollToMessageId, onScrollConsumed }, ref) {
+export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelProps>(function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack, onCloseDrawer, searchQuery, onSearchClear, onSearchChange, onOpenSettings, lens = 'chat', onLensChange, scrollToMessageId, onScrollConsumed, registerThreadBack }, ref) {
   const messagesCtx = useMessagesContext()
   const { medics, loading } = useClinicMedics()
   const callActions = useCallActions()
@@ -1294,6 +1311,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         onShowGroupInfo={setShowGroupInfo}
         scrollToMessageId={scrollToMessageId}
         onScrollConsumed={onScrollConsumed}
+        registerThreadBack={registerThreadBack}
       />
     )
   } else if (view === 'messages-chat' && selectedPeerId) {
@@ -1329,6 +1347,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         unavailableIds={unavailableIds}
         scrollToMessageId={scrollToMessageId}
         onScrollConsumed={onScrollConsumed}
+        registerThreadBack={registerThreadBack}
       />
     )
   } else {

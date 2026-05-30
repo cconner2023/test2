@@ -20,7 +20,9 @@ const noop = () => { }
 export function createLogger(module: string): Logger {
   const prefix = `[${module}]`
 
-  if (import.meta.env.PROD) {
+  // Optional-chain so this is safe under Deno (edge functions), where
+  // `import.meta.env` is undefined; under Vite it's always defined (no-op).
+  if (import.meta.env?.PROD) {
     return {
       debug: noop,
       info: noop,

@@ -58,6 +58,11 @@ export interface ChatDetailViewProps {
   emptyText?: string
   mobileHeader: ReactNode
   desktopHeader?: ReactNode
+  /** Register a back-interceptor with the owning drawer. When a thread is open
+   * the closer pops the thread (returns true); otherwise it returns false so the
+   * drawer's back proceeds to leave the conversation. Lets the panel/BaseDrawer
+   * back handle thread-close on both mobile and desktop without a separate bar. */
+  registerThreadBack?: (closer: (() => boolean) | null) => void
   /** Hide the image upload entry point (+ button). For surfaces whose send
    * path doesn't accept attachments — currently the admin system-conversation
    * view, which v1 routes through `sendSystemMessageToUser` (text only). */
@@ -187,6 +192,7 @@ export function ChatDetailView({
   emptyText = 'No messages',
   mobileHeader,
   desktopHeader,
+  registerThreadBack,
   hideImageUpload,
   intakeActionable = true,
   conversationIsGroup = false,
@@ -348,19 +354,17 @@ export function ChatDetailView({
     }, 200)
   }, [setActiveThreadId])
 
-  // The thread overlay reuses the conversation header (no separate thread bar).
-  // When a thread is open, its back button should pop the thread back to the
-  // conversation rather than leave the conversation. The header is built by the
-  // panel, so we intercept its back (tagged data-chat-back) in the capture phase
-  // before the panel's onBack fires.
-  const handleHeaderBackCapture = useCallback((e: React.MouseEvent) => {
-    if (!activeThreadId) return
-    if ((e.target as HTMLElement).closest('[data-chat-back]')) {
-      e.preventDefault()
-      e.stopPropagation()
-      handleCloseThread()
-    }
-  }, [activeThreadId, handleCloseThread])
+  // The thread overlay reuses the conversation header (no separate thread bar) on
+  // mobile, and the BaseDrawer header on desktop — both route through the panel's
+  // single back handler. Register a closer so that back pops the thread first
+  // (returns true) and only leaves the conversation when no thread is open.
+  useEffect(() => {
+    if (!registerThreadBack) return
+    registerThreadBack(activeThreadId
+      ? () => { handleCloseThread(); return true }
+      : () => false)
+    return () => registerThreadBack(null)
+  }, [registerThreadBack, activeThreadId, handleCloseThread])
 
   // Image paste
   const handlePastedImage = useCallback(async (file: File) => {
@@ -701,15 +705,6 @@ export function ChatDetailView({
                     highlighted
                   />
                 </div>
-                <div className="flex items-center gap-2 mt-1 px-2">
-                  <div className="flex-1 border-b border-primary/10" />
-                  <span className="text-[9pt] font-medium text-tertiary shrink-0">
-                    {listMsgs.length === 0
-                      ? 'No replies yet'
-                      : `${listMsgs.length} ${listMsgs.length === 1 ? 'reply' : 'replies'}`}
-                  </span>
-                  <div className="flex-1 border-b border-primary/10" />
-                </div>
               </div>
             )}
           </div>
@@ -734,7 +729,7 @@ export function ChatDetailView({
   const showThread = !!activeThreadId
 
   return (
-    <div ref={conversationRef} className="flex flex-col h-full relative" onClickCapture={handleHeaderBackCapture} {...mainSwipeBack}>
+    <div ref={conversationRef} className="flex flex-col h-full relative" {...mainSwipeBack}>
       {renderMessageList(mainViewMessages, emptyText, true)}
 
       {sendStructured && (
@@ -783,6 +778,9 @@ export function ChatDetailView({
           className={`absolute inset-0 z-20 flex flex-col bg-themewhite3 transition-opacity duration-200 ${threadClosing ? 'opacity-0' : 'animate-fadeIn'}`}
           {...threadSwipeBack}
         >
+          {/* Reuse the conversation header (mobile). On desktop the BaseDrawer
+              header sits above this overlay and handles back. Both route through
+              the panel's back handler, which pops the thread first. */}
           {renderMessageList(threadMessages, 'No messages', true, undefined, true)}
           {contextMenu && contextMsg && (() => {
             const isOwn = contextMsg.senderId === userId

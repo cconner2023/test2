@@ -51,14 +51,14 @@ import {
   generateSigningKeyPair,
   exportPublicKey,
   signBytes,
-  importDhPublicKey,
 } from './keyPrimitives'
-import { x3dhInitiate, x3dhRespond } from './x3dh'
-import { initSender, initReceiver, ratchetEncrypt, ratchetDecrypt } from './ratchet'
-import { seal, unseal, type SealedEnvelope } from './sealedSender'
+import { x3dhRespond } from './x3dh'
+import { initReceiver, ratchetDecrypt } from './ratchet'
+import { unseal, type SealedEnvelope } from './sealedSender'
+import { encryptAsSystemWith } from './systemSender'
 import { saveMessage, getTombstone, deleteMessagesByOriginId } from './messageStore'
 import { useMessagingStore } from '../../stores/useMessagingStore'
-import { parseMessageContent, type IntakeRequestContent, type OncallCallContent } from './messageContent'
+import { parseMessageContent, type OncallCallContent } from './messageContent'
 import { isCalendarEvent, routeCalendarEvent } from '../calendarRouting'
 import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature } from '../mapOverlayRouting'
 import type {
@@ -690,38 +690,14 @@ export async function encryptAsSystem(
   }
 
   try {
-    // 1. X3DH
-    const x3dh = await x3dhInitiate(systemIdentity, recipientBundle)
-
-    // 2. Init sender ratchet against recipient's signed pre-key
-    const peerSpk = await importDhPublicKey(recipientBundle.signedPreKey.publicKey)
-    const ratchetState = await initSender(
-      x3dh.sharedSecret,
-      peerSpk,
-      recipientBundle.signedPreKey.publicKey,
-    )
-
-    // 3. Encrypt first message
-    const ptBytes = new TextEncoder().encode(serialized)
-    const { message } = await ratchetEncrypt(ratchetState, ptBytes, x3dh.associatedData)
-
-    // 4. Build InitialMessage with SYSTEM identity in the X3DH fields
-    const initialMessage: InitialMessage = {
-      identitySigningKey: keys.signingPublicKeyBase64,
-      identityDhKey: keys.dhPublicKeyBase64,
-      ephemeralKey: x3dh.ephemeralPublicKeyBase64,
-      signedPreKeyId: x3dh.signedPreKeyId,
-      oneTimePreKeyId: x3dh.oneTimePreKeyId,
-      message,
-    }
-
-    // 5. Seal — sender cert signed by system's signing key, addressed to recipient
-    const envelope = await seal(
-      initialMessage as unknown as Record<string, unknown>,
-      SYSTEM_USER_ID,
+    // Shared sender path (also used by the intake edge function) — guarantees
+    // byte-identical wire output. See src/lib/signal/systemSender.ts.
+    const envelope = await encryptAsSystemWith(
       systemIdentity,
+      SYSTEM_USER_ID,
       recipientId,
-      recipientBundle.identityDhKey,
+      recipientBundle,
+      serialized,
     )
 
     // recipientDeviceId is the caller's concern (used for RPC routing), not crypto
@@ -843,53 +819,15 @@ async function _drainSystemInboxImpl(): Promise<number> {
 
   for (const row of rows) {
     try {
-      // ─── Plaintext early-exit: anon-authored event-intake submission ─────
-      // submit_event_intake (rev6) fans out N+1 rows with sender_id=SYSTEM
-      // and a PLAINTEXT jsonb payload — bypassing the Signal envelope
-      // entirely. The intake bundle has no Signal keys and SYSTEM has no
-      // way to encrypt to itself, so the payload IS the content. The
-      // SealedEnvelope shape used below would crash on this row (no v /
-      // ephemeralKey / ciphertext fields). Discriminate on payload.kind
-      // before treating row.payload as an envelope. Existing dev-authored
-      // SYSTEM messages have SealedEnvelope shape (no `kind` field) and
-      // fall through to normal decrypt unchanged.
+      // ─── Plaintext early-exit: SYSTEM-authored control messages ─────
+      // Event-intake REQUESTS are now real per-device SealedEnvelopes authored by
+      // the intake edge function (no SYSTEM self-copy), so they never reach this
+      // SYSTEM-inbox drain — a supervising dev receives them as a normal group
+      // member via the standard decrypt path. Only the intake-DELETE control
+      // message stays plaintext, so discriminate on payload.kind before treating
+      // row.payload as a SealedEnvelope. Dev-authored SYSTEM messages have no
+      // `kind` field and fall through to normal decrypt unchanged.
       const maybeIntakePayload = row.payload as Record<string, unknown> | null
-      if (
-        row.message_type === 'system'
-        && maybeIntakePayload
-        && maybeIntakePayload.kind === 'intake-request'
-      ) {
-        const content: IntakeRequestContent = {
-          type: 'intake_request',
-          intake_id: String(maybeIntakePayload.intake_id),
-          clinic_id: String(maybeIntakePayload.clinic_id ?? ''),
-          ciphertext: String(maybeIntakePayload.ciphertext ?? ''),
-          recipients: (maybeIntakePayload.recipients ?? []) as IntakeRequestContent['recipients'],
-        }
-        const msg: DecryptedSignalMessage = {
-          id: row.id,
-          senderId: SYSTEM_USER_ID,
-          recipientId: SYSTEM_USER_ID,
-          plaintext: '[event intake — request]',
-          content,
-          messageType: 'system',
-          createdAt: row.created_at,
-          readAt: row.read_at,
-          ...(row.group_id && { groupId: row.group_id }),
-          originId: row.origin_id ?? undefined,
-        }
-        const { useAuthStore } = await import('../../stores/useAuthStore')
-        const devUserId = useAuthStore.getState().user?.id
-        if (devUserId) {
-          await saveMessage(msg, devUserId)
-        }
-        useMessagingStore.getState().addMessage(msg)
-        for (const cb of _systemMessageListeners) {
-          try { cb(msg) } catch { /* listener failures must not block drain */ }
-        }
-        processedIds.push(row.id)
-        continue
-      }
 
       // intake_action RPC fans out plaintext SYSTEM-authored delete envelopes
       // (kind='intake-delete'). Originals are server-deleted by the RPC; this
