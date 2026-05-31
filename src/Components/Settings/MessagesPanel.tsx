@@ -37,7 +37,7 @@ import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
 import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
 import { getMemberProfile } from '../../lib/supervisorService'
 import { SYSTEM_USER_ID } from '../../lib/signal/systemIdentity'
-import { isSystemMessage, isIntakeRequest } from '../../Hooks/useAdminSystemConversations'
+import { isSystemMessage, isOutsideOriginCard } from '../../Hooks/useAdminSystemConversations'
 import { CallsPane } from './CallsPane'
 import { useCallHistory, type CallHistoryEntry } from '../../Hooks/useCallHistory'
 
@@ -1037,9 +1037,10 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     const out: Record<string, typeof rawConversations[string]> = {}
     for (const [key, msgs] of Object.entries(rawConversations)) {
       // Strip operator↔user system traffic (it lives in the AdminDrawer), but
-      // KEEP outside event-intake requests: a dev triages their own cluster's
-      // intakes here in normal Messages (they arrive in the cluster system group).
-      const filtered = msgs.filter(m => !isSystemMessage(m) || isIntakeRequest(m))
+      // KEEP outside-origin cards (intake requests, outside→cluster chat, on-call
+      // call records): a dev triages their own cluster's intake/chat/call traffic
+      // here in normal Messages (they arrive in the cluster on-call/system group).
+      const filtered = msgs.filter(m => !isSystemMessage(m) || isOutsideOriginCard(m))
       if (filtered.length > 0) out[key] = filtered
     }
     return out

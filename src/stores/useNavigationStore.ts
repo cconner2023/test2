@@ -142,6 +142,9 @@ interface NavigationActions {
     // Navigation
     handleNavigation: (result: SearchResultType) => void
     handleBackClick: () => void
+    /** Jump straight to an algorithm by its id (the subCat `icon`), e.g. from a
+     *  "Screen X if present" disposition redirect. No-op if id isn't in catData. */
+    navigateToAlgorithm: (algorithmId: string) => void
 
     // UI toggles / setters
     toggleMenu: () => void
@@ -320,6 +323,24 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
                 break
             }
         }
+    },
+
+    navigateToAlgorithm: (algorithmId) => {
+        const category = catData.find(c => c.contents?.some(s => s.icon === algorithmId))
+        const symptom = category?.contents?.find(s => s.icon === algorithmId)
+        if (!category || !symptom) return
+        get().handleNavigation({
+            type: 'CC',
+            id: symptom.id,
+            icon: symptom.icon,
+            text: symptom.text,
+            data: {
+                categoryId: category.id,
+                symptomId: symptom.id,
+                categoryRef: category,
+                symptomRef: symptom,
+            },
+        })
     },
 
     // Back Button — reads current state via get() to avoid stale closures.

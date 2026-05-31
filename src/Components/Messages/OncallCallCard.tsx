@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
-import { Phone, PhoneMissed, PhoneOff, Voicemail, Play, Pause, RefreshCw } from 'lucide-react'
+import { Play, Pause, RefreshCw, MoreHorizontal } from 'lucide-react'
 import type { OncallCallContent } from '../../lib/signal/messageContent'
 import { downloadDecryptedAttachment } from '../../lib/signal/attachmentService'
+import { useLongPress } from '../../Hooks/useLongPress'
 
 interface Props {
   content: OncallCallContent
@@ -10,29 +11,30 @@ interface Props {
   onLongPress?: (x: number, y: number) => void
 }
 
-const OUTCOME_META: Record<OncallCallContent['outcome'], { label: string; Icon: typeof Phone; tone: string }> = {
-  connected_ended: { label: 'Call ended', Icon: Phone, tone: 'text-themegreen' },
-  missed: { label: 'Missed call', Icon: PhoneMissed, tone: 'text-themeredred' },
-  declined: { label: 'Declined', Icon: PhoneOff, tone: 'text-tertiary' },
-  voicemail: { label: 'Voicemail', Icon: Voicemail, tone: 'text-themeblue3' },
+const OUTCOME_LABEL: Record<OncallCallContent['outcome'], string> = {
+  connected_ended: 'Call ended',
+  missed: 'Missed call',
+  declined: 'Declined',
+  voicemail: 'Voicemail',
 }
 
 /**
- * Resolved on-call call card — the durable record. For a voicemail it plays the
- * E2E-encrypted audio: download the ciphertext blob from the message-attachments
- * bucket and decrypt with the AES key carried inside the envelope (same path as an
- * internal voice message). Delete/Copy ride the existing long-press context menu.
+ * Resolved on-call call record — rendered as a normal inbound chat bubble:
+ * requester name as the header, the outcome (+ duration) as the message body.
+ * No decorative outcome icon, no timestamp — it reads like any other message.
+ * For a voicemail it plays the E2E-encrypted audio: download the ciphertext blob
+ * from the message-attachments bucket and decrypt with the AES key carried inside
+ * the envelope (same path as an internal voice message). Delete/Copy ride the
+ * existing long-press context menu.
  */
-export function OncallCallCard({ content, createdAt, messageId, onLongPress }: Props) {
+export function OncallCallCard({ content, messageId, onLongPress }: Props) {
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
   const [playing, setPlaying] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
-  const meta = OUTCOME_META[content.outcome] ?? OUTCOME_META.missed
-  const Icon = meta.Icon
-  const when = createdAt ? new Date(createdAt).toLocaleString() : ''
+  const label = OUTCOME_LABEL[content.outcome] ?? OUTCOME_LABEL.missed
   const durLabel = content.voicemail
     ? `${Math.floor(content.voicemail.duration / 60)}:${String(Math.round(content.voicemail.duration % 60)).padStart(2, '0')}`
     : ''
@@ -58,6 +60,19 @@ export function OncallCallCard({ content, createdAt, messageId, onLongPress }: P
     }
   }, [audioUrl, content])
 
+  // Touch long-press opens the context menu (Delete/Copy) on mobile — desktop
+  // gets it via onContextMenu. iOS Safari can't rely on onContextMenu alone.
+  const longPress = useLongPress((x, y) => onLongPress?.(x, y))
+
+  // Desktop hover ellipsis — anchors the context menu to its own rect, matching
+  // the affordance on every other peer bubble (MessageBubble).
+  const onEllipsis = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    onLongPress?.(r.left + r.width / 2, r.top + r.height / 2)
+  }, [onLongPress])
+
   const togglePlay = useCallback(async () => {
     const el = audioRef.current
     if (el && !el.paused) { el.pause(); setPlaying(false); return }
@@ -71,17 +86,27 @@ export function OncallCallCard({ content, createdAt, messageId, onLongPress }: P
   }, [prepare])
 
   return (
-    <div className="w-full flex justify-center px-4 my-2" data-message-id={messageId}>
+    <div className="group flex justify-start items-center px-1 mb-1.5" data-message-id={messageId}>
       <div
-        className="max-w-[85%] w-full px-3 py-2.5 rounded-2xl bg-primary/5 border border-primary/10"
+        className="max-w-[65%] px-3.5 py-2 rounded-2xl rounded-bl-md bg-themewhite2 text-primary select-none"
+        style={{ touchAction: 'pan-y' }}
         onContextMenu={(e) => { e.preventDefault(); onLongPress?.(e.clientX, e.clientY) }}
+        onTouchStart={longPress.onTouchStart}
+        onTouchMove={longPress.onTouchMove}
+        onTouchEnd={longPress.onTouchEnd}
+        onTouchCancel={longPress.onTouchCancel}
       >
+        {/* In-bubble sender header — name + separator, like a group chat bubble. */}
+        <div className="pb-1.5 mb-1.5 border-b border-current/10">
+          <span className="text-[9pt] font-semibold text-themeblue2 truncate">
+            {content.requester_name || 'Outside caller'}
+          </span>
+        </div>
+
         <div className="flex items-center gap-2.5">
-          <Icon size={18} className={meta.tone} />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-primary truncate">{content.requester_name || 'Outside caller'}</p>
-            <p className="text-[10pt] text-tertiary">{meta.label}{durLabel ? ` · ${durLabel}` : ''}{when ? ` · ${when}` : ''}</p>
-          </div>
+          <p className="text-sm flex-1 min-w-0">
+            {label}{durLabel ? ` · ${durLabel}` : ''}
+          </p>
           {content.voicemail && (
             <button
               type="button"
@@ -104,6 +129,16 @@ export function OncallCallCard({ content, createdAt, messageId, onLongPress }: P
           />
         )}
       </div>
+      {onLongPress && (
+        <button
+          onClick={onEllipsis}
+          aria-label="Message actions"
+          className="hidden md:flex shrink-0 ml-1.5 w-7 h-7 rounded-full hover:bg-primary/10
+                     items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <MoreHorizontal size={14} className="text-tertiary" />
+        </button>
+      )}
     </div>
   )
 }

@@ -122,7 +122,7 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "0-2 CENTOR",
-                        disposition: [{ ...Disposition[2], modifier: 'Screen Cold Sx Ear pain if present' }],
+                        disposition: [{ ...Disposition[2], modifier: 'Screen Cold Sx Ear pain if present', screenRefs: [{ id: 'A-3', label: 'Cold Symptoms' }, { id: 'A-2', label: 'Ear Pain' }] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -191,7 +191,7 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "Negative",
-                        disposition: [{ ...Disposition[2], modifier: 'Screen Cold Sx, Ear Pain if present' }],
+                        disposition: [{ ...Disposition[2], modifier: 'Screen Cold Sx, Ear Pain if present', screenRefs: [{ id: 'A-3', label: 'Cold Symptoms' }, { id: 'A-2', label: 'Ear Pain' }] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -399,7 +399,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[2], modifier: 'screen cold sx, sore throat if present' }],
+                        disposition: [{ ...Disposition[2], modifier: 'screen cold sx, sore throat if present', screenRefs: [{ id: 'A-3', label: 'Cold Symptoms' }, { id: 'A-1', label: 'Sore Throat' }] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -452,7 +452,7 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        disposition: [{ ...Disposition[2], modifier: 'screen cold sx, sore throat if present' }],
+                        disposition: [{ ...Disposition[2], modifier: 'screen cold sx, sore throat if present', screenRefs: [{ id: 'A-3', label: 'Cold Symptoms' }, { id: 'A-1', label: 'Sore Throat' }] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',

@@ -29,6 +29,15 @@ export interface dispositionType {
     type: "CAT I" | "CAT II" | "CAT III" | "CAT IV" | "OTHER",
     text: string,
     modifier?: string | null,
+    /** "Screen X if present" redirects — tappable jumps to another algorithm. */
+    screenRefs?: dispositionScreenRef[],
+}
+
+export interface dispositionScreenRef {
+    /** Target algorithm id (the subCat `icon`), e.g. "A-3". */
+    id: string,
+    /** Chip label shown to the user, e.g. "Cold Symptoms". */
+    label: string,
 }
 
 export interface decisionMakingType {

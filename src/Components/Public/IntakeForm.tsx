@@ -20,6 +20,7 @@ type Stage1State =
       clinicName: string
       oncallEnabled: boolean
       messageEnabled: boolean
+      intakeEnabled: boolean
     }
   | { kind: 'unknown' }
 
@@ -91,12 +92,22 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
         clinic_name?: string
         oncall_enabled?: boolean
         outside_message_enabled?: boolean
+        intake_enabled?: boolean
       }
+      // Default true: a credential resolved by an older server (or minted before the
+      // column) keeps the event-request channel open.
+      const intakeEnabled = resolved.intake_enabled !== false
+      const oncallEnabled = resolved.oncall_enabled === true
+      const messageEnabled = resolved.outside_message_enabled === true
+      // Seed the channel to the first one that's actually open, so Continue never
+      // lands on a disabled channel (the picker only renders when >1 is open).
+      setChannel(intakeEnabled ? 'event' : oncallEnabled ? 'call' : messageEnabled ? 'message' : 'event')
       setStage1({
         kind: 'resolved',
         clinicName: resolved.clinic_name ?? '',
-        oncallEnabled: resolved.oncall_enabled === true,
-        messageEnabled: resolved.outside_message_enabled === true,
+        oncallEnabled,
+        messageEnabled,
+        intakeEnabled,
       })
     } catch {
       setStage1({ kind: 'unknown' })
@@ -120,7 +131,9 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
       setMessageActive(true)
       return
     }
-    setShowStage2(true)
+    // Event request — only when that channel is open (the seed + picker keep `channel`
+    // in sync, this guards the edge where everything is disabled).
+    if (stage1.intakeEnabled) setShowStage2(true)
   }, [stage1, passphrase, channel])
 
   const onSubmit = useCallback(async (e: React.FormEvent) => {
@@ -358,48 +371,63 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
                   </HintRow>
                 )}
 
-                {stage1.kind === 'resolved' && (
-                  <>
-                    <Row>
-                      <input
-                        type="text"
-                        value={passphrase}
-                        onChange={(e) => setPassphrase(e.target.value)}
-                        placeholder="Passphrase *"
-                        autoFocus
-                        autoComplete="off"
-                        spellCheck={false}
-                        className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none font-mono"
-                      />
-                    </Row>
+                {stage1.kind === 'resolved' && (() => {
+                  // Open channels, in display order. Event request only when intake is on.
+                  const channels = [
+                    ...(stage1.intakeEnabled ? [{ key: 'event' as const, label: 'Event request' }] : []),
+                    ...(stage1.oncallEnabled ? [{ key: 'call' as const, label: 'Call' }] : []),
+                    ...(stage1.messageEnabled ? [{ key: 'message' as const, label: 'Message' }] : []),
+                  ]
 
-                    {/* Channel pick — event request vs. live call vs. one-way message,
-                        using the calendar filter-row primitive. Only when calls and/or
-                        messaging are allowed; otherwise event request is the lone path. */}
-                    {(stage1.oncallEnabled || stage1.messageEnabled) && ([
-                      { key: 'event' as const, label: 'Event request' },
-                      ...(stage1.oncallEnabled ? [{ key: 'call' as const, label: 'Call' }] : []),
-                      ...(stage1.messageEnabled ? [{ key: 'message' as const, label: 'Message' }] : []),
-                    ]).map(({ key, label }) => {
-                      const selected = channel === key
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => setChannel(key)}
-                          className={`w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 ${
-                            selected
-                              ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
-                              : 'hover:bg-secondary/5'
-                          }`}
-                        >
-                          <span className="text-[10pt] font-medium text-primary truncate flex-1">{label}</span>
-                          {selected && <Check size={14} className="text-themeblue2 shrink-0" />}
-                        </button>
-                      )
-                    })}
-                  </>
-                )}
+                  // Credential is live but every channel is closed — neutral dead-end,
+                  // no passphrase prompt (nothing to submit to).
+                  if (channels.length === 0) {
+                    return (
+                      <HintRow tone="muted">
+                        This medical section isn’t accepting outside submissions right now.
+                      </HintRow>
+                    )
+                  }
+
+                  return (
+                    <>
+                      <Row>
+                        <input
+                          type="text"
+                          value={passphrase}
+                          onChange={(e) => setPassphrase(e.target.value)}
+                          placeholder="Passphrase *"
+                          autoFocus
+                          autoComplete="off"
+                          spellCheck={false}
+                          className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none font-mono"
+                        />
+                      </Row>
+
+                      {/* Channel pick — event request vs. live call vs. one-way message,
+                          using the calendar filter-row primitive. Only when more than one
+                          channel is open; a lone channel needs no chooser. */}
+                      {channels.length > 1 && channels.map(({ key, label }) => {
+                        const selected = channel === key
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setChannel(key)}
+                            className={`w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 ${
+                              selected
+                                ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
+                                : 'hover:bg-secondary/5'
+                            }`}
+                          >
+                            <span className="text-[10pt] font-medium text-primary truncate flex-1">{label}</span>
+                            {selected && <Check size={14} className="text-themeblue2 shrink-0" />}
+                          </button>
+                        )
+                      })}
+                    </>
+                  )
+                })()}
 
                 <div className={`flex items-center justify-end gap-2 px-3 overflow-hidden transition-all duration-300 ease-out ${stage1Ready ? 'max-h-14 py-2 opacity-100' : 'max-h-0 py-0 opacity-0'}`}>
                   <button

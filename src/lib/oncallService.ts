@@ -122,3 +122,25 @@ export async function disableOutsideMessaging(clinicId: string): Promise<Result<
   if (!res.ok) return res
   return { ok: true, data: true }
 }
+
+/** Enable the outside event-request (scheduling intake) channel (GATE 2). Flag-only.
+ *  Separate from the credential's existence so a cluster can keep calls/messages live
+ *  while closing event intake. */
+export async function enableIntake(clinicId: string): Promise<Result<true>> {
+  const res = await callRpc(
+    () => supabase.rpc('set_intake_enabled', { p_clinic_id: clinicId, p_enabled: true }),
+    'set_intake_enabled', logger,
+  )
+  if (!res.ok) return res
+  return { ok: true, data: true }
+}
+
+/** Disable the outside event-request channel. */
+export async function disableIntake(clinicId: string): Promise<Result<true>> {
+  const res = await callRpc(
+    () => supabase.rpc('set_intake_enabled', { p_clinic_id: clinicId, p_enabled: false }),
+    'set_intake_enabled', logger,
+  )
+  if (!res.ok) return res
+  return { ok: true, data: true }
+}

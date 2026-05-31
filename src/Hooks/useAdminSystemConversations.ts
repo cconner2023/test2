@@ -27,13 +27,21 @@ export function isSystemMessage(msg: DecryptedSignalMessage): boolean {
 }
 
 /**
- * Outside event-intake requests ride the system channel (`messageType='system'`)
- * but are NOT operator↔user system conversation traffic — they're clinic-scoped
- * group messages a supervisor (or the provisioning dev) triages in their normal
- * Messages drawer. They must never populate the dev's admin system console.
+ * Outside-origin traffic that rides the system channel (`messageType='system'`)
+ * but is NOT operator↔user system conversation traffic. These are clinic-scoped
+ * group cards a supervisor (or the provisioning dev) triages in their normal
+ * Messages drawer — they must never populate the dev's admin system console, and
+ * must stay visible in the user-facing Messages panel:
+ *   - intake_request  — outside event-intake request card
+ *   - outside_message — outside→cluster chat message (t:'om' edge envelope)
+ *   - oncall_call     — resolved on-call call record / voicemail card (t:'oc')
+ *
+ * Dev↔user operator messaging is a SEPARATE mechanism (plain `text` system
+ * broadcasts via sendSystemMessageToClinic) and is unaffected by this predicate.
  */
-export function isIntakeRequest(msg: DecryptedSignalMessage): boolean {
-  return msg.content?.type === 'intake_request'
+export function isOutsideOriginCard(msg: DecryptedSignalMessage): boolean {
+  const t = msg.content?.type
+  return t === 'intake_request' || t === 'outside_message' || t === 'oncall_call'
 }
 
 /**
@@ -64,7 +72,7 @@ export function useAdminSystemConversations(): AdminSystemConversation[] {
       let last: DecryptedSignalMessage | null = null
       for (const m of msgs) {
         if (!isSystemMessage(m)) continue
-        if (isIntakeRequest(m)) continue // intake requests belong in normal Messages, not the admin console
+        if (isOutsideOriginCard(m)) continue // intake/outside-chat/on-call cards belong in normal Messages, not the admin console
         if (!last || m.createdAt > last.createdAt) last = m
       }
       if (!last) continue

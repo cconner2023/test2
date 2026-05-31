@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import type { SpringValue } from '@react-spring/web';
 import { createPortal } from 'react-dom';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, CornerDownRight } from 'lucide-react';
 import { useAlgorithm } from '../Hooks/useAlgorithm';
 import type { dispositionType } from '../Types/AlgorithmTypes';
 import { Algorithm as AlgorithmData } from '../Data/Algorithms';
@@ -31,6 +31,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
     const selectedSymptom = useNavigationStore((s) => s.selectedSymptom);
     const isMobile = useNavigationStore((s) => s.isMobile);
     const openWriteNote = useNavigationStore((s) => s.openWriteNote);
+    const navigateToAlgorithm = useNavigationStore((s) => s.navigateToAlgorithm);
     const tourCtx = useTourContext();
     const tourActive = tourCtx?.isActive ?? false;
 
@@ -290,6 +291,21 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
                                             </div>
                                         </div>
                                     </div>
+                                    {currentDisposition.screenRefs && currentDisposition.screenRefs.length > 0 && (
+                                        <div className="w-full mt-2 flex flex-col">
+                                            {currentDisposition.screenRefs.map((ref) => (
+                                                <button
+                                                    key={ref.id}
+                                                    onClick={() => navigateToAlgorithm(ref.id)}
+                                                    className="flex items-center gap-2 px-3 py-2 text-left active:opacity-60 transition-opacity"
+                                                    aria-label={`Screen ${ref.label}`}
+                                                >
+                                                    <CornerDownRight className={`w-4 h-4 shrink-0 ${colors.symptomCheck}`} />
+                                                    <span className="text-[10pt] text-primary wrap-break-word">{ref.label}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}

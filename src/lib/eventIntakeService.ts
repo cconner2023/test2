@@ -111,6 +111,9 @@ export interface IntakeCredentialMetadata {
   oncall_enabled?: boolean
   /** GATE-2 "allow text messaging" toggle — outside→cluster one-way message. */
   outside_message_enabled?: boolean
+  /** GATE-2 "allow event requests" toggle — the scheduling-intake channel. Defaults
+   *  true (a credential that predates the column has intake on). */
+  intake_enabled?: boolean
   /** Duration (s) of the cluster voicemail greeting, or null if none is set. Presence
    *  flag for the settings row — the audio blob is fetched separately via getOncallGreeting. */
   oncall_greeting_dur?: number | null

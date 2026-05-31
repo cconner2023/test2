@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import bwipjs from 'bwip-js/browser'
 import {
-  Copy, Check, RefreshCw, KeyRound, Trash2, Inbox, Dices, Headset, MessageSquare,
+  Copy, Check, RefreshCw, KeyRound, Trash2, Inbox, Dices, Headset, MessageSquare, CalendarPlus,
 } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
 import { useBetaBypass } from '../../lib/betaFeatures'
@@ -20,7 +20,7 @@ import {
   getEventIntakeCredential,
   type IntakeCredentialMetadata,
 } from '../../lib/eventIntakeService'
-import { enableOncall, disableOncall, enableOutsideMessaging, disableOutsideMessaging } from '../../lib/oncallService'
+import { enableOncall, disableOncall, enableOutsideMessaging, disableOutsideMessaging, enableIntake, disableIntake } from '../../lib/oncallService'
 import { ToggleSwitch } from './ToggleSwitch'
 import { OncallGreetingRow } from './OncallGreetingRow'
 import { createLogger } from '../../Utilities/Logger'
@@ -84,11 +84,14 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
   const [busy, setBusy] = useState(false)
   const [oncallBusy, setOncallBusy] = useState(false)
   const [msgBusy, setMsgBusy] = useState(false)
+  const [intakeBusy, setIntakeBusy] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
 
   const oncallEnabled = credential?.oncall_enabled === true
   const messageEnabled = credential?.outside_message_enabled === true
+  // Defaults true: a credential minted before the column existed has intake on.
+  const intakeEnabled = credential?.intake_enabled !== false
 
   // Anchor rects + open flags for each overlay surface.
   const [mintAnchor, setMintAnchor] = useState<DOMRect | null>(null)
@@ -150,6 +153,19 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
       setOncallBusy(false)
     }
   }, [oncallBusy, oncallEnabled, clinicId, refresh])
+
+  const toggleIntake = useCallback(async () => {
+    if (intakeBusy) return
+    setIntakeBusy(true)
+    setCredential((c) => (c ? { ...c, intake_enabled: !intakeEnabled } : c))
+    try {
+      const res = intakeEnabled ? await disableIntake(clinicId) : await enableIntake(clinicId)
+      if (res.ok) await refresh(true)
+      else setCredential((c) => (c ? { ...c, intake_enabled: intakeEnabled } : c))
+    } finally {
+      setIntakeBusy(false)
+    }
+  }, [intakeBusy, intakeEnabled, clinicId, refresh])
 
   const toggleMessage = useCallback(async () => {
     if (msgBusy) return
@@ -368,6 +384,30 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
                   <canvas ref={qrSetter} className="w-16 h-16 rounded" />
                 </div>
               </div>
+            </div>
+
+            {/* GATE-2 — "Allow event requests": the scheduling-intake channel. Separate
+                from the credential's existence so a cluster can keep calls/messaging live
+                while closing event intake. */}
+            <div
+              onClick={intakeBusy ? undefined : () => void toggleIntake()}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (!intakeBusy && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); void toggleIntake() } }}
+              className={`flex items-center gap-3 px-4 py-3.5 border-t border-primary/6 transition-all ${intakeBusy ? 'opacity-50' : 'cursor-pointer hover:bg-themeblue2/5 active:scale-95'}`}
+            >
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${intakeEnabled ? 'bg-themeblue3/15' : 'bg-tertiary/10'}`}>
+                <CalendarPlus size={18} className={intakeEnabled ? 'text-themeblue3' : 'text-tertiary'} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-medium ${intakeEnabled ? 'text-primary' : 'text-tertiary'}`}>Allow event requests</p>
+                <p className="text-[9pt] text-tertiary mt-0.5">
+                  {intakeEnabled
+                    ? 'Outside parties can request event coverage'
+                    : 'Outside parties cannot submit event requests'}
+                </p>
+              </div>
+              <ToggleSwitch checked={intakeEnabled} />
             </div>
 
             {/* GATE-2 — "Allow calls": master toggle that lets outside callers

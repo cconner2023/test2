@@ -233,7 +233,15 @@ export function useChatInteractions({
 
   // ── Context menu delete ──
   const handleContextDelete = useCallback(() => {
-    if (!contextMsg || contextMsg.senderId !== userId) return
+    if (!contextMsg) return
+    // Own messages are deletable as always. Outside-origin SYSTEM cards
+    // (outside→cluster chat, on-call call/voicemail records) are clearable by
+    // ANY clinic member — they're authored by SYSTEM, belong to nobody, and the
+    // delete fans out cluster-wide by originId (mirrors intake decline).
+    const isOwn = contextMsg.senderId === userId
+    const t = contextMsg.content?.type
+    const isClearableCard = t === 'outside_message' || t === 'oncall_call'
+    if (!isOwn && !isClearableCard) return
     setPendingDelete({ peerId: conversationKey, messageIds: [contextMsg.id] })
     setContextMenu(null)
   }, [contextMsg, conversationKey, userId])

@@ -1,4 +1,3 @@
-import { Users } from 'lucide-react'
 import { UserAvatar } from './Settings/UserAvatar'
 import { getDisplayName } from '../Utilities/nameUtils'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
@@ -61,11 +60,10 @@ export function ConversationPreview({
       <div className="px-4 py-3">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-12 h-12 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
-            <Users size={22} className="text-themeblue2" />
+            <span className="text-sm font-semibold text-themeblue2 uppercase">{group.name.slice(0, 2)}</span>
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-primary truncate">{group.name}</p>
-            <p className="text-[9pt] text-tertiary">{group.memberCount} members</p>
           </div>
         </div>
         <MessageSnippets msgs={msgs} userId={userId} />

@@ -252,41 +252,11 @@ export function MessageBubble({
     )
   }
 
-  // System notices render as a centered, full-width card — no avatar, no
-  // own/peer split, no status icons, no swipe-to-reply. Long-press still
-  // opens the context menu so Copy / Delete remain reachable.
-  if (message.messageType === 'system') {
-    const systemText =
-      message.content?.type === 'text' ? message.content.text : message.plaintext
-    return (
-      <div className="w-full flex justify-center px-4 my-2" data-message-id={message.id}>
-        <div
-          className="max-w-[85%] px-3 py-2 rounded-2xl bg-primary/5 border border-primary/10 text-center"
-          onContextMenu={(e) => {
-            e.preventDefault()
-            onLongPress?.(message, e.clientX, e.clientY)
-          }}
-          onTouchStart={(e) => {
-            if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
-            const t = e.touches[0]
-            const x = t.clientX, y = t.clientY
-            longPressTimerRef.current = setTimeout(() => {
-              longPressFiredRef.current = true
-              onLongPress?.(message, x, y)
-            }, 450)
-          }}
-          onTouchEnd={() => {
-            if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
-          }}
-        >
-          <p className="text-[11pt] md:text-[10pt] text-tertiary whitespace-pre-wrap break-words">
-            {systemText}
-          </p>
-          <p className="text-[9pt] text-tertiary/70 mt-1">{formatTime(message.createdAt)}</p>
-        </div>
-      </div>
-    )
-  }
+  // System text notices (operator → user / clinic broadcasts) render as normal
+  // chat bubbles — sender-name header (group) or conversation chrome name (1:1)
+  // plus the message body — so they read like any other message. The dedicated
+  // intake / outside-message / on-call cards are handled by the content-type
+  // branches above; only plain `text` system messages reach the normal path here.
 
   const imageContent = message.content?.type === 'image' ? message.content : null
   const isImage = !!imageContent
@@ -718,7 +688,7 @@ export function MessageBubble({
               className={`rounded-2xl ${isImage && !isVoice ? 'p-1.5' : 'px-3.5 py-2'}
                          ${isOwn ? 'bg-themeblue3 text-white rounded-br-md' : 'bg-themewhite2 text-primary rounded-bl-md'}
                          ${highlighted ? 'ring-2 ring-themeblue3/60 ring-offset-1' : ''}
-                         ${tapped ? 'scale-[0.97]' : ''} transition-all duration-300`}
+                         ${tapped ? 'scale-[0.92] brightness-90' : ''} transition-all duration-150 ease-out`}
             >
               {/* In-bubble header — avatar + sender name, separator line, then body.
                   Group chats only (senderName present); 1:1 conversations skip the header

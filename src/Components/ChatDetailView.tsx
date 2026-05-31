@@ -753,13 +753,15 @@ export function ChatDetailView({
       {!showThread && contextMenu && contextMsg && (() => {
         const isOwn = contextMsg.senderId === userId
         const isMedia = contextMsg.content?.type === 'image' || contextMsg.content?.type === 'voice'
+        const cardType = contextMsg.content?.type
+        const isClearableCard = cardType === 'outside_message' || cardType === 'oncall_call'
         const items: ContextMenuItem[] = [
           { key: 'reply', label: 'Reply', icon: Reply, onAction: handleContextReply },
           ...(!isMedia ? [{ key: 'copy', label: 'Copy', icon: Copy, onAction: handleCopy }] : []),
           ...(isMedia && handleSaveImage ? [{ key: 'save', label: 'Save', icon: Download, onAction: handleSaveImage }] : []),
           ...(isOwn && !isMedia ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: handleStartEdit }] : []),
           { key: 'forward', label: 'Forward', icon: Forward, onAction: handleContextForward },
-          ...(isOwn ? [{ key: 'delete', label: 'Delete', icon: Trash2, onAction: handleContextDelete, destructive: true }] : []),
+          ...(isOwn || isClearableCard ? [{ key: 'delete', label: 'Delete', icon: Trash2, onAction: handleContextDelete, destructive: true }] : []),
         ]
         return (
           <ContextMenu
@@ -785,13 +787,15 @@ export function ChatDetailView({
           {contextMenu && contextMsg && (() => {
             const isOwn = contextMsg.senderId === userId
             const isMedia = contextMsg.content?.type === 'image' || contextMsg.content?.type === 'voice'
+            const cardType = contextMsg.content?.type
+            const isClearableCard = cardType === 'outside_message' || cardType === 'oncall_call'
             const items: ContextMenuItem[] = [
               { key: 'reply', label: 'Reply', icon: Reply, onAction: handleContextReply },
               ...(!isMedia ? [{ key: 'copy', label: 'Copy', icon: Copy, onAction: handleCopy }] : []),
               ...(isMedia && handleSaveImage ? [{ key: 'save', label: 'Save', icon: Download, onAction: handleSaveImage }] : []),
               ...(isOwn && !isMedia ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: handleStartEdit }] : []),
               { key: 'forward', label: 'Forward', icon: Forward, onAction: handleContextForward },
-              ...(isOwn ? [{ key: 'delete', label: 'Delete', icon: Trash2, onAction: handleContextDelete, destructive: true }] : []),
+              ...(isOwn || isClearableCard ? [{ key: 'delete', label: 'Delete', icon: Trash2, onAction: handleContextDelete, destructive: true }] : []),
             ]
             return (
               <ContextMenu
