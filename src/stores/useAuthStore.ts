@@ -32,7 +32,8 @@ import { invalidate } from './useInvalidationStore'
 import { clearBackupKey, createBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
 import { processVaultMessages, ackVaultDrain, clearVaultKey } from '../lib/signal/vaultDevice'
 import { clearSystemIdentity } from '../lib/signal/systemIdentity'
-import { deriveAndCacheClinicVaultKey, ensureClinicVaultExists, processClinicVaultMessages, clearClinicVaultKey } from '../lib/signal/clinicVaultDevice'
+import { deriveAndCacheClinicVaultKey, ensureClinicVaultExists, processClinicVaultMessages, clearClinicVaultKey, CLINIC_VAULT_FULL_DRAIN_INTERVAL_MS } from '../lib/signal/clinicVaultDevice'
+import { getVaultCursor } from '../lib/offlineDb'
 import { unsubscribeFromPush, resyncPushSubscription } from '../lib/pushNotificationService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { registerSessionCleanup, updateCleanupToken, updateCleanupDeviceId, updateCleanupIsPrimary } from '../lib/sessionCleanup'
@@ -571,9 +572,31 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
           const clinicIds = [assignedId, ...surrogateIds].filter((x): x is string => !!x)
           if (clinicIds.length > 0) {
             (async () => {
-              // Reset hydration gates ONCE before draining all clinics so the
-              // vault→sync→hydrate pipeline sequences correctly.
-              useCalendarStore.setState({ hydrated: false, vaultReplayDone: false })
+              // Reset the vault-replay gate before draining. Cache-first paint
+              // (useCalendarSync) owns `hydrated` now and is NOT reset here —
+              // logout already clears it, and resetting it mid-session would
+              // re-blank a warm calendar behind the drain.
+              useCalendarStore.setState({ vaultReplayDone: false })
+
+              // Decide ONE drain mode for the whole login so the cross-clinic
+              // drop-stale reconcile is coherent: a delta drain isn't full
+              // truth, so mixing modes could wrongly prune another clinic's
+              // events. Full if ANY clinic lacks a cursor or its last full
+              // drain has aged out; otherwise delta (fetch only new rows).
+              let drainModeFull = false
+              for (const cId of clinicIds) {
+                const cur = await getVaultCursor(cId)
+                if (!cur || !cur.lastFullDrainAt ||
+                    (Date.now() - new Date(cur.lastFullDrainAt).getTime()) > CLINIC_VAULT_FULL_DRAIN_INTERVAL_MS) {
+                  drainModeFull = true
+                  break
+                }
+              }
+              const drainMode: 'full' | 'delta' = drainModeFull ? 'full' : 'delta'
+              // Arm the reconcile accumulator: [] = collect live ids across
+              // clinics (full drains append, a partial drain poisons to null);
+              // null = delta login, no prune.
+              useCalendarStore.getState().setFullReplayLiveIds(drainModeFull ? [] : null)
 
               const { initClinicDeviceBundle } = await import('../lib/signal/clinicDeviceInit')
               const { useMessagingStore } = await import('./useMessagingStore')
@@ -599,7 +622,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
                   // Per-clinic key cache means dual membership doesn't conflict.
                   await deriveAndCacheClinicVaultKey(cId, clinicRow.encryption_key)
                   await ensureClinicVaultExists(cId, clinicRow.encryption_key)
-                  await processClinicVaultMessages(cId)
+                  await processClinicVaultMessages(cId, { mode: drainMode, publishReconcile: true })
 
                   // Register this browser as a clinic linked device. clinicDeviceId
                   // is `clinic-{userId}-{personalDeviceId}` — same value across clinics.
@@ -618,11 +641,18 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
               }
 
               // Unlock calendar after all clinics drained. Surface partial failures.
-              if (anyFailed) useCalendarStore.setState({ hydrationError: true })
+              if (anyFailed) {
+                useCalendarStore.setState({ hydrationError: true })
+                // A clinic that never drained isn't in the live-id union, so the
+                // prune would wrongly drop its cached events — disable it.
+                useCalendarStore.getState().setFullReplayLiveIds(null)
+              }
               useCalendarStore.setState({ vaultReplayDone: true })
             })()
           } else {
-            // No clinic — no vault to replay; unlock calendar immediately
+            // No clinic — no vault to replay; unlock calendar immediately.
+            // No full drain ran, so there is no authoritative set to prune by.
+            useCalendarStore.getState().setFullReplayLiveIds(null)
             useCalendarStore.setState({ vaultReplayDone: true })
           }
 
@@ -649,6 +679,8 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
         }
       }).catch(() => {
         set({ signalReady: true }) // Mark ready even on failure — don't block UI permanently
+        // Signal init failed — no trustworthy full-replay set, so never prune.
+        useCalendarStore.getState().setFullReplayLiveIds(null)
         useCalendarStore.setState({ vaultReplayDone: true })
       })
 

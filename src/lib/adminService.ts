@@ -583,29 +583,59 @@ export interface AdminLocation {
   parent_id: string | null
 }
 
-// Session cache for the location taxonomy. It's tiny (~50–200 rows), canonical,
-// and almost never changes, yet listLocations() is called on mount from ~7
-// surfaces (ClinicPanel, SupervisorDrawer, MapOverlayPanel, admin screens) with
-// no caching — a repeated PostgREST egress source. Cache the resolved set for
-// the session, de-dupe concurrent fetches, and bust on any location mutation.
+// Cache for the location taxonomy. It's tiny (~50–200 rows), canonical, and
+// almost never changes, yet listLocations() is called on mount from ~7 surfaces
+// (ClinicPanel, SupervisorDrawer, MapOverlayPanel, admin screens) — a repeated
+// PostgREST egress source. Two layers:
+//   - in-memory (locationsCache): de-dupes within a session, no I/O.
+//   - localStorage (LOCATIONS_LS_KEY): survives reloads so a COLD start skips
+//     the network entirely. Stale-while-revalidate — a stale persisted set is
+//     returned instantly and refreshed in the background, so the picker is never
+//     blocked on the network and staleness self-heals on the next call.
+// Busted on any location mutation (clearLocationsCache, called by the mutators).
 let locationsCache: AdminLocation[] | null = null
 let locationsInflight: Promise<AdminLocation[]> | null = null
 
-/** Invalidate the listLocations() session cache. Called after location mutations. */
+const LOCATIONS_LS_KEY = 'adtmc_locations_cache_v1'
+/** Max age before a persisted set is revalidated in the background (12h).
+ *  Locations are admin-managed taxonomy edited rarely; the editing device busts
+ *  its own cache immediately, so other devices tolerating up-to-12h staleness on
+ *  the picker list is an acceptable trade for skipping the cold-start fetch. */
+const LOCATIONS_TTL_MS = 12 * 60 * 60 * 1000
+
+interface PersistedLocations { ts: number; rows: AdminLocation[] }
+
+/** Read the persisted set. Returns null on miss/corrupt; `stale` flags TTL expiry. */
+function readPersistedLocations(): { rows: AdminLocation[]; stale: boolean } | null {
+  try {
+    const raw = localStorage.getItem(LOCATIONS_LS_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as PersistedLocations
+    if (!parsed || !Array.isArray(parsed.rows)) return null
+    return { rows: parsed.rows, stale: Date.now() - parsed.ts > LOCATIONS_TTL_MS }
+  } catch {
+    return null
+  }
+}
+
+function writePersistedLocations(rows: AdminLocation[]): void {
+  try {
+    localStorage.setItem(LOCATIONS_LS_KEY, JSON.stringify({ ts: Date.now(), rows }))
+  } catch {
+    // Quota/private-mode — best effort; in-memory cache still applies.
+  }
+}
+
+/** Invalidate the listLocations() cache (memory + persisted). Called after location mutations. */
 export function clearLocationsCache(): void {
   locationsCache = null
   locationsInflight = null
+  try { localStorage.removeItem(LOCATIONS_LS_KEY) } catch { /* ignore */ }
 }
 
-/**
- * List all non-archived locations. Authenticated read; small set (~50–200 rows).
- * Result is cached for the session (see clearLocationsCache) and concurrent
- * callers share one round-trip.
- */
-export async function listLocations(): Promise<AdminLocation[]> {
-  if (locationsCache) return locationsCache
+/** Fetch the canonical set from PostgREST, populate both cache layers. */
+function refetchLocations(): Promise<AdminLocation[]> {
   if (locationsInflight) return locationsInflight
-
   locationsInflight = (async () => {
     try {
       const { data, error } = await supabase
@@ -618,6 +648,7 @@ export async function listLocations(): Promise<AdminLocation[]> {
       if (error) throw error
       const rows = (data || []) as AdminLocation[]
       locationsCache = rows // only cache successes — failures retry next call
+      writePersistedLocations(rows)
       return rows
     } catch (error) {
       logger.error('Failed to list locations:', error)
@@ -627,6 +658,27 @@ export async function listLocations(): Promise<AdminLocation[]> {
     }
   })()
   return locationsInflight
+}
+
+/**
+ * List all non-archived locations. Authenticated read; small set (~50–200 rows).
+ * Served from memory, then localStorage (stale-while-revalidate), then network.
+ * Concurrent callers share one round-trip. Bust via clearLocationsCache.
+ */
+export async function listLocations(): Promise<AdminLocation[]> {
+  if (locationsCache) return locationsCache
+  if (locationsInflight) return locationsInflight
+
+  // Cold start: serve the persisted set instantly (no network), and only hit
+  // PostgREST in the background if it's older than the TTL.
+  const persisted = readPersistedLocations()
+  if (persisted) {
+    locationsCache = persisted.rows
+    if (persisted.stale) void refetchLocations()
+    return locationsCache
+  }
+
+  return refetchLocations()
 }
 
 /**

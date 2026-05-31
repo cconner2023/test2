@@ -5,7 +5,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { generateAudioKey, encryptText, sealAudioKey } from './oncallSeal'
 
 /** Plaintext cluster voicemail greeting played to the caller on no-answer (null if none). */
 export interface OncallGreetingWire {
@@ -16,8 +15,6 @@ export interface OncallGreetingWire {
 
 export interface RequestOncallResult {
   call_id: string
-  /** base64 SPKI of the clinic voicemail pubkey (null if none configured). */
-  recipient_pub: string | null
   /** Cluster voicemail greeting — plaintext, played before recording on no-answer. */
   voicemail_greeting: OncallGreetingWire | null
   /** Whether ANYONE will be paged (→ ring) vs nobody on-call (→ straight to voicemail).
@@ -74,6 +71,13 @@ export async function pollOncallSignal(
   return data as PollResult
 }
 
+/**
+ * Outside→cluster VOICEMAIL. The audio is AES-GCM ciphertext (IV‖ct) the caller produced
+ * client-side; `audio` is its base64 and `key` is the raw AES key (base64). Both go to the
+ * oncall-resolve EDGE FN over TLS — the edge (service_role) uploads the ciphertext blob to
+ * the message-attachments bucket and authors the resolved card as a real per-device SYSTEM
+ * envelope carrying {key, path}. No seal-to-clinic-key; server holds ciphertext only.
+ */
 export async function submitOncallVoicemail(
   supabase: SupabaseClient,
   args: {
@@ -81,27 +85,27 @@ export async function submitOncallVoicemail(
     passphrase: string
     callId: string
     audio: string
+    key: string
     mime: string
     duration: number
     waveform: number[]
-    sealedKey: string
-    ephemeralPub: string
-    nonce: string
   },
 ): Promise<boolean> {
-  const { error } = await supabase.rpc('submit_oncall_voicemail', {
-    p_passcode: args.passcode,
-    p_passphrase: args.passphrase,
-    p_call_id: args.callId,
-    p_audio: args.audio,
-    p_mime: args.mime,
-    p_duration: Math.round(args.duration),
-    p_waveform: args.waveform,
-    p_sealed_key: args.sealedKey,
-    p_ephemeral_pub: args.ephemeralPub,
-    p_nonce: args.nonce,
+  const { data, error } = await supabase.functions.invoke('oncall-resolve', {
+    body: {
+      outcome: 'voicemail',
+      call_id: args.callId,
+      passcode: args.passcode,
+      passphrase: args.passphrase,
+      audio: args.audio,
+      key: args.key,
+      mime: args.mime,
+      duration: Math.round(args.duration),
+      waveform: args.waveform,
+    },
   })
-  return !error
+  if (error) return false
+  return (data as { ok?: boolean } | null)?.ok === true
 }
 
 export async function markOncallMissedAnon(
@@ -109,7 +113,9 @@ export async function markOncallMissedAnon(
   passcode: string,
   callId: string,
 ): Promise<void> {
-  await supabase.rpc('mark_oncall_missed_anon', { p_passcode: passcode, p_call_id: callId })
+  await supabase.functions.invoke('oncall-resolve', {
+    body: { outcome: 'missed', call_id: callId, passcode },
+  })
 }
 
 /** The human-readable event-intake detail — sealed before it leaves the device. */
@@ -145,39 +151,26 @@ export async function submitEventIntake(
 }
 
 /**
- * Outside→cluster ONE-WAY message. Seals the text body to the clinic inbound public key
- * (same envelope as voicemail audio) BEFORE it leaves the device — the server only ever
- * stores ciphertext. `recipientPubB64` is the clinic inbound pubkey returned by
- * resolve_event_intake_code; if it's absent the clinic has no inbound key and we can't seal.
- * On success, fires the on-call push (server resolves clinics.oncall from the SYSTEM copy
- * keyed by message_id; the anon never learns the roster). Fire-and-forget push.
+ * Outside→cluster ONE-WAY message. Hands the body (cleartext, over TLS) to the
+ * `outside-message-submit` EDGE FUNCTION, which authors it as a real per-device SYSTEM
+ * group message (per-device X3DH, sender_device_id='edge') to every clinic member — so
+ * the Signal envelope encrypts it end-to-end and it rides the normal group pipeline
+ * (decrypt/backup/vault/delete/render). No client-side crypto here; the anon bundle stays
+ * signal-free, and there is no more seal-to-clinic-key. The on-call push is fired
+ * server-side by the edge fn. Returns false on any failure (uniform {ok:false} — no oracle).
  */
 export async function submitClusterMessage(
   supabase: SupabaseClient,
-  args: { passcode: string; passphrase: string; requesterName: string; recipientPubB64: string; body: string },
+  args: { passcode: string; passphrase: string; requesterName: string; body: string },
 ): Promise<boolean> {
-  let sealedPayload: { ciphertext: string; sealed_key: string; ephemeral_pub: string; nonce: string }
-  try {
-    const key = await generateAudioKey()
-    const ciphertext = await encryptText(key, args.body)
-    const sealed = await sealAudioKey(key, args.recipientPubB64)
-    sealedPayload = { ciphertext, ...sealed }
-  } catch {
-    return false
-  }
-
-  const { data, error } = await supabase.rpc('submit_cluster_message', {
-    p_passcode: args.passcode,
-    p_passphrase: args.passphrase,
-    p_sealed: sealedPayload,
-    p_requester_name: args.requesterName,
+  const { data, error } = await supabase.functions.invoke('outside-message-submit', {
+    body: {
+      passcode: args.passcode,
+      passphrase: args.passphrase,
+      requesterName: args.requesterName,
+      body: args.body,
+    },
   })
-  if (error || !data) return false
-
-  const messageId = (data as { message_id: string }).message_id
-  void supabase.functions
-    .invoke('send-push-notification', { body: { type: 'cluster_message', message_id: messageId } })
-    .catch(() => {})
-
-  return true
+  if (error) return false
+  return (data as { ok?: boolean } | null)?.ok === true
 }

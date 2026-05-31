@@ -40,7 +40,8 @@ import { unseal } from './sealedSender'
 import { x3dhRespond } from './x3dh'
 import { initReceiver, ratchetDecrypt } from './ratchet'
 import { uploadKeyBundle, registerDevice } from './signalService'
-import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones } from '../calendarRouting'
+import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones, publishFullReplayLiveIds, poisonFullReplayReconcile } from '../calendarRouting'
+import { getVaultCursor, putVaultCursor, type VaultCursor } from '../offlineDb'
 import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature, initOverlayTombstones } from '../mapOverlayRouting'
 import type { CalendarEventContent, MapOverlayContent, MapFeatureContent } from './messageContent'
 import { parseMessageContent } from './messageContent'
@@ -471,13 +472,48 @@ export async function ensureClinicVaultExists(
 }
 
 /**
- * Process unread messages addressed to the clinic vault device.
+ * How long a device may rely on delta drains before it is forced to do a full
+ * archive replay again. A full drain re-runs compaction (pair-clean + dead-row
+ * purge) and the calendar drop-stale reconcile, re-closing any window where a
+ * delete propagated only via a 'd' that was pair-cleaned before this device
+ * saw it. Delta drains in between fetch only new rows (egress win).
+ */
+export const CLINIC_VAULT_FULL_DRAIN_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000
+
+export interface ClinicDrainOptions {
+  /**
+   * 'full'  — fetch & replay the entire archive (compaction + drop-stale).
+   * 'delta' — fetch only rows newer than this device's cursor; additive only.
+   * Omitted — self-decide from the cursor (delta unless missing/stale).
+   */
+  mode?: 'full' | 'delta'
+  /**
+   * When true (login path), a full drain publishes its authoritative live
+   * event-id set so useCalendarSync runs the drop-stale prune. Background/
+   * post-write drains leave it false so a stray full drain can compact the
+   * archive without triggering a UI reconcile against a partial set.
+   */
+  publishReconcile?: boolean
+}
+
+/**
+ * Process messages addressed to the clinic vault device.
  *
  * Called on login after personal vault processing. Mirrors the
  * personal processVaultMessages flow but uses the clinic's
  * encryption_key as the wrapping key.
+ *
+ * Drains incrementally via a per-device cursor (offlineDb vaultCursors): a
+ * cold start fetches only rows newer than the last contiguously-processed one
+ * instead of re-downloading the whole encrypted archive. Safe because every
+ * clinic vault send is a self-contained X3DH 'initial' (no cross-row session
+ * dependency). A full drain (cursor missing, stale, or forced) restores the
+ * original archive-replay semantics for compaction + drop-stale reconcile.
  */
-export async function processClinicVaultMessages(clinicId: string): Promise<number> {
+export async function processClinicVaultMessages(
+  clinicId: string,
+  opts: ClinicDrainOptions = {},
+): Promise<number> {
   // 0. Ensure tombstones are loaded so routeCalendarEvent / routeMapOverlay can
   // guard against resurrecting deleted events. This runs before React hooks
   // (useCalendarSync) so the in-memory sets must be warm.
@@ -528,22 +564,51 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
     .eq('user_id', clinicId)
     .eq('device_id', CLINIC_VAULT_DEVICE_ID)
 
-  // 3. Fetch unread vault messages
-  const { data: rows, error: fetchError } = await supabase
+  // 2b. Decide drain mode from this device's cursor. A full drain re-fetches
+  // the whole archive (compaction + drop-stale); a delta drain fetches only
+  // rows newer than the cursor. Self-decide unless the caller forced a mode.
+  const priorCursor = await getVaultCursor(clinicId)
+  const cursorAgeMs = priorCursor?.lastFullDrainAt
+    ? Date.now() - new Date(priorCursor.lastFullDrainAt).getTime()
+    : Infinity
+  const isFullDrain = opts.mode
+    ? opts.mode === 'full'
+    : (!priorCursor || cursorAgeMs > CLINIC_VAULT_FULL_DRAIN_INTERVAL_MS)
+
+  // 3. Fetch vault messages — full archive, or only the delta past the cursor.
+  let query = supabase
     .from('signal_messages')
     .select('*')
     .eq('recipient_id', clinicId)
     .eq('recipient_device_id', CLINIC_VAULT_DEVICE_ID)
     .order('created_at', { ascending: true })
+  if (!isFullDrain && priorCursor) {
+    // gte, not gt: two rows can share an exact created_at (same fan-out batch),
+    // and gt past one would skip the other forever. Re-processing the boundary
+    // row is idempotent (routeCalendarEvent/routeMapOverlay upsert), so the
+    // only cost is re-fetching the rows on that single timestamp.
+    query = query.gte('created_at', priorCursor.cursor)
+  }
+  const { data: rows, error: fetchError } = await query
 
   if (fetchError || !rows || rows.length === 0) {
-    if (fetchError) logger.warn('Failed to fetch clinic vault messages:', fetchError)
-    else logger.info('No pending clinic vault messages')
+    if (fetchError) {
+      // A fetch failure is NOT an empty archive — never publish an empty live
+      // set here, or a transient network blip during a full drain would prune
+      // the whole local cache. Poison the reconcile and bail.
+      logger.warn('Failed to fetch clinic vault messages:', fetchError)
+      if (isFullDrain && opts.publishReconcile) poisonFullReplayReconcile()
+    } else {
+      logger.info('No pending clinic vault messages')
+      // A full drain that genuinely sees an empty archive publishes an empty
+      // live set so the reconcile prunes any stale local cache.
+      if (isFullDrain && opts.publishReconcile) publishFullReplayLiveIds([])
+    }
     await rotateClinicVaultSPK(clinicId, vaultKeys, vaultRow as VaultDeviceKeysRow)
     return 0
   }
 
-  logger.info(`Processing ${rows.length} clinic vault messages`)
+  logger.info(`Processing ${rows.length} clinic vault messages (${isFullDrain ? 'full' : 'delta'})`)
 
   // 4. Batch decrypt with ephemeral session map
   const sessionMap = new Map<string, { state: RatchetState; ad: Uint8Array }>()
@@ -551,7 +616,11 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
   // decrypts are intentionally NOT collected here (archive-mode replay).
   const deadOriginIds: string[] = []
   const deadRowIds: string[] = []
+  // Every row that failed to decrypt, by id — used to compute the contiguous
+  // low-water cursor (advance only past a gap-free run of successful rows).
+  const deadRowIdSet = new Set<string>()
   const markDead = (row: SignalMessageRow) => {
+    deadRowIdSet.add(row.id)
     if (row.origin_id) deadOriginIds.push(row.origin_id)
     else deadRowIds.push(row.id)
   }
@@ -711,7 +780,10 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
         routeCalendarEvent(content)
       }
     }
-    if (deletedEventIds.size > 0) {
+    // Pair-clean only on a full drain. A delta batch is not the whole archive,
+    // so deleting a 'd' here could remove a tombstone a delta-only peer hasn't
+    // drained yet (resurrection). Delta deletes still apply locally above.
+    if (isFullDrain && deletedEventIds.size > 0) {
       const pairedOriginIds = calendarRoutes
         .filter(({ content, originId }) => originId && deletedEventIds.has(content.data.id))
         .map(({ originId }) => originId as string)
@@ -740,7 +812,7 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
         await routeMapOverlay(content).catch(() => {})
       }
     }
-    if (deletedOverlayIds.size > 0) {
+    if (isFullDrain && deletedOverlayIds.size > 0) {
       const pairedOriginIds = overlayRoutes
         .filter(({ content, originId }) => originId && deletedOverlayIds.has(content.data.id))
         .map(({ originId }) => originId as string)
@@ -769,7 +841,7 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
         await routeMapFeature(content).catch(() => {})
       }
     }
-    if (deletedFeatureKeys.size > 0) {
+    if (isFullDrain && deletedFeatureKeys.size > 0) {
       const pairedOriginIds = featureRoutes
         .filter(({ content, originId }) => originId && deletedFeatureKeys.has(keyOf(content)))
         .map(({ originId }) => originId as string)
@@ -784,10 +856,33 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
     }
   }
 
-  // 5c. Hard-delete permanently-undecryptable rows so they don't bloat the
-  // table and don't get re-fetched/re-failed on every login. Only failure
-  // paths reach this — successful decrypts stay in supabase to support
-  // archive-mode replay (see header).
+  // 5d. Publish the calendar drop-stale reconcile set for useCalendarSync.
+  // Only a CLEAN full drain (every row decrypted, at least one succeeded) is
+  // authoritative truth: it publishes its live event-ids, which the login
+  // accumulates into a union across clinics. A partial-decrypt drain could
+  // omit live events and wrongly prune the local cache, so it POISONS the
+  // whole login's reconcile (sets it null → no prune) — the same fail-closed
+  // posture as the circuit-breaker below. Delta drains never publish.
+  if (opts.publishReconcile && isFullDrain) {
+    if (processedCount > 0 && deadRowIdSet.size === 0) {
+      const live = new Set<string>()
+      for (const { content } of calendarRoutes) {
+        if (content.action !== 'delete') live.add(content.data.id)
+      }
+      for (const { content } of calendarRoutes) {
+        if (content.action === 'delete') live.delete(content.data.id)
+      }
+      publishFullReplayLiveIds([...live])
+    } else if (deadRowIdSet.size > 0) {
+      poisonFullReplayReconcile()
+    }
+  }
+
+  // 5e. Hard-delete permanently-undecryptable rows so they don't bloat the
+  // table and don't get re-fetched/re-failed on every login. FULL DRAINS ONLY:
+  // a delta batch is not the whole archive, and a delta-only device must never
+  // delete vault rows a peer may still need. Only failure paths reach this —
+  // successful decrypts stay in supabase to support archive-mode replay.
   //
   // CIRCUIT-BREAKER (added after the 2026-05-25 calendar nuke): NEVER purge
   // when the entire batch failed to decrypt (processedCount === 0). A total
@@ -799,27 +894,62 @@ export async function processClinicVaultMessages(clinicId: string): Promise<numb
   // the ONLY calendar store (no calendar_events table), so this is permanent
   // data loss. Failing closed here turns a version-skew login into a harmless
   // no-op: the rows survive and a healthy client re-judges them next drain.
-  if (processedCount === 0 && (deadOriginIds.length > 0 || deadRowIds.length > 0)) {
-    logger.warn(
-      `Clinic vault: ${deadOriginIds.length + deadRowIds.length} rows failed to decrypt and ZERO succeeded — ` +
-      `refusing to purge (likely stale build or bad session key). Archive preserved.`
-    )
-  } else {
-    if (deadOriginIds.length > 0) {
-      supabase.rpc('hard_delete_clinic_vault_messages', {
-        p_clinic_id: clinicId,
-        p_origin_ids: deadOriginIds,
-      }).then(({ error }) => {
-        if (error) logger.warn('Vault dead-row cleanup RPC failed:', error.message)
-        else logger.info(`Vault dead-row cleanup: deleted ${deadOriginIds.length} undecryptable rows by origin_id`)
-      }).catch(() => { /* best-effort; next login retries */ })
+  if (isFullDrain) {
+    if (processedCount === 0 && (deadOriginIds.length > 0 || deadRowIds.length > 0)) {
+      logger.warn(
+        `Clinic vault: ${deadOriginIds.length + deadRowIds.length} rows failed to decrypt and ZERO succeeded — ` +
+        `refusing to purge (likely stale build or bad session key). Archive preserved.`
+      )
+    } else {
+      if (deadOriginIds.length > 0) {
+        supabase.rpc('hard_delete_clinic_vault_messages', {
+          p_clinic_id: clinicId,
+          p_origin_ids: deadOriginIds,
+        }).then(({ error }) => {
+          if (error) logger.warn('Vault dead-row cleanup RPC failed:', error.message)
+          else logger.info(`Vault dead-row cleanup: deleted ${deadOriginIds.length} undecryptable rows by origin_id`)
+        }).catch(() => { /* best-effort; next login retries */ })
+      }
+      if (deadRowIds.length > 0) {
+        supabase.from('signal_messages').delete().in('id', deadRowIds)
+          .then(({ error }) => {
+            if (error) logger.warn('Vault dead-row direct delete failed:', error.message)
+            else logger.info(`Vault dead-row cleanup: deleted ${deadRowIds.length} undecryptable rows by id`)
+          })
+      }
     }
-    if (deadRowIds.length > 0) {
-      supabase.from('signal_messages').delete().in('id', deadRowIds)
-        .then(({ error }) => {
-          if (error) logger.warn('Vault dead-row direct delete failed:', error.message)
-          else logger.info(`Vault dead-row cleanup: deleted ${deadRowIds.length} undecryptable rows by id`)
-        })
+  }
+
+  // 5f. Advance this device's drain cursor (high-water mark).
+  //  - Delta drain: advance to a CONTIGUOUS low-water mark — stop at the first
+  //    row that failed to decrypt, so a transient/stale-build gap is re-fetched
+  //    next drain rather than skipped forever.
+  //  - Full drain: dead rows were just purged (or the circuit-breaker preserved
+  //    a stale-build batch and refused to advance), so advance to the batch max.
+  // The total-failure circuit-breaker case (processedCount === 0 with dead
+  // rows) leaves the cursor parked so the archive is re-fetched after upgrade.
+  if (!(processedCount === 0 && deadRowIdSet.size > 0)) {
+    const orderedRows = rows as SignalMessageRow[]
+    let newCursor = priorCursor?.cursor ?? ''
+    if (isFullDrain) {
+      newCursor = orderedRows[orderedRows.length - 1].created_at
+    } else {
+      for (const row of orderedRows) {
+        if (deadRowIdSet.has(row.id)) break
+        newCursor = row.created_at
+      }
+    }
+    if (newCursor) {
+      const next: VaultCursor = {
+        clinicId,
+        cursor: newCursor,
+        // Stamp the full-drain clock only on a publishing full drain, so a
+        // background/stray full drain can't suppress the next login's reconcile.
+        lastFullDrainAt: (isFullDrain && opts.publishReconcile)
+          ? new Date().toISOString()
+          : (priorCursor?.lastFullDrainAt ?? ''),
+      }
+      await putVaultCursor(next)
     }
   }
 

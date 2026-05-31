@@ -172,30 +172,27 @@ export interface IntakeRequestContent {
   title: string
 }
 
-/** Voicemail payload carried inline in a resolved oncall-call card. The audio is
- *  AES-256-GCM ciphertext (base64, IV-prepended); the AES key is sealed to the
- *  clinic voicemail pubkey (see src/lib/oncallSeal.ts). Server stores ciphertext
- *  only — the no-PHI-on-wire invariant holds (operational audio, E2E-encrypted). */
+/** Voicemail payload carried in a resolved oncall-call card. The audio is AES-256-GCM
+ *  ciphertext (IV-prepended) stored as a blob in the message-attachments bucket — same
+ *  shape as an internal VoiceContent. The AES key rides INSIDE the edge-authored Signal
+ *  envelope (no seal-to-clinic-key), so the server holds ciphertext only and decryption
+ *  capability = receiving the envelope (cluster membership). */
 export interface OncallVoicemailData {
-  /** base64(IV ‖ AES-GCM audio ciphertext). */
-  audio: string
+  /** Base64 AES-256-GCM key for the audio blob (carried inside the E2E envelope). */
+  key: string
+  /** Storage path in the message-attachments bucket (oncall/<clinic_id>/<uuid>.enc). */
+  path: string
   mime: string
   duration: number
   waveform: number[]
-  /** base64(IV ‖ AES-GCM) of the audio key, wrapped to the clinic voicemail key. */
-  sealed_key: string
-  /** base64 raw ephemeral P-256 pubkey used for the seal. */
-  ephemeral_pub: string
-  /** base64 HKDF salt. */
-  nonce: string
 }
 
 /**
- * Resolved outside→on-call CALL card — the durable record of one on-call call,
- * SYSTEM-authored plaintext jsonb (like IntakeRequestContent). Decrypt-only:
- * constructed inside the decryptRow / drainSystemInbox oncall early-exits, never
- * serialized. The live ring (oncall-ring) is NOT a content type — it routes to
- * the call layer via the oncall signal bus and is never stored as a card.
+ * Resolved outside→on-call CALL card — the durable record of one on-call call. Authored
+ * by the `oncall-resolve` EDGE FUNCTION as a real per-device SYSTEM Signal envelope
+ * (sender_device_id='edge'), so these fields are the DECRYPTED plaintext and it rides the
+ * normal group pipeline like IntakeRequestContent. The live ring (oncall-ring) is NOT a
+ * content type — it routes to the call layer via the oncall signal bus, never stored.
  */
 export interface OncallCallContent {
   type: 'oncall_call'
@@ -235,26 +232,20 @@ export interface SharedRefContent {
 
 /**
  * Outside→cluster ONE-WAY message card — an outside party (QR + passphrase) drops a
- * sealed text note to the whole clinic cluster. SYSTEM-authored; the body is SEALED to
- * the clinic inbound pubkey (oncall_recipient_pub) with the SAME envelope as voicemail
- * audio — never plaintext at rest. Decrypt-only (constructed in the decryptRow oncall
- * early-exit, never serialized). Decryption capability = cluster membership.
+ * short text note to the whole clinic cluster. Authored by the `outside-message-submit`
+ * EDGE FUNCTION as a real per-device SYSTEM group message (sender_device_id='edge'),
+ * so the Signal ratchet/sealed-sender envelope encrypts the body end-to-end and these
+ * fields are the DECRYPTED plaintext — no seal-to-clinic-key, no bespoke crypto. It
+ * rides the standard group pipeline (decrypt → backup → vault → delete → render),
+ * byte-identical transport to IntakeRequestContent.
  */
 export interface OutsideMessageContent {
   type: 'outside_message'
   message_id: string
   clinic_id: string
   requester_name: string
-  sealed: {
-    /** base64(IV ‖ AES-GCM ciphertext) of the UTF-8 message body. */
-    ciphertext: string
-    /** base64(IV ‖ AES-GCM) of the body key, sealed to the clinic inbound key. */
-    sealed_key: string
-    /** base64 raw ephemeral P-256 pubkey used for the seal. */
-    ephemeral_pub: string
-    /** base64 HKDF salt. */
-    nonce: string
-  }
+  /** Decrypted message body (operational vocabulary only — no PHI). */
+  text: string
 }
 
 export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | SharedRefContent | IntakeRequestContent | OncallCallContent | OutsideMessageContent
@@ -347,7 +338,43 @@ interface WireIntake {
   ti: string
 }
 
-type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature | WireSharedRef | WireIntake
+/** Outside→cluster one-way message, authored by the edge fn inside the Signal envelope. */
+interface WireOutsideMessage {
+  t: 'om'
+  /** message id */
+  id: string
+  /** clinic id */
+  c: string
+  /** requester name */
+  n: string
+  /** body text */
+  d: string
+}
+
+/** Resolved on-call call card, authored by the edge fn inside the Signal envelope. */
+interface WireOncallCall {
+  t: 'oc'
+  /** call id */
+  id: string
+  /** clinic id */
+  c: string
+  /** requester name */
+  n: string
+  /** outcome */
+  o: OncallCallContent['outcome']
+  /** ended_at (ISO) */
+  ea: string
+  /** voicemail attachment ref (present only on voicemail) */
+  vm?: {
+    key: string
+    path: string
+    mime: string
+    dur: number
+    wf: number[]
+  }
+}
+
+type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature | WireSharedRef | WireIntake | WireOutsideMessage | WireOncallCall
 
 // ---- Serialization ----
 
@@ -442,10 +469,40 @@ export function serializeContent(content: MessageContent): string {
     return JSON.stringify(wire)
   }
 
+  if (content.type === 'outside_message') {
+    // Serialized by the outside-message-submit edge function as the plaintext
+    // INSIDE the SYSTEM sealed envelope (then E2E-encrypted by the ratchet).
+    const wire: WireOutsideMessage = {
+      t: 'om',
+      id: content.message_id,
+      c: content.clinic_id,
+      n: content.requester_name,
+      d: content.text,
+    }
+    return JSON.stringify(wire)
+  }
+
   if (content.type === 'oncall_call') {
-    // Decrypt-only, like intake_request — built inside the oncall early-exits
-    // from SYSTEM-authored plaintext jsonb, never re-broadcast as a message.
-    throw new Error('oncall_call content is not serializable')
+    // Serialized by the oncall-resolve edge function as the plaintext INSIDE the
+    // SYSTEM sealed envelope (then E2E-encrypted by the ratchet).
+    const wire: WireOncallCall = {
+      t: 'oc',
+      id: content.call_id,
+      c: content.clinic_id,
+      n: content.requester_name,
+      o: content.outcome,
+      ea: content.ended_at,
+    }
+    if (content.voicemail) {
+      wire.vm = {
+        key: content.voicemail.key,
+        path: content.voicemail.path,
+        mime: content.voicemail.mime,
+        dur: content.voicemail.duration,
+        wf: content.voicemail.waveform,
+      }
+    }
+    return JSON.stringify(wire)
   }
 
   const wire: WireVoice = {
@@ -597,6 +654,42 @@ export function parseMessageContent(raw: string): ParsedContent {
           title: wire.ti,
         } satisfies IntakeRequestContent,
       }
+    }
+
+    if (wire.t === 'om') {
+      return {
+        plaintext: wire.d,
+        content: {
+          type: 'outside_message',
+          message_id: wire.id,
+          clinic_id: wire.c,
+          requester_name: wire.n,
+          text: wire.d,
+        } satisfies OutsideMessageContent,
+      }
+    }
+
+    if (wire.t === 'oc') {
+      const content: OncallCallContent = {
+        type: 'oncall_call',
+        call_id: wire.id,
+        clinic_id: wire.c,
+        requester_name: wire.n,
+        outcome: wire.o,
+        ended_at: wire.ea,
+        ...(wire.vm
+          ? {
+              voicemail: {
+                key: wire.vm.key,
+                path: wire.vm.path,
+                mime: wire.vm.mime,
+                duration: wire.vm.dur,
+                waveform: wire.vm.wf,
+              },
+            }
+          : {}),
+      }
+      return { plaintext: '[on-call]', content }
     }
   } catch {
     // Not JSON — treat as raw text

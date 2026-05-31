@@ -82,6 +82,13 @@ interface CalendarState {
   vaultReplayDone: boolean
   /** True if vault replay encountered decryption errors on last login. */
   hydrationError: boolean
+  /**
+   * Authoritative live event-id set published by a FULL clinic-vault drain
+   * (union across all clinics drained this login). null after a delta drain —
+   * delta drains are additive and must NOT trigger the drop-stale prune.
+   * Consumed (reset to null) by useCalendarSync once it reconciles.
+   */
+  fullReplayLiveIds: string[] | null
 }
 
 interface CalendarActions {
@@ -106,6 +113,10 @@ interface CalendarActions {
   setHydrated: (h: boolean) => void
   setVaultReplayDone: (done: boolean) => void
   clearHydrationError: () => void
+  /** Initialise the full-drain reconcile set ([] to accumulate, null to disable). */
+  setFullReplayLiveIds: (ids: string[] | null) => void
+  /** Append a clinic's live ids to the reconcile set (no-op while it is null). */
+  appendFullReplayLiveIds: (ids: string[]) => void
   setDaySpan: (span: CalendarDaySpan) => void
   setHideWeekends: (hide: boolean) => void
   setT2TZoom: (zoom: CalendarT2TZoom) => void
@@ -189,6 +200,7 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   hydrated: false,
   vaultReplayDone: false,
   hydrationError: false,
+  fullReplayLiveIds: null,
 
   setView: (view) => set({ currentView: view }),
   setSelectedDate: (date) => set({ selectedDate: date }),
@@ -254,6 +266,10 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   setHydrated: (h) => set({ hydrated: h }),
   setVaultReplayDone: (done) => set({ vaultReplayDone: done }),
   clearHydrationError: () => set({ hydrationError: false }),
+  setFullReplayLiveIds: (ids) => set({ fullReplayLiveIds: ids }),
+  appendFullReplayLiveIds: (ids) => set((s) => (
+    s.fullReplayLiveIds === null ? {} : { fullReplayLiveIds: [...s.fullReplayLiveIds, ...ids] }
+  )),
   setDaySpan: (span) => set((s) => {
     savePrefs({ daySpan: span, hideWeekends: s.hideWeekends, t2tZoom: s.t2tZoom })
     return { daySpan: span }

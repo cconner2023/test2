@@ -18,6 +18,26 @@ export function isCalendarEvent(content: MessageContent | undefined | null): con
   return content?.type === 'calendar_event'
 }
 
+/**
+ * Append a full clinic-vault drain's authoritative live event-ids to the
+ * reconcile set so useCalendarSync can drop-stale prune. Bridges the signal
+ * drain to the store without signal/* importing the store. No-ops on a delta
+ * drain (set is null), so additive deltas never trigger a destructive prune.
+ */
+export function publishFullReplayLiveIds(ids: string[]): void {
+  useCalendarStore.getState().appendFullReplayLiveIds(ids)
+}
+
+/**
+ * Disable the drop-stale reconcile for the whole login (fail-closed). Called
+ * when a full drain decrypted only partially, so its live set can't be trusted
+ * as authoritative truth — better to skip the prune than wrongly delete cached
+ * events. Any later clinic's append no-ops while the set is null.
+ */
+export function poisonFullReplayReconcile(): void {
+  useCalendarStore.getState().setFullReplayLiveIds(null)
+}
+
 // Module-level tombstone set for O(1) lookups — avoids IDB on every message.
 let _tombstones: Set<string> = new Set()
 

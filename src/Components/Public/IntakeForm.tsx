@@ -20,8 +20,6 @@ type Stage1State =
       clinicName: string
       oncallEnabled: boolean
       messageEnabled: boolean
-      /** On-call inbound key (calls/voicemail/text). NOT used for event intake. */
-      recipientPub: string | null
     }
   | { kind: 'unknown' }
 
@@ -93,14 +91,12 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
         clinic_name?: string
         oncall_enabled?: boolean
         outside_message_enabled?: boolean
-        recipient_pub?: string | null
       }
       setStage1({
         kind: 'resolved',
         clinicName: resolved.clinic_name ?? '',
         oncallEnabled: resolved.oncall_enabled === true,
         messageEnabled: resolved.outside_message_enabled === true,
-        recipientPub: resolved.recipient_pub ?? null,
       })
     } catch {
       setStage1({ kind: 'unknown' })
@@ -164,17 +160,17 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
     setSubmit({ kind: 'submitted' })
   }, [supabase, stage1, name, org, email, startDate, startTime, endDate, endTime, title, passcode, passphrase])
 
-  // One-way cluster message: seal the body to the clinic inbound key (inside
-  // submitClusterMessage) and fan it to the cluster. Same reject recovery as event.
+  // One-way cluster message: hand the body to the outside-message-submit edge fn,
+  // which authors it as a real SYSTEM group message E2E to the cluster (no client-side
+  // seal). Same reject recovery as event.
   const onSubmitMessage = useCallback(async () => {
-    if (stage1.kind !== 'resolved' || !stage1.recipientPub) return
+    if (stage1.kind !== 'resolved') return
     if (name.trim().length === 0 || messageBody.trim().length === 0) return
     setSubmit({ kind: 'submitting' })
     const ok = await submitClusterMessage(supabase, {
       passcode,
       passphrase: passphrase.trim(),
       requesterName: name.trim(),
-      recipientPubB64: stage1.recipientPub,
       body: messageBody.trim(),
     })
     if (!ok) {
@@ -309,7 +305,7 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
                 <X size={16} />
               </button>
               {(() => {
-                const messageReady = name.trim().length > 0 && messageBody.trim().length > 0 && stage1.kind === 'resolved' && !!stage1.recipientPub
+                const messageReady = name.trim().length > 0 && messageBody.trim().length > 0 && stage1.kind === 'resolved'
                 return (
                   <button
                     type="button"

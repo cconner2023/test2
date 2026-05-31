@@ -78,6 +78,15 @@ let _restoreCompleted = false
  *  upload so a snapshot taken mid-transaction can't overwrite a clean one. */
 let _createBackupInFlight: Promise<void> | null = null
 
+/** Whether anything has changed since the last successful backup.
+ *  Set true on every scheduleBackup (message save / initial schedule),
+ *  cleared on a successful insert in doCreateBackup. The periodic timer
+ *  skips the upload when this is false so an idle session stops re-uploading
+ *  an identical snapshot (and re-running trim) every BACKUP_PERIODIC_MS —
+ *  the dominant source of idle REST/egress traffic. The debounce/max-wait
+ *  path is unaffected: real changes still back up promptly. */
+let _dirtySinceLastBackup = false
+
 export function markHydrationComplete(): void {
   _hydrationComplete = true
 }
@@ -272,6 +281,7 @@ export function clearBackupKey(): void {
   _restoreCompleted = false
   _createBackupInFlight = null
   _firstDirtyAt = null
+  _dirtySinceLastBackup = false
   _scheduledUserId = null
   if (_backupTimer) {
     clearTimeout(_backupTimer)
@@ -526,11 +536,14 @@ async function doCreateBackup(userId: string): Promise<boolean> {
       return false
     }
     logger.info(`Backup created: ${messages.length} messages, ${compressed.length} bytes compressed`)
-    // Fire-and-forget prune. Failure leaves extra rows behind (harmless;
-    // next successful prune sweeps them).
-    supabase.rpc('trim_signal_backups', { p_keep: BACKUP_RETAIN_COUNT }).then(({ error: trimErr }) => {
-      if (trimErr) logger.warn('trim_signal_backups failed:', trimErr.message)
-    })
+    // Snapshot is durable server-side — clear the dirty flag so the periodic
+    // timer won't re-upload an identical snapshot until something changes again.
+    _dirtySinceLastBackup = false
+    // Pruning to BACKUP_RETAIN_COUNT is handled server-side by the pg_cron job
+    // `trim-signal-backups` (calls public.trim_all_signal_backups, every 15 min).
+    // Clients no longer trim per-insert — that was a second PostgREST call on
+    // every backup. Extra rows between cron runs are harmless: restoreBackup
+    // pulls newest-first and only reads BACKUP_RETAIN_COUNT.
     return true
   } catch (err) {
     logger.warn('Backup creation failed:', err)
@@ -750,6 +763,11 @@ export async function deleteBackup(userId: string): Promise<void> {
 export function scheduleBackup(userId: string): void {
   _scheduledUserId = userId
 
+  // Mark dirty: a message was saved (or this is the initial schedule). The
+  // periodic timer only uploads when this is set, so idle sessions stop
+  // churning out identical snapshots.
+  _dirtySinceLastBackup = true
+
   // Register so every future saveMessage() triggers a debounced backup
   setOnMessageSaved(scheduleBackup)
 
@@ -776,7 +794,10 @@ export function scheduleBackup(userId: string): void {
   // Start periodic interval (once per scheduleBackup lifecycle)
   if (!_periodicTimer) {
     _periodicTimer = setInterval(() => {
-      if (_scheduledUserId) {
+      // Dirty-gate: skip the upload when nothing has changed since the last
+      // successful backup. A failed/deferred backup leaves the flag dirty and
+      // retries on the next tick.
+      if (_scheduledUserId && _dirtySinceLastBackup) {
         createBackup(_scheduledUserId).catch(err => logger.warn('Periodic backup failed:', err))
       }
     }, BACKUP_PERIODIC_MS)

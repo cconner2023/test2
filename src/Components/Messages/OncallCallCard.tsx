@@ -1,11 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { Phone, PhoneMissed, PhoneOff, Voicemail, Play, Pause, RefreshCw } from 'lucide-react'
 import type { OncallCallContent } from '../../lib/signal/messageContent'
-import { useAuthStore } from '../../stores/useAuthStore'
-import { getWrappedVoicemailKey } from '../../lib/oncallKeyStore'
-import { unsealAudioKey, decryptAudio, importVoicemailPrivateKey } from '../../lib/oncallSeal'
-import { unwrapFromVault } from '../../lib/signal/oncallKeyWrap'
-import type { SealedEnvelope } from '../../lib/signal/sealedSender'
+import { downloadDecryptedAttachment } from '../../lib/signal/attachmentService'
 
 interface Props {
   content: OncallCallContent
@@ -23,9 +19,9 @@ const OUTCOME_META: Record<OncallCallContent['outcome'], { label: string; Icon: 
 
 /**
  * Resolved on-call call card — the durable record. For a voicemail it plays the
- * inline E2E-encrypted audio: unwrap the clinic voicemail key from the vault,
- * unseal the per-voicemail AES key, decrypt the blob. Delete/Copy ride the
- * existing long-press context menu (Signal delete pipeline).
+ * E2E-encrypted audio: download the ciphertext blob from the message-attachments
+ * bucket and decrypt with the AES key carried inside the envelope (same path as an
+ * internal voice message). Delete/Copy ride the existing long-press context menu.
  */
 export function OncallCallCard({ content, createdAt, messageId, onLongPress }: Props) {
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
@@ -45,19 +41,12 @@ export function OncallCallCard({ content, createdAt, messageId, onLongPress }: P
     if (audioUrl) return audioUrl
     const vm = content.voicemail
     if (!vm) return null
-    const wrapped = getWrappedVoicemailKey(content.clinic_id) as SealedEnvelope | null
-    if (!wrapped) { setError(true); return null }
-    const myUuid = useAuthStore.getState().user?.id
-    if (!myUuid) { setError(true); return null }
     setBusy(true)
     try {
-      const privPkcs8 = await unwrapFromVault(wrapped, myUuid)
-      const priv = await importVoicemailPrivateKey(privPkcs8)
-      const aesKey = await unsealAudioKey(
-        { sealed_key: vm.sealed_key, ephemeral_pub: vm.ephemeral_pub, nonce: vm.nonce },
-        priv,
-      )
-      const blob = await decryptAudio(aesKey, vm.audio, vm.mime)
+      const res = await downloadDecryptedAttachment(vm.path, vm.key)
+      if (!res.ok) { setError(true); return null }
+      // Tag the decrypted bytes with the recorded mime so <audio> can play them.
+      const blob = new Blob([await res.data.arrayBuffer() as BlobPart], { type: vm.mime || 'audio/webm' })
       const url = URL.createObjectURL(blob)
       setAudioUrl(url)
       return url

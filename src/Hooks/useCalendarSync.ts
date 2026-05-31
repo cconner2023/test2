@@ -1,28 +1,33 @@
 /**
  * useCalendarSync — Hydration for clinic calendar events.
  *
- * Startup sequence:
- *  1. Load tombstones (prevents resurrecting deleted events).
- *  2. Load persisted events from IndexedDB.
- *  3. Merge with events already routed by processClinicVaultMessages.
+ * TWO PHASES, decoupled so a cold start paints instantly instead of blanking
+ * behind the vault drain:
  *
- * The clinic vault is a Signal peer device that's always online — every 'c',
- * 'u', 'd' fan-out lands in its inbox, and processClinicVaultMessages drains
- * that inbox (pair-cleaning 'c'/'d' pairs by event_id) into the calendar
- * store. After it completes, the store reflects the vault's current peer
- * state, so any IDB row absent from it is stale: the event was deleted on
- * another device (pair-cleaned away) or its 'c' was never vaulted.
+ *  Phase A — CACHE-FIRST PAINT (ungated). On mount, load tombstones + the
+ *    IndexedDB-cached events and merge them into the store immediately. The
+ *    merge lets the store (vault-drain results) win on conflict, so it can't
+ *    clobber anything the drain already routed if the drain wins the race.
+ *    This is what makes the calendar appear offline-first: the cache is shown
+ *    at once, the drain reconciles in the background.
  *
- * Cold-start drain runs in the login flow (useAuthStore →
- * processClinicVaultMessages). Realtime incoming events arrive on member
- * devices via useSignalMessages → routeCalendarEvent.
+ *  Phase B — POST-DRAIN RECONCILE (on vaultReplayDone). Only a FULL clinic
+ *    drain publishes an authoritative live-id set (useCalendarStore
+ *    .fullReplayLiveIds, a union across all clinics drained this login). When
+ *    present, drop any cached event the vault no longer has — it was deleted on
+ *    another device while this one was away and its 'd' was already pair-cleaned
+ *    before this device saw it. A DELTA drain leaves the set null: deletes
+ *    arrive as explicit 'd' tombstones in the delta, so no destructive prune is
+ *    needed (and would be wrong — the delta isn't the full archive).
  *
- * IDB persistence is handled by the calendarPersist middleware on
- * useCalendarStore — every mutation writes through automatically.
+ * The clinic vault is the ONLY durable/cross-device calendar store (no
+ * calendar_events table). The cold-start drain runs in the login flow
+ * (useAuthStore → processClinicVaultMessages); realtime incoming events arrive
+ * via useSignalMessages → routeCalendarEvent. IDB persistence is handled by the
+ * calendarPersist middleware on useCalendarStore.
  */
 
 import { useEffect } from 'react'
-import { useShallow } from 'zustand/react/shallow'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { loadCalendarEvents, clearExpiredTombstones, saveCalendarEvents } from '../lib/calendarEventStore'
 import { initCalendarTombstones, getTombstones } from '../lib/calendarRouting'
@@ -31,55 +36,62 @@ import { createLogger } from '../Utilities/Logger'
 const logger = createLogger('CalendarSync')
 
 export function useCalendarSync() {
-  const { setEvents, hydrated, setHydrated, vaultReplayDone } = useCalendarStore(useShallow(s => ({
-    setEvents: s.setEvents,
-    hydrated: s.hydrated,
-    setHydrated: s.setHydrated,
-    vaultReplayDone: s.vaultReplayDone,
-  })))
+  const hydrated = useCalendarStore(s => s.hydrated)
+  const vaultReplayDone = useCalendarStore(s => s.vaultReplayDone)
+  const setEvents = useCalendarStore(s => s.setEvents)
+  const setHydrated = useCalendarStore(s => s.setHydrated)
 
-  // Hydrate from IDB on mount — waits for vault replay so the merge sees
-  // the full vault state and the destructive IDB clear is already done.
+  // Phase A — cache-first paint. Ungated by the drain so cold start is instant.
   useEffect(() => {
-    if (hydrated || !vaultReplayDone) return
+    if (hydrated) return
+    let cancelled = false
     ;(async () => {
       try {
         await initCalendarTombstones()
         clearExpiredTombstones().catch(() => {})
 
         const idbEvents = await loadCalendarEvents()
+        if (cancelled) return
 
-        // The store now reflects the vault peer's current state (post pair-clean).
-        // Any IDB event absent from it is stale — its 'c'/'d' pair was cleaned,
-        // or its 'c' aged past decryptability.
-        //
-        // Exception: events with no originId were created locally and never
-        // reached the vault (pending sends). Keep those — the drain will send them.
-        const storeEvents = useCalendarStore.getState().events
-        const vaultIds = new Set(storeEvents.map(e => e.id))
-        const idbLive = idbEvents.filter(e => {
-          if (getTombstones().has(e.id)) return false
-          return vaultIds.has(e.id) || !e.originId
-        })
-
-        const merged = new Map<string, typeof storeEvents[number]>()
-        for (const e of idbLive) merged.set(e.id, e)
-        // Vault-replayed events take precedence (newer state)
-        for (const e of storeEvents) {
-          if (!getTombstones().has(e.id)) merged.set(e.id, e)
+        const tomb = getTombstones()
+        // Merge into whatever the drain may have already routed; store wins on
+        // conflict so a concurrent drain can't be clobbered by stale cache.
+        const byId = new Map(useCalendarStore.getState().events.map(e => [e.id, e]))
+        for (const e of idbEvents) {
+          if (tomb.has(e.id)) continue
+          if (!byId.has(e.id)) byId.set(e.id, e)
         }
-
-        const final = Array.from(merged.values())
-        setEvents(final)
-        // Persist merged set to IDB so vault-replayed events survive page refresh
-        if (final.length !== idbLive.length || storeEvents.length > 0) {
-          saveCalendarEvents(final).catch(() => {})
-        }
+        setEvents(Array.from(byId.values()))
       } catch (e) {
-        logger.warn('Failed to load cached calendar events:', e)
+        logger.warn('Cache-first calendar paint failed:', e)
       } finally {
-        setHydrated(true)
+        if (!cancelled) setHydrated(true)
       }
     })()
-  }, [hydrated, vaultReplayDone, setEvents, setHydrated])
+    return () => { cancelled = true }
+  }, [hydrated, setEvents, setHydrated])
+
+  // Phase B — drop-stale reconcile after a FULL drain only.
+  useEffect(() => {
+    if (!vaultReplayDone) return
+    const liveIds = useCalendarStore.getState().fullReplayLiveIds
+    if (liveIds === null) return // delta drain (or poisoned) — nothing to prune
+
+    const live = new Set(liveIds)
+    const tomb = getTombstones()
+    const events = useCalendarStore.getState().events
+    const pruned = events.filter(e => {
+      if (tomb.has(e.id)) return false
+      // Keep events the full replay confirmed live, plus locally-created events
+      // that never reached the vault (no originId — the drain will fan them out).
+      return live.has(e.id) || !e.originId
+    })
+
+    if (pruned.length !== events.length) {
+      setEvents(pruned)
+      saveCalendarEvents(pruned).catch(() => {})
+    }
+    // Consume so a later remount can't re-prune against a stale set.
+    useCalendarStore.getState().setFullReplayLiveIds(null)
+  }, [vaultReplayDone, setEvents])
 }

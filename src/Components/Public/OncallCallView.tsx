@@ -35,7 +35,6 @@ export function OncallCallView({ supabase, passcode, passphrase, clinicName, onR
 
   const peerRef = useRef<OncallPeer | null>(null)
   const callIdRef = useRef<string | null>(null)
-  const recipientPubRef = useRef<string | null>(null)
   const greetingRef = useRef<OncallGreetingWire | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const deadlineRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -150,7 +149,6 @@ export function OncallCallView({ supabase, passcode, passphrase, clinicName, onR
         return
       }
       callIdRef.current = res.data.call_id
-      recipientPubRef.current = res.data.recipient_pub
       greetingRef.current = res.data.voicemail_greeting
       // No exact on-call headcount any more (staffing recon) — just ring vs
       // straight-to-voicemail when nobody is on-call.
@@ -162,8 +160,8 @@ export function OncallCallView({ supabase, passcode, passphrase, clinicName, onR
       startRingback()
       beginPolling()
     } catch {
-      // mic denied or network error — offer voicemail if a key exists, else bail
-      if (recipientPubRef.current && callIdRef.current) goVoicemail()
+      // mic denied or network error — offer voicemail if the call was placed, else bail
+      if (callIdRef.current) goVoicemail()
       else { teardown(); onClose() }
     }
   }, [name, supabase, passcode, passphrase, onReject, onClose, teardown, goVoicemail, startRingback, beginPolling, onConnected])
@@ -263,7 +261,6 @@ export function OncallCallView({ supabase, passcode, passphrase, clinicName, onR
           passcode={passcode}
           passphrase={passphrase}
           callId={callIdRef.current}
-          recipientPub={recipientPubRef.current}
           greeting={greetingRef.current}
           onClose={closeFromVoicemail}
         />

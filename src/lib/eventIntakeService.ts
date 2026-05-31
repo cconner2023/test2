@@ -109,9 +109,7 @@ export interface IntakeCredentialMetadata {
   created_at: string
   /** GATE-2 master "allow calls" toggle (get_event_intake_credential extension). */
   oncall_enabled?: boolean
-  /** Whether a clinic voicemail key has been generated (get_event_intake_credential extension). */
-  oncall_has_key?: boolean
-  /** GATE-2 "allow text messaging" toggle — outside→cluster one-way sealed message. */
+  /** GATE-2 "allow text messaging" toggle — outside→cluster one-way message. */
   outside_message_enabled?: boolean
   /** Duration (s) of the cluster voicemail greeting, or null if none is set. Presence
    *  flag for the settings row — the audio blob is fetched separately via getOncallGreeting. */

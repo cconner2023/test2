@@ -58,7 +58,7 @@ import { unseal, type SealedEnvelope } from './sealedSender'
 import { encryptAsSystemWith } from './systemSender'
 import { saveMessage, getTombstone, deleteMessagesByOriginId } from './messageStore'
 import { useMessagingStore } from '../../stores/useMessagingStore'
-import { parseMessageContent, type OncallCallContent } from './messageContent'
+import { parseMessageContent } from './messageContent'
 import { isCalendarEvent, routeCalendarEvent } from '../calendarRouting'
 import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature } from '../mapOverlayRouting'
 import type {
@@ -871,52 +871,22 @@ async function _drainSystemInboxImpl(): Promise<number> {
         processedIds.push(row.id)
         continue
       }
+      // Legacy plaintext oncall-call SYSTEM copies are no longer authored — the
+      // resolved card is now an edge-authored per-member envelope (no SYSTEM copy,
+      // no dev-observe). Consume any lingering legacy row so it never hits the
+      // SealedEnvelope decrypt path below.
       if (
         row.message_type === 'system'
         && maybeIntakePayload
         && maybeIntakePayload.kind === 'oncall-call'
       ) {
-        const content: OncallCallContent = {
-          type: 'oncall_call',
-          call_id: String(maybeIntakePayload.call_id),
-          clinic_id: String(maybeIntakePayload.clinic_id),
-          requester_name: String(maybeIntakePayload.requester_name ?? ''),
-          outcome: maybeIntakePayload.outcome as OncallCallContent['outcome'],
-          ended_at: String(maybeIntakePayload.ended_at ?? ''),
-          ...(maybeIntakePayload.voicemail
-            ? { voicemail: maybeIntakePayload.voicemail as OncallCallContent['voicemail'] }
-            : {}),
-        }
-        const msg: DecryptedSignalMessage = {
-          id: row.id,
-          senderId: SYSTEM_USER_ID,
-          recipientId: SYSTEM_USER_ID,
-          plaintext: '[on-call]',
-          content,
-          messageType: 'system',
-          createdAt: row.created_at,
-          readAt: row.read_at,
-          ...(row.group_id && { groupId: row.group_id }),
-          originId: row.origin_id ?? undefined,
-        }
-        const { useAuthStore } = await import('../../stores/useAuthStore')
-        const devUserId = useAuthStore.getState().user?.id
-        if (devUserId) {
-          await saveMessage(msg, devUserId)
-        }
-        useMessagingStore.getState().addMessage(msg)
-        for (const cb of _systemMessageListeners) {
-          try { cb(msg) } catch { /* listener failures must not block drain */ }
-        }
         processedIds.push(row.id)
         continue
       }
 
-      // Outside→cluster one-way message. The dev/SYSTEM copy exists for push authz
-      // (send-push-notification resolves the clinic from it) and is not a dev-facing
-      // surface — the sealed body is for cluster members. Consume without surfacing;
-      // skipping also avoids the SealedEnvelope decrypt path below choking on the
-      // plaintext jsonb row (the rev8 control-plane fall-through bug).
+      // Legacy outside-message SYSTEM copies are no longer authored (submit_cluster_message
+      // retired; the message is now an edge-authored per-member envelope). Defensively
+      // consume any lingering pre-migration row so it never hits the SealedEnvelope path.
       if (
         row.message_type === 'system'
         && maybeIntakePayload

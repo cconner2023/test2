@@ -20,7 +20,7 @@ import {
   getEventIntakeCredential,
   type IntakeCredentialMetadata,
 } from '../../lib/eventIntakeService'
-import { enableOncall, disableOncall, enableOutsideMessaging, disableOutsideMessaging, provisionInboundKey, redistributeInboundKey } from '../../lib/oncallService'
+import { enableOncall, disableOncall, enableOutsideMessaging, disableOutsideMessaging } from '../../lib/oncallService'
 import { ToggleSwitch } from './ToggleSwitch'
 import { OncallGreetingRow } from './OncallGreetingRow'
 import { createLogger } from '../../Utilities/Logger'
@@ -76,10 +76,6 @@ function generatePassphrase(): string {
  * button (matches the rest of the settings UI). The supervisor types a
  * passphrase or taps the dice to fill a generated one inline before submitting.
  */
-/** Clinics whose inbound key this session has already opportunistically
- *  re-distributed — so the self-heal fires at most once per clinic per load. */
-const _healedClinics = new Set<string>()
-
 export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledChange }: IntakeMintSectionProps) {
   const { isSupervisorRole } = useAuth()
   const outsideContactBeta = useBetaBypass('outsideContact')
@@ -134,19 +130,6 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
   }, [clinicId])
 
   useEffect(() => { refresh() }, [refresh])
-
-  // SELF-HEAL: when a supervisor who holds the inbound key opens this surface,
-  // opportunistically re-wrap the EXISTING key to all current cluster members
-  // (additive — no rotation, no clean slate). This covers members who joined
-  // after the last mint/rotate, or whose device never got the wrap, so their
-  // intake / voicemail / outside-message cards become decryptable. Best-effort,
-  // once per clinic per session; no-ops on devices that don't hold the key.
-  useEffect(() => {
-    if (!credential?.oncall_has_key) return
-    if (_healedClinics.has(clinicId)) return
-    _healedClinics.add(clinicId)
-    void redistributeInboundKey(clinicId).catch(() => {})
-  }, [credential?.oncall_has_key, clinicId])
 
   // Surface on-call-roster relevance to the parent so the personnel roster renders
   // per-member on-call toggles whenever an outside channel that pings on-call is
@@ -235,9 +218,9 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
       if (mintPass1 !== mintPass2) { setFormError('Passphrases do not match'); return }
       const res = await mintEventIntakeCredential(clinicId, { passphrase: mintPass1 })
       if (!res.ok) { setFormError(res.error); return }
-      // The clinic inbound key (seals voicemail + outside text) is minted WITH the
-      // credential — no separate toggle. Best-effort: enabling a channel self-heals if missed.
-      try { await provisionInboundKey(clinicId) } catch (e) { logger.warn('inbound key provisioning failed at mint:', e instanceof Error ? e.message : e) }
+      // No inbound key to provision — outside calls/messages/voicemail now ride the
+      // edge-authored E2E envelope (the AES key travels inside it), so the credential
+      // is the only thing minted here.
       setFormError(null)
       closeMint()
       await refresh()
@@ -267,9 +250,8 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
     try {
       const res = await rotateEventIntakePasscode(clinicId)
       if (!res.ok) { setLoadError(res.error); return }
-      // Rotate the inbound key alongside the code — CLEAN SLATE: undelivered/unread
-      // sealed voicemails + messages sealed to the old key become unrecoverable (intended).
-      try { await provisionInboundKey(clinicId) } catch (e) { logger.warn('inbound key rotation failed:', e instanceof Error ? e.message : e) }
+      // No inbound key to rotate — rotating the passcode revokes the old credential;
+      // outside content is E2E via the edge envelope (no seal-to-clinic-key).
       setConfirmRotatePasscode(false)
       await refresh()
     } finally {
