@@ -93,3 +93,32 @@ export function routeCalendarEvent(content: CalendarEventContent): void {
     }
   }
 }
+
+/**
+ * Resolved live calendar events for a clinic — the clinic-vault snapshot write
+ * source. Reads the store (the synchronous landing spot for every routed event)
+ * and filters to this clinic, excluding tombstoned ids. Bridges store→signal so
+ * clinicVaultDevice never imports the store directly.
+ */
+export function snapshotCalendarEvents(clinicId: string): CalendarEvent[] {
+  return useCalendarStore.getState().events.filter(
+    e => e.clinic_id === clinicId && !_tombstones.has(e.id)
+  )
+}
+
+/**
+ * Load a clinic snapshot's resolved events into the store as the bootstrap base
+ * (before the tail is decrypted on top). Tombstone-guarded upsert — a snapshot
+ * can never resurrect an event deleted locally after the snapshot was sealed.
+ */
+export function loadSnapshotCalendarEvents(events: CalendarEvent[]): void {
+  const store = useCalendarStore.getState()
+  for (const ev of events) {
+    if (_tombstones.has(ev.id)) continue
+    if (store.events.some(e => e.id === ev.id)) {
+      store.updateEvent(ev.id, ev as Partial<CalendarEvent>)
+    } else {
+      store.addEvent(ev)
+    }
+  }
+}

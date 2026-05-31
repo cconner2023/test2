@@ -226,3 +226,17 @@ async function applyFeature(content: MapFeatureContent): Promise<void> {
     logger.warn('Failed to route map feature:', e)
   }
 }
+
+/**
+ * Load a clinic snapshot's resolved overlays into IDB as the bootstrap base
+ * (before the tail is decrypted on top). Direct upsert of already-resolved
+ * LocalMapOverlay rows — the snapshot stores the merged feature[] state, so no
+ * per-feature read-modify-write is needed. One invalidation at the end refreshes
+ * the map surface.
+ */
+export async function loadSnapshotOverlays(overlays: LocalMapOverlay[]): Promise<void> {
+  for (const ov of overlays) {
+    await saveLocalMapOverlay(ov)
+  }
+  if (overlays.length > 0) invalidate('mapOverlays')
+}

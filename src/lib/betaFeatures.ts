@@ -24,7 +24,7 @@
  *      additionally bypasses that gate for testing. After promotion the role
  *      gate stands alone (dev no longer gets a free pass). Use
  *      `useBetaBypass(key)` and combine with `||` against the role gate.
- *        e.g. `isSupervisorRole || useBetaBypass('outsideContact')`
+ *        e.g. `isSupervisorRole || useBetaBypass('outsideCall')`
  *
  * The semantic distinction matters at promotion time: a standalone feature
  * opens to all; an additive feature loses only the dev bypass. Pick the helper
@@ -40,9 +40,12 @@ export const BETA_FEATURES = {
   /** PreCombatChecks template editing — viewing is open to all; editing
    *  (new / edit) is dev-only during beta. */
   preCombatChecksTemplates: true,
-  /** Outside-contact intake — supervisor-permissioned feature. Dev bypasses
-   *  the supervisor gate during beta so they can validate the flow. */
-  outsideContact: true,
+  /** Outside on-call ("Allow calls") channel — intake + outside chat are GA
+   *  (supervisor-permissioned, no bypass). The live-call channel stays in beta:
+   *  dev sees the "Allow calls" toggle (and gets the supervisor card even without
+   *  the supervisor role) so they can finish testing. Flip to false to promote
+   *  calls to supervisors. */
+  outsideCall: true,
 } as const
 
 export type BetaFeature = keyof typeof BETA_FEATURES
@@ -63,7 +66,7 @@ export function useBetaFlag(feature: BetaFeature): boolean {
  * `false`) the helper returns `false` for everyone and the role gate stands
  * alone.
  *
- *   const canSee = isSupervisorRole || useBetaBypass('outsideContact')
+ *   const canSee = isSupervisorRole || useBetaBypass('outsideCall')
  */
 export function useBetaBypass(feature: BetaFeature): boolean {
   const isDevRole = useAuthStore((s) => s.isDevRole)

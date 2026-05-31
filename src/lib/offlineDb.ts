@@ -194,32 +194,7 @@ export interface LocalTrainingCompletion {
   _last_sync_error_message: string | null
 }
 
-/**
- * Per-device, per-clinic high-water mark for the clinic Signal vault drain.
- * The clinic vault is the sole durable store for calendar + map-overlay
- * messages; without a cursor every cold start re-fetches and re-decrypts the
- * ENTIRE encrypted archive (egress + latency). This records the newest row
- * this device has processed so subsequent drains fetch only the delta.
- *
- * `cursor` is a contiguous low-water mark — it only advances past rows that
- * decrypted successfully with no earlier gap, so a stale-build session that
- * can't read new-format rows leaves it parked and re-fetches after upgrade.
- * `lastFullDrainAt` forces a periodic full archive replay (compaction +
- * drop-stale reconcile); see CLINIC_VAULT_FULL_DRAIN_INTERVAL_MS.
- */
-export interface VaultCursor {
-  clinicId: string  // keyPath
-  /** ISO created_at of the newest contiguously-processed clinic vault row. */
-  cursor: string
-  /** ISO timestamp of the last publishing full drain ('' = never). */
-  lastFullDrainAt: string
-}
-
 interface PackageBackEndDB extends DBSchema {
-  vaultCursors: {
-    key: string  // clinicId
-    value: VaultCursor
-  }
   syncQueue: {
     key: string
     value: SyncQueueItem
@@ -463,14 +438,9 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
         }
       }
 
-      // v12 → v13: per-device clinic vault sync cursor (delta-drain high-water
-      // mark). Lets cold starts fetch only new clinic-vault rows instead of the
-      // entire encrypted calendar/overlay archive every login.
-      if (oldVersion < 13) {
-        if (!db.objectStoreNames.contains('vaultCursors')) {
-          db.createObjectStore('vaultCursors', { keyPath: 'clinicId' })
-        }
-      }
+      // v13 retired the per-device `vaultCursors` store: the clinic vault drain
+      // is now snapshot + tail (see clinicVaultDevice.ts), so there is no cursor.
+      // Any existing store is left as a harmless orphan — no migration needed.
 
       // v7 → v8: Feature voting stores
       if (oldVersion < 8) {
@@ -538,29 +508,6 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
   return dbInstance
 }
 
-// ============================================================
-// Clinic Vault Sync Cursor
-// ============================================================
-
-/** Read this device's clinic-vault drain cursor, or null if it has never drained this clinic. */
-export async function getVaultCursor(clinicId: string): Promise<VaultCursor | null> {
-  try {
-    const db = await getDb()
-    return (await db.get('vaultCursors', clinicId)) ?? null
-  } catch {
-    return null
-  }
-}
-
-/** Persist this device's clinic-vault drain cursor (high-water mark). */
-export async function putVaultCursor(cursor: VaultCursor): Promise<void> {
-  try {
-    const db = await getDb()
-    await db.put('vaultCursors', cursor)
-  } catch {
-    /* best-effort — a missed cursor write just means the next drain is full */
-  }
-}
 
 // ============================================================
 // Sync Queue Payload Encryption

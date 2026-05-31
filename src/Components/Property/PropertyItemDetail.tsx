@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react'
-import { ScanLine, ArrowRightLeft, GitMerge, Plus, Minus, Check, X, MessageSquare } from 'lucide-react'
+import { ScanLine, ArrowRightLeft, GitMerge, Plus, Minus, Check, X, MessageSquare, ChevronRight } from 'lucide-react'
 import { SectionCard } from '../Section'
+import { ActionPill } from '../ActionPill'
+import { ActionButton } from '../ActionButton'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
@@ -175,50 +177,45 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
         </div>
       )}
 
-      {/* Action buttons */}
-      <button
-        onClick={handleShareToChat}
-        className={`w-full flex items-center justify-center gap-2 rounded-2xl border border-tertiary/20 bg-themewhite2 font-medium text-secondary active:scale-95 transition-all duration-200 ${
-          isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-[10pt]'
-        }`}
-      >
-        <MessageSquare className={isMobile ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
-        Share to chat
-      </button>
+      {/* Quick actions — primitive icon pill row */}
+      <div className="flex justify-center">
+        <ActionPill>
+          <ActionButton icon={MessageSquare} label="Share to chat" onClick={handleShareToChat} />
+          {!item.is_serialized && (
+            <ActionButton
+              icon={ArrowRightLeft}
+              label={item.quantity > 1 ? 'Split / Move' : 'Move to location'}
+              onClick={() => { setSplitQty(1); setSplitTargetId(null); setShowSplitSheet(true) }}
+            />
+          )}
+          {!item.is_serialized && mergeCandidates.length > 0 && (
+            <ActionButton icon={GitMerge} label="Merge like items" onClick={() => setShowMergeSheet(true)} />
+          )}
+        </ActionPill>
+      </div>
 
+      {/* Visual ID enrollment — explanatory card button (enrollment isn't self-explanatory) */}
       <button
         onClick={onEnroll}
-        className={`w-full flex items-center justify-center gap-2 rounded-2xl border border-tertiary/20 bg-themewhite2 font-medium text-secondary active:scale-95 transition-all duration-200 ${
-          isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-[10pt]'
+        className={`w-full flex items-center gap-3 text-left rounded-2xl border border-themeblue3/10 bg-themewhite2 active:scale-[0.99] transition-all duration-200 ${
+          isMobile ? 'px-4 py-3.5' : 'px-3 py-3'
         }`}
       >
-        <ScanLine className={isMobile ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
-        {item.visual_fingerprint ? 'Update Visual ID' : 'Enroll Visual ID'}
+        <span className="shrink-0 w-10 h-10 rounded-full bg-themeblue2/8 flex items-center justify-center text-themeblue2">
+          <ScanLine className="w-5 h-5" />
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className={`block font-semibold text-primary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>
+            {item.visual_fingerprint ? 'Update Visual ID' : 'Enroll Visual ID'}
+          </span>
+          <span className="block text-[10pt] text-tertiary leading-snug mt-0.5">
+            {item.visual_fingerprint
+              ? 'Re-capture photos to refresh how the scanner recognizes this item.'
+              : 'Capture photos so the scanner can recognize this item.'}
+          </span>
+        </span>
+        <ChevronRight className="shrink-0 w-4 h-4 text-tertiary" />
       </button>
-
-      {!item.is_serialized && (
-        <button
-          onClick={() => { setSplitQty(1); setSplitTargetId(null); setShowSplitSheet(true) }}
-          className={`w-full flex items-center justify-center gap-2 rounded-2xl border border-tertiary/20 bg-themewhite2 font-medium text-secondary active:scale-95 transition-all duration-200 ${
-            isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-[10pt]'
-          }`}
-        >
-          <ArrowRightLeft className={isMobile ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
-          {item.quantity > 1 ? 'Split / Move' : 'Move to Location'}
-        </button>
-      )}
-
-      {!item.is_serialized && mergeCandidates.length > 0 && (
-        <button
-          onClick={() => setShowMergeSheet(true)}
-          className={`w-full flex items-center justify-center gap-2 rounded-2xl border border-tertiary/20 bg-themewhite2 font-medium text-secondary active:scale-95 transition-all duration-200 ${
-            isMobile ? 'px-4 py-3 text-sm' : 'px-3 py-2 text-[10pt]'
-          }`}
-        >
-          <GitMerge className={isMobile ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
-          Merge Like Items
-        </button>
-      )}
 
       <div className={isMobile ? 'h-16 shrink-0' : 'h-8 shrink-0'} />
 

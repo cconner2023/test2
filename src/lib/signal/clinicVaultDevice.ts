@@ -4,11 +4,20 @@
  * The clinic is a "user" in the Signal infrastructure. Its vault device
  * (`device_id = 'vault'`) is a peer in the fan-out mesh: every clinic action
  * ('c', 'u', 'd' for calendar events, property, announcements) is encrypted
- * for it alongside the member clinic devices, and it holds those messages
- * until any clinic member logs in and drains them via
- * processClinicVaultMessages. That drain pair-cleans 'c'/'d' pairs by
- * event_id so the vault's state matches what the rest of the mesh already
- * observes in realtime.
+ * for it alongside the member clinic devices. Members observe changes live via
+ * their own fan-out copies (useMessages → routeCalendarEvent); the vault copy is
+ * the clinic's durable PRIMARY-DEVICE history for bootstrap/catch-up.
+ *
+ * SNAPSHOT + TAIL (2026-05-31, replaces the per-device cursor / archive replay):
+ * processClinicVaultMessages no longer re-decrypts the whole chain. A HEALTHY
+ * session loads the latest clinic snapshot (a signal_backups row, user_id =
+ * clinic_id, sealed to the vault identity — the resolved calendar+overlay state
+ * at a watermark), decrypts only the tail of vault rows past that watermark, then
+ * compacts: write a fresh snapshot (OCC via write_clinic_snapshot) and reap the
+ * archive rows it now covers (reap_clinic_vault_below) — two-phase, reap only
+ * after the snapshot lands. This is the personal signal_backups model applied to
+ * the clinic. The snapshot materialises resolution, so there is no per-pair
+ * clean and no 'd'-must-survive invariant.
  *
  * Key differences from personal vault (vaultDevice.ts):
  * - Wrapping key derived from clinic's `encryption_key` (shared among members)
@@ -40,11 +49,14 @@ import { unseal } from './sealedSender'
 import { x3dhRespond } from './x3dh'
 import { initReceiver, ratchetDecrypt } from './ratchet'
 import { uploadKeyBundle, registerDevice } from './signalService'
-import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones, publishFullReplayLiveIds, poisonFullReplayReconcile } from '../calendarRouting'
-import { getVaultCursor, putVaultCursor, type VaultCursor } from '../offlineDb'
-import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature, initOverlayTombstones } from '../mapOverlayRouting'
+import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones, publishFullReplayLiveIds, poisonFullReplayReconcile, snapshotCalendarEvents, loadSnapshotCalendarEvents } from '../calendarRouting'
+import { getLocalMapOverlays } from '../offlineDb'
+import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature, initOverlayTombstones, loadSnapshotOverlays } from '../mapOverlayRouting'
 import type { CalendarEventContent, MapOverlayContent, MapFeatureContent } from './messageContent'
 import { parseMessageContent } from './messageContent'
+import { deflateRaw, inflateRaw } from 'pako'
+import type { CalendarEvent } from '../../Types/CalendarTypes'
+import type { LocalMapOverlay } from '../../Types/MapOverlayTypes'
 import type { PublicKeyBundle, InitialMessage, EncryptedMessage, RatchetState } from './types'
 import type { SignalMessageRow } from './transportTypes'
 import type { SealedEnvelope } from './sealedSender'
@@ -496,53 +508,133 @@ export async function ensureClinicVaultExists(
 }
 
 /**
- * How long a device may rely on delta drains before it is forced to do a full
- * archive replay again. A full drain re-runs compaction (pair-clean + dead-row
- * purge) and the calendar drop-stale reconcile, re-closing any window where a
- * delete propagated only via a 'd' that was pair-cleaned before this device
- * saw it. Delta drains in between fetch only new rows (egress win).
- */
-export const CLINIC_VAULT_FULL_DRAIN_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000
-
-/**
- * Max fraction of a full-drain batch that may fail to decrypt before the
- * dead-row purge is refused entirely. All clinic members share one vault
- * identity, so a healthy session decrypts ~100% of the archive. Anything above
- * this is a wrong session (regenerated/rotated vault identity, stale build, bad
- * key) — never genuinely-dead rows — so we fail closed and preserve the archive.
- * Set low: real corruption is a row or two; identity loss fails near 100%.
+ * Max fraction of a clinic-vault tail batch that may fail to decrypt before the
+ * snapshot write + reap are refused entirely. All clinic members share one vault
+ * identity, so a healthy session decrypts ~100% of the tail. Anything above this
+ * is a wrong session (regenerated/rotated vault identity, stale build, bad key)
+ * — never genuinely-dead rows — so we fail closed: don't compact, preserve the
+ * archive. Set low: real corruption is a row or two; identity loss fails ~100%.
  */
 const VAULT_PURGE_MAX_FAIL_RATIO = 0.10
 
 export interface ClinicDrainOptions {
   /**
-   * 'full'  — fetch & replay the entire archive (compaction + drop-stale).
-   * 'delta' — fetch only rows newer than this device's cursor; additive only.
-   * Omitted — self-decide from the cursor (delta unless missing/stale).
-   */
-  mode?: 'full' | 'delta'
-  /**
-   * When true (login path), a full drain publishes its authoritative live
-   * event-id set so useCalendarSync runs the drop-stale prune. Background/
-   * post-write drains leave it false so a stray full drain can compact the
-   * archive without triggering a UI reconcile against a partial set.
+   * When true (login path), the drain publishes the resolved live calendar
+   * event-id set (snapshot base + tail) so useCalendarSync runs its drop-stale
+   * prune. A partial/unhealthy decrypt poisons it instead (fail-closed).
    */
   publishReconcile?: boolean
 }
 
+// ---- Clinic Snapshot (cached resolved state + tail) ----
+//
+// The clinic vault is the clinic's "primary device" history. Rather than
+// re-decrypting the whole archive on every login, a HEALTHY session compacts the
+// resolved calendar+overlay state into an encrypted snapshot (a signal_backups
+// row with user_id = clinic_id, sealed to the clinic vault identity) and reaps
+// the archived vault rows it covers. A returning/fresh device then loads one
+// snapshot row and decrypts only the short tail past its watermark. This mirrors
+// the personal signal_backups model — see two-phase-vault-drain: never reap a
+// vault row until the snapshot that preserves it has landed.
+
+const CLINIC_SNAPSHOT_PAYLOAD_VERSION = 1
+const CLINIC_SNAPSHOT_RETAIN = 3
+
+interface ClinicSnapshotPayload {
+  v: number
+  /** ISO created_at high-water of the vault rows folded into this snapshot. */
+  watermark: string
+  events: CalendarEvent[]
+  overlays: LocalMapOverlay[]
+}
+
+interface LoadedClinicSnapshot {
+  version: number
+  payload: ClinicSnapshotPayload
+}
+
+/** Seal a snapshot payload with the cached clinic vault key (IV-prefixed AES-GCM, mirrors backupService). */
+async function sealClinicSnapshot(payload: ClinicSnapshotPayload): Promise<{ salt: string; ciphertext: string } | null> {
+  if (!cachedClinicVaultKey) return null
+  const compressed = deflateRaw(new TextEncoder().encode(JSON.stringify(payload)))
+  const salt = crypto.getRandomValues(new Uint8Array(32)) // schema-compat only; key is the cached clinic key
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cachedClinicVaultKey, compressed as BufferSource)
+  const combined = new Uint8Array(iv.length + encrypted.byteLength)
+  combined.set(iv, 0)
+  combined.set(new Uint8Array(encrypted), iv.length)
+  return { salt: uint8ToBase64(salt), ciphertext: uint8ToBase64(combined) }
+}
+
+/** Open a snapshot ciphertext with the cached clinic vault key. Throws on auth-tag failure (wrong/rotated identity). */
+async function openClinicSnapshot(ciphertextB64: string): Promise<ClinicSnapshotPayload | null> {
+  if (!cachedClinicVaultKey) return null
+  const combined = base64ToUint8(ciphertextB64)
+  const iv = combined.slice(0, 12)
+  const ct = combined.slice(12)
+  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, cachedClinicVaultKey, ct as BufferSource)
+  const json = new TextDecoder().decode(inflateRaw(new Uint8Array(decrypted)))
+  return JSON.parse(json) as ClinicSnapshotPayload
+}
+
+/** Read the latest clinic snapshot, or null if none / undecryptable (caller rebuilds from the archive). */
+async function readClinicSnapshot(clinicId: string): Promise<LoadedClinicSnapshot | null> {
+  const { data, error } = await supabase
+    .from('signal_backups')
+    .select('ciphertext, backup_version')
+    .eq('user_id', clinicId)
+    .order('backup_version', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error || !data) return null
+  try {
+    const payload = await openClinicSnapshot(data.ciphertext)
+    if (!payload) return null
+    return { version: data.backup_version, payload }
+  } catch (e) {
+    // Undecryptable snapshot = wrong/rotated clinic identity. Fall back to archive
+    // replay rather than trusting a stale row. Never delete it here.
+    logger.warn('Clinic snapshot undecryptable — falling back to archive replay:', e)
+    return null
+  }
+}
+
+/** Write a snapshot via the OCC RPC. Returns the new version, or -1 if another device won the race / on error. */
+async function writeClinicSnapshot(
+  clinicId: string,
+  payload: ClinicSnapshotPayload,
+  expectedVersion: number,
+): Promise<number> {
+  const sealed = await sealClinicSnapshot(payload)
+  if (!sealed) return -1
+  const { data, error } = await supabase.rpc('write_clinic_snapshot', {
+    p_clinic_id: clinicId,
+    p_ciphertext: sealed.ciphertext,
+    p_salt: sealed.salt,
+    p_event_count: payload.events.length,
+    p_expected_version: expectedVersion,
+    p_retain: CLINIC_SNAPSHOT_RETAIN,
+  })
+  if (error) {
+    logger.warn('write_clinic_snapshot failed:', error.message)
+    return -1
+  }
+  return typeof data === 'number' ? data : -1
+}
+
 /**
- * Process messages addressed to the clinic vault device.
+ * Drain the clinic vault for this device: load the cached snapshot base, then
+ * decrypt and apply only the tail of archive rows past the snapshot watermark.
  *
- * Called on login after personal vault processing. Mirrors the
- * personal processVaultMessages flow but uses the clinic's
- * encryption_key as the wrapping key.
+ * Called on login after personal vault processing. The clinic vault is the
+ * clinic's primary-device history; members also receive live changes via
+ * per-member fan-out (useMessages → routeCalendarEvent), so this drain is the
+ * bootstrap/catch-up path, not the steady-state path.
  *
- * Drains incrementally via a per-device cursor (offlineDb vaultCursors): a
- * cold start fetches only rows newer than the last contiguously-processed one
- * instead of re-downloading the whole encrypted archive. Safe because every
- * clinic vault send is a self-contained X3DH 'initial' (no cross-row session
- * dependency). A full drain (cursor missing, stale, or forced) restores the
- * original archive-replay semantics for compaction + drop-stale reconcile.
+ * A HEALTHY pass (decrypt fail-ratio ≤ VAULT_PURGE_MAX_FAIL_RATIO) that saw new
+ * tail compacts the resolved state into a fresh snapshot (OCC) and reaps the
+ * archive rows it now covers. There is no per-device cursor and no whole-chain
+ * replay once a snapshot exists.
  */
 export async function processClinicVaultMessages(
   clinicId: string,
@@ -598,66 +690,63 @@ export async function processClinicVaultMessages(
     .eq('user_id', clinicId)
     .eq('device_id', CLINIC_VAULT_DEVICE_ID)
 
-  // 2b. Decide drain mode from this device's cursor. A full drain re-fetches
-  // the whole archive (compaction + drop-stale); a delta drain fetches only
-  // rows newer than the cursor. Self-decide unless the caller forced a mode.
-  const priorCursor = await getVaultCursor(clinicId)
-  const cursorAgeMs = priorCursor?.lastFullDrainAt
-    ? Date.now() - new Date(priorCursor.lastFullDrainAt).getTime()
-    : Infinity
-  const isFullDrain = opts.mode
-    ? opts.mode === 'full'
-    : (!priorCursor || cursorAgeMs > CLINIC_VAULT_FULL_DRAIN_INTERVAL_MS)
+  // 2b. SNAPSHOT BASE. Load the latest cached clinic snapshot (resolved calendar
+  // + overlay state at a watermark) before touching the archive. A fresh device
+  // gets the whole clinic state from one row; a returning device re-loads it
+  // (idempotent upsert) and decrypts only the short tail past the watermark. No
+  // snapshot yet — first-ever, or undecryptable after a re-provision — means
+  // tailFloor '' = replay the whole archive once and build the first snapshot.
+  const snap = await readClinicSnapshot(clinicId)
+  let tailFloor = ''
+  let baseVersion = 0
+  if (snap) {
+    baseVersion = snap.version
+    tailFloor = snap.payload.watermark
+    loadSnapshotCalendarEvents(snap.payload.events)
+    await loadSnapshotOverlays(snap.payload.overlays).catch(() => {})
+  }
 
-  // 3. Fetch vault messages — full archive, or only the delta past the cursor.
+  // 3. Fetch the TAIL: vault rows at/after the snapshot watermark. gte not gt —
+  // two rows can share an exact created_at (same fan-out batch); re-decrypting
+  // the boundary is idempotent (routeCalendarEvent/routeMapOverlay upsert).
   let query = supabase
     .from('signal_messages')
     .select('*')
     .eq('recipient_id', clinicId)
     .eq('recipient_device_id', CLINIC_VAULT_DEVICE_ID)
     .order('created_at', { ascending: true })
-  if (!isFullDrain && priorCursor) {
-    // gte, not gt: two rows can share an exact created_at (same fan-out batch),
-    // and gt past one would skip the other forever. Re-processing the boundary
-    // row is idempotent (routeCalendarEvent/routeMapOverlay upsert), so the
-    // only cost is re-fetching the rows on that single timestamp.
-    query = query.gte('created_at', priorCursor.cursor)
-  }
+  if (tailFloor) query = query.gte('created_at', tailFloor)
   const { data: rows, error: fetchError } = await query
 
-  if (fetchError || !rows || rows.length === 0) {
-    if (fetchError) {
-      // A fetch failure is NOT an empty archive — never publish an empty live
-      // set here, or a transient network blip during a full drain would prune
-      // the whole local cache. Poison the reconcile and bail.
-      logger.warn('Failed to fetch clinic vault messages:', fetchError)
-      if (isFullDrain && opts.publishReconcile) poisonFullReplayReconcile()
-    } else {
-      logger.info('No pending clinic vault messages')
-      // A full drain that genuinely sees an empty archive publishes an empty
-      // live set so the reconcile prunes any stale local cache.
-      if (isFullDrain && opts.publishReconcile) publishFullReplayLiveIds([])
+  if (fetchError) {
+    // A fetch failure is NOT an empty archive — never prune the local cache on a
+    // transient blip. Poison the reconcile and bail.
+    logger.warn('Failed to fetch clinic vault tail:', fetchError)
+    if (opts.publishReconcile) poisonFullReplayReconcile()
+    await rotateClinicVaultSPK(clinicId, vaultKeys, vaultRow as VaultDeviceKeysRow)
+    return 0
+  }
+
+  if (!rows || rows.length === 0) {
+    // No tail past the snapshot. The snapshot base (already loaded) IS the live
+    // truth — publish it for the drop-stale reconcile, then no-op the rest.
+    logger.info('No clinic vault tail past snapshot')
+    if (opts.publishReconcile) {
+      publishFullReplayLiveIds(snapshotCalendarEvents(clinicId).map(e => e.id))
     }
     await rotateClinicVaultSPK(clinicId, vaultKeys, vaultRow as VaultDeviceKeysRow)
     return 0
   }
 
-  logger.info(`Processing ${rows.length} clinic vault messages (${isFullDrain ? 'full' : 'delta'})`)
+  logger.info(`Processing ${rows.length} clinic vault tail messages`)
 
   // 4. Batch decrypt with ephemeral session map
   const sessionMap = new Map<string, { state: RatchetState; ad: Uint8Array }>()
-  // Permanently-undecryptable rows — hard-delete after the pass. Successful
-  // decrypts are intentionally NOT collected here (archive-mode replay).
-  const deadOriginIds: string[] = []
-  const deadRowIds: string[] = []
-  // Every row that failed to decrypt, by id — used to compute the contiguous
-  // low-water cursor (advance only past a gap-free run of successful rows).
+  // Rows that failed to decrypt, by id. A high fail ratio means a wrong session
+  // (rotated identity / stale build), which gates off the snapshot write + reap
+  // below so the archive is never compacted from a session that can't read it.
   const deadRowIdSet = new Set<string>()
-  const markDead = (row: SignalMessageRow) => {
-    deadRowIdSet.add(row.id)
-    if (row.origin_id) deadOriginIds.push(row.origin_id)
-    else deadRowIds.push(row.id)
-  }
+  const markDead = (row: SignalMessageRow) => { deadRowIdSet.add(row.id) }
   let processedCount = 0
   const calendarRoutes: Array<{ content: CalendarEventContent; originId: string | null }> = []
   const overlayRoutes: Array<{ content: MapOverlayContent; originId: string | null }> = []
@@ -799,11 +888,10 @@ export async function processClinicVaultMessages(
     }
   }
 
-  // 5. Route calendar events with delete-awareness, then cooperatively clean
-  // paired 'c'/'d' messages from the vault. The vault is a peer device that
-  // receives every action via fan-out; every device that runs this replay
-  // contributes the same cleanup pass, so the first one after a delete wipes
-  // the pair. Subsequent replays find nothing to pair and no-op.
+  // 5. Apply decrypted actions to the stores, delete-aware: a 'd' in this batch
+  // suppresses its paired 'c'/'u'. Compaction is NOT done per-pair anymore — the
+  // snapshot below materialises the resolved state and the watermark reap removes
+  // the covered rows wholesale, so the old 'd'-must-survive invariant is gone.
   if (calendarRoutes.length > 0) {
     const deletedEventIds = new Set<string>()
     for (const { content } of calendarRoutes) {
@@ -814,56 +902,24 @@ export async function processClinicVaultMessages(
         routeCalendarEvent(content)
       }
     }
-    // Pair-clean only on a full drain. A delta batch is not the whole archive,
-    // so deleting a 'd' here could remove a tombstone a delta-only peer hasn't
-    // drained yet (resurrection). Delta deletes still apply locally above.
-    if (isFullDrain && deletedEventIds.size > 0) {
-      const pairedOriginIds = calendarRoutes
-        .filter(({ content, originId }) => originId && deletedEventIds.has(content.data.id))
-        .map(({ originId }) => originId as string)
-      if (pairedOriginIds.length > 0) {
-        supabase.rpc('hard_delete_clinic_vault_messages', {
-          p_clinic_id: clinicId,
-          p_origin_ids: pairedOriginIds,
-        }).then(({ error }) => {
-          if (error) logger.warn('Vault pair-clean RPC failed:', error.message)
-        }).catch(() => { /* best-effort; next replay retries */ })
-      }
-    }
   }
 
-  // 5b. Same delete-aware dispatch + pair-clean for map overlays.
+  // 5b. Map overlays. Serial await — overlay/feature routes share a single IDB
+  // row (LocalMapOverlay.features[]) under read-modify-write; parallel
+  // fire-and-forget would last-write-wins drop deltas.
   if (overlayRoutes.length > 0) {
     const deletedOverlayIds = new Set<string>()
     for (const { content } of overlayRoutes) {
       if (content.action === 'delete') deletedOverlayIds.add(content.data.id)
     }
-    // Serial await — overlay/feature routes share a single IDB row
-    // (LocalMapOverlay.features[]) under read-modify-write; parallel
-    // fire-and-forget would last-write-wins drop deltas.
     for (const { content } of overlayRoutes) {
       if (content.action === 'delete' || !deletedOverlayIds.has(content.data.id)) {
         await routeMapOverlay(content).catch(() => {})
       }
     }
-    if (isFullDrain && deletedOverlayIds.size > 0) {
-      const pairedOriginIds = overlayRoutes
-        .filter(({ content, originId }) => originId && deletedOverlayIds.has(content.data.id))
-        .map(({ originId }) => originId as string)
-      if (pairedOriginIds.length > 0) {
-        supabase.rpc('hard_delete_clinic_vault_messages', {
-          p_clinic_id: clinicId,
-          p_origin_ids: pairedOriginIds,
-        }).then(({ error }) => {
-          if (error) logger.warn('Vault pair-clean RPC failed (overlay):', error.message)
-        }).catch(() => { /* best-effort; next replay retries */ })
-      }
-    }
   }
 
-  // 5c. Map feature envelopes. Delete-awareness + pair-clean keyed on
-  // (overlay_id, feature_id) — feature 'd' wipes both itself and any
-  // paired c/u for the same feature in this batch.
+  // 5c. Map feature envelopes, keyed on (overlay_id, feature_id).
   if (featureRoutes.length > 0) {
     const deletedFeatureKeys = new Set<string>()
     const keyOf = (c: MapFeatureContent) => `${c.data.overlay_id}::${c.data.feature.id}`
@@ -875,137 +931,56 @@ export async function processClinicVaultMessages(
         await routeMapFeature(content).catch(() => {})
       }
     }
-    if (isFullDrain && deletedFeatureKeys.size > 0) {
-      const pairedOriginIds = featureRoutes
-        .filter(({ content, originId }) => originId && deletedFeatureKeys.has(keyOf(content)))
-        .map(({ originId }) => originId as string)
-      if (pairedOriginIds.length > 0) {
-        supabase.rpc('hard_delete_clinic_vault_messages', {
-          p_clinic_id: clinicId,
-          p_origin_ids: pairedOriginIds,
-        }).then(({ error }) => {
-          if (error) logger.warn('Vault pair-clean RPC failed (feature):', error.message)
-        }).catch(() => { /* best-effort; next replay retries */ })
-      }
-    }
   }
 
-  // 5d. Publish the calendar drop-stale reconcile set for useCalendarSync.
-  // Only a CLEAN full drain (every row decrypted, at least one succeeded) is
-  // authoritative truth: it publishes its live event-ids, which the login
-  // accumulates into a union across clinics. A partial-decrypt drain could
-  // omit live events and wrongly prune the local cache, so it POISONS the
-  // whole login's reconcile (sets it null → no prune) — the same fail-closed
-  // posture as the circuit-breaker below. Delta drains never publish.
-  if (opts.publishReconcile && isFullDrain) {
-    if (processedCount > 0 && deadRowIdSet.size === 0) {
-      const live = new Set<string>()
-      for (const { content } of calendarRoutes) {
-        if (content.action !== 'delete') live.add(content.data.id)
-      }
-      for (const { content } of calendarRoutes) {
-        if (content.action === 'delete') live.delete(content.data.id)
-      }
-      publishFullReplayLiveIds([...live])
-    } else if (deadRowIdSet.size > 0) {
+  // 5d. Health gate. All clinic members share one vault identity, so a healthy
+  // session decrypts ~100% of the tail. A high fail ratio means a wrong session
+  // (rotated identity / stale build) — fail closed: don't publish a partial live
+  // set, don't snapshot, don't reap. This subsumes the old purge circuit-breaker.
+  const deadCount = deadRowIdSet.size
+  const failRatio = rows.length > 0 ? deadCount / rows.length : 0
+  const healthy = failRatio <= VAULT_PURGE_MAX_FAIL_RATIO
+
+  // 5e. Publish the resolved live calendar-event ids (snapshot base + tail) for
+  // useCalendarSync's drop-stale prune. A healthy pass is authoritative truth; a
+  // partial decrypt poisons the whole login's reconcile (fail-closed).
+  if (opts.publishReconcile) {
+    if (healthy) {
+      publishFullReplayLiveIds(snapshotCalendarEvents(clinicId).map(e => e.id))
+    } else {
       poisonFullReplayReconcile()
     }
   }
 
-  // 5e. Hard-delete permanently-undecryptable rows so they don't bloat the
-  // table and don't get re-fetched/re-failed on every login. FULL DRAINS ONLY:
-  // a delta batch is not the whole archive, and a delta-only device must never
-  // delete vault rows a peer may still need. Only failure paths reach this —
-  // successful decrypts stay in supabase to support archive-mode replay.
-  //
-  // CIRCUIT-BREAKER (added after the 2026-05-25 calendar nuke): NEVER purge
-  // when the entire batch failed to decrypt (processedCount === 0). A total
-  // failure means THIS session's keys/build can't read the archive — not that
-  // the rows are genuinely dead. The triggering incident was a stale-build
-  // client: it could not decrypt the newly-written (new-crypto-format) vault
-  // messages, marked all 18 'initial' rows dead, and purged the clinic's
-  // entire calendar archive that up-to-date clients depend on. The vault is
-  // the ONLY calendar store (no calendar_events table), so this is permanent
-  // data loss. Failing closed here turns a version-skew login into a harmless
-  // no-op: the rows survive and a healthy client re-judges them next drain.
-  // Refuse to purge whenever this session couldn't read a meaningful FRACTION
-  // of the archive — not only when it read ZERO. The original guard was
-  // processedCount===0 (total failure), but a PARTIAL failure is the same
-  // signal: on 2026-05-29 the ce06896f vault identity was regenerated (see
-  // ensureClinicVaultExists), so a later device decrypted only the 2 post-regen
-  // rows and marked 133 pre-regen rows dead — processedCount was 2, not 0, so
-  // the old breaker let the purge through and the orphaned archive was deleted.
-  // A healthy session sharing the clinic vault identity decrypts ~100%, so any
-  // high failure ratio means THIS session is wrong, not the rows. Fail closed.
-  const deadCount = deadRowIdSet.size
-  const failRatio = rows.length > 0 ? deadCount / rows.length : 0
-  const refusedPurge =
-    deadCount > 0 && (processedCount === 0 || failRatio > VAULT_PURGE_MAX_FAIL_RATIO)
-
-  if (isFullDrain) {
-    if (refusedPurge) {
-      logger.warn(
-        `Clinic vault: ${deadCount} of ${rows.length} rows undecryptable ` +
-        `(fail ratio ${failRatio.toFixed(2)}) — refusing to purge (likely regenerated ` +
-        `vault identity, stale build, or bad session key). Archive preserved.`
-      )
-    } else if (deadCount > 0) {
-      if (deadOriginIds.length > 0) {
-        supabase.rpc('hard_delete_clinic_vault_messages', {
+  // 5f. WRITER ELECTION -> SNAPSHOT -> REAP. Only a healthy session that saw new
+  // tail (or is bootstrapping the first snapshot) compacts. write_clinic_snapshot
+  // applies OCC: concurrent member writers serialise per-clinic and only one wins
+  // the next version (losers return -1 and skip the reap). The reap is TWO-PHASE
+  // — it runs ONLY after the snapshot row is confirmed, so every reaped vault row
+  // is already preserved in the snapshot (the personal-vault "never reap until the
+  // backup landed" contract). This one watermark-gated pass replaces the old
+  // pair-clean + dead-row purge + per-device cursor entirely.
+  const newWatermark = (rows as SignalMessageRow[])[rows.length - 1].created_at
+  const hasNewTail = snap === null ? true : newWatermark > tailFloor
+  if (healthy && hasNewTail) {
+    try {
+      const payload: ClinicSnapshotPayload = {
+        v: CLINIC_SNAPSHOT_PAYLOAD_VERSION,
+        watermark: newWatermark,
+        events: snapshotCalendarEvents(clinicId),
+        overlays: await getLocalMapOverlays(clinicId),
+      }
+      const newVersion = await writeClinicSnapshot(clinicId, payload, baseVersion)
+      if (newVersion > 0) {
+        const { error: reapErr } = await supabase.rpc('reap_clinic_vault_below', {
           p_clinic_id: clinicId,
-          p_origin_ids: deadOriginIds,
-        }).then(({ error }) => {
-          if (error) logger.warn('Vault dead-row cleanup RPC failed:', error.message)
-          else logger.info(`Vault dead-row cleanup: deleted ${deadOriginIds.length} undecryptable rows by origin_id`)
-        }).catch(() => { /* best-effort; next login retries */ })
+          p_watermark: newWatermark,
+        })
+        if (reapErr) logger.warn('reap_clinic_vault_below failed:', reapErr.message)
+        else logger.info(`Clinic vault snapshot v${newVersion} written; reaped archive <= ${newWatermark}`)
       }
-      if (deadRowIds.length > 0) {
-        supabase.from('signal_messages').delete().in('id', deadRowIds)
-          .then(({ error }) => {
-            if (error) logger.warn('Vault dead-row direct delete failed:', error.message)
-            else logger.info(`Vault dead-row cleanup: deleted ${deadRowIds.length} undecryptable rows by id`)
-          })
-      }
-    }
-  }
-
-  // 5f. Advance this device's drain cursor (high-water mark).
-  //  - Delta drain: advance to a CONTIGUOUS low-water mark — stop at the first
-  //    row that failed to decrypt, so a transient/stale-build gap is re-fetched
-  //    next drain rather than skipped forever.
-  //  - Full drain: dead rows were just purged (or the circuit-breaker preserved
-  //    a stale-build batch and refused to advance), so advance to the batch max.
-  // The total-failure circuit-breaker case (processedCount === 0 with dead
-  // rows) leaves the cursor parked so the archive is re-fetched after upgrade.
-  // Likewise a full drain that REFUSED to purge (high fail ratio) must not
-  // advance/stamp: leaving lastFullDrainAt untouched forces the next login to
-  // run another FULL drain, so a healthy session can recover the preserved rows
-  // instead of dropping to delta and never re-judging them. Delta drains keep
-  // their existing contiguous low-water behavior (they don't purge).
-  const parkCursor =
-    (processedCount === 0 && deadRowIdSet.size > 0) || (isFullDrain && refusedPurge)
-  if (!parkCursor) {
-    const orderedRows = rows as SignalMessageRow[]
-    let newCursor = priorCursor?.cursor ?? ''
-    if (isFullDrain) {
-      newCursor = orderedRows[orderedRows.length - 1].created_at
-    } else {
-      for (const row of orderedRows) {
-        if (deadRowIdSet.has(row.id)) break
-        newCursor = row.created_at
-      }
-    }
-    if (newCursor) {
-      const next: VaultCursor = {
-        clinicId,
-        cursor: newCursor,
-        // Stamp the full-drain clock only on a publishing full drain, so a
-        // background/stray full drain can't suppress the next login's reconcile.
-        lastFullDrainAt: (isFullDrain && opts.publishReconcile)
-          ? new Date().toISOString()
-          : (priorCursor?.lastFullDrainAt ?? ''),
-      }
-      await putVaultCursor(next)
+    } catch (e) {
+      logger.warn('Clinic snapshot write/reap failed (archive preserved):', e)
     }
   }
 

@@ -78,7 +78,7 @@ function generatePassphrase(): string {
  */
 export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledChange }: IntakeMintSectionProps) {
   const { isSupervisorRole } = useAuth()
-  const outsideContactBeta = useBetaBypass('outsideContact')
+  const outsideCallBeta = useBetaBypass('outsideCall')
   const [credential, setCredential] = useState<IntakeCredentialMetadata | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -295,7 +295,7 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
     } catch (e) { logger.warn('clipboard write failed', e) }
   }, [])
 
-  if (!isSupervisorRole && !outsideContactBeta) return null
+  if (!isSupervisorRole && !outsideCallBeta) return null
   if (loading) return null
 
   return (
@@ -411,7 +411,10 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
             </div>
 
             {/* GATE-2 — "Allow calls": master toggle that lets outside callers
-                ring the on-call roster over the same QR/passphrase credential. */}
+                ring the on-call roster over the same QR/passphrase credential.
+                DEV-GATED (outsideCall beta) — intake + outside chat are GA, the
+                live-call channel stays in beta until testing completes. */}
+            {outsideCallBeta && (<>
             <div
               onClick={oncallBusy ? undefined : () => void toggleOncall()}
               role="button"
@@ -451,6 +454,7 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
                 />
               </div>
             </div>
+            </>)}
 
             {/* The clinic inbound key (seals voicemail + outside text) is NOT a visible
                 control — it is minted with the credential and rotated with the passcode

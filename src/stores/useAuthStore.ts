@@ -32,8 +32,7 @@ import { invalidate } from './useInvalidationStore'
 import { clearBackupKey, createBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
 import { processVaultMessages, ackVaultDrain, clearVaultKey } from '../lib/signal/vaultDevice'
 import { clearSystemIdentity } from '../lib/signal/systemIdentity'
-import { deriveAndCacheClinicVaultKey, ensureClinicVaultExists, processClinicVaultMessages, clearClinicVaultKey, CLINIC_VAULT_FULL_DRAIN_INTERVAL_MS } from '../lib/signal/clinicVaultDevice'
-import { getVaultCursor } from '../lib/offlineDb'
+import { deriveAndCacheClinicVaultKey, ensureClinicVaultExists, processClinicVaultMessages, clearClinicVaultKey } from '../lib/signal/clinicVaultDevice'
 import { unsubscribeFromPush, resyncPushSubscription } from '../lib/pushNotificationService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { registerSessionCleanup, updateCleanupToken, updateCleanupDeviceId, updateCleanupIsPrimary } from '../lib/sessionCleanup'
@@ -578,25 +577,11 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
               // re-blank a warm calendar behind the drain.
               useCalendarStore.setState({ vaultReplayDone: false })
 
-              // Decide ONE drain mode for the whole login so the cross-clinic
-              // drop-stale reconcile is coherent: a delta drain isn't full
-              // truth, so mixing modes could wrongly prune another clinic's
-              // events. Full if ANY clinic lacks a cursor or its last full
-              // drain has aged out; otherwise delta (fetch only new rows).
-              let drainModeFull = false
-              for (const cId of clinicIds) {
-                const cur = await getVaultCursor(cId)
-                if (!cur || !cur.lastFullDrainAt ||
-                    (Date.now() - new Date(cur.lastFullDrainAt).getTime()) > CLINIC_VAULT_FULL_DRAIN_INTERVAL_MS) {
-                  drainModeFull = true
-                  break
-                }
-              }
-              const drainMode: 'full' | 'delta' = drainModeFull ? 'full' : 'delta'
-              // Arm the reconcile accumulator: [] = collect live ids across
-              // clinics (full drains append, a partial drain poisons to null);
-              // null = delta login, no prune.
-              useCalendarStore.getState().setFullReplayLiveIds(drainModeFull ? [] : null)
+              // Every clinic drain is now snapshot + tail (authoritative truth),
+              // so always arm the reconcile accumulator with [] — each clinic's
+              // healthy drain appends its resolved live ids; a partial/unhealthy
+              // drain poisons it to null (no prune). No per-device cursor / mode.
+              useCalendarStore.getState().setFullReplayLiveIds([])
 
               const { initClinicDeviceBundle } = await import('../lib/signal/clinicDeviceInit')
               const { useMessagingStore } = await import('./useMessagingStore')
@@ -622,7 +607,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
                   // Per-clinic key cache means dual membership doesn't conflict.
                   await deriveAndCacheClinicVaultKey(cId, clinicRow.encryption_key)
                   await ensureClinicVaultExists(cId, clinicRow.encryption_key)
-                  await processClinicVaultMessages(cId, { mode: drainMode, publishReconcile: true })
+                  await processClinicVaultMessages(cId, { publishReconcile: true })
 
                   // Register this browser as a clinic linked device. clinicDeviceId
                   // is `clinic-{userId}-{personalDeviceId}` — same value across clinics.

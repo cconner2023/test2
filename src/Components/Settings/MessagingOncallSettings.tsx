@@ -25,7 +25,7 @@ import { UserAvatar } from './UserAvatar'
  */
 export function MessagingOncallSettings() {
   const { user, clinicId: assignedClinicId, supervisingClinicId, isSupervisorRole } = useAuth()
-  const outsideContactBeta = useBetaBypass('outsideContact')
+  const outsideCallBeta = useBetaBypass('outsideCall')
   const clinicId = supervisingClinicId ?? assignedClinicId
   const userId = user?.id ?? null
 
@@ -76,7 +76,7 @@ export function MessagingOncallSettings() {
   return (
     <>
       {/* ── Outside contact (supervisor + dev-beta) ──────────────────── */}
-      {(isSupervisorRole || outsideContactBeta) && clinicId && (
+      {(isSupervisorRole || outsideCallBeta) && clinicId && (
         <IntakeMintSection
           clinicId={clinicId}
           oncallCount={oncall.length}
