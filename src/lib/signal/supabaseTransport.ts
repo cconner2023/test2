@@ -199,6 +199,22 @@ export class SupabaseTransport implements SignalTransport {
     return ok(undefined)
   }
 
+  // Cluster-wide purge for SYSTEM-authored, sealed-sender cards (intake / outside-message /
+  // oncall-call): sender_id is NULL so hardDeleteByOriginId's sender-scoped RPC deletes
+  // nothing, and RLS lets a member clear only their own copy. This RPC deletes EVERY row for
+  // an origin the caller is a recipient of, server-side (SECURITY DEFINER bypasses RLS).
+  async hardDeleteRecipientOrigin(originIds: string[]): Promise<Result<void>> {
+    if (originIds.length === 0) return ok(undefined)
+
+    const rpcResult = await this.runQuery<number>(
+      () => supabase.rpc('hard_delete_recipient_origin', { p_origin_ids: originIds }),
+      'hardDeleteRecipientOrigin:rpc',
+    )
+    if (!rpcResult.ok) logger.warn('hardDeleteRecipientOrigin RPC error:', rpcResult.error)
+    else logger.info(`Hard-deleted recipient origins cluster-wide: ${rpcResult.data} rows`)
+    return ok(undefined)
+  }
+
   async fetchConversation(userId: string, peerId: string, limit: number = 50): Promise<Result<SignalMessageRow[]>> {
     return this.runQuery<SignalMessageRow[]>(
       () => supabase

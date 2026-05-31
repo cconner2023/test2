@@ -417,11 +417,21 @@ export async function ensureClinicVaultExists(
   clinicId: string,
   encryptionKey: string,
 ): Promise<Result<void>> {
-  const { data } = await supabase
+  const { data, error: existsError } = await supabase
     .from('vault_device_keys')
     .select('user_id')
     .eq('user_id', clinicId)
     .maybeSingle()
+
+  // FAIL CLOSED. A read error (transient network, RLS visibility blip) makes
+  // maybeSingle() return null — which is NOT proof the vault is absent. Treating
+  // that null as "missing" is exactly what regenerated ce06896f's vault identity
+  // on 2026-05-29 (version reset to 1, whole archive orphaned). Never provision
+  // off an errored existence check; the existing vault must be left untouched.
+  if (existsError) {
+    logger.error('Clinic vault existence check failed — refusing to (re)provision:', existsError)
+    return err(existsError.message)
+  }
 
   if (data) {
     // Keys already exist — ensure device is registered in user_devices.
@@ -436,9 +446,15 @@ export async function ensureClinicVaultExists(
 
   const m = await generateClinicVaultMaterial(encryptionKey)
 
+  // INSERT, never upsert. The clinic vault identity is the calendar's only
+  // durable root key — overwriting it orphans every archived row sealed to the
+  // old identity. A plain insert errors on the unique user_id if a vault already
+  // exists (concurrent provisioner, or a false-negative existence check above),
+  // and we ADOPT that existing vault rather than clobber it. onConflict-upsert
+  // would have silently replaced it — that is the bug we are closing.
   const { error: vaultError } = await supabase
     .from('vault_device_keys')
-    .upsert({
+    .insert({
       user_id: clinicId,
       encrypted_blob: m.encryptedBlob,
       salt: m.salt,
@@ -446,9 +462,17 @@ export async function ensureClinicVaultExists(
       kdf_iterations: KDF_ITERATIONS,
       version: 1,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id' })
+    })
 
   if (vaultError) {
+    // 23505 = unique_violation: a vault already exists. Back off and adopt it —
+    // do NOT upload a new public bundle (that would advertise an identity whose
+    // private keys we just threw away). The winning provisioner owns the bundle.
+    if (vaultError.code === '23505') {
+      logger.warn('Clinic vault already exists (insert raced) — adopting existing vault, not overwriting')
+      await registerDevice(clinicId, CLINIC_VAULT_DEVICE_ID, 'Clinic Vault')
+      return ok(undefined)
+    }
     logger.error('Failed to store clinic vault keys:', vaultError)
     return err(vaultError.message)
   }
@@ -479,6 +503,16 @@ export async function ensureClinicVaultExists(
  * saw it. Delta drains in between fetch only new rows (egress win).
  */
 export const CLINIC_VAULT_FULL_DRAIN_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * Max fraction of a full-drain batch that may fail to decrypt before the
+ * dead-row purge is refused entirely. All clinic members share one vault
+ * identity, so a healthy session decrypts ~100% of the archive. Anything above
+ * this is a wrong session (regenerated/rotated vault identity, stale build, bad
+ * key) — never genuinely-dead rows — so we fail closed and preserve the archive.
+ * Set low: real corruption is a row or two; identity loss fails near 100%.
+ */
+const VAULT_PURGE_MAX_FAIL_RATIO = 0.10
 
 export interface ClinicDrainOptions {
   /**
@@ -894,13 +928,28 @@ export async function processClinicVaultMessages(
   // the ONLY calendar store (no calendar_events table), so this is permanent
   // data loss. Failing closed here turns a version-skew login into a harmless
   // no-op: the rows survive and a healthy client re-judges them next drain.
+  // Refuse to purge whenever this session couldn't read a meaningful FRACTION
+  // of the archive — not only when it read ZERO. The original guard was
+  // processedCount===0 (total failure), but a PARTIAL failure is the same
+  // signal: on 2026-05-29 the ce06896f vault identity was regenerated (see
+  // ensureClinicVaultExists), so a later device decrypted only the 2 post-regen
+  // rows and marked 133 pre-regen rows dead — processedCount was 2, not 0, so
+  // the old breaker let the purge through and the orphaned archive was deleted.
+  // A healthy session sharing the clinic vault identity decrypts ~100%, so any
+  // high failure ratio means THIS session is wrong, not the rows. Fail closed.
+  const deadCount = deadRowIdSet.size
+  const failRatio = rows.length > 0 ? deadCount / rows.length : 0
+  const refusedPurge =
+    deadCount > 0 && (processedCount === 0 || failRatio > VAULT_PURGE_MAX_FAIL_RATIO)
+
   if (isFullDrain) {
-    if (processedCount === 0 && (deadOriginIds.length > 0 || deadRowIds.length > 0)) {
+    if (refusedPurge) {
       logger.warn(
-        `Clinic vault: ${deadOriginIds.length + deadRowIds.length} rows failed to decrypt and ZERO succeeded — ` +
-        `refusing to purge (likely stale build or bad session key). Archive preserved.`
+        `Clinic vault: ${deadCount} of ${rows.length} rows undecryptable ` +
+        `(fail ratio ${failRatio.toFixed(2)}) — refusing to purge (likely regenerated ` +
+        `vault identity, stale build, or bad session key). Archive preserved.`
       )
-    } else {
+    } else if (deadCount > 0) {
       if (deadOriginIds.length > 0) {
         supabase.rpc('hard_delete_clinic_vault_messages', {
           p_clinic_id: clinicId,
@@ -928,7 +977,14 @@ export async function processClinicVaultMessages(
   //    a stale-build batch and refused to advance), so advance to the batch max.
   // The total-failure circuit-breaker case (processedCount === 0 with dead
   // rows) leaves the cursor parked so the archive is re-fetched after upgrade.
-  if (!(processedCount === 0 && deadRowIdSet.size > 0)) {
+  // Likewise a full drain that REFUSED to purge (high fail ratio) must not
+  // advance/stamp: leaving lastFullDrainAt untouched forces the next login to
+  // run another FULL drain, so a healthy session can recover the preserved rows
+  // instead of dropping to delta and never re-judging them. Delta drains keep
+  // their existing contiguous low-water behavior (they don't purge).
+  const parkCursor =
+    (processedCount === 0 && deadRowIdSet.size > 0) || (isFullDrain && refusedPurge)
+  if (!parkCursor) {
     const orderedRows = rows as SignalMessageRow[]
     let newCursor = priorCursor?.cursor ?? ''
     if (isFullDrain) {
@@ -953,9 +1009,13 @@ export async function processClinicVaultMessages(
     }
   }
 
-  // 6. Rotate SPK. OTPs are never consumed from the blob (see comment above).
-  // SPK rotation re-uploads the full OTP public list to the key bundle, ensuring senders
-  // continue to have OTPs. replenishClinicVaultPreKeys is intentionally not called here.
+  // 6. Rotate SPK. OTPs are never consumed from the blob (see comment above):
+  // the vault is archive-mode, so every consumed OTP's private key must be
+  // retained indefinitely to keep older rows decryptable. There is deliberately
+  // NO pre-key replenish path — replenish would have to evict consumed OTP
+  // privates (standard one-time semantics), which for an archive vault orphans
+  // every row sealed to them. SPK rotation re-uploads the full OTP public list
+  // to the key bundle each cycle, so senders always have public OTPs to use.
   await rotateClinicVaultSPK(clinicId, vaultKeys, vaultRow as VaultDeviceKeysRow)
 
   logger.info(`Processed ${processedCount} clinic vault messages`)
@@ -1065,95 +1125,5 @@ async function rotateClinicVaultSPK(
     logger.info(`Clinic vault SPK rotated (${vaultKeys.signedPreKey.keyId} → ${newSpkId}, retained ${allPrevious.length} previous)`)
   } catch (e) {
     logger.warn('Failed to rotate clinic vault SPK:', e)
-  }
-}
-
-async function replenishClinicVaultPreKeys(
-  clinicId: string,
-  vaultKeys: VaultPrivateKeys,
-  consumedIds: Set<number>,
-  vaultRow: VaultDeviceKeysRow
-): Promise<void> {
-  if (!cachedClinicVaultKey) return
-
-  try {
-    // Generate replacements for consumed keys
-    const newPreKeys: VaultBlobPlaintext['preKeys'] = []
-    let nextId = vaultKeys.nextPreKeyId
-
-    for (let i = 0; i < consumedIds.size; i++) {
-      const pair = await generateDhPair()
-      const pubBase64 = await exportPubKey(pair.publicKey, 'raw')
-      newPreKeys.push({
-        keyId: nextId++,
-        privateKey: await crypto.subtle.exportKey('jwk', pair.privateKey),
-        publicKey: await crypto.subtle.exportKey('jwk', pair.publicKey),
-        publicKeyBase64: pubBase64,
-      })
-    }
-
-    // Merge: keep unconsumed + add new
-    const survivingPreKeys = await Promise.all(
-      vaultKeys.preKeys
-        .filter(pk => !consumedIds.has(pk.keyId))
-        .map(async pk => ({
-          keyId: pk.keyId,
-          privateKey: await crypto.subtle.exportKey('jwk', pk.privateKey),
-          publicKey: await crypto.subtle.exportKey('jwk', pk.publicKey),
-          publicKeyBase64: pk.publicKeyBase64,
-        }))
-    )
-
-    const allPreKeys = [...survivingPreKeys, ...newPreKeys]
-
-    const updatedBlob: VaultBlobPlaintext = {
-      signingPrivateKey: await crypto.subtle.exportKey('jwk', vaultKeys.signingPrivateKey),
-      signingPublicKey: await crypto.subtle.exportKey('jwk', vaultKeys.signingPublicKey),
-      dhPrivateKey: await crypto.subtle.exportKey('jwk', vaultKeys.dhPrivateKey),
-      dhPublicKey: await crypto.subtle.exportKey('jwk', vaultKeys.dhPublicKey),
-      signingPublicKeyBase64: vaultKeys.signingPublicKeyBase64,
-      dhPublicKeyBase64: vaultKeys.dhPublicKeyBase64,
-      signedPreKey: await exportSignedPreKey(vaultKeys.signedPreKey),
-      previousSignedPreKeys: await Promise.all(
-        vaultKeys.previousSignedPreKeys.map(exportSignedPreKey)
-      ),
-      preKeys: allPreKeys,
-      nextPreKeyId: nextId,
-    }
-
-    const iv = crypto.getRandomValues(new Uint8Array(12))
-    const ptBytes = new TextEncoder().encode(JSON.stringify(updatedBlob))
-    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cachedClinicVaultKey, ptBytes)
-
-    const { data: replenishData, error: replenishError } = await supabase.from('vault_device_keys').update({
-      encrypted_blob: uint8ToBase64(new Uint8Array(ciphertext)),
-      iv: uint8ToBase64(iv),
-      version: vaultRow.version + 1,
-      updated_at: new Date().toISOString(),
-    }).eq('user_id', clinicId).eq('version', vaultRow.version).select('user_id')
-
-    if (replenishError || !replenishData?.length) {
-      logger.warn('Clinic vault pre-key update conflict — another device won the race, skipping')
-      return
-    }
-
-    // Update public bundle with surviving + new OTPs
-    const publicBundle: PublicKeyBundle = {
-      userId: clinicId,
-      deviceId: CLINIC_VAULT_DEVICE_ID,
-      identitySigningKey: vaultKeys.signingPublicKeyBase64,
-      identityDhKey: vaultKeys.dhPublicKeyBase64,
-      signedPreKey: {
-        keyId: vaultKeys.signedPreKey.keyId,
-        publicKey: vaultKeys.signedPreKey.publicKeyBase64,
-        signature: vaultKeys.signedPreKey.signature,
-      },
-      oneTimePreKeys: allPreKeys.map(pk => ({ keyId: pk.keyId, publicKey: pk.publicKeyBase64 })),
-    }
-    await uploadKeyBundle(publicBundle)
-
-    logger.info(`Replenished ${newPreKeys.length} clinic vault pre-keys`)
-  } catch (e) {
-    logger.warn('Failed to replenish clinic vault pre-keys:', e)
   }
 }

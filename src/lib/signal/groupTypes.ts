@@ -11,7 +11,7 @@ export interface GroupInfo {
   createdBy: string
   createdAt: string
   memberCount: number
-  systemType?: 'calendar' | 'system' | null
+  systemType?: 'calendar' | 'system' | 'oncall' | null
 }
 
 export interface GroupMember {

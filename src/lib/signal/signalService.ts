@@ -338,6 +338,15 @@ export async function hardDeleteByOriginId(
   return transportManager.hardDeleteByOriginId(originIds)
 }
 
+/** Cluster-wide purge of SYSTEM-authored cards (sender_id NULL): deletes every recipient's
+ *  row for an origin the caller received. Use for SYSTEM-bucketed cards; hardDeleteByOriginId
+ *  is sender-scoped and cannot touch them. */
+export async function hardDeleteRecipientOrigin(
+  originIds: string[]
+): Promise<Result<void>> {
+  return transportManager.hardDeleteRecipientOrigin(originIds)
+}
+
 export async function fetchConversation(
   userId: string,
   peerId: string,

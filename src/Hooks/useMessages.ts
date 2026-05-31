@@ -24,6 +24,7 @@ import {
   fetchGroupConversation,
   markMessagesRead,
   hardDeleteByOriginId,
+  hardDeleteRecipientOrigin,
 } from '../lib/signal/signalService'
 import {
   fetchMyGroups as fetchMyGroupsRpc,
@@ -1805,9 +1806,58 @@ export function useMessages(): UseMessagesReturn {
     const deleteOriginId = crypto.randomUUID()
 
     const isGroup = !!useMessagingStore.getState().groups[peerId]
+    // SYSTEM-authored cluster cards (intake / outside-message / oncall-call) arrive
+    // sealed-sender on the personal channel (group_id NULL, sender_id NULL) and bucket
+    // under the SYSTEM conversation. They are NOT a 1:1 peer: fanning the delete only to
+    // SYSTEM's device leaves every OTHER clinic member's copy alive, and the sender-scoped
+    // server purge can't touch sender_id=NULL rows. Treat them as a cluster broadcast:
+    // fan the 'delete' envelope to every cluster-group member and purge cluster-wide.
+    const isSystemCard = peerId === SYSTEM_USER_ID
 
     try {
-      if (isGroup) {
+      if (isSystemCard) {
+        // Resolve the cluster group(s) for the deleted cards' clinic(s). The card content
+        // carries clinic_id; fall back to all cluster groups the user belongs to.
+        const clinicIds = new Set<string>()
+        for (const id of messageIds) {
+          const c = (msgs.find(m => m.id === id)?.content as { clinic_id?: string } | undefined)?.clinic_id
+          if (c) clinicIds.add(c)
+        }
+        // SYSTEM cards route to either the supervisor 'system' group (intake) or the
+        // whole-cluster 'oncall' group (outside-message / oncall-call). Fan to members of
+        // both so the right audience tombstones their local copy, regardless of card type.
+        const groups = useMessagingStore.getState().groups
+        const clusterGroups = Object.values(groups).filter(
+          g => g.systemType === 'oncall' || g.systemType === 'system',
+        )
+        const targetGroups = clinicIds.size > 0
+          ? clusterGroups.filter(g => clinicIds.has(g.clinicId))
+          : clusterGroups
+
+        // Unique member set across target groups (dedupe so a member in >1 group gets one fan).
+        const memberIds = new Set<string>()
+        for (const g of targetGroups) {
+          const membersResult = await fetchGroupMembersRpc(g.groupId)
+          if (!membersResult.ok) continue
+          for (const member of membersResult.data) {
+            if (member.userId !== userId) memberIds.add(member.userId)
+          }
+        }
+
+        for (const memberUserId of memberIds) {
+          const devicesResult = await fetchPeerDevices(memberUserId)
+          if (!devicesResult.ok || devicesResult.data.length === 0) continue
+          const fanOutInputs = await encryptForAllDevices(memberUserId, devicesResult.data, deletePayload, userId)
+          for (const input of fanOutInputs) {
+            input.messageType = 'delete'
+          }
+          if (fanOutInputs.length > 0) {
+            await sendMessageFanOut(userId, localDeviceId, memberUserId, fanOutInputs, undefined, deleteOriginId).catch(e =>
+              logger.warn(`Failed to send cluster delete to ${memberUserId}:`, e instanceof Error ? e.message : e)
+            )
+          }
+        }
+      } else if (isGroup) {
         // Group delete: peerId is a groupId, which owns no user_devices rows, so
         // the 1:1 fan-out below (fetchPeerDevices(groupId)) reaches nobody and the
         // other members never learn the message was deleted. Fan the 'delete'
@@ -1835,12 +1885,8 @@ export function useMessages(): UseMessagesReturn {
           }
         }
       } else {
-        // SYSTEM has no persistent receiver ratchet across drain batches — every
-        // user → SYSTEM send must be a fresh X3DH InitialMessage, including
-        // deletes. Mirrors the sendMessage(SYSTEM) short-circuit above.
-        if (peerId === SYSTEM_USER_ID) {
-          await deleteSessionsForPeer(SYSTEM_USER_ID)
-        }
+        // 1:1 peer delete. (SYSTEM-bucketed cards are handled by the isSystemCard
+        // branch above, so peerId is always a real user here.)
         const devicesResult = await fetchPeerDevices(peerId)
         if (devicesResult.ok && devicesResult.data.length > 0) {
           const fanOutInputs = await encryptForAllDevices(peerId, devicesResult.data, deletePayload, userId)
@@ -1878,7 +1924,11 @@ export function useMessages(): UseMessagesReturn {
       logger.warn('Failed to sync delete to own devices:', e instanceof Error ? e.message : e)
     }
 
-    hardDeleteByOriginId(originIds).catch(e =>
+    // SYSTEM cards are sealed-sender (sender_id NULL) with one row per member, so the
+    // sender-scoped hardDeleteByOriginId purges nothing and RLS clears only the caller's
+    // own row. Use the recipient-authorized cluster purge for those; sender-scoped for 1:1.
+    const purge = isSystemCard ? hardDeleteRecipientOrigin : hardDeleteByOriginId
+    purge(originIds).catch(e =>
       logger.warn('Failed to hard-delete from Supabase:', e instanceof Error ? e.message : e)
     )
   }, [userId])
