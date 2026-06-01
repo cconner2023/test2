@@ -213,7 +213,7 @@ export function ProviderTemplateList({ templates, onSelect, onNew, onEdit }: Pro
           the pill's upper half (~20px) + shadow rides above the first card, and this
           scroll container's overflow-y would otherwise clip it. Desktop left pane sits
           flush under the fixed drawer header with no breathing room, so it needs more
-          headroom than the mobile picker. On mobile the SubDrawer owns the scroller
+          headroom than the mobile picker. On mobile the Sheet owns the scroller
           (glass-header gotcha — a nested overflow-auto body won't paint behind it). */}
       <div className={`px-2 pb-3 ${isMobile ? 'pt-5' : 'flex-1 overflow-y-auto pt-8'}`}>
         {templates.length ? (
@@ -260,7 +260,7 @@ export function ProviderTemplateList({ templates, onSelect, onNew, onEdit }: Pro
         }
         previewMaxHeight={isMobile ? '50dvh' : '40dvh'}
         actions={menuActions}
-        // On mobile this list lives inside the Templates SubDrawer (body portal
+        // On mobile this list lives inside the Templates Sheet (body portal
         // at z-[1200]); the menu would otherwise be trapped under the sheet.
         zIndex={isMobile ? 1300 : undefined}
       />

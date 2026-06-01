@@ -1615,7 +1615,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
                     onClick={() => toggleGroupMember(medic.id)}
                     className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all"
                   >
-                    <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
+                    <UserAvatar avatarId={medic.avatarId} avatarBlob={medic.avatarBlob} userId={medic.id} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
                     <span className="flex-1 text-sm text-primary truncate">{getDisplayName(medic)}</span>
                     <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors
                                    ${groupSelectedIds.has(medic.id) ? 'bg-themeblue2 border-themeblue2' : 'border-tertiary/30'}`}>
@@ -1628,7 +1628,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
                     onClick={() => { setShowNewMsg(false); onSelectPeer(medic) }}
                     className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all"
                   >
-                    <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
+                    <UserAvatar avatarId={medic.avatarId} avatarBlob={medic.avatarBlob} userId={medic.id} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
                     <span className="flex-1 text-sm text-primary truncate">{getDisplayName(medic)}</span>
                   </button>
                 )

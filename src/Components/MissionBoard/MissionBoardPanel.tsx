@@ -76,7 +76,7 @@ function ConvRow({ entry, lastText, unread, isPinned, onTap, onContext }: {
           <Users size={15} className="text-themeblue2" />
         </div>
       ) : (
-        <UserAvatar avatarId={entry.medic?.avatarId} firstName={entry.medic?.firstName} lastName={entry.medic?.lastName} className="w-8 h-8" />
+        <UserAvatar avatarId={entry.medic?.avatarId} avatarBlob={entry.medic?.avatarBlob} userId={entry.medic?.id} firstName={entry.medic?.firstName} lastName={entry.medic?.lastName} className="w-8 h-8" />
       )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1">

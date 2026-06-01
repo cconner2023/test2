@@ -232,8 +232,10 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
     const result = await deleteAccountRequest(requestId)
     if (result.success) {
       setConfirmDeleteId(null)
-      await loadRequests()
+      // Bust the requests cache BEFORE reloading, else loadRequests re-serves
+      // the stale (pre-delete) getAllAccountRequests entry.
       invalidate('requests')
+      await loadRequests()
     } else {
       setNotify({ type: 'error', message: `Failed to delete: ${result.error}` })
     }

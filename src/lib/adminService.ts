@@ -12,6 +12,7 @@ import { supabase } from './supabase'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useInvalidationStore } from '../stores/useInvalidationStore'
 import type { AccountRequest } from './accountRequestService'
+import type { AvatarBlob } from '../Types/SupervisorTestTypes'
 import { createLogger } from '../Utilities/Logger'
 import {
   generateClinicKeyBase64,
@@ -46,6 +47,7 @@ export interface AdminUser {
   created_at: string
   last_active_at: string | null
   avatar_id: string | null
+  avatar_blob?: AvatarBlob | null
   supervisor_created: boolean
 }
 
@@ -70,10 +72,39 @@ export async function isDevUser(): Promise<boolean> {
 }
 
 /**
- * Get all pending account requests (dev only)
+ * Promise cache for getAllAccountRequests, keyed by the `requests` invalidation
+ * generation plus the status filter (callers pass 'pending' for the summary and
+ * undefined for the full list — distinct cache entries). AdminSummary and
+ * AdminRequestsList both load on every drawer open; without this each fired its
+ * own round-trip. Bust via invalidate('requests'). Mirrors the listAllUsers /
+ * listClinics caches.
+ */
+let accountRequestsCache: { gen: number; byStatus: Map<string, Promise<AccountRequest[]>> } | null = null
+
+/**
+ * Get all account requests, optionally filtered by status (dev only).
+ * Served from the gen-keyed promise cache; bust via invalidate('requests').
  */
 export async function getAllAccountRequests(
   status?: 'pending' | 'approved' | 'rejected'
+): Promise<AccountRequest[]> {
+  const gen = useInvalidationStore.getState().generations.requests
+  const key = status ?? '__all__'
+  if (!accountRequestsCache || accountRequestsCache.gen !== gen) {
+    accountRequestsCache = { gen, byStatus: new Map() }
+  }
+  const cached = accountRequestsCache.byStatus.get(key)
+  if (cached) return cached
+
+  const promise = fetchAccountRequests(status, gen, key)
+  accountRequestsCache.byStatus.set(key, promise)
+  return promise
+}
+
+async function fetchAccountRequests(
+  status: 'pending' | 'approved' | 'rejected' | undefined,
+  gen: number,
+  key: string,
 ): Promise<AccountRequest[]> {
   try {
     let query = supabase
@@ -110,6 +141,8 @@ export async function getAllAccountRequests(
     }))
   } catch (error) {
     logger.error('Failed to get account requests:', error)
+    // Drop this entry so the next call retries instead of caching the empty fallback.
+    if (accountRequestsCache?.gen === gen) accountRequestsCache.byStatus.delete(key)
     return []
   }
 }
@@ -352,61 +385,58 @@ export async function removeUserRole(
 }
 
 /**
+ * Promise cache for listAllUsers, keyed by the `users` invalidation generation.
+ * Five admin surfaces (AdminSummary, AdminRequestsList, AdminClinicsList,
+ * AdminUsersList, AdminUserDetail) call listAllUsers on mount — and the admin
+ * drawer never rides the offline-first IDB pipeline, so without this each open
+ * re-pulled the full user list (incl. avatar_blob) once per caller. The cache
+ * holds the in-flight promise so concurrent callers share one round-trip; when
+ * `invalidate('users')` bumps the generation the next call refetches. A
+ * rejected/empty promise is cleared so a transient error doesn't poison the
+ * cache. Mirrors the listClinics cache below.
+ */
+let listAllUsersCache: { gen: number; promise: Promise<AdminUser[]> } | null = null
+
+/**
  * List all users (profiles + email). Dev only.
+ *
+ * supervisor_created, surrogate_clinic_id and surrogate_clinic_name are now
+ * returned inline by the admin_list_users RPC, so this is a single round-trip
+ * (previously the RPC plus a full-table profiles scan plus a clinics lookup).
+ * Served from the gen-keyed promise cache; bust via invalidate('users').
  */
 export async function listAllUsers(): Promise<AdminUser[]> {
-  try {
-    const { data, error } = await supabase.rpc('admin_list_users')
-    if (error) throw error
-    const validated = validateRpcArray<AdminUser>(data, ['id', 'email'], 'listAllUsers')
-    if (!validated.ok) {
-      logger.error('listAllUsers validation failed:', validated.error)
+  const gen = useInvalidationStore.getState().generations.users
+  if (listAllUsersCache && listAllUsersCache.gen === gen) {
+    return listAllUsersCache.promise
+  }
+
+  const promise = (async () => {
+    try {
+      const { data, error } = await supabase.rpc('admin_list_users')
+      if (error) throw error
+      const validated = validateRpcArray<AdminUser>(data, ['id', 'email'], 'listAllUsers')
+      if (!validated.ok) {
+        logger.error('listAllUsers validation failed:', validated.error)
+        // Drop the cache entry so the next call retries.
+        if (listAllUsersCache?.gen === gen) listAllUsersCache = null
+        return []
+      }
+      return validated.data.map(u => ({
+        ...u,
+        supervisor_created: u.supervisor_created ?? false,
+        surrogate_clinic_id: u.surrogate_clinic_id ?? null,
+        surrogate_clinic_name: u.surrogate_clinic_name ?? null,
+      }))
+    } catch (error) {
+      logger.error('Failed to list users:', error)
+      if (listAllUsersCache?.gen === gen) listAllUsersCache = null
       return []
     }
+  })()
 
-    // Merge supervisor_created + surrogate_clinic_id — the RPC predates these
-    // columns, so we pull them via a secondary profiles query and overlay
-    // onto the RPC result.
-    const { data: flagRows } = await supabase
-      .from('profiles')
-      .select('id, supervisor_created, surrogate_clinic_id')
-    const flagMap = new Map<string, { supervisor_created: boolean; surrogate_clinic_id: string | null }>(
-      (flagRows ?? []).map(r => [
-        r.id as string,
-        {
-          supervisor_created: Boolean((r as { supervisor_created?: boolean }).supervisor_created),
-          surrogate_clinic_id: (r as { surrogate_clinic_id?: string | null }).surrogate_clinic_id ?? null,
-        },
-      ]),
-    )
-    // Resolve surrogate_clinic_name by fetching clinic names once.
-    const surrogateIds = Array.from(
-      new Set(
-        Array.from(flagMap.values()).map(v => v.surrogate_clinic_id).filter((id): id is string => !!id),
-      ),
-    )
-    const nameMap = new Map<string, string>()
-    if (surrogateIds.length > 0) {
-      const { data: clinicRows } = await supabase
-        .from('clinics')
-        .select('id, name')
-        .in('id', surrogateIds)
-      for (const c of clinicRows ?? []) nameMap.set(c.id as string, c.name as string)
-    }
-    return validated.data.map(u => {
-      const flags = flagMap.get(u.id)
-      const surrogateClinicId = flags?.surrogate_clinic_id ?? null
-      return {
-        ...u,
-        supervisor_created: flags?.supervisor_created ?? false,
-        surrogate_clinic_id: surrogateClinicId,
-        surrogate_clinic_name: surrogateClinicId ? (nameMap.get(surrogateClinicId) ?? null) : null,
-      }
-    })
-  } catch (error) {
-    logger.error('Failed to list users:', error)
-    return []
-  }
+  listAllUsersCache = { gen, promise }
+  return promise
 }
 
 /**

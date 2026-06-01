@@ -1047,6 +1047,7 @@ export type Database = {
           theme: string | null
           uic: string | null
           updated_at: string
+          avatar_blob: Json | null
           voicemail_greeting: Json | null
         }
         Insert: {
@@ -1082,6 +1083,7 @@ export type Database = {
           theme?: string | null
           uic?: string | null
           updated_at?: string
+          avatar_blob?: Json | null
           voicemail_greeting?: Json | null
         }
         Update: {
@@ -1117,6 +1119,7 @@ export type Database = {
           theme?: string | null
           uic?: string | null
           updated_at?: string
+          avatar_blob?: Json | null
           voicemail_greeting?: Json | null
         }
         Relationships: [
@@ -1908,6 +1911,7 @@ export type Database = {
           middle_initial: string
           rank: string
           voicemail_greeting: Json
+          avatar_blob: Json
         }[]
       }
       gc_read_signal_messages: {

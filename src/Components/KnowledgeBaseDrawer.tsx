@@ -13,7 +13,6 @@ import { VitalSignsCalculator, type VitalSignsCalculatorHandle } from './VitalSi
 import { BurnCalculator } from './BurnCalculator'
 import { HeatCategoryCalculator } from './HeatCategoryCalculator'
 import { NineLineKB, NineLineExport } from './Reports/NineLineKB'
-import { BottomSheet } from './BottomSheet'
 import { DatePickerCalendar } from './FormInputs'
 import { PreviewOverlay } from './PreviewOverlay'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'

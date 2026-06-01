@@ -674,7 +674,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
                         >
                           {provider ? (
                             <>
-                              <UserAvatar avatarId={provider.avatarId} firstName={provider.firstName} lastName={provider.lastName} className="w-6 h-6 shrink-0 ring-1 ring-themeblue3/50" />
+                              <UserAvatar avatarId={provider.avatarId} avatarBlob={provider.avatarBlob} userId={provider.id} firstName={provider.firstName} lastName={provider.lastName} className="w-6 h-6 shrink-0 ring-1 ring-themeblue3/50" />
                               <span className="text-[9pt] font-medium text-primary truncate">{getDisplayName(provider)}</span>
                             </>
                           ) : (
@@ -682,7 +682,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
                           )}
                           {partners.map(p => (
                             <span key={p.id} className="inline-flex items-center gap-1 shrink-0 pl-1 border-l border-themeblue3/30">
-                              <UserAvatar avatarId={p.avatarId} firstName={p.firstName} lastName={p.lastName} className="w-6 h-6 shrink-0" />
+                              <UserAvatar avatarId={p.avatarId} avatarBlob={p.avatarBlob} userId={p.id} firstName={p.firstName} lastName={p.lastName} className="w-6 h-6 shrink-0" />
                               <span className="text-[9pt] text-primary truncate">{getDisplayName(p)}</span>
                             </span>
                           ))}
@@ -758,7 +758,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
                           ) : (
                             assignees.map((m, i) => (
                               <span key={m.id} className={`inline-flex items-center gap-1 shrink-0 ${i > 0 ? 'pl-1 border-l border-themeblue3/30' : ''}`}>
-                                <UserAvatar avatarId={m.avatarId} firstName={m.firstName} lastName={m.lastName} className={`w-6 h-6 shrink-0 ${(m.roles ?? []).includes('provider') ? 'ring-1 ring-themeblue3/50' : ''}`} />
+                                <UserAvatar avatarId={m.avatarId} avatarBlob={m.avatarBlob} userId={m.id} firstName={m.firstName} lastName={m.lastName} className={`w-6 h-6 shrink-0 ${(m.roles ?? []).includes('provider') ? 'ring-1 ring-themeblue3/50' : ''}`} />
                                 <span className="text-[9pt] text-primary truncate">{getDisplayName(m)}</span>
                               </span>
                             ))
@@ -872,7 +872,7 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
                 role={canArm ? 'button' : undefined}
                 title={canArm ? (isArmed ? 'Tap a huddle row to assign — Esc to cancel' : 'Tap, then tap a huddle row to assign') : undefined}
               >
-                <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className={isMobile ? 'w-10 h-10' : 'w-7 h-7'} />
+                <UserAvatar avatarId={medic.avatarId} avatarBlob={medic.avatarBlob} userId={medic.id} firstName={medic.firstName} lastName={medic.lastName} className={isMobile ? 'w-10 h-10' : 'w-7 h-7'} />
                 <div className="min-w-0">
                   <p className={`font-medium text-primary truncate ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{getDisplayName(medic)}</p>
                   {activeProviderIdsForVisibleDay.has(medic.id) ? (

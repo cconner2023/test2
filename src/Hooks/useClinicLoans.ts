@@ -9,7 +9,7 @@ const logger = createLogger('ClinicLoans')
 const LOANS_SELECT = `
         user_id,
         profile:profiles!profile_clinic_loans_user_id_fkey (
-          id, first_name, last_name, middle_initial, rank, credential, roles, avatar_id, clinic_id,
+          id, first_name, last_name, middle_initial, rank, credential, roles, avatar_id, avatar_blob, clinic_id,
           home_clinic:clinics!profiles_clinic_id_fkey ( name )
         )
       `
@@ -50,6 +50,7 @@ function fetchLoans(clinicId: string, key: string): Promise<ClinicMedic[]> {
           rank: (pr.rank as string) ?? '',
           credential: (pr.credential as string) ?? '',
           avatarId: (pr.avatar_id as string) ?? null,
+          avatarBlob: (pr.avatar_blob as ClinicMedic['avatarBlob']) ?? null,
           roles: (pr.roles as string[]) ?? [],
           clinicId: (pr.clinic_id as string) ?? undefined,
           clinicName: (pr.home_clinic as { name?: string } | null)?.name ?? undefined,

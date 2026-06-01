@@ -54,7 +54,9 @@ function DrawerHeader({
     // In glass mode the frosted band hugs the button row, so drop the vertical
     // padding that would otherwise let the blur extend beyond the buttons.
     const verticalPad = glass
-        ? (isMobile && mobileFullScreen ? 'pt-[max(0.75rem,var(--sat,0px))]' : '')
+        // Glass: add a bottom feather zone so the masked blur fades into nothing
+        // below the button row instead of ending on a hard CSS line.
+        ? (isMobile && mobileFullScreen ? 'pt-[max(0.75rem,var(--sat,0px))] pb-4' : 'pb-4')
         : isMobile
         ? (mobileFullScreen ? 'pt-[max(0.75rem,var(--sat,0px))] pb-2' : 'pb-2')
         : 'py-2.5';
@@ -80,7 +82,15 @@ function DrawerHeader({
                     transformOrigin: 'top center',
                 }}
             >
-                <div className={`${horizontalPad} ${verticalPad} ${glass ? 'backdrop-blur-[2px] bg-themewhite3/15' : ''} ${headerFaded || hideBorder ? '' : 'border-b border-tertiary/10'}`}>
+                <div
+                    className={`${horizontalPad} ${verticalPad} ${glass ? 'backdrop-blur-[2px] bg-themewhite3/15' : ''} ${headerFaded || hideBorder ? '' : 'border-b border-tertiary/10'}`}
+                    style={glass ? {
+                        // Feather the frosted band: blur + tint fade to transparent
+                        // toward the bottom edge so there's no hard line.
+                        maskImage: 'linear-gradient(to bottom, black 55%, transparent 100%)',
+                        WebkitMaskImage: 'linear-gradient(to bottom, black 55%, transparent 100%)',
+                    } : undefined}
+                >
                     <div className="flex items-center justify-between">
                         <div className={`flex items-center gap-2 min-w-0 transition-all duration-200${rightContentFill ? ' w-0 overflow-hidden' : ''}`}>
                             {leftContent && <div className="shrink-0">{leftContent}</div>}

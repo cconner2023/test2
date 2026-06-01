@@ -143,6 +143,8 @@ export function ShareToChatPicker({ isOpen, content, onClose }: ShareToChatPicke
             >
               <UserAvatar
                 avatarId={medic.avatarId}
+                avatarBlob={medic.avatarBlob}
+                userId={medic.id}
                 firstName={medic.firstName}
                 lastName={medic.lastName}
                 className="w-8 h-8"
@@ -198,6 +200,8 @@ export function ShareToChatPicker({ isOpen, content, onClose }: ShareToChatPicke
               <div key={r.medic.id} className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-themewhite2">
                 <UserAvatar
                   avatarId={r.medic.avatarId}
+                  avatarBlob={r.medic.avatarBlob}
+                  userId={r.medic.id}
                   firstName={r.medic.firstName}
                   lastName={r.medic.lastName}
                   className="w-5 h-5"

@@ -86,6 +86,8 @@ export function AdminSystemConversationView({ peerId, onBack }: AdminSystemConve
     return (
       <UserAvatar
         avatarId={peerProfile?.avatarId ?? null}
+        avatarBlob={peerProfile?.avatarBlob ?? null}
+        userId={peerProfile?.id ?? null}
         firstName={peerProfile?.firstName ?? null}
         lastName={peerProfile?.lastName ?? null}
         className="w-7 h-7"

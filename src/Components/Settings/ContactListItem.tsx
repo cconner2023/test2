@@ -24,7 +24,7 @@ export function ContactListItem({ medic, lastMessage, unreadCount, onClick, unav
       onClick={onClick}
       className={`px-4 py-4 transition-all duration-150 hover:bg-primary/3 active:scale-[0.98] cursor-pointer${unavailable ? ' opacity-50' : ''}`}
       left={
-        <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-10 h-10" />
+        <UserAvatar avatarId={medic.avatarId} avatarBlob={medic.avatarBlob} userId={medic.id} firstName={medic.firstName} lastName={medic.lastName} className="w-10 h-10" />
       }
       center={
         <>

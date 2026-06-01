@@ -3,7 +3,7 @@ import { ScanLine, X, LayoutTemplate } from 'lucide-react'
 import { ImportInputBar } from './ImportInputBar'
 import { ImportResultPopover } from './ImportResultPopover'
 import { BaseDrawer } from './BaseDrawer'
-import { SubDrawer } from './SubDrawer'
+import { Sheet } from './Sheet'
 import { ContentWrapper } from './ContentWrapper'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
@@ -554,15 +554,16 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
           isMobile={isMobile}
         />
 
-        {/* Mobile template picker — SubDrawer (not a nested BaseDrawer, which
+        {/* Mobile template picker — Sheet (not a nested BaseDrawer, which
             would be trapped under this drawer's glass header) */}
         {isMobile && (
-          <SubDrawer
-            isVisible={templateDrawerOpen}
+          <Sheet
+            isOpen={templateDrawerOpen}
             onClose={() => setTemplateDrawerOpen(false)}
             title="Templates"
-            peekPercent={55}
-            expandedPercent={90}
+            height="snap"
+            peekHeight={55}
+            fullHeight={90}
           >
             <ProviderTemplateList
               templates={templates}
@@ -570,7 +571,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
               onNew={handleTemplateNew}
               onEdit={handleTemplateEdit}
             />
-          </SubDrawer>
+          </Sheet>
         )}
 
         <ProviderTemplateEditPopover
@@ -578,7 +579,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
           onClose={() => setTemplateEditState(null)}
           onSave={handleTemplateSave}
           onDelete={handleTemplateDelete}
-          // On mobile the editor opens while the Templates SubDrawer (z-[1200])
+          // On mobile the editor opens while the Templates Sheet (z-[1200])
           // is still mounted, so it must sit above the sheet.
           zIndex={isMobile ? 1300 : undefined}
         />

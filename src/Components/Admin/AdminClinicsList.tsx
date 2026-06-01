@@ -9,7 +9,7 @@ import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useLongPress } from '../../Hooks/useLongPress'
 import { listClinics, listAllUsers, deleteClinic } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
-import { useInvalidation } from '../../stores/useInvalidationStore'
+import { useInvalidation, invalidate } from '../../stores/useInvalidationStore'
 import { UI_TIMING } from '../../Utilities/constants'
 
 interface AdminClinicsListProps {
@@ -125,7 +125,9 @@ export function AdminClinicsList({
       setNotify({ type: 'error', message: `Failed to delete ${failures.length} clinic(s)` })
     }
 
-    await loadData()
+    // Bust the listClinics + listAllUsers caches and refetch via the gen bump
+    // (a deleted clinic clears its members' clinic_id). Mirrors AdminDrawer.
+    invalidate('clinics', 'users')
   }
 
   const handleDeleteCancel = () => {

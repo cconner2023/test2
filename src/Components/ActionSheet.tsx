@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import { useIsMobile } from '../Hooks/useIsMobile'
-import { BottomSheet } from './BottomSheet'
+import { Sheet } from './Sheet'
 import { Z } from './BaseOverlay'
 import { Menu } from './Menu'
 
@@ -22,7 +22,7 @@ interface ActionSheetProps {
 }
 
 /**
- * ActionSheet — dual-mode option list: BottomSheet on mobile, Menu on desktop.
+ * ActionSheet — dual-mode option list: Sheet on mobile, Menu on desktop.
  * Wraps the new overlay primitives so consumers don't need to pick.
  */
 export function ActionSheet({ visible, title, options, onClose }: ActionSheetProps) {
@@ -35,7 +35,7 @@ export function ActionSheet({ visible, title, options, onClose }: ActionSheetPro
 
   if (isMobile) {
     return (
-      <BottomSheet isOpen={visible} onClose={onClose} title={title} maxHeight="40dvh" hideClose zIndex={Z.MODAL}>
+      <Sheet isOpen={visible} onClose={onClose} title={title} hideClose zIndex={Z.MODAL}>
         <div className="px-5 pb-5 pt-3 flex flex-col gap-2.5">
           {options.map((opt) => {
             const isDanger = opt.variant === 'danger'
@@ -61,7 +61,7 @@ export function ActionSheet({ visible, title, options, onClose }: ActionSheetPro
             Cancel
           </button>
         </div>
-      </BottomSheet>
+      </Sheet>
     )
   }
 

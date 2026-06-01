@@ -20,7 +20,7 @@ import { supabase } from '../lib/supabase'
 import { createLogger } from '../Utilities/Logger'
 import { onSystemMessage, SYSTEM_USER_ID } from '../lib/signal/systemIdentity'
 import type { DecryptedSignalMessage } from '../lib/signal/transportTypes'
-import type { ClinicMedic, VoicemailGreeting } from '../Types/SupervisorTestTypes'
+import type { ClinicMedic, VoicemailGreeting, AvatarBlob } from '../Types/SupervisorTestTypes'
 
 const peerLogger = createLogger('PeerProfileResolver')
 
@@ -77,6 +77,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
           clinic_id: string | null
           clinic_name: string | null
           voicemail_greeting: VoicemailGreeting | null
+          avatar_blob: AvatarBlob | null
         }>) {
           const medic: ClinicMedic = {
             id: p.id,
@@ -86,6 +87,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
             rank: p.rank,
             credential: p.credential,
             avatarId: p.avatar_id ?? null,
+            avatarBlob: p.avatar_blob ?? null,
             clinicId: p.clinic_id ?? undefined,
             clinicName: p.clinic_name ?? undefined,
             voicemailGreeting: p.voicemail_greeting ?? null,

@@ -26,6 +26,16 @@ export interface VoicemailGreeting {
   dur: number
 }
 
+/** A user's custom profile photo. `enc` is base64(IV + AES-GCM ciphertext) of the
+ *  (already downscaled, ~160px JPEG) image bytes, encrypted with the app-wide
+ *  barcode key (getBarcodeKey) so any authenticated viewer can decrypt it.
+ *  Mirrors VoicemailGreeting; rides the same profiles row / fetch_profiles_by_ids
+ *  resolution path. Not PHI. Inline today — the seam for a future S3/storage move. */
+export interface AvatarBlob {
+  enc: string
+  mime: string
+}
+
 export interface ClinicMedic {
   id: string
   firstName: string | null
@@ -34,6 +44,9 @@ export interface ClinicMedic {
   rank: string | null
   credential: string | null
   avatarId: string | null
+  /** Encrypted custom profile photo when avatarId === 'custom'. Resolved via
+   *  useResolvedAvatar / avatarBlobService. Absent on light roster shapes. */
+  avatarBlob?: AvatarBlob | null
   voicemailGreeting?: VoicemailGreeting | null
   /** Profile roles array — 'medic' | 'supervisor' | 'dev' | 'provider'. Used to identify providers in clinic-scoped UIs (e.g. Huddle view). */
   roles?: string[]

@@ -499,7 +499,18 @@ export function ChatDetailView({
       // Mobile: overlay the composer on top of the conversation so the iOS
       // keyboard floats the input up without resizing the message list.
       // Desktop: normal flex child below the scroll area.
-      <div className="absolute inset-x-0 bottom-0 z-10 backdrop-blur-[2px] bg-themewhite3/15 pb-[max(0rem,var(--sab,0px))] md:static md:inset-auto md:bottom-auto md:shrink-0 md:bg-transparent md:backdrop-blur-none md:pb-0">
+      <div className="absolute inset-x-0 bottom-0 z-10 pb-[max(0rem,var(--sab,0px))] md:static md:inset-auto md:bottom-auto md:shrink-0 md:pb-0">
+        {/* Mobile-only frosted backdrop on its own layer so it can feather into
+            nothing at the top edge (no hard CSS line) without masking the
+            composer content above it. Desktop renders a plain flex child. */}
+        <div
+          aria-hidden
+          className="absolute inset-0 -z-10 backdrop-blur-[2px] bg-themewhite3/15 md:hidden"
+          style={{
+            maskImage: 'linear-gradient(to top, black 55%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to top, black 55%, transparent 100%)',
+          }}
+        />
         {someUnavailable && <UnavailableBanner participants={participants} />}
 
         {replyingTo && !activeThreadId && (
@@ -686,7 +697,18 @@ export function ChatDetailView({
     return (
       <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden" onScroll={closeContextMenu}>
         {showHeaders && (
-          <div className="sticky top-0 z-10 backdrop-blur-[2px] bg-themewhite3/15 animate-fadeIn">
+          <div className="sticky top-0 z-10 animate-fadeIn">
+            {/* Frosted backdrop on its own layer so it feathers into nothing at
+                the bottom edge (matches the glass header) without masking the
+                sticky header content above it. */}
+            <div
+              aria-hidden
+              className="absolute inset-0 -z-10 backdrop-blur-[2px] bg-themewhite3/15"
+              style={{
+                maskImage: 'linear-gradient(to bottom, black 55%, transparent 100%)',
+                WebkitMaskImage: 'linear-gradient(to bottom, black 55%, transparent 100%)',
+              }}
+            />
             {headerOverride ?? (<>{mobileHeader}{desktopHeader}</>)}
             {rootMsg && (
               <div className="px-2 pt-1 pb-1.5 border-b border-primary/10 bg-themewhite3/85">

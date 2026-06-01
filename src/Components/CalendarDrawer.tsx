@@ -311,7 +311,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                                     : 'hover:bg-secondary/5'
                             }`}
                         >
-                            <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
+                            <UserAvatar avatarId={medic.avatarId} avatarBlob={medic.avatarBlob} userId={medic.id} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
                             <div className="flex-1 min-w-0">
                                 <p className="text-[10pt] font-medium text-primary truncate">
                                     {getDisplayName(medic)}

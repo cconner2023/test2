@@ -64,6 +64,8 @@ export function SystemConversationCard({ conversation, onSelect, setContextMenu 
       <div className="flex items-center gap-3 px-4 py-3.5">
         <UserAvatar
           avatarId={peerProfile?.avatarId ?? null}
+          avatarBlob={peerProfile?.avatarBlob ?? null}
+          userId={peerProfile?.id ?? null}
           firstName={peerProfile?.firstName ?? null}
           lastName={peerProfile?.lastName ?? null}
           className="w-9 h-9"

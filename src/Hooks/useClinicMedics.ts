@@ -55,7 +55,8 @@ async function fetchMedicsFromNetwork(userId: string): Promise<ClinicMedic[] | n
       const medicProfiles: ClinicMedic[] = rpcData.map((p: {
         id: string; first_name: string; last_name: string; middle_initial: string;
         rank: string; credential: string; avatar_id: string; clinic_id: string; clinic_name: string;
-        roles?: string[]; surrogate_clinic_id?: string | null; is_loaned_in?: boolean
+        roles?: string[]; surrogate_clinic_id?: string | null; is_loaned_in?: boolean;
+        avatar_blob?: ClinicMedic['avatarBlob']
       }) => ({
         id: p.id,
         firstName: p.first_name,
@@ -64,6 +65,7 @@ async function fetchMedicsFromNetwork(userId: string): Promise<ClinicMedic[] | n
         rank: p.rank,
         credential: p.credential,
         avatarId: p.avatar_id ?? null,
+        avatarBlob: p.avatar_blob ?? null,
         roles: p.roles ?? [],
         clinicId: p.clinic_id,
         clinicName: p.clinic_name,
@@ -95,7 +97,7 @@ async function fetchMedicsFromNetwork(userId: string): Promise<ClinicMedic[] | n
 
   const { data: clinicProfiles, error: clinicError } = await supabase
     .from('profiles')
-    .select('id, first_name, last_name, middle_initial, rank, credential, roles, avatar_id')
+    .select('id, first_name, last_name, middle_initial, rank, credential, roles, avatar_id, avatar_blob')
     .eq('clinic_id', profile.clinic_id)
 
   if (clinicError) {
@@ -111,6 +113,7 @@ async function fetchMedicsFromNetwork(userId: string): Promise<ClinicMedic[] | n
     rank: p.rank,
     credential: p.credential,
     avatarId: p.avatar_id ?? null,
+    avatarBlob: (p as { avatar_blob?: ClinicMedic['avatarBlob'] }).avatar_blob ?? null,
     roles: (p as { roles?: string[] }).roles ?? [],
   }))
   logger.info(`Fallback returned ${medicProfiles.length} medics`)

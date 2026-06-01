@@ -1,12 +1,17 @@
 import { ChevronRight } from 'lucide-react'
 import { UserAvatar } from './Settings/UserAvatar'
 import { lastActiveColor } from './Admin/adminUtils'
+import type { AvatarBlob } from '../Types/SupervisorTestTypes'
 
 // ─── Types ────────────────────────────────────────────────────────────
 
 interface UserRowProps {
   /** Avatar identifier for SVG lookup */
   avatarId?: string | null
+  /** Encrypted custom photo when avatarId === 'custom'. */
+  avatarBlob?: AvatarBlob | null
+  /** Enables the signed-in user's own custom photo via the seeded cache. */
+  userId?: string | null
   firstName?: string | null
   lastName?: string | null
   middleInitial?: string | null
@@ -51,6 +56,8 @@ export function formatUserName(
 
 export function UserRow({
   avatarId,
+  avatarBlob,
+  userId,
   firstName,
   lastName,
   middleInitial,
@@ -73,6 +80,8 @@ export function UserRow({
       <div className="relative shrink-0">
         <UserAvatar
           avatarId={avatarId}
+          avatarBlob={avatarBlob}
+          userId={userId}
           firstName={firstName}
           lastName={lastName}
           className={AVATAR_CLASS[size]}

@@ -74,7 +74,7 @@ export function SupervisorTree({
             onClick={() => onSelect({ type: 'soldier', soldierId: medic.id })}
             onKeyDown={(e) => { if (e.key === 'Enter') onSelect({ type: 'soldier', soldierId: medic.id }) }}
           >
-            <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-10 h-10" />
+            <UserAvatar avatarId={medic.avatarId} avatarBlob={medic.avatarBlob} userId={medic.id} firstName={medic.firstName} lastName={medic.lastName} className="w-10 h-10" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-primary truncate">{formatMedicName(medic)}</p>
               {medic.credential && (

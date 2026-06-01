@@ -5,6 +5,14 @@ import { supabase } from '../lib/supabase';
 import { usePageVisibility } from './usePageVisibility';
 import { useSupabaseSubscription } from './useSupabaseSubscription';
 import { createLogger } from '../Utilities/Logger';
+import type { AvatarBlob } from '../Types/SupervisorTestTypes';
+import {
+    saveOwnAvatarBlob,
+    clearOwnAvatarBlob,
+    fetchOwnAvatarBlob,
+    decryptAvatarToUrl,
+    seedAvatarCache,
+} from '../lib/avatarBlobService';
 
 const logger = createLogger('ProfileAvatar');
 
@@ -94,6 +102,14 @@ export function useProfileAvatar(userId?: string) {
     const currentAvatar: ProfileAvatar =
         profileAvatars.find(a => a.id === avatarId) ?? profileAvatars[0];
 
+    // Seed the shared avatar cache from this device's local custom photo so the
+    // signed-in user's own UserAvatar (nav, lists) renders without a decrypt.
+    useEffect(() => {
+        if (userId && customImage && avatarId === 'custom') {
+            seedAvatarCache(`user:${userId}`, customImage);
+        }
+    }, [userId, customImage, avatarId]);
+
     // On login, fetch avatar_id from Supabase and apply it (once per userId)
     useEffect(() => {
         if (!userId || hasSyncedRef.current === userId) return;
@@ -101,14 +117,38 @@ export function useProfileAvatar(userId?: string) {
 
         supabase
             .from('profiles')
-            .select('avatar_id')
+            .select('avatar_id, avatar_blob')
             .eq('id', userId)
             .single()
             .then(({ data }) => {
                 const remoteId = data?.avatar_id;
                 if (!remoteId) {
-                    // No avatar saved remotely yet — push the local one up
-                    syncAvatarToSupabase(userId, avatarId);
+                    // No avatar saved remotely yet — push the local one up. A local
+                    // custom photo persists its encrypted blob; everything else is
+                    // just the avatar_id string.
+                    if (avatarId === 'custom' && customImage) {
+                        void saveOwnAvatarBlob(customImage);
+                    } else {
+                        syncAvatarToSupabase(userId, avatarId);
+                    }
+                    return;
+                }
+                // Custom photo: adopt 'custom' and rehydrate the image from the
+                // encrypted blob when this device has none (e.g. a fresh device).
+                if (remoteId === 'custom') {
+                    setAvatarId('custom');
+                    try { localStorage.setItem(STORAGE_KEY, 'custom'); } catch { /* */ }
+                    const blob = (data?.avatar_blob as AvatarBlob | null | undefined) ?? null;
+                    if (customImage) {
+                        seedAvatarCache(`user:${userId}`, customImage);
+                    } else if (blob) {
+                        decryptAvatarToUrl(blob).then(url => {
+                            if (!url) return;
+                            setCustomImageState(url);
+                            try { localStorage.setItem(CUSTOM_IMAGE_KEY, url); } catch { /* */ }
+                            seedAvatarCache(`user:${userId}`, url);
+                        });
+                    }
                     return;
                 }
                 // Apply remote avatar if it's a valid pre-made avatar or 'initials'
@@ -122,13 +162,14 @@ export function useProfileAvatar(userId?: string) {
     // Realtime: subscribe to avatar_id changes on the user's own profile row
     // so that changing avatar on one device updates all other logged-in devices.
     // Pauses when the page is backgrounded to reduce battery drain.
-    useSupabaseSubscription<{ avatar_id: string | null }>({
+    useSupabaseSubscription<{ avatar_id: string | null; avatar_blob?: AvatarBlob | null }>({
         shouldSubscribe: !!userId && isPageVisible,
         channelName: `profile-avatar:${userId ?? ''}`,
         postgresFilter: { table: 'profiles', filter: `id=eq.${userId}` },
         onPayload: (payload) => {
             if (payload.eventType !== 'UPDATE') return;
-            const remoteId = (payload.new as { avatar_id: string | null }).avatar_id;
+            const newRow = payload.new as { avatar_id: string | null; avatar_blob?: AvatarBlob | null };
+            const remoteId = newRow.avatar_id;
             if (!remoteId) return;
 
             // Only apply if it differs from the current local state
@@ -144,6 +185,20 @@ export function useProfileAvatar(userId?: string) {
                 }
                 return remoteId;
             });
+
+            // Custom photo set/changed on another device — decrypt the new blob
+            // (carried inline on the realtime row; fall back to a fetch) and adopt it.
+            if (remoteId === 'custom') {
+                const apply = (url: string | null) => {
+                    if (!url) return;
+                    setCustomImageState(url);
+                    try { localStorage.setItem(CUSTOM_IMAGE_KEY, url); } catch { /* */ }
+                    if (userId) seedAvatarCache(`user:${userId}`, url);
+                };
+                const blob = newRow.avatar_blob ?? null;
+                if (blob) void decryptAvatarToUrl(blob).then(apply);
+                else void fetchOwnAvatarBlob().then(b => { if (b) void decryptAvatarToUrl(b).then(apply); });
+            }
         },
         logger,
     });
@@ -168,7 +223,12 @@ export function useProfileAvatar(userId?: string) {
         }
         setCustomImageState(dataUrl);
         setAvatarId('custom');
-        if (userId) syncAvatarToSupabase(userId, 'custom');
+        // Seed the shared cache so the signed-in user's photo renders instantly
+        // everywhere (nav, lists) before the network round-trip completes.
+        if (userId) seedAvatarCache(`user:${userId}`, dataUrl);
+        // Persist the encrypted blob AND flip avatar_id to 'custom' in one write
+        // (replaces the old avatar_id-only sync, which left peers with no image).
+        void saveOwnAvatarBlob(dataUrl);
     }, [userId]);
 
     const clearCustomImage = useCallback(() => {
@@ -186,6 +246,8 @@ export function useProfileAvatar(userId?: string) {
             // ignore
         }
         if (userId) syncAvatarToSupabase(userId, 'initials');
+        // Drop the persisted encrypted blob too (avatar_id handled above).
+        void clearOwnAvatarBlob();
     }, [userId]);
 
     return {

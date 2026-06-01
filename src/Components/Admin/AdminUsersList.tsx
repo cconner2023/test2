@@ -18,7 +18,7 @@ import {
 } from '../../lib/adminService'
 import type { AdminUser } from '../../lib/adminService'
 import { useAuthStore } from '../../stores/useAuthStore'
-import { useInvalidation } from '../../stores/useInvalidationStore'
+import { useInvalidation, invalidate } from '../../stores/useInvalidationStore'
 import { UI_TIMING } from '../../Utilities/constants'
 
 // ─── Public Interface ────────────────────────────────────────────────────
@@ -188,7 +188,11 @@ export function AdminUsersList({
 
       if (result.success) {
         setNotify({ type: 'success', message: `Deleted ${targetName}.` })
-        await loadUsers()
+        // Bust the listAllUsers cache and refetch (the gen bump re-runs the
+        // loadUsers effect here and in every other mounted admin surface).
+        // Mirrors AdminDrawer.handleDeleteUser — a delete also clears the user's
+        // clinic membership and any account_requests.
+        invalidate('users', 'clinics', 'requests')
       } else {
         setNotify({
           type: 'error',
@@ -196,7 +200,7 @@ export function AdminUsersList({
         })
       }
     },
-    [loadUsers, users],
+    [users],
   )
 
   const handleResetPasswordConfirm = useCallback(async () => {
@@ -309,6 +313,8 @@ export function AdminUsersList({
       >
         <UserRow
           avatarId={user.avatar_id}
+          avatarBlob={user.avatar_blob}
+          userId={user.id}
           firstName={user.first_name}
           lastName={user.last_name}
           middleInitial={user.middle_initial}

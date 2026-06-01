@@ -323,7 +323,7 @@ export function GroupInfoPanel({
                       onClick={() => handleAddMember(medic.id)}
                       className="flex items-center w-full px-3 py-2 gap-2 hover:bg-themewhite2 transition-colors"
                     >
-                      <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-7 h-7" />
+                      <UserAvatar avatarId={medic.avatarId} avatarBlob={medic.avatarBlob} userId={medic.id} firstName={medic.firstName} lastName={medic.lastName} className="w-7 h-7" />
                       <span className="flex-1 text-sm text-primary truncate">
                         {[medic.rank, medic.lastName].filter(Boolean).join(' ') || medic.firstName || 'Unknown'}
                       </span>

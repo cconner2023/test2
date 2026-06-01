@@ -37,7 +37,7 @@ export function ConversationPreview({
     return (
       <div className="px-4 py-3">
         <div className="flex items-center gap-3 mb-3">
-          <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-12 h-12" />
+          <UserAvatar avatarId={medic.avatarId} avatarBlob={medic.avatarBlob} userId={medic.id} firstName={medic.firstName} lastName={medic.lastName} className="w-12 h-12" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-primary truncate">{getDisplayName(medic)}</p>
             {unavailableReason ? (

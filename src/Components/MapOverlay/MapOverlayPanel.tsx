@@ -15,7 +15,7 @@ function waypointGlyphIcon(type: WaypointType): LucideIcon {
 }
 import { LoadingSpinner } from '../LoadingSpinner';
 import { BaseDrawer } from '../BaseDrawer';
-import { SubDrawer } from '../SubDrawer';
+import { Sheet } from '../Sheet';
 import { HeaderPill, PillButton } from '../HeaderPill';
 import { SearchInput } from '../SearchInput';
 import { ContentWrapper } from '../ContentWrapper';
@@ -1931,10 +1931,11 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   layers button in the header opens it; selecting an overlay/feature
                   closes it so the map stays visible. ── */}
               {isMobile && (
-                <SubDrawer
-                  isVisible={showMobileTree}
+                <Sheet
+                  isOpen={showMobileTree}
                   onClose={() => setShowMobileTree(false)}
                   title="Overlays & settings"
+                  height="snap"
                 >
                   <div className="flex flex-col">
                     <section className="shrink-0">
@@ -1971,20 +1972,21 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                       />
                     </section>
                   </div>
-                </SubDrawer>
+                </Sheet>
               )}
 
-              {/* ── Mobile: selected-feature editor as a SubDrawer. Peeks at 25%
+              {/* ── Mobile: selected-feature editor as a Sheet. Peeks at 25%
                   with no backdrop so the map stays visible/interactive; tap the
                   grab handle to expand. X closes (clears selection). ── */}
               {isMobile && (
-                <SubDrawer
-                  isVisible={!!selectedFeature}
+                <Sheet
+                  isOpen={!!selectedFeature}
                   onClose={() => setSelectedFeatureId(null)}
+                  height="snap"
                   // Peek low + no backdrop so the map stays visible and
                   // interactive while "Edit & move" lets the user drag points.
-                  peekPercent={25}
-                  noBackdrop
+                  peekHeight={25}
+                  backdrop="none"
                   // Title shown in READ mode only. Edit mode hides it so the
                   // body TextInput is the single source of truth for the name.
                   title={isFeatureEditMode
@@ -2043,18 +2045,19 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                       isEditMode={isFeatureEditMode}
                     />
                   )}
-                </SubDrawer>
+                </Sheet>
               )}
 
               {/* ── Mobile: temp-point drawer. Transient — no feature is
                   committed until the user taps "Save as waypoint". ── */}
               {isMobile && (
-                <SubDrawer
-                  isVisible={!!tempPoint && !selectedFeature}
+                <Sheet
+                  isOpen={!!tempPoint && !selectedFeature}
                   onClose={handleCloseTempPoint}
-                  peekPercent={40}
-                  expandedPercent={60}
-                  noBackdrop
+                  height="snap"
+                  peekHeight={40}
+                  fullHeight={60}
+                  backdrop="none"
                   title="Temp point"
                   actions={(
                     <>
@@ -2069,18 +2072,19 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   )}
                 >
                   {tempPoint && <TempPointBody lat={tempPoint.lat} lng={tempPoint.lng} />}
-                </SubDrawer>
+                </Sheet>
               )}
 
               {/* ── Mobile: temp-route drawer (pin-to-pin navigation). Save
                   commits as a route feature; X discards. ── */}
               {isMobile && (
-                <SubDrawer
-                  isVisible={!!tempRoute && !tempPoint && !selectedFeature}
+                <Sheet
+                  isOpen={!!tempRoute && !tempPoint && !selectedFeature}
                   onClose={handleCloseTempRoute}
-                  peekPercent={40}
-                  expandedPercent={60}
-                  noBackdrop
+                  height="snap"
+                  peekHeight={40}
+                  fullHeight={60}
+                  backdrop="none"
                   title="Temp route"
                   actions={(
                     <>
@@ -2112,7 +2116,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   )}
                 >
                   {tempRoute && <TempRouteBody points={tempRoute.points} closed={tempRoute.closed} onRemoveVertex={handleRemoveTempRouteVertex} onAddVertex={handleAddTempRouteVertex} />}
-                </SubDrawer>
+                </Sheet>
               )}
 
               {/* ── Bottom-right: contextual stack + Add FAB ── */}
@@ -2558,7 +2562,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
         variant="danger"
         onConfirm={handleConfirmDeleteOverlay}
         onCancel={() => setConfirmDeleteOverlayId(null)}
-        // Launched from the overlay-tree SubDrawer (portals to body at z-[1200]) —
+        // Launched from the overlay-tree Sheet (portals to body at z-[1200]) —
         // sit above it so the confirm isn't trapped under the sheet.
         zIndex={1300}
       />
@@ -2570,7 +2574,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
         variant="danger"
         onConfirm={handleConfirmDeleteFeature}
         onCancel={() => setConfirmDeleteFeature(null)}
-        // Launched from the selected-feature editor SubDrawer (body portal at
+        // Launched from the selected-feature editor Sheet (body portal at
         // z-[1200], noBackdrop) — bump above it.
         zIndex={1300}
       />
@@ -2586,7 +2590,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           performClose();
         }}
         onCancel={() => setConfirmDiscardClose(false)}
-        // Can fire while a SubDrawer (body portal at z-[1200]) is still mounted —
+        // Can fire while a Sheet (body portal at z-[1200]) is still mounted —
         // keep the confirm on top.
         zIndex={1300}
       />

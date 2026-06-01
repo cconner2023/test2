@@ -461,6 +461,8 @@ const AdminClinicDetail = ({
     <UserRow
       key={user.id}
       avatarId={user.avatar_id}
+      avatarBlob={user.avatar_blob}
+      userId={user.id}
       firstName={user.first_name}
       lastName={user.last_name}
       middleInitial={user.middle_initial}
@@ -759,6 +761,8 @@ const AdminClinicDetail = ({
                 <UserRow
                   key={user.id}
                   avatarId={user.avatar_id}
+                  avatarBlob={user.avatar_blob}
+                  userId={user.id}
                   firstName={user.first_name}
                   lastName={user.last_name}
                   middleInitial={user.middle_initial}

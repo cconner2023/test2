@@ -696,6 +696,8 @@ export function AdminUserDetail({
           ) : user ? (
             <UserRow
               avatarId={user.avatar_id}
+              avatarBlob={user.avatar_blob}
+              userId={user.id}
               firstName={user.first_name}
               lastName={user.last_name}
               middleInitial={user.middle_initial}
@@ -868,6 +870,8 @@ export function AdminUserDetail({
             <div className="flex items-center gap-3 px-4 py-3 border-b border-primary/6">
               <UserAvatar
                 avatarId={user.avatar_id}
+                avatarBlob={user.avatar_blob}
+                userId={user.id}
                 firstName={user.first_name}
                 lastName={user.last_name}
                 className="w-11 h-11"

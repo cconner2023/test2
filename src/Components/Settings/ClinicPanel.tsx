@@ -262,6 +262,8 @@ export function ClinicPanel({
         >
           <UserAvatar
             avatarId={member.avatarId}
+            avatarBlob={member.avatarBlob}
+            userId={member.id}
             firstName={member.firstName}
             lastName={member.lastName}
             className="w-8 h-8"
