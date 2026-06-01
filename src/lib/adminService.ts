@@ -19,7 +19,10 @@ import {
   encryptWithRawKey,
   decryptWithRawKey,
   encryptClinicField,
+  getBarcodeKey,
 } from './cryptoService'
+import { aesGcmDecrypt } from './aesGcm'
+import { base64ToBytes } from './base64Utils'
 import { provisionClinicVaultAsAdmin } from './signal/clinicVaultDevice'
 import { validatePasswordComplexity } from './constants'
 import { getErrorMessage } from '../Utilities/errorUtils'
@@ -622,7 +625,8 @@ export interface AdminLocation {
 //     the network entirely. Stale-while-revalidate — a stale persisted set is
 //     returned instantly and refreshed in the background, so the picker is never
 //     blocked on the network and staleness self-heals on the next call.
-// Busted on any location mutation (clearLocationsCache, called by the mutators).
+// Refreshed on any location mutation (commitLocationsMutation, called by the
+// mutators — repopulates from DB + rebuilds the encrypted CDN snapshot below).
 let locationsCache: AdminLocation[] | null = null
 let locationsInflight: Promise<AdminLocation[]> | null = null
 
@@ -663,20 +667,67 @@ export function clearLocationsCache(): void {
   try { localStorage.removeItem(LOCATIONS_LS_KEY) } catch { /* ignore */ }
 }
 
-/** Fetch the canonical set from PostgREST, populate both cache layers. */
+// ── Encrypted CDN snapshot ────────────────────────────────────────────────
+// The canonical location set is also published as an AES-256-GCM encrypted
+// snapshot in the PUBLIC `public-cache` bucket (reference/locations.json),
+// rebuilt by the rebuild-locations-snapshot edge fn on every dev mutation. The
+// bytes are world-downloadable so Supabase's storage CDN shared-caches them
+// across all users — the egress win is that reads never touch PostgREST/DB
+// (vs. one locations query + DB read per user per cold start). Confidentiality
+// rides the app-wide barcode key: the payload is encrypted with app_keys
+// .barcode_v1, which only authenticated users can read via RLS, so the public
+// bytes are opaque to anyone else. Same model as profiles.avatar_blob / the
+// voicemail greeting; locations are non-PHI taxonomy.
+//
+// Cache nuance: edge auto-invalidation-on-overwrite is the paid Smart CDN tier;
+// on the basic tier the object returns `no-cache` + an ETag, so clients do a
+// cheap conditional GET (→ 304) — still far cheaper than a PostgREST round-trip,
+// and the client's own localStorage SWR (12h) already gates how often we even
+// ask. PostgREST stays the source of truth + fallback; the snapshot is a pure
+// read optimization, never a dependency.
+const LOCATIONS_SNAPSHOT_URL =
+  `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/public-cache/reference/locations.json`
+
+interface LocationsEnvelope { version: number; generated_at: string; key_id: string; enc: string }
+
+/** Fetch + decrypt the CDN snapshot. Returns rows, or null on ANY miss (offline,
+ *  404, key absent/mismatch, malformed) so the caller falls back to PostgREST. */
+async function fetchLocationsSnapshot(): Promise<AdminLocation[] | null> {
+  try {
+    const res = await fetch(LOCATIONS_SNAPSHOT_URL)
+    if (!res.ok) return null
+    const env = (await res.json()) as LocationsEnvelope
+    if (!env?.enc || env.key_id !== 'barcode_v1') return null
+    const key = await getBarcodeKey()
+    if (!key) return null
+    const plain = await aesGcmDecrypt(key, base64ToBytes(env.enc))
+    const rows = JSON.parse(new TextDecoder().decode(plain)) as AdminLocation[]
+    return Array.isArray(rows) ? rows : null
+  } catch {
+    return null
+  }
+}
+
+/** Authoritative PostgREST read of the canonical non-archived set. */
+async function refetchLocationsFromDb(): Promise<AdminLocation[]> {
+  const { data, error } = await supabase
+    .from('locations')
+    .select('id, country_code, subdivision, installation, sub_area, display_name, timezone, command, lat, lon, parent_id')
+    .is('archived_at', null)
+    .order('country_code')
+    .order('installation')
+    .order('sub_area')
+  if (error) throw error
+  return (data || []) as AdminLocation[]
+}
+
+/** Populate both cache layers. Prefers the encrypted CDN snapshot; falls back to
+ *  PostgREST on any snapshot miss. Concurrent callers share one round-trip. */
 function refetchLocations(): Promise<AdminLocation[]> {
   if (locationsInflight) return locationsInflight
   locationsInflight = (async () => {
     try {
-      const { data, error } = await supabase
-        .from('locations')
-        .select('id, country_code, subdivision, installation, sub_area, display_name, timezone, command, lat, lon, parent_id')
-        .is('archived_at', null)
-        .order('country_code')
-        .order('installation')
-        .order('sub_area')
-      if (error) throw error
-      const rows = (data || []) as AdminLocation[]
+      const rows = (await fetchLocationsSnapshot()) ?? (await refetchLocationsFromDb())
       locationsCache = rows // only cache successes — failures retry next call
       writePersistedLocations(rows)
       return rows
@@ -688,6 +739,30 @@ function refetchLocations(): Promise<AdminLocation[]> {
     }
   })()
   return locationsInflight
+}
+
+/** Fire-and-forget the snapshot rebuild after a dev location mutation. */
+function triggerLocationsSnapshotRebuild(): void {
+  void supabase.functions.invoke('rebuild-locations-snapshot').then(({ error }) => {
+    if (error) logger.warn('locations snapshot rebuild failed:', error.message)
+  })
+}
+
+/** Commit caches after a successful dev location mutation. Repopulates from the
+ *  authoritative DB (so the EDITING device shows its write immediately, not the
+ *  not-yet-rebuilt snapshot), then fires the snapshot rebuild for everyone else.
+ *  Replaces a bare clearLocationsCache() in the mutators. */
+async function commitLocationsMutation(): Promise<void> {
+  locationsInflight = null
+  try {
+    const rows = await refetchLocationsFromDb()
+    locationsCache = rows
+    writePersistedLocations(rows)
+  } catch {
+    // Authoritative refetch failed — drop caches so the next read retries.
+    clearLocationsCache()
+  }
+  triggerLocationsSnapshotRebuild()
 }
 
 /**
@@ -748,7 +823,7 @@ export async function createLocation(data: {
       .select('id')
       .single()
     if (error) return fail(error.message)
-    clearLocationsCache()
+    await commitLocationsMutation()
     return succeed({ id: result.id })
   } catch (error) {
     logger.error('Failed to create location:', error)
@@ -781,7 +856,7 @@ export async function updateLocation(
       .update(updates)
       .eq('id', id)
     if (error) return fail(error.message)
-    clearLocationsCache()
+    await commitLocationsMutation()
     return succeed({})
   } catch (error) {
     logger.error('Failed to update location:', error)
@@ -800,7 +875,7 @@ export async function archiveLocation(id: string): Promise<ServiceResult<Record<
       .update({ archived_at: new Date().toISOString() })
       .eq('id', id)
     if (error) return fail(error.message)
-    clearLocationsCache()
+    await commitLocationsMutation()
     return succeed({})
   } catch (error) {
     logger.error('Failed to archive location:', error)

@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { writeFileSync, mkdirSync } from 'fs'
 import { resolve } from 'path'
-const APP_VERSION = '2.6.8'
+const APP_VERSION = '2.6.9'
 const BUILD_ID = 'A1'
 
 export default defineConfig({

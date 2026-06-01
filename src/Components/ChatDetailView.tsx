@@ -697,13 +697,14 @@ export function ChatDetailView({
     return (
       <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden" onScroll={closeContextMenu}>
         {showHeaders && (
-          <div className="sticky top-0 z-10 animate-fadeIn">
-            {/* Frosted backdrop on its own layer so it feathers into nothing at
-                the bottom edge (matches the glass header) without masking the
-                sticky header content above it. */}
+          <div className="sticky top-0 z-10 backdrop-blur-[2px] animate-fadeIn">
+            {/* Blur lives on the sticky element itself — backdrop-filter on a
+                -z-10 descendant of a sticky parent fails to sample on iOS Safari.
+                This layer carries only the masked tint so the COLOR feathers to
+                nothing at the bottom; the 2px blur edge is imperceptible. */}
             <div
               aria-hidden
-              className="absolute inset-0 -z-10 backdrop-blur-[2px] bg-themewhite3/15"
+              className="absolute inset-0 -z-10 bg-themewhite3/15"
               style={{
                 maskImage: 'linear-gradient(to bottom, black 55%, transparent 100%)',
                 WebkitMaskImage: 'linear-gradient(to bottom, black 55%, transparent 100%)',

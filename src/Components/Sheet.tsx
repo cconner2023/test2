@@ -225,10 +225,11 @@ export function Sheet({
     const heightDvh = isSnap ? (isFull ? expanded : peek) : undefined;
 
     // Slide transform. Fit mode adds the live drag offset (px) on top of the
-    // slide; snap mode only slides.
+    // slide; snap mode only slides. Hidden state tucks fully below the bottom
+    // inset gap (100% + the gap) so no sliver of the floating card peeks up.
     const translate = shown
         ? (fitDraggable && dragY ? `translateY(${dragY}px)` : 'translateY(0)')
-        : 'translateY(100%)';
+        : 'translateY(calc(100% + 1rem))';
 
     return createPortal(
         <>
@@ -246,19 +247,23 @@ export function Sheet({
                 />
             )}
 
-            {/* Sheet card. Snap: fixed dvh height that animates between peek/full.
-                Fit: no height — hugs content, capped by maxHeight, then scrolls. */}
+            {/* Sheet card — floating inset card on mobile: side margins, a
+                bottom gap (safe-area aware), and ALL FOUR corners rounded so it
+                reads as a card rather than a flush-to-edge drawer. Snap: fixed
+                dvh height that animates between peek/full. Fit: no height —
+                hugs content, capped by maxHeight, then scrolls. */}
             <div
-                className={`fixed left-0 right-0 bottom-0 bg-themewhite3 text-primary flex flex-col overflow-hidden ${
+                className={`fixed left-3 right-3 bg-themewhite3 text-primary flex flex-col overflow-hidden ${
                     isDragging ? '' : 'transition-[transform,height] duration-300 ease-out'
                 }`}
                 style={{
                     zIndex: zIndex + 1,
+                    bottom: 'max(0.75rem, calc(var(--sab, 0px) + 0.75rem))',
                     height: isSnap ? `${heightDvh}dvh` : undefined,
-                    maxHeight: isSnap ? undefined : `${maxHeight}dvh`,
+                    maxHeight: isSnap ? undefined : `min(${maxHeight}dvh, calc(100dvh - 1.5rem))`,
                     transform: translate,
-                    borderRadius: '1.25rem 1.25rem 0 0',
-                    boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.12)',
+                    borderRadius: '1.5rem',
+                    boxShadow: '0 4px 30px rgba(0, 0, 0, 0.12)',
                 }}
                 role="dialog"
                 aria-modal="true"

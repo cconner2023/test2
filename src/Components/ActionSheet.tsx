@@ -36,27 +36,34 @@ export function ActionSheet({ visible, title, options, onClose }: ActionSheetPro
   if (isMobile) {
     return (
       <Sheet isOpen={visible} onClose={onClose} title={title} hideClose zIndex={Z.MODAL}>
-        <div className="px-5 pb-5 pt-3 flex flex-col gap-2.5">
-          {options.map((opt) => {
-            const isDanger = opt.variant === 'danger'
-            return (
-              <button
-                key={opt.key}
-                data-tour={opt.tourTag}
-                onClick={() => handleOption(opt)}
-                className={`w-full py-3 rounded-full text-[11pt] font-medium active:scale-95 transition-all ${
-                  isDanger
-                    ? 'bg-themeredred/10 text-themeredred'
-                    : 'bg-themeblue3 text-white'
-                }`}
-              >
-                {opt.label}
-              </button>
-            )
-          })}
+        <div className="px-4 pb-5 pt-2">
+          {/* List-style rows — mirrors the calendar filter options (and the
+              intake-form channel picker): full-bleed rows in a bordered card,
+              icon + left-aligned label, divider between rows. */}
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 divide-y divide-themeblue3/10 overflow-hidden">
+            {options.map((opt) => {
+              const isDanger = opt.variant === 'danger'
+              const Icon = opt.icon
+              return (
+                <button
+                  key={opt.key}
+                  data-tour={opt.tourTag}
+                  onClick={() => handleOption(opt)}
+                  className="w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 hover:bg-secondary/5"
+                >
+                  {Icon && (
+                    <Icon size={16} className={`shrink-0 ${isDanger ? 'text-themeredred' : 'text-themeblue2'}`} />
+                  )}
+                  <span className={`text-[10pt] font-medium truncate flex-1 ${isDanger ? 'text-themeredred' : 'text-primary'}`}>
+                    {opt.label}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
           <button
             onClick={onClose}
-            className="w-full py-3 rounded-full text-[11pt] font-medium text-tertiary active:scale-95 transition-all"
+            className="w-full py-2.5 mt-2.5 rounded-2xl text-[10pt] font-medium text-tertiary active:scale-95 transition-all hover:bg-secondary/5"
           >
             Cancel
           </button>

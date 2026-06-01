@@ -62,7 +62,20 @@ function DrawerHeader({
         : 'py-2.5';
     const horizontalPad = isMobile && mobileFullScreen ? 'px-3' : 'px-5';
     return (
-        <div className="shrink-0">
+        <div className={`shrink-0${glass ? ' relative' : ''}`}>
+            {/* Glass: one frosted+masked backdrop covering the WHOLE header (drag
+             * handle + title row) so the blur hugs the drawer's top edge and
+             * feathers to nothing at the bottom — no transparent strip up top. */}
+            {glass && (
+                <div
+                    aria-hidden
+                    className="absolute inset-0 -z-10 backdrop-blur-[2px] bg-themewhite3/15"
+                    style={{
+                        maskImage: 'linear-gradient(to bottom, black 55%, transparent 100%)',
+                        WebkitMaskImage: 'linear-gradient(to bottom, black 55%, transparent 100%)',
+                    }}
+                />
+            )}
             {/* Drag handle — visible on mobile, hidden for full-screen drawers */}
             {isMobile && !mobileFullScreen && (
                 <div className="flex justify-center pt-1.5 pb-1" data-drag-zone style={{ touchAction: 'none' }}>
@@ -83,13 +96,7 @@ function DrawerHeader({
                 }}
             >
                 <div
-                    className={`${horizontalPad} ${verticalPad} ${glass ? 'backdrop-blur-[2px] bg-themewhite3/15' : ''} ${headerFaded || hideBorder ? '' : 'border-b border-tertiary/10'}`}
-                    style={glass ? {
-                        // Feather the frosted band: blur + tint fade to transparent
-                        // toward the bottom edge so there's no hard line.
-                        maskImage: 'linear-gradient(to bottom, black 55%, transparent 100%)',
-                        WebkitMaskImage: 'linear-gradient(to bottom, black 55%, transparent 100%)',
-                    } : undefined}
+                    className={`${horizontalPad} ${verticalPad} ${headerFaded || hideBorder ? '' : 'border-b border-tertiary/10'}`}
                 >
                     <div className="flex items-center justify-between">
                         <div className={`flex items-center gap-2 min-w-0 transition-all duration-200${rightContentFill ? ' w-0 overflow-hidden' : ''}`}>
