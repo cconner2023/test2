@@ -253,12 +253,12 @@ export function Sheet({
                 dvh height that animates between peek/full. Fit: no height —
                 hugs content, capped by maxHeight, then scrolls. */}
             <div
-                className={`fixed left-3 right-3 bg-themewhite3 text-primary flex flex-col overflow-hidden ${
+                className={`fixed left-2 right-2 bg-themewhite3 text-primary flex flex-col overflow-hidden ${
                     isDragging ? '' : 'transition-[transform,height] duration-300 ease-out'
                 }`}
                 style={{
                     zIndex: zIndex + 1,
-                    bottom: 'max(0.75rem, calc(var(--sab, 0px) + 0.75rem))',
+                    bottom: 'max(0.5rem, calc(var(--sab, 0px) + 0.5rem))',
                     height: isSnap ? `${heightDvh}dvh` : undefined,
                     maxHeight: isSnap ? undefined : `min(${maxHeight}dvh, calc(100dvh - 1.5rem))`,
                     transform: translate,

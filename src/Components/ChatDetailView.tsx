@@ -5,6 +5,7 @@ import { MessageBubble } from './Settings/MessageBubble'
 import { SharedObjectPicker } from './Messages/SharedObjectPicker'
 import type { MessageContent } from '../lib/signal/messageContent'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
+import { LiftedRowMenu } from './LiftedRowMenu'
 import { ContactListItem } from './Settings/ContactListItem'
 import { useAuth } from '../Hooks/useAuth'
 import { useAuthStore } from '../stores/useAuthStore'
@@ -773,7 +774,11 @@ export function ChatDetailView({
           </p>
         </div>
       )}
-      {!showThread && contextMenu && contextMsg && (() => {
+      {/* Message context menu — portals to body, so a single render covers both
+          the main list and the thread overlay. Lifts a clone of the bubble with
+          the menu beneath it (iOS peek) when we captured a rect; falls back to a
+          cursor-anchored pill for cards that didn't supply one. */}
+      {contextMenu && contextMsg && (() => {
         const isOwn = contextMsg.senderId === userId
         const isMedia = contextMsg.content?.type === 'image' || contextMsg.content?.type === 'voice'
         const cardType = contextMsg.content?.type
@@ -786,7 +791,17 @@ export function ChatDetailView({
           { key: 'forward', label: 'Forward', icon: Forward, onAction: handleContextForward },
           ...(isOwn || isClearableCard ? [{ key: 'delete', label: 'Delete', icon: Trash2, onAction: handleContextDelete, destructive: true }] : []),
         ]
-        return (
+        return contextMenu.rect && contextMenu.cloneHtml ? (
+          <LiftedRowMenu
+            isOpen
+            anchorRect={contextMenu.rect}
+            row={<div dangerouslySetInnerHTML={{ __html: contextMenu.cloneHtml }} />}
+            items={items}
+            onClose={closeContextMenu}
+            bare
+            align={isOwn ? 'right' : 'left'}
+          />
+        ) : (
           <ContextMenu
             x={contextMenu.x} y={contextMenu.y}
             onClose={closeContextMenu}
@@ -807,27 +822,6 @@ export function ChatDetailView({
               header sits above this overlay and handles back. Both route through
               the panel's back handler, which pops the thread first. */}
           {renderMessageList(threadMessages, 'No messages', true, undefined, true)}
-          {contextMenu && contextMsg && (() => {
-            const isOwn = contextMsg.senderId === userId
-            const isMedia = contextMsg.content?.type === 'image' || contextMsg.content?.type === 'voice'
-            const cardType = contextMsg.content?.type
-            const isClearableCard = cardType === 'outside_message' || cardType === 'oncall_call'
-            const items: ContextMenuItem[] = [
-              { key: 'reply', label: 'Reply', icon: Reply, onAction: handleContextReply },
-              ...(!isMedia ? [{ key: 'copy', label: 'Copy', icon: Copy, onAction: handleCopy }] : []),
-              ...(isMedia && handleSaveImage ? [{ key: 'save', label: 'Save', icon: Download, onAction: handleSaveImage }] : []),
-              ...(isOwn && !isMedia ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: handleStartEdit }] : []),
-              { key: 'forward', label: 'Forward', icon: Forward, onAction: handleContextForward },
-              ...(isOwn || isClearableCard ? [{ key: 'delete', label: 'Delete', icon: Trash2, onAction: handleContextDelete, destructive: true }] : []),
-            ]
-            return (
-              <ContextMenu
-                x={contextMenu.x} y={contextMenu.y}
-                onClose={closeContextMenu}
-                items={items}
-              />
-            )
-          })()}
           {renderInputArea()}
         </div>
       )}

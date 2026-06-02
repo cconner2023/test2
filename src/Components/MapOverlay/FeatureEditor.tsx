@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { Copy, Check, ChevronDown, Spline, Hexagon } from 'lucide-react';
+import { Copy, Check, ChevronDown, Spline, Hexagon, Share2 } from 'lucide-react';
 import { latLngToMgrs } from '../../lib/mgrsFormat';
 import { latLngToUTM } from './utmProjection';
 import type { OverlayFeature, WaypointType } from '../../Types/MapOverlayTypes';
@@ -13,7 +13,7 @@ import { useMedevacStore } from '../../stores/useMedevacStore';
 import { buildMedevacFromPin } from '../../lib/medevacFromPin';
 import { MedevacForm } from '../Medevac/MedevacForm';
 import { Modal } from '../Modal';
-import { Siren, FileDown as FileDownStripMap, Navigation } from 'lucide-react';
+import { Siren, FileDown as FileDownStripMap } from 'lucide-react';
 import { computeLegs, type Pace } from '../../lib/stripMap/computeLegs';
 import { generateStripMapPdf } from '../../lib/stripMap/generatePdf';
 import { downloadPdfBytes } from '../../Utilities/downloadUtils';
@@ -27,9 +27,6 @@ interface FeatureEditorProps {
   waypoints?: OverlayFeature[];
   /** Called when a route leg row is tapped — receives bbox `[west, south, east, north]` of that leg's two endpoints. */
   onFocusLeg?: (bbox: [number, number, number, number]) => void;
-  /** Called when the user taps Navigate on a waypoint — seeds a temp route
-   *  with this pin as the start; next map tap picks the end. */
-  onStartNavigation?: (lat: number, lng: number, anchorFeatureId: string) => void;
   /** Count of CalendarEvents linked to this feature (explicit + parent-overlay implied). Hidden when undefined. */
   linkedEventCount?: number;
   /** Open the per-feature event multi-pick popover anchored to the supplied element. */
@@ -85,8 +82,9 @@ function nearestWaypointLabel(
   return best ? best.label : null;
 }
 
-export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, onStartNavigation, linkedEventCount, onOpenLinksEditor, isEditMode = false }: FeatureEditorProps) {
+export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, linkedEventCount, onOpenLinksEditor, isEditMode = false }: FeatureEditorProps) {
   const [copied, setCopied] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const bearingReference = useMapPrefsStore(s => s.bearingReference);
   // Phase 4.1 — TC3 link integration. We subscribe with selectors so the
   // editor reactively shows the right state when the active card or queue
@@ -320,6 +318,28 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
     }
   }, [mgrs]);
 
+  // Google Maps dropped-pin link for this feature's anchor point, shared via the
+  // native sheet (iOS Safari supports navigator.share) so recipients can pull up
+  // external directions; falls back to copying the link when share is absent.
+  const mapsShareUrl = useMemo(() => {
+    if (feature.geometry.length === 0) return '';
+    const [lat, lng] = feature.geometry[0];
+    return `https://www.google.com/maps?q=${lat},${lng}`;
+  }, [feature.geometry]);
+
+  const handleShareLocation = useCallback(() => {
+    if (!mapsShareUrl) return;
+    const title = feature.label || 'Location';
+    if (navigator.share) {
+      navigator.share({ title, url: mapsShareUrl }).catch(() => {});
+      return;
+    }
+    navigator.clipboard.writeText(mapsShareUrl).then(() => {
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 1500);
+    }).catch(() => {});
+  }, [mapsShareUrl, feature.label]);
+
   return (
     <div data-tour="map-feature-editor" className="flex flex-col pb-[calc(env(safe-area-inset-bottom)+3rem)]">
       {/* Save/Cancel for the draft now live in the drawer/pane header pill
@@ -377,6 +397,15 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
             <div className="text-[9pt] text-tertiary truncate">
               {addressLoading ? 'Locating…' : (address || 'No address')}
             </div>
+            <button
+              type="button"
+              onClick={handleShareLocation}
+              className="mt-1 self-start flex items-center gap-1.5 text-[9pt] font-medium text-themeblue3 active:scale-95 transition-all"
+            >
+              {shareCopied
+                ? <><Check size={12} /> Link copied</>
+                : <><Share2 size={12} /> Share location</>}
+            </button>
           </div>
         </div>
       )}
@@ -401,29 +430,6 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, o
               </button>
             );
           })}
-        </div>
-      )}
-
-      {/* Navigate — EDIT mode action (relocated from read view). Seeds a temp
-          route from this pin; next map tap picks the end. */}
-      {isEditMode && feature.type === 'waypoint' && feature.geometry.length > 0 && onStartNavigation && (
-        <div data-tour="map-feature-navigate" className="px-3 py-2 border-b border-primary/6 flex items-center gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-[10pt] font-medium text-primary">Navigate from here</p>
-            <p className="text-[9pt] text-tertiary">Tap the next point on the map to plot a route from this pin.</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              const [lat, lng] = feature.geometry[0];
-              onStartNavigation(lat, lng, feature.id);
-            }}
-            aria-label="Start navigation"
-            title="Start navigation"
-            className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-themewhite bg-themeblue3 active:scale-95 transition-all"
-          >
-            <Navigation size={15} />
-          </button>
         </div>
       )}
 

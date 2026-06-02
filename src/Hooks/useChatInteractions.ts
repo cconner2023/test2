@@ -50,9 +50,9 @@ export interface ChatInteractionsOptions {
 
 export interface ChatInteractionsResult {
   // ── Context menu ──
-  contextMenu: { messageId: string; x: number; y: number } | null
+  contextMenu: { messageId: string; x: number; y: number; rect?: DOMRect; cloneHtml?: string } | null
   contextMsg: DecryptedSignalMessage | null
-  handleLongPress: (message: DecryptedSignalMessage, x: number, y: number) => void
+  handleLongPress: (message: DecryptedSignalMessage, x: number, y: number, rect?: DOMRect, cloneHtml?: string) => void
   handleCopy: () => void
   handleStartEdit: () => void
   handleSaveImage: () => Promise<void>
@@ -107,7 +107,7 @@ export function useChatInteractions({
   sendMessage,
 }: ChatInteractionsOptions): ChatInteractionsResult {
   // ── Context menu ──
-  const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number; rect?: DOMRect; cloneHtml?: string } | null>(null)
 
   // ── Edit mode ──
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
@@ -147,8 +147,8 @@ export function useChatInteractions({
   const contextMsg = contextMenu ? messages.find(m => m.id === contextMenu.messageId) ?? null : null
 
   // ── Context menu handlers ──
-  const handleLongPress = useCallback((message: DecryptedSignalMessage, x: number, y: number) => {
-    setContextMenu({ messageId: message.id, x, y })
+  const handleLongPress = useCallback((message: DecryptedSignalMessage, x: number, y: number, rect?: DOMRect, cloneHtml?: string) => {
+    setContextMenu({ messageId: message.id, x, y, rect, cloneHtml })
   }, [])
 
   const handleCopy = useCallback(() => {

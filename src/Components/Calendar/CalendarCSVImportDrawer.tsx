@@ -10,7 +10,7 @@ import { generateId } from '../../Types/CalendarTypes'
 import { parseCalendarCSV, downloadCalendarCSVTemplate } from '../../lib/calendarCSV'
 import type { ParsedCalendarRow } from '../../lib/calendarCSV'
 
-interface CalendarCSVImportSheetProps {
+interface CalendarCSVImportDrawerProps {
   visible: boolean
   onClose: () => void
   clinicId: string
@@ -19,7 +19,7 @@ interface CalendarCSVImportSheetProps {
 
 type Step = 'pick' | 'preview' | 'importing' | 'done'
 
-export function CalendarCSVImportSheet({ visible, onClose, clinicId, userId }: CalendarCSVImportSheetProps) {
+export function CalendarCSVImportDrawer({ visible, onClose, clinicId, userId }: CalendarCSVImportDrawerProps) {
   const [step, setStep] = useState<Step>('pick')
   const [parsedRows, setParsedRows] = useState<ParsedCalendarRow[]>([])
   const [parseErrors, setParseErrors] = useState<string[]>([])

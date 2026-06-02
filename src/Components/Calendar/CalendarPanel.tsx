@@ -15,7 +15,7 @@ import { ActionSheet } from '../ActionSheet'
 import { BaseDrawer } from '../BaseDrawer'
 import { BottomIsland, IslandButton } from '../BottomIsland'
 import { AddFab } from '../AddFab'
-import { CalendarCSVImportSheet } from './CalendarCSVImportSheet'
+import { CalendarCSVImportDrawer } from './CalendarCSVImportDrawer'
 import { TemplateGeneratorPanel, type TemplateGeneratorHandle } from './TemplateGeneratorPanel'
 import { BlockTemplatedPanel, type BlockTemplatedHandle } from './BlockTemplatedPanel'
 import { useAuthStore } from '../../stores/useAuthStore'
@@ -1297,7 +1297,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       />
 
       {showImportSheet && activeClinicId && user && (
-        <CalendarCSVImportSheet
+        <CalendarCSVImportDrawer
           visible={showImportSheet}
           onClose={() => setShowImportSheet(false)}
           clinicId={activeClinicId}

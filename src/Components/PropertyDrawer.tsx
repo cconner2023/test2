@@ -24,7 +24,7 @@ import { useAuthStore } from '../stores/useAuthStore'
 import { useNavigationStore } from '../stores/useNavigationStore'
 import { useShallow } from 'zustand/react/shallow'
 import { exportPropertyCSV } from '../Utilities/PropertyCSV'
-import { PropertyCSVImportSheet } from './Property/PropertyCSVImportSheet'
+import { PropertyCSVImportDrawer } from './Property/PropertyCSVImportDrawer'
 
 interface PropertyDrawerProps {
     isVisible: boolean
@@ -403,7 +403,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                     </div>
                 </div>
             )}
-            <PropertyCSVImportSheet
+            <PropertyCSVImportDrawer
                 visible={showImportSheet}
                 onClose={() => setShowImportSheet(false)}
             />

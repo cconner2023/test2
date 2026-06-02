@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
+import type { ReactNode } from 'react'
 import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, Pin, Users, Check, QrCode, Mail, Send, Plus, Hash, Settings } from 'lucide-react'
 import { useSpring, animated } from '@react-spring/web'
 import { SearchInput } from '../SearchInput'
@@ -20,14 +21,13 @@ import { ProvisionalDeviceModal } from './ProvisionalDeviceModal'
 import { useAuth } from '../../Hooks/useAuth'
 import { useCallActions } from '../../Hooks/CallContext'
 import { useAvatar } from '../../Utilities/AvatarContext'
-import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
+import type { ContextMenuItem } from '../ContextMenu'
+import { LiftedRowMenu } from '../LiftedRowMenu'
 import { TextInput } from '../FormInputs'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { usePeerAvailability, type UnavailableReason } from '../../Hooks/usePeerAvailability'
 import { ChatDetailView, type ParticipantStatus } from '../ChatDetailView'
 import { PreviewOverlay } from '../PreviewOverlay'
-import type { ContextMenuAction } from '../PreviewOverlay'
-import { ConversationPreview } from '../ConversationPreview'
 import { useLongPress } from '../../Hooks/useLongPress'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
@@ -121,21 +121,21 @@ function LongPressRow({ children, onLongPress: onLongPressCb, onClick }: {
   )
 }
 
-/** Build action tiles for the conversation preview — varies by whether a conversation exists. */
-function buildPreviewActions(
+/** Build the lifted-row context-menu items — varies by whether a conversation exists. */
+function buildMenuItems(
   target: PreviewTarget,
   handlers: { onOpen: () => void; onTogglePin: () => void; onDelete: () => void },
-): ContextMenuAction[] {
-  const actions: ContextMenuAction[] = [
+): ContextMenuItem[] {
+  const items: ContextMenuItem[] = [
     { key: 'open', label: target.hasConversation ? 'Open' : 'Message', icon: MessageSquare, onAction: handlers.onOpen },
   ]
   if (target.hasConversation) {
-    actions.push(
+    items.push(
       { key: 'pin', label: target.isPinned ? 'Unpin' : 'Pin', icon: Pin, onAction: handlers.onTogglePin },
-      { key: 'delete', label: 'Delete', icon: Trash2, onAction: handlers.onDelete, variant: 'danger' },
+      { key: 'delete', label: 'Delete', icon: Trash2, onAction: handlers.onDelete, destructive: true },
     )
   }
-  return actions
+  return items
 }
 
 // ── Conversation Pane (shared across mobile + desktop) ───────────────────
@@ -190,20 +190,25 @@ function ConversationPane({
   const pinnedKeysArr = useMessagingStore(s => s.pinnedConversationKeys)
   const pinnedKeys = useMemo(() => new Set(pinnedKeysArr), [pinnedKeysArr])
   const togglePinConversation = useMessagingStore(s => s.togglePinConversation)
-  const [contextMenu, setContextMenu] = useState<{ conversationKey: string; x: number; y: number } | null>(null)
-  const [previewTarget, setPreviewTarget] = useState<PreviewTarget | null>(null)
-  const [previewAnchorRect, setPreviewAnchorRect] = useState<DOMRect | null>(null)
+  const [liftedMenu, setLiftedMenu] = useState<{ rect: DOMRect; row: ReactNode; items: ContextMenuItem[] } | null>(null)
   const showLoading = useMinLoadTime(loading ?? false)
 
-  const handlePreview = useCallback((target: PreviewTarget, rect: DOMRect) => {
-    setPreviewTarget(target)
-    setPreviewAnchorRect(rect)
-  }, [])
+  const closeMenu = useCallback(() => setLiftedMenu(null), [])
 
-  const handleClosePreview = useCallback(() => {
-    setPreviewTarget(null)
-    setPreviewAnchorRect(null)
-  }, [])
+  // Build the menu items for a target, wired to this pane's open/pin/delete handlers.
+  const menuItemsFor = useCallback((target: PreviewTarget): ContextMenuItem[] => buildMenuItems(target, {
+    onOpen: () => {
+      if (target.type === 'group' && target.group) onSelectGroup(target.group)
+      else if (target.type === 'contact' && target.medic) onSelectPeer(target.medic)
+    },
+    onTogglePin: () => togglePinConversation(target.key),
+    onDelete: () => deleteConversation(target.key),
+  }), [onSelectGroup, onSelectPeer, togglePinConversation, deleteConversation])
+
+  // Open the lifted-row context menu, cloning the pressed row for the float.
+  const openMenu = useCallback((rect: DOMRect, row: ReactNode, target: PreviewTarget) => {
+    setLiftedMenu({ rect, row, items: menuItemsFor(target) })
+  }, [menuItemsFor])
 
   // Self-notes entry
   const selfMedic: ClinicMedic | null = userId
@@ -391,28 +396,30 @@ function ConversationPane({
         ) : (
           <>
             {/* Conversations section */}
-            {selfMedic && (
-              <div data-tour={tourVariant ? 'messages-self-notes' : undefined}>
-                {isMobile ? (
-                  <LongPressRow
-                    onClick={() => onSelectPeer(selfMedic)}
-                    onLongPress={(rect) => handlePreview(
-                      { key: userId!, type: 'contact', medic: selfMedic, hasConversation: !!conversations[userId!]?.length, isPinned: false },
-                      rect,
-                    )}
-                  >
-                    <ContactListItem medic={selfMedic} lastMessage={conversations[userId!]?.filter(m => !m.threadId).at(-1)?.plaintext} unreadCount={0} onClick={() => {}} />
-                  </LongPressRow>
-                ) : (
-                  <ContactListItem
-                    medic={selfMedic}
-                    lastMessage={conversations[userId!]?.filter(m => !m.threadId).at(-1)?.plaintext}
-                    unreadCount={0}
-                    onClick={() => onSelectPeer(selfMedic)}
-                  />
-                )}
-              </div>
-            )}
+            {selfMedic && (() => {
+              const selfTarget: PreviewTarget = { key: userId!, type: 'contact', medic: selfMedic, hasConversation: !!conversations[userId!]?.length, isPinned: false }
+              const selfItem = <ContactListItem medic={selfMedic} lastMessage={conversations[userId!]?.filter(m => !m.threadId).at(-1)?.plaintext} unreadCount={0} onClick={() => {}} />
+              return (
+                <div data-tour={tourVariant ? 'messages-self-notes' : undefined}>
+                  {isMobile ? (
+                    <LongPressRow
+                      onClick={() => onSelectPeer(selfMedic)}
+                      onLongPress={(rect) => openMenu(rect, selfItem, selfTarget)}
+                    >
+                      {selfItem}
+                    </LongPressRow>
+                  ) : (
+                    <div
+                      onClick={() => onSelectPeer(selfMedic)}
+                      onContextMenu={(e) => { e.preventDefault(); openMenu(e.currentTarget.getBoundingClientRect(), selfItem, selfTarget) }}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      {selfItem}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
             {recentEntries.length > 0 && (
               <>
                 <p className="text-[10pt] text-tertiary px-3 mb-1 mt-1 uppercase tracking-wider font-semibold">Recent</p>
@@ -446,14 +453,13 @@ function ConversationPane({
 
                   if (!listItem) return null
 
+                  const entryTarget: PreviewTarget = { key: entry.key, type: entry.type, medic: entry.medic, group: entry.group, hasConversation: true, isPinned }
+
                   return isMobile ? (
                     <LongPressRow
                       key={entry.key}
                       onClick={handleTap}
-                      onLongPress={(rect) => handlePreview(
-                        { key: entry.key, type: entry.type, medic: entry.medic, group: entry.group, hasConversation: true, isPinned },
-                        rect,
-                      )}
+                      onLongPress={(rect) => openMenu(rect, listItem, entryTarget)}
                     >
                       {listItem}
                     </LongPressRow>
@@ -461,7 +467,7 @@ function ConversationPane({
                     <div
                       key={entry.key}
                       onClick={handleTap}
-                      onContextMenu={(e) => { e.preventDefault(); setContextMenu({ conversationKey: entry.key, x: e.clientX, y: e.clientY }) }}
+                      onContextMenu={(e) => { e.preventDefault(); openMenu(e.currentTarget.getBoundingClientRect(), listItem, entryTarget) }}
                       style={{ cursor: 'pointer' }}
                     >
                       {listItem}
@@ -482,27 +488,28 @@ function ConversationPane({
                     <div className="flex items-center gap-1.5 px-3 py-1.5">
                       <p className="text-[10pt] text-tertiary uppercase tracking-wider font-semibold">My Cluster</p>
                     </div>
-                    {filtered.map(medic => isMobile ? (
-                      <LongPressRow
-                        key={medic.id}
-                        onClick={() => onSelectPeer(medic)}
-                        onLongPress={(rect) => handlePreview(
-                          { key: medic.id, type: 'contact', medic, hasConversation: false, isPinned: false },
-                          rect,
-                        )}
-                      >
-                        <ContactListItem medic={medic} unreadCount={0} unavailable={unavailableIds.has(medic.id)} unavailableReason={unavailableIds.get(medic.id)} onClick={() => {}} />
-                      </LongPressRow>
-                    ) : (
-                      <ContactListItem
-                        key={medic.id}
-                        medic={medic}
-                        unreadCount={0}
-                        unavailable={unavailableIds.has(medic.id)}
-                        unavailableReason={unavailableIds.get(medic.id)}
-                        onClick={() => onSelectPeer(medic)}
-                      />
-                    ))}
+                    {filtered.map(medic => {
+                      const item = <ContactListItem medic={medic} unreadCount={0} unavailable={unavailableIds.has(medic.id)} unavailableReason={unavailableIds.get(medic.id)} onClick={() => {}} />
+                      const target: PreviewTarget = { key: medic.id, type: 'contact', medic, hasConversation: false, isPinned: false }
+                      return isMobile ? (
+                        <LongPressRow
+                          key={medic.id}
+                          onClick={() => onSelectPeer(medic)}
+                          onLongPress={(rect) => openMenu(rect, item, target)}
+                        >
+                          {item}
+                        </LongPressRow>
+                      ) : (
+                        <ContactListItem
+                          key={medic.id}
+                          medic={medic}
+                          unreadCount={0}
+                          unavailable={unavailableIds.has(medic.id)}
+                          unavailableReason={unavailableIds.get(medic.id)}
+                          onClick={() => onSelectPeer(medic)}
+                        />
+                      )
+                    })}
                   </>
                 ) : null
               })()}
@@ -516,27 +523,28 @@ function ConversationPane({
                     <div className="flex items-center gap-1.5 px-3 py-1.5">
                       <p className="text-[10pt] text-tertiary uppercase tracking-wider font-semibold">{clinicName}</p>
                     </div>
-                    {filtered.map(medic => isMobile ? (
-                      <LongPressRow
-                        key={medic.id}
-                        onClick={() => onSelectPeer(medic)}
-                        onLongPress={(rect) => handlePreview(
-                          { key: medic.id, type: 'contact', medic, hasConversation: false, isPinned: false },
-                          rect,
-                        )}
-                      >
-                        <ContactListItem medic={medic} unreadCount={0} unavailable={unavailableIds.has(medic.id)} unavailableReason={unavailableIds.get(medic.id)} onClick={() => {}} />
-                      </LongPressRow>
-                    ) : (
-                      <ContactListItem
-                        key={medic.id}
-                        medic={medic}
-                        unreadCount={0}
-                        unavailable={unavailableIds.has(medic.id)}
-                        unavailableReason={unavailableIds.get(medic.id)}
-                        onClick={() => onSelectPeer(medic)}
-                      />
-                    ))}
+                    {filtered.map(medic => {
+                      const item = <ContactListItem medic={medic} unreadCount={0} unavailable={unavailableIds.has(medic.id)} unavailableReason={unavailableIds.get(medic.id)} onClick={() => {}} />
+                      const target: PreviewTarget = { key: medic.id, type: 'contact', medic, hasConversation: false, isPinned: false }
+                      return isMobile ? (
+                        <LongPressRow
+                          key={medic.id}
+                          onClick={() => onSelectPeer(medic)}
+                          onLongPress={(rect) => openMenu(rect, item, target)}
+                        >
+                          {item}
+                        </LongPressRow>
+                      ) : (
+                        <ContactListItem
+                          key={medic.id}
+                          medic={medic}
+                          unreadCount={0}
+                          unavailable={unavailableIds.has(medic.id)}
+                          unavailableReason={unavailableIds.get(medic.id)}
+                          onClick={() => onSelectPeer(medic)}
+                        />
+                      )
+                    })}
                   </div>
                 )
               })}
@@ -553,25 +561,26 @@ function ConversationPane({
                 <>
                   <div className="mx-3 my-2 border-b border-primary/10" />
                   <p className="text-[10pt] text-tertiary px-3 mb-1 uppercase tracking-wider font-semibold">Groups</p>
-                  {filtered.map(group => isMobile ? (
-                    <LongPressRow
-                      key={group.groupId}
-                      onClick={() => onSelectGroup(group)}
-                      onLongPress={(rect) => handlePreview(
-                        { key: group.groupId, type: 'group', group, hasConversation: false, isPinned: false },
-                        rect,
-                      )}
-                    >
-                      <GroupListItem group={group} unreadCount={0} onClick={() => {}} />
-                    </LongPressRow>
-                  ) : (
-                    <GroupListItem
-                      key={group.groupId}
-                      group={group}
-                      unreadCount={0}
-                      onClick={() => onSelectGroup(group)}
-                    />
-                  ))}
+                  {filtered.map(group => {
+                    const item = <GroupListItem group={group} unreadCount={0} onClick={() => {}} />
+                    const target: PreviewTarget = { key: group.groupId, type: 'group', group, hasConversation: false, isPinned: false }
+                    return isMobile ? (
+                      <LongPressRow
+                        key={group.groupId}
+                        onClick={() => onSelectGroup(group)}
+                        onLongPress={(rect) => openMenu(rect, item, target)}
+                      >
+                        {item}
+                      </LongPressRow>
+                    ) : (
+                      <GroupListItem
+                        key={group.groupId}
+                        group={group}
+                        unreadCount={0}
+                        onClick={() => onSelectGroup(group)}
+                      />
+                    )
+                  })}
                 </>
               ) : null
             })()}
@@ -579,59 +588,14 @@ function ConversationPane({
         )}
       </div>
 
-      {/* Right-click context menu */}
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          onClose={() => setContextMenu(null)}
-          items={[
-            {
-              key: 'pin',
-              label: pinnedKeys.has(contextMenu.conversationKey) ? 'Unpin' : 'Pin',
-              icon: Pin,
-              onAction: () => togglePinConversation(contextMenu.conversationKey),
-            },
-            {
-              key: 'delete',
-              label: 'Delete',
-              icon: Trash2,
-              destructive: true,
-              onAction: () => deleteConversation(contextMenu.conversationKey),
-            },
-          ]}
-        />
-      )}
-
-      {/* Long-press preview (mobile) */}
-      {isMobile && (
-        <PreviewOverlay
-          isOpen={!!previewTarget}
-          onClose={handleClosePreview}
-          anchorRect={previewAnchorRect}
-          preview={
-            previewTarget && (
-              <ConversationPreview
-                conversationKey={previewTarget.key}
-                type={previewTarget.type}
-                medic={previewTarget.medic}
-                group={previewTarget.group}
-                conversations={conversations}
-                userId={userId}
-                unavailableReason={unavailableIds.get(previewTarget.key)}
-              />
-            )
-          }
-          actions={previewTarget ? buildPreviewActions(previewTarget, {
-            onOpen: () => {
-              if (previewTarget.type === 'group' && previewTarget.group) onSelectGroup(previewTarget.group)
-              else if (previewTarget.type === 'contact' && previewTarget.medic) onSelectPeer(previewTarget.medic)
-            },
-            onTogglePin: () => togglePinConversation(previewTarget.key),
-            onDelete: () => deleteConversation(previewTarget.key),
-          }) : []}
-        />
-      )}
+      {/* iOS-style lifted-row context menu (long-press on mobile, right-click on desktop) */}
+      <LiftedRowMenu
+        isOpen={!!liftedMenu}
+        anchorRect={liftedMenu?.rect ?? null}
+        row={liftedMenu?.row}
+        items={liftedMenu?.items ?? []}
+        onClose={closeMenu}
+      />
     </div>
   )
 }

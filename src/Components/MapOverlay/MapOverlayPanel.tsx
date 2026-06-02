@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { CalendarEvent } from '../../Types/CalendarTypes';
 import { useSpring, animated } from '@react-spring/web';
-import { ChevronLeft, ChevronRight, Settings, MapPin, Route, Pentagon, Trash2, X, Ruler, RadioTower, Undo2, Activity, Pause, Play, Square, Plus, Check, Navigation, Layers, Pencil, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, MapPin, Route, Pentagon, Trash2, X, Ruler, RadioTower, Undo2, Activity, Pause, Play, Square, Plus, Check, Navigation, Layers, Pencil, Clock, MoreHorizontal, Forward } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ActionSheet, type ActionSheetOption } from '../ActionSheet';
 import { AddFab } from '../AddFab';
@@ -60,6 +60,8 @@ import { resolveSearch } from './searchResolver';
 import { MapSearchOverlay, type SearchOverlaySelection } from './MapSearchOverlay';
 import { useMapSearchStore } from '../../stores/useMapSearchStore';
 import { GotoWaypointCard } from './GotoWaypointCard';
+import { ContextMenu } from '../ContextMenu';
+import { useShareToChat } from '../Messages/ShareToChatPicker';
 import { parseGPX, serializeGPX } from '../../lib/gpx';
 import { parseKML, serializeKML } from '../../lib/kml';
 import { useTrackRecorder } from '../../lib/trackRecording';
@@ -321,6 +323,12 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     deleteOverlay: vaultDeleteOverlay,
   } = useMapOverlayWrite();
   const overlayGen = useInvalidation('mapOverlays');
+
+  // Forward (share-to-chat) for the selected feature — same opaque-ref path as
+  // the overlay tree's "Share to chat". No PHI: only refId + operator label.
+  const { share: shareFeatureToChat, picker: shareToChatPicker } = useShareToChat();
+  // Anchor for the selected-feature "more actions" (ellipsis) ContextMenu.
+  const [featureMenu, setFeatureMenu] = useState<{ x: number; y: number } | null>(null);
 
   const [view, setView] = useState<ViewState>('viewer');
   const [showPopover, setShowPopover] = useState(false);
@@ -875,6 +883,11 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     overlayCreatedRef.current.add(overlay.id);
     lastSavedFeaturesRef.current = overlay.features;
     lastSavedMetadataRef.current = { name: overlay.name, center: overlay.center, zoom: overlay.zoom };
+    // Seed the live camera-tracking state to the overlay's stored framing so a
+    // programmatic moveend (init invalidateSize / async clinic-center setView)
+    // can't make metaChanged read true on open and overwrite the saved center.
+    setMapCenter(overlay.center);
+    setMapZoom(overlay.zoom);
     resetInProgressDrawing();
     setView('viewer');
     setShowPopover(false);
@@ -1570,17 +1583,50 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     if (drawMode === 'drag') handleModeChange('drag');
   }, [handleSaveClick, drawMode, handleModeChange]);
 
-  const handleCancelAndExitEdit = useCallback(() => {
-    handleCancelDraft();
+  // Close the selected-feature editor: deselect + leave edit mode + return the
+  // map to pan. Does NOT revert the draft — pending edits live at the overlay
+  // level (lastSavedFeaturesRef) and persist until Save or the overlay-close
+  // discard gate. "Close simply means close."
+  const handleCloseFeatureEditor = useCallback(() => {
+    setSelectedFeatureId(null);
     setIsFeatureEditMode(false);
     if (drawMode === 'drag') handleModeChange('drag');
-  }, [handleCancelDraft, drawMode, handleModeChange]);
+  }, [drawMode, handleModeChange]);
 
   // ── Delete selected ──
   const handleDeleteSelected = useCallback(() => {
     if (!selectedFeatureId) return;
     setConfirmDeleteFeature(selectedFeatureId);
   }, [selectedFeatureId]);
+
+  // ── Forward selected feature to chat (opaque ref, no PHI) ──
+  const handleForwardSelected = useCallback(() => {
+    if (!selectedFeature || !overlayId) return;
+    shareFeatureToChat({
+      type: 'shared_ref',
+      refKind: 'map-overlay',
+      refId: overlayId,
+      featureId: selectedFeature.id,
+      label: selectedFeature.label
+        || (selectedFeature.type === 'waypoint' ? 'Waypoint'
+          : selectedFeature.type === 'route' ? 'Route'
+          : 'Area'),
+      subLabel: overlayName || 'Overlay',
+    });
+  }, [selectedFeature, overlayId, overlayName, shareFeatureToChat]);
+
+  // ── Navigate from the selected waypoint (seeds a temp route) ──
+  const handleNavigateSelected = useCallback(() => {
+    if (!selectedFeature || selectedFeature.type !== 'waypoint' || selectedFeature.geometry.length === 0) return;
+    const [lat, lng] = selectedFeature.geometry[0];
+    handleStartNavigation(lat, lng, selectedFeature.id);
+  }, [selectedFeature, handleStartNavigation]);
+
+  // Open the selected-feature ellipsis menu anchored under the tapped pill.
+  const openFeatureMenu = useCallback((e: React.MouseEvent) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setFeatureMenu({ x: r.left, y: r.bottom + 6 });
+  }, []);
 
   const handleDeleteFeatureFromTree = useCallback((_overlayId: string, featureId: string) => {
     setConfirmDeleteFeature(featureId);
@@ -1765,7 +1811,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           />
           {/* Desktop left pane — search/layers row + overlay tree, mirrors CalendarDrawer rail */}
           {!isMobile && (
-            <div className={`shrink-0 border-r border-primary/10 bg-themewhite3 flex flex-col transition-all duration-300 overflow-hidden ${
+            <div className={`shrink-0 border-r border-primary/10 bg-themewhite3 flex flex-col transition-[width,opacity] duration-300 overflow-hidden ${
               (selectedFeature || tempPoint || tempRoute) ? 'w-0 opacity-0 border-r-0' : 'w-60 opacity-100'
             }`}>
               <div className="shrink-0 flex items-center gap-1.5 px-3 pt-2 pb-1">
@@ -1935,7 +1981,13 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   isOpen={showMobileTree}
                   onClose={() => setShowMobileTree(false)}
                   title="Overlays & settings"
-                  height="snap"
+                  height="fit"
+                  // No live-map interaction behind this one (unlike the
+                  // feature/temp editors), so it can take more height.
+                  maxHeight={60}
+                  // Opens nested over the map's BaseDrawer (~z-1010); fit's
+                  // default Z.SHEET(50) would trap it underneath.
+                  zIndex={1200}
                 >
                   <div className="flex flex-col">
                     <section className="shrink-0">
@@ -1975,18 +2027,19 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 </Sheet>
               )}
 
-              {/* ── Mobile: selected-feature editor as a Sheet. Peeks at 25%
-                  with no backdrop so the map stays visible/interactive; tap the
-                  grab handle to expand. X closes (clears selection). ── */}
+              {/* ── Mobile: selected-feature editor as a Sheet. Capped at 40dvh
+                  with no backdrop so the map stays visible/interactive.
+                  X closes (clears selection). ── */}
               {isMobile && (
                 <Sheet
                   isOpen={!!selectedFeature}
-                  onClose={() => setSelectedFeatureId(null)}
-                  height="snap"
-                  // Peek low + no backdrop so the map stays visible and
+                  onClose={handleCloseFeatureEditor}
+                  height="fit"
+                  // Cap at 40dvh + no backdrop so the map stays visible and
                   // interactive while "Edit & move" lets the user drag points.
-                  peekHeight={25}
+                  maxHeight={40}
                   backdrop="none"
+                  zIndex={1200}
                   // Title shown in READ mode only. Edit mode hides it so the
                   // body TextInput is the single source of truth for the name.
                   title={isFeatureEditMode
@@ -1998,36 +2051,30 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   leftContent={(
                     <HeaderPill>
                       {isFeatureEditMode ? (
-                        <>
-                          <PillButton
-                            icon={X}
-                            iconSize={18}
-                            onClick={handleCancelAndExitEdit}
-                            label="Discard changes"
-                          />
-                          <PillButton
-                            icon={Check}
-                            iconSize={18}
-                            onClick={handleSaveAndExitEdit}
-                            label="Save changes"
-                            accent={isDirty ? 'info' : undefined}
-                          />
-                        </>
-                      ) : (
                         <PillButton
-                          icon={Pencil}
+                          icon={Check}
                           iconSize={18}
-                          onClick={handleToggleFeatureEditMode}
-                          label="Edit & move"
+                          onClick={handleSaveAndExitEdit}
+                          label="Save changes"
+                          accent={isDirty ? 'info' : undefined}
                         />
+                      ) : (
+                        <span className="inline-flex" onClick={openFeatureMenu}>
+                          <PillButton
+                            icon={MoreHorizontal}
+                            iconSize={18}
+                            onClick={() => {}}
+                            label="More actions"
+                          />
+                        </span>
                       )}
                     </HeaderPill>
                   )}
-                  rightContent={(
+                  rightContent={isFeatureEditMode ? (
                     <HeaderPill>
                       <PillButton icon={Trash2} iconSize={18} variant="danger" onClick={handleDeleteSelected} label="Delete" />
                     </HeaderPill>
-                  )}
+                  ) : undefined}
                 >
                   {selectedFeature && (
                     <FeatureEditor
@@ -2035,7 +2082,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                       onUpdate={handleUpdateSelectedFeature}
                       waypoints={features.filter(f => f.type === 'waypoint')}
                       onFocusLeg={(bbox) => mapRef.current?.fitBounds(bbox)}
-                      onStartNavigation={handleStartNavigation}
                       linkedEventCount={allEvents.reduce((n, e) => {
                         const explicit = e.linked_features?.some(f => f.overlay_id === selectedFeature.overlay_id && f.feature_id === selectedFeature.id)
                         const implied = e.linked_overlays?.includes(selectedFeature.overlay_id)
@@ -2054,10 +2100,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 <Sheet
                   isOpen={!!tempPoint && !selectedFeature}
                   onClose={handleCloseTempPoint}
-                  height="snap"
-                  peekHeight={40}
-                  fullHeight={60}
+                  height="fit"
+                  maxHeight={40}
                   backdrop="none"
+                  zIndex={1200}
                   title="Temp point"
                   actions={(
                     <>
@@ -2081,10 +2127,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 <Sheet
                   isOpen={!!tempRoute && !tempPoint && !selectedFeature}
                   onClose={handleCloseTempRoute}
-                  height="snap"
-                  peekHeight={40}
-                  fullHeight={60}
+                  height="fit"
+                  maxHeight={40}
                   backdrop="none"
+                  zIndex={1200}
                   title="Temp route"
                   actions={(
                     <>
@@ -2397,6 +2443,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   target={selectedFeature.geometry[0]}
                   gps={gpsPosition ? { lat: gpsPosition.lat, lng: gpsPosition.lng } : null}
                   onDismiss={() => setGotoDismissedFor(selectedFeature.id)}
+                  // On mobile the selected-feature Sheet peeks at 25% from the
+                  // bottom; lift the goto readout above it so they don't collide.
+                  raised={isMobile}
                 />
               )}
 
@@ -2426,7 +2475,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           {/* Desktop right pane — animated slide/collapse, mirrors CalendarPanel.
               Map column is flex-1 so it reflows as this pane opens/closes. */}
           {!isMobile && (
-            <div className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-all duration-300 overflow-hidden ${
+            <div className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-[width,opacity] duration-300 overflow-hidden ${
               (selectedFeature || tempPoint || tempRoute) ? 'w-[320px] opacity-100' : 'w-0 opacity-0 border-l-0'
             }`}>
               {!selectedFeature && tempPoint && (
@@ -2501,15 +2550,16 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                     <HeaderPill>
                       {isFeatureEditMode ? (
                         <>
-                          <PillButton icon={X} iconSize={18} onClick={handleCancelAndExitEdit} label="Discard changes" />
                           <PillButton icon={Check} iconSize={18} onClick={handleSaveAndExitEdit} label="Save changes" accent={isDirty ? 'info' : undefined} />
                           <PillButton icon={Trash2} iconSize={18} variant="danger" onClick={handleDeleteSelected} label="Delete" />
+                          <PillButton icon={X} iconSize={18} onClick={handleCloseFeatureEditor} label="Close" />
                         </>
                       ) : (
                         <>
-                          <PillButton icon={Pencil} iconSize={18} onClick={handleToggleFeatureEditMode} label="Edit & move" />
-                          <PillButton icon={Trash2} iconSize={18} variant="danger" onClick={handleDeleteSelected} label="Delete" />
-                          <PillButton icon={X} iconSize={18} onClick={() => setSelectedFeatureId(null)} label="Close" />
+                          <span className="inline-flex" onClick={openFeatureMenu}>
+                            <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
+                          </span>
+                          <PillButton icon={X} iconSize={18} onClick={handleCloseFeatureEditor} label="Close" />
                         </>
                       )}
                     </HeaderPill>
@@ -2520,7 +2570,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                       onUpdate={handleUpdateSelectedFeature}
                       waypoints={features.filter(f => f.type === 'waypoint')}
                       onFocusLeg={(bbox) => mapRef.current?.fitBounds(bbox)}
-                      onStartNavigation={handleStartNavigation}
                       linkedEventCount={allEvents.reduce((n, e) => {
                         const explicit = e.linked_features?.some(f => f.overlay_id === selectedFeature.overlay_id && f.feature_id === selectedFeature.id)
                         const implied = e.linked_overlays?.includes(selectedFeature.overlay_id)
@@ -2594,6 +2643,25 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
         // keep the confirm on top.
         zIndex={1300}
       />
+      {/* Selected-feature "more actions" menu — Edit / Forward / Delete.
+          Edit/Delete/Close used to sit inline in the header; collapsed to an
+          ellipsis (this menu) + Close to declutter the mobile header. */}
+      {featureMenu && selectedFeature && (
+        <ContextMenu
+          x={featureMenu.x}
+          y={featureMenu.y}
+          onClose={() => setFeatureMenu(null)}
+          items={[
+            { key: 'edit', label: 'Edit', icon: Pencil, onAction: handleToggleFeatureEditMode },
+            ...(selectedFeature.type === 'waypoint' && selectedFeature.geometry.length > 0
+              ? [{ key: 'navigate', label: 'Navigate', icon: Navigation, onAction: handleNavigateSelected }]
+              : []),
+            { key: 'forward', label: 'Forward', icon: Forward, onAction: handleForwardSelected },
+            { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: handleDeleteSelected },
+          ]}
+        />
+      )}
+      {shareToChatPicker}
     </BaseDrawer>
   );
 }

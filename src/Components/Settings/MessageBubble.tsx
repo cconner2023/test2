@@ -18,7 +18,7 @@ interface MessageBubbleProps {
   message: DecryptedSignalMessage
   isOwn: boolean
   avatar?: React.ReactNode
-  onLongPress?: (message: DecryptedSignalMessage, x: number, y: number) => void
+  onLongPress?: (message: DecryptedSignalMessage, x: number, y: number, rect?: DOMRect, cloneHtml?: string) => void
   onSwipeAction?: (message: DecryptedSignalMessage, action: SwipeAction) => void
   isEditing?: boolean
   editText?: string
@@ -306,12 +306,25 @@ export function MessageBubble({
     reset(deleteIconRef)
   }, [])
 
+  // Snapshot the bubble's rect + a static HTML clone so the context menu can lift
+  // a pixel-perfect copy of it. Capture BEFORE the press-scale is applied so the
+  // rect and markup are at rest. Strip the tapped classes defensively.
+  const captureBubble = useCallback((): { rect?: DOMRect; html?: string } => {
+    const el = rowRef.current
+    if (!el) return {}
+    return {
+      rect: el.getBoundingClientRect(),
+      html: el.outerHTML.replace('scale-[0.92] brightness-90', ''),
+    }
+  }, [])
+
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     const t = e.touches[0]
 
     // Yield to swipe-back: don't capture touches starting in the left edge zone
     if (t.clientX < GESTURE_THRESHOLDS.EDGE_ZONE) return
 
+    const snap = captureBubble()
     touchRef.current = { startX: t.clientX, startY: t.clientY, swiping: false, dirDecided: false }
     longPressFiredRef.current = false
     setTapped(true)
@@ -321,9 +334,9 @@ export function MessageBubble({
     longPressTimerRef.current = setTimeout(() => {
       longPressFiredRef.current = true
       setTapped(false)
-      onLongPress?.(message, t.clientX, t.clientY)
+      onLongPress?.(message, t.clientX, t.clientY, snap.rect, snap.html)
     }, 500)
-  }, [message, onLongPress])
+  }, [message, onLongPress, captureBubble])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     const state = touchRef.current
@@ -404,17 +417,19 @@ export function MessageBubble({
   // Desktop right-click + mobile long-press
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
-    onLongPress?.(message, e.clientX, e.clientY)
-  }, [message, onLongPress])
+    const snap = captureBubble()
+    onLongPress?.(message, e.clientX, e.clientY, snap.rect, snap.html)
+  }, [message, onLongPress, captureBubble])
 
   // Hover-only ellipses (desktop) — anchors the context menu to its own rect
   // so the menu lands beside the message even without a pointer event.
   const handleEllipsesClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    onLongPress?.(message, rect.left + rect.width / 2, rect.top + rect.height / 2)
-  }, [message, onLongPress])
+    const snap = captureBubble()
+    const r = snap.rect ?? (e.currentTarget as HTMLElement).getBoundingClientRect()
+    onLongPress?.(message, r.left + r.width / 2, r.top + r.height / 2, snap.rect, snap.html)
+  }, [message, onLongPress, captureBubble])
 
   const handleImageTap = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()

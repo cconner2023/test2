@@ -2,7 +2,7 @@ import { useRef, useEffect, useCallback, useState, forwardRef, useImperativeHand
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { latLngToMgrs } from '../../lib/mgrsFormat';
-import { Plus, Minus, Info, Copy, ClipboardCheck, LocateFixed, Map as MapIcon, Globe, Mountain, MountainSnow } from 'lucide-react';
+import { Plus, Minus, Info, Copy, ClipboardCheck, LocateFixed, Map as MapIcon, Globe, Mountain, MountainSnow, Share2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { PreviewOverlay } from '../PreviewOverlay';
 import { BottomIsland } from '../BottomIsland';
@@ -195,6 +195,17 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   const presenceLayerRef = useRef<L.LayerGroup>(L.layerGroup());
   const didInitCenterRef = useRef(false);
   const lastAppliedCenterRef = useRef<[number, number] | null>(null);
+  // Set true around programmatic camera ops (init invalidateSize, async
+  // center setView, imperative invalidateSize) so the moveend they emit is
+  // not reported as a user pan — otherwise it pollutes the parent's tracked
+  // mapCenter/mapZoom and makes an untouched overlay read as "changed".
+  // Reset on the next frame (not consumed by moveend) so an op that emits no
+  // moveend can't leave the flag stuck and swallow the next real pan.
+  const programmaticMoveRef = useRef(false);
+  const markProgrammaticMove = useCallback(() => {
+    programmaticMoveRef.current = true;
+    requestAnimationFrame(() => { programmaticMoveRef.current = false; });
+  }, []);
   const [centerLatLng, setCenterLatLng] = useState<{ lat: number; lng: number } | null>(null);
   const [showAttribution, setShowAttribution] = useState(false);
   // Tracked separately so the label overlay re-renders once the map is ready.
@@ -208,7 +219,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   const [showBasemapPicker, setShowBasemapPicker] = useState(false);
   const [address, setAddress] = useState('');
   const [addressLoading, setAddressLoading] = useState(false);
-  const [copiedField, setCopiedField] = useState<'mgrs' | 'utm' | 'latlng' | 'address' | null>(null);
+  const [copiedField, setCopiedField] = useState<'mgrs' | 'utm' | 'latlng' | 'address' | 'share' | null>(null);
 
   const handleZoomIn = useCallback(() => { mapRef.current?.zoomIn(); }, []);
   const handleZoomOut = useCallback(() => { mapRef.current?.zoomOut(); }, []);
@@ -247,6 +258,10 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 
   const latLngText = displayLatLng
     ? `${displayLatLng.lat.toFixed(6)}, ${displayLatLng.lng.toFixed(6)}`
+    : '';
+
+  const mapsShareUrl = displayLatLng
+    ? `https://www.google.com/maps?q=${displayLatLng.lat},${displayLatLng.lng}`
     : '';
 
   const utmText = displayLatLng
@@ -294,6 +309,21 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     });
   }, []);
 
+  // Share a Google Maps dropped-pin link for the active coordinate — hands the
+  // URL to the native share sheet (iOS Safari supports navigator.share), or
+  // falls back to copying it so recipients can pull up directions externally.
+  const handleShareLocation = useCallback(() => {
+    if (!mapsShareUrl) return;
+    if (navigator.share) {
+      navigator.share({ title: 'Location', url: mapsShareUrl }).catch(() => {});
+      return;
+    }
+    navigator.clipboard.writeText(mapsShareUrl).then(() => {
+      setCopiedField('share');
+      setTimeout(() => setCopiedField(null), 1500);
+    });
+  }, [mapsShareUrl]);
+
   // Initialize map
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -327,6 +357,9 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 
     map.on('moveend', () => {
       updateMgrs(map);
+      // Swallow the moveend emitted by a programmatic camera op — only real
+      // user pan/zoom should update the parent's tracked center/zoom.
+      if (programmaticMoveRef.current) return;
       if (onMoveEnd) {
         const c = map.getCenter();
         onMoveEnd([c.lat, c.lng], map.getZoom());
@@ -339,7 +372,10 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     lastAppliedCenterRef.current = center;
 
     // Leaflet caches container size on init — re-measure after drawer animation settles
-    const resizeTimer = setTimeout(() => map.invalidateSize(), 350);
+    const resizeTimer = setTimeout(() => {
+      markProgrammaticMove();
+      map.invalidateSize();
+    }, 350);
 
     return () => {
       clearTimeout(resizeTimer);
@@ -361,6 +397,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     if (!map) return;
     const last = lastAppliedCenterRef.current;
     if (last && last[0] === center[0] && last[1] === center[1]) return;
+    markProgrammaticMove();
     map.setView(center, zoom, { animate: false });
     lastAppliedCenterRef.current = center;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -800,6 +837,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       mapRef.current?.fitBounds([[south, west], [north, east]], { padding: [40, 40], maxZoom: 15 });
     },
     invalidateSize: () => {
+      markProgrammaticMove();
       mapRef.current?.invalidateSize();
     },
     containerDistancePx: (latA, lngA, latB, lngB) => {
@@ -867,6 +905,16 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
               </button>
             </div>
           ))}
+          <button
+            type="button"
+            disabled={!mapsShareUrl}
+            onClick={handleShareLocation}
+            className="flex items-center justify-center gap-2 px-2.5 py-2.5 rounded-lg bg-themeblue3 text-white text-[10pt] font-medium active:scale-95 transition-all disabled:opacity-30"
+          >
+            {copiedField === 'share'
+              ? <><ClipboardCheck size={16} /> Link copied</>
+              : <><Share2 size={16} /> Share location</>}
+          </button>
         </div>
       </PreviewOverlay>
 

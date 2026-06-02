@@ -13,6 +13,12 @@ interface GotoWaypointCardProps {
   gps: { lat: number; lng: number } | null
   /** Closes the card without deselecting the waypoint. */
   onDismiss: () => void
+  /**
+   * Lift the card above the selected-feature Sheet that peeks from the bottom
+   * on mobile. Without this the goto readout sits behind the 25%-peek sheet and
+   * the two collide. Desktop has no peeking sheet, so it stays at bottom-3.
+   */
+  raised?: boolean
 }
 
 function legGeometry(lat1: number, lng1: number, lat2: number, lng2: number): { distanceM: number; bearing: number } {
@@ -36,7 +42,7 @@ function formatRange(m: number): string {
   return `${Math.round(m)} m`
 }
 
-export function GotoWaypointCard({ label, target, gps, onDismiss }: GotoWaypointCardProps) {
+export function GotoWaypointCard({ label, target, gps, onDismiss, raised }: GotoWaypointCardProps) {
   const bearingReference = useMapPrefsStore(s => s.bearingReference)
   const { heading, permission, requestPermission } = useDeviceHeading()
 
@@ -59,9 +65,10 @@ export function GotoWaypointCard({ label, target, gps, onDismiss }: GotoWaypoint
   return (
     <div
       data-tour="map-goto-card"
-      className="absolute bottom-3 right-16 z-[1000] flex items-center gap-3
+      style={raised ? { bottom: 'calc(25vh + 0.75rem)' } : undefined}
+      className={`absolute right-16 z-[1000] flex items-center gap-3
       bg-themewhite2/95 dark:bg-themewhite3/95 backdrop-blur-sm
-      px-3 py-2 rounded-lg shadow-sm">
+      px-3 py-2 rounded-lg shadow-sm ${raised ? '' : 'bottom-3'}`}>
       <div className="relative w-10 h-10 rounded-full bg-themewhite shrink-0 flex items-center justify-center">
         <Navigation
           size={20}

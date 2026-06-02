@@ -561,9 +561,11 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
             isOpen={templateDrawerOpen}
             onClose={() => setTemplateDrawerOpen(false)}
             title="Templates"
-            height="snap"
-            peekHeight={55}
-            fullHeight={90}
+            height="fit"
+            maxHeight={60}
+            // Opens nested over this BaseDrawer (~z-1010); fit's default
+            // Z.SHEET(50) would trap it underneath.
+            zIndex={1200}
           >
             <ProviderTemplateList
               templates={templates}

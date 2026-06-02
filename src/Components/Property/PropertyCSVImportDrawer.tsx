@@ -9,14 +9,14 @@ import { usePropertyStore } from '../../stores/usePropertyStore'
 import { parsePropertyCSV, downloadCSVTemplate, type ParsedRow } from '../../Utilities/PropertyCSV'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
 
-interface PropertyCSVImportSheetProps {
+interface PropertyCSVImportDrawerProps {
   visible: boolean
   onClose: () => void
 }
 
 type Step = 'pick' | 'preview' | 'importing' | 'done'
 
-export function PropertyCSVImportSheet({ visible, onClose }: PropertyCSVImportSheetProps) {
+export function PropertyCSVImportDrawer({ visible, onClose }: PropertyCSVImportDrawerProps) {
   const { locations, clinicId, addItem, addLocation } = usePropertyStore(
     useShallow(s => ({
       locations: s.locations,
