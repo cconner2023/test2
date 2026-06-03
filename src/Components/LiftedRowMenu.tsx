@@ -64,7 +64,7 @@ export function LiftedRowMenu({ isOpen, anchorRect, row, items, onClose, bare = 
     <div className="fixed inset-0" style={{ zIndex: 9998 }}>
       {/* Dimming backdrop — tap anywhere to dismiss */}
       <div
-        className="absolute inset-0 bg-black/30 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-black/45 backdrop-blur-[6px]"
         style={{ opacity: visible ? 1 : 0, transition: 'opacity 200ms ease-out' }}
         onMouseDown={onClose}
         onTouchStart={onClose}

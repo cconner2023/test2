@@ -35,7 +35,7 @@ import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { MessageContent } from '../../lib/signal/messageContent'
 import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
 import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
-import { getMemberProfile } from '../../lib/supervisorService'
+import { fetchProfileById } from '../../lib/peerLookup'
 import { SYSTEM_USER_ID } from '../../lib/signal/systemIdentity'
 import { isSystemMessage, isOutsideOriginCard } from '../../Hooks/useAdminSystemConversations'
 import { CallsPane } from './CallsPane'
@@ -1144,19 +1144,10 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     }
     setCodeLookupLoading(true)
     try {
-      const result = await getMemberProfile(code)
-      if (!result.ok) {
+      const medic = await fetchProfileById(code)
+      if (!medic) {
         setCodeLookupError('No user found with that code')
         return
-      }
-      const medic: ClinicMedic = {
-        id: code,
-        firstName: result.data.firstName,
-        lastName: result.data.lastName,
-        middleInitial: result.data.middleInitial,
-        rank: result.data.rank,
-        credential: result.data.credential,
-        avatarId: null,
       }
       handlePickedUser(medic)
     } catch {
@@ -1206,20 +1197,11 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     const userId = qrScanResult.trim()
     setQrLookupError(null)
 
-    getMemberProfile(userId).then(result => {
-      if (!result.ok) {
+    fetchProfileById(userId).then(medic => {
+      if (!medic) {
         setQrLookupError('User not found')
         qrClearResult()
         return
-      }
-      const medic: ClinicMedic = {
-        id: userId,
-        firstName: result.data.firstName,
-        lastName: result.data.lastName,
-        middleInitial: result.data.middleInitial,
-        rank: result.data.rank,
-        credential: result.data.credential,
-        avatarId: null,
       }
       setQrScanOpen(false)
       qrClearResult()

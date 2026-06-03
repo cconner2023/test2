@@ -2077,19 +2077,33 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   ) : undefined}
                 >
                   {selectedFeature && (
-                    <FeatureEditor
-                      feature={selectedFeature}
-                      onUpdate={handleUpdateSelectedFeature}
-                      waypoints={features.filter(f => f.type === 'waypoint')}
-                      onFocusLeg={(bbox) => mapRef.current?.fitBounds(bbox)}
-                      linkedEventCount={allEvents.reduce((n, e) => {
-                        const explicit = e.linked_features?.some(f => f.overlay_id === selectedFeature.overlay_id && f.feature_id === selectedFeature.id)
-                        const implied = e.linked_overlays?.includes(selectedFeature.overlay_id)
-                        return n + (explicit || implied ? 1 : 0)
-                      }, 0)}
-                      onOpenLinksEditor={(anchor) => handleOpenFeatureLinksEditor(selectedFeature.overlay_id, selectedFeature.id, anchor)}
-                      isEditMode={isFeatureEditMode}
-                    />
+                    <>
+                      {selectedFeature.type === 'waypoint'
+                        && selectedFeature.geometry.length > 0
+                        && gotoDismissedFor !== selectedFeature.id
+                        && drawMode !== 'measure' && (
+                        <GotoWaypointCard
+                          variant="inline"
+                          label={selectedFeature.label || 'Waypoint'}
+                          target={selectedFeature.geometry[0]}
+                          gps={gpsPosition ? { lat: gpsPosition.lat, lng: gpsPosition.lng } : null}
+                          onDismiss={() => setGotoDismissedFor(selectedFeature.id)}
+                        />
+                      )}
+                      <FeatureEditor
+                        feature={selectedFeature}
+                        onUpdate={handleUpdateSelectedFeature}
+                        waypoints={features.filter(f => f.type === 'waypoint')}
+                        onFocusLeg={(bbox) => mapRef.current?.fitBounds(bbox)}
+                        linkedEventCount={allEvents.reduce((n, e) => {
+                          const explicit = e.linked_features?.some(f => f.overlay_id === selectedFeature.overlay_id && f.feature_id === selectedFeature.id)
+                          const implied = e.linked_overlays?.includes(selectedFeature.overlay_id)
+                          return n + (explicit || implied ? 1 : 0)
+                        }, 0)}
+                        onOpenLinksEditor={(anchor) => handleOpenFeatureLinksEditor(selectedFeature.overlay_id, selectedFeature.id, anchor)}
+                        isEditMode={isFeatureEditMode}
+                      />
+                    </>
                   )}
                 </Sheet>
               )}
@@ -2117,7 +2131,17 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                     </>
                   )}
                 >
-                  {tempPoint && <TempPointBody lat={tempPoint.lat} lng={tempPoint.lng} />}
+                  {tempPoint && (
+                    <>
+                      <GotoWaypointCard
+                        variant="inline"
+                        label="Temp point"
+                        target={[tempPoint.lat, tempPoint.lng]}
+                        gps={gpsPosition ? { lat: gpsPosition.lat, lng: gpsPosition.lng } : null}
+                      />
+                      <TempPointBody lat={tempPoint.lat} lng={tempPoint.lng} />
+                    </>
+                  )}
                 </Sheet>
               )}
 
@@ -2432,22 +2456,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 </div>
               )}
 
-              {/* Goto-waypoint card — shown when a waypoint is selected and not dismissed */}
-              {selectedFeature
-                && selectedFeature.type === 'waypoint'
-                && selectedFeature.geometry.length > 0
-                && gotoDismissedFor !== selectedFeature.id
-                && drawMode !== 'measure' && (
-                <GotoWaypointCard
-                  label={selectedFeature.label || 'Waypoint'}
-                  target={selectedFeature.geometry[0]}
-                  gps={gpsPosition ? { lat: gpsPosition.lat, lng: gpsPosition.lng } : null}
-                  onDismiss={() => setGotoDismissedFor(selectedFeature.id)}
-                  // On mobile the selected-feature Sheet peeks at 25% from the
-                  // bottom; lift the goto readout above it so they don't collide.
-                  raised={isMobile}
-                />
-              )}
+              {/* Goto-waypoint readout now lives INSIDE the selected-feature /
+                  temp-point sheet (variant="inline") so it shares one surface
+                  instead of floating a second card over it — see the Sheet/pane
+                  bodies below. Only the over-map measure HUD stays floating. */}
 
               {/* Measure readout */}
               {drawMode === 'measure' && measureResult && measurePoints.length === 2 && (
@@ -2494,6 +2506,12 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                     </HeaderPill>
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto">
+                    <GotoWaypointCard
+                      variant="inline"
+                      label="Temp point"
+                      target={[tempPoint.lat, tempPoint.lng]}
+                      gps={gpsPosition ? { lat: gpsPosition.lat, lng: gpsPosition.lng } : null}
+                    />
                     <TempPointBody lat={tempPoint.lat} lng={tempPoint.lng} />
                   </div>
                 </div>
@@ -2565,6 +2583,18 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                     </HeaderPill>
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto">
+                    {selectedFeature.type === 'waypoint'
+                      && selectedFeature.geometry.length > 0
+                      && gotoDismissedFor !== selectedFeature.id
+                      && drawMode !== 'measure' && (
+                      <GotoWaypointCard
+                        variant="inline"
+                        label={selectedFeature.label || 'Waypoint'}
+                        target={selectedFeature.geometry[0]}
+                        gps={gpsPosition ? { lat: gpsPosition.lat, lng: gpsPosition.lng } : null}
+                        onDismiss={() => setGotoDismissedFor(selectedFeature.id)}
+                      />
+                    )}
                     <FeatureEditor
                       feature={selectedFeature}
                       onUpdate={handleUpdateSelectedFeature}

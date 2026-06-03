@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import bwipjs from 'bwip-js'
 import { useLinkeeChannel } from '../Hooks/useDeviceLink'
 import { Check, X, RefreshCw, ArrowLeft } from 'lucide-react'
@@ -18,6 +18,16 @@ type ForgotStep = null | 'email' | 'token'
 /** Rendered only when mode === 'qr'. Subscribes to Realtime and shows QR. */
 function DeviceLinkQrView() {
   const { channelId, status, error, channelState, regenerate } = useLinkeeChannel()
+  const ready = channelState === 'ready'
+
+  // Once the channel is ready, flip `reveal` on the next frame so the QR panel
+  // expands + fades up via CSS transition instead of snapping in after load.
+  const [reveal, setReveal] = useState(false)
+  useEffect(() => {
+    if (!ready) { setReveal(false); return }
+    const id = requestAnimationFrame(() => setReveal(true))
+    return () => cancelAnimationFrame(id)
+  }, [ready])
 
   const qrCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
     if (!canvas || !channelId) return
@@ -33,9 +43,14 @@ function DeviceLinkQrView() {
     }
   }, [channelId])
 
-  if (channelState !== 'ready') {
-    return (
-      <div className="py-4 flex flex-col items-center justify-center gap-2">
+  return (
+    <div className="relative">
+      {/* Connecting / error placeholder — fades out as the QR reveals */}
+      <div
+        className={`flex flex-col items-center justify-center gap-2 transition-opacity duration-300 ease-out ${
+          ready ? 'absolute inset-0 opacity-0 pointer-events-none' : 'py-4 opacity-100'
+        }`}
+      >
         <LoadingSpinner className="text-tertiary" />
         {channelState === 'error' && (
           <button
@@ -46,23 +61,30 @@ function DeviceLinkQrView() {
           </button>
         )}
       </div>
-    )
-  }
 
-  return (
-    <div className="py-2 overflow-hidden">
-      <div className="float-right ml-3 mb-1 w-[38%]">
-        <canvas ref={qrCanvasRef} className="block w-full border border-themegreen/30 bg-white rounded-xl" />
-      </div>
-      <p className="text-sm font-semibold text-primary mb-1.5">Link This Device</p>
-      <p className="text-[10pt] text-secondary leading-relaxed">
-        Open the application on another logged-in device, go to <span className="font-medium text-primary">Settings → Linked Devices</span>, and scan this code to log in.
-      </p>
-      {status === 'receiving' && (
-        <p className="text-[10pt] text-themegreen font-medium mt-1.5">Linking device…</p>
-      )}
-      {status === 'error' && error && (
-        <p className="text-[10pt] text-themeredred mt-1.5">{error}</p>
+      {/* QR panel — expands (max-h) and fades up (opacity + translate) on ready */}
+      {ready && (
+        <div
+          className={`overflow-hidden transition-all duration-500 ease-out ${
+            reveal ? 'max-h-[280px] opacity-100 translate-y-0' : 'max-h-0 opacity-0 translate-y-2'
+          }`}
+        >
+          <div className="py-2 overflow-hidden">
+            <div className="float-right ml-3 mb-1 w-[38%]">
+              <canvas ref={qrCanvasRef} className="block w-full border border-themegreen/30 bg-white rounded-xl" />
+            </div>
+            <p className="text-sm font-semibold text-primary mb-1.5">Link This Device</p>
+            <p className="text-[10pt] text-secondary leading-relaxed">
+              Open the application on another logged-in device, go to <span className="font-medium text-primary">Settings → Linked Devices</span>, and scan this code to log in.
+            </p>
+            {status === 'receiving' && (
+              <p className="text-[10pt] text-themegreen font-medium mt-1.5">Linking device…</p>
+            )}
+            {status === 'error' && error && (
+              <p className="text-[10pt] text-themeredred mt-1.5">{error}</p>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )

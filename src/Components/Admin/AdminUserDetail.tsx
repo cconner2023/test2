@@ -23,6 +23,7 @@ import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
+import { OverlayActionMenu } from '../OverlayActionMenu'
 import { formatLastActive, RoleBadge, SupervisorCreatedBadge } from './adminUtils'
 import { StepResults, type StepResult } from './StepResults'
 import { useResetPasswordFlow } from '../../Hooks/useResetPasswordFlow'
@@ -726,43 +727,40 @@ export function AdminUserDetail({
             doesn't fire when the user clicks an action button. */}
         {!isCreateMode && user && currentUserId !== user.id && (
           <div onClick={(e) => e.stopPropagation()}>
-            <ActionPill ref={pillRef} shadow="sm" placement="overlay">
-              {user.email && (
-                <a
-                  href={`mailto:${user.email}?subject=${encodeURIComponent('Beacon Inquiry')}&body=${encodeURIComponent(`${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n`)}`}
-                  aria-label="Email user"
-                  title="Email user"
-                  className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 bg-themeblue2/8 text-primary"
-                >
-                  <Mail size={16} />
-                </a>
-              )}
-              {isDevRole && messagesCtx && (
-                <ActionButton
-                  icon={MessageSquare}
-                  label="Send system message"
-                  onClick={() => {
+            <OverlayActionMenu
+              ref={pillRef}
+              items={[
+                ...(user.email ? [{
+                  key: 'email',
+                  label: 'Email user',
+                  icon: Mail,
+                  onAction: () => {
+                    window.location.href = `mailto:${user.email}?subject=${encodeURIComponent('Beacon Inquiry')}&body=${encodeURIComponent(`${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n`)}`
+                  },
+                }] as ContextMenuItem[] : []),
+                ...(isDevRole && messagesCtx ? [{
+                  key: 'send-msg',
+                  label: 'Send system message',
+                  icon: MessageSquare,
+                  onAction: () => {
                     if (!user?.last_active_at) {
                       setVaultMissingOpen(true)
                       return
                     }
                     const rect = pillRef.current?.getBoundingClientRect() ?? null
                     setSysMsgAnchor(rect)
-                  }}
-                />
-              )}
-              <ActionButton
-                icon={KeyRound}
-                label="Reset password"
-                onClick={openResetPassword}
-              />
-              <ActionButton
-                icon={LogOut}
-                label={forceLogoutProcessing ? 'Logging out' : 'Force logout'}
-                variant={forceLogoutProcessing ? 'disabled' : 'default'}
-                onClick={() => setConfirmForceLogout(true)}
-              />
-            </ActionPill>
+                  },
+                }] as ContextMenuItem[] : []),
+                { key: 'reset-pw', label: 'Reset password', icon: KeyRound, onAction: openResetPassword },
+                {
+                  key: 'force-logout',
+                  label: forceLogoutProcessing ? 'Logging out' : 'Force logout',
+                  icon: LogOut,
+                  variant: forceLogoutProcessing ? 'disabled' : 'default',
+                  onAction: () => setConfirmForceLogout(true),
+                },
+              ]}
+            />
           </div>
         )}
       </div>

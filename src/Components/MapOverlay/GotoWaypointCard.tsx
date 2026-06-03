@@ -11,14 +11,15 @@ interface GotoWaypointCardProps {
   target: [number, number]
   /** Current GPS position, or null when unavailable */
   gps: { lat: number; lng: number } | null
-  /** Closes the card without deselecting the waypoint. */
-  onDismiss: () => void
+  /** Closes the readout without deselecting the target. Omit to hide the X. */
+  onDismiss?: () => void
   /**
-   * Lift the card above the selected-feature Sheet that peeks from the bottom
-   * on mobile. Without this the goto readout sits behind the 25%-peek sheet and
-   * the two collide. Desktop has no peeking sheet, so it stays at bottom-3.
+   * 'inline' renders the readout as a sheet/pane header row (no absolute
+   * positioning, no z-index) so it shares ONE surface with the selected-feature
+   * / temp-point editor instead of floating over it. 'floating' (default) is the
+   * standalone over-map HUD.
    */
-  raised?: boolean
+  variant?: 'floating' | 'inline'
 }
 
 function legGeometry(lat1: number, lng1: number, lat2: number, lng2: number): { distanceM: number; bearing: number } {
@@ -42,7 +43,7 @@ function formatRange(m: number): string {
   return `${Math.round(m)} m`
 }
 
-export function GotoWaypointCard({ label, target, gps, onDismiss, raised }: GotoWaypointCardProps) {
+export function GotoWaypointCard({ label, target, gps, onDismiss, variant = 'floating' }: GotoWaypointCardProps) {
   const bearingReference = useMapPrefsStore(s => s.bearingReference)
   const { heading, permission, requestPermission } = useDeviceHeading()
 
@@ -62,13 +63,8 @@ export function GotoWaypointCard({ label, target, gps, onDismiss, raised }: Goto
   // unknown, arrow points to true north as an absolute reference.
   const arrowDeg = heading == null ? trueBearing : ((trueBearing - heading) + 360) % 360
 
-  return (
-    <div
-      data-tour="map-goto-card"
-      style={raised ? { bottom: 'calc(25vh + 0.75rem)' } : undefined}
-      className={`absolute right-16 z-[1000] flex items-center gap-3
-      bg-themewhite2/95 dark:bg-themewhite3/95 backdrop-blur-sm
-      px-3 py-2 rounded-lg shadow-sm ${raised ? '' : 'bottom-3'}`}>
+  const inner = (
+    <>
       <div className="relative w-10 h-10 rounded-full bg-themewhite shrink-0 flex items-center justify-center">
         <Navigation
           size={20}
@@ -96,14 +92,39 @@ export function GotoWaypointCard({ label, target, gps, onDismiss, raised }: Goto
           <Compass size={13} />
         </button>
       )}
-      <button
-        type="button"
-        onClick={onDismiss}
-        aria-label="Dismiss"
-        className="ml-1 w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary"
+      {onDismiss && (
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss"
+          className="ml-1 w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary"
+        >
+          <X size={13} />
+        </button>
+      )}
+    </>
+  )
+
+  // Inline: a flush header row that lives at the top of the selected-feature /
+  // temp-point sheet body — one surface, no floating collision.
+  if (variant === 'inline') {
+    return (
+      <div
+        data-tour="map-goto-card"
+        className="flex items-center gap-3 px-3 py-2 border-b border-tertiary/10 bg-themewhite2/50 dark:bg-themewhite3/50"
       >
-        <X size={13} />
-      </button>
+        {inner}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      data-tour="map-goto-card"
+      className="absolute right-16 bottom-3 z-[1000] flex items-center gap-3
+      bg-themewhite2/95 dark:bg-themewhite3/95 backdrop-blur-sm
+      px-3 py-2 rounded-lg shadow-sm">
+      {inner}
     </div>
   )
 }

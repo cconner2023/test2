@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Check, Radio, Compass, LayoutDashboard, HardDrive } from 'lucide-react';
+import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Check, Radio, Compass, LayoutDashboard, HardDrive, Smartphone } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import { useAvatar } from '../../Utilities/AvatarContext';
@@ -195,6 +195,14 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
 
         const items: SettingsItem[] = [];
 
+        // LINKED DEVICES — surfaced at the very top (own card above the section headers)
+        // so users can quickly find how to link a new device by scanning its QR code.
+        if (isAuthenticated) {
+            items.push(
+                opt(PANEL.SESSIONS_DEVICES, <Smartphone size={20} />, 'Linked Devices', 'Add a device or link one by scanning its QR code'),
+            );
+        }
+
         // CLINICS section — cluster management is supervisor-only (dev also sees it).
         if (isAuthenticated && (isSupervisorRole || isDevRole)) {
             items.push(
@@ -209,7 +217,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
             opt(PANEL.TOGGLE_THEME, <Palette size={20} />, 'Appearance', themeName.charAt(0).toUpperCase() + themeName.slice(1)),
             opt(PANEL.NOTE_CONTENT, <Stethoscope size={20} />, 'Note Content', 'Exam blocks, templates, order sets'),
             opt(PANEL.OVERVIEW_WIDGETS, <LayoutDashboard size={20} />, 'Mission Overview', 'Widgets shown on the home screen'),
-            opt(PANEL.PIN_SETUP, <Lock size={20} />, 'Security', 'App lock, biometrics, devices'),
+            opt(PANEL.PIN_SETUP, <Lock size={20} />, 'Security', 'App lock, biometrics, permissions'),
             opt(PANEL.NOTIFICATION_SETTINGS, <Bell size={20} />, 'Notifications', 'Push subscriptions and alerts'),
         );
 
@@ -241,10 +249,6 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
             // Sub-panels of the profile hub go back to user-profile
             if (activePanel === 'change-password') {
                 return () => { handleSlideAnimation('right'); setActivePanel('user-profile'); };
-            }
-            // Sessions/Devices is nested under Security
-            if (activePanel === 'sessions-devices') {
-                return () => { handleSlideAnimation('right'); setActivePanel('pin-setup'); };
             }
             // clinic panel resets editing state on back
             if (activePanel === 'clinic') {
@@ -306,7 +310,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
             case 'feature-votes':       return { title: 'Feature Votes', ...backTo() };
             case 'avatar-picker':       return { title: 'Choose Avatar', ...backTo() };
             case 'user-profile':        return { title: 'Profile', ...backTo() };
-            case 'sessions-devices':    return { title: 'Linked Devices', ...backTo('pin-setup') };
+            case 'sessions-devices':    return { title: 'Linked Devices', ...backTo() };
             case 'lora':                return { title: 'WhisperNet', ...backTo() };
             case 'pin-setup':           return { title: 'Security', ...backTo() };
             case 'notification-settings': return { title: 'Notifications', ...backTo() };
@@ -496,14 +500,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                             'notification-settings': <NotificationSettingsPanel />,
                             'sessions-devices':     <SessionsDevicesPanel />,
                             'lora':                 <LoRaPanel />,
-                            'pin-setup': (
-                                <PinSetupPanel
-                                    onNavigateToDevices={isAuthenticated ? () => {
-                                        handleSlideAnimation('left');
-                                        setActivePanel('sessions-devices');
-                                    } : undefined}
-                                />
-                            ),
+                            'pin-setup':            <PinSetupPanel />,
                             'clinic': (
                                 <ClinicPanel
                                     clinicEditing={clinicEditing}

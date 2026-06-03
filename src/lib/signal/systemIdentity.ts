@@ -4,19 +4,23 @@
  * Architecture
  * ────────────
  *   - System has a single public Signal bundle in `signal_key_bundles` at
- *     SYSTEM_USER_ID / device_id='primary'. The private side is wrapped per-dev
- *     with that dev's password-derived AES-GCM key and stored opaque in
- *     `system_identity_keys_per_dev`. Any dev can unwrap their own row on
- *     sign-in; no dev can read another dev's wrapped blob.
+ *     SYSTEM_USER_ID / device_id='primary'. The private side is wrapped ONCE
+ *     with PBKDF2 over a SHARED dev key and stored in the singleton
+ *     `system_identity_shared` row. Every dev fetches that dev key via the
+ *     is_dev()-gated `get_system_shared` RPC and re-derives the wrapping key —
+ *     so all devs inherit the identity (clinic-vault parity; no per-dev
+ *     password wrapping, no multi-dev ceremony). Trust note: the dev key is
+ *     server-readable (same posture as `clinics.encryption_key`). SYSTEM
+ *     traffic is operational-vocabulary-only, so NO-PHI-on-wire is unaffected.
  *   - Outbound (dev → user) uses X3DH initiator from system's keys to the
  *     recipient's bundle. No persistent ratchet state — every send is a fresh
  *     X3DH so multiple devs can send concurrently without ratchet desync.
  *     Recipients decrypt via the unchanged `processIncomingMessage` path
  *     (InitialMessage → X3DH responder → ratchet receiver init).
  *   - Inbound (user → system) is X3DH responder using system's privates.
- *     One-time pre-keys are consumed and removed from the wrapped blob via
- *     optimistic-concurrency UPDATE on `system_identity_keys_per_dev`. Public
- *     bundle's `one_time_pre_keys` is updated in tandem.
+ *     One-time pre-keys are consumed and removed from the shared blob via the
+ *     optimistic-concurrency `update_system_shared_blob` RPC (one canonical OTP
+ *     pool for all devs). Public bundle's `one_time_pre_keys` is updated in tandem.
  *   - Reply-drain: any dev pulls `drain_system_inbox`, decrypts each, posts
  *     into local store under conversation key = peer userId. Decryption only
  *     supports the X3DH initial-message path in v1 — subsequent ratchet
@@ -26,23 +30,24 @@
  *     by deleting any cached session before encrypting.
  *
  * v1 explicit limitations (documented; expand later as needed):
- *   - Multi-dev bootstrap ceremony is deferred. If the public bundle is
- *     initialized but the calling dev has no wrapped blob row, `bootstrap`
- *     fails with `not-provisioned`. v1 pilot has a single dev.
+ *   - First-init race: two devs hitting first-time bootstrap concurrently both
+ *     write via `set_system_shared` (last-writer-wins); the loser re-adopts the
+ *     winner's shared row on its next bootstrap. Fine for the pilot.
  *   - System signed-pre-key rotation is not implemented.
  *   - One-time pre-key replenishment is not implemented (initial 500-key
  *     pool is sufficient for the pilot).
  *
  * Cross-links:
- *   - DB schema + RPCs: supabase/migrations/20260522b_system_identity.sql
- *   - Send wire gate:   supabase/migrations/20260522_signal_system_messages.sql
+ *   - DB schema + RPCs: get_system_shared / set_system_shared /
+ *     update_system_shared_blob + table system_identity_shared (Supabase MCP;
+ *     no local migration files).
+ *   - Send wire gate:   signal_messages_system_gate trigger.
  *   - peerProfile mask: src/stores/useMessagingStore.ts (SYSTEM_PEER_PROFILE)
- *   - KG facts:         SYSTEM_USER_ID, system_identity_keys_per_dev
+ *   - KG facts:         SYSTEM_USER_ID, system_identity_shared
  */
 
 import { createLogger } from '../../Utilities/Logger'
 import { uint8ToBase64, base64ToUint8 } from '../../Utilities/textCodec'
-import { bytesToHex, hexToBytes } from '../cryptoUtils'
 import { supabase } from '../supabase'
 import { SIGNAL } from '../constants'
 import { ok, err, callRpc, type Result } from '../result'
@@ -158,112 +163,35 @@ interface SystemImportedKeys {
   nextPreKeyId: number
 }
 
-interface SystemKeysRow {
-  dev_user_id: string
-  encrypted_blob: string
-  salt: string
-  iv: string
-  kdf_iterations: number
-  version: number
-}
-
-interface InitOrGetResult {
+/** Shape returned by the is_dev()-gated `get_system_shared` RPC. The dev_key is
+ *  the shared secret all devs derive the wrapping key from (clinic-vault parity).
+ *  When has_shared is false the blob/key fields are absent (first-time init). */
+interface SystemSharedResult {
   initialized: boolean
-  has_dev_blob: boolean
-  dev_blob: {
-    encrypted_blob: string
-    salt: string
-    iv: string
-    kdf_iterations: number
-    version: number
-  } | null
+  has_shared: boolean
+  dev_key?: string
+  encrypted_blob?: string | null
+  salt?: string | null
+  iv?: string | null
+  kdf_iterations?: number | null
+  version?: number
 }
 
 // ── Module state ────────────────────────────────────────────────────────────
 
 let _cachedWrappingKey: CryptoKey | null = null
-let _cachedWrappingSalt: string | null = null
 let _cachedSystemKeys: SystemImportedKeys | null = null
-let _systemKeyReady: Promise<void> | null = null
 /** Bootstrap promise — coalesces concurrent bootstrap calls in the same session. */
 let _bootstrapInFlight: Promise<Result<void>> | null = null
 /** Single-flight lock for drainSystemInbox. Realtime can fire it rapidly. */
 let _drainInFlight: Promise<number> | null = null
 
-// ── IDB persistence for the wrapping CryptoKey ─────────────────────────────
-//
-// Without this, the dev's non-extractable wrapping key only lives for the
-// session that entered the password. Page refresh restores the auth token but
-// not the in-memory key, so ensureSystemIdentity returns no-identity until
-// the dev signs out + back in. Mirrors the pattern in
-// backupService.ts:103-150 (BACKUP_KEY_DB) so the security profile is
-// identical: AES-GCM CryptoKey is stored non-extractable; the browser
-// preserves the key handle but does not allow raw export. The salt sits
-// alongside as plain text (it's per-dev random and already visible in
-// system_identity_keys_per_dev.salt).
-
-const SYSTEM_KEY_DB = 'adtmc-system-key'
-const SYSTEM_KEY_STORE = 'keys'
-const SYSTEM_KEY_KEY_ID = 'wrapping-key'
-const SYSTEM_KEY_SALT_ID = 'wrapping-salt'
-
-function openSystemKeyDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(SYSTEM_KEY_DB, 1)
-    req.onupgradeneeded = () => {
-      if (!req.result.objectStoreNames.contains(SYSTEM_KEY_STORE)) {
-        req.result.createObjectStore(SYSTEM_KEY_STORE)
-      }
-    }
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
-  })
-}
-
-async function persistSystemKeyToIdb(key: CryptoKey, saltHex: string): Promise<void> {
-  const db = await openSystemKeyDb()
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(SYSTEM_KEY_STORE, 'readwrite')
-    const store = tx.objectStore(SYSTEM_KEY_STORE)
-    store.put(key, SYSTEM_KEY_KEY_ID)
-    store.put(saltHex, SYSTEM_KEY_SALT_ID)
-    tx.oncomplete = () => resolve()
-    tx.onerror = () => reject(tx.error)
-  })
-  db.close()
-}
-
-async function loadSystemKeyFromIdb(): Promise<{ key: CryptoKey; salt: string } | null> {
-  const db = await openSystemKeyDb()
-  const out = await new Promise<{ key: CryptoKey; salt: string } | null>((resolve, reject) => {
-    const tx = db.transaction(SYSTEM_KEY_STORE, 'readonly')
-    const store = tx.objectStore(SYSTEM_KEY_STORE)
-    const keyReq = store.get(SYSTEM_KEY_KEY_ID)
-    const saltReq = store.get(SYSTEM_KEY_SALT_ID)
-    tx.oncomplete = () => {
-      const key = keyReq.result as CryptoKey | undefined
-      const salt = saltReq.result as string | undefined
-      if (key && typeof salt === 'string') resolve({ key, salt })
-      else resolve(null)
-    }
-    tx.onerror = () => reject(tx.error)
-  })
-  db.close()
-  return out
-}
-
-async function clearSystemKeyFromIdb(): Promise<void> {
-  const db = await openSystemKeyDb()
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(SYSTEM_KEY_STORE, 'readwrite')
-    const store = tx.objectStore(SYSTEM_KEY_STORE)
-    store.delete(SYSTEM_KEY_KEY_ID)
-    store.delete(SYSTEM_KEY_SALT_ID)
-    tx.oncomplete = () => resolve()
-    tx.onerror = () => reject(tx.error)
-  })
-  db.close()
-}
+// No IDB persistence of the wrapping key: the SYSTEM identity is now wrapped
+// with a SHARED dev key fetched from `get_system_shared` (is_dev-gated), so any
+// dev re-derives the wrapping key on cold start by re-fetching that key. One
+// PBKDF2 per session (lazy + coalesced via ensureSystemIdentity) — no
+// cross-refresh secret cache needed. (Replaces the per-dev password-wrapped
+// model + its adtmc-system-key IDB cache.)
 
 // ── Decrypted-system-message listener (realtime → notification dispatch) ──
 //
@@ -282,24 +210,13 @@ export function onSystemMessage(cb: (msg: DecryptedSignalMessage) => void): () =
   return () => { _systemMessageListeners.delete(cb) }
 }
 
-/** Register the wrapping-key derivation promise (called from authService). */
-export function setSystemKeyReady(promise: Promise<void>): void {
-  _systemKeyReady = promise
-}
-
 /** Clear all system-identity state. Called on sign-out. */
 export function clearSystemIdentity(): void {
   _cachedWrappingKey = null
-  _cachedWrappingSalt = null
   _cachedSystemKeys = null
-  _systemKeyReady = null
   _bootstrapInFlight = null
   _drainInFlight = null
   _systemMessageListeners.clear()
-  // Fire-and-forget IDB clear so the next sign-in (possibly a different dev
-  // on the same browser) doesn't unwrap the previous dev's blob with stale
-  // cached state.
-  clearSystemKeyFromIdb().catch(() => { /* IDB unavailable */ })
 }
 
 // ── PBKDF2 wrapping-key derivation ──────────────────────────────────────────
@@ -330,50 +247,6 @@ async function deriveWrappingKey(
     false,
     ['encrypt', 'decrypt'],
   )
-}
-
-/**
- * Derive and cache the system wrapping key from the dev's password.
- *
- * Called during `authService.signIn` for users with the dev role. If the
- * dev already has a row, reuses its salt; otherwise generates a fresh salt
- * and stashes it so the first-time `bootstrap` write uses the same one.
- *
- * Safe to call for non-dev users — the row lookup just returns nothing and
- * we stash a fresh salt that will go unused (cache is cleared on sign-out
- * anyway). Cheap to be permissive here; saves an `isDev` round-trip.
- */
-export async function deriveAndCacheSystemWrappingKey(
-  password: string,
-  devUserId: string,
-): Promise<void> {
-  // Try to find an existing row for this dev so we reuse its salt.
-  const { data } = await supabase
-    .from('system_identity_keys_per_dev')
-    .select('salt, kdf_iterations')
-    .eq('dev_user_id', devUserId)
-    .maybeSingle()
-
-  let saltHex: string
-  let iters = SYSTEM_KDF_ITERATIONS
-  if (data) {
-    saltHex = data.salt
-    iters = data.kdf_iterations ?? SYSTEM_KDF_ITERATIONS
-  } else {
-    const fresh = crypto.getRandomValues(new Uint8Array(32))
-    saltHex = bytesToHex(fresh)
-  }
-
-  const saltBytes = hexToBytes(saltHex)
-  _cachedWrappingKey = await deriveWrappingKey(password, saltBytes, iters)
-  _cachedWrappingSalt = saltHex
-  // Persist so page refresh / PWA reopen doesn't force a re-sign-in to
-  // re-derive. Fire-and-forget — IDB failure isn't fatal; the cached
-  // module state still works for the current session.
-  persistSystemKeyToIdb(_cachedWrappingKey, saltHex).catch(() =>
-    logger.warn('Failed to persist system wrapping key to IDB'),
-  )
-  logger.info('System wrapping key cached')
 }
 
 // ── Blob encrypt / decrypt ──────────────────────────────────────────────────
@@ -554,89 +427,73 @@ async function generateFreshSystemBlob(): Promise<{
  * Bring this dev's system-identity state up to ready. Idempotent: subsequent
  * calls in the same session return the cached state.
  *
- *   - `initialized=false`: generate fresh public+private state, wrap blob,
- *      call set_system_identity, cache unwrapped keys.
- *   - `initialized=true && has_dev_blob=true`: decrypt blob with the cached
- *      wrapping key, cache unwrapped keys.
- *   - `initialized=true && has_dev_blob=false`: this dev has no wrapped copy
- *      yet. Multi-dev bootstrap ceremony is out of scope in v1.
+ * Custody model (clinic-vault parity): the SYSTEM private blob is wrapped ONCE
+ * with PBKDF2(shared dev_key, salt) and stored in `system_identity_shared`. Any
+ * dev fetches the shared dev_key via the is_dev()-gated `get_system_shared` RPC
+ * and re-derives the wrapping key — so every dev inherits the identity (no
+ * per-dev password wrapping, no multi-dev ceremony).
+ *
+ *   - `has_shared=true`: derive wrapping key from dev_key+salt, unwrap, cache.
+ *   - `has_shared=false`: first-time init — generate fresh identity + a random
+ *      shared dev_key, wrap, publish via `set_system_shared`, cache.
  */
 async function bootstrapInternal(): Promise<Result<void>> {
   if (_cachedSystemKeys) return ok(undefined)
 
-  if (_systemKeyReady) {
-    try { await _systemKeyReady } catch { /* fall through */ }
-  }
-
-  // Session restored without password (page refresh / PWA reopen) — try IDB.
-  // Mirrors backupService.ts:469-471. The cached CryptoKey + salt are written
-  // by deriveAndCacheSystemWrappingKey on every password-bearing sign-in.
-  if (!_cachedWrappingKey || !_cachedWrappingSalt) {
-    try {
-      const loaded = await loadSystemKeyFromIdb()
-      if (loaded) {
-        _cachedWrappingKey = loaded.key
-        _cachedWrappingSalt = loaded.salt
-        logger.info('System wrapping key restored from IDB')
-      }
-    } catch { /* IDB unavailable */ }
-  }
-
-  if (!_cachedWrappingKey || !_cachedWrappingSalt) {
-    return err('System wrapping key not cached — sign-in did not run derive step (non-dev?)')
-  }
-
-  const initRes = await callRpc<InitOrGetResult>(
-    () => supabase.rpc('init_or_get_system_identity'),
-    'init_or_get_system_identity', logger,
+  const sharedRes = await callRpc<SystemSharedResult>(
+    () => supabase.rpc('get_system_shared'),
+    'get_system_shared', logger,
   )
-  if (!initRes.ok) return err(initRes.error)
+  if (!sharedRes.ok) return err(sharedRes.error)
+  const shared = sharedRes.data
 
-  const result = initRes.data
-
-  // (1) Existing dev row — unwrap and cache.
-  if (result.has_dev_blob && result.dev_blob) {
+  // (1) Shared identity provisioned — derive the wrapping key from the shared
+  //     dev key and unwrap. Every dev inherits it (clinic-vault parity).
+  if (shared.has_shared && shared.dev_key && shared.encrypted_blob && shared.salt && shared.iv) {
     try {
-      const blob = await decryptBlob(
-        result.dev_blob.encrypted_blob,
-        result.dev_blob.iv,
-        _cachedWrappingKey,
+      const saltBytes = base64ToUint8(shared.salt)
+      const wrappingKey = await deriveWrappingKey(
+        shared.dev_key, saltBytes, shared.kdf_iterations ?? SYSTEM_KDF_ITERATIONS,
       )
+      const blob = await decryptBlob(shared.encrypted_blob, shared.iv, wrappingKey)
       _cachedSystemKeys = await importSystemKeys(blob)
-      logger.info('System identity unwrapped from existing dev blob')
+      _cachedWrappingKey = wrappingKey
+      logger.info('System identity unwrapped from shared dev key')
       return ok(undefined)
     } catch (e) {
-      logger.error('Failed to decrypt system dev blob:', e)
-      return err('System dev blob decrypt failed — password may have changed since blob was wrapped')
+      logger.error('Failed to decrypt shared system blob:', e)
+      return err('Shared system blob decrypt failed')
     }
   }
 
-  // (2) Initialized but no row for this dev — out of scope in v1.
-  if (result.initialized && !result.has_dev_blob) {
-    return err(
-      'System identity already provisioned but this dev has no wrapped copy. ' +
-      'Multi-dev bootstrap ceremony is out of scope in v1.',
-    )
-  }
+  // (2) First-time init — generate a fresh identity + a random shared dev key,
+  //     wrap, publish. NOTE (v1 pilot): two devs racing first-init both write
+  //     via set_system_shared (last-writer-wins); the loser re-adopts the
+  //     winner's shared row on its next bootstrap. Acceptable for the pilot.
+  const devKey = uint8ToBase64(crypto.getRandomValues(new Uint8Array(32)))
+  const saltBytes = crypto.getRandomValues(new Uint8Array(32))
+  const saltB64 = uint8ToBase64(saltBytes)
+  const wrappingKey = await deriveWrappingKey(devKey, saltBytes, SYSTEM_KDF_ITERATIONS)
 
-  // (3) First-time init — generate, wrap, upload.
   const { blob, publicBundle } = await generateFreshSystemBlob()
-  const { encryptedBlob, iv } = await encryptBlob(blob, _cachedWrappingKey)
+  const { encryptedBlob, iv } = await encryptBlob(blob, wrappingKey)
 
   const setRes = await callRpc<{ ok: true }>(
-    () => supabase.rpc('set_system_identity', {
+    () => supabase.rpc('set_system_shared', {
       p_bundle: publicBundle,
+      p_dev_key: devKey,
       p_encrypted_blob: encryptedBlob,
-      p_salt: _cachedWrappingSalt,
+      p_salt: saltB64,
       p_iv: iv,
       p_kdf_iterations: SYSTEM_KDF_ITERATIONS,
     }),
-    'set_system_identity', logger,
+    'set_system_shared', logger,
   )
   if (!setRes.ok) return err(setRes.error)
 
   _cachedSystemKeys = await importSystemKeys(blob)
-  logger.info('System identity bootstrapped (fresh public+private)')
+  _cachedWrappingKey = wrappingKey
+  logger.info('System identity bootstrapped (shared dev key, fresh public+private)')
   return ok(undefined)
 }
 
@@ -1139,45 +996,47 @@ async function _drainSystemInboxImpl(): Promise<number> {
 }
 
 /**
- * Re-encrypt the per-dev system blob with consumed OTPs removed, OCC-bump
- * the row, and update `signal_key_bundles.one_time_pre_keys` to match.
+ * Re-encrypt the SHARED system blob with consumed OTPs removed, OCC-bump the
+ * singleton `system_identity_shared` row, and update
+ * `signal_key_bundles.one_time_pre_keys` to match. The shared blob is the single
+ * canonical OTP pool across all devs.
  *
- * Best-effort: on conflict (another dev raced), logs and aborts. In v1 (single
- * dev pilot) this is safe; expand to retry loop when multi-dev lands.
+ * Best-effort: on OCC conflict (another dev's drain raced), logs and aborts.
  */
 async function persistConsumedOtps(consumed: Set<number>): Promise<void> {
   if (!_cachedWrappingKey || !_cachedSystemKeys) return
 
-  // Fetch the latest row to pick up the current version + any concurrent writes.
-  const { data: row, error: rowErr } = await supabase
-    .from('system_identity_keys_per_dev')
-    .select('*')
-    .eq('dev_user_id', (await supabase.auth.getUser()).data.user?.id ?? '')
-    .single()
-  if (rowErr || !row) {
-    logger.warn('persistConsumedOtps: cannot read latest row:', rowErr?.message)
+  // Fetch the latest shared row for the current version + any concurrent OTP
+  // consumption. dev_key/salt never change on OTP updates, so the cached
+  // wrapping key still decrypts the refreshed blob.
+  const sharedRes = await callRpc<SystemSharedResult>(
+    () => supabase.rpc('get_system_shared'),
+    'get_system_shared(otp)', logger,
+  )
+  if (
+    !sharedRes.ok || !sharedRes.data.has_shared ||
+    !sharedRes.data.encrypted_blob || !sharedRes.data.iv || sharedRes.data.version == null
+  ) {
+    logger.warn('persistConsumedOtps: cannot read shared row')
     return
   }
+  const shared = sharedRes.data
 
-  const latestBlob = await decryptBlob(row.encrypted_blob, row.iv, _cachedWrappingKey)
+  const latestBlob = await decryptBlob(shared.encrypted_blob, shared.iv, _cachedWrappingKey)
   latestBlob.preKeys = latestBlob.preKeys.filter(pk => !consumed.has(pk.keyId))
 
   const { encryptedBlob: newBlob, iv: newIv } = await encryptBlob(latestBlob, _cachedWrappingKey)
 
-  const { data: updRows, error: updErr } = await supabase
-    .from('system_identity_keys_per_dev')
-    .update({
-      encrypted_blob: newBlob,
-      iv: newIv,
-      version: (row as SystemKeysRow).version + 1,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('dev_user_id', (row as SystemKeysRow).dev_user_id)
-    .eq('version', (row as SystemKeysRow).version)
-    .select('dev_user_id')
-
-  if (updErr || !updRows?.length) {
-    logger.warn('persistConsumedOtps: OCC conflict — another dev/race won; skipping')
+  const updRes = await callRpc<number>(
+    () => supabase.rpc('update_system_shared_blob', {
+      p_encrypted_blob: newBlob,
+      p_iv: newIv,
+      p_expected_version: shared.version!,
+    }),
+    'update_system_shared_blob', logger,
+  )
+  if (!updRes.ok || !updRes.data) {
+    logger.warn('persistConsumedOtps: OCC conflict — another drain won; skipping')
     return
   }
 

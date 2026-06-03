@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
-import { ChevronRight, RotateCcw, Pin, Pill, BookOpen } from 'lucide-react'
+import { ChevronRight, RotateCcw, Pin, Pill, BookOpen, MoreHorizontal } from 'lucide-react'
 import { SearchInput } from './SearchInput'
 import { ActionButton } from './ActionButton'
 import { HeaderPill, PillButton } from './HeaderPill'
@@ -15,7 +15,8 @@ import { HeatCategoryCalculator } from './HeatCategoryCalculator'
 import { NineLineKB, NineLineExport } from './Reports/NineLineKB'
 import { DatePickerCalendar } from './FormInputs'
 import { PreviewOverlay } from './PreviewOverlay'
-import { ContextMenu, type ContextMenuItem } from './ContextMenu'
+import { type ContextMenuItem } from './ContextMenu'
+import { LiftedRowMenu } from './LiftedRowMenu'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useNavPreferencesStore } from '../stores/useNavPreferencesStore'
 import { useShallow } from 'zustand/react/shallow'
@@ -413,6 +414,70 @@ type KBSearchResult = {
     onSelect: () => void
 }
 
+// ── Liftable KB row ───────────────────────────────────────────────────────────
+// Desktop: hover reveals an ellipsis; right-click. Mobile: long-press. All three
+// snapshot the row's rect + markup and feed the shared LiftedRowMenu twin-lift.
+function KBRow({
+    menuId,
+    onLift,
+    onClick,
+    className,
+    disabled,
+    dataTour,
+    children,
+}: {
+    menuId: string | null
+    onLift: (id: string, el: HTMLElement) => void
+    onClick: () => void
+    className: string
+    disabled?: boolean
+    dataTour?: string
+    children: React.ReactNode
+}) {
+    const btnRef = useRef<HTMLButtonElement>(null)
+    const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const fired = useRef(false)
+
+    const lift = useCallback(() => {
+        if (!menuId || !btnRef.current) return
+        fired.current = true
+        onLift(menuId, btnRef.current)
+    }, [menuId, onLift])
+
+    const clearTimer = useCallback(() => {
+        if (timer.current) { clearTimeout(timer.current); timer.current = null }
+    }, [])
+
+    return (
+        <div className="relative group">
+            <button
+                ref={btnRef}
+                disabled={disabled}
+                onClick={() => { if (fired.current) { fired.current = false; return } onClick() }}
+                onContextMenu={menuId ? (e) => { e.preventDefault(); lift() } : undefined}
+                onTouchStart={menuId ? () => { fired.current = false; clearTimer(); timer.current = setTimeout(lift, 500) } : undefined}
+                onTouchEnd={menuId ? clearTimer : undefined}
+                onTouchMove={menuId ? clearTimer : undefined}
+                onTouchCancel={menuId ? clearTimer : undefined}
+                {...(dataTour ? { 'data-tour': dataTour } : {})}
+                className={className}
+            >
+                {children}
+            </button>
+            {menuId && (
+                <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); lift() }}
+                    aria-label="Actions"
+                    className="hidden md:flex absolute right-2.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full
+                               hover:bg-primary/10 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                    <MoreHorizontal size={14} className="text-tertiary" />
+                </button>
+            )}
+        </div>
+    )
+}
+
 // ── KB Home View ────────────────────────────────────────────────────────────
 
 // Feature-gated IDs — hidden when the flag is off.
@@ -436,9 +501,13 @@ function KBHome({
     const { pinnedKB, togglePinKB } = useNavPreferencesStore(
         useShallow(s => ({ pinnedKB: s.pinnedKB, togglePinKB: s.togglePinKB }))
     )
-    const [contextMenu, setContextMenu] = useState<{ id: string; position: { x: number; y: number } } | null>(null)
-    const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const longPressTriggered = useRef(false)
+    const [lifted, setLifted] = useState<{ id: string; rect: DOMRect; html: string } | null>(null)
+
+    // Snapshot the pressed row (rect + markup) for the twin-lift float. Strip the
+    // inter-row separator so the cloned single row reads clean on its white card.
+    const handleLift = useCallback((id: string, el: HTMLElement) => {
+        setLifted({ id, rect: el.getBoundingClientRect(), html: el.outerHTML.replace(/border-t border-tertiary\/8/g, '') })
+    }, [])
 
     // Filter categories by feature gates
     const visibleCategories = useMemo(() =>
@@ -567,37 +636,6 @@ function KBHome({
         }
     }, [onCategoryClick, onSelectTask, onMedicationSelect, tc3Mode, visibleCategories])
 
-    // ── Long-press handlers for context menu ──────────────────
-    const handleTouchStart = useCallback((catId: string, e: React.TouchEvent) => {
-        longPressTriggered.current = false
-        const touch = e.touches[0]
-        const pos = { x: touch.clientX, y: touch.clientY }
-        longPressTimer.current = setTimeout(() => {
-            longPressTriggered.current = true
-            setContextMenu({ id: catId, position: pos })
-        }, 500)
-    }, [])
-
-    const handleTouchEnd = useCallback(() => {
-        if (longPressTimer.current) {
-            clearTimeout(longPressTimer.current)
-            longPressTimer.current = null
-        }
-    }, [])
-
-    const handleContextMenu = useCallback((catId: string, e: React.MouseEvent) => {
-        e.preventDefault()
-        setContextMenu({ id: catId, position: { x: e.clientX, y: e.clientY } })
-    }, [])
-
-    const handleCatClick = useCallback((cat: KBCategory) => {
-        if (longPressTriggered.current) {
-            longPressTriggered.current = false
-            return
-        }
-        onCategoryClick(cat)
-    }, [onCategoryClick])
-
     // ── Search results view ───────────────────────────────────
     if (searchResults) {
         if (searchResults.length === 0) {
@@ -651,15 +689,13 @@ function KBHome({
 
     // Shared category button renderer
     const renderCatButton = (cat: KBCategory, idx: number, tourAttr?: string) => (
-        <button
+        <KBRow
             key={cat.id}
-            onClick={() => handleCatClick(cat)}
+            menuId={cat.comingSoon ? null : cat.id}
             disabled={cat.comingSoon}
-            onContextMenu={!cat.comingSoon ? (e) => handleContextMenu(cat.id, e) : undefined}
-            onTouchStart={!cat.comingSoon ? (e) => handleTouchStart(cat.id, e) : undefined}
-            onTouchEnd={!cat.comingSoon ? handleTouchEnd : undefined}
-            onTouchCancel={!cat.comingSoon ? handleTouchEnd : undefined}
-            {...(tourAttr ? { 'data-tour': tourAttr } : {})}
+            dataTour={tourAttr}
+            onLift={handleLift}
+            onClick={() => onCategoryClick(cat)}
             className={`flex items-center w-full px-4 py-3.5 text-left transition-all
                 ${cat.comingSoon
                     ? 'opacity-40 cursor-not-allowed'
@@ -681,9 +717,9 @@ function KBHome({
                 <Pin size={12} className="text-themeblue2/40 shrink-0 mr-1" />
             )}
             {!cat.comingSoon && (
-                <ChevronRight size={16} className="text-tertiary shrink-0" />
+                <ChevronRight size={16} className="text-tertiary shrink-0 md:group-hover:opacity-0 transition-opacity" />
             )}
-        </button>
+        </KBRow>
     )
 
     return (
@@ -697,13 +733,11 @@ function KBHome({
                     <div className="rounded-xl bg-themewhite2/50 overflow-hidden">
                         {pinnedCategories.map((cat, idx) => renderCatButton(cat, idx))}
                         {pinnedMeds.map((med, idx) => (
-                            <button
+                            <KBRow
                                 key={`pin-med-${med.icon}`}
-                                onClick={() => { if (longPressTriggered.current) { longPressTriggered.current = false; return } onMedicationSelect(med) }}
-                                onContextMenu={(e) => { e.preventDefault(); setContextMenu({ id: 'med:' + med.icon, position: { x: e.clientX, y: e.clientY } }) }}
-                                onTouchStart={(e) => handleTouchStart('med:' + med.icon, e)}
-                                onTouchEnd={handleTouchEnd}
-                                onTouchCancel={handleTouchEnd}
+                                menuId={'med:' + med.icon}
+                                onLift={handleLift}
+                                onClick={() => onMedicationSelect(med)}
                                 className={`flex items-center w-full px-4 py-3.5 text-left transition-all
                                     hover:bg-themewhite2 active:scale-95 cursor-pointer
                                     ${(pinnedCategories.length + idx) > 0 ? 'border-t border-tertiary/8' : ''}`}
@@ -714,20 +748,15 @@ function KBHome({
                                     <p className="text-[9pt] text-tertiary">{med.text}</p>
                                 </div>
                                 <Pin size={12} className="text-themeblue2/40 shrink-0 mr-1" />
-                                <ChevronRight size={16} className="text-tertiary shrink-0" />
-                            </button>
+                                <ChevronRight size={16} className="text-tertiary shrink-0 md:group-hover:opacity-0 transition-opacity" />
+                            </KBRow>
                         ))}
                         {pinnedTasks.map((task, idx) => (
-                            <button
+                            <KBRow
                                 key={`pin-task-${task.icon}`}
-                                onClick={() => {
-                                    if (longPressTriggered.current) { longPressTriggered.current = false; return }
-                                    onSelectTask(task)
-                                }}
-                                onContextMenu={(e) => { e.preventDefault(); setContextMenu({ id: 'task:' + task.icon, position: { x: e.clientX, y: e.clientY } }) }}
-                                onTouchStart={(e) => handleTouchStart('task:' + task.icon, e)}
-                                onTouchEnd={handleTouchEnd}
-                                onTouchCancel={handleTouchEnd}
+                                menuId={'task:' + task.icon}
+                                onLift={handleLift}
+                                onClick={() => onSelectTask(task)}
                                 className={`flex items-center w-full px-4 py-3.5 text-left transition-all
                                     hover:bg-themewhite2 active:scale-95 cursor-pointer
                                     ${(pinnedCategories.length + pinnedMeds.length + idx) > 0 ? 'border-t border-tertiary/8' : ''}`}
@@ -738,8 +767,8 @@ function KBHome({
                                     <p className="text-[9pt] text-tertiary font-mono">{task.icon}</p>
                                 </div>
                                 <Pin size={12} className="text-themeblue2/40 shrink-0 mr-1" />
-                                <ChevronRight size={16} className="text-tertiary shrink-0" />
-                            </button>
+                                <ChevronRight size={16} className="text-tertiary shrink-0 md:group-hover:opacity-0 transition-opacity" />
+                            </KBRow>
                         ))}
                     </div>
                 </div>
@@ -770,18 +799,19 @@ function KBHome({
                     )
                 })}
 
-            {/* Context menu */}
-            {contextMenu && (
-                <ContextMenu
-                    x={contextMenu.position.x}
-                    y={contextMenu.position.y}
-                    onClose={() => setContextMenu(null)}
+            {/* Twin-lift context menu (mobile long-press / desktop right-click + hover ellipsis) */}
+            {lifted && (
+                <LiftedRowMenu
+                    isOpen={!!lifted}
+                    anchorRect={lifted.rect}
+                    row={<div dangerouslySetInnerHTML={{ __html: lifted.html }} />}
                     items={[{
                         key: 'pin',
-                        label: pinnedKB.includes(contextMenu.id) ? 'Unpin' : 'Pin',
+                        label: pinnedKB.includes(lifted.id) ? 'Unpin' : 'Pin',
                         icon: Pin,
-                        onAction: () => togglePinKB(contextMenu.id),
+                        onAction: () => togglePinKB(lifted.id),
                     }]}
+                    onClose={() => setLifted(null)}
                 />
             )}
         </div>

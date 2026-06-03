@@ -5,7 +5,7 @@ import { PreviewOverlay } from '../PreviewOverlay'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { supabase } from '../../lib/supabase'
 import { useMessagingStore } from '../../stores/useMessagingStore'
-import { getMemberProfile } from '../../lib/supervisorService'
+import { fetchProfileById } from '../../lib/peerLookup'
 import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 
@@ -153,17 +153,8 @@ export function GroupInfoPanel({
           clinicName: match.clinic_name ?? undefined,
         }
       } else if (lookupMode === 'code') {
-        const result = await getMemberProfile(value)
-        if (!result.ok) { setLookupError('No user found with that code'); return }
-        medic = {
-          id: value,
-          firstName: result.data.firstName,
-          lastName: result.data.lastName,
-          middleInitial: result.data.middleInitial,
-          rank: result.data.rank,
-          credential: result.data.credential,
-          avatarId: null,
-        }
+        medic = await fetchProfileById(value)
+        if (!medic) { setLookupError('No user found with that code'); return }
       }
       if (medic) {
         if (memberIds.has(medic.id)) {

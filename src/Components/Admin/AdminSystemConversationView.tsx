@@ -30,9 +30,14 @@ export interface AdminSystemConversationViewProps {
   onBack?: () => void
 }
 
+// Stable empty-array reference: returning a fresh `?? []` from a Zustand
+// selector makes useSyncExternalStore see a new snapshot every render →
+// "Maximum update depth exceeded" when the conversation is empty.
+const EMPTY_MESSAGES: DecryptedSignalMessage[] = []
+
 export function AdminSystemConversationView({ peerId, onBack }: AdminSystemConversationViewProps) {
   const ctx = useMessagesContext()
-  const rawMessages = useMessagingStore(s => s.conversations[peerId] ?? [])
+  const rawMessages = useMessagingStore(s => s.conversations[peerId] ?? EMPTY_MESSAGES)
   const sending = useMessagingStore(s => s.sendingMap[peerId] ?? false)
   const peerProfile = useMessagingStore(s => s.peerProfiles[peerId] ?? null)
 

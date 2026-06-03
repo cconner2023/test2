@@ -21,6 +21,7 @@ import { sameStringSet } from '../../Utilities/arrayEquals'
 import { ActionPill } from '../ActionPill'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
+import { OverlayActionMenu } from '../OverlayActionMenu'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import { SystemMessageComposePopover } from './SystemMessageComposePopover'
@@ -580,34 +581,33 @@ const AdminClinicDetail = ({
       <div ref={cardWrapperRef} className="relative mt-6">
         {clinic && !isCreateMode && (clinic.location_id || vaultMissing || (isDevRole && messagesCtx)) && (
           <div ref={sysMsgPillRef} onClick={(e) => e.stopPropagation()}>
-            <ActionPill shadow="sm" placement="overlay">
-              {isDevRole && messagesCtx && (
-                <ActionButton
-                  icon={MessageSquare}
-                  label="Send system message to this cluster"
-                  onClick={() => {
+            <OverlayActionMenu
+              items={[
+                ...(isDevRole && messagesCtx ? [{
+                  key: 'send-msg',
+                  label: 'Send system message to this cluster',
+                  icon: MessageSquare,
+                  onAction: () => {
                     const rect = sysMsgPillRef.current?.getBoundingClientRect() ?? null
                     setSysMsgAnchor(rect)
-                  }}
-                />
-              )}
-              {clinic.location_id && (
-                <ActionButton
-                  icon={RefreshCw}
-                  label={rescuing ? 'Rescuing peers…' : 'Rescue peer associations at this location'}
-                  variant={rescuing ? 'disabled' : 'default'}
-                  onClick={handleRescueAssociations}
-                />
-              )}
-              {vaultMissing && (
-                <ActionButton
-                  icon={vaultProvisioning ? RefreshCw : Key}
-                  label={vaultProvisioning ? 'Provisioning vault…' : "Provision this cluster's encryption identity"}
-                  variant={vaultProvisioning ? 'disabled' : 'danger'}
-                  onClick={handleProvisionVault}
-                />
-              )}
-            </ActionPill>
+                  },
+                }] as ContextMenuItem[] : []),
+                ...(clinic.location_id ? [{
+                  key: 'rescue',
+                  label: rescuing ? 'Rescuing peers…' : 'Rescue peer associations at this location',
+                  icon: RefreshCw,
+                  variant: rescuing ? 'disabled' : 'default',
+                  onAction: handleRescueAssociations,
+                }] as ContextMenuItem[] : []),
+                ...(vaultMissing ? [{
+                  key: 'provision',
+                  label: vaultProvisioning ? 'Provisioning vault…' : "Provision this cluster's encryption identity",
+                  icon: vaultProvisioning ? RefreshCw : Key,
+                  variant: vaultProvisioning ? 'disabled' : 'danger',
+                  onAction: handleProvisionVault,
+                }] as ContextMenuItem[] : []),
+              ]}
+            />
           </div>
         )}
 

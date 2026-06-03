@@ -34,6 +34,8 @@ import { PreviewOverlay } from '../PreviewOverlay'
 import { TextInput } from '../FormInputs'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
+import { OverlayActionMenu } from '../OverlayActionMenu'
+import { type ContextMenuItem } from '../ContextMenu'
 
 const MAX_OPTIONS_PER_CYCLE = 3
 
@@ -371,26 +373,19 @@ export function AdminFeatureVotesSection() {
                   {/* Options card + overlay action pill riding the top edge (lifted
                       to a sibling of the overflow-hidden card so it isn't clipped) */}
                   <div className="relative">
-                    <ActionPill ref={addPillRef} placement="overlay">
-                      {canAddOption && (
-                        <ActionButton
-                          icon={Plus}
-                          label="Add option"
-                          onClick={() => openAddOptionPopover(cycle.id)}
-                        />
-                      )}
-                      <ActionButton
-                        icon={Lock}
-                        label="Close cycle"
-                        onClick={() => setConfirmCloseCycle(cycle.id)}
-                      />
-                      <ActionButton
-                        icon={Trash2}
-                        label="Delete cycle"
-                        variant="danger"
-                        onClick={() => setConfirmDeleteCycle(cycle.id)}
-                      />
-                    </ActionPill>
+                    <OverlayActionMenu
+                      ref={addPillRef}
+                      items={[
+                        ...(canAddOption ? [{
+                          key: 'add',
+                          label: 'Add option',
+                          icon: Plus,
+                          onAction: () => openAddOptionPopover(cycle.id),
+                        }] as ContextMenuItem[] : []),
+                        { key: 'close', label: 'Close cycle', icon: Lock, onAction: () => setConfirmCloseCycle(cycle.id) },
+                        { key: 'delete', label: 'Delete cycle', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteCycle(cycle.id) },
+                      ]}
+                    />
                     <div className="w-full rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
                     {candidates.length === 0 ? (
                       <EmptyState title="No options yet" bordered={false} />
