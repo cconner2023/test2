@@ -1000,6 +1000,13 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     if (!isDevRole) return rawConversations
     const out: Record<string, typeof rawConversations[string]> = {}
     for (const [key, msgs] of Object.entries(rawConversations)) {
+      // The dev's own conversation WITH System (key === SYSTEM_USER_ID) is
+      // personal, not operator-console traffic: System-direct notices the dev
+      // RECEIVES, outside-origin cards, and the dev's own replies all bucket
+      // here. It is already excluded from the admin console
+      // (useAdminSystemConversations skips the SYSTEM peer), so keep it whole —
+      // otherwise it renders nowhere for a dev.
+      if (key === SYSTEM_USER_ID) { out[key] = msgs; continue }
       // Strip operator↔user system traffic (it lives in the AdminDrawer), but
       // KEEP outside-origin cards (intake requests, outside→cluster chat, on-call
       // call records): a dev triages their own cluster's intake/chat/call traffic
@@ -1018,12 +1025,13 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   const peerProfiles = useMessagingStore(s => s.peerProfiles)
 
   const allMedics = useMemo(() => {
-    // For dev users the synthetic SYSTEM peer never belongs in personal
-    // Messages — it appears as conversation cards only inside AdminDrawer.
-    // Non-dev recipients legitimately see the SYSTEM peer in their personal
-    // MessagesDrawer (that's how they receive admin/system notices), so leave
-    // it intact for them.
-    const peerList = Object.values(peerProfiles).filter(m => !(isDevRole && m.id === SYSTEM_USER_ID))
+    // The synthetic SYSTEM peer is kept for everyone (devs included): when a dev
+    // is the RECIPIENT of System-direct traffic it must resolve to "System" in
+    // the conversation list / chat header. The `extras` gate below still only
+    // surfaces it when there's an actual System conversation (messages > 0) or
+    // it's the open peer, so it never pollutes an empty contact list/autocomplete
+    // — outbound operator↔user threads bucket under the USER's id, not SYSTEM.
+    const peerList = Object.values(peerProfiles)
     if (peerList.length === 0) return medics
     const have = new Set(medics.map(m => m.id))
     // Outside-cluster peer profiles haunt the contact list forever otherwise:
@@ -1040,7 +1048,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
       ),
     )
     return extras.length === 0 ? medics : [...medics, ...extras]
-  }, [medics, peerProfiles, isDevRole, conversations, selectedPeerId])
+  }, [medics, peerProfiles, conversations, selectedPeerId])
 
   // Batch-check which contacts have active devices
   const medicIds = useMemo(() => allMedics.map(m => m.id), [allMedics])

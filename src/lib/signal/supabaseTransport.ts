@@ -215,6 +215,23 @@ export class SupabaseTransport implements SignalTransport {
     return ok(undefined)
   }
 
+  // Dev-gated purge for SYSTEM-authored rows (operator outbound via
+  // send_signal_message_as_system stamps sender_id = SYSTEM). The sender-scoped
+  // hardDeleteByOriginId (sender_id = auth.uid() = the dev) cannot touch them and
+  // hardDeleteRecipientOrigin is recipient-scoped; this RPC deletes every copy
+  // server-side (SECURITY DEFINER bypasses RLS, is_dev() gated).
+  async hardDeleteSystemOrigin(originIds: string[]): Promise<Result<void>> {
+    if (originIds.length === 0) return ok(undefined)
+
+    const rpcResult = await this.runQuery<number>(
+      () => supabase.rpc('hard_delete_system_origin', { p_origin_ids: originIds }),
+      'hardDeleteSystemOrigin:rpc',
+    )
+    if (!rpcResult.ok) logger.warn('hardDeleteSystemOrigin RPC error:', rpcResult.error)
+    else logger.info(`Hard-deleted SYSTEM-authored origins: ${rpcResult.data} rows`)
+    return ok(undefined)
+  }
+
   async fetchConversation(userId: string, peerId: string, limit: number = 50): Promise<Result<SignalMessageRow[]>> {
     return this.runQuery<SignalMessageRow[]>(
       () => supabase

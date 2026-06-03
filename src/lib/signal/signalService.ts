@@ -347,6 +347,16 @@ export async function hardDeleteRecipientOrigin(
   return transportManager.hardDeleteRecipientOrigin(originIds)
 }
 
+/** Dev-gated purge of SYSTEM-authored rows (sender_id = SYSTEM, e.g. operator
+ *  outbound via send_signal_message_as_system). The sender-scoped
+ *  hardDeleteByOriginId (sender_id = auth.uid()) and recipient-scoped
+ *  hardDeleteRecipientOrigin both miss these rows. is_dev() gated server-side. */
+export async function hardDeleteSystemOrigin(
+  originIds: string[]
+): Promise<Result<void>> {
+  return transportManager.hardDeleteSystemOrigin(originIds)
+}
+
 export async function fetchConversation(
   userId: string,
   peerId: string,

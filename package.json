@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/build-locations-seed.mjs",
     "build": "vite build",
+    "seed:locations": "node scripts/build-locations-seed.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "deploy": "npm run build && gh-pages -d dist",

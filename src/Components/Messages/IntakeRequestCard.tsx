@@ -5,8 +5,7 @@ import { useCalendarWrite } from '../../Hooks/useCalendarWrite'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import { useMessagingStore } from '../../stores/useMessagingStore'
 import { ConfirmDialog } from '../ConfirmDialog'
-import { ActionPill } from '../ActionPill'
-import { ActionButton } from '../ActionButton'
+import { OverlayActionMenu } from '../OverlayActionMenu'
 import { intakeAction } from '../../lib/eventIntakeService'
 import { deleteMessagesByOriginId as deleteMessagesByOriginIdFromDb } from '../../lib/signal/messageStore'
 import { formatSignature } from '../../Utilities/NoteFormatter'
@@ -220,11 +219,13 @@ export function IntakeRequestCard({ message, content, isOwn, avatar, senderName,
           </div>
 
           {actionable && (
-            <ActionPill shadow="sm" placement="overlay">
-              <ActionButton icon={Mail} label="Email requester" onClick={onEmail} variant={busy ? 'disabled' : 'default'} />
-              <ActionButton icon={Check} label="Approve and create event" onClick={onApprove} variant={busy ? 'disabled' : 'success'} />
-              <ActionButton icon={X} label="Decline and remove request" onClick={() => setConfirmDecline(true)} variant={busy ? 'disabled' : 'danger'} />
-            </ActionPill>
+            <OverlayActionMenu
+              items={[
+                { key: 'email', label: 'Email requester', icon: Mail, onAction: onEmail, variant: busy ? 'disabled' : 'default' },
+                { key: 'approve', label: 'Approve and create event', icon: Check, onAction: onApprove, variant: busy ? 'disabled' : 'success' },
+                { key: 'decline', label: 'Decline and remove request', icon: X, onAction: () => setConfirmDecline(true), variant: busy ? 'disabled' : 'danger' },
+              ]}
+            />
           )}
         </div>
       </div>

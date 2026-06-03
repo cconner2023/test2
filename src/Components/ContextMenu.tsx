@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { LucideIcon } from 'lucide-react'
-import { ActionButton } from './ActionButton'
+import { ActionButton, type ActionButtonVariant } from './ActionButton'
 import { ActionPill } from './ActionPill'
 
 export interface ContextMenuItem {
@@ -11,8 +11,15 @@ export interface ContextMenuItem {
   onAction?: () => void
   destructive?: boolean
   disabled?: boolean
+  /** Explicit ActionButton variant — wins over destructive/disabled. Use for 'success' etc. */
+  variant?: ActionButtonVariant
   /** When set, tapping this item swaps the menu to show these items instead of running onAction. */
   submenu?: ContextMenuItem[]
+}
+
+/** Resolve an item's ActionButton variant: explicit variant wins, else disabled > destructive > default. */
+export function contextMenuItemVariant(item: ContextMenuItem): ActionButtonVariant {
+  return item.variant ?? (item.disabled ? 'disabled' : item.destructive ? 'danger' : 'default')
 }
 
 interface ContextMenuProps {
@@ -80,7 +87,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
             key={item.key}
             icon={item.icon}
             label={item.label}
-            variant={item.disabled ? 'disabled' : item.destructive ? 'danger' : 'default'}
+            variant={contextMenuItemVariant(item)}
             iconSize={14}
             onClick={() => {
               if (item.submenu) { setSubmenuItems(item.submenu); return }

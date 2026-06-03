@@ -46,6 +46,7 @@ export interface SignalTransport {
   deleteMessages(messageIds: string[]): Promise<Result<void>>
   hardDeleteByOriginId(originIds: string[]): Promise<Result<void>>
   hardDeleteRecipientOrigin(originIds: string[]): Promise<Result<void>>
+  hardDeleteSystemOrigin(originIds: string[]): Promise<Result<void>>
   fetchConversation(userId: string, peerId: string, limit?: number): Promise<Result<SignalMessageRow[]>>
   fetchGroupConversation(groupId: string, limit?: number): Promise<Result<SignalMessageRow[]>>
   isAvailable(): boolean
@@ -188,6 +189,11 @@ export class TransportManager {
   async hardDeleteRecipientOrigin(originIds: string[]): Promise<Result<void>> {
     if (!this.primary) return err('No transport configured')
     return this.primary.hardDeleteRecipientOrigin(originIds)
+  }
+
+  async hardDeleteSystemOrigin(originIds: string[]): Promise<Result<void>> {
+    if (!this.primary) return err('No transport configured')
+    return this.primary.hardDeleteSystemOrigin(originIds)
   }
 
   async fetchConversation(userId: string, peerId: string, limit?: number): Promise<Result<SignalMessageRow[]>> {

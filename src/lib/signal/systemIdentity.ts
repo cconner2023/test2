@@ -1020,6 +1020,51 @@ async function _drainSystemInboxImpl(): Promise<number> {
         continue
       }
 
+      // System "sent copy": a SYSTEM-addressed mirror of an operator OUTBOUND
+      // message (authored by sendSystemMessageToUser). The sealed-sender here is
+      // the dev, but the message belongs in the dev↔user thread as the dev's OWN
+      // outbound — re-key under forPeerId rather than the generic senderUuid.
+      // This is what lets the admin panel reconstruct the SENT side on any dev
+      // device without waiting for a reply (the dev→user rows are sealed to the
+      // user and never reach this drain). Mirrors the 'delete' wire-framing above.
+      try {
+        const sentCopy = JSON.parse(plaintext) as {
+          __systemSentCopy?: boolean
+          forPeerId?: string
+          serialized?: string
+          originalMessageId?: string
+          originalTimestamp?: string
+        }
+        if (sentCopy.__systemSentCopy && sentCopy.forPeerId && sentCopy.serialized) {
+          const conversationKey = sentCopy.forPeerId
+          const tombstoneAt = await getTombstone(conversationKey)
+          if (!tombstoneAt || row.created_at >= tombstoneAt) {
+            const { plaintext: outText, content: outContent, replyTo: outReply } =
+              parseMessageContent(sentCopy.serialized)
+            const msg: DecryptedSignalMessage = {
+              id: sentCopy.originalMessageId ?? row.id,
+              senderId: senderUuid, // the authoring dev → renders as own/outbound on the dev's devices
+              recipientId: conversationKey,
+              plaintext: outText,
+              content: outContent,
+              messageType: 'system',
+              createdAt: sentCopy.originalTimestamp ?? row.created_at,
+              readAt: new Date().toISOString(), // own outbound — never unread
+              ...(outReply && { threadId: outReply.messageId, replyPreview: outReply.preview }),
+              originId: row.origin_id ?? undefined,
+            }
+            const { useAuthStore } = await import('../../stores/useAuthStore')
+            const devUserId = useAuthStore.getState().user?.id
+            if (devUserId) await saveMessage(msg, devUserId)
+            useMessagingStore.getState().addMessage(msg)
+            // Deliberately NOT firing _systemMessageListeners — never toast the
+            // operator for their own sent message.
+          }
+          processedIds.push(row.id)
+          continue
+        }
+      } catch { /* not a sent-copy wrapper — fall through to normal routing */ }
+
       // Route the decrypted payload.
       const { plaintext: displayText, content, replyTo } = parseMessageContent(plaintext)
       const isCal = isCalendarEvent(content)

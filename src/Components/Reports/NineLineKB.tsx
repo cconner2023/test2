@@ -9,6 +9,7 @@ import type { MedevacRequest } from '../../Types/MedevacTypes'
 import { medevacPatientTotal } from '../../Types/MedevacTypes'
 import { medevacToText, medevacToCompact, copyToClipboard, printReport } from '../../lib/reportExport'
 import { ActionPill } from '../ActionPill'
+import { OverlayActionMenu } from '../OverlayActionMenu'
 
 function hasContent(req: MedevacRequest): boolean {
   return !!(req.l1 || req.l2f || req.l2c || medevacPatientTotal(req) > 0)
@@ -96,11 +97,13 @@ export function NineLineExport({ req, onClear }: NineLineExportProps) {
             {text}
           </div>
         </div>
-        <ActionPill shadow="sm" placement="overlay">
-          <ActionButton icon={copiedText ? Check : Copy} label="Copy text" onClick={handleCopyText} variant={copiedText ? 'success' : 'default'} />
-          <ActionButton icon={Printer} label="Print" onClick={handlePrint} />
-          <ActionButton icon={RefreshCw} label="Clear form" variant="danger" onClick={onClear} />
-        </ActionPill>
+        <OverlayActionMenu
+          items={[
+            { key: 'copy', label: 'Copy text', icon: copiedText ? Check : Copy, onAction: handleCopyText, variant: copiedText ? 'success' : 'default' },
+            { key: 'print', label: 'Print', icon: Printer, onAction: handlePrint },
+            { key: 'clear', label: 'Clear form', icon: RefreshCw, destructive: true, onAction: onClear },
+          ]}
+        />
       </div>
 
       {/* Data Matrix — compact encoding, not prose text */}

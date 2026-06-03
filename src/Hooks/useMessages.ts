@@ -25,6 +25,7 @@ import {
   markMessagesRead,
   hardDeleteByOriginId,
   hardDeleteRecipientOrigin,
+  hardDeleteSystemOrigin,
 } from '../lib/signal/signalService'
 import {
   fetchMyGroups as fetchMyGroupsRpc,
@@ -1178,6 +1179,35 @@ export function useMessages(): UseMessagesReturn {
       }
 
       updateMessageStatus(peerId, localId, firstServerId)
+
+      // Author a SYSTEM-addressed "sent copy" so drain_system_inbox can
+      // reconstruct the operator's OUTBOUND side on any dev device. The
+      // dev→user rows above are sealed to the USER (recipient_id=user) and are
+      // never drained (drain fetches recipient_id=SYSTEM only), so without this
+      // the admin thread only repopulates once the user replies. Mirrors the
+      // System-reply transport: force a fresh X3DH InitialMessage (drain does
+      // not persist receiver ratchet state across batches) and encrypt to
+      // SYSTEM. The wrapper carries forPeerId because the SYSTEM envelope's
+      // sealed-sender is the dev, not the target user; reusing the SAME originId
+      // lets the sending device de-dupe its own optimistic copy on a later
+      // drain. Best-effort — the operator message is already delivered.
+      const localDeviceId = useMessagingStore.getState().localDeviceId
+      if (localDeviceId) {
+        const sentCopy = JSON.stringify({
+          __systemSentCopy: true,
+          forPeerId: peerId,
+          serialized,
+          originalMessageId: firstServerId,
+          originalTimestamp: now,
+        })
+        try {
+          await deleteSessionsForPeer(SYSTEM_USER_ID)
+          await encryptAndSendToPeer(userId, localDeviceId, SYSTEM_USER_ID, sentCopy, 'message', undefined, originId)
+        } catch (e) {
+          logger.warn('Failed to author system sent-copy:', e instanceof Error ? e.message : e)
+        }
+      }
+
       return true
     } catch (e) {
       logger.error('sendSystemMessageToUser error:', e instanceof Error ? e.message : e)
@@ -1931,7 +1961,24 @@ export function useMessages(): UseMessagesReturn {
     purge(originIds).catch(e =>
       logger.warn('Failed to hard-delete from Supabase:', e instanceof Error ? e.message : e)
     )
-  }, [userId])
+
+    // Operator outbound + system-direct messages (messageType='system') are
+    // authored via send_signal_message_as_system, which stamps sender_id=SYSTEM.
+    // Neither the sender-scoped (sender_id=auth.uid()=dev) nor the
+    // recipient-scoped purge above touches them, so they'd survive server-side
+    // and resurrect on a fresh device. Add a dev-gated SYSTEM-origin purge.
+    // SYSTEM is a real device-backed identity (user_devices 'primary'); only a
+    // dev holds its keys, so the RPC is is_dev() gated and harmlessly no-ops for
+    // non-SYSTEM origins.
+    const hasSystemAuthored = isDevRole && messageIds.some(
+      id => msgs.find(m => m.id === id)?.messageType === 'system',
+    )
+    if (hasSystemAuthored) {
+      hardDeleteSystemOrigin(originIds).catch(e =>
+        logger.warn('Failed to hard-delete SYSTEM-authored rows:', e instanceof Error ? e.message : e)
+      )
+    }
+  }, [userId, isDevRole])
 
   /** Delete an entire conversation from state, unread counts, IDB, Supabase, and write tombstone. */
   const deleteConversation = useCallback(async (conversationKey: string) => {
