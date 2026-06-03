@@ -9,6 +9,7 @@ import { ConfirmDialog } from '../ConfirmDialog'
 import { EmptyState } from '../EmptyState'
 import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
+import { OverlayActionMenu } from '../OverlayActionMenu'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { TextInput } from '../FormInputs'
 import { validatePasswordComplexity } from '../../lib/constants'
@@ -484,24 +485,13 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
             </div>
           </div>
 
-          <ActionPill shadow="sm" placement="overlay">
-            <ActionButton
-              icon={RefreshCw}
-              label="Rotate passcode"
-              onClick={() => setConfirmRotatePasscode(true)}
-            />
-            <ActionButton
-              icon={KeyRound}
-              label="Rotate passphrase"
-              onClick={openRotatePassphrase}
-            />
-            <ActionButton
-              icon={Trash2}
-              label="Kill credential"
-              variant="danger"
-              onClick={() => setConfirmKill(true)}
-            />
-          </ActionPill>
+          <OverlayActionMenu
+            items={[
+              { key: 'rotate-passcode', label: 'Rotate passcode', icon: RefreshCw, onAction: () => setConfirmRotatePasscode(true) },
+              { key: 'rotate-passphrase', label: 'Rotate passphrase', icon: KeyRound, onAction: openRotatePassphrase },
+              { key: 'kill', label: 'Kill credential', icon: Trash2, destructive: true, onAction: () => setConfirmKill(true) },
+            ]}
+          />
         </div>
       )}
 
