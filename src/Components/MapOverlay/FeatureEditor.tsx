@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { Copy, Check, ChevronDown, Spline, Hexagon, Share2 } from 'lucide-react';
+import { Copy, Check, ChevronDown, Spline, Hexagon, Share2, Navigation } from 'lucide-react';
 import { latLngToMgrs } from '../../lib/mgrsFormat';
 import { latLngToUTM } from './utmProjection';
 import type { OverlayFeature, WaypointType } from '../../Types/MapOverlayTypes';
@@ -327,6 +327,15 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
     return `https://www.google.com/maps?q=${lat},${lng}`;
   }, [feature.geometry]);
 
+  // Directions deep-link for the feature anchor. The api=1 universal-link form
+  // opens the Google Maps app when installed (iOS/Android) and otherwise falls
+  // back to web Google Maps — works as a plain tappable <a> on iOS Safari.
+  const mapsDirUrl = useMemo(() => {
+    if (feature.geometry.length === 0) return '';
+    const [lat, lng] = feature.geometry[0];
+    return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+  }, [feature.geometry]);
+
   const handleShareLocation = useCallback(() => {
     if (!mapsShareUrl) return;
     const title = feature.label || 'Location';
@@ -397,15 +406,27 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
             <div className="text-[9pt] text-tertiary truncate">
               {addressLoading ? 'Locating…' : (address || 'No address')}
             </div>
-            <button
-              type="button"
-              onClick={handleShareLocation}
-              className="mt-1 self-start flex items-center gap-1.5 text-[9pt] font-medium text-themeblue3 active:scale-95 transition-all"
-            >
-              {shareCopied
-                ? <><Check size={12} /> Link copied</>
-                : <><Share2 size={12} /> Share location</>}
-            </button>
+            <div className="mt-1 flex items-center gap-4">
+              {mapsDirUrl && (
+                <a
+                  href={mapsDirUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-[9pt] font-medium text-themeblue3 active:scale-95 transition-all"
+                >
+                  <Navigation size={12} /> Directions
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={handleShareLocation}
+                className="flex items-center gap-1.5 text-[9pt] font-medium text-tertiary active:scale-95 transition-all"
+              >
+                {shareCopied
+                  ? <><Check size={12} /> Link copied</>
+                  : <><Share2 size={12} /> Share location</>}
+              </button>
+            </div>
           </div>
         </div>
       )}

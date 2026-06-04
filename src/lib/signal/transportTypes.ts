@@ -126,6 +126,10 @@ export interface DecryptedSignalMessage {
   groupId?: string
   /** Shared origin UUID across all fan-out copies (for delete-for-everyone). */
   originId?: string
+  /** Emoji reactions folded onto this message: emoji code → reactor userIds.
+   *  Populated out-of-band by incoming `reaction` content (never a bubble);
+   *  persists with the message row and survives reload. */
+  reactions?: Record<string, string[]>
   /** Populated on read-sync messages — signals that peer's messages were read on another device. */
   _readSync?: { peerId: string; messageIds: string[]; readAt: string }
   /** Present when this message is a delivery receipt (not a user-visible message). */

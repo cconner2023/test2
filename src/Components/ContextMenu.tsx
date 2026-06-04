@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { LucideIcon } from 'lucide-react'
 import { ActionButton, type ActionButtonVariant } from './ActionButton'
@@ -7,7 +7,10 @@ import { ActionPill } from './ActionPill'
 export interface ContextMenuItem {
   key: string
   label: string
-  icon: LucideIcon
+  /** Lucide icon — required unless `node` supplies a custom glyph. */
+  icon?: LucideIcon
+  /** Custom glyph (e.g. a themed reaction SVG). Wins over `icon` when set. */
+  node?: ReactNode
   onAction?: () => void
   destructive?: boolean
   disabled?: boolean
@@ -15,6 +18,31 @@ export interface ContextMenuItem {
   variant?: ActionButtonVariant
   /** When set, tapping this item swaps the menu to show these items instead of running onAction. */
   submenu?: ContextMenuItem[]
+}
+
+/** Render a single menu item — a custom-glyph button when `node` is set, else an ActionButton. */
+export function MenuItemButton({ item, onSelect }: { item: ContextMenuItem; onSelect: (item: ContextMenuItem) => void }) {
+  if (item.node) {
+    return (
+      <button
+        aria-label={item.label}
+        title={item.label}
+        onClick={() => onSelect(item)}
+        className="w-9 h-9 rounded-full flex items-center justify-center bg-themeblue2/8 active:scale-95 transition-all"
+      >
+        {item.node}
+      </button>
+    )
+  }
+  return (
+    <ActionButton
+      icon={item.icon!}
+      label={item.label}
+      variant={contextMenuItemVariant(item)}
+      iconSize={14}
+      onClick={() => onSelect(item)}
+    />
+  )
 }
 
 /** Resolve an item's ActionButton variant: explicit variant wins, else disabled > destructive > default. */
@@ -83,15 +111,12 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
         className="transform-gpu"
       >
         {activeItems.map((item) => (
-          <ActionButton
+          <MenuItemButton
             key={item.key}
-            icon={item.icon}
-            label={item.label}
-            variant={contextMenuItemVariant(item)}
-            iconSize={14}
-            onClick={() => {
-              if (item.submenu) { setSubmenuItems(item.submenu); return }
-              item.onAction?.()
+            item={item}
+            onSelect={(it) => {
+              if (it.submenu) { setSubmenuItems(it.submenu); return }
+              it.onAction?.()
               onClose()
             }}
           />

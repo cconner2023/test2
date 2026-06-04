@@ -88,6 +88,7 @@ export function RequestCard({
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmReject, setConfirmReject] = useState(false)
+  const [rejectReason, setRejectReason] = useState('')
 
   // Approve flow — once approveAccountRequest succeeds the account exists and
   // cannot be re-created; subsequent retries skip step 1 and only re-run the
@@ -262,19 +263,22 @@ export function RequestCard({
   }, [runApproveSteps])
 
   const handleReject = useCallback(async () => {
-    setConfirmReject(false)
+    const reason = rejectReason.trim()
+    if (!reason) return
     setProcessing(true)
     setError(null)
-    const result = await rejectAccountRequest(request.id, '')
+    const result = await rejectAccountRequest(request.id, reason)
     setProcessing(false)
     if (result.success) {
+      setConfirmReject(false)
+      setRejectReason('')
       setExpandedId(null)
       invalidate('requests')
       onRefresh()
     } else {
       setError(result.error || 'Failed to reject request')
     }
-  }, [request.id, setExpandedId, onRefresh])
+  }, [request.id, rejectReason, setExpandedId, onRefresh])
 
   const handleReopen = useCallback(async () => {
     setProcessing(true)
@@ -595,13 +599,16 @@ export function RequestCard({
       <ConfirmDialog
         visible={confirmReject}
         title={`Reject ${request.first_name ?? ''} ${request.last_name ?? 'this request'}?`}
-        subtitle="The requester will see their account was rejected."
+        subtitle="The requester will see this reason."
         confirmLabel="Reject"
         variant="danger"
         processing={processing}
         zIndex={Z.POPOVER + 30}
+        inputValue={rejectReason}
+        onInputChange={setRejectReason}
+        inputPlaceholder="Reason for rejection *"
         onConfirm={handleReject}
-        onCancel={() => setConfirmReject(false)}
+        onCancel={() => { setConfirmReject(false); setRejectReason('') }}
       />
     </>
   )

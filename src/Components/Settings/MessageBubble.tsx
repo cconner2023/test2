@@ -4,9 +4,11 @@ import { ActionButton } from '../ActionButton'
 import { GESTURE_THRESHOLDS, isInteractiveTarget } from '../../Utilities/GestureUtils'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import { downloadDecryptedAttachment } from '../../lib/signal/attachmentService'
+import { ReactionChips, hasReactions, type ReactionCode } from '../Messages/ReactionGlyphs'
 import { IntakeRequestCard } from '../Messages/IntakeRequestCard'
 import { OncallCallCard } from '../Messages/OncallCallCard'
 import { OutsideMessageCard } from '../Messages/OutsideMessageCard'
+import { OverlaySnapshot } from '../MapOverlay/OverlaySnapshot'
 import { detectFirstDate } from '../../Utilities/dateDetect'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useAuthStore } from '../../stores/useAuthStore'
@@ -43,6 +45,10 @@ interface MessageBubbleProps {
   conversationPeerName?: string | null
   /** Briefly ring this bubble — set when we return the user to it from calendar. */
   highlighted?: boolean
+  /** Toggle an emoji reaction on this message. When set, the reaction chip row renders. */
+  onReact?: (message: DecryptedSignalMessage, emoji: ReactionCode) => void
+  /** Current user id — highlights the user's own reaction chips. */
+  myUserId?: string
 }
 
 function formatTime(iso: string): string {
@@ -140,6 +146,8 @@ export function MessageBubble({
   conversationIsGroup = false,
   conversationPeerName,
   highlighted = false,
+  onReact,
+  myUserId,
 }: MessageBubbleProps) {
   const touchRef = useRef<{
     startX: number
@@ -441,7 +449,7 @@ export function MessageBubble({
   const renderContent = () => {
     if (sharedRef) {
       const RefIcon = sharedRef.refKind === 'calendar-event' ? Calendar : sharedRef.refKind === 'property-item' ? Package : MapIcon
-      return (
+      const refRow = (
         <button
           onClick={handleOpenRef}
           className={`flex items-center gap-2.5 min-w-[180px] max-w-[240px] -mx-1 px-2 py-1 rounded-lg active:scale-[0.98] transition-all text-left
@@ -459,6 +467,24 @@ export function MessageBubble({
           <ChevronRight size={16} className={`shrink-0 ${isOwn ? 'text-white/60' : 'text-tertiary'}`} />
         </button>
       )
+      // A shared map overlay shows a static thumbnail of its features above the
+      // row. Resolves from the local overlays cache; falls back to a map-icon
+      // placeholder when the overlay hasn't synced in yet.
+      if (sharedRef.refKind === 'map-overlay') {
+        return (
+          <div className="flex flex-col gap-1.5">
+            <OverlaySnapshot
+              overlayId={sharedRef.refId}
+              width={240}
+              height={120}
+              onClick={handleOpenRef}
+              className="rounded-lg"
+            />
+            {refRow}
+          </div>
+        )
+      }
+      return refRow
     }
 
     if (isEditing && !isImage) {
@@ -632,8 +658,9 @@ export function MessageBubble({
 
   return (
     <>
-      {/* Full-width layout container — group enables hover-only ellipsis on desktop */}
-      <div className={`group flex ${isOwn ? 'justify-end' : 'justify-start'} items-center px-1 mb-1.5`}>
+      {/* Full-width layout container — group enables hover-only ellipsis on desktop.
+          Extra bottom room when reaction badges overhang the bubble's bottom edge. */}
+      <div className={`group flex ${isOwn ? 'justify-end' : 'justify-start'} items-center px-1 ${onReact && hasReactions(message.reactions) ? 'mb-4' : 'mb-1.5'}`}>
         {/* Hover ellipses (desktop only) — left of own bubble */}
         {isOwn && onLongPress && (
           <button
@@ -700,7 +727,7 @@ export function MessageBubble({
             className="relative z-[1] select-none"
           >
             <div
-              className={`rounded-2xl ${isImage && !isVoice ? 'p-1.5' : 'px-3.5 py-2'}
+              className={`relative rounded-2xl ${isImage && !isVoice ? 'p-1.5' : 'px-3.5 py-2'}
                          ${isOwn ? 'bg-themeblue3 text-white rounded-br-md' : 'bg-themewhite2 text-primary rounded-bl-md'}
                          ${highlighted ? 'ring-2 ring-themeblue3/60 ring-offset-1' : ''}
                          ${tapped ? 'scale-[0.92] brightness-90' : ''} transition-all duration-150 ease-out`}
@@ -730,6 +757,16 @@ export function MessageBubble({
                   <Check size={10} className="opacity-60" />
                 )}
               </div>
+
+              {/* Circular emoji reaction badges — straddle the bubble's bottom corner. */}
+              {onReact && (
+                <ReactionChips
+                  reactions={message.reactions}
+                  myUserId={myUserId}
+                  align={isOwn ? 'right' : 'left'}
+                  onToggle={code => onReact(message, code)}
+                />
+              )}
             </div>
 
             {/* Thread reply count badge */}

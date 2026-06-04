@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
-import { ActionButton } from './ActionButton'
 import { ActionPill } from './ActionPill'
-import type { ContextMenuItem } from './ContextMenu'
+import { MenuItemButton, type ContextMenuItem } from './ContextMenu'
 
 interface LiftedRowMenuProps {
   isOpen: boolean
@@ -33,10 +32,12 @@ const BASE_LIFT = 34 // baseline upward pop so the row always visibly detaches
  */
 export function LiftedRowMenu({ isOpen, anchorRect, row, items, onClose, bare = false, align = 'left' }: LiftedRowMenuProps) {
   const [visible, setVisible] = useState(false)
+  const [submenuItems, setSubmenuItems] = useState<ContextMenuItem[] | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const activeItems = submenuItems ?? items
 
   useEffect(() => {
-    if (!isOpen) { setVisible(false); return }
+    if (!isOpen) { setVisible(false); setSubmenuItems(null); return }
     const raf = requestAnimationFrame(() => setVisible(true))
     return () => cancelAnimationFrame(raf)
   }, [isOpen])
@@ -55,7 +56,7 @@ export function LiftedRowMenu({ isOpen, anchorRect, row, items, onClose, bare = 
   const lift = Math.min(desiredLift, maxLift)
 
   const menuTop = anchorRect.bottom - lift + GAP
-  const pillWidth = items.length * 40 + 12
+  const pillWidth = activeItems.length * 40 + 12
   const rawLeft = align === 'right' ? anchorRect.right - pillWidth : anchorRect.left
   const menuLeft = Math.max(SAFE, Math.min(rawLeft, vw - pillWidth - SAFE))
   const cloneOrigin = bare ? (align === 'right' ? 'right bottom' : 'left bottom') : 'center bottom'
@@ -107,16 +108,13 @@ export function LiftedRowMenu({ isOpen, anchorRect, row, items, onClose, bare = 
             'transform 260ms cubic-bezier(0.34, 1.45, 0.64, 1) 70ms, opacity 200ms ease-out 70ms',
         }}
       >
-        {items.map((item) => (
-          <ActionButton
+        {activeItems.map((item) => (
+          <MenuItemButton
             key={item.key}
-            icon={item.icon}
-            label={item.label}
-            variant={item.disabled ? 'disabled' : item.destructive ? 'danger' : 'default'}
-            iconSize={14}
-            onClick={() => {
-              if (item.submenu) return
-              item.onAction?.()
+            item={item}
+            onSelect={(it) => {
+              if (it.submenu) { setSubmenuItems(it.submenu); return }
+              it.onAction?.()
               onClose()
             }}
           />

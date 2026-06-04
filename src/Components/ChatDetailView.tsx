@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
-import { ArrowUp, X, Plus, Mic, Copy, Pencil, Download, Reply, Trash2, Forward } from 'lucide-react'
+import { ArrowUp, X, Plus, Mic, Copy, Pencil, Download, Reply, Trash2, Forward, SmilePlus } from 'lucide-react'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MessageBubble } from './Settings/MessageBubble'
 import { SharedObjectPicker } from './Messages/SharedObjectPicker'
 import type { MessageContent } from '../lib/signal/messageContent'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import { LiftedRowMenu } from './LiftedRowMenu'
+import { ReactionGlyph, REACTION_CODES, REACTION_LABELS } from './Messages/ReactionGlyphs'
+import { useMessagesContext } from '../Hooks/MessagesContext'
 import { ContactListItem } from './Settings/ContactListItem'
 import { useAuth } from '../Hooks/useAuth'
 import { useAuthStore } from '../stores/useAuthStore'
@@ -72,6 +74,9 @@ export interface ChatDetailViewProps {
    * Email/Approve/Decline pill). Set by the dev's AdminDrawer system view —
    * intake actions belong to supervisors in the clinic system group. */
   intakeActionable?: boolean
+  /** Enable emoji reactions (chip row + React menu item). Default true; the
+   *  admin system-conversation view passes false. */
+  canReact?: boolean
   /** True when this conversation is a group — lets a detected-date message
    * record the right return target for the calendar round-trip. */
   conversationIsGroup?: boolean
@@ -196,6 +201,7 @@ export function ChatDetailView({
   registerThreadBack,
   hideImageUpload,
   intakeActionable = true,
+  canReact = true,
   conversationIsGroup = false,
   conversationPeerName,
   scrollToMessageId,
@@ -204,6 +210,11 @@ export function ChatDetailView({
 }: ChatDetailViewProps) {
   const { user, clinicId } = useAuth()
   const userId = user?.id ?? ''
+  const reactToMessage = useMessagesContext()?.reactToMessage
+  const handleReact = useCallback((message: DecryptedSignalMessage, emoji: string) => {
+    reactToMessage?.(conversationId, message, emoji)
+  }, [reactToMessage, conversationId])
+  const reactionsEnabled = canReact && !!reactToMessage
   const signalReady = useAuthStore(s => s.signalReady)
   const [text, setText] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -690,6 +701,8 @@ export function ChatDetailView({
             conversationIsGroup={conversationIsGroup}
             conversationPeerName={conversationPeerName}
             highlighted={highlightId === msg.id}
+            onReact={reactionsEnabled ? handleReact : undefined}
+            myUserId={userId}
           />
         </div>
       )
@@ -727,6 +740,8 @@ export function ChatDetailView({
                     conversationIsGroup={conversationIsGroup}
                     conversationPeerName={conversationPeerName}
                     highlighted
+                    onReact={reactionsEnabled ? handleReact : undefined}
+                    myUserId={userId}
                   />
                 </div>
               </div>
@@ -783,7 +798,20 @@ export function ChatDetailView({
         const isMedia = contextMsg.content?.type === 'image' || contextMsg.content?.type === 'voice'
         const cardType = contextMsg.content?.type
         const isClearableCard = cardType === 'outside_message' || cardType === 'oncall_call'
+        // Dedicated cards render without a chip row, so skip the React action there.
+        const isCard = cardType === 'intake_request' || cardType === 'oncall_call' || cardType === 'outside_message'
         const items: ContextMenuItem[] = [
+          ...(reactionsEnabled && !isCard ? [{
+            key: 'react',
+            label: 'React',
+            icon: SmilePlus,
+            submenu: REACTION_CODES.map(code => ({
+              key: `react-${code}`,
+              label: REACTION_LABELS[code],
+              node: <ReactionGlyph code={code} size={20} />,
+              onAction: () => handleReact(contextMsg, code),
+            })),
+          } satisfies ContextMenuItem] : []),
           { key: 'reply', label: 'Reply', icon: Reply, onAction: handleContextReply },
           ...(!isMedia ? [{ key: 'copy', label: 'Copy', icon: Copy, onAction: handleCopy }] : []),
           ...(isMedia && handleSaveImage ? [{ key: 'save', label: 'Save', icon: Download, onAction: handleSaveImage }] : []),

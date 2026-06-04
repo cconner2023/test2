@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Pencil, X, Share2, Map as MapIcon, Copy, Check, Printer, Image, Ban, CircleDashed, Play, CheckCircle2, Clock, MessageSquare } from 'lucide-react'
 import { reverseGeocode } from '../MapOverlay/searchResolver'
 import { latLngToUTM } from '../MapOverlay/utmProjection'
+import { OverlaySnapshot } from '../MapOverlay/OverlaySnapshot'
 import type { LucideIcon } from 'lucide-react'
 import type { CalendarEvent, EventStatus, PCCAttachment } from '../../Types/CalendarTypes'
 import { PCCChecklistCard } from './PCCChecklistCard'
@@ -248,6 +249,17 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
                   )}
                   {hasMaps && (
                     <div className={`flex flex-col gap-2 ${hasLocation ? 'mt-2' : ''}`}>
+                      {fullIds.map(id => (
+                        <OverlaySnapshot
+                          key={`snap-${id}`}
+                          overlayId={id}
+                          width={300}
+                          height={130}
+                          fill
+                          onClick={() => openMapOverlay(true, id)}
+                          className="rounded-xl"
+                        />
+                      ))}
                       {rows.map(r => (
                         <LinkedLocationRow key={r.key} name={r.name} lat={r.lat} lng={r.lng} onClick={r.onClick} txt={txt} />
                       ))}

@@ -18,6 +18,11 @@ interface ConfirmDialogProps {
   autoDismissMs?: number
   /** Bump above default Z.MODAL when launched from inside a popover/overlay at a higher tier. */
   zIndex?: number
+  /** When provided, renders a required text field between subtitle and buttons.
+   * Confirm is gated until the value is non-empty. Ignored when notifyOnly. */
+  inputValue?: string
+  onInputChange?: (value: string) => void
+  inputPlaceholder?: string
 }
 
 const variantStyles = {
@@ -68,10 +73,15 @@ export function ConfirmDialog({
   notifyOnly,
   autoDismissMs,
   zIndex,
+  inputValue,
+  onInputChange,
+  inputPlaceholder,
 }: ConfirmDialogProps) {
   const styles = variantStyles[variant]
   const Icon = styles.Icon
   const resolvedCancelLabel = cancelLabel ?? (notifyOnly ? 'Dismiss' : 'Cancel')
+  const hasInput = !notifyOnly && !!onInputChange
+  const inputBlocked = hasInput && (inputValue ?? '').trim() === ''
 
   useEffect(() => {
     if (!visible || !notifyOnly || !autoDismissMs) return
@@ -94,12 +104,23 @@ export function ConfirmDialog({
         )}
         {!subtitle && <div className="mb-5" />}
 
+        {hasInput && (
+          <textarea
+            value={inputValue ?? ''}
+            onChange={(e) => onInputChange?.(e.target.value)}
+            placeholder={inputPlaceholder}
+            rows={3}
+            autoFocus
+            className="w-full mb-5 px-3.5 py-2.5 rounded-xl bg-tertiary/5 border border-tertiary/15 text-sm text-primary placeholder:text-tertiary resize-none focus:outline-none focus:border-themeredred/40"
+          />
+        )}
+
         <div className="flex flex-col gap-3">
           {!notifyOnly && (
             <button
               onClick={onConfirm}
-              disabled={processing}
-              className={`w-full py-2 rounded-full text-[11pt] font-medium text-white active:scale-95 transition-all ${styles.confirmBtn} ${processing ? 'opacity-60' : ''}`}
+              disabled={processing || inputBlocked}
+              className={`w-full py-2 rounded-full text-[11pt] font-medium text-white active:scale-95 transition-all ${styles.confirmBtn} ${processing || inputBlocked ? 'opacity-60' : ''}`}
             >
               {processing ? 'Processing...' : confirmLabel}
             </button>

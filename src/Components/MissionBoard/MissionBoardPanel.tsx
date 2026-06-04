@@ -1,10 +1,12 @@
 import { useCallback, useState, useEffect, useRef, useMemo } from 'react'
+import type { ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, Pencil, Pin, Plus, Trash2, Users, MessageSquare, Map as MapIcon } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { useCalendarVault } from '../../Hooks/useCalendarVault'
+import { useCalendarSync } from '../../Hooks/useCalendarSync'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { getOverlays } from '../../lib/mapOverlayService'
 import type { OverlayFeature } from '../../Types/MapOverlayTypes'
@@ -32,11 +34,14 @@ import {
 import { useCategoryColors } from '../../Hooks/useCategoryColors'
 import { useClinicCategoryColorsSync } from '../../Hooks/useClinicCategoryColors'
 import { ContextMenu } from '../ContextMenu'
+import type { ContextMenuItem } from '../ContextMenu'
+import { LiftedRowMenu } from '../LiftedRowMenu'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
 import { EmptyState } from '../EmptyState'
 
 const TASK_PREVIEW_LIMIT = 4
+const KANBAN_PREVIEW_LIMIT = 3
 
 // ── Messages widget ──────────────────────────────────────────────────────────
 
@@ -49,15 +54,13 @@ type ConvEntry = {
   group?: GroupInfo
 }
 
-function ConvRow({ entry, lastText, unread, isPinned, onTap, onContext }: {
+/** Presentational conversation row — reused both inline and as the lifted clone. */
+function ConvRowContent({ entry, lastText, unread, isPinned }: {
   entry: ConvEntry
   lastText?: string
   unread: number
   isPinned: boolean
-  onTap: () => void
-  onContext: (x: number, y: number) => void
 }) {
-  const { isPressing, ...longPressHandlers } = useLongPress(onContext)
   const name = entry.isSelf
     ? 'Notes to Self'
     : entry.type === 'group' && entry.group
@@ -65,12 +68,7 @@ function ConvRow({ entry, lastText, unread, isPinned, onTap, onContext }: {
       : entry.medic ? getDisplayName(entry.medic) : '?'
 
   return (
-    <div
-      className={`flex items-center gap-4 px-3 py-3 active:bg-themeblue2/5 cursor-pointer select-none transition-opacity duration-100 ${isPressing ? 'opacity-60' : ''}`}
-      onClick={onTap}
-      onContextMenu={(e) => { e.preventDefault(); onContext(e.clientX, e.clientY) }}
-      {...longPressHandlers}
-    >
+    <div className="flex items-center gap-4 px-3 py-3 active:bg-themeblue2/5">
       {entry.type === 'group' ? (
         <div className="w-8 h-8 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
           <Users size={15} className="text-themeblue2" />
@@ -94,6 +92,40 @@ function ConvRow({ entry, lastText, unread, isPinned, onTap, onContext }: {
   )
 }
 
+/** Pressable wrapper — long-press (mobile) / right-click (desktop) lifts the row. */
+function ConvRow({ children, onTap, onOpenMenu }: {
+  children: ReactNode
+  onTap: () => void
+  onOpenMenu: (rect: DOMRect) => void
+}) {
+  const rowRef = useRef<HTMLDivElement>(null)
+  const firedRef = useRef(false)
+
+  const handleLongPress = useCallback(() => {
+    firedRef.current = true
+    if (rowRef.current) onOpenMenu(rowRef.current.getBoundingClientRect())
+  }, [onOpenMenu])
+
+  const { isPressing, ...longPressHandlers } = useLongPress(handleLongPress)
+
+  const handleClick = useCallback(() => {
+    if (firedRef.current) { firedRef.current = false; return }
+    onTap()
+  }, [onTap])
+
+  return (
+    <div
+      ref={rowRef}
+      className={`cursor-pointer select-none transition-opacity duration-100 ${isPressing ? 'opacity-60' : ''}`}
+      onClick={handleClick}
+      onContextMenu={(e) => { e.preventDefault(); if (rowRef.current) onOpenMenu(rowRef.current.getBoundingClientRect()) }}
+      {...longPressHandlers}
+    >
+      {children}
+    </div>
+  )
+}
+
 type WidgetActionDescriptor = { icon: LucideIcon; label: string; onClick: () => void }
 
 function MessagesWidget({ action }: { action: WidgetActionDescriptor | null }) {
@@ -108,7 +140,9 @@ function MessagesWidget({ action }: { action: WidgetActionDescriptor | null }) {
   const { medics } = useClinicMedics()
   const profile = useAuthStore(s => s.profile)
   const { currentAvatar } = useProfileAvatar(localUserId ?? undefined)
-  const [contextMenu, setContextMenu] = useState<{ key: string; x: number; y: number } | null>(null)
+  const [liftedMenu, setLiftedMenu] = useState<{ rect: DOMRect; row: ReactNode; items: ContextMenuItem[] } | null>(null)
+  const closeMenu = useCallback(() => setLiftedMenu(null), [])
+  const [pendingDeleteKey, setPendingDeleteKey] = useState<string | null>(null)
 
   const pinnedKeys = useMemo(() => new Set(pinnedKeysArr), [pinnedKeysArr])
 
@@ -148,7 +182,7 @@ function MessagesWidget({ action }: { action: WidgetActionDescriptor | null }) {
   }, [conversations, medics, groups, localUserId, pinnedKeys])
 
   const pinned = recentEntries.filter(e => pinnedKeys.has(e.key))
-  const displayed = pinned.length > 0 ? pinned.slice(0, 3) : recentEntries.slice(0, 3)
+  const displayed = pinned.length > 0 ? pinned.slice(0, 2) : recentEntries.slice(0, 2)
 
   const openConversation = useCallback((entry: ConvEntry) => {
     if (entry.isSelf && localUserId) {
@@ -174,40 +208,45 @@ function MessagesWidget({ action }: { action: WidgetActionDescriptor | null }) {
       {displayed.map(entry => {
         const msgs = conversations[entry.key]
         const lastMsg = msgs?.filter(m => m.messageType !== 'request-accepted' && !m.threadId).at(-1)
-        return (
-          <ConvRow
-            key={entry.key}
+        const isPinned = pinnedKeys.has(entry.key)
+        const content = (
+          <ConvRowContent
             entry={entry}
             lastText={lastMsg?.plaintext}
             unread={unreadCounts[entry.key] ?? 0}
-            isPinned={pinnedKeys.has(entry.key)}
-            onTap={() => openConversation(entry)}
-            onContext={(x, y) => setContextMenu({ key: entry.key, x, y })}
+            isPinned={isPinned}
           />
         )
+        const items: ContextMenuItem[] = [
+          { key: 'pin', label: isPinned ? 'Unpin' : 'Pin', icon: Pin, onAction: () => togglePinConversation(entry.key) },
+          { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setPendingDeleteKey(entry.key) },
+        ]
+        return (
+          <ConvRow
+            key={entry.key}
+            onTap={() => openConversation(entry)}
+            onOpenMenu={(rect) => setLiftedMenu({ rect, row: content, items })}
+          >
+            {content}
+          </ConvRow>
+        )
       })}
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          onClose={() => setContextMenu(null)}
-          items={[
-            {
-              key: 'pin',
-              label: pinnedKeys.has(contextMenu.key) ? 'Unpin' : 'Pin',
-              icon: Pin,
-              onAction: () => { togglePinConversation(contextMenu.key); setContextMenu(null) },
-            },
-            {
-              key: 'delete',
-              label: 'Delete',
-              icon: Trash2,
-              destructive: true,
-              onAction: () => { deleteConversation(contextMenu.key); setContextMenu(null) },
-            },
-          ]}
-        />
-      )}
+      <LiftedRowMenu
+        isOpen={!!liftedMenu}
+        anchorRect={liftedMenu?.rect ?? null}
+        row={liftedMenu?.row}
+        items={liftedMenu?.items ?? []}
+        onClose={closeMenu}
+      />
+      <ConfirmDialog
+        visible={!!pendingDeleteKey}
+        title="Permanently delete this conversation?"
+        subtitle="All messages in this conversation will be removed from this device."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => { if (pendingDeleteKey) deleteConversation(pendingDeleteKey); setPendingDeleteKey(null) }}
+        onCancel={() => setPendingDeleteKey(null)}
+      />
     </div>
   )
 }
@@ -255,6 +294,7 @@ interface MissionBoardPanelProps {
 
 export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps) {
   const { isAuthenticated, clinicId } = useAuth()
+  useCalendarSync() // hydrate events from IDB on home mount, not only when the Calendar drawer opens
   useClinicCategoryColorsSync(clinicId)
   const { resolve: resolveCategoryColor } = useCategoryColors()
   const setShowCalendarDrawer = useNavigationStore(s => s.setShowCalendarDrawer)
@@ -450,10 +490,11 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
           const action = widgetAction(id)
           return <EmptyState key="kanban" title={`No events ${isToday ? 'today' : 'this day'}`} action={action} bordered={false} />
         }
+        const byStart = (a: CalendarEvent, b: CalendarEvent) => a.start_time.localeCompare(b.start_time)
         const cols = [
-          { id: 'pending', label: 'Pending', events: allDayEvents.filter(e => e.status === 'pending') },
-          { id: 'active',  label: 'Active',  events: allDayEvents.filter(e => e.status === 'in_progress') },
-          { id: 'done',    label: 'Done',    events: allDayEvents.filter(e => e.status === 'completed' || e.status === 'cancelled') },
+          { id: 'pending', label: 'Pending', events: allDayEvents.filter(e => e.status === 'pending').sort(byStart) },
+          { id: 'active',  label: 'Active',  events: allDayEvents.filter(e => e.status === 'in_progress').sort(byStart) },
+          { id: 'done',    label: 'Done',    events: allDayEvents.filter(e => e.status === 'completed' || e.status === 'cancelled').sort(byStart) },
         ]
         return (
           <div key="kanban" className="flex flex-col relative">
@@ -468,24 +509,38 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
               ))}
             </div>
             <div className="flex divide-x divide-themeblue3/8 min-h-[70px]">
-              {cols.map(col => (
-                <div key={col.id} className="flex-1 min-w-0 flex flex-col gap-px p-1 overflow-y-auto" style={{ maxHeight: 160 }}>
-                  {col.events.length === 0 ? (
-                    <div className="flex items-center justify-center py-3">
-                      <span className="text-[9pt] text-tertiary/40">—</span>
-                    </div>
-                  ) : (
-                    col.events.map(event => (
-                      <KanbanCard
-                        key={event.id}
-                        event={event}
-                        onTap={() => handleEventClick(event.id)}
-                        onContext={(x, y) => setContextMenu({ event, x, y })}
-                      />
-                    ))
-                  )}
-                </div>
-              ))}
+              {cols.map(col => {
+                const shown = col.events.slice(0, KANBAN_PREVIEW_LIMIT)
+                const extra = col.events.length - shown.length
+                return (
+                  <div key={col.id} className="flex-1 min-w-0 flex flex-col gap-px p-1">
+                    {col.events.length === 0 ? (
+                      <div className="flex items-center justify-center py-3">
+                        <span className="text-[9pt] text-tertiary/40">—</span>
+                      </div>
+                    ) : (
+                      <>
+                        {shown.map(event => (
+                          <KanbanCard
+                            key={event.id}
+                            event={event}
+                            onTap={() => handleEventClick(event.id)}
+                            onContext={(x, y) => setContextMenu({ event, x, y })}
+                          />
+                        ))}
+                        {extra > 0 && (
+                          <button
+                            onClick={() => openCalendarOnDate(selectedDate)}
+                            className="text-[9pt] font-medium text-secondary text-left px-1 py-0.5 active:text-themeblue1"
+                          >
+                            +{extra} more
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )
+              })}
             </div>
             {renderActionOverlay(id)}
           </div>

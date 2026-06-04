@@ -119,6 +119,7 @@ export function AdminSystemConversationView({ peerId, onBack }: AdminSystemConve
       showForward={false}
       hideImageUpload
       intakeActionable={false}
+      canReact={false}
       emptyText="No system messages yet"
       mobileHeader={null}
       desktopHeader={null}

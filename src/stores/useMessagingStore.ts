@@ -96,6 +96,14 @@ interface MessagingActions {
   /** Remove messages from state by their IDs. */
   deleteMessages: (conversationKey: string, messageIds: string[]) => void
 
+  /**
+   * Fold an emoji reaction onto a target message's `reactions` map. The target
+   * is matched by originId (preferred, shared across fan-out copies) or id.
+   * No-op if the target isn't in state. Reactions never become bubbles — this
+   * is the only ingress that mutates them.
+   */
+  applyReaction: (conversationKey: string, targetId: string, emoji: string, reactorId: string, remove: boolean) => void
+
   /** Remove messages from all conversations by originId. */
   removeMessagesByOriginIds: (originIds: string[]) => void
 
@@ -339,6 +347,27 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
         return { conversations: next }
       }
       return { conversations: { ...s.conversations, [conversationKey]: filtered } }
+    })
+  },
+
+  applyReaction: (conversationKey, targetId, emoji, reactorId, remove) => {
+    set(s => {
+      const msgs = s.conversations[conversationKey]
+      if (!msgs) return s
+      let changed = false
+      const updated = msgs.map(m => {
+        if (m.id !== targetId && m.originId !== targetId) return m
+        changed = true
+        const reactions: Record<string, string[]> = { ...(m.reactions ?? {}) }
+        const set = new Set(reactions[emoji] ?? [])
+        if (remove) set.delete(reactorId)
+        else set.add(reactorId)
+        if (set.size > 0) reactions[emoji] = Array.from(set)
+        else delete reactions[emoji]
+        return { ...m, reactions }
+      })
+      if (!changed) return s
+      return { conversations: { ...s.conversations, [conversationKey]: updated } }
     })
   },
 

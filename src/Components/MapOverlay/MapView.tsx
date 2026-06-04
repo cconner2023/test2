@@ -2,7 +2,7 @@ import { useRef, useEffect, useCallback, useState, forwardRef, useImperativeHand
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { latLngToMgrs } from '../../lib/mgrsFormat';
-import { Plus, Minus, Info, Copy, ClipboardCheck, LocateFixed, Map as MapIcon, Globe, Mountain, MountainSnow, Share2 } from 'lucide-react';
+import { Plus, Minus, Info, Copy, ClipboardCheck, LocateFixed, Map as MapIcon, Globe, Mountain, MountainSnow, Share2, Navigation } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { PreviewOverlay } from '../PreviewOverlay';
 import { BottomIsland } from '../BottomIsland';
@@ -262,6 +262,13 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 
   const mapsShareUrl = displayLatLng
     ? `https://www.google.com/maps?q=${displayLatLng.lat},${displayLatLng.lng}`
+    : '';
+
+  // Directions deep-link. The api=1 universal-link form opens the Google Maps
+  // app on iOS/Android when installed and otherwise falls back to web Google
+  // Maps (which still routes) — works as a plain <a> on iOS Safari.
+  const mapsDirUrl = displayLatLng
+    ? `https://www.google.com/maps/dir/?api=1&destination=${displayLatLng.lat},${displayLatLng.lng}`
     : '';
 
   const utmText = displayLatLng
@@ -905,11 +912,21 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
               </button>
             </div>
           ))}
+          {mapsDirUrl && (
+            <a
+              href={mapsDirUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 px-2.5 py-2.5 rounded-lg bg-themeblue3 text-white text-[10pt] font-medium active:scale-95 transition-all"
+            >
+              <Navigation size={16} /> Directions
+            </a>
+          )}
           <button
             type="button"
             disabled={!mapsShareUrl}
             onClick={handleShareLocation}
-            className="flex items-center justify-center gap-2 px-2.5 py-2.5 rounded-lg bg-themeblue3 text-white text-[10pt] font-medium active:scale-95 transition-all disabled:opacity-30"
+            className="flex items-center justify-center gap-2 px-2.5 py-2.5 rounded-lg bg-themewhite2/60 dark:bg-themewhite3/60 text-primary text-[10pt] font-medium active:scale-95 transition-all disabled:opacity-30"
           >
             {copiedField === 'share'
               ? <><ClipboardCheck size={16} /> Link copied</>

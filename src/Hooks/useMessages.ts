@@ -471,6 +471,14 @@ export interface UseMessagesReturn {
    * references. Only valid in an open (received/accepted) conversation.
    */
   sendStructured: (peerId: string, content: MessageContent, originId: string, preview: string) => Promise<boolean>
+  /**
+   * Toggle an emoji reaction on a message. Works for 1:1, self, and group
+   * conversations (routes by the conversation key). Applies optimistically to
+   * the local target + persists it, then fans a `reaction` envelope to the peer
+   * / group members and own devices. Reactions fold onto the target's
+   * `reactions` map and never render as a bubble. `emoji` is an opaque code.
+   */
+  reactToMessage: (conversationKey: string, message: DecryptedSignalMessage, emoji: string) => void
   /** Send a voice note to a peer. Encrypts, uploads, and sends via Signal. */
   sendVoice: (peerId: string, recording: VoiceRecordingResult) => Promise<boolean>
   /** Send a WebRTC call-signal control message to a peer over the Signal session
@@ -658,6 +666,22 @@ export function useMessages(): UseMessagesReturn {
     // Single-feature overlay envelopes ride the same routing.
     if (isMapFeature(msg.content)) {
       await routeMapFeature(msg.content).catch(() => {})
+      return
+    }
+
+    // Emoji reactions are folded onto the target message (out-of-band, like
+    // calendar/overlay sync) — never surfaced as a bubble or counted unread.
+    // The reactor identity is the reaction's senderId. Persist the mutated
+    // target so the reaction survives reload.
+    if (msg.content?.type === 'reaction') {
+      const { targetId, emoji, remove } = msg.content
+      const conversationKey = msg.groupId ?? (msg.senderId === userId ? msg.recipientId : msg.senderId)
+      store().applyReaction(conversationKey, targetId, emoji, msg.senderId, !!remove)
+      const updated = store().conversations[conversationKey]?.find(
+        m => m.id === targetId || m.originId === targetId,
+      )
+      if (updated && userId) saveMessage(updated, userId).catch(() => {})
+      markMessagesRead([msg.id]).catch(() => {})
       return
     }
 
@@ -1099,6 +1123,72 @@ export function useMessages(): UseMessagesReturn {
       store().setSending(peerId, false)
     }
   }, [userId, addMessage, updateMessageStatus, removeOptimisticMessage])
+
+  /**
+   * Toggle an emoji reaction on a message — see UseMessagesReturn. Routes by
+   * conversation key (self / 1:1 / group). Optimistic-local then best-effort
+   * wire send; no offline queue (matches structured sends). Reactions fold onto
+   * the target and never render as bubbles.
+   */
+  const reactToMessage = useCallback((conversationKey: string, message: DecryptedSignalMessage, emoji: string) => {
+    if (!userId) return
+    const targetId = message.originId ?? message.id
+    const remove = (message.reactions?.[emoji] ?? []).includes(userId)
+
+    // Optimistic local fold + persist the mutated target so it survives reload.
+    store().applyReaction(conversationKey, targetId, emoji, userId, remove)
+    const updatedTarget = store().conversations[conversationKey]?.find(
+      m => m.id === message.id || m.originId === targetId,
+    )
+    if (updatedTarget) saveMessage(updatedTarget, userId).catch(() => {})
+
+    const localDeviceId = useMessagingStore.getState().localDeviceId
+    if (!localDeviceId) return
+
+    const content: MessageContent = { type: 'reaction', targetId, emoji, ...(remove ? { remove: true } : {}) }
+    const serialized = serializeContent(content)
+    const originId = crypto.randomUUID()
+    const isGroup = !!useMessagingStore.getState().groups[conversationKey]
+
+    void (async () => {
+      try {
+        // Self-chat: fan to own other devices only.
+        if (conversationKey === userId) {
+          const devicesResult = await fetchOwnDevices(userId)
+          const otherDevices = devicesResult.ok ? devicesResult.data.filter(d => d.deviceId !== localDeviceId) : []
+          if (otherDevices.length > 0) {
+            const fanOutInputs = await encryptForAllDevices(userId, otherDevices, serialized, userId)
+            if (fanOutInputs.length > 0) {
+              await sendMessageFanOut(userId, localDeviceId, userId, fanOutInputs, undefined, originId)
+            }
+          }
+          return
+        }
+
+        if (isGroup) {
+          const membersResult = await fetchGroupMembersRpc(conversationKey)
+          if (!membersResult.ok) return
+          const result = await encryptAndSendToGroupMembers(userId, localDeviceId, conversationKey, serialized, originId, membersResult.data)
+          if (!result.ok) return
+          sendSyncToOwnDevices(userId, localDeviceId, {
+            forPeerId: conversationKey, serialized, originalMessageType: 'message',
+            originalTimestamp: new Date().toISOString(), originalMessageId: result.data,
+          }, conversationKey, originId).catch(() => {})
+          return
+        }
+
+        // 1:1
+        const result = await encryptAndSendToPeer(userId, localDeviceId, conversationKey, serialized, 'message', undefined, originId)
+        if (!result.ok) return
+        sendSyncToOwnDevices(userId, localDeviceId, {
+          forPeerId: conversationKey, serialized, originalMessageType: 'message',
+          originalTimestamp: new Date().toISOString(), originalMessageId: result.data,
+        }, undefined, originId).catch(() => {})
+      } catch (e) {
+        logger.error('reactToMessage error:', e instanceof Error ? e.message : e)
+      }
+    })()
+  }, [userId])
 
   /**
    * Send a system-authored notice to a single user. Dev-only — the
@@ -2425,6 +2515,7 @@ export function useMessages(): UseMessagesReturn {
     sendMessage,
     sendImage,
     sendStructured,
+    reactToMessage,
     sendVoice,
     sendCallSignal,
     sendSystemMessageToUser,

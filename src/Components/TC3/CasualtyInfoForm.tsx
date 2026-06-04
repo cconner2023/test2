@@ -1,6 +1,9 @@
-import { memo, useState, useRef, useCallback } from 'react'
-import { Plus, Check, RotateCcw, User, ChevronRight } from 'lucide-react'
+import { memo, useState, useRef, useCallback, useMemo } from 'react'
+import { Plus, Check, RotateCcw, User, ChevronRight, MapPin } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
+import { useMapOverlaysStore } from '../../stores/useMapOverlaysStore'
+import { useNavigationStore } from '../../stores/useNavigationStore'
+import { OverlaySnapshot } from '../MapOverlay/OverlaySnapshot'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { TextInput, DatePickerInput, PickerInput } from '../FormInputs'
 import { ActionButton } from '../ActionButton'
@@ -46,6 +49,21 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
   const updateCasualty = useTC3Store((s) => s.updateCasualty)
   const evacuation = useTC3Store((s) => s.card.evacuation)
   const updateEvacuation = useTC3Store((s) => s.updateEvacuation)
+
+  // Reverse of the FeatureEditor TC3 link: find the casualty pin (if any) whose
+  // opaque tc3_card_id points back at this card, so the medic can see — and tap
+  // to — where on the map this casualty is pinned. Opaque-id only; no PHI flows
+  // onto the map (the link resolves to a glyph, never patient detail).
+  const cardId = useTC3Store((s) => s.card.id)
+  const overlays = useMapOverlaysStore((s) => s.overlays)
+  const setShowMapOverlayDrawer = useNavigationStore((s) => s.setShowMapOverlayDrawer)
+  const pinned = useMemo(() => {
+    for (const o of overlays) {
+      const feat = o.features.find((f) => f.tc3_card_id === cardId)
+      if (feat) return { overlayId: o.id, feature: feat }
+    }
+    return null
+  }, [overlays, cardId])
 
   const [popoverVisible, setPopoverVisible] = useState(false)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
@@ -139,6 +157,24 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
             onClick: (anchor) => openPopover({ current: anchor }),
           }}
         />
+      )}
+
+      {/* ── Pinned-on-map snapshot (reverse TC3 link) ── */}
+      {pinned && (
+        <button
+          type="button"
+          onClick={() => setShowMapOverlayDrawer(true, pinned.overlayId, pinned.feature.id)}
+          className="mt-2 w-full rounded-2xl border border-themeblue3/10 overflow-hidden text-left active:scale-95 transition-all"
+        >
+          <OverlaySnapshot features={[pinned.feature]} width={320} height={110} fill />
+          <div className="flex items-center gap-2 px-4 py-2 bg-themewhite2">
+            <MapPin size={15} className="text-themeblue3 shrink-0" />
+            <span className="flex-1 min-w-0 text-[10pt] font-medium text-primary truncate">
+              {pinned.feature.label || 'Pinned on map'}
+            </span>
+            <ChevronRight size={16} className="text-tertiary shrink-0" />
+          </div>
+        </button>
       )}
 
       {/* ── Edit popover ── */}

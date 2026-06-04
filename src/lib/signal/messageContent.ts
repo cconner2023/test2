@@ -13,6 +13,7 @@
  *   Map overlay:    { t: "o", a: "c"|"u"|"d", d: {...} }   ← overlay metadata + (legacy) full feature set
  *   Map feature:    { t: "mf", a: "c"|"u"|"d", o, c?, f }  ← single feature within a parent overlay
  *   Shared ref:     { t: "r", k: "ce"|"mo", id, l, s?, f? } ← chat-visible deep link to a clustered object
+ *   Reaction:       { t: "rx", id, e, r? }                  ← emoji reaction targeting another message (folded, never a bubble)
  */
 
 import type { EventCategory, EventStatus, CategorySwatchId } from '../../Types/CalendarTypes'
@@ -248,7 +249,27 @@ export interface OutsideMessageContent {
   text: string
 }
 
-export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | SharedRefContent | IntakeRequestContent | OncallCallContent | OutsideMessageContent
+/**
+ * Emoji reaction targeting another message. Carries ONLY the target's id, an
+ * opaque emoji code, and a remove flag — never any free text, never PHI. It is
+ * authored into a 1:1 or group thread and rides the standard send pipeline, but
+ * is NEVER rendered as a bubble: the receive path folds it onto the target
+ * message's `reactions` map (out-of-band, like calendar/overlay sync) and the
+ * reactor identity is the message's senderId. `emoji` is an opaque code
+ * (`up`|`down`|`heart`|`skull`|`bang`) resolved to a themed glyph by the UI —
+ * the signal layer stays vocabulary-agnostic.
+ */
+export interface ReactionContent {
+  type: 'reaction'
+  /** Target message — its originId (preferred, shared across fan-out copies) or id. */
+  targetId: string
+  /** Opaque emoji code. Mapped to a themed SVG glyph by the UI layer. */
+  emoji: string
+  /** When true this un-reacts (removes the reactor from the target's set). */
+  remove?: boolean
+}
+
+export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | SharedRefContent | IntakeRequestContent | OncallCallContent | OutsideMessageContent | ReactionContent
 
 // ---- Compact wire shapes ----
 
@@ -374,7 +395,18 @@ interface WireOncallCall {
   }
 }
 
-type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature | WireSharedRef | WireIntake | WireOutsideMessage | WireOncallCall
+/** Emoji reaction targeting another message. Folded onto the target, never a bubble. */
+interface WireReaction {
+  t: 'rx'
+  /** target message originId/id */
+  id: string
+  /** opaque emoji code */
+  e: string
+  /** 1 = remove (un-react); omitted = add */
+  r?: 1
+}
+
+type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature | WireSharedRef | WireIntake | WireOutsideMessage | WireOncallCall | WireReaction
 
 // ---- Serialization ----
 
@@ -479,6 +511,12 @@ export function serializeContent(content: MessageContent): string {
       n: content.requester_name,
       d: content.text,
     }
+    return JSON.stringify(wire)
+  }
+
+  if (content.type === 'reaction') {
+    const wire: WireReaction = { t: 'rx', id: content.targetId, e: content.emoji }
+    if (content.remove) wire.r = 1
     return JSON.stringify(wire)
   }
 
@@ -666,6 +704,18 @@ export function parseMessageContent(raw: string): ParsedContent {
           requester_name: wire.n,
           text: wire.d,
         } satisfies OutsideMessageContent,
+      }
+    }
+
+    if (wire.t === 'rx') {
+      return {
+        plaintext: '[reaction]',
+        content: {
+          type: 'reaction',
+          targetId: wire.id,
+          emoji: wire.e,
+          ...(wire.r ? { remove: true } : {}),
+        } satisfies ReactionContent,
       }
     }
 
