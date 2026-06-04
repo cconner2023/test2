@@ -660,7 +660,7 @@ export function MessageBubble({
     <>
       {/* Full-width layout container — group enables hover-only ellipsis on desktop.
           Extra bottom room when reaction badges overhang the bubble's bottom edge. */}
-      <div className={`group flex ${isOwn ? 'justify-end' : 'justify-start'} items-center px-1 ${onReact && hasReactions(message.reactions) ? 'mb-4' : 'mb-1.5'}`}>
+      <div className={`group flex ${isOwn ? 'justify-end' : 'justify-start'} items-center px-1 ${onReact && hasReactions(message.reactions) ? 'mt-4 mb-1.5' : 'mb-1.5'}`}>
         {/* Hover ellipses (desktop only) — left of own bubble */}
         {isOwn && onLongPress && (
           <button
@@ -763,7 +763,6 @@ export function MessageBubble({
                 <ReactionChips
                   reactions={message.reactions}
                   myUserId={myUserId}
-                  align={isOwn ? 'right' : 'left'}
                   onToggle={code => onReact(message, code)}
                 />
               )}

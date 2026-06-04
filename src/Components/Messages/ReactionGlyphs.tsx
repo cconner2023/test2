@@ -67,21 +67,19 @@ export function hasReactions(reactions: Record<string, string[]> | undefined): b
 }
 
 /**
- * Circular reaction badges that straddle a message bubble's bottom corner.
- * Each active emoji is a round (or lozenge, when a count is shown) badge;
- * badges the current user authored get a theme ring. Tapping one toggles the
- * current user's own reaction. Positioned absolutely — the parent bubble must
- * be `relative` and reserve a little extra bottom room for the overlap.
+ * Circular reaction badges that straddle a message bubble's top-right corner
+ * (iOS-style tapback placement). Each active emoji is a round (or lozenge, when
+ * a count is shown) badge. Tapping one toggles the current user's own reaction.
+ * Positioned absolutely — the parent bubble must be `relative` and reserve a
+ * little extra top room for the overlap.
  */
 export function ReactionChips({
   reactions,
   myUserId,
-  align = 'left',
   onToggle,
 }: {
   reactions: Record<string, string[]> | undefined
   myUserId?: string
-  align?: 'left' | 'right'
   onToggle?: (code: ReactionCode) => void
 }): ReactNode {
   if (!reactions) return null
@@ -89,19 +87,17 @@ export function ReactionChips({
   if (active.length === 0) return null
 
   return (
-    <div className={`absolute -bottom-3 z-[2] flex items-center gap-1 ${align === 'right' ? 'right-2' : 'left-2'}`}>
+    <div className="absolute -top-3 right-1 z-[2] flex items-center gap-1">
       {active.map(code => {
         const ids = reactions[code] ?? []
         const count = ids.length
-        const mine = !!myUserId && ids.includes(myUserId)
         return (
           <button
             key={code}
             onClick={e => { e.stopPropagation(); onToggle?.(code) }}
             aria-label={`${REACTION_LABELS[code]}${count > 1 ? ` (${count})` : ''}`}
             className={`flex items-center justify-center gap-0.5 h-6 rounded-full bg-themewhite shadow-md active:scale-95 transition-all
-                       ${count > 1 ? 'px-1.5 min-w-[1.5rem]' : 'w-6'}
-                       ring-1 ${mine ? 'ring-themeblue3' : 'ring-black/5'}`}
+                       ${count > 1 ? 'px-1.5 min-w-[1.5rem]' : 'w-6'}`}
           >
             <ReactionGlyph code={code} size={14} />
             {count > 1 && (

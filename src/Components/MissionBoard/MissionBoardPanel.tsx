@@ -42,6 +42,7 @@ import { EmptyState } from '../EmptyState'
 
 const TASK_PREVIEW_LIMIT = 4
 const KANBAN_PREVIEW_LIMIT = 3
+const WEEK_PREVIEW_LIMIT = 3
 
 // ── Messages widget ──────────────────────────────────────────────────────────
 
@@ -564,7 +565,18 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
           if (startCol === -1) continue
           weekEvents.push({ event: e, startCol: startCol + 1, span: endCol - startCol + 1 })
         }
+        // Cap to the earliest WEEK_PREVIEW_LIMIT events by start time (all-day first),
+        // matching the task-list/kanban preview-limit pattern.
+        const totalWeekEvents = weekEvents.length
         weekEvents.sort((a, b) =>
+          (a.event.all_day === b.event.all_day ? 0 : a.event.all_day ? -1 : 1) ||
+          a.event.start_time.localeCompare(b.event.start_time)
+        )
+        const shownWeekEvents = weekEvents.slice(0, WEEK_PREVIEW_LIMIT)
+        const weekExtra = totalWeekEvents - shownWeekEvents.length
+
+        // Spatial order for greedy lane packing of the capped set.
+        shownWeekEvents.sort((a, b) =>
           a.startCol - b.startCol ||
           b.span - a.span ||
           (a.event.all_day === b.event.all_day ? 0 : a.event.all_day ? -1 : 1) ||
@@ -572,7 +584,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
         )
 
         const lanes: WeekEvent[][] = []
-        for (const we of weekEvents) {
+        for (const we of shownWeekEvents) {
           const weEnd = we.startCol + we.span - 1
           let laneIdx = 0
           while (
@@ -582,7 +594,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
           lanes[laneIdx].push(we)
         }
 
-        const weekHasEvents = weekEvents.length > 0
+        const weekHasEvents = totalWeekEvents > 0
 
         return (
           <div key="week-view" ref={weekViewRef} className="px-3 pt-0.5 pb-3.5 relative">
@@ -649,6 +661,14 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
                     })}
                   </div>
                 ))}
+                {weekExtra > 0 && (
+                  <button
+                    onClick={() => openCalendarOnDate(selectedDate)}
+                    className="text-[9pt] font-medium text-secondary text-left px-1 py-0.5 active:text-themeblue1"
+                  >
+                    +{weekExtra} more
+                  </button>
+                )}
               </div>
             ) : (
               <EmptyState title="No events this week" bordered={false} />

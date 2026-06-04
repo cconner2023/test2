@@ -688,6 +688,13 @@ export async function restoreBackup(userId: string): Promise<void> {
     }
 
     for (const msg of payload.messages) {
+      // Standalone reaction rows are out-of-band cruft from a pre-fold build:
+      // reactions are folded onto their target row, never persisted as their
+      // own bubble. Skip them so an old backup can't resurrect '[reaction]'
+      // chat bubbles. The real reaction state rides the target message.
+      if (msg.content?.type === 'reaction' || msg.plaintext === '[reaction]') {
+        continue
+      }
       await saveMessage(msg, userId, { preserveReadAt: true })
       // Route calendar events, but skip create/update for events that
       // were later deleted — prevents backup from resurrecting them.

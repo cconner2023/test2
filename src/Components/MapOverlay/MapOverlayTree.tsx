@@ -1,6 +1,7 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
-import { ChevronRight, ChevronDown, Eye, EyeOff, Pencil, Trash2, X, Check, ArrowDownToLine, Wifi, Loader2, Plus, CalendarClock, Link2, Link2Off, MessageSquare } from 'lucide-react';
-import { ContextMenu } from '../ContextMenu';
+import { useState, useMemo, useCallback, useRef, type ReactNode } from 'react';
+import { ChevronRight, ChevronDown, Eye, EyeOff, Pencil, Trash2, X, Check, ArrowDownToLine, Wifi, Loader2, Plus, CalendarClock, Link2, Link2Off, MessageSquare, MoreHorizontal } from 'lucide-react';
+import { LiftedRowMenu } from '../LiftedRowMenu';
+import type { ContextMenuItem } from '../ContextMenu';
 import { EmptyState } from '../EmptyState';
 import { useLongPress } from '../../Hooks/useLongPress';
 import { useShareToChat } from '../Messages/ShareToChatPicker';
@@ -12,14 +13,20 @@ interface OverlayRowProps {
   className: string;
   style?: React.CSSProperties;
   dataTour?: string;
-  onOpenMenu: (x: number, y: number) => void;
+  /** Open the lifted menu anchored to this row's bounding rect (conversation pattern). */
+  onOpenMenu: (rect: DOMRect) => void;
   children: React.ReactNode;
 }
 
 function OverlayRow({ overlayId, className, style, dataTour, onOpenMenu, children }: OverlayRowProps) {
-  const { isPressing, ...longPressHandlers } = useLongPress((x, y) => onOpenMenu(x, y));
+  const rowRef = useRef<HTMLDivElement>(null);
+  const openFromRow = useCallback(() => {
+    if (rowRef.current) onOpenMenu(rowRef.current.getBoundingClientRect());
+  }, [onOpenMenu]);
+  const { isPressing, ...longPressHandlers } = useLongPress(() => openFromRow());
   return (
     <div
+      ref={rowRef}
       data-overlay-row={overlayId}
       data-tour={dataTour}
       className={`${className} ${isPressing ? 'opacity-60' : ''}`}
@@ -27,7 +34,7 @@ function OverlayRow({ overlayId, className, style, dataTour, onOpenMenu, childre
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        onOpenMenu(e.clientX, e.clientY);
+        openFromRow();
       }}
       {...longPressHandlers}
     >
@@ -41,15 +48,21 @@ interface FeatureRowProps {
   className: string;
   style?: React.CSSProperties;
   dataTour?: string;
-  onOpenMenu: (x: number, y: number) => void;
+  /** Open the lifted menu anchored to this row's bounding rect (conversation pattern). */
+  onOpenMenu: (rect: DOMRect) => void;
   onClick: () => void;
   children: React.ReactNode;
 }
 
 function FeatureRow({ featureId, className, style, dataTour, onOpenMenu, onClick, children }: FeatureRowProps) {
-  const { isPressing, ...longPressHandlers } = useLongPress((x, y) => onOpenMenu(x, y));
+  const rowRef = useRef<HTMLButtonElement>(null);
+  const openFromRow = useCallback(() => {
+    if (rowRef.current) onOpenMenu(rowRef.current.getBoundingClientRect());
+  }, [onOpenMenu]);
+  const { isPressing, ...longPressHandlers } = useLongPress(() => openFromRow());
   return (
     <button
+      ref={rowRef}
       type="button"
       data-feature-row={featureId}
       data-tour={dataTour}
@@ -57,7 +70,7 @@ function FeatureRow({ featureId, className, style, dataTour, onOpenMenu, onClick
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        onOpenMenu(e.clientX, e.clientY);
+        openFromRow();
       }}
       {...longPressHandlers}
       className={`${className} ${isPressing ? 'opacity-60' : ''}`}
@@ -126,8 +139,8 @@ export function MapOverlayTree({
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
-  const [contextMenu, setContextMenu] = useState<{ overlayId: string; x: number; y: number } | null>(null);
-  const [featureContextMenu, setFeatureContextMenu] = useState<{ overlayId: string; featureId: string; x: number; y: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ overlayId: string; rect: DOMRect; row: ReactNode } | null>(null);
+  const [featureContextMenu, setFeatureContextMenu] = useState<{ overlayId: string; featureId: string; rect: DOMRect; row: ReactNode } | null>(null);
 
   const { share: shareToChat, picker: shareToChatPicker } = useShareToChat();
   const shareOverlay = useCallback((overlay: LocalMapOverlay) => {
@@ -220,7 +233,19 @@ export function MapOverlayTree({
                       : 'hover:bg-secondary/5 border-l-2 border-l-transparent'
                   }`}
                   style={{ paddingLeft: '12px' }}
-                  onOpenMenu={(x, y) => setContextMenu({ overlayId: overlay.id, x, y })}
+                  onOpenMenu={(rect) => setContextMenu({
+                    overlayId: overlay.id,
+                    rect,
+                    row: (
+                      <div className="flex items-center gap-1.5 py-2 pr-3 bg-themewhite" style={{ paddingLeft: '12px' }}>
+                        <span className="w-[18px] shrink-0" />
+                        <span className="flex-1 min-w-0 text-[10pt] font-medium text-primary truncate">{overlay.name || 'Untitled'}</span>
+                        {isVisible
+                          ? <Eye size={15} className="shrink-0 text-themeblue2" />
+                          : <EyeOff size={15} className="shrink-0 text-tertiary/50" />}
+                      </div>
+                    ),
+                  })}
                 >
                   {/* Chevron */}
                   {hasChildren ? (
@@ -310,15 +335,28 @@ export function MapOverlayTree({
                     ) : (
                       <button
                         type="button"
-                        onClick={() => onToggleVisible(overlay.id)}
+                        onClick={(e) => {
+                          const rowEl = e.currentTarget.closest('[data-overlay-row]') as HTMLElement | null;
+                          setContextMenu({
+                            overlayId: overlay.id,
+                            rect: (rowEl ?? e.currentTarget).getBoundingClientRect(),
+                            row: (
+                              <div className="flex items-center gap-1.5 py-2 pr-3 bg-themewhite" style={{ paddingLeft: '12px' }}>
+                                <span className="w-[18px] shrink-0" />
+                                <span className="flex-1 min-w-0 text-[10pt] font-medium text-primary truncate">{overlay.name || 'Untitled'}</span>
+                                {isVisible
+                                  ? <Eye size={15} className="shrink-0 text-themeblue2" />
+                                  : <EyeOff size={15} className="shrink-0 text-tertiary/50" />}
+                              </div>
+                            ),
+                          });
+                        }}
                         data-tour={overlayIdx === 0 ? 'map-overlay-visibility' : undefined}
-                        className={`w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all ${
-                          isVisible ? 'text-themeblue2' : 'text-tertiary/50'
-                        }`}
-                        title={isVisible ? 'Hide on map' : 'Show on map'}
-                        aria-label={isVisible ? 'Hide on map' : 'Show on map'}
+                        className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                        title="More actions"
+                        aria-label="More actions"
                       >
-                        {isVisible ? <Eye size={15} /> : <EyeOff size={15} />}
+                        <MoreHorizontal size={16} />
                       </button>
                     )}
                   </div>
@@ -333,7 +371,18 @@ export function MapOverlayTree({
                       featureId={feature.id}
                       dataTour={overlayIdx === 0 && featureIdx === 0 ? 'map-feature-row' : undefined}
                       onClick={() => onSelectFeature(feature, overlay.id)}
-                      onOpenMenu={(x, y) => setFeatureContextMenu({ overlayId: overlay.id, featureId: feature.id, x, y })}
+                      onOpenMenu={(rect) => setFeatureContextMenu({
+                        overlayId: overlay.id,
+                        featureId: feature.id,
+                        rect,
+                        row: (
+                          <div className="w-full flex items-center py-1.5 pr-3 bg-themewhite" style={{ paddingLeft: '46px' }}>
+                            <span className="text-[10pt] text-primary truncate flex-1">
+                              {feature.label || `Untitled ${feature.type}`}
+                            </span>
+                          </div>
+                        ),
+                      })}
                       className={`w-full flex items-center py-1.5 pr-3 text-left transition-colors ${
                         isSelected
                           ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
@@ -362,12 +411,11 @@ export function MapOverlayTree({
         const noFeatures = overlay.features.length === 0;
         const cacheBusy = downloadingId !== null && !isDownloading;
         const isLinked = linkedOverlayIds.has(overlay.id);
-        return (
-          <ContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            onClose={() => setContextMenu(null)}
-            items={[
+        const isVisible = visibleOverlayIds.has(overlay.id);
+        const items: ContextMenuItem[] = [
+              isVisible
+                ? { key: 'visibility', label: 'Hide on map', icon: EyeOff, onAction: () => onToggleVisible(overlay.id) }
+                : { key: 'visibility', label: 'View on map', icon: Eye, onAction: () => onToggleVisible(overlay.id) },
               { key: 'rename', label: 'Rename', icon: Pencil, onAction: () => startRename(overlay) },
               { key: 'share-to-chat', label: 'Share to chat', icon: MessageSquare, onAction: () => shareOverlay(overlay) },
               isLinked
@@ -400,7 +448,14 @@ export function MapOverlayTree({
                     onAction: () => onDownloadTiles(overlay),
                   },
               { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteOverlay(overlay.id) },
-            ]}
+        ];
+        return (
+          <LiftedRowMenu
+            isOpen
+            anchorRect={contextMenu.rect}
+            row={contextMenu.row}
+            items={items}
+            onClose={() => setContextMenu(null)}
           />
         );
       })()}
@@ -409,12 +464,7 @@ export function MapOverlayTree({
         const overlay = overlays.find(o => o.id === featureContextMenu.overlayId);
         const feature = overlay?.features.find(f => f.id === featureContextMenu.featureId);
         if (!overlay || !feature) return null;
-        return (
-          <ContextMenu
-            x={featureContextMenu.x}
-            y={featureContextMenu.y}
-            onClose={() => setFeatureContextMenu(null)}
-            items={[
+        const items: ContextMenuItem[] = [
               { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onSelectFeature(feature, overlay.id) },
               { key: 'share-to-chat', label: 'Share to chat', icon: MessageSquare, onAction: () => shareFeature(overlay, feature) },
               {
@@ -427,7 +477,14 @@ export function MapOverlayTree({
                 },
               },
               { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteFeature(overlay.id, feature.id) },
-            ]}
+        ];
+        return (
+          <LiftedRowMenu
+            isOpen
+            anchorRect={featureContextMenu.rect}
+            row={featureContextMenu.row}
+            items={items}
+            onClose={() => setFeatureContextMenu(null)}
           />
         );
       })()}

@@ -1463,13 +1463,13 @@ const mapOverlayTour: TourDefinition = {
     },
     {
       target: 'map-overlay-row',
-      text: 'Tap an overlay to make it active. The eye toggles its features on or off the map without deleting them.',
+      text: 'Tap an overlay to make it active. The ⋯ menu shows or hides its features on the map without deleting them.',
       placement: 'right',
       duration: 5500,
     },
     {
       target: 'map-overlay-visibility',
-      text: 'Visibility toggles are per-overlay so you can stack mission, training, and reference layers and reveal only what you need right now.',
+      text: 'Open the ⋯ menu to show or hide each overlay. Visibility is per-overlay, so you can stack mission, training, and reference layers and reveal only what you need right now.',
       placement: 'left',
       duration: 6000,
       afterStep: 'map:close-mobile-tree',

@@ -482,11 +482,21 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
       // straight from IDB and bypasses it — without this, stale
       // sender-key-distribution / sender-key-message rows render as raw-JSON
       // chat bubbles after logout/refresh even though the wire is clean.
-      // Collect their ids to purge from IDB so they don't accumulate.
+      // Reaction content (messageType 'message', content.type 'reaction',
+      // plaintext '[reaction]') is the same class of leak: the live receive
+      // path folds reactions onto the target row out-of-band and returns
+      // BEFORE addMessage/saveMessage, so they are never persisted today —
+      // but a pre-fold build saved them as bubbles, and the real reaction
+      // state already rides the target row. Drop the standalone '[reaction]'
+      // cruft on hydrate. Collect all ids to purge from IDB so they don't accumulate.
       const staleControlPlaneIds: string[] = []
       const dropControlPlane = (msgs: DecryptedSignalMessage[]) =>
         msgs.filter(m => {
           if (m.messageType === 'sender-key-distribution' || m.messageType === 'sender-key-message') {
+            staleControlPlaneIds.push(m.id)
+            return false
+          }
+          if (m.content?.type === 'reaction' || m.plaintext === '[reaction]') {
             staleControlPlaneIds.push(m.id)
             return false
           }
