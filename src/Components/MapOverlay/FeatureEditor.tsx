@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { Copy, Check, ChevronDown, Spline, Hexagon, Share2, Navigation } from 'lucide-react';
+import { Copy, Check, ChevronDown, Spline, Hexagon, Navigation } from 'lucide-react';
 import { latLngToMgrs } from '../../lib/mgrsFormat';
 import { latLngToUTM } from './utmProjection';
 import type { OverlayFeature, WaypointType } from '../../Types/MapOverlayTypes';
@@ -84,7 +84,6 @@ function nearestWaypointLabel(
 
 export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, linkedEventCount, onOpenLinksEditor, isEditMode = false }: FeatureEditorProps) {
   const [copied, setCopied] = useState(false);
-  const [shareCopied, setShareCopied] = useState(false);
   const bearingReference = useMapPrefsStore(s => s.bearingReference);
   // Phase 4.1 — TC3 link integration. We subscribe with selectors so the
   // editor reactively shows the right state when the active card or queue
@@ -318,15 +317,6 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
     }
   }, [mgrs]);
 
-  // Google Maps dropped-pin link for this feature's anchor point, shared via the
-  // native sheet (iOS Safari supports navigator.share) so recipients can pull up
-  // external directions; falls back to copying the link when share is absent.
-  const mapsShareUrl = useMemo(() => {
-    if (feature.geometry.length === 0) return '';
-    const [lat, lng] = feature.geometry[0];
-    return `https://www.google.com/maps?q=${lat},${lng}`;
-  }, [feature.geometry]);
-
   // Directions deep-link for the feature anchor. The api=1 universal-link form
   // opens the Google Maps app when installed (iOS/Android) and otherwise falls
   // back to web Google Maps — works as a plain tappable <a> on iOS Safari.
@@ -335,19 +325,6 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
     const [lat, lng] = feature.geometry[0];
     return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
   }, [feature.geometry]);
-
-  const handleShareLocation = useCallback(() => {
-    if (!mapsShareUrl) return;
-    const title = feature.label || 'Location';
-    if (navigator.share) {
-      navigator.share({ title, url: mapsShareUrl }).catch(() => {});
-      return;
-    }
-    navigator.clipboard.writeText(mapsShareUrl).then(() => {
-      setShareCopied(true);
-      setTimeout(() => setShareCopied(false), 1500);
-    }).catch(() => {});
-  }, [mapsShareUrl, feature.label]);
 
   return (
     <div data-tour="map-feature-editor" className="flex flex-col pb-[calc(env(safe-area-inset-bottom)+3rem)]">
@@ -406,8 +383,8 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
             <div className="text-[9pt] text-tertiary truncate">
               {addressLoading ? 'Locating…' : (address || 'No address')}
             </div>
-            <div className="mt-1 flex items-center gap-4">
-              {mapsDirUrl && (
+            {mapsDirUrl && (
+              <div className="mt-1 flex items-center gap-4">
                 <a
                   href={mapsDirUrl}
                   target="_blank"
@@ -416,17 +393,8 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
                 >
                   <Navigation size={12} /> Directions
                 </a>
-              )}
-              <button
-                type="button"
-                onClick={handleShareLocation}
-                className="flex items-center gap-1.5 text-[9pt] font-medium text-tertiary active:scale-95 transition-all"
-              >
-                {shareCopied
-                  ? <><Check size={12} /> Link copied</>
-                  : <><Share2 size={12} /> Share location</>}
-              </button>
-            </div>
+              </div>
+            )}
           </div>
         </div>
       )}

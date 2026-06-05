@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { CalendarEvent } from '../../Types/CalendarTypes';
 import { useSpring, animated } from '@react-spring/web';
-import { ChevronLeft, ChevronRight, Settings, MapPin, Route, Pentagon, Trash2, X, Ruler, RadioTower, Undo2, Activity, Pause, Play, Square, Plus, Check, Navigation, Layers, Pencil, Clock, MoreHorizontal, Forward } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, MapPin, Route, Pentagon, Trash2, X, Ruler, RadioTower, Undo2, Activity, Pause, Play, Square, Plus, Check, Navigation, Layers, Pencil, Clock, MoreHorizontal, MessageSquare, Share2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ActionSheet, type ActionSheetOption } from '../ActionSheet';
 import { AddFab } from '../AddFab';
@@ -1622,6 +1622,15 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     handleStartNavigation(lat, lng, selectedFeature.id);
   }, [selectedFeature, handleStartNavigation]);
 
+  // ── Share the selected feature's location via the native share sheet ──
+  const handleShareLocationSelected = useCallback(() => {
+    if (!selectedFeature || selectedFeature.geometry.length === 0) return;
+    const [lat, lng] = selectedFeature.geometry[0];
+    const url = `https://www.google.com/maps?q=${lat},${lng}`;
+    if (navigator.share) { navigator.share({ title: 'Location', url }).catch(() => {}); return; }
+    navigator.clipboard.writeText(url).catch(() => {});
+  }, [selectedFeature]);
+
   // Open the selected-feature ellipsis menu anchored under the tapped pill.
   const openFeatureMenu = useCallback((e: React.MouseEvent) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -2686,7 +2695,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
             ...(selectedFeature.type === 'waypoint' && selectedFeature.geometry.length > 0
               ? [{ key: 'navigate', label: 'Navigate', icon: Navigation, onAction: handleNavigateSelected }]
               : []),
-            { key: 'forward', label: 'Forward', icon: Forward, onAction: handleForwardSelected },
+            { key: 'forward', label: 'Share to chat', icon: MessageSquare, onAction: handleForwardSelected },
+            ...(selectedFeature.geometry.length > 0
+              ? [{ key: 'share', label: 'Share location', icon: Share2, onAction: handleShareLocationSelected }]
+              : []),
             { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: handleDeleteSelected },
           ]}
         />

@@ -580,7 +580,12 @@ case 'mapOverlay':
             {tc3Mode ? (
               // TC3 mode: mobile wizard or desktop 2-column front/back layout
               navigation.isMobile ? (
-                <TC3MobileWizard />
+                <TC3MobileWizard
+                  onEdgeDrag={menuSlide.onEdgeDrag}
+                  onEdgeDragEnd={menuSlide.onEdgeDragEnd}
+                  onRightEdgeDrag={messagesSlide.onEdgeDrag}
+                  onRightEdgeDragEnd={messagesSlide.onEdgeDragEnd}
+                />
               ) : (
                 <TC3DesktopLayout />
               )
