@@ -812,6 +812,7 @@ function KBHome({
                         onAction: () => togglePinKB(lifted.id),
                     }]}
                     onClose={() => setLifted(null)}
+                    layout="list"
                 />
             )}
         </div>

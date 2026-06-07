@@ -234,8 +234,8 @@ export function createEmptyCard(): TC3Card {
       firstName: '',
       last4: '',
       unit: '',
-      sex: '',
-      bloodType: '',
+      sex: 'M',
+      bloodType: 'A+',
       service: '',
       allergies: '',
       dateTimeOfInjury: '',
@@ -278,7 +278,7 @@ export function createEmptyCard(): TC3Card {
     medications: [],
     vitals: [],
     evacuation: {
-      priority: '',
+      priority: 'Urgent',
     },
     other: {
       combatPillPack: false,

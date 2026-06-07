@@ -1,5 +1,5 @@
 export type EventCategory =
-  | 'training' | 'duty' | 'range' | 'appointment' | 'mission' | 'medevac' | 'huddle' | 'leave' | 'other' | 'templated' | 'task'
+  | 'training' | 'duty' | 'range' | 'appointment' | 'mission' | 'medevac' | 'huddle' | 'leave' | 'other' | 'templated'
 
 export type EventStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
 
@@ -58,12 +58,14 @@ export interface CalendarEvent {
   /** 9-line MEDEVAC request data — present when category is 'medevac' or when a mission event includes a MEDEVAC request. */
   medevac_data?: MedevacRequest | null
   /**
-   * Attached Pre-Combat Check (PCC). Optional, supervisor-set. Snapshot-copied
-   * from a clinics.pre_combat_checks template on attach — template edits do not
-   * retro-mutate. Whole PCC owned by a single medic (assigned_to). Subtask ticks
-   * write done_by + done_at and ride the normal event update path.
+   * Per-event to-do list. Optional. Items are either seeded from a clinic
+   * Checklist template (source:'standardized', snapshot-copied on seed — template
+   * edits do not retro-mutate) or added ad-hoc (source:'custom'). Editing
+   * (add/remove/seed) is gated by isEventEditable; ticking is open to event
+   * assignees. The whole list lives in the event envelope and rides the normal
+   * event update path (IDB + Signal clinic-vault fanout). No PHI.
    */
-  pcc?: PCCAttachment | null
+  subtasks?: EventSubtask[] | null
   /**
    * Outside event-intake linkage. Present when this event was created via the
    * intake card's Approve action. Persisted for forensic traceability back to
@@ -72,17 +74,28 @@ export interface CalendarEvent {
   intake_id?: string
 }
 
-/** Snapshot of a PCC attached to a calendar event. Inherits ownership from event.assigned_to — anyone on the event can tick. */
-export interface PCCAttachment {
-  template_id: string
-  subtasks: PCCSubtask[]
+/** Origin of an event subtask. 'standardized' = seeded from a clinic Checklist template; 'custom' = added ad-hoc on the event. */
+export type SubtaskSource = 'standardized' | 'custom'
+
+interface SubtaskCommon {
+  id: string
+  source: SubtaskSource
+  /** Checklist that seeded this item — label/orphan handling only, never retro-mutated. Null/absent for custom items. */
+  template_id?: string | null
+  /** Append order. Higher = later. */
+  sort_order?: number
+  done_by?: string | null
+  done_at?: string | null
 }
 
-/** Snapshot of a template item plus per-event completion state. */
-export type PCCSubtask =
-  | { id: string; kind: 'property_item';     ref: string; label_override?: string | null; done_by?: string | null; done_at?: string | null }
-  | { id: string; kind: 'property_location'; ref: string; done_by?: string | null; done_at?: string | null }
-  | { id: string; kind: 'task';              label: string; done_by?: string | null; done_at?: string | null }
+/**
+ * A single to-do item on a calendar event. Snapshot — once on the event it is
+ * independent of any source template. Kinds mirror the clinic Checklist item kinds.
+ */
+export type EventSubtask =
+  | (SubtaskCommon & { kind: 'property_item';     ref: string; label_override?: string | null })
+  | (SubtaskCommon & { kind: 'property_location'; ref: string })
+  | (SubtaskCommon & { kind: 'task';              label: string })
 
 /** A single user's last-known field position, stored on a CalendarEvent. */
 export interface FieldPosition {
@@ -127,8 +140,8 @@ export interface EventFormData {
    * edit path we don't carry it (clinic_id is immutable on existing events).
    */
   clinic_id?: string | null
-  /** Attached PCC snapshot (template_id + assignee + subtasks). Supervisor-set. */
-  pcc?: PCCAttachment | null
+  /** Per-event to-do list (seeded from a Checklist and/or custom items). */
+  subtasks?: EventSubtask[] | null
 }
 
 export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: string; solidColor: string; hidden?: boolean; devOnly?: boolean }[] = [
@@ -142,7 +155,6 @@ export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: str
   { value: 'leave',       label: 'Leave',       color: 'bg-tertiary/15',    solidColor: 'bg-tertiary' },
   { value: 'other',       label: 'Other',       color: 'bg-tertiary/20',    solidColor: 'bg-tertiary' },
   { value: 'templated',   label: 'Templated',   color: 'bg-themeblue3/15',  solidColor: 'bg-themeblue3', hidden: true },
-  { value: 'task',        label: 'Task',        color: 'bg-tertiary/20',    solidColor: 'bg-tertiary' },
 ]
 
 export const CATEGORY_BG_MAP: Record<EventCategory, string> = {
@@ -156,11 +168,11 @@ export const CATEGORY_BG_MAP: Record<EventCategory, string> = {
   leave: 'bg-tertiary/10 border-tertiary/20 text-tertiary',
   other: 'bg-tertiary/20 border-tertiary/20 text-secondary',
   templated: 'bg-themeblue3/10 border-themeblue3/25 text-primary',
-  task: 'bg-tertiary/20 border-tertiary/20 text-secondary',
 }
 
 export function getCategoryMeta(category: EventCategory) {
-  return EVENT_CATEGORIES.find(c => c.value === category) ?? EVENT_CATEGORIES[EVENT_CATEGORIES.length - 1]
+  // Fallback to 'other' so any legacy/unknown category (e.g. retired 'task') renders neutrally.
+  return EVENT_CATEGORIES.find(c => c.value === category) ?? EVENT_CATEGORIES.find(c => c.value === 'other')!
 }
 
 /**
@@ -265,7 +277,7 @@ export function createEmptyFormData(forDateKey?: string): EventFormData {
     linked_overlays: null,
     linked_features: null,
     medevac_data: null,
-    pcc: null,
+    subtasks: [],
   }
 }
 
@@ -290,7 +302,7 @@ export function eventToFormData(event: CalendarEvent): EventFormData {
     linked_overlays: event.linked_overlays ?? null,
     linked_features: event.linked_features ?? null,
     medevac_data: event.medevac_data ?? null,
-    pcc: event.pcc ?? null,
+    subtasks: event.subtasks ?? [],
   }
 }
 

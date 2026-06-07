@@ -118,6 +118,9 @@ function ConvRow({ children, onTap, onOpenMenu }: {
     <div
       ref={rowRef}
       className={`cursor-pointer select-none transition-opacity duration-100 ${isPressing ? 'opacity-60' : ''}`}
+      // iOS Safari: suppress the native long-press callout/selection that fires a
+      // touchcancel and kills the long-press timer. touch-action keeps scroll.
+      style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none', touchAction: 'manipulation' }}
       onClick={handleClick}
       onContextMenu={(e) => { e.preventDefault(); if (rowRef.current) onOpenMenu(rowRef.current.getBoundingClientRect()) }}
       {...longPressHandlers}
@@ -238,6 +241,7 @@ function MessagesWidget({ action }: { action: WidgetActionDescriptor | null }) {
         row={liftedMenu?.row}
         items={liftedMenu?.items ?? []}
         onClose={closeMenu}
+        layout="list"
       />
       <ConfirmDialog
         visible={!!pendingDeleteKey}
@@ -753,9 +757,6 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
     }
   }
 
-  const CALENDAR_DATA_WIDGETS: OverviewWidgetId[] = ['task-list', 'kanban', 'week-view', 'huddle']
-  const firstCalendarWidget = widgets.find(w => CALENDAR_DATA_WIDGETS.includes(w))
-
   const dateNavRow = (
     <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-themeblue3/8">
       <button className="p-1 rounded active:bg-themeblue2/10 text-tertiary" onClick={() => navigate(-1)}>
@@ -798,14 +799,19 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
           <span className="text-[10pt] text-secondary">No widgets selected</span>
         </div>
       ) : (
-        <div className="divide-y divide-themeblue3/8" data-tour="mission-overview-widgets">
-          {widgets.map(id => (
-            <div key={id}>
-              {id === firstCalendarWidget && dateNavRow}
-              {renderWidget(id)}
-            </div>
-          ))}
-        </div>
+        <>
+          {/* Date nav is the panel's permanent header — riding above EVERY first
+              widget (calendar or not) so the first widget's overlay action pill
+              has a bar to sit on instead of being clipped by the card's overflow-hidden. */}
+          {dateNavRow}
+          <div className="divide-y divide-themeblue3/8" data-tour="mission-overview-widgets">
+            {widgets.map(id => (
+              <div key={id}>
+                {renderWidget(id)}
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {contextMenu && (() => {

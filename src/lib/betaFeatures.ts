@@ -18,7 +18,7 @@
  *      sees it; after promotion everyone authenticated sees it. Use
  *      `useBetaFlag(key)` (or `isBetaFlagEnabled(key)` outside React) as the
  *      sole visibility check.
- *        e.g. WhisperNet Settings panel, PreCombatChecks template editing
+ *        e.g. WhisperNet Settings panel
  *
  *   2. Additive — feature already has a role permission gate. During beta dev
  *      additionally bypasses that gate for testing. After promotion the role
@@ -37,9 +37,6 @@ export const BETA_FEATURES = {
   /** WhisperNet — LoRa mesh offline messaging Settings panel. Subsystem runs
    *  regardless; this gate only controls the user-facing config panel. */
   whisperNet: true,
-  /** PreCombatChecks template editing — viewing is open to all; editing
-   *  (new / edit) is dev-only during beta. */
-  preCombatChecksTemplates: true,
   /** Outside on-call ("Allow calls") channel — intake + outside chat are GA
    *  (supervisor-permissioned, no bypass). The live-call channel stays in beta:
    *  dev sees the "Allow calls" toggle (and gets the supervisor card even without

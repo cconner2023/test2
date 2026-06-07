@@ -1,7 +1,8 @@
 import { useState, useCallback, useImperativeHandle, forwardRef, useEffect } from 'react'
 import { Package } from 'lucide-react'
 import { LocationPicker } from './LocationPicker'
-import type { EventFormData, EventCategory, EventStatus, PCCSubtask } from '../../Types/CalendarTypes'
+import type { EventFormData, EventCategory, EventStatus } from '../../Types/CalendarTypes'
+import { EventTasksCard } from './EventTasksCard'
 import { createEmptyFormData, EVENT_CATEGORIES, MILITARY_TIME_OPTIONS, militaryToHHMM, hhmmToMilitary, CATEGORY_SWATCH_IDS, CATEGORY_SWATCHES } from '../../Types/CalendarTypes'
 import { useCategoryColors } from '../../Hooks/useCategoryColors'
 import type { ClinicPreCombatCheck } from '../../lib/supervisorService'
@@ -13,11 +14,11 @@ import { MedevacForm } from '../Medevac/MedevacForm'
 import { emptyMedevacRequest } from '../../Types/MedevacTypes'
 
 
-const STATUS_OPTIONS: { value: EventStatus; label: string; activeClass: string }[] = [
-  { value: 'pending',     label: 'Pending',   activeClass: 'bg-tertiary/15 text-primary' },
-  { value: 'in_progress', label: 'Active',    activeClass: 'bg-themeblue1/15 text-themeblue1' },
-  { value: 'completed',   label: 'Done',      activeClass: 'bg-themegreen/15 text-themegreen' },
-  { value: 'cancelled',   label: 'Cancelled', activeClass: 'bg-themeredred/15 text-themeredred' },
+const STATUS_OPTIONS: { value: EventStatus; label: string }[] = [
+  { value: 'pending',     label: 'Pending'   },
+  { value: 'in_progress', label: 'Active'    },
+  { value: 'completed',   label: 'Done'      },
+  { value: 'cancelled',   label: 'Cancelled' },
 ]
 
 export interface EventFormHandle {
@@ -76,10 +77,8 @@ interface EventFormProps {
   huddleTaskOptions?: HuddleTaskOption[]
   /** Clinics the user can write events into (assigned + surrogate when loaned). Picker hidden when length < 2 or editing. */
   clinicOptions?: ClinicOption[]
-  /** Pre-Combat Check templates (clinics.pre_combat_checks). Empty/undefined hides the section. */
-  pccTemplateOptions?: ClinicPreCombatCheck[]
-  /** Drives dev-only visibility for the PCC attach affordance. */
-  isDev?: boolean
+  /** Clinic Checklists available to seed standardized tasks (clinics.pre_combat_checks). */
+  checklistTemplates?: ClinicPreCombatCheck[]
   /**
    * Footer Add action for the Location picker — receives the typed name and
    * returns the new overlay's id so the picker can auto-link it.
@@ -88,14 +87,12 @@ interface EventFormProps {
 }
 
 export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
-  function EventForm({ initialData, onSave, isEditing, medics, propertyItems, overlayOptions, roomOptions, huddleTaskOptions, clinicOptions, pccTemplateOptions, isDev, onCreateOverlay }, ref) {
+  function EventForm({ initialData, onSave, isEditing, medics, propertyItems, overlayOptions, roomOptions, huddleTaskOptions, clinicOptions, checklistTemplates, onCreateOverlay }, ref) {
     const isMobile = useIsMobile()
     const isDevRole = useAuthStore(s => s.isDevRole)
     const { resolve: resolveCategoryColor } = useCategoryColors()
     const [form, setForm] = useState<EventFormData>(initialData ?? createEmptyFormData())
     const [errors, setErrors] = useState<Record<string, string>>({})
-
-    const isTask = form.category === 'task'
 
     const updateField = useCallback(<K extends keyof EventFormData>(key: K, value: EventFormData[K]) => {
       setForm(prev => ({ ...prev, [key]: value }))
@@ -109,10 +106,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
     const validate = useCallback((): boolean => {
       const errs: Record<string, string> = {}
       if (!form.title.trim()) errs.title = 'Title required.'
-      if (isTask) {
-        // Tasks need only a start date — end mirrors start at submit.
-        if (!form.start_time) errs.start_time = 'Date required.'
-      } else if (!form.all_day) {
+      if (!form.all_day) {
         if (!form.start_time) errs.start_time = 'Start time required.'
         if (!form.end_time) errs.end_time = 'End time required.'
         if (form.start_time && form.end_time && form.start_time >= form.end_time) {
@@ -121,20 +115,12 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
       }
       setErrors(errs)
       return Object.keys(errs).length === 0
-    }, [form, isTask])
+    }, [form])
 
     const handleSubmit = useCallback(() => {
       if (!validate()) return
-      // Tasks are inherently all-day events on their assigned day — anchor to T00:00–T23:59
-      // so they ride the existing all-day band in DayView / TripleDayView.
-      const payload: EventFormData = isTask
-        ? (() => {
-            const dateKey = (form.start_time.slice(0, 10)) || new Date().toISOString().slice(0, 10)
-            return { ...form, all_day: true, start_time: `${dateKey}T00:00`, end_time: `${dateKey}T23:59` }
-          })()
-        : form
-      onSave(payload)
-    }, [form, validate, onSave, isTask])
+      onSave(form)
+    }, [form, validate, onSave])
 
     useImperativeHandle(ref, () => ({ submit: handleSubmit }), [handleSubmit])
 
@@ -208,7 +194,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
             <TextInput
               value={form.title}
               onChange={v => updateField('title', v)}
-              placeholder={isTask ? 'Task title *' : 'Event title *'}
+              placeholder="Event title *"
               required
               hint={errors.title}
             />
@@ -234,7 +220,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
             )
           })()}
 
-          {form.category !== 'templated' && !isTask && (
+          {form.category !== 'templated' && (
             <div data-tour="event-form-category">
               <PickerInput
                 value={categoryLabel}
@@ -281,29 +267,29 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
 
           {isEditing && (
             <div className="px-4 py-3 border-b border-primary/6">
-              <div className="grid grid-cols-4 gap-1">
-                {STATUS_OPTIONS.map(opt => {
-                  const isActive = form.status === opt.value
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => updateField('status', opt.value)}
-                      className={`rounded-full py-1.5 text-[9pt] font-semibold tracking-wide transition-all duration-150 active:scale-95 border ${isActive
-                          ? `${opt.activeClass} border-transparent`
-                          : 'border-themeblue3/10 bg-themewhite text-tertiary'
-                        }`}
-                    >
+              <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">Status</span>
+              <div className="mt-1.5 flex overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                {STATUS_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => updateField('status', opt.value)}
+                    className={`shrink-0 px-4 py-1.5 transition-colors ${
+                      form.status === opt.value ? 'bg-themeblue3' : 'active:bg-tertiary/5'
+                    }`}
+                  >
+                    <span className={`text-[9pt] transition-colors ${
+                      form.status === opt.value ? 'text-white font-medium' : 'text-secondary'
+                    }`}>
                       {opt.label}
-                    </button>
-                  )
-                })}
+                    </span>
+                  </button>
+                ))}
               </div>
             </div>
           )}
 
-          {/* All-day toggle row — hidden for tasks (zero-duration, single-day) */}
-          {!isTask && (
+          {/* All-day toggle row */}
           <label
             className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer border-b border-primary/6"
             onClick={() => {
@@ -327,10 +313,8 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                 }`} />
             </div>
           </label>
-          )}
 
-          {/* Start date + time — fully hidden for tasks (implied day of creation) */}
-          {!isTask && (
+          {/* Start date + time */}
           <div data-tour="event-form-datetime">
             <div className="flex items-stretch border-b border-primary/6">
               <div className="flex-1 min-w-0">
@@ -340,7 +324,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                   placeholder="Start date"
                 />
               </div>
-              {!form.all_day && !isTask && (
+              {!form.all_day && (
                 <div className="flex-1 min-w-0 border-l border-primary/6">
                   <PickerInput
                     value={startTime ? hhmmToMilitary(startTime) : ''}
@@ -361,11 +345,8 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
             </div>
             {errors.start_time && <p className="px-4 py-2 text-[10pt] text-themeredred border-b border-primary/6">{errors.start_time}</p>}
           </div>
-          )}
 
-          {/* End date + time — hidden for tasks (mirrors start at submit) */}
-          {!isTask && (
-          <>
+          {/* End date + time */}
           <div className="flex items-stretch border-b border-primary/6">
             <div className="flex-1 min-w-0">
               <DatePickerInput
@@ -395,10 +376,8 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
             )}
           </div>
           {errors.end_time && <p className="px-4 py-2 text-[10pt] text-themeredred border-b border-primary/6">{errors.end_time}</p>}
-          </>
-          )}
 
-          {form.category !== 'medevac' && !isTask && roomOptions && roomOptions.length > 0 && (
+          {form.category !== 'medevac' && roomOptions && roomOptions.length > 0 && (
             <div data-tour="event-form-room">
               <PickerInput
                 value={form.room_id ?? ''}
@@ -420,34 +399,6 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
               <p className="px-4 py-2 text-[9pt] text-tertiary border-b border-primary/6">
                 Leave blank for an on-shift provider block. Pick a task to assign someone to a station like Front Desk.
               </p>
-            </div>
-          )}
-
-          {isDev && pccTemplateOptions && pccTemplateOptions.length > 0 && (
-            <div data-tour="event-form-pcc">
-              <PickerInput
-                value={form.pcc?.template_id ?? ''}
-                onChange={v => {
-                  if (!v) {
-                    updateField('pcc', null)
-                    return
-                  }
-                  const template = pccTemplateOptions.find(t => t.id === v)
-                  if (!template) return
-                  const subtasks: PCCSubtask[] = template.items.map(item => {
-                    if (item.kind === 'task')              return { id: item.id, kind: 'task',              label: item.label }
-                    if (item.kind === 'room')              return { id: item.id, kind: 'room',              ref: item.ref }
-                    if (item.kind === 'property_location') return { id: item.id, kind: 'property_location', ref: item.ref }
-                    return { id: item.id, kind: 'property_item', ref: item.ref, label_override: item.label_override ?? null }
-                  })
-                  updateField('pcc', {
-                    template_id: template.id,
-                    subtasks,
-                  })
-                }}
-                options={[{ value: '', label: 'No pre-combat check' }, ...pccTemplateOptions.map(t => ({ value: t.id, label: t.name }))]}
-                placeholder="Pre-combat check"
-              />
             </div>
           )}
 
@@ -474,6 +425,19 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                 className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
               />
             </label>
+          )}
+
+          {form.category !== 'medevac' && (
+            <div data-tour="event-form-tasks" className="px-4 py-3 border-b border-primary/6">
+              <EventTasksCard
+                subtasks={form.subtasks ?? []}
+                templates={checklistTemplates}
+                assignedIds={form.assigned_to}
+                canEdit
+                onChange={next => updateField('subtasks', next)}
+                isMobile={isMobile}
+              />
+            </div>
           )}
         </div>
 
@@ -526,7 +490,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           </div>
         )}
 
-        {!isTask && propertyItems && propertyItems.length > 0 && (
+        {propertyItems && propertyItems.length > 0 && (
           <div className="mt-3">
             <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
               Equipment ({form.property_item_ids.length})

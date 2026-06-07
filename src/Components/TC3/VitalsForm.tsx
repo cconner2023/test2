@@ -1,5 +1,5 @@
-import { memo, useState } from 'react'
-import { Plus, X, Check, ChevronRight, Activity, TrendingUp } from 'lucide-react'
+import { memo, useState, useRef, useEffect } from 'react'
+import { Plus, X, Check, TrendingUp } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { TextInput } from '../FormInputs'
@@ -106,9 +106,19 @@ function parseSystolic(bp: string): number | null {
   return isNaN(n) ? null : n
 }
 
-/* ── Vitals Trend / Shock Index table ── */
-function VitalsTrend({ sets }: { sets: TC3VitalSet[] }) {
-  if (sets.length < 2) return null
+/* ── Signs & Symptoms trend grid — one tappable column per vital set ──
+   Horizontal scroll (newest column at the right, in view by default — scroll
+   left for earlier sets, same scroll feel as the Troops-to-Task timeline).
+   Tapping a column opens that set's editor. */
+function VitalsTrend({ sets, onSelect }: { sets: TC3VitalSet[]; onSelect: (id: string) => void }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Jump to the most-recent column on mount and whenever a set is added —
+  // reuses the Troops-to-Task pattern of setting scrollLeft directly.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el) el.scrollLeft = el.scrollWidth
+  }, [sets.length])
 
   type RowKey = 'HR' | 'SBP' | 'SpO2' | 'SI' | 'GCS' | 'Temp' | 'Pain'
 
@@ -161,53 +171,64 @@ function VitalsTrend({ sets }: { sets: TC3VitalSet[] }) {
     { key: 'Pain', label: 'Pain' },
   ]
 
-  const cols = `4rem repeat(${sets.length}, 1fr)`
-
   return (
-    <div className="mt-2 rounded-xl border border-tertiary/8 overflow-x-auto">
-      {/* Header */}
-      <div className="grid text-[9pt] font-medium text-tertiary uppercase tracking-wide bg-tertiary/4 min-w-max w-full"
-        style={{ gridTemplateColumns: cols }}
-      >
-        <div className="py-1.5 px-2 flex items-center gap-1">
-          <TrendingUp size={10} className="shrink-0" />
-          Trend
-        </div>
-        {sets.map((vs) => (
-          <div key={vs.id} className="py-1.5 px-2 text-center border-l border-tertiary/8">
-            {vs.time || '—'}
+    <div
+      ref={scrollRef}
+      className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-x-auto"
+      style={{ scrollbarWidth: 'none' }}
+    >
+      <div className="flex min-w-max">
+        {/* Sticky label column */}
+        <div className="sticky left-0 z-10 shrink-0 bg-themewhite2 border-r border-tertiary/8">
+          <div className="h-7 flex items-center gap-1 px-2.5 text-[9pt] font-medium text-tertiary uppercase tracking-wide bg-tertiary/4">
+            <TrendingUp size={10} className="shrink-0" />
+            Trend
           </div>
+          {rows.map((row, ri) => (
+            <div
+              key={row.key}
+              className={`h-8 flex items-center px-2.5 text-[9pt] font-medium text-tertiary ${ri > 0 ? 'border-t border-tertiary/8' : ''}`}
+            >
+              {row.label}
+            </div>
+          ))}
+        </div>
+
+        {/* One tappable column per vital set */}
+        {sets.map((vs, ci) => (
+          <button
+            key={vs.id}
+            type="button"
+            onClick={() => onSelect(vs.id)}
+            className="shrink-0 w-[4.75rem] text-center border-l border-tertiary/8 hover:bg-themeblue2/5 active:scale-95 transition-colors"
+          >
+            <div className="h-7 flex items-center justify-center px-1 text-[9pt] font-medium text-tertiary uppercase tracking-wide bg-tertiary/4 truncate">
+              {vs.time || '—'}
+            </div>
+            {rows.map((row, ri) => {
+              const curr = getVal(vs, row.key)
+              const prev = ci > 0 ? getVal(sets[ci - 1], row.key) : null
+              const d = delta(row.key, curr, prev)
+              const valColor = row.key === 'SI' ? siColor(curr) : 'text-primary'
+              const displayVal = curr === null
+                ? '—'
+                : row.key === 'SI' ? curr.toFixed(2)
+                : row.key === 'Temp' ? curr.toFixed(1)
+                : String(Math.round(curr))
+
+              return (
+                <div
+                  key={row.key}
+                  className={`h-8 flex items-center justify-center gap-0.5 text-[9pt] ${ri > 0 ? 'border-t border-tertiary/8' : ''}`}
+                >
+                  <span className={valColor}>{displayVal}</span>
+                  {d.arrow && <span className={d.color}>{d.arrow}</span>}
+                </div>
+              )
+            })}
+          </button>
         ))}
       </div>
-
-      {/* Data rows */}
-      {rows.map((row, ri) => (
-        <div
-          key={row.key}
-          className={`grid text-[9pt] min-w-max w-full ${ri > 0 ? 'border-t border-tertiary/8' : ''}`}
-          style={{ gridTemplateColumns: cols }}
-        >
-          <div className="py-1.5 px-2 text-tertiary font-medium">{row.label}</div>
-          {sets.map((vs, ci) => {
-            const curr = getVal(vs, row.key)
-            const prev = ci > 0 ? getVal(sets[ci - 1], row.key) : null
-            const d = delta(row.key, curr, prev)
-            const valColor = row.key === 'SI' ? siColor(curr) : 'text-primary'
-            const displayVal = curr === null
-              ? '—'
-              : row.key === 'SI' ? curr.toFixed(2)
-              : row.key === 'Temp' ? curr.toFixed(1)
-              : String(Math.round(curr))
-
-            return (
-              <div key={vs.id} className="py-1.5 px-2 text-center border-l border-tertiary/8 flex items-center justify-center gap-0.5">
-                <span className={valColor}>{displayVal}</span>
-                {d.arrow && <span className={d.color}>{d.arrow}</span>}
-              </div>
-            )
-          })}
-        </div>
-      ))}
     </div>
   )
 }
@@ -254,22 +275,27 @@ function VitalSetPreviewContent({ id }: { id: string }) {
 
   return (
     <div className="px-4 py-3 space-y-3" onClick={(e) => e.stopPropagation()}>
-      {/* AVPU — standardized pill selectors */}
-      <div className="flex gap-1.5">
-        {AVPU_OPTIONS.map((opt) => (
-          <button
-            key={opt}
-            type="button"
-            onClick={() => handleAVPU(opt)}
-            className={`w-9 h-9 rounded-full flex items-center justify-center text-[10pt] font-bold transition-all active:scale-95 ${
-              avpu === opt
-                ? 'bg-themeredred text-white'
-                : 'bg-tertiary/10 text-tertiary hover:bg-tertiary/15'
-            }`}
-          >
-            {opt}
-          </button>
-        ))}
+      {/* AVPU */}
+      <div>
+        <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">AVPU</span>
+        <div className="mt-1.5 flex overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+          {AVPU_OPTIONS.map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => handleAVPU(opt)}
+              className={`shrink-0 px-4 py-1.5 transition-colors ${
+                avpu === opt ? 'bg-themeredred' : 'active:bg-tertiary/5'
+              }`}
+            >
+              <span className={`text-[9pt] transition-colors ${
+                avpu === opt ? 'text-white font-medium' : 'text-secondary'
+              }`}>
+                {opt}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* GCS steppers */}
@@ -292,8 +318,8 @@ function VitalSetPreviewContent({ id }: { id: string }) {
       <div className="grid grid-cols-2 gap-2">
         <TextInput label="Pulse" value={vs.pulse} onChange={(v) => handleChange('pulse', v)} placeholder="HR" inputMode="numeric" />
         <div>
-          <span className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Location</span>
-          <div className="flex gap-1.5 mt-1.5">
+          <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">Location</span>
+          <div className="mt-1.5 flex overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
             {PULSE_LOCATION_OPTIONS.map((opt) => (
               <button
                 key={opt}
@@ -309,13 +335,15 @@ function VitalSetPreviewContent({ id }: { id: string }) {
                   }
                   updateVitalSet(id, updates)
                 }}
-                className={`w-9 h-9 rounded-full flex items-center justify-center text-[10pt] font-bold transition-all active:scale-95 ${
-                  vs.pulseLocation === opt
-                    ? 'bg-themeblue3 text-white'
-                    : 'bg-tertiary/10 text-tertiary hover:bg-tertiary/15'
+                className={`shrink-0 px-4 py-1.5 transition-colors ${
+                  vs.pulseLocation === opt ? 'bg-themeblue3' : 'active:bg-tertiary/5'
                 }`}
               >
-                {opt}
+                <span className={`text-[9pt] transition-colors ${
+                  vs.pulseLocation === opt ? 'text-white font-medium' : 'text-secondary'
+                }`}>
+                  {opt}
+                </span>
               </button>
             ))}
           </div>
@@ -353,15 +381,6 @@ function VitalSetPreviewContent({ id }: { id: string }) {
       </div>
     </div>
   )
-}
-
-/* ── Build chip summary text ── */
-function buildChipSummary(vs: TC3VitalSet): string {
-  const parts: string[] = []
-  if (vs.pulse) parts.push(`HR ${vs.pulse}`)
-  if (vs.bp) parts.push(vs.bp)
-  if (vs.spo2) parts.push(`SpO2 ${vs.spo2}%`)
-  return parts.length > 0 ? parts.join(' \u00b7 ') : ''
 }
 
 function vitalSetHasData(vs: TC3VitalSet): boolean {
@@ -424,57 +443,19 @@ export const VitalsForm = memo(function VitalsForm() {
         </p>
       </div>
 
-      {/* Section card */}
+      {/* Section card — tappable trend grid (FAB adds, tapping a column edits) */}
       {!hasData ? (
         <EmptyState
           title="No vital signs recorded"
           action={{ icon: Plus, label: 'Add vital signs', onClick: handleAddVitals }}
         />
       ) : (
-        <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-          {populatedSets.map((vs, idx) => {
-            const isLast = idx === populatedSets.length - 1
-            const setGcsTotal = vs.gcs ? vs.gcs.eye + vs.gcs.verbal + vs.gcs.motor : null
-            return (
-              <button
-                key={vs.id}
-                type="button"
-                onClick={() => setEditingId(vs.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-themeblue2/5 active:scale-95 transition-colors ${idx > 0 ? 'border-t border-tertiary/6' : ''} ${isLast ? 'pr-32' : ''}`}
-              >
-                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10 font-bold text-sm text-tertiary">
-                  {vs.avpu || <Activity size={18} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  {setGcsTotal !== null && setGcsTotal > 0 && (
-                    <p className="text-sm font-medium text-primary truncate">
-                      GCS {setGcsTotal} (E{vs.gcs!.eye} V{vs.gcs!.verbal} M{vs.gcs!.motor})
-                    </p>
-                  )}
-                  <p className={`text-[9pt] text-secondary truncate ${setGcsTotal ? 'mt-0.5' : ''}`}>
-                    {buildChipSummary(vs)}
-                  </p>
-                </div>
-                {!isLast && <span className="text-[9pt] text-secondary shrink-0">{vs.time}</span>}
-                {!isLast && <ChevronRight size={16} className="text-tertiary shrink-0" />}
-              </button>
-            )
-          })}
-          <div
-            onClick={handleAddVitals}
-            className="absolute right-0 bottom-0 w-32 h-full flex items-center justify-end pr-2 pb-2 z-10 cursor-pointer"
-            aria-hidden
-          >
-            <ActionPill shadow="sm">
-              <ActionButton icon={Plus} label="Add vital signs" onClick={handleAddVitals} />
-            </ActionPill>
-          </div>
+        <div className="relative">
+          <VitalsTrend sets={populatedSets} onSelect={setEditingId} />
+          <ActionPill shadow="sm" placement="overlay">
+            <ActionButton icon={Plus} label="Add vital signs" onClick={handleAddVitals} />
+          </ActionPill>
         </div>
-      )}
-
-      {/* Vitals trend table — shown when 2+ populated sets */}
-      {hasData && populatedSets.length >= 2 && (
-        <VitalsTrend sets={populatedSets} />
       )}
 
       {/* Popover for editing a vital set (includes AVPU + GCS + vitals) */}

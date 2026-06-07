@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { Check, ClipboardCheck, Loader2, MapPin, Package, Plus, Trash2, Type, X } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
-import { useBetaFlag } from '../../lib/betaFeatures'
 import { useClinicPreCombatChecks } from '../../Hooks/useClinicPreCombatChecks'
 import { useClinicPropertyPickers } from '../../Hooks/useClinicPropertyPickers'
 import {
@@ -32,8 +31,8 @@ interface PCCEditorState {
 }
 
 export function PreCombatChecksSection() {
-  const { clinicId: assignedClinicId, supervisingClinicId } = useAuth()
-  const canEditTemplates = useBetaFlag('preCombatChecksTemplates')
+  const { clinicId: assignedClinicId, supervisingClinicId, isSupervisorRole } = useAuth()
+  const canEditTemplates = isSupervisorRole
   const clinicId = supervisingClinicId ?? assignedClinicId
   const templates = useClinicPreCombatChecks(clinicId)
   const { items: propertyItems, locations: propertyLocations } = useClinicPropertyPickers(clinicId)
@@ -177,13 +176,13 @@ export function PreCombatChecksSection() {
 
       <section data-tour="clinic-pre-combat-checks">
         <div className="pb-2">
-          <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Pre-Combat Checks</p>
+          <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Checklists</p>
         </div>
         <div className="relative">
           <div className="rounded-xl bg-themewhite2 overflow-hidden">
             <div className="px-4 py-3">
               {templates.length === 0 ? (
-                <p className="text-[10pt] text-tertiary py-4 text-center">No pre-combat checks formatted</p>
+                <p className="text-[10pt] text-tertiary py-4 text-center">No checklists</p>
               ) : (
                 <div className="space-y-1">
                   {sortedTemplates.map((tpl) => (
@@ -209,7 +208,7 @@ export function PreCombatChecksSection() {
           </div>
           {canEditTemplates && (
             <ActionPill ref={fabRef} shadow="sm" placement="overlay">
-              <ActionButton icon={Plus} label="New pre-combat check" onClick={openNew} />
+              <ActionButton icon={Plus} label="New checklist" onClick={openNew} />
             </ActionPill>
           )}
         </div>
@@ -227,7 +226,7 @@ export function PreCombatChecksSection() {
               <TextInput
                 value={draftName}
                 onChange={(v) => { setDraftName(v); setNameError(null) }}
-                placeholder={editor.mode === 'new' ? 'New pre-combat check…' : 'Pre-combat check name'}
+                placeholder={editor.mode === 'new' ? 'New checklist…' : 'Checklist name'}
                 hint={nameError}
               />
             </div>
@@ -367,7 +366,7 @@ export function PreCombatChecksSection() {
 
       <ConfirmDialog
         visible={!!confirmDelete}
-        title="Delete this pre-combat check?"
+        title="Delete this checklist?"
         subtitle="Events with an attached snapshot keep their checklist; future attachments are blocked."
         confirmLabel="Delete"
         variant="danger"

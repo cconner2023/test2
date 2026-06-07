@@ -37,13 +37,17 @@ export function LocationPicker({
 
   const summary = useMemo(() => {
     const fullCount = linkedOverlays.length
-    const partialCount = linkedFeatures.filter(f => !linkedOverlaySet.has(f.overlay_id)).length
-    if (fullCount === 0 && partialCount === 0) return ''
+    const partialFeatures = linkedFeatures.filter(f => !linkedOverlaySet.has(f.overlay_id))
+    if (fullCount === 0 && partialFeatures.length === 0) return ''
     const parts: string[] = []
     if (fullCount > 0) parts.push(`${fullCount} map${fullCount === 1 ? '' : 's'}`)
-    if (partialCount > 0) parts.push(`${partialCount} feature${partialCount === 1 ? '' : 's'}`)
+    // Name each partially-linked feature rather than counting — resolve label from its overlay.
+    for (const f of partialFeatures) {
+      const label = overlays.find(o => o.id === f.overlay_id)?.features?.find(x => x.id === f.feature_id)?.label
+      parts.push(label ?? 'feature')
+    }
     return parts.join(' · ')
-  }, [linkedOverlays, linkedFeatures, linkedOverlaySet])
+  }, [overlays, linkedOverlays, linkedFeatures, linkedOverlaySet])
 
   const toggleOverlay = useCallback((overlayId: string) => {
     const isLinked = linkedOverlaySet.has(overlayId)

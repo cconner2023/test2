@@ -142,7 +142,9 @@ export function MapOverlayTree({
   const [contextMenu, setContextMenu] = useState<{ overlayId: string; rect: DOMRect; row: ReactNode } | null>(null);
   const [featureContextMenu, setFeatureContextMenu] = useState<{ overlayId: string; featureId: string; rect: DOMRect; row: ReactNode } | null>(null);
 
-  const { share: shareToChat, picker: shareToChatPicker } = useShareToChat();
+  // The tree renders inside the overlay Sheet (body portal at z-1200); bump the
+  // picker above it so it isn't trapped underneath.
+  const { share: shareToChat, picker: shareToChatPicker } = useShareToChat({ zIndex: 1300 });
   const shareOverlay = useCallback((overlay: LocalMapOverlay) => {
     const count = overlay.features?.length ?? 0;
     shareToChat({
@@ -456,6 +458,7 @@ export function MapOverlayTree({
             row={contextMenu.row}
             items={items}
             onClose={() => setContextMenu(null)}
+            layout="list"
           />
         );
       })()}
@@ -485,6 +488,7 @@ export function MapOverlayTree({
             row={featureContextMenu.row}
             items={items}
             onClose={() => setFeatureContextMenu(null)}
+            layout="list"
           />
         );
       })()}

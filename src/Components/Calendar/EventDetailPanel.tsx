@@ -2,10 +2,13 @@ import { useEffect, useState, useRef } from 'react'
 import { Pencil, X, Share2, Map as MapIcon, Copy, Check, Printer, Image, Ban, CircleDashed, Play, CheckCircle2, Clock, MessageSquare } from 'lucide-react'
 import { reverseGeocode } from '../MapOverlay/searchResolver'
 import { latLngToUTM } from '../MapOverlay/utmProjection'
-import { OverlaySnapshot } from '../MapOverlay/OverlaySnapshot'
+import { OverlayTilePreview } from '../MapOverlay/OverlayTilePreview'
+import { useMapOverlaysStore } from '../../stores/useMapOverlaysStore'
 import type { LucideIcon } from 'lucide-react'
-import type { CalendarEvent, EventStatus, PCCAttachment } from '../../Types/CalendarTypes'
-import { PCCChecklistCard } from './PCCChecklistCard'
+import type { OverlayFeature } from '../../Types/MapOverlayTypes'
+import type { CalendarEvent, EventStatus, EventSubtask } from '../../Types/CalendarTypes'
+import type { ClinicPreCombatCheck } from '../../lib/supervisorService'
+import { EventTasksCard } from './EventTasksCard'
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { SectionHeader, SectionCard } from '../Section'
 import { formatShortDayLabel, isEventEditable, isUnscheduledTemplate } from '../../Types/CalendarTypes'
@@ -45,10 +48,12 @@ interface EventDetailPanelProps {
   apptTypeNames?: readonly string[]
   /** Supervisor flag forwarded from CalendarPanel — gates the Delete affordance for templated events. */
   canDeleteTemplate?: boolean
-  /** Tap-to-cycle status writer — wired in CalendarPanel via useCalendarWrite. Only consumed by the task status pill today. */
+  /** Tap-to-cycle status writer — wired in CalendarPanel. Renders the header status pill for any event when provided. */
   onStatusChange?: (id: string, next: EventStatus) => void
-  /** PCC subtask tick writer. Receives the new full attachment snapshot to persist. */
-  onUpdatePcc?: (id: string, next: PCCAttachment) => void
+  /** Subtask writer. Receives the full next list to persist on the event. */
+  onUpdateSubtasks?: (id: string, next: EventSubtask[]) => void
+  /** Clinic Checklists available to seed standardized tasks. */
+  checklistTemplates?: ClinicPreCombatCheck[]
   assignedNames?: AssignedPerson[]
   linkedPropertyItems?: LinkedPropertyItem[]
   /** Active clinic overlays — used to resolve names + coords for linked_overlays / linked_features. */
@@ -84,15 +89,15 @@ const STATUS_TRIGGER_COLOR: Record<EventStatus, string> = {
   cancelled:   'text-themeredred',
 }
 
-export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, onCancelTemplate, apptTypeNames = [], canDeleteTemplate, onStatusChange, onUpdatePcc, assignedNames = [], linkedPropertyItems = [], overlayOptions, hideHeader }: EventDetailPanelProps) {
+export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, onCancelTemplate, apptTypeNames = [], canDeleteTemplate, onStatusChange, onUpdateSubtasks, checklistTemplates = [], assignedNames = [], linkedPropertyItems = [], overlayOptions, hideHeader }: EventDetailPanelProps) {
   const isMobile = useIsMobile()
   const txt = isMobile ? 'text-sm' : 'text-[10pt]'
   const rowPad = isMobile ? 'px-4 py-3' : 'px-3 py-2.5'
   const isSupervisor = useAuthStore(s => s.isSupervisorRole)
   const openMapOverlay = useNavigationStore(s => s.setShowMapOverlayDrawer)
+  const overlaysCache = useMapOverlaysStore(s => s.overlays)
   const editable = isEventEditable(event, isSupervisor)
   const showCancelTemplate = event.category === 'templated' && !!onCancelTemplate && !isUnscheduledTemplate(event, apptTypeNames)
-  const isTask = event.category === 'task'
   const StatusIcon = STATUS_TRIGGER_ICON[event.status]
   const [statusMenu, setStatusMenu] = useState<{ x: number; y: number } | null>(null)
   const statusBtnRef = useRef<HTMLDivElement>(null)
@@ -155,7 +160,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
         <div className="flex items-center justify-between px-3 py-2 border-b border-primary/10 shrink-0">
           <div />
           <HeaderPill>
-            {isTask && onStatusChange && (
+            {onStatusChange && (
               <div ref={statusBtnRef} className={STATUS_TRIGGER_COLOR[event.status]}>
                 <PillButton icon={StatusIcon} iconSize={16} onClick={openStatusMenu} label="Status" />
               </div>
@@ -218,7 +223,14 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
               const hasMaps = !!overlayOptions && (fullIds.length > 0 || featureAnchors.length > 0)
               if (!hasLocation && !hasMaps) return null
               const overlayFor = (id: string) => overlayOptions?.find(o => o.id === id)
-              type Row = { key: string; name: string; lat?: number; lng?: number; onClick: () => void }
+              const cachedOverlay = (id: string) => overlaysCache.find(o => o.id === id)
+              type Row = {
+                key: string; name: string; lat?: number; lng?: number; onClick: () => void
+                /** Overlay backing the offline tile cache. */
+                overlayId: string
+                /** Full-geometry features to draw on the preview — resolved from the overlays cache. */
+                features: OverlayFeature[]
+              }
               const rows: Row[] = []
               for (const id of fullIds) {
                 const o = overlayFor(id)
@@ -228,17 +240,24 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
                   lat: o?.center?.[0],
                   lng: o?.center?.[1],
                   onClick: () => openMapOverlay(true, id),
+                  overlayId: id,
+                  features: cachedOverlay(id)?.features ?? [],
                 })
               }
               for (const f of featureAnchors) {
                 const o = overlayFor(f.overlay_id)
                 const feat = o?.features?.find(x => x.id === f.feature_id)
+                // Resolve FULL geometry from the cache — overlayOptions carries only the slim
+                // {id,label,type,lat,lng} projection, which can't drive the map preview.
+                const cachedFeat = cachedOverlay(f.overlay_id)?.features.find(x => x.id === f.feature_id)
                 rows.push({
                   key: `feat-${f.overlay_id}-${f.feature_id}`,
                   name: feat?.label ?? '(feature)',
                   lat: feat?.lat,
                   lng: feat?.lng,
                   onClick: () => openMapOverlay(true, f.overlay_id, f.feature_id),
+                  overlayId: f.overlay_id,
+                  features: cachedFeat ? [cachedFeat] : [],
                 })
               }
               return (
@@ -249,19 +268,18 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
                   )}
                   {hasMaps && (
                     <div className={`flex flex-col gap-2 ${hasLocation ? 'mt-2' : ''}`}>
-                      {fullIds.map(id => (
-                        <OverlaySnapshot
-                          key={`snap-${id}`}
-                          overlayId={id}
-                          width={300}
-                          height={130}
-                          fill
-                          onClick={() => openMapOverlay(true, id)}
-                          className="rounded-xl"
-                        />
-                      ))}
                       {rows.map(r => (
-                        <LinkedLocationRow key={r.key} name={r.name} lat={r.lat} lng={r.lng} onClick={r.onClick} txt={txt} />
+                        <div key={r.key} className="flex flex-col gap-1.5">
+                          {r.features.length > 0 && (
+                            <OverlayTilePreview
+                              features={r.features}
+                              overlayId={r.overlayId}
+                              onClick={r.onClick}
+                              className="rounded-xl h-[150px]"
+                            />
+                          )}
+                          <LinkedLocationRow name={r.name} lat={r.lat} lng={r.lng} onClick={r.onClick} txt={txt} />
+                        </div>
                       ))}
                     </div>
                   )}
@@ -285,12 +303,14 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
           </SectionCard>
         </div>
 
-        {/* Pre-Combat Check */}
-        {event.pcc && onUpdatePcc && (
-          <PCCChecklistCard
-            pcc={event.pcc}
+        {/* Tasks */}
+        {onUpdateSubtasks && (
+          <EventTasksCard
+            subtasks={event.subtasks ?? []}
+            templates={checklistTemplates}
             assignedIds={event.assigned_to ?? []}
-            onUpdatePcc={(next) => onUpdatePcc(event.id, next)}
+            canEdit={false}
+            onChange={(next) => onUpdateSubtasks(event.id, next)}
             isMobile={isMobile}
           />
         )}

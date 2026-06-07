@@ -10,9 +10,11 @@ import { encodeTC3Card } from '../../Utilities/tc3Codec'
 import { encryptBarcode } from '../../Utilities/barcodeCodec'
 import { TC3BodyDiagramSvg } from './TC3BodyDiagramSvg'
 import { TC3NineLine } from './TC3NineLine'
+import { CasualtyQueue } from './CasualtyQueue'
 import type { TC3Card } from '../../Types/TC3Types'
 import type { UserTypes } from '../../Data/User'
 import { ActionPill } from '../ActionPill'
+import { ChevronDown } from 'lucide-react'
 
 const INJURY_COLORS: Record<string, string> = {
   GSW: '#ef4444',
@@ -39,13 +41,26 @@ interface TC3CardSectionProps {
   isAuthenticated: boolean
   /** When set, renders a labeled header above the content (bulk mode) */
   label?: string
+  /** True only for the live active card — renders the sticky casualty switcher + 9-line scope toggle. */
+  activeContext?: boolean
 }
 
-function TC3CardSection({ card, profile, userId, isAuthenticated, label }: TC3CardSectionProps) {
+function TC3CardSection({ card, profile, userId, isAuthenticated, label, activeContext }: TC3CardSectionProps) {
   const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null)
   const [copiedMist, setCopiedMist] = useState(false)
   const [shareStatus, setShareStatus] = useState<'idle' | 'sharing' | 'shared'>('idle')
   const [encodedText, setEncodedText] = useState('')
+  const [scope, setScope] = useState<'this' | 'rollup'>('rollup')
+  const [queueOpen, setQueueOpen] = useState(false)
+
+  const queue = useTC3Store((s) => s.casualtyQueue)
+  const isMascal = queue.length > 0
+  const total = queue.length + 1
+  const activeNumber = useMemo(() => {
+    const all = [card, ...queue.map((q) => q.card)].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    return Math.max(1, all.findIndex((c) => c.id === card.id) + 1)
+  }, [card, queue])
+  const casualtyLabel = [card.casualty.lastName, card.casualty.firstName].filter(Boolean).join(', ') || 'Unknown'
 
   const noteText = useMemo(() => formatTC3Note(card, profile), [card, profile])
   const compactString = useMemo(() => encodeTC3Card(card, userId), [card, userId])
@@ -109,6 +124,40 @@ function TC3CardSection({ card, profile, userId, isAuthenticated, label }: TC3Ca
 
   return (
     <div className="space-y-4">
+      {/* Active-card sticky header: which casualty + 9-line scope */}
+      {activeContext && (
+        <div className="sticky top-0 z-20 -mx-1 flex items-center justify-between gap-2 py-2 px-1 bg-themewhite2/95 backdrop-blur-sm border-b border-tertiary/10">
+          <button
+            type="button"
+            onClick={() => setQueueOpen(true)}
+            className="flex items-center gap-2 min-w-0 px-1.5 py-1 rounded-full hover:bg-themeblue2/5 active:scale-95 transition-transform"
+          >
+            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${priority ? PRIORITY_COLOR[priority] : 'bg-tertiary/30'}`} />
+            <span className="text-sm font-semibold text-primary truncate">#{activeNumber} · {casualtyLabel}</span>
+            <ChevronDown size={14} className="text-tertiary shrink-0" />
+          </button>
+          {isMascal && (
+            <div className="flex items-center p-0.5 rounded-full bg-themewhite3 border border-tertiary/10 shrink-0">
+              <button
+                type="button"
+                onClick={() => setScope('this')}
+                className={`px-2.5 py-1 rounded-full text-[9pt] font-semibold transition-colors ${scope === 'this' ? 'bg-themeblue2 text-white' : 'text-tertiary'}`}
+              >
+                This
+              </button>
+              <button
+                type="button"
+                onClick={() => setScope('rollup')}
+                className={`px-2.5 py-1 rounded-full text-[9pt] font-semibold transition-colors ${scope === 'rollup' ? 'bg-themeblue2 text-white' : 'text-tertiary'}`}
+              >
+                Roll-up · {total}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {activeContext && <CasualtyQueue isOpen={queueOpen} onClose={() => setQueueOpen(false)} />}
+
       {/* Bulk mode label */}
       {label && (
         <div className="flex items-center gap-2 px-1">
@@ -160,7 +209,7 @@ function TC3CardSection({ card, profile, userId, isAuthenticated, label }: TC3Ca
       </section>
 
       {/* Auto-derived 9-line MEDEVAC */}
-      <TC3NineLine card={card} />
+      <TC3NineLine card={card} scope={activeContext ? scope : undefined} />
 
       {/* Encoded barcode */}
       <section>
@@ -232,6 +281,7 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose, car
                 userId={userId}
                 isAuthenticated={isAuthenticated}
                 label={isBulk ? name : undefined}
+                activeContext={!isBulk && c.id === storeCard.id}
               />
             </div>
           )

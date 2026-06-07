@@ -42,13 +42,13 @@ export const features = {
   },
 
   preCombatChecks: {
-    label: 'Pre-Combat Checks',
-    store: 'useCalendarStore', // attachments live on calendar events
+    label: 'Checklists', // event to-do; standardized items seed from clinic Checklist templates
+    store: 'useCalendarStore', // subtasks live on calendar events (event.subtasks)
     services: ['supervisorService'],
-    tables: ['clinics'], // templates stored in clinics.pre_combat_checks jsonb
-    idb: ['adtmc-calendar-events'], // attachments + subtask state ride the calendar event payload
-    components: 'Components/Calendar/',
-    drawer: null, // template CRUD lives in CalendarClinicEditor; attach UI in EventForm; tick UI in EventDetailPanel
+    tables: ['clinics'], // templates stored in clinics.pre_combat_checks jsonb (legacy column name)
+    idb: ['adtmc-calendar-events'], // subtask list + tick state ride the calendar event payload
+    components: 'Components/Calendar/', // EventTasksCard (event), PreCombatChecksSection (template CRUD)
+    drawer: null, // template CRUD lives in CalendarClinicEditor; add/seed/tick in EventForm + EventDetailPanel via EventTasksCard
     hooks: ['useClinicPreCombatChecks'],
   },
 

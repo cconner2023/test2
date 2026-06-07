@@ -800,18 +800,17 @@ export function ChatDetailView({
         const isClearableCard = cardType === 'outside_message' || cardType === 'oncall_call'
         // Dedicated cards render without a chip row, so skip the React action there.
         const isCard = cardType === 'intake_request' || cardType === 'oncall_call' || cardType === 'outside_message'
-        const items: ContextMenuItem[] = [
-          ...(reactionsEnabled && !isCard ? [{
-            key: 'react',
-            label: 'React',
-            icon: SmilePlus,
-            submenu: REACTION_CODES.map(code => ({
+        // Reaction glyphs — the horizontal icon strip in the lifted menu; folded
+        // into a React submenu for the cursor-pill fallback.
+        const reactionItems: ContextMenuItem[] = reactionsEnabled && !isCard
+          ? REACTION_CODES.map(code => ({
               key: `react-${code}`,
               label: REACTION_LABELS[code],
               node: <ReactionGlyph code={code} size={20} />,
               onAction: () => handleReact(contextMsg, code),
-            })),
-          } satisfies ContextMenuItem] : []),
+            }))
+          : []
+        const actionItems: ContextMenuItem[] = [
           { key: 'reply', label: 'Reply', icon: Reply, onAction: handleContextReply },
           ...(!isMedia ? [{ key: 'copy', label: 'Copy', icon: Copy, onAction: handleCopy }] : []),
           ...(isMedia && handleSaveImage ? [{ key: 'save', label: 'Save', icon: Download, onAction: handleSaveImage }] : []),
@@ -824,16 +823,20 @@ export function ChatDetailView({
             isOpen
             anchorRect={contextMenu.rect}
             row={<div dangerouslySetInnerHTML={{ __html: contextMenu.cloneHtml }} />}
-            items={items}
+            items={actionItems}
+            reactions={reactionItems.length ? reactionItems : undefined}
             onClose={closeContextMenu}
             bare
             align={isOwn ? 'right' : 'left'}
+            layout="list"
           />
         ) : (
           <ContextMenu
             x={contextMenu.x} y={contextMenu.y}
             onClose={closeContextMenu}
-            items={items}
+            items={reactionItems.length
+              ? [{ key: 'react', label: 'React', icon: SmilePlus, submenu: reactionItems }, ...actionItems]
+              : actionItems}
           />
         )
       })()}

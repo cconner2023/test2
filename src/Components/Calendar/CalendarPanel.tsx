@@ -43,7 +43,7 @@ import {
 } from '../../Types/CalendarTypes'
 import { useClinicAppointmentTypes } from '../../Hooks/useClinicAppointmentTypes'
 import { useClinicCategoryColorsSync } from '../../Hooks/useClinicCategoryColors'
-import { shareCalendar, shareSingleEvent } from '../../lib/calendarExport'
+import { shareCalendar, shareSingleEvent, shareTroopsToTaskCsv } from '../../lib/calendarExport'
 
 type PanelView = 'calendar' | 'detail' | 'form' | 'template' | 'block'
 type DayDrawerView = 'detail' | 'edit'
@@ -158,7 +158,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const [showAddSheet, setShowAddSheet] = useState(false)
   const [showImportSheet, setShowImportSheet] = useState(false)
   const isSupervisor = useAuthStore(s => s.isSupervisorRole)
-  const isDevRole = useAuthStore(s => s.isDevRole)
   const templatePanelRef = useRef<TemplateGeneratorHandle>(null)
   const blockPanelRef = useRef<BlockTemplatedHandle>(null)
   const [templateNonce, setTemplateNonce] = useState(0)
@@ -169,9 +168,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const [dayContextMenu, setDayContextMenu] = useState<{ dateKey: string; x: number; y: number } | null>(null)
   const [newEventDateKey, setNewEventDateKey] = useState<string | undefined>(undefined)
   const [newEventHuddleTaskId, setNewEventHuddleTaskId] = useState<string | null>(null)
-  const [newEventCategory, setNewEventCategory] = useState<'task' | null>(null)
   const [newEventPrefill, setNewEventPrefill] = useState<{ title?: string; startISO?: string } | null>(null)
-  const formIsTask = editingEvent ? editingEvent.category === 'task' : newEventCategory === 'task'
 
   const [duplicateHuddle, setDuplicateHuddle] = useState<{ eventId: string; rowName: string; medicLabel: string } | null>(null)
 
@@ -290,10 +287,10 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     await writeEvent({ ...event, status: next, updated_at: new Date().toISOString() })
   }, [events, writeEvent])
 
-  const handleUpdateEventPcc = useCallback(async (id: string, next: import('../../Types/CalendarTypes').PCCAttachment) => {
+  const handleUpdateEventSubtasks = useCallback(async (id: string, next: import('../../Types/CalendarTypes').EventSubtask[]) => {
     const event = events.find(e => e.id === id)
     if (!event) return
-    await writeEvent({ ...event, pcc: next, updated_at: new Date().toISOString() })
+    await writeEvent({ ...event, subtasks: next, updated_at: new Date().toISOString() })
   }, [events, writeEvent])
 
   // Deep-link from external sources (e.g. Mission Board) — open specific event in detail or edit view
@@ -409,11 +406,10 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     }
   }, [isMobile, selectEvent])
 
-  const handleNewEvent = useCallback((forDateKey?: string, category?: 'task', prefill?: { title?: string; startISO?: string } | null) => {
+  const handleNewEvent = useCallback((forDateKey?: string, prefill?: { title?: string; startISO?: string } | null) => {
     setEditingEvent(null)
     setNewEventDateKey(forDateKey ?? selectedDateStr)
     setNewEventHuddleTaskId(null)
-    setNewEventCategory(category ?? null)
     setNewEventPrefill(prefill ?? null)
     setPanelView('form')
   }, [selectedDateStr])
@@ -424,7 +420,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     if (pendingCalendarAction !== 'new') return
     const prefill = useNavigationStore.getState().calendarPrefill
     const dateKey = prefill?.startISO ? prefill.startISO.slice(0, 10) : undefined
-    handleNewEvent(dateKey, undefined, prefill)
+    handleNewEvent(dateKey, prefill)
     clearPendingCalendarAction()
     clearCalendarPrefill()
   }, [pendingCalendarAction, handleNewEvent, clearPendingCalendarAction, clearCalendarPrefill])
@@ -560,11 +556,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     if (newEventHuddleTaskId !== null) {
       return { ...base, category: 'huddle' as const, huddle_task_id: newEventHuddleTaskId }
     }
-    if (newEventCategory === 'task') {
-      return { ...base, category: 'task' as const }
-    }
     return base
-  }, [newEventDateKey, newEventHuddleTaskId, newEventCategory, newEventPrefill, activeClinicId])
+  }, [newEventDateKey, newEventHuddleTaskId, newEventPrefill, activeClinicId])
 
   const handleEditEvent = useCallback((id: string) => {
     const event = events.find(e => e.id === id)
@@ -599,7 +592,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           linked_features: data.linked_features ?? null,
           room_id: data.room_id ?? null,
           huddle_task_id: data.category === 'huddle' ? (data.huddle_task_id ?? null) : null,
-          pcc: data.pcc ?? null,
+          subtasks: data.subtasks ?? [],
           updated_at: now,
         }
         await writeEvent(updatedEvent)
@@ -628,7 +621,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           linked_features: data.linked_features ?? null,
           room_id: data.room_id ?? null,
           huddle_task_id: data.category === 'huddle' ? (data.huddle_task_id ?? null) : null,
-          pcc: data.pcc ?? null,
+          subtasks: data.subtasks ?? [],
           created_by: user?.id ?? '',
           created_at: now,
           updated_at: now,
@@ -791,6 +784,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       structured_location: data.structured_location ?? null,
       linked_overlays: data.linked_overlays ?? null,
       linked_features: data.linked_features ?? null,
+      subtasks: data.subtasks ?? [],
       updated_at: now,
     }
     setIsFormPending(true)
@@ -961,7 +955,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             fullHeight="85dvh"
             zIndex="z-50"
             header={{
-              title: editingEvent ? (formIsTask ? 'Edit Task' : 'Edit Event') : (formIsTask ? 'New Task' : 'New Event'),
+              title: editingEvent ? 'Edit Event' : 'New Event',
               rightContent: (
                 <HeaderPill>
                   {editingEvent && (
@@ -991,8 +985,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 overlayOptions={overlayOptions}
                 roomOptions={roomFormOptions}
                 huddleTaskOptions={huddleTaskFormOptions}
-                pccTemplateOptions={sortedPccTemplates}
-                isDev={isDevRole}
+                checklistTemplates={sortedPccTemplates}
                 clinicOptions={clinicFormOptions}
                 onCreateOverlay={handleCreateOverlayForEvent}
               />
@@ -1084,7 +1077,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             fullHeight="85dvh"
             zIndex="z-50"
             header={dayDrawerView === 'edit' ? {
-              title: formIsTask ? 'Edit Task' : 'Edit Event',
+              title: 'Edit Event',
               rightContent: (
                 <HeaderPill>
                   {editingEvent && (
@@ -1127,7 +1120,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   apptTypeNames={apptTypeNames}
                   canDeleteTemplate={isSupervisor}
                   onStatusChange={handleEventStatusChange}
-                  onUpdatePcc={handleUpdateEventPcc}
+                  onUpdateSubtasks={handleUpdateEventSubtasks}
+                  checklistTemplates={sortedPccTemplates}
                   assignedNames={resolveAssigned(dayDrawerEvent.assigned_to)}
                   linkedPropertyItems={resolvePropertyItems(dayDrawerEvent.property_item_ids ?? [])}
                   overlayOptions={overlayOptions}
@@ -1146,8 +1140,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   overlayOptions={overlayOptions}
                   roomOptions={roomFormOptions}
                 huddleTaskOptions={huddleTaskFormOptions}
-                pccTemplateOptions={sortedPccTemplates}
-                isDev={isDevRole}
+                checklistTemplates={sortedPccTemplates}
                 clinicOptions={clinicFormOptions}
                 onCreateOverlay={handleCreateOverlayForEvent}
                 />
@@ -1169,7 +1162,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 <div className="relative flex flex-col flex-1 min-h-0">
                   <div className="flex items-center justify-between px-3 py-2 border-b border-tertiary/10">
                     <h2 className="text-sm font-semibold text-primary whitespace-nowrap">
-                      {editingEvent ? (formIsTask ? 'Edit Task' : 'Edit Event') : (formIsTask ? 'New Task' : 'New Event')}
+                      {editingEvent ? 'Edit Event' : 'New Event'}
                     </h2>
                     <HeaderPill>
                       {editingEvent && (
@@ -1196,8 +1189,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                       overlayOptions={overlayOptions}
                       roomOptions={roomFormOptions}
                 huddleTaskOptions={huddleTaskFormOptions}
-                pccTemplateOptions={sortedPccTemplates}
-                isDev={isDevRole}
+                checklistTemplates={sortedPccTemplates}
                 clinicOptions={clinicFormOptions}
                 onCreateOverlay={handleCreateOverlayForEvent}
                     />
@@ -1215,7 +1207,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     apptTypeNames={apptTypeNames}
                     canDeleteTemplate={isSupervisor}
                     onStatusChange={handleEventStatusChange}
-                  onUpdatePcc={handleUpdateEventPcc}
+                  onUpdateSubtasks={handleUpdateEventSubtasks}
+                  checklistTemplates={sortedPccTemplates}
                     assignedNames={resolveAssigned(selectedEvent.assigned_to)}
                     linkedPropertyItems={resolvePropertyItems(selectedEvent.property_item_ids ?? [])}
                     overlayOptions={overlayOptions}
@@ -1285,13 +1278,13 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
         title="Calendar"
         options={[
           { key: 'new', label: 'New Event', onAction: () => handleNewEvent() },
-          { key: 'new-task', label: 'New Task', onAction: () => handleNewEvent(undefined, 'task') },
           ...(isSupervisor ? [
             { key: 'template', label: 'Provider Template…', onAction: () => { setTemplateNonce(n => n + 1); setPanelView('template') } },
             { key: 'clear-templates', label: 'Clear Templates…', onAction: () => { setBlockNonce(n => n + 1); setPanelView('block') } },
           ] : []),
           { key: 'import', label: 'Import CSV', onAction: () => setShowImportSheet(true), tourTag: 'calendar-export-import' },
           { key: 'export', label: 'Export .ics', onAction: () => shareCalendar(events).catch(() => {}) },
+          { key: 'export-t2t', label: 'Export Troops-to-Task .csv', onAction: () => shareTroopsToTaskCsv(events, { medics: ownClinicMedics, huddleTasks: sortedHuddleTasks }).catch(() => {}) },
         ]}
         onClose={() => setShowAddSheet(false)}
       />

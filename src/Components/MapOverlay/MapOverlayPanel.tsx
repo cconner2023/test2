@@ -326,7 +326,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
 
   // Forward (share-to-chat) for the selected feature — same opaque-ref path as
   // the overlay tree's "Share to chat". No PHI: only refId + operator label.
-  const { share: shareFeatureToChat, picker: shareToChatPicker } = useShareToChat();
+  // Launched from inside the selected-feature editor Sheet (body portal at
+  // z-1200). Default Z.POPOVER(80) would trap the picker under the sheet — bump
+  // above it, matching the ConfirmDialogs in this file.
+  const { share: shareFeatureToChat, picker: shareToChatPicker } = useShareToChat({ zIndex: 1300 });
   // Anchor for the selected-feature "more actions" (ellipsis) ContextMenu.
   const [featureMenu, setFeatureMenu] = useState<{ x: number; y: number } | null>(null);
 

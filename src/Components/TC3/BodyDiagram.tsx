@@ -27,6 +27,9 @@ export const INJURY_TYPE_COLOR: Record<InjuryType, string> = Object.fromEntries(
 
 function nowISO16(): string {
   const d = new Date()
+  // Snap minutes to the nearest 30 so the value matches a marker time option
+  // (the picker only renders a value that exactly matches an option).
+  d.setMinutes(d.getMinutes() < 15 ? 0 : d.getMinutes() < 45 ? 30 : 60, 0, 0)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 

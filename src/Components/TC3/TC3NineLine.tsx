@@ -17,6 +17,12 @@ interface TC3NineLineProps {
   card?: TC3Card
   /** Override card list entirely (e.g. bulk export of arbitrary selection). */
   cards?: TC3Card[]
+  /**
+   * MASCAL scope. 'rollup' (default) = active card + queue, editable/transmit.
+   * 'this' = active card only, read-only preview of what this casualty contributes.
+   * Ignored when there's no queue (solo card stays editable).
+   */
+  scope?: 'this' | 'rollup'
 }
 
 const PRECEDENCE_BADGE: Record<string, string> = {
@@ -47,7 +53,7 @@ function formatProjectionText(req: ReturnType<typeof deriveMedevacFromTC3Cards>)
   return lines.join('\n')
 }
 
-export const TC3NineLine = memo(function TC3NineLine({ card, cards }: TC3NineLineProps) {
+export const TC3NineLine = memo(function TC3NineLine({ card, cards, scope }: TC3NineLineProps) {
   const [copied, setCopied] = useState(false)
   const [editorLine, setEditorLine] = useState<MedevacLine | null>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
@@ -58,9 +64,16 @@ export const TC3NineLine = memo(function TC3NineLine({ card, cards }: TC3NineLin
   const setMedevacOverride = useTC3Store(s => s.setMedevacOverride)
   const pushBlankCasualties = useTC3Store(s => s.pushBlankCasualties)
 
+  const isMascal = (!cards || cards.length === 0) && queue.length > 0
+  const effectiveScope: 'this' | 'rollup' = isMascal ? (scope ?? 'rollup') : 'rollup'
+  // 'this' is a read-only preview — overrides are session-global, so editing them
+  // through a single-card view would silently corrupt the roll-up.
+  const readOnly = isMascal && effectiveScope === 'this'
+
   const sessionCards = useMemo<TC3Card[]>(() => {
     if (cards && cards.length > 0) return cards
     const anchor = card ?? activeCard
+    if (effectiveScope === 'this') return anchor ? [anchor] : []
     const queued = queue.map(q => q.card)
     const seen = new Set<string>()
     return [anchor, ...queued].filter(c => {
@@ -68,10 +81,13 @@ export const TC3NineLine = memo(function TC3NineLine({ card, cards }: TC3NineLin
       seen.add(c.id)
       return true
     })
-  }, [card, cards, activeCard, queue])
+  }, [card, cards, activeCard, queue, effectiveScope])
 
   const derived = useMemo(() => deriveMedevacFromTC3Cards(sessionCards), [sessionCards])
-  const projection = useMemo(() => mergeMedevacOverrides(derived, overrides), [derived, overrides])
+  const projection = useMemo(
+    () => (readOnly ? derived : mergeMedevacOverrides(derived, overrides)),
+    [derived, overrides, readOnly],
+  )
   const breakdown = useMemo(() => patientCategories(sessionCards), [sessionCards])
 
   const handleLineClick = useCallback((line: MedevacLine, rect: DOMRect) => {
@@ -116,40 +132,48 @@ export const TC3NineLine = memo(function TC3NineLine({ card, cards }: TC3NineLin
     <div className="relative">
       <div className="flex items-center justify-between mb-2 px-1">
         <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">
-          9-Line — MASCAL ({sessionCards.length})
+          {readOnly
+            ? '9-Line · This Casualty'
+            : isMascal
+              ? `9-Line · Roll-up (${sessionCards.length})`
+              : '9-Line MEDEVAC'}
         </p>
-        <p className="text-[9pt] text-tertiary italic">Tap any row to edit</p>
+        <p className="text-[9pt] text-tertiary italic">
+          {readOnly ? 'Read-only — edit on Roll-up' : 'Tap any row to edit'}
+        </p>
       </div>
 
-      <MedevacCard data={projection} onLineClick={handleLineClick} />
+      <MedevacCard data={projection} onLineClick={readOnly ? undefined : handleLineClick} />
 
-      {undercount && (
+      {!readOnly && undercount && (
         <p className="mt-2 text-[9pt] text-themeyellow px-3">
           L3 total ({l3Total}) is below MASCAL queue size ({sessionCards.length}). Some casualties aren't represented.
         </p>
       )}
 
-      {/* Per-patient category breakdown — UI-only, not part of clipboard text */}
-      <div className="mt-2 px-3 py-2 rounded-xl bg-themewhite2 border border-tertiary/10">
-        <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-1.5">
-          Patient Categories
-        </p>
-        <div className="flex flex-wrap gap-1.5">
-          {breakdown.map(p => (
-            <span
-              key={p.cardId}
-              className={`text-[9pt] px-2 py-0.5 rounded-full font-medium ${
-                p.precedence ? PRECEDENCE_BADGE[p.precedence] ?? 'bg-tertiary/10 text-tertiary' : 'bg-tertiary/10 text-tertiary'
-              }`}
-            >
-              {p.displayName}
-              {p.precedence
-                ? <> — {p.precedence} ({MEDEVAC_PRECEDENCE_LABELS[p.precedence]})</>
-                : <> — unassigned</>}
-            </span>
-          ))}
+      {/* Per-patient category breakdown — roll-up only; UI-only, not part of clipboard text */}
+      {!readOnly && isMascal && (
+        <div className="mt-2 px-3 py-2 rounded-xl bg-themewhite2 border border-tertiary/10">
+          <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-1.5">
+            This roll-up covers
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {breakdown.map(p => (
+              <span
+                key={p.cardId}
+                className={`text-[9pt] px-2 py-0.5 rounded-full font-medium ${
+                  p.precedence ? PRECEDENCE_BADGE[p.precedence] ?? 'bg-tertiary/10 text-tertiary' : 'bg-tertiary/10 text-tertiary'
+                }`}
+              >
+                {p.displayName}
+                {p.precedence
+                  ? <> — {p.precedence} ({MEDEVAC_PRECEDENCE_LABELS[p.precedence]})</>
+                  : <> — unassigned</>}
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <ActionPill shadow="sm" placement="overlay">
         <ActionIconButton
@@ -160,15 +184,17 @@ export const TC3NineLine = memo(function TC3NineLine({ card, cards }: TC3NineLin
         />
       </ActionPill>
 
-      <TC3NineLineEditor
-        isOpen={editorLine !== null}
-        line={editorLine}
-        anchorRect={anchorRect}
-        data={projection}
-        setOverride={setMedevacOverride}
-        onL3GrowDelta={handleL3Grow}
-        onClose={handleClose}
-      />
+      {!readOnly && (
+        <TC3NineLineEditor
+          isOpen={editorLine !== null}
+          line={editorLine}
+          anchorRect={anchorRect}
+          data={projection}
+          setOverride={setMedevacOverride}
+          onL3GrowDelta={handleL3Grow}
+          onClose={handleClose}
+        />
+      )}
 
     </div>
   )

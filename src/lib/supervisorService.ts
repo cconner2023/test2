@@ -324,9 +324,11 @@ export interface ClinicAppointmentType {
 }
 
 /**
- * Supervisor-authored Pre-Combat Check template (e.g. "Pre-Mission PCC").
- * Stored on clinics.pre_combat_checks (jsonb). Attachable to any calendar event
- * via event.pcc; subtasks are snapshot-copied on attach (template-independent).
+ * Supervisor-authored clinic Checklist template (e.g. "Pre-Mission"). Surfaced
+ * in the UI as a "Checklist"; stored on clinics.pre_combat_checks (jsonb) — the
+ * column + RPC keep their legacy pre_combat_checks names. Its items seed an
+ * event's subtasks (event.subtasks, source:'standardized'), snapshot-copied so
+ * later template edits do not retro-mutate already-seeded events.
  */
 export type PCCItem =
   | { id: string; kind: 'property_item';     ref: string; label_override?: string | null }

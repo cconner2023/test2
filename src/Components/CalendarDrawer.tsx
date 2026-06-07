@@ -21,10 +21,9 @@ import { CalendarClinicEditor } from './Calendar/CalendarClinicEditor'
 import { SupervisorClinicFilterPanel } from './SupervisorClinicSwitcher'
 import type { EventCategory } from '../Types/CalendarTypes'
 
-const CATEGORY_GROUPS: { key: 'huddle' | 'calendar' | 'tasks'; label: string; categories: EventCategory[] }[] = [
+const CATEGORY_GROUPS: { key: 'huddle' | 'calendar'; label: string; categories: EventCategory[] }[] = [
   { key: 'huddle',   label: 'Huddle',   categories: ['huddle', 'templated'] },
   { key: 'calendar', label: 'Calendar', categories: ['training', 'duty', 'range', 'appointment', 'mission', 'medevac', 'leave', 'other'] },
-  { key: 'tasks',    label: 'Tasks',    categories: ['task'] },
 ]
 const ALL_FILTERABLE_CATEGORIES: EventCategory[] = CATEGORY_GROUPS.flatMap(g => g.categories)
 

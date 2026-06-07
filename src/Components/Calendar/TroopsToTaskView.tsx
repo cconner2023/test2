@@ -274,18 +274,9 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
   // Huddle + templated events render in their own band, not in medic lanes — exclude them here.
   // Templated provider slots are category-tagged 'templated' (so block-clear queries can filter
   // them) but route through the huddle band's PROVIDER row, alongside provider huddles.
-  // Tasks render in their own strip — same exclusion rule as huddle/templated.
   const nonHuddleEvents = useMemo(
-    () => visibleEvents.filter(e => e.category !== 'huddle' && e.category !== 'templated' && e.category !== 'task'),
+    () => visibleEvents.filter(e => e.category !== 'huddle' && e.category !== 'templated'),
     [visibleEvents],
-  )
-
-  // Task-category events lane-stacked across the visible range using the same
-  // primitive as orphan-huddle / provider lanes — so tasks render with the
-  // identical bar geometry as any other all-day event in this view.
-  const taskCategoryLanes = useMemo(
-    () => assignLanes(visibleEvents.filter(e => e.category === 'task'), days, cfg),
-    [visibleEvents, days, cfg],
   )
 
   // Assignments per medic — lane-resolved
@@ -805,54 +796,6 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
             )
           })()}
         </div>
-
-        {/* Tasks strip — reuses assignLanes geometry so each task bar matches
-            the orphan-huddle / provider bar shape exactly. */}
-        {taskCategoryLanes.length > 0 && (() => {
-          const laneCount = Math.max(...taskCategoryLanes.map(p => p.lane)) + 1
-          const stripHeight = ROW_PAD * 2 + laneCount * (LANE_HEIGHT + LANE_GAP)
-          return (
-            <div className="relative flex border-b border-themepurple/20 bg-themewhite3" style={{ height: stripHeight }}>
-              <div className="sticky left-0 z-[7] shrink-0 flex items-center px-2 border-r border-primary/10 bg-themewhite3" style={{ width: NAME_COL_WIDTH }}>
-                <span className="text-[9pt] font-semibold uppercase tracking-wider text-tertiary truncate">Tasks</span>
-              </div>
-              <div className="flex-1 relative">
-                {/* Hour grid lines with day dividers — matches medic-lane background */}
-                <DayGrid days={days} ticks={ticks} dayWidth={cfg.dayWidth} />
-
-                {/* Event blocks — same shape as medic-lane events; title sticks on horizontal scroll via --sl */}
-                {taskCategoryLanes.map(({ event, left, width, lane }) => {
-                  return (
-                    <button
-                      key={event.id}
-                      onClick={() => onSelectEvent(event.id)}
-                      onContextMenu={eventContextHandler(event.id)}
-                      className="absolute rounded text-left overflow-hidden transition-all duration-150 active:scale-[0.98] bg-primary/5 flex items-stretch gap-1"
-                      style={{
-                        left,
-                        width,
-                        top: ROW_PAD + lane * (LANE_HEIGHT + LANE_GAP),
-                        height: LANE_HEIGHT,
-                      }}
-                    >
-                      <div className={`w-0.5 shrink-0 rounded-full ${resolveCategoryColor(event.category, event.color).solid}`} />
-                      <p
-                        className="absolute inset-y-0 right-0 text-[9pt] font-normal truncate text-primary pr-1.5"
-                        style={{
-                          left: `clamp(2px, calc(var(--sl, 0) * 1px - ${left}px), ${Math.max(2, width - 40)}px)`,
-                          lineHeight: `${LANE_HEIGHT}px`,
-                          paddingLeft: 6,
-                        }}
-                      >
-                        {event.title || 'Task'}
-                      </p>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        })()}
 
         {/* Personnel rows */}
         {medics.map(medic => {

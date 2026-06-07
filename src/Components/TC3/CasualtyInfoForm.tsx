@@ -27,12 +27,29 @@ const BLOOD_TYPE_OPTIONS: BloodType[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', '
 
 const EMPTY_CASUALTY = {
   battleRosterNo: '', lastName: '', firstName: '',
-  unit: '', sex: '' as '' | 'M' | 'F', bloodType: '' as BloodType, service: '', allergies: '',
+  unit: '', sex: 'M' as '' | 'M' | 'F', bloodType: 'A+' as BloodType, service: '', allergies: '',
   dateTimeOfInjury: '', dateTimeOfTreatment: '',
 }
 
+// Card presents once ANY user-entered field is set (sex/bloodType are excluded —
+// they default to M / A+ and would otherwise force the card to always show). DTG
+// auto-populates on open, so accepting a fresh card surfaces it even before a name
+// is typed — the medic can fill the blanks later.
 function hasData(c: typeof EMPTY_CASUALTY) {
-  return !!(c.lastName || c.firstName || c.battleRosterNo)
+  return !!(
+    c.lastName || c.firstName || c.battleRosterNo ||
+    c.unit || c.service || c.allergies ||
+    c.dateTimeOfInjury || c.dateTimeOfTreatment
+  )
+}
+
+/** Local `YYYY-MM-DDTHH:MM` for auto-populating DTG fields on a fresh card.
+ *  Minutes are snapped to the nearest 30 so the value lands on a valid
+ *  MILITARY_TIME_OPTIONS entry (otherwise the time picker renders blank). */
+function nowLocalISO() {
+  const d = new Date()
+  d.setMinutes(d.getMinutes() < 15 ? 0 : d.getMinutes() < 45 ? 30 : 60, 0, 0)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 function formatDT(iso: string) {
@@ -70,11 +87,16 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
   const cardRef = useRef<HTMLDivElement>(null)
 
   const [draft, setDraft] = useState({ ...EMPTY_CASUALTY })
-  const [draftEvac, setDraftEvac] = useState<EvacPriority>('')
+  const [draftEvac, setDraftEvac] = useState<EvacPriority>('Urgent')
 
   const openPopover = useCallback((ref: React.RefObject<HTMLElement | null>) => {
     const { battleRosterNo, lastName, firstName, unit, sex, bloodType, service, allergies, dateTimeOfInjury, dateTimeOfTreatment } = casualty
-    setDraft({ battleRosterNo, lastName, firstName, unit, sex, bloodType, service, allergies, dateTimeOfInjury, dateTimeOfTreatment })
+    const now = nowLocalISO()
+    setDraft({
+      battleRosterNo, lastName, firstName, unit, sex, bloodType, service, allergies,
+      dateTimeOfInjury: dateTimeOfInjury || now,
+      dateTimeOfTreatment: dateTimeOfTreatment || now,
+    })
     setDraftEvac(evacuation.priority)
     setAnchorRect(ref.current?.getBoundingClientRect() ?? null)
     setPopoverVisible(true)
@@ -87,9 +109,9 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
 
   const handleReset = useCallback(() => {
     setDraft({ ...EMPTY_CASUALTY })
-    setDraftEvac('')
+    setDraftEvac('Urgent')
     updateCasualty(EMPTY_CASUALTY)
-    updateEvacuation({ priority: '' })
+    updateEvacuation({ priority: 'Urgent' })
   }, [updateCasualty, updateEvacuation])
 
   const updateDraft = useCallback((fields: Partial<typeof draft>) => {
@@ -187,20 +209,23 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
           <div>
             {/* EVAC Priority */}
             <div className="px-4 py-3 border-b border-primary/6">
-              <div className="flex gap-1.5 flex-wrap">
+              <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">EVAC Priority</span>
+              <div className="mt-1.5 flex overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
                 {EVAC_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
                     onClick={() => setDraftEvac(prev => prev === opt.value ? '' : opt.value)}
-                    className={`w-9 h-9 rounded-full text-[10pt] font-bold transition-all border active:scale-95 ${
-                      draftEvac === opt.value
-                        ? `${opt.color} text-white border-transparent`
-                        : 'border-tertiary/15 text-tertiary hover:bg-tertiary/5'
+                    className={`shrink-0 px-4 py-1.5 transition-colors ${
+                      draftEvac === opt.value ? opt.color : 'active:bg-tertiary/5'
                     }`}
                     title={`EVAC: ${opt.label}`}
                   >
-                    {opt.label}
+                    <span className={`text-[9pt] transition-colors ${
+                      draftEvac === opt.value ? 'text-white font-medium' : 'text-secondary'
+                    }`}>
+                      {opt.label}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -233,20 +258,23 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
 
             {/* Sex */}
             <div className="px-4 py-3 border-b border-primary/6">
-              <div className="flex gap-1.5">
+              <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">Sex</span>
+              <div className="mt-1.5 flex overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
                 {SEX_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
                     onClick={() => updateDraft({ sex: draft.sex === opt.value ? '' : opt.value })}
-                    className={`w-9 h-9 rounded-full text-[10pt] font-bold transition-all border active:scale-95 ${
-                      draft.sex === opt.value
-                        ? 'bg-themeblue2 text-white border-transparent'
-                        : 'border-tertiary/15 text-tertiary hover:bg-tertiary/5'
+                    className={`shrink-0 px-4 py-1.5 transition-colors ${
+                      draft.sex === opt.value ? 'bg-themeblue3' : 'active:bg-tertiary/5'
                     }`}
                     title={`Sex: ${opt.label}`}
                   >
-                    {opt.label}
+                    <span className={`text-[9pt] transition-colors ${
+                      draft.sex === opt.value ? 'text-white font-medium' : 'text-secondary'
+                    }`}>
+                      {opt.label}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -254,20 +282,23 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
 
             {/* Blood Type */}
             <div className="px-4 py-3 border-b border-primary/6">
-              <div className="flex flex-wrap gap-1">
+              <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">Blood Type</span>
+              <div className="mt-1.5 flex overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
                 {BLOOD_TYPE_OPTIONS.map((bt) => (
                   <button
                     key={bt}
                     type="button"
                     onClick={() => updateDraft({ bloodType: draft.bloodType === bt ? '' : bt })}
-                    className={`min-w-[2.25rem] h-9 px-2 rounded-full text-[10pt] font-bold transition-all border active:scale-95 ${
-                      draft.bloodType === bt
-                        ? 'bg-themeblue2 text-white border-transparent'
-                        : 'border-tertiary/15 text-tertiary hover:bg-tertiary/5'
+                    className={`shrink-0 px-4 py-1.5 transition-colors ${
+                      draft.bloodType === bt ? 'bg-themeblue3' : 'active:bg-tertiary/5'
                     }`}
                     title={`Blood type: ${bt}`}
                   >
-                    {bt}
+                    <span className={`text-[9pt] transition-colors ${
+                      draft.bloodType === bt ? 'text-white font-medium' : 'text-secondary'
+                    }`}>
+                      {bt}
+                    </span>
                   </button>
                 ))}
               </div>

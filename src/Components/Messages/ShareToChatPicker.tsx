@@ -15,6 +15,9 @@ interface ShareToChatPickerProps {
   isOpen: boolean
   content: SharedRefContent | null
   onClose: () => void
+  /** Override the PreviewOverlay z-tier. Bump above a host Sheet (body portal
+   *  at z-1200) so the picker isn't trapped underneath it. */
+  zIndex?: number
 }
 
 type Phase = 'pick' | 'sending' | 'done'
@@ -34,7 +37,7 @@ interface SendResult {
  * No PHI on the wire — only the opaque refId + operator-supplied label travel.
  * No groups in v1.
  */
-export function ShareToChatPicker({ isOpen, content, onClose }: ShareToChatPickerProps) {
+export function ShareToChatPicker({ isOpen, content, onClose, zIndex }: ShareToChatPickerProps) {
   const ctx = useMessagesContext()
   const { medics } = useClinicMedics()
   const userId = useAuthStore(s => s.user?.id ?? null)
@@ -247,6 +250,7 @@ export function ShareToChatPicker({ isOpen, content, onClose }: ShareToChatPicke
       title={title}
       maxWidth={360}
       previewMaxHeight="55dvh"
+      {...(zIndex !== undefined ? { zIndex } : {})}
       {...(phase === 'pick'
         ? {
             searchPlaceholder: 'Search cluster…',
@@ -279,11 +283,13 @@ export function ShareToChatPicker({ isOpen, content, onClose }: ShareToChatPicke
  * minimal local state. Returns `{ share, picker }` — call `share(content)` to
  * open, render `{picker}` in the tree.
  */
-export function useShareToChat() {
+export function useShareToChat(options?: { zIndex?: number }) {
   const [content, setContent] = useState<SharedRefContent | null>(null)
   const share = useCallback((next: SharedRefContent) => setContent(next), [])
   const close = useCallback(() => setContent(null), [])
-  const picker = <ShareToChatPicker isOpen={!!content} content={content} onClose={close} />
+  const picker = (
+    <ShareToChatPicker isOpen={!!content} content={content} onClose={close} zIndex={options?.zIndex} />
+  )
   return { share, picker }
 }
 

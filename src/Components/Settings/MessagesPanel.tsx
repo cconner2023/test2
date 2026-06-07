@@ -113,8 +113,14 @@ function LongPressRow({ children, onLongPress: onLongPressCb, onClick }: {
       ref={rowRef}
       {...longPressHandlers}
       onClick={handleClick}
-      onContextMenu={e => e.preventDefault()}
-      className={`transition-opacity duration-100 ${isPressing ? 'opacity-60' : ''}`}
+      // Right-click also opens the menu (matches the chat-bubble + desktop path).
+      // Without this, narrow/touch-emulated desktop viewports — which render this
+      // mobile branch — have no way to open the menu with a mouse.
+      onContextMenu={e => { e.preventDefault(); if (rowRef.current) onLongPressCb(rowRef.current.getBoundingClientRect()) }}
+      // iOS Safari: suppress the native long-press selection/callout that fires a
+      // touchcancel and kills the long-press timer. touch-action keeps scroll.
+      style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none', touchAction: 'manipulation' }}
+      className={`select-none transition-opacity duration-100 ${isPressing ? 'opacity-60' : ''}`}
     >
       {children}
     </div>
@@ -595,6 +601,7 @@ function ConversationPane({
         row={liftedMenu?.row}
         items={liftedMenu?.items ?? []}
         onClose={closeMenu}
+        layout="list"
       />
     </div>
   )

@@ -85,7 +85,6 @@ function SelectList<T extends string>({
             onClick={() => onToggle(opt.value)}
             className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-themeblue2/5 transition-colors border-b border-primary/6 last:border-0"
           >
-            <span className={`w-2 h-2 rounded-full shrink-0 transition-colors ${isSelected ? accentClass : 'bg-tertiary/20'}`} />
             <span className={`text-sm flex-1 ${isSelected ? 'font-medium text-primary' : 'text-tertiary'}`}>
               {opt.label}
             </span>
