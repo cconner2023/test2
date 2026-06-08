@@ -18,7 +18,7 @@ export function encodeTC3Card(card: TC3Card, userId?: string): string {
 
   // C: Casualty info (compressed) — now includes sex, service, allergies
   const c = card.casualty
-  const casualtyStr = [c.battleRosterNo, c.lastName, c.firstName, c.last4, c.unit, c.dateTimeOfInjury, c.dateTimeOfTreatment, c.sex, c.service, c.allergies].join('~')
+  const casualtyStr = [c.battleRosterNo, c.lastName, c.firstName, c.last4, c.unit, c.dateTimeOfInjury, c.dateTimeOfTreatment, c.sex, c.service, c.allergies, c.ht, c.wt, c.lmp].join('~')
   if (casualtyStr.replace(/~/g, '')) parts.push(`C${compressText(casualtyStr)}`)
 
   // M: Mechanism types + other
@@ -154,7 +154,7 @@ export function encodeTC3Card(card: TC3Card, userId?: string): string {
       const e = v.gcs?.eye ?? ''
       const ve = v.gcs?.verbal ?? ''
       const m = v.gcs?.motor ?? ''
-      return `${v.time},${v.pulse},${v.bp},${v.rr},${v.spo2},${v.avpu},${v.painScale},${v.pulseLocation},${e},${ve},${m}`
+      return `${v.time},${v.pulse},${v.bp},${v.rr},${v.spo2},${v.avpu},${v.painScale},${v.pulseLocation},${e},${ve},${m},${v.temp ?? ''},${v.tempRoute ?? ''}`
     })
     parts.push(`W${compressText(vStrs.join(';'))}`)
   }
@@ -218,7 +218,7 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
   const card: TC3Card = {
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
-    casualty: { battleRosterNo: '', lastName: '', firstName: '', last4: '', unit: '', sex: '', service: '', allergies: '', dateTimeOfInjury: '', dateTimeOfTreatment: '' },
+    casualty: { battleRosterNo: '', lastName: '', firstName: '', last4: '', unit: '', sex: '', service: '', allergies: '', ht: '', wt: '', lmp: '', dateTimeOfInjury: '', dateTimeOfTreatment: '' },
     mechanism: { types: [], otherDescription: '' },
     injuries: [],
     markers: [],
@@ -261,6 +261,9 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
         card.casualty.sex = (segs[7] ?? '') as '' | 'M' | 'F'
         card.casualty.service = segs[8] ?? ''
         card.casualty.allergies = segs[9] ?? ''
+        card.casualty.ht = segs[10] ?? ''
+        card.casualty.wt = segs[11] ?? ''
+        card.casualty.lmp = segs[12] ?? ''
         break
       }
       case 'M': {
@@ -434,7 +437,8 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
             avpu: (segs[5] || '') as AVPU | '',
             painScale: segs[6] ?? '',
             pulseLocation: segs[7] ?? '',
-            temp: '',
+            temp: segs[11] ?? '',
+            tempRoute: (segs[12] ?? '') as 'oral' | 'rectal' | '',
             gcs,
           }
         })
@@ -455,7 +459,7 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
           card.vitals.push({
             id: crypto.randomUUID(),
             time: '', pulse: '', pulseLocation: '', bp: '', rr: '', spo2: '',
-            avpu: legacyAvpu, painScale: '', temp: '', gcs: legacyGcs,
+            avpu: legacyAvpu, painScale: '', temp: '', tempRoute: '', gcs: legacyGcs,
           })
         }
         break

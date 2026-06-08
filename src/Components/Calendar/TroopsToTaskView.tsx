@@ -21,7 +21,7 @@ interface TroopsToTaskViewProps {
   /** Supervisor-defined huddle stations, sorted by sort_order. One band row per task. */
   huddleTasks: ClinicHuddleTask[]
   onSelectEvent: (id: string) => void
-  onEventContextMenu?: (eventId: string, x: number, y: number) => void
+  onEventContextMenu?: (eventId: string, rect: DOMRect) => void
   onAssign: (eventId: string, userId: string) => void
   onUnassign: (eventId: string, userId: string) => void
   onDateChange: (date: Date) => void
@@ -212,10 +212,10 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
   const cfg = ZOOM_CFG[zoom]
   const ticks = useMemo(() => buildTicks(cfg), [cfg])
   const eventContextHandler = useCallback((eventId: string) => onEventContextMenu
-    ? (e: { preventDefault: () => void; stopPropagation: () => void; clientX: number; clientY: number }) => {
+    ? (e: React.MouseEvent) => {
         e.preventDefault()
         e.stopPropagation()
-        onEventContextMenu(eventId, e.clientX, e.clientY)
+        onEventContextMenu(eventId, e.currentTarget.getBoundingClientRect())
       }
     : undefined, [onEventContextMenu])
   const isMobile = useIsMobile()

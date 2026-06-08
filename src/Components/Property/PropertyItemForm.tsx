@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback } from 'react'
-import { X, Check, Square, CheckSquare, Plus } from 'lucide-react'
+import { useState, useMemo, useCallback, forwardRef, useImperativeHandle } from 'react'
+import { X, Square, CheckSquare, Plus } from 'lucide-react'
 import { TextInput, PickerInput, DatePickerInput } from '../FormInputs'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useShallow } from 'zustand/react/shallow'
@@ -12,7 +12,13 @@ interface PropertyItemFormProps {
   onClose: () => void
 }
 
-export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps) {
+export interface PropertyItemFormHandle {
+  /** Validate + persist. Drives the host header's Save action (calendar EventForm pattern). */
+  submit: () => void
+}
+
+export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemFormProps>(
+  function PropertyItemForm({ editingItem, onClose }, ref) {
   const {
     locations,
     clinicMembers,
@@ -51,7 +57,7 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
   const [parentItemId, setParentItemId] = useState(editingItem?.parent_item_id ?? '')
   const [notes, setNotes] = useState(editingItem?.notes ?? '')
   const [expiryDate, setExpiryDate] = useState(editingItem?.expiry_date ?? '')
-  const [isSaving, setIsSaving] = useState(false)
+  const [, setIsSaving] = useState(false)
   const [isSerialized, setIsSerialized] = useState(editingItem?.is_serialized ?? true)
   const [newItemId, setNewItemId] = useState<string | null>(null)
   const [conditionCode, setConditionCode] = useState<'serviceable' | 'unserviceable' | 'damaged' | 'missing'>(
@@ -181,6 +187,8 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
     locationId, holderId, parentItemId, notes, expiryDate, isSerialized,
     isEdit, editingItem, clinicId, addItem, editItem, onClose, conditionCode,
   ])
+
+  useImperativeHandle(ref, () => ({ submit: handleSave }), [handleSave])
 
   const hasLocations = locationOptions.length > 0
   const hasParentItems = parentItemOptions.length > 0
@@ -344,26 +352,7 @@ export function PropertyItemForm({ editingItem, onClose }: PropertyItemFormProps
           placeholder="Notes"
         />
       </label>
-
-      {/* Cancel / Save */}
-      <div className="flex items-center justify-end gap-2 px-3 py-2">
-        <button
-          type="button"
-          onClick={onClose}
-          className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
-        >
-          <X size={16} />
-        </button>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={isSaving}
-          className={`shrink-0 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white overflow-hidden transition-all duration-300 ease-out active:scale-95 disabled:opacity-40 ${name.trim() ? 'w-9 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
-        >
-          <Check size={16} />
-        </button>
-      </div>
       </div>
     </div>
   )
-}
+})

@@ -10,8 +10,8 @@ interface DayViewProps {
   events: CalendarEvent[]
   onSelectEvent: (id: string) => void
   onMoveEvent: (eventId: string, newStartTime: string) => void
-  onEventContextMenu?: (eventId: string, x: number, y: number) => void
-  onDayContextMenu?: (dateKey: string, x: number, y: number) => void
+  onEventContextMenu?: (eventId: string, rect: DOMRect) => void
+  onDayContextMenu?: (dateKey: string, rect: DOMRect) => void
   /** Mobile day navigation — when provided, renders interactive header */
   onPrevDay?: () => void
   onNextDay?: () => void
@@ -230,7 +230,8 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
                     onContextMenu={(ev) => {
                       if (onEventContextMenu) {
                         ev.preventDefault()
-                        onEventContextMenu(e.id, ev.clientX, ev.clientY)
+                        ev.stopPropagation()
+                        onEventContextMenu(e.id, ev.currentTarget.getBoundingClientRect())
                       }
                     }}
                     className={`w-full text-left rounded flex items-stretch gap-1 overflow-hidden bg-primary/5 ${sm.opacity} active:scale-95 transition-all duration-200`}
@@ -249,17 +250,17 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
           onContextMenu={(e) => {
             if (onDayContextMenu) {
               e.preventDefault()
-              onDayContextMenu(dateKey, e.clientX, e.clientY)
+              onDayContextMenu(dateKey, e.currentTarget.getBoundingClientRect())
             }
           }}
           onTouchStart={(e) => {
             if (!onDayContextMenu) return
             // Only start day long-press if not touching an event (events handle their own)
             if ((e.target as HTMLElement).closest('[role="button"]')) return
-            const touch = e.touches[0]
+            const el = e.currentTarget
             const lp = { timer: setTimeout(() => {
               lp.fired = true
-              onDayContextMenu(dateKey, touch.clientX, touch.clientY)
+              onDayContextMenu(dateKey, el.getBoundingClientRect())
             }, 500), fired: false }
             dayLongPressRef.current = lp
           }}
@@ -314,7 +315,8 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
                 onContextMenu={(e) => {
                   if (onEventContextMenu) {
                     e.preventDefault()
-                    onEventContextMenu(event.id, e.clientX, e.clientY)
+                    e.stopPropagation()
+                    onEventContextMenu(event.id, e.currentTarget.getBoundingClientRect())
                   }
                 }}
                 onTouchStart={(e) => handleTouchStart(event.id, top, e)}

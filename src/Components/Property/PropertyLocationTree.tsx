@@ -1,8 +1,9 @@
 import { useState, useMemo, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronRight, ChevronDown, Pencil, Trash2, Eye, FolderPlus, PackagePlus, X, Check } from 'lucide-react'
+import { ChevronRight, ChevronDown, Pencil, Trash2, Eye, FolderPlus, PackagePlus, MoreHorizontal, FolderClosed, Package } from 'lucide-react'
 import { useDrag } from '@use-gesture/react'
-import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
+import { type ContextMenuItem } from '../ContextMenu'
+import { LiftedRowMenu } from '../LiftedRowMenu'
 import type { LocalPropertyLocation, LocalPropertyItem } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
 
@@ -17,12 +18,14 @@ interface PropertyLocationTreeProps {
   activeLocationId?: string | null
   onSelectAll?: () => void
   allSelected?: boolean
+  /** Open the location edit form (name + parent) — no longer an inline rename. */
   onEditLocation?: (loc: LocalPropertyLocation) => void
+  /** Open the item edit form. */
+  onEditItem?: (item: LocalPropertyItem) => void
   onDeleteLocation?: (locId: string) => void
   onDeleteItem?: (item: LocalPropertyItem) => void
   onAddChildLocation?: (parentId: string | null) => void
   onAddItemAtLocation?: (locationId: string | null) => void
-  editing?: boolean
 }
 
 interface TreeNode {
@@ -50,11 +53,11 @@ export function PropertyLocationTree({
   onSelectAll,
   allSelected,
   onEditLocation,
+  onEditItem,
   onDeleteLocation,
   onDeleteItem,
   onAddChildLocation,
   onAddItemAtLocation,
-  editing = false,
 }: PropertyLocationTreeProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [dragState, setDragState] = useState<DragState | null>(null)
@@ -62,31 +65,11 @@ export function PropertyLocationTree({
   const [dropTargetId, setDropTargetId] = useState<string | null>(null)
   const dropTargetRef = useRef<string | null>(null)
   const ghostRef = useRef<HTMLDivElement>(null)
-  const [contextMenu, setContextMenu] = useState<{ type: 'location' | 'item' | 'root'; id: string; x: number; y: number } | null>(null)
-  const [renamingId, setRenamingId] = useState<string | null>(null)
-  const [renameValue, setRenameValue] = useState('')
-  const renameInputRef = useRef<HTMLInputElement>(null)
+  const [contextMenu, setContextMenu] = useState<{ kind: 'location' | 'item'; id: string; rect: DOMRect } | null>(null)
 
-  const startInlineRename = useCallback((loc: LocalPropertyLocation) => {
-    setRenamingId(loc.id)
-    setRenameValue(loc.name)
-    setTimeout(() => renameInputRef.current?.focus(), 30)
-  }, [])
-
-  const commitInlineRename = useCallback(() => {
-    if (!renamingId) return
-    const trimmed = renameValue.trim()
-    if (trimmed) {
-      const loc = locations.find(l => l.id === renamingId)
-      if (loc) onEditLocation?.({ ...loc, name: trimmed })
-    }
-    setRenamingId(null)
-    setRenameValue('')
-  }, [renamingId, renameValue, locations, onEditLocation])
-
-  const cancelInlineRename = useCallback(() => {
-    setRenamingId(null)
-    setRenameValue('')
+  // Open the lifted row menu anchored to a row element's bounding rect.
+  const openRowMenu = useCallback((kind: 'location' | 'item', id: string, anchor: HTMLElement | null) => {
+    if (anchor) setContextMenu({ kind, id, rect: anchor.getBoundingClientRect() })
   }, [])
 
   const toggleCollapse = useCallback((id: string) => {
@@ -292,17 +275,10 @@ export function PropertyLocationTree({
     )
   }
 
-  function countAllItems(node: TreeNode): number {
-    let count = node.items.length
-    for (const child of node.children) count += countAllItems(child)
-    return count
-  }
-
   function renderNode(node: TreeNode, depth: number) {
     const isMember = !!node.location.holder_user_id
     const hasChildren = node.children.length > 0 || node.items.length > 0
     const isCollapsed = collapsed.has(node.location.id)
-    const totalItems = countAllItems(node)
     const isDragSource = !isMember && dragState?.id === node.location.id
     const isDropTarget = !isMember && dropTargetId === node.location.id
     const isActive = activeLocationId === node.location.id
@@ -321,13 +297,14 @@ export function PropertyLocationTree({
                 : 'hover:bg-secondary/5'
           }`}
           style={{ paddingLeft: `${16 + depth * 20}px` }}
+          data-prop-row
           {...(!isMember && {
             'data-drag-id': node.location.id,
             'data-drag-type': 'location',
             'data-drag-name': node.location.name,
             'data-drop-id': node.location.id,
           })}
-          onContextMenu={!isMember ? (e) => { e.preventDefault(); e.stopPropagation(); if (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation) setContextMenu({ type: 'location', id: node.location.id, x: e.clientX, y: e.clientY }) } : undefined}
+          onContextMenu={!isMember ? (e) => { e.preventDefault(); e.stopPropagation(); if (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation) openRowMenu('location', node.location.id, e.currentTarget as HTMLElement) } : undefined}
         >
           {/* Chevron */}
           {hasChildren ? (
@@ -343,80 +320,24 @@ export function PropertyLocationTree({
 
           {/* Location icon + name */}
           <div
-            role={renamingId === node.location.id ? undefined : 'button'}
-            tabIndex={renamingId === node.location.id ? undefined : 0}
+            role="button"
+            tabIndex={0}
             className="flex items-center gap-2 flex-1 min-w-0 text-left cursor-pointer"
-            onClick={renamingId === node.location.id ? undefined : () => onSelectLocation(node.location)}
-            onKeyDown={renamingId === node.location.id ? undefined : (e) => { if (e.key === 'Enter') onSelectLocation(node.location) }}
+            onClick={() => onSelectLocation(node.location)}
+            onKeyDown={(e) => { if (e.key === 'Enter') onSelectLocation(node.location) }}
           >
-            {renamingId === node.location.id ? (
-              <input
-                ref={renameInputRef}
-                type="text"
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') commitInlineRename()
-                  if (e.key === 'Escape') cancelInlineRename()
-                }}
-                onBlur={commitInlineRename}
-                onClick={(e) => e.stopPropagation()}
-                className="flex-1 min-w-0 text-[10pt] font-medium text-primary bg-transparent border-b border-themeblue3/50 focus:outline-none"
-              />
-            ) : (
-              <span className="text-[10pt] font-medium text-primary truncate">{node.location.name}</span>
-            )}
+            <span className="text-[10pt] font-medium text-primary truncate">{node.location.name}</span>
           </div>
 
-          {/* Item count badge */}
-          {totalItems > 0 && (
-            <span className="text-[10pt] font-medium px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary shrink-0">
-              {totalItems}
-            </span>
-          )}
-
-          {/* Inline edit controls — real locations only */}
-          {!isMember && editing && (
-            <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-              {renamingId === node.location.id ? (
-                <>
-                  <button
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={cancelInlineRename}
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
-                  >
-                    <X size={13} />
-                  </button>
-                  <button
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={commitInlineRename}
-                    disabled={!renameValue.trim()}
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-themeblue2 active:scale-95 transition-all disabled:opacity-30"
-                  >
-                    <Check size={13} />
-                  </button>
-                </>
-              ) : (
-                <>
-                  {onEditLocation && (
-                    <button
-                      onClick={() => startInlineRename(node.location)}
-                      className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
-                    >
-                      <Pencil size={13} />
-                    </button>
-                  )}
-                  {onDeleteLocation && (
-                    <button
-                      onClick={() => onDeleteLocation(node.location.id)}
-                      className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
+          {/* Row actions — ellipsis menu */}
+          {!isMember && (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation) && (
+            <button
+              onClick={(e) => { e.stopPropagation(); openRowMenu('location', node.location.id, (e.currentTarget as HTMLElement).closest('[data-prop-row]') as HTMLElement | null) }}
+              aria-label="More actions"
+              className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0"
+            >
+              <MoreHorizontal size={15} />
+            </button>
           )}
         </div>
 
@@ -436,9 +357,10 @@ export function PropertyLocationTree({
                     isItemDragSource ? 'opacity-30' : 'hover:bg-secondary/5'
                   }`}
                   style={{ paddingLeft: `${16 + (depth + 1) * 20 + 18}px` }}
+                  data-prop-row
                   onClick={() => onSelectItem(item)}
                   onKeyDown={(e) => { if (e.key === 'Enter') onSelectItem(item) }}
-                  onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (onDeleteItem || onAddItemAtLocation) setContextMenu({ type: 'item', id: item.id, x: e.clientX, y: e.clientY }) }}
+                  onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (onDeleteItem || onAddItemAtLocation) openRowMenu('item', item.id, e.currentTarget as HTMLElement) }}
                   data-drag-id={item.id}
                   data-drag-type="item"
                   data-drag-name={item.name}
@@ -452,12 +374,13 @@ export function PropertyLocationTree({
                       {item.quantity}
                     </span>
                   )}
-                  {editing && onDeleteItem && (
+                  {(onAddItemAtLocation || onDeleteItem) && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); onDeleteItem(item) }}
-                      className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all shrink-0"
+                      onClick={(e) => { e.stopPropagation(); openRowMenu('item', item.id, (e.currentTarget as HTMLElement).closest('[data-prop-row]') as HTMLElement | null) }}
+                      aria-label="More actions"
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0"
                     >
-                      <Trash2 size={13} />
+                      <MoreHorizontal size={15} />
                     </button>
                   )}
                 </div>
@@ -478,12 +401,6 @@ export function PropertyLocationTree({
       {...bindDrag()}
       className="flex flex-col py-1"
       style={{ touchAction: 'none' }}
-      onContextMenu={(e) => {
-        if (onAddChildLocation || onAddItemAtLocation) {
-          e.preventDefault()
-          setContextMenu({ type: 'root', id: '', x: e.clientX, y: e.clientY })
-        }
-      }}
     >
       {/* All Locations node */}
       {onSelectAll && (
@@ -559,9 +476,10 @@ export function PropertyLocationTree({
                       isItemDragSource ? 'opacity-30' : 'hover:bg-secondary/5'
                     }`}
                     style={{ paddingLeft: `${16 + 20 + 18}px` }}
+                    data-prop-row
                     onClick={() => onSelectItem(item)}
                     onKeyDown={(e) => { if (e.key === 'Enter') onSelectItem(item) }}
-                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (onDeleteItem || onAddItemAtLocation) setContextMenu({ type: 'item', id: item.id, x: e.clientX, y: e.clientY }) }}
+                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (onDeleteItem || onAddItemAtLocation) openRowMenu('item', item.id, e.currentTarget as HTMLElement) }}
                     data-drag-id={item.id}
                     data-drag-type="item"
                     data-drag-name={item.name}
@@ -575,12 +493,13 @@ export function PropertyLocationTree({
                         {item.quantity}
                       </span>
                     )}
-                    {editing && onDeleteItem && (
+                    {(onAddItemAtLocation || onDeleteItem) && (
                       <button
-                        onClick={(e) => { e.stopPropagation(); onDeleteItem(item) }}
-                        className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all shrink-0"
+                        onClick={(e) => { e.stopPropagation(); openRowMenu('item', item.id, (e.currentTarget as HTMLElement).closest('[data-prop-row]') as HTMLElement | null) }}
+                        aria-label="More actions"
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0"
                       >
-                        <Trash2 size={13} />
+                        <MoreHorizontal size={15} />
                       </button>
                     )}
                   </div>
@@ -591,63 +510,68 @@ export function PropertyLocationTree({
         </div>
       )}
 
-      {/* Right-click context menu */}
+      {/* Lifted row menu — ellipsis / right-click on location and item rows */}
       {contextMenu && (() => {
-        if (contextMenu.type === 'root') {
-          return (
-            <ContextMenu
-              x={contextMenu.x}
-              y={contextMenu.y}
-              onClose={() => setContextMenu(null)}
-              items={[
-                ...(onAddChildLocation ? [{ key: 'add-area', label: 'New Area', icon: FolderPlus, onAction: () => onAddChildLocation(null) }] : []),
-                ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(null) }] : []),
-              ]}
-            />
-          )
-        }
-        if (contextMenu.type === 'location') {
+        if (contextMenu.kind === 'location') {
           const loc = locations.find(l => l.id === contextMenu.id)
-          if (!loc) return null
+          if (!loc || loc.holder_user_id) return null
+          const menuItems: ContextMenuItem[] = [
+            ...(onAddChildLocation ? [{ key: 'add-area', label: 'New Area', icon: FolderPlus, onAction: () => onAddChildLocation(loc.id) }] : []),
+            ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(loc.id) }] : []),
+            ...(onEditLocation ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditLocation(loc) }] : []),
+            ...(onDeleteLocation ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteLocation(loc.id) }] : []),
+          ]
           return (
-            <ContextMenu
-              x={contextMenu.x}
-              y={contextMenu.y}
+            <LiftedRowMenu
+              isOpen
+              layout="list"
+              anchorRect={contextMenu.rect}
               onClose={() => setContextMenu(null)}
-              items={[
-                ...(onAddChildLocation ? [{ key: 'add-area', label: 'New Area', icon: FolderPlus, onAction: () => onAddChildLocation(loc.id) }] : []),
-                ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(loc.id) }] : []),
-                ...(onEditLocation ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => startInlineRename(loc) }] : []),
-                ...(onDeleteLocation ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteLocation(loc.id) }] : []),
-              ]}
-            />
-          )
-        } else {
-          const item = items.find(i => i.id === contextMenu.id)
-          if (!item) return null
-          return (
-            <ContextMenu
-              x={contextMenu.x}
-              y={contextMenu.y}
-              onClose={() => setContextMenu(null)}
-              items={[
-                { key: 'view', label: 'View', icon: Eye, onAction: () => onSelectItem(item) },
-                ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(item.location_id ?? null) }] : []),
-                ...(onDeleteItem ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteItem(item) }] : []),
-              ]}
+              items={menuItems}
+              row={(
+                <div className="flex items-center gap-2 px-3 py-2 bg-themewhite">
+                  <FolderClosed size={16} className="text-tertiary shrink-0" />
+                  <span className="flex-1 min-w-0 text-[10pt] font-medium text-primary truncate">{loc.name}</span>
+                </div>
+              )}
             />
           )
         }
+        const item = items.find(i => i.id === contextMenu.id)
+        if (!item) return null
+        const menuItems: ContextMenuItem[] = [
+          { key: 'view', label: 'View', icon: Eye, onAction: () => onSelectItem(item) },
+          ...(onEditItem ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditItem(item) }] : []),
+          ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(item.location_id ?? null) }] : []),
+          ...(onDeleteItem ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteItem(item) }] : []),
+        ]
+        return (
+          <LiftedRowMenu
+            isOpen
+            layout="list"
+            anchorRect={contextMenu.rect}
+            onClose={() => setContextMenu(null)}
+            items={menuItems}
+            row={(
+              <div className="flex items-center gap-2 px-3 py-2 bg-themewhite">
+                <span className="flex-1 min-w-0 text-[10pt] text-primary truncate">{item.name}</span>
+              </div>
+            )}
+          />
+        )
       })()}
 
-      {/* Ghost element rendered via portal */}
+      {/* Drag clone preview — a lifted clone of the dragged row, rendered via portal */}
       {dragState && createPortal(
         <div
           ref={ghostRef}
           className="fixed top-0 left-0 z-[9999] pointer-events-none"
           style={{ transform: 'translate(-9999px, -9999px)' }}
         >
-          <div className="flex items-center gap-2 px-3 py-2 rounded-full bg-white shadow-lg border border-tertiary/20 max-w-[200px]">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-themewhite shadow-xl border border-tertiary/20 max-w-[240px] scale-[1.03] origin-left">
+            {dragState.type === 'location'
+              ? <FolderClosed size={15} className="text-tertiary shrink-0" />
+              : <Package size={15} className="text-tertiary shrink-0" />}
             <span className="text-[10pt] font-medium text-primary truncate">{dragState.name}</span>
           </div>
         </div>,

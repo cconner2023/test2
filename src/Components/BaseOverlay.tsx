@@ -22,11 +22,14 @@ export const Z = {
 /** Headroom an overlay reserves above its backdrop z for its own card content.
  *  Covers PreviewOverlay's +15 inline content offset with margin.
  *  Used both as the per-depth bump and as the safety gap a child overlay clears. */
-const STACK_BUMP = 30
+export const STACK_BUMP = 30
 
 /** Published by every open BaseOverlay = the z ceiling descendants must clear.
- *  Default 0 means "no ancestor overlay" — root tier behavior. */
-const OverlayStackContext = createContext(0)
+ *  Default 0 means "no ancestor overlay" — root tier behavior.
+ *  Exported so non-BaseOverlay surfaces that portal high (e.g. the Sheet
+ *  primitive) can publish their own ceiling, letting pickers/modals opened
+ *  inside them auto-stack above without per-consumer zIndex plumbing. */
+export const OverlayStackContext = createContext(0)
 
 interface BaseOverlayProps {
   isOpen: boolean

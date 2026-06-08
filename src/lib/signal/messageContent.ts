@@ -13,6 +13,7 @@
  *   Map overlay:    { t: "o", a: "c"|"u"|"d", d: {...} }   ← overlay metadata + (legacy) full feature set
  *   Map feature:    { t: "mf", a: "c"|"u"|"d", o, c?, f }  ← single feature within a parent overlay
  *   Shared ref:     { t: "r", k: "ce"|"mo", id, l, s?, f? } ← chat-visible deep link to a clustered object
+ *   Shared bundle:  { t: "sb", k: "ce"|"mo", p, key, h, l, s?, sc } ← frozen self-contained object for cross-cluster ingest
  *   Reaction:       { t: "rx", id, e, r? }                  ← emoji reaction targeting another message (folded, never a bubble)
  */
 
@@ -232,6 +233,35 @@ export interface SharedRefContent {
 }
 
 /**
+ * Cross-cluster shared OBJECT BUNDLE — the frozen-value counterpart to a
+ * shared_ref. Where a shared_ref is a live link that only resolves inside the
+ * sending cluster, a shared_bundle carries a self-contained calendar event or
+ * map overlay (uploaded as an encrypted blob to the message-attachments bucket)
+ * so a recipient in ANOTHER cluster can re-materialize it as a brand-new local
+ * copy in their own vault. The bundle blob is ciphertext; the AES `key` rides
+ * here inside the E2E Signal envelope. No PHI — the bundle is projected to
+ * operational fields at export (see src/lib/objectBundle.ts). Authored into a
+ * 1:1 (or group) thread; renders as a tappable "Add to my cluster" card.
+ */
+export interface SharedBundleContent {
+  type: 'shared_bundle'
+  /** Which kind of object the bundle holds. */
+  bundleKind: 'calendar-event' | 'map-overlay'
+  /** Storage path of the encrypted bundle blob in message-attachments. */
+  path: string
+  /** Base64 AES-256-GCM key for the bundle blob (carried inside the E2E msg). */
+  key: string
+  /** sha-256 of the canonical bundle JSON — integrity + ingest idempotency. */
+  contentHash: string
+  /** Display label (event title / overlay name). Operational only — no PHI. */
+  label: string
+  /** Secondary line (date / feature count). Operational only. */
+  subLabel?: string
+  /** Human label of the originating cluster — shown as "from [cluster]". */
+  sourceCluster: string
+}
+
+/**
  * Outside→cluster ONE-WAY message card — an outside party (QR + passphrase) drops a
  * short text note to the whole clinic cluster. Authored by the `outside-message-submit`
  * EDGE FUNCTION as a real per-device SYSTEM group message (sender_device_id='edge'),
@@ -269,7 +299,7 @@ export interface ReactionContent {
   remove?: boolean
 }
 
-export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | SharedRefContent | IntakeRequestContent | OncallCallContent | OutsideMessageContent | ReactionContent
+export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | SharedRefContent | SharedBundleContent | IntakeRequestContent | OncallCallContent | OutsideMessageContent | ReactionContent
 
 // ---- Compact wire shapes ----
 
@@ -339,6 +369,25 @@ interface WireSharedRef {
   f?: string
 }
 
+/** Cross-cluster shared object bundle (frozen value, ingested into the receiver's vault). */
+interface WireSharedBundle {
+  t: 'sb'
+  /** kind: 'ce' calendar event | 'mo' map overlay */
+  k: 'ce' | 'mo'
+  /** storage path of the encrypted bundle blob */
+  p: string
+  /** base64 AES key for the bundle blob */
+  key: string
+  /** sha-256 content hash */
+  h: string
+  /** label */
+  l: string
+  /** sub-label (optional) */
+  s?: string
+  /** source cluster label */
+  sc: string
+}
+
 /** Outside event-intake request, authored by the edge fn inside the Signal envelope. */
 interface WireIntake {
   t: 'ir'
@@ -406,7 +455,7 @@ interface WireReaction {
   r?: 1
 }
 
-type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature | WireSharedRef | WireIntake | WireOutsideMessage | WireOncallCall | WireReaction
+type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature | WireSharedRef | WireSharedBundle | WireIntake | WireOutsideMessage | WireOncallCall | WireReaction
 
 // ---- Serialization ----
 
@@ -480,6 +529,21 @@ export function serializeContent(content: MessageContent): string {
     }
     if (content.subLabel) wire.s = content.subLabel
     if (content.featureId) wire.f = content.featureId
+    return JSON.stringify(wire)
+  }
+
+  if (content.type === 'shared_bundle') {
+    const kindMap = { 'calendar-event': 'ce', 'map-overlay': 'mo' } as const
+    const wire: WireSharedBundle = {
+      t: 'sb',
+      k: kindMap[content.bundleKind],
+      p: content.path,
+      key: content.key,
+      h: content.contentHash,
+      l: content.label,
+      sc: content.sourceCluster,
+    }
+    if (content.subLabel) wire.s = content.subLabel
     return JSON.stringify(wire)
   }
 
@@ -674,6 +738,23 @@ export function parseMessageContent(raw: string): ParsedContent {
           ...(wire.s && { subLabel: wire.s }),
           ...(wire.f && { featureId: wire.f }),
         } satisfies SharedRefContent,
+      }
+    }
+
+    if (wire.t === 'sb') {
+      const bundleKind = wire.k === 'ce' ? 'calendar-event' : 'map-overlay'
+      return {
+        plaintext: wire.l,
+        content: {
+          type: 'shared_bundle',
+          bundleKind,
+          path: wire.p,
+          key: wire.key,
+          contentHash: wire.h,
+          label: wire.l,
+          ...(wire.s && { subLabel: wire.s }),
+          sourceCluster: wire.sc,
+        } satisfies SharedBundleContent,
       }
     }
 

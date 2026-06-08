@@ -60,14 +60,14 @@ export const ExamBlockPreview: React.FC<ExamBlockPreviewProps> = ({
                   <button
                     type="button"
                     onClick={() => onToggleNormal(finding.key)}
-                    className="text-left px-3 py-1.5 active:bg-tertiary/5 transition-colors"
+                    className={`text-left px-3 py-1.5 transition-colors ${
+                      state.selectedNormals.includes(finding.key)
+                        ? 'bg-themegreen/10'
+                        : 'active:bg-tertiary/5'
+                    }`}
                     style={{ gridRow: `span ${abnormalCount}` }}
                   >
-                    <span className={`text-[9pt] transition-colors ${
-                      state.selectedNormals.includes(finding.key)
-                        ? 'text-primary font-medium'
-                        : 'text-secondary'
-                    }`}>
+                    <span className="text-[9pt] text-secondary">
                       {finding.normal}
                     </span>
                   </button>
@@ -82,15 +82,15 @@ export const ExamBlockPreview: React.FC<ExamBlockPreviewProps> = ({
                       key={ab.key}
                       type="button"
                       onClick={() => onToggleAbnormal(ab.key)}
-                      className={`text-left px-3 py-1.5 border-l border-tertiary/10 active:bg-tertiary/5 transition-colors ${
+                      className={`text-left px-3 py-1.5 border-l border-tertiary/10 transition-colors ${
                         j > 0 ? 'border-t border-tertiary/10' : ''
+                      } ${
+                        state.selectedAbnormals.includes(ab.key)
+                          ? 'bg-themeredred/10'
+                          : 'active:bg-tertiary/5'
                       }`}
                     >
-                      <span className={`text-[9pt] transition-colors ${
-                        state.selectedAbnormals.includes(ab.key)
-                          ? 'text-primary font-medium'
-                          : 'text-secondary'
-                      }`}>
+                      <span className="text-[9pt] text-secondary">
                         {ab.label}
                       </span>
                     </button>

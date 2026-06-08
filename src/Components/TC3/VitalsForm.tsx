@@ -1,8 +1,8 @@
-import { memo, useState, useRef, useEffect } from 'react'
+import { memo, useState, useRef, useEffect, type ReactNode } from 'react'
 import { Plus, X, Check, TrendingUp } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { TextInput } from '../FormInputs'
+import { BloodPressureInput, DatePickerInput } from '../FormInputs'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
 import { EmptyState } from '../EmptyState'
@@ -15,7 +15,28 @@ const EYE_LABELS: Record<number, string>    = { 1: 'None', 2: 'To Pain', 3: 'To 
 const VERBAL_LABELS: Record<number, string> = { 1: 'None', 2: 'Sounds', 3: 'Words', 4: 'Confused', 5: 'Oriented' }
 const MOTOR_LABELS: Record<number, string>  = { 1: 'None', 2: 'Extension', 3: 'Flexion', 4: 'Withdraws', 5: 'Localizes', 6: 'Obeys' }
 
-function GCSStepperRow({ label, value, max, labels, onChange }: {
+/* ── Generic value cell — matches the PE-block VitalSignsCalculator grid square
+   (label top-left, conversion/hint top-right, value below). ── */
+function VCell({ label, hint, hintClass = 'text-tertiary', span, children }: {
+  label: string
+  hint?: string | null
+  hintClass?: string
+  span?: boolean
+  children: ReactNode
+}) {
+  return (
+    <div className={`flex flex-col gap-0.5 px-3 py-2 bg-themewhite ${span ? 'col-span-2' : ''}`}>
+      <div className="flex items-baseline justify-between gap-2 min-w-0">
+        <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest shrink-0">{label}</span>
+        {hint && <span className={`text-[8.5pt] font-medium truncate ${hintClass}`}>{hint}</span>}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+/* ── GCS full-width cell — label + value + wrapping explanation + −/+ ── */
+function GcsCell({ label, value, max, labels, onChange }: {
   label: string
   value: number
   max: number
@@ -24,40 +45,26 @@ function GCSStepperRow({ label, value, max, labels, onChange }: {
 }) {
   const canDec = value > 0
   const canInc = value < max
+  const btn = (active: boolean) =>
+    `w-8 h-8 rounded-full flex items-center justify-center text-base font-bold active:scale-95 transition-all ${
+      active ? 'bg-tertiary/10 text-primary hover:bg-tertiary/15' : 'bg-tertiary/4 text-tertiary/25 cursor-not-allowed'
+    }`
   return (
-    <div className="flex items-center gap-3 rounded-full bg-tertiary/6 pl-4 pr-1.5 py-1.5">
-      {/* Label + value on the left */}
-      <span className="w-12 text-[9pt] font-medium text-tertiary uppercase tracking-wide shrink-0">{label}</span>
-      <div className="flex-1 flex flex-col min-w-0">
+    <div className="flex items-center gap-3 px-3 py-2 bg-themewhite">
+      <span className="w-14 text-[9pt] font-semibold text-tertiary uppercase tracking-widest shrink-0">{label}</span>
+      <div className="flex-1 min-w-0">
         {value > 0 ? (
-          <>
-            <span className="text-sm font-bold text-primary leading-none">{value}</span>
-            <span className="text-[8pt] text-tertiary mt-0.5 leading-none truncate">{labels[value]}</span>
-          </>
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className="text-sm font-bold text-primary">{value}</span>
+            <span className="text-[8.5pt] text-tertiary">{labels[value]}</span>
+          </div>
         ) : (
           <span className="text-sm text-tertiary/40">—</span>
         )}
       </div>
-      {/* − + grouped on the right */}
       <div className="flex gap-1 shrink-0">
-        <button
-          type="button"
-          onClick={() => canDec && onChange(value - 1)}
-          className={`w-9 h-9 rounded-full flex items-center justify-center transition-all text-base font-bold active:scale-95 ${
-            canDec ? 'bg-tertiary/10 text-primary hover:bg-tertiary/15' : 'bg-tertiary/4 text-tertiary/25 cursor-not-allowed'
-          }`}
-        >
-          −
-        </button>
-        <button
-          type="button"
-          onClick={() => canInc && onChange(value + 1)}
-          className={`w-9 h-9 rounded-full flex items-center justify-center transition-all text-base font-bold active:scale-95 ${
-            canInc ? 'bg-tertiary/10 text-primary hover:bg-tertiary/15' : 'bg-tertiary/4 text-tertiary/25 cursor-not-allowed'
-          }`}
-        >
-          +
-        </button>
+        <button type="button" onClick={() => canDec && onChange(value - 1)} className={btn(canDec)}>−</button>
+        <button type="button" onClick={() => canInc && onChange(value + 1)} className={btn(canInc)}>+</button>
       </div>
     </div>
   )
@@ -72,7 +79,7 @@ const AVPU_LABELS: Record<AVPU, string> = {
 const PULSE_LOCATION_OPTIONS = ['C', 'R', 'F'] as const
 type PulseLocation = typeof PULSE_LOCATION_OPTIONS[number]
 
-const BP_INPUT_CLASS = 'w-full px-4 py-2.5 rounded-full text-primary text-sm border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none transition-all duration-300 placeholder:text-tertiary'
+const TEMP_ROUTE_OPTIONS = ['oral', 'rectal'] as const
 
 /** Estimated minimum systolic by palpable pulse site (TCCC) */
 const BP_LOCATION_DEFAULTS: Record<PulseLocation, string> = {
@@ -98,6 +105,17 @@ function gcsToAVPU(total: number): AVPU {
   return 'U'
 }
 
+/* ── Compact LMP chip for the trend grid (weeks/days ago) ── */
+function lmpChip(iso: string): string {
+  const d = new Date(iso + 'T00:00:00')
+  if (isNaN(d.getTime())) return iso
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const days = Math.floor((today.getTime() - d.getTime()) / 86_400_000)
+  if (days < 0) return '—'
+  const w = Math.floor(days / 7)
+  return w > 0 ? `${w}w` : `${days}d`
+}
+
 /* ── Parse systolic from bp field ── */
 function parseSystolic(bp: string): number | null {
   if (!bp) return null
@@ -110,7 +128,7 @@ function parseSystolic(bp: string): number | null {
    Horizontal scroll (newest column at the right, in view by default — scroll
    left for earlier sets, same scroll feel as the Troops-to-Task timeline).
    Tapping a column opens that set's editor. */
-function VitalsTrend({ sets, onSelect }: { sets: TC3VitalSet[]; onSelect: (id: string) => void }) {
+function VitalsTrend({ sets, bio, onSelect }: { sets: TC3VitalSet[]; bio: { ht: string; wt: string; lmp: string }; onSelect: (id: string) => void }) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // Jump to the most-recent column on mount and whenever a set is added —
@@ -171,6 +189,18 @@ function VitalsTrend({ sets, onSelect }: { sets: TC3VitalSet[]; onSelect: (id: s
     { key: 'Pain', label: 'Pain' },
   ]
 
+  // Constant casualty rows — graphed alongside the per-set vitals; only shown
+  // once a value is listed. Same value carries across every column (no delta).
+  type RenderRow =
+    | { kind: 'dyn'; key: RowKey; label: string }
+    | { kind: 'bio'; key: string; label: string; value: string }
+  const bioRows: RenderRow[] = [
+    bio.ht ? { kind: 'bio' as const, key: 'Ht', label: 'Ht', value: bio.ht } : null,
+    bio.wt ? { kind: 'bio' as const, key: 'Wt', label: 'Wt', value: bio.wt } : null,
+    bio.lmp ? { kind: 'bio' as const, key: 'LMP', label: 'LMP', value: lmpChip(bio.lmp) } : null,
+  ].filter(Boolean) as RenderRow[]
+  const allRows: RenderRow[] = [...rows.map(r => ({ kind: 'dyn' as const, key: r.key, label: r.label })), ...bioRows]
+
   return (
     <div
       ref={scrollRef}
@@ -184,7 +214,7 @@ function VitalsTrend({ sets, onSelect }: { sets: TC3VitalSet[]; onSelect: (id: s
             <TrendingUp size={10} className="shrink-0" />
             Trend
           </div>
-          {rows.map((row, ri) => (
+          {allRows.map((row, ri) => (
             <div
               key={row.key}
               className={`h-8 flex items-center px-2.5 text-[9pt] font-medium text-tertiary ${ri > 0 ? 'border-t border-tertiary/8' : ''}`}
@@ -205,7 +235,19 @@ function VitalsTrend({ sets, onSelect }: { sets: TC3VitalSet[]; onSelect: (id: s
             <div className="h-7 flex items-center justify-center px-1 text-[9pt] font-medium text-tertiary uppercase tracking-wide bg-tertiary/4 truncate">
               {vs.time || '—'}
             </div>
-            {rows.map((row, ri) => {
+            {allRows.map((row, ri) => {
+              const border = ri > 0 ? 'border-t border-tertiary/8' : ''
+              // Constant casualty row — same value in every column, no delta.
+              if (row.kind === 'bio') {
+                return (
+                  <div
+                    key={row.key}
+                    className={`h-8 flex items-center justify-center text-[9pt] text-secondary ${border}`}
+                  >
+                    {row.value}
+                  </div>
+                )
+              }
               const curr = getVal(vs, row.key)
               const prev = ci > 0 ? getVal(sets[ci - 1], row.key) : null
               const d = delta(row.key, curr, prev)
@@ -219,7 +261,7 @@ function VitalsTrend({ sets, onSelect }: { sets: TC3VitalSet[]; onSelect: (id: s
               return (
                 <div
                   key={row.key}
-                  className={`h-8 flex items-center justify-center gap-0.5 text-[9pt] ${ri > 0 ? 'border-t border-tertiary/8' : ''}`}
+                  className={`h-8 flex items-center justify-center gap-0.5 text-[9pt] ${border}`}
                 >
                   <span className={valColor}>{displayVal}</span>
                   {d.arrow && <span className={d.color}>{d.arrow}</span>}
@@ -237,6 +279,10 @@ function VitalsTrend({ sets, onSelect }: { sets: TC3VitalSet[]; onSelect: (id: s
 function VitalSetPreviewContent({ id }: { id: string }) {
   const vs = useTC3Store((s) => s.card.vitals.find((v) => v.id === id))
   const updateVitalSet = useTC3Store((s) => s.updateVitalSet)
+  const ht = useTC3Store((s) => s.card.casualty.ht)
+  const wt = useTC3Store((s) => s.card.casualty.wt)
+  const lmp = useTC3Store((s) => s.card.casualty.lmp)
+  const updateCasualty = useTC3Store((s) => s.updateCasualty)
 
   if (!vs) return null
 
@@ -270,114 +316,172 @@ function VitalSetPreviewContent({ id }: { id: string }) {
 
   const gcsTotal = gcs ? gcs.eye + gcs.verbal + gcs.motor : null
 
-  const bpSys = vs.bp.split('/')[0]?.trim() ?? ''
-  const bpDia = vs.bp.split('/')[1]?.trim() ?? ''
+  const sbp = parseSystolic(vs.bp)
+
+  const tempF = parseFloat(vs.temp ?? '')
+  const tempC = vs.temp && !isNaN(tempF) ? ((tempF - 32) * 5 / 9).toFixed(1) : null
+  const htNum = parseFloat(ht)
+  const htHint = ht && !isNaN(htNum) ? `${(htNum * 2.54).toFixed(0)}cm · ${Math.floor(htNum / 12)}'${Math.round(htNum % 12)}"` : null
+  const wtNum = parseFloat(wt)
+  const wtHint = wt && !isNaN(wtNum) ? `${(wtNum * 0.453592).toFixed(0)}kg` : null
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const cellInput = 'w-full bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-base md:text-sm'
+
+  // BMI derived from Ht/Wt (inches + lbs → BMI)
+  const bmiVal = ht && wt && !isNaN(htNum) && !isNaN(wtNum) && htNum > 0 ? (wtNum / (htNum * htNum)) * 703 : null
+  const bmiCat = bmiVal == null ? null
+    : bmiVal < 18.5 ? { label: 'Underweight', color: 'text-themeyellow' }
+    : bmiVal < 25 ? { label: 'Normal', color: 'text-themegreen' }
+    : bmiVal < 30 ? { label: 'Overweight', color: 'text-themeyellow' }
+    : { label: 'Obese', color: 'text-themeredred' }
+
+  // LMP hint — weeks/days ago, flag if late
+  const lmpInfo = (() => {
+    if (!lmp) return null
+    const d = new Date(lmp + 'T00:00:00')
+    if (isNaN(d.getTime())) return null
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const days = Math.floor((today.getTime() - d.getTime()) / 86_400_000)
+    if (days < 0) return { text: 'Future date', color: 'text-tertiary' }
+    const w = Math.floor(days / 7), rd = days % 7
+    const text = w > 0 ? `${w}w ${rd}d ago` : `${days}d ago`
+    return days > 35 ? { text: `${text} · late`, color: 'text-themeyellow' } : { text, color: 'text-tertiary' }
+  })()
 
   return (
-    <div className="px-4 py-3 space-y-3" onClick={(e) => e.stopPropagation()}>
-      {/* AVPU */}
-      <div>
-        <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">AVPU</span>
-        <div className="mt-1.5 flex overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+    <div className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+      <div className="rounded-2xl overflow-hidden border border-primary/6 bg-primary/6 space-y-px">
+
+        {/* Time */}
+        <div className="grid grid-cols-1">
+          <VCell label="Time">
+            <input type="text" value={vs.time} onChange={(e) => handleChange('time', e.target.value)} placeholder="HH:MM" className={cellInput} />
+          </VCell>
+        </div>
+
+        {/* AVPU — its own grid (no header); auto-fills GCS */}
+        <div className="grid grid-cols-4 gap-px bg-primary/6">
           {AVPU_OPTIONS.map((opt) => (
             <button
               key={opt}
               type="button"
               onClick={() => handleAVPU(opt)}
-              className={`shrink-0 px-4 py-1.5 transition-colors ${
-                avpu === opt ? 'bg-themeredred' : 'active:bg-tertiary/5'
+              className={`flex flex-col items-center justify-center px-2 py-2 transition-colors ${
+                avpu === opt ? 'bg-themeredred' : 'bg-themewhite active:bg-tertiary/5'
               }`}
             >
-              <span className={`text-[9pt] transition-colors ${
-                avpu === opt ? 'text-white font-medium' : 'text-secondary'
-              }`}>
-                {opt}
-              </span>
+              <span className={`text-sm font-bold ${avpu === opt ? 'text-white' : 'text-primary'}`}>{opt}</span>
+              <span className={`text-[8pt] ${avpu === opt ? 'text-white/80' : 'text-tertiary'}`}>{AVPU_LABELS[opt]}</span>
             </button>
           ))}
         </div>
-      </div>
 
-      {/* GCS steppers */}
-      <div className="space-y-2">
-        <GCSStepperRow label="Eye"    value={gcs?.eye    ?? 0} max={4} labels={EYE_LABELS}    onChange={(v) => handleGCS('eye',    String(v))} />
-        <GCSStepperRow label="Verbal" value={gcs?.verbal ?? 0} max={5} labels={VERBAL_LABELS} onChange={(v) => handleGCS('verbal', String(v))} />
-        <GCSStepperRow label="Motor"  value={gcs?.motor  ?? 0} max={6} labels={MOTOR_LABELS}  onChange={(v) => handleGCS('motor',  String(v))} />
+        {/* GCS — full-width rows so the explanation can wrap */}
+        <div className="grid grid-cols-1 gap-px bg-primary/6">
+          <GcsCell label="Eye"    value={gcs?.eye    ?? 0} max={4} labels={EYE_LABELS}    onChange={(v) => handleGCS('eye',    String(v))} />
+          <GcsCell label="Verbal" value={gcs?.verbal ?? 0} max={5} labels={VERBAL_LABELS} onChange={(v) => handleGCS('verbal', String(v))} />
+          <GcsCell label="Motor"  value={gcs?.motor  ?? 0} max={6} labels={MOTOR_LABELS}  onChange={(v) => handleGCS('motor',  String(v))} />
+        </div>
         {gcsTotal !== null && gcsTotal > 0 && (
-          <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide pl-1 pt-0.5">GCS — {gcsTotal}</p>
-        )}
-      </div>
-
-      {/* Divider */}
-      <div className="border-t border-tertiary/10" />
-
-      {/* Time */}
-      <TextInput label="Time" value={vs.time} onChange={(v) => handleChange('time', v)} placeholder="HH:MM" />
-
-      {/* Pulse + Location pills */}
-      <div className="grid grid-cols-2 gap-2">
-        <TextInput label="Pulse" value={vs.pulse} onChange={(v) => handleChange('pulse', v)} placeholder="HR" inputMode="numeric" />
-        <div>
-          <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">Location</span>
-          <div className="mt-1.5 flex overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-            {PULSE_LOCATION_OPTIONS.map((opt) => (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => {
-                  const newLoc = vs.pulseLocation === opt ? '' : opt
-                  const isAutoDefault = BP_AUTO_VALUES.has(vs.bp)
-                  const updates: Partial<TC3VitalSet> = { pulseLocation: newLoc }
-                  if (newLoc && (!vs.bp || isAutoDefault)) {
-                    updates.bp = BP_LOCATION_DEFAULTS[newLoc]
-                  } else if (!newLoc && isAutoDefault) {
-                    updates.bp = ''
-                  }
-                  updateVitalSet(id, updates)
-                }}
-                className={`shrink-0 px-4 py-1.5 transition-colors ${
-                  vs.pulseLocation === opt ? 'bg-themeblue3' : 'active:bg-tertiary/5'
-                }`}
-              >
-                <span className={`text-[9pt] transition-colors ${
-                  vs.pulseLocation === opt ? 'text-white font-medium' : 'text-secondary'
-                }`}>
-                  {opt}
-                </span>
-              </button>
-            ))}
+          <div className="bg-themewhite px-3 py-1.5">
+            <span className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">GCS — {gcsTotal}</span>
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* BP — side-by-side with / separator (VS calculator pattern) */}
-      <div>
-        <span className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">BP (mmHg)</span>
-        <div className="flex items-center gap-1.5 mt-1">
-          <input
-            type="text" inputMode="numeric"
-            value={bpSys}
-            onChange={(e) => handleChange('bp', `${e.target.value}/${bpDia}`)}
-            placeholder="120"
-            className={BP_INPUT_CLASS}
-          />
-          <span className="text-[10pt] text-secondary shrink-0">/</span>
-          <input
-            type="text" inputMode="numeric"
-            value={bpDia}
-            onChange={(e) => handleChange('bp', `${bpSys}/${e.target.value}`)}
-            placeholder="80"
-            className={BP_INPUT_CLASS}
-          />
+        {/* Ht | Wt | BMI — BMI auto-populated from Ht/Wt */}
+        <div className="grid grid-cols-3 gap-px bg-primary/6">
+          <VCell label="Ht (in)" hint={htHint}>
+            <input type="text" inputMode="decimal" value={ht} onChange={(e) => updateCasualty({ ht: e.target.value })} placeholder="68" className={cellInput} />
+          </VCell>
+          <VCell label="Wt (lbs)" hint={wtHint}>
+            <input type="text" inputMode="decimal" value={wt} onChange={(e) => updateCasualty({ wt: e.target.value })} placeholder="170" className={cellInput} />
+          </VCell>
+          <VCell label="BMI" hint={bmiCat?.label} hintClass={bmiCat?.color}>
+            <span className={`text-base md:text-sm font-medium ${bmiCat ? bmiCat.color : 'text-tertiary/40'}`}>{bmiVal != null ? bmiVal.toFixed(1) : '—'}</span>
+          </VCell>
         </div>
-      </div>
 
-      {/* Remaining vitals */}
-      <div className="grid grid-cols-2 gap-2">
-        <TextInput label="RR" value={vs.rr} onChange={(v) => handleChange('rr', v)} placeholder="/min" inputMode="numeric" />
-        <TextInput label="SpO2" value={vs.spo2} onChange={(v) => handleChange('spo2', v)} placeholder="%" inputMode="numeric" />
-        <TextInput label="Temp" value={vs.temp ?? ''} onChange={(v) => handleChange('temp', v)} placeholder="°F" inputMode="decimal" />
-        <TextInput label="Pain" value={vs.painScale} onChange={(v) => handleChange('painScale', v)} placeholder="0-10" inputMode="numeric" />
+        {/* LMP — full width with hint */}
+        <div className="flex flex-col bg-themewhite">
+          <div className="flex items-baseline justify-between gap-2 px-3 pt-2 min-w-0">
+            <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest shrink-0">LMP</span>
+            {lmpInfo && <span className={`text-[8.5pt] font-medium truncate ${lmpInfo.color}`}>{lmpInfo.text}</span>}
+          </div>
+          <DatePickerInput value={lmp} onChange={(v) => updateCasualty({ lmp: v })} placeholder="Select date" maxDate={todayIso} />
+        </div>
+
+        {/* Values grid */}
+        <div className="grid grid-cols-2 gap-px bg-primary/6">
+          {/* HR | Location */}
+          <VCell label="HR">
+            <input type="text" inputMode="numeric" value={vs.pulse} onChange={(e) => handleChange('pulse', e.target.value)} placeholder="bpm" className={cellInput} />
+          </VCell>
+          <VCell label="Location">
+            <div className="flex mt-0.5">
+              {PULSE_LOCATION_OPTIONS.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => {
+                    const newLoc = vs.pulseLocation === opt ? '' : opt
+                    const isAutoDefault = BP_AUTO_VALUES.has(vs.bp)
+                    const updates: Partial<TC3VitalSet> = { pulseLocation: newLoc }
+                    if (newLoc && (!vs.bp || isAutoDefault)) updates.bp = BP_LOCATION_DEFAULTS[newLoc]
+                    else if (!newLoc && isAutoDefault) updates.bp = ''
+                    updateVitalSet(id, updates)
+                  }}
+                  className={`px-3 py-0.5 transition-colors ${vs.pulseLocation === opt ? 'bg-themeblue3' : 'active:bg-tertiary/5'}`}
+                >
+                  <span className={`text-[9pt] ${vs.pulseLocation === opt ? 'text-white font-medium' : 'text-secondary'}`}>{opt}</span>
+                </button>
+              ))}
+            </div>
+          </VCell>
+
+          {/* BP — full width, shared primitive (bare) */}
+          <VCell label="BP (mmHg)" span hint={sbp !== null && sbp < 90 ? 'Hypotensive — possible shock' : null} hintClass="text-themeyellow">
+            <BloodPressureInput
+              bare
+              value={vs.bp}
+              onChange={(v) => handleChange('bp', v)}
+              containerClassName="flex items-center gap-1"
+              inputClassName="w-16 bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-base md:text-sm"
+              separatorClassName="text-tertiary px-1 shrink-0"
+            />
+          </VCell>
+
+          {/* Temp (°C conversion) | Route */}
+          <VCell label="Temp (°F)" hint={tempC ? `${tempC}°C` : null}>
+            <input type="text" inputMode="decimal" value={vs.temp ?? ''} onChange={(e) => handleChange('temp', e.target.value)} placeholder="98.6" className={cellInput} />
+          </VCell>
+          <VCell label="Route">
+            <div className="flex mt-0.5">
+              {TEMP_ROUTE_OPTIONS.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => updateVitalSet(id, { tempRoute: vs.tempRoute === opt ? '' : opt })}
+                  className={`px-3 py-0.5 transition-colors ${vs.tempRoute === opt ? 'bg-themeblue3' : 'active:bg-tertiary/5'}`}
+                >
+                  <span className={`text-[9pt] capitalize ${vs.tempRoute === opt ? 'text-white font-medium' : 'text-secondary'}`}>{opt}</span>
+                </button>
+              ))}
+            </div>
+          </VCell>
+
+          {/* SpO2 | RR */}
+          <VCell label="SpO2">
+            <input type="text" inputMode="numeric" value={vs.spo2} onChange={(e) => handleChange('spo2', e.target.value)} placeholder="%" className={cellInput} />
+          </VCell>
+          <VCell label="RR">
+            <input type="text" inputMode="numeric" value={vs.rr} onChange={(e) => handleChange('rr', e.target.value)} placeholder="/min" className={cellInput} />
+          </VCell>
+
+          {/* Pain — full width */}
+          <VCell label="Pain" span>
+            <input type="text" inputMode="numeric" value={vs.painScale} onChange={(e) => handleChange('painScale', e.target.value)} placeholder="0-10" className={cellInput} />
+          </VCell>
+        </div>
       </div>
     </div>
   )
@@ -391,6 +495,9 @@ export const VitalsForm = memo(function VitalsForm() {
   const vitals = useTC3Store((s) => s.card.vitals)
   const addVitalSet = useTC3Store((s) => s.addVitalSet)
   const removeVitalSet = useTC3Store((s) => s.removeVitalSet)
+  const ht = useTC3Store((s) => s.card.casualty.ht)
+  const wt = useTC3Store((s) => s.card.casualty.wt)
+  const lmp = useTC3Store((s) => s.card.casualty.lmp)
 
   const [editingId, setEditingId] = useState<string | null>(null)
 
@@ -409,6 +516,7 @@ export const VitalsForm = memo(function VitalsForm() {
       avpu: '',
       painScale: '',
       temp: '',
+      tempRoute: '',
       gcs: null,
     }
     addVitalSet(newSet)
@@ -443,7 +551,8 @@ export const VitalsForm = memo(function VitalsForm() {
         </p>
       </div>
 
-      {/* Section card — tappable trend grid (FAB adds, tapping a column edits) */}
+      {/* Section card — tappable trend grid (FAB adds, tapping a column edits).
+          Ht/Wt/LMP are constant casualty rows graphed alongside the per-set vitals. */}
       {!hasData ? (
         <EmptyState
           title="No vital signs recorded"
@@ -451,7 +560,7 @@ export const VitalsForm = memo(function VitalsForm() {
         />
       ) : (
         <div className="relative">
-          <VitalsTrend sets={populatedSets} onSelect={setEditingId} />
+          <VitalsTrend sets={populatedSets} bio={{ ht, wt, lmp }} onSelect={setEditingId} />
           <ActionPill shadow="sm" placement="overlay">
             <ActionButton icon={Plus} label="Add vital signs" onClick={handleAddVitals} />
           </ActionPill>

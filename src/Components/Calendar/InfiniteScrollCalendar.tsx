@@ -5,6 +5,7 @@ import { STATUS_META, toDateKey } from '../../Types/CalendarTypes'
 import { useCategoryColors } from '../../Hooks/useCategoryColors'
 import { useLongPressDrag } from '../../Hooks/useLongPressDrag'
 import { useCalendarStore } from '../../stores/useCalendarStore'
+import { menuPressHandlers, type MenuPressState } from './menuPress'
 
 interface InfiniteScrollCalendarProps {
   events: CalendarEvent[]
@@ -13,8 +14,8 @@ interface InfiniteScrollCalendarProps {
   onMonthChange: (monthLabel: string) => void
   onMoveEvent: (eventId: string, targetDateKey: string) => void
   onSelectEvent: (id: string) => void
-  onEventContextMenu?: (eventId: string, x: number, y: number) => void
-  onDayContextMenu?: (dateKey: string, x: number, y: number) => void
+  onEventContextMenu?: (eventId: string, rect: DOMRect) => void
+  onDayContextMenu?: (dateKey: string, rect: DOMRect) => void
   scrollTargetDate?: string
   scrollNonce?: number
 }
@@ -136,27 +137,27 @@ interface EventPillProps {
   event: CalendarEvent
   eventId: string
   onTap: (id: string) => void
-  onContextMenu?: (eventId: string, x: number, y: number) => void
+  onMenu?: (eventId: string, rect: DOMRect) => void
+  pressRef: React.MutableRefObject<MenuPressState | null>
   isDragging: boolean
-  dragHandlers: ReturnType<ReturnType<typeof useLongPressDrag>['getDragHandlers']>
+  /** Desktop mouse drag-to-reschedule. Touch long-press is reserved for the
+   *  lifted menu (its Move action handles touch rescheduling instead). */
+  onPointerDown?: (e: React.PointerEvent) => void
 }
 
-function EventPill({ event, eventId, onTap, onContextMenu, isDragging, dragHandlers }: EventPillProps) {
+function EventPill({ event, eventId, onTap, onMenu, pressRef, isDragging, onPointerDown }: EventPillProps) {
   const { resolve: resolveCategoryColor } = useCategoryColors()
   const sm = STATUS_META[event.status]
+  const press = menuPressHandlers(onMenu ? (rect) => onMenu(eventId, rect) : undefined, pressRef)
   return (
     <div
-      {...dragHandlers}
+      data-cal-event
+      onPointerDown={onPointerDown}
+      {...press}
       onClick={(e) => {
         e.stopPropagation()
+        if (pressRef.current?.fired) return
         onTap(eventId)
-      }}
-      onContextMenu={(e) => {
-        if (onContextMenu) {
-          e.preventDefault()
-          e.stopPropagation()
-          onContextMenu(eventId, e.clientX, e.clientY)
-        }
       }}
       className={`w-full rounded flex items-center gap-1 overflow-hidden text-[9pt] md:text-[9pt] leading-tight font-normal transition-opacity duration-150 cursor-pointer active:scale-95 bg-primary/5 ${isDragging ? 'opacity-30' : sm.opacity} ${sm.pulse ? 'animate-pulse' : ''}`}
       style={{ height: LANE_HEIGHT - 2 }}
@@ -185,7 +186,8 @@ export function InfiniteScrollCalendar({
   const hideWeekends = useCalendarStore(s => s.hideWeekends)
   const scrollRef = useRef<HTMLDivElement>(null)
   const weekRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-  const dayLongPressRef = useRef<{ timer: ReturnType<typeof setTimeout>; dateKey: string; fired: boolean } | null>(null)
+  const dayLongPressRef = useRef<MenuPressState | null>(null)
+  const eventPressRef = useRef<MenuPressState | null>(null)
   const [weeks, setWeeks] = useState(() => generateWeeks(new Date(), WEEKS_BUFFER, WEEKS_BUFFER, hideWeekends))
   const [rowMinHeight, setRowMinHeight] = useState(88)
 
@@ -394,17 +396,13 @@ export function InfiniteScrollCalendar({
                 return (
                   <div
                     key={seg.event.id}
-                    {...getDragHandlers(seg.event.id)}
+                    data-cal-event
+                    onPointerDown={getDragHandlers(seg.event.id).onPointerDown}
+                    {...menuPressHandlers(onEventContextMenu ? (rect) => onEventContextMenu(seg.event.id, rect) : undefined, eventPressRef)}
                     onClick={(e) => {
                       e.stopPropagation()
+                      if (eventPressRef.current?.fired) return
                       onSelectEvent(seg.event.id)
-                    }}
-                    onContextMenu={(e) => {
-                      if (onEventContextMenu) {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        onEventContextMenu(seg.event.id, e.clientX, e.clientY)
-                      }
                     }}
                     className={`absolute z-[2] flex items-center overflow-hidden text-[9pt] md:text-[9pt] font-normal cursor-pointer active:scale-[0.98] transition-all duration-150 bg-primary/5 ${
                       seg.isStart ? 'rounded-l' : ''
@@ -444,39 +442,7 @@ export function InfiniteScrollCalendar({
                         if (dayLongPressRef.current?.fired) return
                         onSelectDate(day.date)
                       }}
-                      onContextMenu={(e) => {
-                        if (onDayContextMenu) {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          onDayContextMenu(day.dateKey, e.clientX, e.clientY)
-                        }
-                      }}
-                      onTouchStart={(e) => {
-                        if (!onDayContextMenu) return
-                        const touch = e.touches[0]
-                        const lp = { timer: setTimeout(() => {
-                          lp.fired = true
-                          onDayContextMenu(day.dateKey, touch.clientX, touch.clientY)
-                        }, 500), dateKey: day.dateKey, fired: false }
-                        dayLongPressRef.current = lp
-                      }}
-                      onTouchMove={() => {
-                        if (dayLongPressRef.current) {
-                          clearTimeout(dayLongPressRef.current.timer)
-                          dayLongPressRef.current = null
-                        }
-                      }}
-                      onTouchEnd={() => {
-                        if (dayLongPressRef.current) {
-                          clearTimeout(dayLongPressRef.current.timer)
-                          if (dayLongPressRef.current.fired) {
-                            // Suppress the click that follows
-                            setTimeout(() => { dayLongPressRef.current = null }, 50)
-                          } else {
-                            dayLongPressRef.current = null
-                          }
-                        }
-                      }}
+                      {...menuPressHandlers(onDayContextMenu ? (rect) => onDayContextMenu(day.dateKey, rect) : undefined, dayLongPressRef)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           if (!justDroppedRef.current) onSelectDate(day.date)
@@ -516,9 +482,10 @@ export function InfiniteScrollCalendar({
                             event={event}
                             eventId={event.id}
                             onTap={onSelectEvent}
-                            onContextMenu={onEventContextMenu}
+                            onMenu={onEventContextMenu}
+                            pressRef={eventPressRef}
                             isDragging={dragState.draggedEventId === event.id}
-                            dragHandlers={getDragHandlers(event.id)}
+                            onPointerDown={getDragHandlers(event.id).onPointerDown}
                           />
                         ))}
                         {dayEvents.length > 3 && (

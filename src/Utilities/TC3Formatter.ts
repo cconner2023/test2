@@ -30,6 +30,9 @@ function formatCasualty(card: TC3Card): string {
   if (c.service) lines.push(`Service: ${c.service}`)
   if (c.unit) lines.push(`Unit: ${c.unit}`)
   if (c.allergies) lines.push(`Allergies: ${c.allergies}`)
+  if (c.ht) lines.push(`Ht: ${c.ht} in`)
+  if (c.wt) lines.push(`Wt: ${c.wt} lbs`)
+  if (c.lmp) lines.push(`LMP: ${c.lmp}`)
   const m = card.mechanism
   if (m.types.length > 0) {
     let moiLine = `MOI: ${m.types.join(', ')}`
@@ -172,6 +175,7 @@ function formatVitals(card: TC3Card): string {
       fmt('BP', vs.bp),
       fmt('RR', vs.rr),
       fmt('SpO2', vs.spo2),
+      fmt('Temp', vs.temp ? `${vs.temp}°F${vs.tempRoute ? ` (${vs.tempRoute})` : ''}` : ''),
     ].filter(Boolean)
     if (items.length > 0) lines.push(`  ${items.join(', ')}`)
     if (vs.painScale) lines.push(`  Pain: ${vs.painScale}`)

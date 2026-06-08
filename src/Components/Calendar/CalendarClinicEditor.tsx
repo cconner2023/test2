@@ -12,7 +12,7 @@ import {
   type ClinicAppointmentType,
 } from '../../lib/supervisorService'
 import type { ClinicRoom } from '../../lib/adminService'
-import { invalidate } from '../../stores/useInvalidationStore'
+import { patchClinicConfig } from '../../Hooks/useClinicConfig'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -88,7 +88,7 @@ export function CalendarClinicEditor({ variant = 'clinic' }: { variant?: ClinicE
       setError(result.error)
       return false
     }
-    invalidate('clinics')
+    patchClinicConfig(clinicId, { rooms: next })
     return true
   }, [clinicId])
 
@@ -152,7 +152,7 @@ export function CalendarClinicEditor({ variant = 'clinic' }: { variant?: ClinicE
       setError(result.error)
       return false
     }
-    invalidate('clinics')
+    patchClinicConfig(clinicId, { huddleTasks: next })
     return true
   }, [clinicId])
 
@@ -219,7 +219,7 @@ export function CalendarClinicEditor({ variant = 'clinic' }: { variant?: ClinicE
       setError(result.error)
       return false
     }
-    invalidate('clinics')
+    patchClinicConfig(clinicId, { appointmentTypes: next })
     return true
   }, [clinicId])
 

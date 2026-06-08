@@ -14,7 +14,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { useInvalidation } from '../stores/useInvalidationStore'
+import { useInvalidation, useInvalidationStore } from '../stores/useInvalidationStore'
 import { useAuth } from './useAuth'
 import type {
   ClinicAppointmentType,
@@ -51,6 +51,42 @@ const CLINIC_CONFIG_COLUMNS =
 // One round-trip per (clinic, invalidation generation), shared across hooks.
 const snapshots = new Map<string, ClinicConfig>()
 const inflight = new Map<string, Promise<ClinicConfig>>()
+
+// Per-clinic listeners for fetch-free optimistic patches (see patchClinicConfig).
+const patchListeners = new Map<string, Set<(cfg: ClinicConfig) => void>>()
+
+function subscribePatch(clinicId: string, fn: (cfg: ClinicConfig) => void): () => void {
+  let set = patchListeners.get(clinicId)
+  if (!set) { set = new Set(); patchListeners.set(clinicId, set) }
+  set.add(fn)
+  return () => {
+    set!.delete(fn)
+    if (set!.size === 0) patchListeners.delete(clinicId)
+  }
+}
+
+/**
+ * Optimistically apply a known-good clinic-config change WITHOUT a refetch.
+ *
+ * The clinic-config write RPCs (rooms / huddle tasks / appointment types /
+ * pre-combat checks) are blind column replaces, so after a successful write the
+ * server value === exactly what we sent. Calling `invalidate('clinics')` would
+ * bump the global generation and force EVERY clinic reader (ClinicPanel,
+ * category colors, useClinicConfig) to GET /clinics again — wasted egress for a
+ * value we already hold. Instead we merge the new value into the cached snapshot
+ * for the live generation and notify only useClinicConfig consumers.
+ *
+ * Use this in place of `invalidate('clinics')` at mutation sites that own the
+ * resulting value. Fall back to `invalidate('clinics')` when the post-write
+ * shape is server-derived or unknown.
+ */
+export function patchClinicConfig(clinicId: string, patch: Partial<ClinicConfig>): void {
+  const gen = useInvalidationStore.getState().generations.clinics
+  const key = `${clinicId}::${gen}`
+  const next: ClinicConfig = { ...(snapshots.get(key) ?? EMPTY), ...patch }
+  snapshots.set(key, next)
+  patchListeners.get(clinicId)?.forEach((fn) => fn(next))
+}
 
 function fetchClinicConfig(clinicId: string, key: string): Promise<ClinicConfig> {
   const existing = inflight.get(key)
@@ -123,6 +159,12 @@ export function useClinicConfig(targetClinicId?: string | null): ClinicConfig {
       cancelled = true
     }
   }, [clinicId, key])
+
+  // Receive fetch-free optimistic patches from mutation sites (patchClinicConfig).
+  useEffect(() => {
+    if (!clinicId) return
+    return subscribePatch(clinicId, setCfg)
+  }, [clinicId])
 
   return cfg
 }

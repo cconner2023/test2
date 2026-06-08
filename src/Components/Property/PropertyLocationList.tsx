@@ -1,10 +1,10 @@
 import { useState, useMemo, useCallback, useRef, forwardRef, useImperativeHandle } from 'react'
-import { ChevronRight, Pencil, Trash2, Map as MapIcon, X, Check, FolderPlus, PackagePlus, FolderClosed, User } from 'lucide-react'
+import { ChevronRight, Pencil, Trash2, Map as MapIcon, FolderPlus, PackagePlus, FolderClosed, User, MoreHorizontal, Eye } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { Section, SectionCard } from '../Section'
-import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
+import { type ContextMenuItem } from '../ContextMenu'
+import { LiftedRowMenu } from '../LiftedRowMenu'
 import { ListItemRow } from '../ListItemRow'
-import { PropertyItemForm } from './PropertyItemForm'
 import type { LocalPropertyLocation, LocalPropertyItem, HolderInfo } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
 
@@ -34,19 +34,22 @@ interface PropertyLocationListProps {
   clinicName?: string
   searchQuery?: string
   onSelectItem: (item: LocalPropertyItem) => void
+  /** Open the location edit form (name + parent) — no longer an inline rename. */
   onEditLocation?: (loc: LocalPropertyLocation) => void
+  /** Open the item edit form. */
+  onEditItem?: (item: LocalPropertyItem) => void
   onDeleteLocation?: (locId: string) => void
   onDeleteItem?: (item: LocalPropertyItem) => void
   onViewOnMap?: (locationId: string) => void
   onDrilldownChange?: (path: DrilldownSegment[]) => void
   onAddChildLocation?: (parentId: string | null) => void
   onAddItemAtLocation?: (locationId: string | null) => void
-  /** When true, show the inline item creation form */
-  showInlineForm?: boolean
-  /** Editing an existing item inline */
-  inlineEditItem?: LocalPropertyItem | null
-  onInlineFormClose?: () => void
-  editing?: boolean
+  /** Scope the list to a location's subtree (used inside the location Sheet):
+   *  base level shows children of rootId; Personnel/Unassigned sections hidden. */
+  rootId?: string
+  /** When set, a location/member tap calls this instead of in-place drilldown
+   *  (the base list uses it to open the location Sheet). */
+  onOpenLocation?: (loc: LocalPropertyLocation) => void
 }
 
 export const PropertyLocationList = forwardRef<PropertyLocationListHandle, PropertyLocationListProps>(function PropertyLocationList({
@@ -57,35 +60,31 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
   searchQuery = '',
   onSelectItem,
   onEditLocation,
+  onEditItem,
   onDeleteLocation,
   onDeleteItem,
   onViewOnMap,
   onDrilldownChange,
   onAddChildLocation,
   onAddItemAtLocation,
-  showInlineForm = false,
-  inlineEditItem = null,
-  onInlineFormClose,
-  editing = false,
+  rootId,
+  onOpenLocation,
 }, ref) {
   const [path, setPath] = useState<DrilldownSegment[]>([])
-  const [contextMenu, setContextMenu] = useState<{ type: 'location' | 'item' | 'root'; id: string; x: number; y: number } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ kind: 'location' | 'item'; id: string; rect: DOMRect } | null>(null)
   const longPressRef = useRef<number | null>(null)
   const longPressPreventTap = useRef(false)
-  const [renamingId, setRenamingId] = useState<string | null>(null)
-  const [renameValue, setRenameValue] = useState('')
-  const renameInputRef = useRef<HTMLInputElement>(null)
 
   const [searchFilter, setSearchFilter] = useState<PropertySearchFilter>('all')
 
-  const currentParentId = path.length > 0 ? path[path.length - 1].id : null
+  const currentParentId = path.length > 0 ? path[path.length - 1].id : (rootId ?? null)
   const isSearching = searchQuery.trim().length > 0
 
   const currentLocationNode = useMemo(() => {
-    if (path.length === 0) return null
-    const currentId = path[path.length - 1].id
+    const currentId = path.length > 0 ? path[path.length - 1].id : (rootId ?? null)
+    if (!currentId) return null
     return locations.find(l => l.id === currentId) ?? null
-  }, [path, locations])
+  }, [path, locations, rootId])
 
   const isHolderView = !!currentLocationNode?.holder_user_id
 
@@ -185,11 +184,13 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
     (loc: LocalPropertyLocation) => {
       if (longPressPreventTap.current) { longPressPreventTap.current = false; return }
       setContextMenu(null)
+      // Base list hands location taps to the Sheet; scoped list drills in place.
+      if (onOpenLocation) { onOpenLocation(loc); return }
       const newPath = [...path, { id: loc.id, name: loc.name }]
       setPath(newPath)
       onDrilldownChange?.(newPath)
     },
-    [path, onDrilldownChange],
+    [path, onDrilldownChange, onOpenLocation],
   )
 
   // Expose popPath for parent (PropertyDrawer) back-button handling
@@ -200,15 +201,18 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
     onDrilldownChange?.(newPath)
   }, [path, onDrilldownChange])
 
-  // Long-press to open context menu (mobile equivalent of right-click)
-  const handleTouchStart = useCallback((type: 'location' | 'item', id: string, e: React.TouchEvent, isVirtual?: boolean) => {
-    const touch = e.touches[0]
-    const x = touch.clientX
-    const y = touch.clientY
+  // Open the lifted row menu anchored to a row element's bounding rect.
+  const openRowMenu = useCallback((kind: 'location' | 'item', id: string, anchor: HTMLElement | null) => {
+    if (anchor) setContextMenu({ kind, id, rect: anchor.getBoundingClientRect() })
+  }, [])
+
+  // Long-press to open the lifted menu (mobile equivalent of right-click)
+  const handleTouchStart = useCallback((kind: 'location' | 'item', id: string, e: React.TouchEvent, isVirtual?: boolean) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     longPressPreventTap.current = false
     longPressRef.current = window.setTimeout(() => {
       longPressPreventTap.current = true
-      if (!isVirtual) setContextMenu({ type, id, x, y })
+      if (!isVirtual) setContextMenu({ kind, id, rect })
     }, 500)
   }, [])
 
@@ -230,27 +234,6 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
     popPath,
     getPath: () => path,
   }), [popPath, path])
-
-  const startRename = useCallback((loc: LocalPropertyLocation) => {
-    setContextMenu(null)
-    setRenamingId(loc.id)
-    setRenameValue(loc.name)
-    setTimeout(() => renameInputRef.current?.focus(), 30)
-  }, [])
-
-  const commitRename = useCallback(() => {
-    if (renamingId && renameValue.trim() && onEditLocation) {
-      const loc = locations.find((l) => l.id === renamingId)
-      if (loc) onEditLocation({ ...loc, name: renameValue.trim() })
-    }
-    setRenamingId(null)
-    setRenameValue('')
-  }, [renamingId, renameValue, onEditLocation, locations])
-
-  const cancelRename = useCallback(() => {
-    setRenamingId(null)
-    setRenameValue('')
-  }, [])
 
   const totalDescendantItems = useCallback(
     (locId: string): number => {
@@ -301,27 +284,27 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
 
   const renderLocationRow = (loc: LocalPropertyLocation, isLast: boolean) => {
     const isMember = !!loc.holder_user_id
-    const isRenaming = !isMember && renamingId === loc.id
     const count = totalDescendantItems(loc.id)
 
     return (
       <div
         key={loc.id}
-        role={isRenaming ? undefined : 'button'}
-        tabIndex={isRenaming ? undefined : 0}
-        onClick={isRenaming ? undefined : () => drillInto(loc)}
-        onKeyDown={isRenaming ? undefined : (e) => { if (e.key === 'Enter') drillInto(loc) }}
+        data-prop-row
+        role="button"
+        tabIndex={0}
+        onClick={() => drillInto(loc)}
+        onKeyDown={(e) => { if (e.key === 'Enter') drillInto(loc) }}
         onContextMenu={(e) => {
           e.preventDefault()
           e.stopPropagation()
-          if (!isMember && !isRenaming && (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation)) {
-            setContextMenu({ type: 'location', id: loc.id, x: e.clientX, y: e.clientY })
+          if (!isMember && (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation)) {
+            openRowMenu('location', loc.id, e.currentTarget as HTMLElement)
           }
         }}
-        onTouchStart={isRenaming ? undefined : (e) => handleTouchStart('location', loc.id, e, isMember)}
-        onTouchEnd={isRenaming ? undefined : handleTouchEnd}
-        onTouchMove={isRenaming ? undefined : handleTouchMove}
-        className={`flex items-center gap-3 px-4 py-3 ${isRenaming ? '' : 'active:bg-secondary/5 transition-colors cursor-pointer'} ${
+        onTouchStart={(e) => handleTouchStart('location', loc.id, e, isMember)}
+        onTouchEnd={handleTouchEnd}
+        onTouchMove={handleTouchMove}
+        className={`flex items-center gap-3 px-4 py-3 active:bg-secondary/5 transition-colors cursor-pointer ${
           !isLast ? 'border-b border-tertiary/8' : ''
         }`}
       >
@@ -332,70 +315,23 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
           }
         </div>
         <div className="flex-1 min-w-0">
-          {isRenaming ? (
-            <input
-              ref={renameInputRef}
-              type="text"
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') commitRename()
-                if (e.key === 'Escape') cancelRename()
-              }}
-              onBlur={commitRename}
-              className="w-full text-sm font-medium text-primary bg-transparent border-b border-themeblue3/50 focus:outline-none pb-0.5"
-            />
-          ) : (
-            <p className="text-sm font-medium text-primary truncate">{loc.name}</p>
-          )}
-          {!isRenaming && count > 0 && (
+          <p className="text-sm font-medium text-primary truncate">{loc.name}</p>
+          {count > 0 && (
             <p className="text-[10pt] text-tertiary mt-0.5">{count} item{count !== 1 ? 's' : ''}</p>
           )}
         </div>
-        {!isMember && editing ? (
-          <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-            {isRenaming ? (
-              <>
-                <button
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={cancelRename}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
-                >
-                  <X size={14} />
-                </button>
-                <button
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={commitRename}
-                  disabled={!renameValue.trim()}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-themeblue2 active:scale-95 transition-all disabled:opacity-30"
-                >
-                  <Check size={14} />
-                </button>
-              </>
-            ) : (
-              <>
-                {onEditLocation && (
-                  <button
-                    onClick={() => startRename(loc)}
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                )}
-                {onDeleteLocation && (
-                  <button
-                    onClick={() => onDeleteLocation(loc.id)}
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        ) : (
-          !isRenaming && <ChevronRight size={16} className="text-tertiary shrink-0" />
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          {!isMember && (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation) && (
+            <button
+              onClick={(e) => { e.stopPropagation(); openRowMenu('location', loc.id, (e.currentTarget as HTMLElement).closest('[data-prop-row]') as HTMLElement | null) }}
+              aria-label="More actions"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+            >
+              <MoreHorizontal size={16} />
+            </button>
+          )}
+          <ChevronRight size={16} className="text-tertiary shrink-0" />
+        </div>
       </div>
     )
   }
@@ -415,11 +351,12 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
     return (
       <div
         key={item.id}
+        data-prop-row
         className={`flex items-center gap-3 px-4 py-3 ${!isLast ? 'border-b border-tertiary/8' : ''}`}
-        onContextMenu={onAddItemAtLocation ? (e) => { e.preventDefault(); e.stopPropagation(); setContextMenu({ type: 'item', id: item.id, x: e.clientX, y: e.clientY }) } : undefined}
-        onTouchStart={onAddItemAtLocation ? (e) => handleTouchStart('item', item.id, e) : undefined}
-        onTouchEnd={onAddItemAtLocation ? handleTouchEnd : undefined}
-        onTouchMove={onAddItemAtLocation ? handleTouchMove : undefined}
+        onContextMenu={(onAddItemAtLocation || onDeleteItem) ? (e) => { e.preventDefault(); e.stopPropagation(); openRowMenu('item', item.id, e.currentTarget as HTMLElement) } : undefined}
+        onTouchStart={(onAddItemAtLocation || onDeleteItem) ? (e) => handleTouchStart('item', item.id, e) : undefined}
+        onTouchEnd={(onAddItemAtLocation || onDeleteItem) ? handleTouchEnd : undefined}
+        onTouchMove={(onAddItemAtLocation || onDeleteItem) ? handleTouchMove : undefined}
       >
         <button
           onClick={() => onSelectItem(item)}
@@ -434,12 +371,13 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
           </div>
           {renderExpiryChip(expiry)}
         </button>
-        {editing && onDeleteItem && (
+        {(onAddItemAtLocation || onDeleteItem) && (
           <button
-            onClick={() => onDeleteItem(item)}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all shrink-0"
+            onClick={(e) => { e.stopPropagation(); openRowMenu('item', item.id, (e.currentTarget as HTMLElement).closest('[data-prop-row]') as HTMLElement | null) }}
+            aria-label="More actions"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all shrink-0"
           >
-            <Trash2 size={14} />
+            <MoreHorizontal size={16} />
           </button>
         )}
       </div>
@@ -495,30 +433,8 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
     </div>
   )
 
-  const inlineFormVisible = showInlineForm || !!inlineEditItem
-
   return (
-    <div
-      className="flex flex-col min-h-0 px-4 pt-3 pb-20 space-y-5"
-      onContextMenu={(e) => {
-        if (onAddChildLocation || onAddItemAtLocation) {
-          e.preventDefault()
-          setContextMenu({ type: 'root', id: '', x: e.clientX, y: e.clientY })
-        }
-      }}
-    >
-      {/* Inline item form — animated expand like TextExpanderManager */}
-      <div className={`overflow-hidden transition-all duration-300 ease-out ${
-        inlineFormVisible ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
-      }`}>
-        {inlineFormVisible && (
-          <PropertyItemForm
-            editingItem={inlineEditItem}
-            onClose={() => onInlineFormClose?.()}
-          />
-        )}
-      </div>
-
+    <div className="flex flex-col min-h-0 px-4 pt-3 pb-20 space-y-5">
       {isSearching ? (
         <>
           {renderFilterSegments()}
@@ -605,52 +521,62 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
             </>
           )}
 
-          {/* Context menu — long-press / right-click on location and item rows */}
-          {contextMenu && (() => {
-            if (contextMenu.type === 'root') {
-              return (
-                <ContextMenu
-                  x={contextMenu.x}
-                  y={contextMenu.y}
-                  onClose={() => setContextMenu(null)}
-                  items={[
-                    ...(onAddChildLocation ? [{ key: 'add-area', label: 'New Area', icon: FolderPlus, onAction: () => onAddChildLocation(null) }] : []),
-                    ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(null) }] : []),
-                  ]}
-                />
-              )
-            }
-            if (contextMenu.type === 'location') {
-              const loc = locations.find((l) => l.id === contextMenu.id)
-              if (!loc) return null
-              return (
-                <ContextMenu
-                  x={contextMenu.x}
-                  y={contextMenu.y}
-                  onClose={() => setContextMenu(null)}
-                  items={[
-                    ...(onAddChildLocation ? [{ key: 'add-area', label: 'New Area', icon: FolderPlus, onAction: () => onAddChildLocation(loc.id) }] : []),
-                    ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(loc.id) }] : []),
-                    ...(onEditLocation ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => startRename(loc) }] : []),
-                    ...(onDeleteLocation ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteLocation(loc.id) }] : []),
-                  ]}
-                />
-              )
-            } else {
-              return (
-                <ContextMenu
-                  x={contextMenu.x}
-                  y={contextMenu.y}
-                  onClose={() => setContextMenu(null)}
-                  items={[
-                    ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(currentParentId) }] : []),
-                  ]}
-                />
-              )
-            }
-          })()}
         </>
       )}
+
+      {/* Lifted row menu — ellipsis / long-press / right-click on location and item rows */}
+      {contextMenu && (() => {
+        if (contextMenu.kind === 'location') {
+          const loc = locations.find((l) => l.id === contextMenu.id)
+          if (!loc || loc.holder_user_id) return null
+          const menuItems: ContextMenuItem[] = [
+            ...(onAddChildLocation ? [{ key: 'add-area', label: 'New Area', icon: FolderPlus, onAction: () => onAddChildLocation(loc.id) }] : []),
+            ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(loc.id) }] : []),
+            ...(onEditLocation ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditLocation(loc) }] : []),
+            ...(onDeleteLocation ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteLocation(loc.id) }] : []),
+          ]
+          return (
+            <LiftedRowMenu
+              isOpen
+              layout="list"
+              anchorRect={contextMenu.rect}
+              onClose={() => setContextMenu(null)}
+              items={menuItems}
+              row={(
+                <div className="flex items-center gap-3 px-4 py-3 bg-themewhite">
+                  <div className="w-10 h-10 rounded-xl bg-tertiary/8 flex items-center justify-center shrink-0">
+                    <FolderClosed size={18} className="text-tertiary" />
+                  </div>
+                  <span className="flex-1 min-w-0 text-sm font-medium text-primary truncate">{loc.name}</span>
+                </div>
+              )}
+            />
+          )
+        }
+        const item = items.find((i) => i.id === contextMenu.id)
+        if (!item) return null
+        const menuItems: ContextMenuItem[] = [
+          { key: 'view', label: 'View', icon: Eye, onAction: () => onSelectItem(item) },
+          ...(onEditItem ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditItem(item) }] : []),
+          ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(item.location_id ?? currentParentId) }] : []),
+          ...(onDeleteItem ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteItem(item) }] : []),
+        ]
+        return (
+          <LiftedRowMenu
+            isOpen
+            layout="list"
+            anchorRect={contextMenu.rect}
+            onClose={() => setContextMenu(null)}
+            items={menuItems}
+            row={(
+              <div className="flex items-center gap-3 px-4 py-3 bg-themewhite">
+                {renderItemIcon(item)}
+                <span className="flex-1 min-w-0 text-sm font-medium text-primary truncate">{item.name}</span>
+              </div>
+            )}
+          />
+        )
+      })()}
     </div>
   )
 })

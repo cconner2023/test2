@@ -3,6 +3,7 @@ import { ArrowUp, X, Plus, Mic, Copy, Pencil, Download, Reply, Trash2, Forward, 
 import { ConfirmDialog } from './ConfirmDialog'
 import { MessageBubble } from './Settings/MessageBubble'
 import { SharedObjectPicker } from './Messages/SharedObjectPicker'
+import { PreviewOverlay } from './PreviewOverlay'
 import type { MessageContent } from '../lib/signal/messageContent'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import { LiftedRowMenu } from './LiftedRowMenu'
@@ -93,12 +94,14 @@ export interface ChatDetailViewProps {
 // ── Forward Contact Picker ────────────────────────────────────────────────
 
 function ForwardPicker({
+  isOpen,
   conversations,
   currentId,
   medics,
   onSelect,
   onCancel,
 }: {
+  isOpen: boolean
   conversations: Record<string, DecryptedSignalMessage[]>
   currentId: string
   medics: ClinicMedic[]
@@ -117,23 +120,35 @@ function ForwardPicker({
   })
 
   return (
-    <div className="absolute inset-0 z-10 bg-themewhite3 flex flex-col">
-      <div className="shrink-0 px-4 py-3 border-b border-primary/10 flex items-center justify-between">
-        <p className="text-sm font-medium text-primary">Forward to...</p>
-        <button onClick={onCancel} className="p-1.5 rounded-full hover:bg-primary/5 active:scale-95 transition-all">
-          <X size={18} className="text-tertiary" />
-        </button>
-      </div>
-      <div className="flex-1 overflow-y-auto px-2 py-2">
-        {sorted.length === 0 ? (
-          <p className="text-[10pt] text-tertiary text-center py-8">No contacts found</p>
-        ) : (
-          sorted.map(medic => (
-            <ContactListItem key={medic.id} medic={medic} onClick={() => onSelect(medic)} />
-          ))
-        )}
-      </div>
-    </div>
+    <PreviewOverlay
+      isOpen={isOpen}
+      onClose={onCancel}
+      anchorRect={null}
+      title="Forward to..."
+      searchPlaceholder="Search contacts..."
+      previewMaxHeight="50dvh"
+      preview={(filter: string) => {
+        const q = filter.toLowerCase()
+        const filtered = q
+          ? sorted.filter(m =>
+              m.firstName?.toLowerCase().includes(q) ||
+              m.lastName?.toLowerCase().includes(q) ||
+              m.rank?.toLowerCase().includes(q) ||
+              [m.rank, m.lastName].filter(Boolean).join(' ').toLowerCase().includes(q)
+            )
+          : sorted
+        if (filtered.length === 0) {
+          return <p className="text-[10pt] text-tertiary text-center py-6">No contacts found</p>
+        }
+        return (
+          <div className="py-1">
+            {filtered.map(medic => (
+              <ContactListItem key={medic.id} medic={medic} onClick={() => onSelect(medic)} />
+            ))}
+          </div>
+        )
+      }}
+    />
   )
 }
 
@@ -233,7 +248,7 @@ export function ChatDetailView({
   const handleShareObject = useCallback((content: MessageContent) => {
     if (!sendStructured) return
     const originId = crypto.randomUUID()
-    const preview = content.type === 'shared_ref' ? content.label : 'Shared item'
+    const preview = content.type === 'shared_ref' || content.type === 'shared_bundle' ? content.label : 'Shared item'
     void sendStructured(conversationId, content, originId, preview)
   }, [sendStructured, conversationId])
 
@@ -865,8 +880,9 @@ export function ChatDetailView({
         onConfirm={handleConfirmDelete}
         onCancel={closePendingDelete}
       />
-      {showForward && showForwardPicker && (
+      {showForward && (
         <ForwardPicker
+          isOpen={showForwardPicker}
           conversations={conversations}
           currentId={conversationId}
           medics={medics}

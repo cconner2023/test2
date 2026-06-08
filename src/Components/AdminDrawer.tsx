@@ -319,6 +319,15 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setView('admin-location-detail')
     }, [handleSlideAnimation, locationEdit, clearTrail])
 
+    const handleEditLocation = useCallback((loc: AdminLocation) => {
+        clearTrail()
+        setSelectedLocation(loc)
+        locationEdit.setEditing(true)
+        locationEdit.setHasPending(false)
+        handleSlideAnimation('left')
+        setView('admin-location-detail')
+    }, [handleSlideAnimation, locationEdit, clearTrail])
+
     const navigateBack = useCallback(() => {
         clinicEdit.reset()
         userEdit.reset()
@@ -813,6 +822,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             {activeTab === 'locations' && isDevRole && (
                 <AdminLocationsList
                     onSelectLocation={handleSelectLocation}
+                    onEditLocation={handleEditLocation}
                     onCreateLocation={handleCreateLocation}
                     searchQuery={searchQuery}
                 />
@@ -914,6 +924,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                     <AdminSummary
                                         onSelectClinic={handleSelectClinic}
                                         onSelectUser={handleSelectUser}
+                                        onEditClinic={handleEditClinic}
+                                        onEditUser={handleEditUser}
                                         onSelectAll={() => { setView('admin'); setSelectedUser(null); setSelectedClinic(null); setSelectedSystemPeerId(null); setClusterCreatePrefill(null); setUserCreatePrefillClinicId(null) }}
                                         onSwitchTab={handleSummarySwitchTab}
                                         activeClinicId={selectedClinic?.id}

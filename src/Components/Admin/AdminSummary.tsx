@@ -1,14 +1,20 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { ChevronRight, ChevronDown, AlertTriangle, User, Building2 } from 'lucide-react'
-import { listClinics, listAllUsers, getAllAccountRequests } from '../../lib/adminService'
+import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from 'react'
+import { ChevronRight, ChevronDown, AlertTriangle, User, Building2, Eye, Pencil, Trash2 } from 'lucide-react'
+import { listClinics, listAllUsers, getAllAccountRequests, deleteClinic, deleteUser } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
-import { useInvalidation } from '../../stores/useInvalidationStore'
+import { useInvalidation, invalidate } from '../../stores/useInvalidationStore'
 import { AdminSummarySkeleton } from './AdminSkeletons'
 import { EmptyState } from '../EmptyState'
+import { LiftedRowMenu } from '../LiftedRowMenu'
+import { type ContextMenuItem } from '../ContextMenu'
+import { ConfirmDialog } from '../ConfirmDialog'
+import { UI_TIMING } from '../../Utilities/constants'
 
 interface AdminSummaryProps {
   onSelectClinic: (clinic: AdminClinic) => void
   onSelectUser: (user: AdminUser) => void
+  onEditClinic: (clinic: AdminClinic) => void
+  onEditUser: (user: AdminUser) => void
   onSelectAll: () => void
   onSwitchTab: (tab: 'requests' | 'users' | 'clinics') => void
   activeClinicId?: string | null
@@ -26,6 +32,8 @@ interface ClinicNode {
 export function AdminSummary({
   onSelectClinic,
   onSelectUser,
+  onEditClinic,
+  onEditUser,
   onSelectAll,
   onSwitchTab,
   activeClinicId,
@@ -38,6 +46,67 @@ export function AdminSummary({
   const [pendingCount, setPendingCount] = useState(0)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
+
+  // Lifted-clone context menu (right-click / long-press) + delete flow.
+  const [contextMenu, setContextMenu] = useState<{ kind: 'clinic' | 'user'; id: string; rect: DOMRect; clone: ReactNode } | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<{ kind: 'clinic' | 'user'; id: string; label: string } | null>(null)
+  const [deleteProcessing, setDeleteProcessing] = useState(false)
+  const [notify, setNotify] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const longPressTimer = useRef<number | null>(null)
+  const preventTap = useRef(false)
+
+  const clearLongPress = useCallback(() => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
+  }, [])
+
+  const openClinicMenu = useCallback((clinic: AdminClinic, el: HTMLElement) => {
+    setContextMenu({
+      kind: 'clinic',
+      id: clinic.id,
+      rect: el.getBoundingClientRect(),
+      clone: (
+        <div className="bg-themewhite px-4 py-2.5 flex items-center gap-2">
+          <span className="w-7 h-7 rounded-full bg-tertiary/10 flex items-center justify-center shrink-0">
+            <Building2 size={14} className="text-tertiary" />
+          </span>
+          <span className="flex-1 min-w-0 text-[10pt] font-medium text-primary truncate">{clinic.name}</span>
+        </div>
+      ),
+    })
+  }, [])
+
+  const openUserMenu = useCallback((user: AdminUser, el: HTMLElement) => {
+    const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email || 'user'
+    setContextMenu({
+      kind: 'user',
+      id: user.id,
+      rect: el.getBoundingClientRect(),
+      clone: (
+        <div className="bg-themewhite px-3 py-2 flex items-center gap-2">
+          <User size={14} className="text-tertiary shrink-0" />
+          <span className="flex-1 min-w-0 text-[10pt] text-primary truncate">{name}</span>
+        </div>
+      ),
+    })
+  }, [])
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!confirmDelete) return
+    const { kind, id, label } = confirmDelete
+    setDeleteProcessing(true)
+    const result = kind === 'clinic' ? await deleteClinic(id) : await deleteUser(id)
+    setDeleteProcessing(false)
+    setConfirmDelete(null)
+    if (result.success) {
+      setNotify({ type: 'success', message: `Deleted ${label}.` })
+      // A clinic delete clears its members' clinic_id; a user delete also clears
+      // their membership + any account_requests. Mirrors the list-level deletes.
+      if (kind === 'clinic') invalidate('clinics', 'users')
+      else invalidate('users', 'clinics', 'requests')
+    } else {
+      setNotify({ type: 'error', message: result.error || `Failed to delete ${label}` })
+    }
+  }, [confirmDelete])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -139,6 +208,10 @@ export function AdminSummary({
               : 'hover:bg-secondary/5'
           }`}
           style={{ paddingLeft: `${16 + depth * 16}px` }}
+          onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); openClinicMenu(node.clinic, e.currentTarget as HTMLElement) }}
+          onTouchStart={(e) => { const el = e.currentTarget as HTMLElement; preventTap.current = false; longPressTimer.current = window.setTimeout(() => { preventTap.current = true; openClinicMenu(node.clinic, el) }, 500) }}
+          onTouchEnd={clearLongPress}
+          onTouchMove={clearLongPress}
         >
           {hasChildren ? (
             <button
@@ -158,7 +231,7 @@ export function AdminSummary({
             tabIndex={0}
             aria-label={`Select cluster ${node.clinic.name}`}
             className="flex items-center flex-1 min-w-0"
-            onClick={() => onSelectClinic(node.clinic)}
+            onClick={() => { if (preventTap.current) { preventTap.current = false; return } onSelectClinic(node.clinic) }}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectClinic(node.clinic) } }}
           >
             <span className="text-[10pt] font-medium text-primary truncate">{node.clinic.name}</span>
@@ -237,7 +310,11 @@ export function AdminSummary({
                 {unassignedUsers.map(u => (
                   <button
                     key={u.id}
-                    onClick={() => onSelectUser(u)}
+                    onClick={() => { if (preventTap.current) { preventTap.current = false; return } onSelectUser(u) }}
+                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); openUserMenu(u, e.currentTarget as HTMLElement) }}
+                    onTouchStart={(e) => { const el = e.currentTarget as HTMLElement; preventTap.current = false; longPressTimer.current = window.setTimeout(() => { preventTap.current = true; openUserMenu(u, el) }, 500) }}
+                    onTouchEnd={clearLongPress}
+                    onTouchMove={clearLongPress}
                     className={`flex items-center gap-2 w-full px-3 py-2 text-left active:scale-95 transition-all ${
                       activeUserId === u.id ? 'bg-themeblue3/8' : 'hover:bg-secondary/5'
                     }`}
@@ -281,6 +358,58 @@ export function AdminSummary({
 
         {roots.map(node => renderClinicRow(node, 0))}
       </div>
+
+      {contextMenu && (() => {
+        let items: ContextMenuItem[] = []
+        if (contextMenu.kind === 'clinic') {
+          const clinic = clinics.find(c => c.id === contextMenu.id)
+          if (!clinic) return null
+          items = [
+            { key: 'view', label: 'View', icon: Eye, onAction: () => onSelectClinic(clinic) },
+            { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditClinic(clinic) },
+            { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDelete({ kind: 'clinic', id: clinic.id, label: clinic.name }) },
+          ]
+        } else {
+          const user = users.find(u => u.id === contextMenu.id)
+          if (!user) return null
+          const label = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email || 'user'
+          items = [
+            { key: 'view', label: 'View', icon: Eye, onAction: () => onSelectUser(user) },
+            { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditUser(user) },
+            { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDelete({ kind: 'user', id: user.id, label }) },
+          ]
+        }
+        return (
+          <LiftedRowMenu
+            isOpen
+            layout="list"
+            anchorRect={contextMenu.rect}
+            onClose={() => setContextMenu(null)}
+            items={items}
+            row={contextMenu.clone}
+          />
+        )
+      })()}
+
+      <ConfirmDialog
+        visible={!!confirmDelete}
+        title={`Delete ${confirmDelete?.label ?? ''}?`}
+        subtitle="Permanent."
+        confirmLabel="Delete"
+        variant="danger"
+        processing={deleteProcessing}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setConfirmDelete(null)}
+      />
+
+      <ConfirmDialog
+        visible={!!notify}
+        title={notify?.message ?? ''}
+        variant={notify?.type === 'success' ? 'success' : 'danger'}
+        notifyOnly
+        autoDismissMs={UI_TIMING.FEEDBACK_DURATION}
+        onCancel={() => setNotify(null)}
+      />
     </div>
   )
 }

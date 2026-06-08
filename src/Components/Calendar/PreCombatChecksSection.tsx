@@ -8,7 +8,7 @@ import {
   type ClinicPreCombatCheck,
   type PCCItem,
 } from '../../lib/supervisorService'
-import { invalidate } from '../../stores/useInvalidationStore'
+import { patchClinicConfig } from '../../Hooks/useClinicConfig'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -68,8 +68,8 @@ export function PreCombatChecksSection() {
     setDraftItems([])
   }, [])
 
-  const openEdit = useCallback((template: ClinicPreCombatCheck, target: HTMLElement) => {
-    setEditor({ mode: 'edit', target, anchor: target.getBoundingClientRect() })
+  const openEdit = useCallback((template: ClinicPreCombatCheck, anchorEl: HTMLElement) => {
+    setEditor({ mode: 'edit', target: template, anchor: anchorEl.getBoundingClientRect() })
     setDraftName(template.name)
     setDraftItems([...template.items])
   }, [])
@@ -84,7 +84,7 @@ export function PreCombatChecksSection() {
       setError(result.error)
       return false
     }
-    invalidate('clinics')
+    patchClinicConfig(clinicId, { preCombatChecks: next })
     return true
   }, [clinicId])
 

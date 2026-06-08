@@ -153,7 +153,7 @@ export function MapOverlayTree({
       refId: overlay.id,
       label: overlay.name || 'Untitled overlay',
       subLabel: overlay.description || `${count} ${count === 1 ? 'feature' : 'features'}`,
-    });
+    }, { kind: 'map-overlay', overlay });
   }, [shareToChat]);
   const shareFeature = useCallback((overlay: LocalMapOverlay, feature: OverlayFeature) => {
     shareToChat({

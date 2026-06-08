@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Check, Send, MessageSquare, X } from 'lucide-react'
+import { Check, Send, MessageSquare, X, Plus, Globe } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useAuthStore } from '../../stores/useAuthStore'
@@ -8,12 +8,21 @@ import { useMessagesContext } from '../../Hooks/MessagesContext'
 import { useAvatar } from '../../Utilities/AvatarContext'
 import { SYSTEM_USER_ID } from '../../lib/signal/systemIdentity'
 import { getDisplayName } from '../../Utilities/nameUtils'
-import type { SharedRefContent } from '../../lib/signal/messageContent'
+import { fetchProfileById } from '../../lib/peerLookup'
+import { packBundle, bundleSourceToBundle, type BundleSource } from '../../lib/objectBundle'
+import type { SharedRefContent, SharedBundleContent } from '../../lib/signal/messageContent'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 interface ShareToChatPickerProps {
   isOpen: boolean
   content: SharedRefContent | null
+  /** Source object for cross-cluster recipients. When a selected recipient is
+   *  in another cluster, the picker packs this into a frozen bundle (the live
+   *  `content` ref can't resolve outside the sending cluster). Omit to restrict
+   *  sharing to same-cluster recipients only. */
+  bundleSource?: BundleSource | null
   onClose: () => void
   /** Override the PreviewOverlay z-tier. Bump above a host Sheet (body portal
    *  at z-1200) so the picker isn't trapped underneath it. */
@@ -37,15 +46,23 @@ interface SendResult {
  * No PHI on the wire — only the opaque refId + operator-supplied label travel.
  * No groups in v1.
  */
-export function ShareToChatPicker({ isOpen, content, onClose, zIndex }: ShareToChatPickerProps) {
+export function ShareToChatPicker({ isOpen, content, bundleSource, onClose, zIndex }: ShareToChatPickerProps) {
   const ctx = useMessagesContext()
   const { medics } = useClinicMedics()
   const userId = useAuthStore(s => s.user?.id ?? null)
+  const myClinicId = useAuthStore(s => s.clinicId)
+  const myClinicName = useAuthStore(s => s.user?.clinicName ?? null)
   const { currentAvatar } = useAvatar()
 
   const [phase, setPhase] = useState<Phase>('pick')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [results, setResults] = useState<SendResult[]>([])
+  // Out-cluster recipients added by user code (resolved via the global
+  // fetch_profiles_by_ids resolver). These carry a foreign clinicId → the send
+  // loop packs a bundle for them instead of a live ref.
+  const [extraPeers, setExtraPeers] = useState<ClinicMedic[]>([])
+  const [lookupBusy, setLookupBusy] = useState(false)
+  const [lookupError, setLookupError] = useState<string | null>(null)
 
   // Reset internal state on open/close.
   useEffect(() => {
@@ -53,6 +70,9 @@ export function ShareToChatPicker({ isOpen, content, onClose, zIndex }: ShareToC
     setPhase('pick')
     setSelected(new Set())
     setResults([])
+    setExtraPeers([])
+    setLookupBusy(false)
+    setLookupError(null)
   }, [isOpen])
 
   // Self row — first in the list. Routes through sendStructured's self-notes
@@ -71,22 +91,54 @@ export function ShareToChatPicker({ isOpen, content, onClose, zIndex }: ShareToC
     }
   }, [userId, currentAvatar.id])
 
-  // Cluster roster: self + medics, minus SYSTEM, minus duplicates of self.
+  // Cluster roster: self + medics + any out-cluster peers added by code, minus
+  // SYSTEM, minus duplicates of self.
   const roster = useMemo<ClinicMedic[]>(() => {
     const out: ClinicMedic[] = []
     if (selfMedic) out.push(selfMedic)
-    for (const m of medics) {
-      if (m.id === SYSTEM_USER_ID) continue
+    for (const m of extraPeers) {
       if (selfMedic && m.id === selfMedic.id) continue
       out.push(m)
     }
+    for (const m of medics) {
+      if (m.id === SYSTEM_USER_ID) continue
+      if (selfMedic && m.id === selfMedic.id) continue
+      if (extraPeers.some(e => e.id === m.id)) continue
+      out.push(m)
+    }
     return out
-  }, [selfMedic, medics])
+  }, [selfMedic, medics, extraPeers])
+
+  /** A recipient counts as cross-cluster when we know both clinic ids and they
+   *  differ. Same-cluster (or unknown) → live ref; cross-cluster → frozen bundle. */
+  const isCrossCluster = useCallback((m: ClinicMedic): boolean => {
+    return !!m.clinicId && !!myClinicId && m.clinicId !== myClinicId
+  }, [myClinicId])
+
+  // Resolve a pasted user code (UUID) into an out-cluster recipient.
+  const handleLookup = useCallback(async (code: string) => {
+    const id = code.trim()
+    if (!UUID_RE.test(id)) return
+    if (id === userId || roster.some(m => m.id === id)) return
+    setLookupBusy(true)
+    setLookupError(null)
+    try {
+      const peer = await fetchProfileById(id)
+      if (!peer) { setLookupError('No user found for that code.'); return }
+      setExtraPeers(prev => prev.some(p => p.id === peer.id) ? prev : [...prev, peer])
+      setSelected(prev => new Set(prev).add(peer.id))
+    } catch {
+      setLookupError('Lookup failed. Check the code and try again.')
+    } finally {
+      setLookupBusy(false)
+    }
+  }, [userId, roster])
 
   const applyFilter = (q: string): ClinicMedic[] => {
     const trimmed = q.trim().toLowerCase()
     if (!trimmed) return roster
     return roster.filter(m =>
+      m.id.toLowerCase() === trimmed ||
       (m.firstName ?? '').toLowerCase().includes(trimmed) ||
       (m.lastName ?? '').toLowerCase().includes(trimmed) ||
       (m.rank ?? '').toLowerCase().includes(trimmed) ||
@@ -107,12 +159,44 @@ export function ShareToChatPicker({ isOpen, content, onClose, zIndex }: ShareToC
     if (!content || !ctx || selected.size === 0) return
     setPhase('sending')
     const targets = roster.filter(m => selected.has(m.id))
+
+    // Pack the bundle ONCE if any recipient is cross-cluster (one ciphertext blob
+    // reused across recipients — each gets the AES key inside their own E2E msg).
+    let bundleContent: SharedBundleContent | null = null
+    const needsBundle = targets.some(isCrossCluster)
+    if (needsBundle && bundleSource && userId) {
+      const packed = await packBundle(
+        userId,
+        bundleSourceToBundle(bundleSource, myClinicName ?? 'another cluster', new Date().toISOString()),
+      )
+      if (packed.ok) {
+        bundleContent = {
+          type: 'shared_bundle',
+          bundleKind: packed.data.kind,
+          path: packed.data.path,
+          key: packed.data.key,
+          contentHash: packed.data.contentHash,
+          label: packed.data.label,
+          ...(packed.data.subLabel ? { subLabel: packed.data.subLabel } : {}),
+          sourceCluster: packed.data.sourceCluster,
+        }
+      }
+    }
+
     const out: SendResult[] = []
     for (const medic of targets) {
       const originId = crypto.randomUUID()
       try {
-        const ok = await ctx.sendStructured(medic.id, content, originId, content.label)
-        out.push({ medic, ok })
+        if (isCrossCluster(medic)) {
+          // Out-cluster: send the frozen bundle, opening a fresh request thread.
+          if (!bundleContent) { out.push({ medic, ok: false }); continue }
+          const ok = await ctx.sendStructured(medic.id, bundleContent, originId, bundleContent.label, { openAsRequest: true })
+          out.push({ medic, ok })
+        } else {
+          // Same-cluster: the live ref resolves in the shared vault.
+          const ok = await ctx.sendStructured(medic.id, content, originId, content.label)
+          out.push({ medic, ok })
+        }
       } catch {
         out.push({ medic, ok: false })
       }
@@ -125,8 +209,34 @@ export function ShareToChatPicker({ isOpen, content, onClose, zIndex }: ShareToC
   const selfId = selfMedic?.id ?? null
 
   const pickList = (q: string) => {
+    const trimmed = q.trim()
+    const isCode = UUID_RE.test(trimmed)
+    const codeNotInRoster = isCode && !roster.some(m => m.id === trimmed) && trimmed !== userId
     const filtered = applyFilter(q)
-    if (filtered.length === 0) {
+
+    // Header affordance: paste a user code (QR payload) to reach a user in
+    // another cluster. Only meaningful when we have source data to bundle.
+    const addByCodeRow = codeNotInRoster && (
+      <button
+        onClick={() => void handleLookup(trimmed)}
+        disabled={lookupBusy || !bundleSource}
+        className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all disabled:opacity-50"
+      >
+        <div className="w-8 h-8 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
+          {lookupBusy
+            ? <div className="w-3.5 h-3.5 rounded-full border-2 border-themeblue3/60 border-t-transparent animate-spin" />
+            : <Plus size={16} className="text-themeblue3" />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-primary truncate">Add user by code</p>
+          <p className="text-[9pt] text-tertiary truncate">
+            {bundleSource ? 'Reach someone in another cluster' : 'Not shareable across clusters'}
+          </p>
+        </div>
+      </button>
+    )
+
+    if (filtered.length === 0 && !addByCodeRow) {
       return (
         <p className="text-[10pt] text-tertiary text-center py-10">
           {roster.length === 0 ? 'No cluster contacts' : 'No matches'}
@@ -135,9 +245,14 @@ export function ShareToChatPicker({ isOpen, content, onClose, zIndex }: ShareToC
     }
     return (
       <div className="py-1">
+        {addByCodeRow}
+        {lookupError && (
+          <p className="px-4 py-1.5 text-[9pt] text-themeredred">{lookupError}</p>
+        )}
         {filtered.map(medic => {
           const isSelected = selected.has(medic.id)
           const isSelf = medic.id === selfId
+          const cross = isCrossCluster(medic)
           return (
             <button
               key={medic.id}
@@ -156,9 +271,13 @@ export function ShareToChatPicker({ isOpen, content, onClose, zIndex }: ShareToC
                 <p className="text-sm text-primary truncate">
                   {isSelf ? 'Me' : getDisplayName(medic)}
                 </p>
-                {isSelf && (
+                {isSelf ? (
                   <p className="text-[9pt] text-tertiary">Saved to your conversation</p>
-                )}
+                ) : cross ? (
+                  <p className="text-[9pt] text-themeblue3 truncate flex items-center gap-1">
+                    <Globe size={10} /> {medic.clinicName || 'Another cluster'} · sends a copy
+                  </p>
+                ) : null}
               </div>
               <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors shrink-0
                              ${isSelected ? 'bg-themeblue2 border-themeblue2' : 'border-tertiary/30'}`}>
@@ -253,7 +372,7 @@ export function ShareToChatPicker({ isOpen, content, onClose, zIndex }: ShareToC
       {...(zIndex !== undefined ? { zIndex } : {})}
       {...(phase === 'pick'
         ? {
-            searchPlaceholder: 'Search cluster…',
+            searchPlaceholder: bundleSource ? 'Search or paste a user code…' : 'Search cluster…',
             preview: (q: string) => pickList(q),
             actions: [
               {
@@ -285,10 +404,16 @@ export function ShareToChatPicker({ isOpen, content, onClose, zIndex }: ShareToC
  */
 export function useShareToChat(options?: { zIndex?: number }) {
   const [content, setContent] = useState<SharedRefContent | null>(null)
-  const share = useCallback((next: SharedRefContent) => setContent(next), [])
-  const close = useCallback(() => setContent(null), [])
+  const [bundleSource, setBundleSource] = useState<BundleSource | null>(null)
+  // share(ref) — same-cluster only. share(ref, source) — also enables sending a
+  // frozen copy to a recipient in another cluster (added by user code).
+  const share = useCallback((next: SharedRefContent, source?: BundleSource | null) => {
+    setContent(next)
+    setBundleSource(source ?? null)
+  }, [])
+  const close = useCallback(() => { setContent(null); setBundleSource(null) }, [])
   const picker = (
-    <ShareToChatPicker isOpen={!!content} content={content} onClose={close} zIndex={options?.zIndex} />
+    <ShareToChatPicker isOpen={!!content} content={content} bundleSource={bundleSource} onClose={close} zIndex={options?.zIndex} />
   )
   return { share, picker }
 }

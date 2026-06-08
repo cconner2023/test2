@@ -1,13 +1,20 @@
-import { useState, useMemo } from 'react'
-import { ScanLine, ArrowRightLeft, GitMerge, Plus, Minus, Check, X, MessageSquare, ChevronRight } from 'lucide-react'
+import { useState, useMemo, forwardRef, useImperativeHandle } from 'react'
+import { createPortal } from 'react-dom'
+import { ScanLine, ArrowRightLeft, GitMerge, Plus, Minus, Check, X, MessageSquare, Pencil, Trash2 } from 'lucide-react'
 import { SectionCard } from '../Section'
-import { ActionPill } from '../ActionPill'
-import { ActionButton } from '../ActionButton'
+import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useShareToChat } from '../Messages/ShareToChatPicker'
+
+export interface PropertyItemDetailHandle {
+  /** Open the action menu (Edit / Move / Merge / Share / Enroll / Delete) anchored to the
+   *  host header's ellipsis button. Hosts render the trigger; the menu lives here so its
+   *  Move/Merge/Share sheets stay co-located. */
+  openMenu: (anchor: DOMRect) => void
+}
 
 interface PropertyItemDetailProps {
   item: LocalPropertyItem
@@ -15,6 +22,9 @@ interface PropertyItemDetailProps {
   holders: Map<string, HolderInfo>
   items: LocalPropertyItem[]
   onEnroll: () => void
+  onEdit?: () => void
+  onDelete?: () => void
+  canDelete?: boolean
 }
 
 function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
@@ -39,7 +49,8 @@ const EXPIRY_LABELS = {
   expiring: { label: 'EXPIRING SOON', dot: 'bg-themeyellow', text: 'text-themeyellow' },
 } as const
 
-export function PropertyItemDetail({ item, locations, holders, items, onEnroll }: PropertyItemDetailProps) {
+export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyItemDetailProps>(
+  function PropertyItemDetail({ item, locations, holders, items, onEnroll, onEdit, onDelete, canDelete }, ref) {
   const isMobile = useIsMobile()
   const splitItem = usePropertyStore(s => s.splitItem)
   const mergeItems = usePropertyStore(s => s.mergeItems)
@@ -48,6 +59,10 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
   const [showMergeSheet, setShowMergeSheet] = useState(false)
   const [splitQty, setSplitQty] = useState(1)
   const [splitTargetId, setSplitTargetId] = useState<string | null>(null)
+  const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null)
+  useImperativeHandle(ref, () => ({
+    openMenu: (anchor: DOMRect) => setMenuAnchor({ x: anchor.left, y: anchor.bottom + 6 }),
+  }), [])
 
   const { share: shareToChat, picker: shareToChatPicker } = useShareToChat()
   const handleShareToChat = () => {
@@ -177,53 +192,38 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
         </div>
       )}
 
-      {/* Quick actions — primitive icon pill row */}
-      <div className="flex justify-center">
-        <ActionPill>
-          <ActionButton icon={MessageSquare} label="Share to chat" onClick={handleShareToChat} />
-          {!item.is_serialized && (
-            <ActionButton
-              icon={ArrowRightLeft}
-              label={item.quantity > 1 ? 'Split / Move' : 'Move to location'}
-              onClick={() => { setSplitQty(1); setSplitTargetId(null); setShowSplitSheet(true) }}
-            />
-          )}
-          {!item.is_serialized && mergeCandidates.length > 0 && (
-            <ActionButton icon={GitMerge} label="Merge like items" onClick={() => setShowMergeSheet(true)} />
-          )}
-        </ActionPill>
-      </div>
-
-      {/* Visual ID enrollment — explanatory card button (enrollment isn't self-explanatory) */}
-      <button
-        onClick={onEnroll}
-        className={`w-full flex items-center gap-3 text-left rounded-2xl border border-themeblue3/10 bg-themewhite2 active:scale-[0.99] transition-all duration-200 ${
-          isMobile ? 'px-4 py-3.5' : 'px-3 py-3'
-        }`}
-      >
-        <span className="shrink-0 w-10 h-10 rounded-full bg-themeblue2/8 flex items-center justify-center text-themeblue2">
-          <ScanLine className="w-5 h-5" />
-        </span>
-        <span className="flex-1 min-w-0">
-          <span className={`block font-semibold text-primary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>
-            {item.visual_fingerprint ? 'Update Visual ID' : 'Enroll Visual ID'}
-          </span>
-          <span className="block text-[10pt] text-tertiary leading-snug mt-0.5">
-            {item.visual_fingerprint
-              ? 'Re-capture photos to refresh how the scanner recognizes this item.'
-              : 'Capture photos so the scanner can recognize this item.'}
-          </span>
-        </span>
-        <ChevronRight className="shrink-0 w-4 h-4 text-tertiary" />
-      </button>
-
       <div className={isMobile ? 'h-16 shrink-0' : 'h-8 shrink-0'} />
 
+      {/* Action menu — opened from the host header ellipsis (openMenu handle).
+          All item actions live here so Move/Merge/Share sheets stay co-located. */}
+      {menuAnchor && (
+        <ContextMenu
+          x={menuAnchor.x}
+          y={menuAnchor.y}
+          onClose={() => setMenuAnchor(null)}
+          items={[
+            ...(onEdit ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: onEdit } as ContextMenuItem] : []),
+            ...(!item.is_serialized ? [{
+              key: 'move',
+              label: item.quantity > 1 ? 'Split / Move' : 'Move to location',
+              icon: ArrowRightLeft,
+              onAction: () => { setSplitQty(1); setSplitTargetId(null); setShowSplitSheet(true) },
+            } as ContextMenuItem] : []),
+            ...(!item.is_serialized && mergeCandidates.length > 0
+              ? [{ key: 'merge', label: 'Merge like items', icon: GitMerge, onAction: () => setShowMergeSheet(true) } as ContextMenuItem]
+              : []),
+            { key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: handleShareToChat },
+            { key: 'enroll', label: item.visual_fingerprint ? 'Update Visual ID' : 'Enroll Visual ID', icon: ScanLine, onAction: onEnroll },
+            ...(onDelete && canDelete ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: onDelete } as ContextMenuItem] : []),
+          ]}
+        />
+      )}
+
       {/* Split / Move sheet */}
-      {showSplitSheet && (
+      {showSplitSheet && createPortal((
         <>
-          <div className="fixed inset-0 z-[60] bg-black/40" onClick={() => setShowSplitSheet(false)} />
-          <div className="fixed left-0 right-0 bottom-0 z-[60] bg-themewhite3 rounded-t-[1.25rem] flex flex-col gap-4 p-5" style={{ maxHeight: '75dvh' }}>
+          <div className="fixed inset-0 z-[1450] bg-black/40" onClick={() => setShowSplitSheet(false)} />
+          <div className="fixed left-0 right-0 bottom-0 z-[1450] bg-themewhite3 rounded-t-[1.25rem] flex flex-col gap-4 p-5" style={{ maxHeight: '75dvh' }}>
             <div className="w-9 h-1 rounded-full bg-tertiary/25 self-center shrink-0" />
             <div className="flex items-center justify-between shrink-0">
               <h2 className="text-lg font-medium text-primary">
@@ -296,13 +296,13 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
             </button>
           </div>
         </>
-      )}
+      ), document.body)}
 
       {/* Merge sheet */}
-      {showMergeSheet && (
+      {showMergeSheet && createPortal((
         <>
-          <div className="fixed inset-0 z-[60] bg-black/40" onClick={() => setShowMergeSheet(false)} />
-          <div className="fixed left-0 right-0 bottom-0 z-[60] bg-themewhite3 rounded-t-[1.25rem] flex flex-col gap-4 p-5" style={{ maxHeight: '60dvh' }}>
+          <div className="fixed inset-0 z-[1450] bg-black/40" onClick={() => setShowMergeSheet(false)} />
+          <div className="fixed left-0 right-0 bottom-0 z-[1450] bg-themewhite3 rounded-t-[1.25rem] flex flex-col gap-4 p-5" style={{ maxHeight: '60dvh' }}>
             <div className="w-9 h-1 rounded-full bg-tertiary/25 self-center shrink-0" />
             <div className="flex items-center justify-between shrink-0">
               <h2 className="text-lg font-medium text-primary">Merge Like Items</h2>
@@ -337,9 +337,9 @@ export function PropertyItemDetail({ item, locations, holders, items, onEnroll }
             </div>
           </div>
         </>
-      )}
+      ), document.body)}
 
       {shareToChatPicker}
     </div>
   )
-}
+})

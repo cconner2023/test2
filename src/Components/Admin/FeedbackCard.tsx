@@ -1,9 +1,8 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { MessageSquare, Star, Trash2, Mail, MessageCircle } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
-import { useLongPress } from '../../Hooks/useLongPress'
 import type { FeedbackRow } from '../../lib/feedbackService'
 
 export interface FeedbackCardProps {
@@ -12,7 +11,7 @@ export interface FeedbackCardProps {
   expandedId: string | null
   setExpandedId: (id: string | null) => void
   setConfirmDeleteId: (id: string | null) => void
-  setContextMenu: (v: { feedbackId: string; x: number; y: number } | null) => void
+  setContextMenu: (v: { feedbackId: string; rect: DOMRect; clone: ReactNode } | null) => void
   /** Open an in-app system-message compose for this feedback's author. Only
    *  wired for authed feedback (user_id present) when messaging is available. */
   onChat?: (anchorRect: DOMRect | null) => void
@@ -31,9 +30,33 @@ export function FeedbackCard({
   const cardRef = useRef<HTMLDivElement>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
 
-  const { isPressing, ...longPress } = useLongPress((x: number, y: number) => {
-    setContextMenu({ feedbackId: feedback.id, x, y })
-  }, { delay: 500 })
+  const longPressTimer = useRef<number | null>(null)
+  const preventTap = useRef(false)
+  const openMenu = () => {
+    if (!cardRef.current) return
+    setContextMenu({
+      feedbackId: feedback.id,
+      rect: cardRef.current.getBoundingClientRect(),
+      clone: (
+        <div className="bg-themewhite">
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeblue2/10">
+              <MessageSquare size={16} className="text-themeblue2" />
+            </div>
+            <span className="flex-1 min-w-0 text-sm font-medium text-primary truncate">
+              {feedback.display_name || 'Anonymous'}
+            </span>
+            <span className="text-[9pt] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0 bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
+              Feedback
+            </span>
+          </div>
+        </div>
+      ),
+    })
+  }
+  const clearLongPress = () => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
+  }
 
   const handleTap = useCallback(() => {
     setAnchorRect(cardRef.current?.getBoundingClientRect() ?? null)
@@ -57,13 +80,12 @@ export function FeedbackCard({
     <>
       <div
         ref={cardRef}
-        onClick={handleTap}
-        onContextMenu={(e) => {
-          e.preventDefault()
-          setContextMenu({ feedbackId: feedback.id, x: e.clientX, y: e.clientY })
-        }}
-        {...longPress}
-        className={`transition-all hover:bg-themeblue2/5 cursor-pointer select-none ${isPressing ? 'scale-[0.98]' : ''}`}
+        onClick={() => { if (preventTap.current) { preventTap.current = false; return } handleTap() }}
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); openMenu() }}
+        onTouchStart={() => { preventTap.current = false; longPressTimer.current = window.setTimeout(() => { preventTap.current = true; openMenu() }, 500) }}
+        onTouchEnd={clearLongPress}
+        onTouchMove={clearLongPress}
+        className="transition-all hover:bg-themeblue2/5 cursor-pointer select-none"
       >
         <div className="flex items-center gap-3 px-4 py-3.5">
           <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeblue2/10">

@@ -154,6 +154,8 @@ const LOD_FILL_THRESHOLD = 0.5
 export interface MapNavHandle {
   navigateToZone: (targetId: string) => void
   resetZoom: () => void
+  /** Deselect the active zone without changing zoom (used to close the right pane). */
+  clearSelection: () => void
 }
 
 interface PropertyLocationMapProps {
@@ -167,9 +169,12 @@ interface PropertyLocationMapProps {
   onUpdateLocation?: (id: string, updates: Partial<PropertyLocation>) => Promise<unknown>
   onSelectItem?: (item: LocalPropertyItem) => void
   onCreateItem?: () => void
+  /** When provided, the parent owns the selected-zone surface (desktop right pane):
+   *  fires on every zone selection change, and the inline canvas popover is suppressed. */
+  onSelectZone?: (locationId: string | null) => void
 }
 
-export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapProps>(function PropertyLocationMap({ clinicId, clinicName, locations, items, onCreateLocation, onDeleteLocation, onEditItem, onUpdateLocation, onSelectItem, onCreateItem }, ref) {
+export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapProps>(function PropertyLocationMap({ clinicId, clinicName, locations, items, onCreateLocation, onDeleteLocation, onEditItem, onUpdateLocation, onSelectItem, onCreateItem, onSelectZone }, ref) {
   const store = usePropertyStore()
   const isMobile = useIsMobile()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -250,6 +255,8 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     if (!tagIndex || !rootLocationId) return []
     return flattenToWorld(tagIndex, rootLocationId)
   }, [tagIndex, rootLocationId])
+  const allWorldTagsRef = useRef(allWorldTags)
+  allWorldTagsRef.current = allWorldTags
 
   // ── Parent bounds for nested editing — world-space tag of the zone being edited ──
   const parentBounds = useMemo(() => {
@@ -534,6 +541,26 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     }
   }, [store, allWorldTags, rootLocationId, zoomToRect])
 
+  // ── Re-fit on container resize ──
+  // The canvas geometry (contentW/padX) scales off vpSize; a resize (window OR the
+  // desktop right-pane open/close animating the center column width) leaves the
+  // absolute scroll position pointing into the padding → zones scroll out of view.
+  // Re-fit (to the selected zone, else all root zones) once the size settles.
+  // Captured in a ref so the effect depends ONLY on vpSize (not on every store/tag change).
+  const reFitRef = useRef<() => void>(() => {})
+  reFitRef.current = () => {
+    const sel = store.selectedZoneId
+    const selTag = sel ? allWorldTagsRef.current.find((tg) => tg.target_id === sel) : null
+    if (selTag) zoomToTag(selTag)
+    else handleResetZoom()
+  }
+  useEffect(() => {
+    if (vpSize.w === 0 || vpSize.h === 0) return
+    if (!didInitialFitRef.current) return // let the initial fit run first
+    const t = setTimeout(() => reFitRef.current(), 160)
+    return () => clearTimeout(t)
+  }, [vpSize.w, vpSize.h])
+
   // ── Deferred navigation — handles cases where tags haven't loaded yet ──
   const pendingNavRef = useRef<string | null>(null)
 
@@ -603,7 +630,18 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     resetZoom() {
       handleResetZoom()
     },
+    clearSelection() {
+      store.selectZone(null)
+    },
   }), [executeNavigation, store, handleResetZoom])
+
+  // Notify the parent of zone-selection changes so it can drive the right-pane
+  // location detail. Ref-indirected so the effect only depends on the selection.
+  const onSelectZoneRef = useRef(onSelectZone)
+  onSelectZoneRef.current = onSelectZone
+  useEffect(() => {
+    onSelectZoneRef.current?.(store.selectedZoneId)
+  }, [store.selectedZoneId])
 
   // Process deferred navigation when tags load
   useEffect(() => {
@@ -1243,12 +1281,15 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                   onItemTap={onSelectItem}
                 />
 
-                {!rootLocationId && (
+                {(!rootLocationId || !tagIndex) && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <p className="text-[10pt] text-tertiary">Loading canvas...</p>
                   </div>
                 )}
-                {rootLocationId && canvasTags.length === 0 && (
+                {/* Only after tags have actually loaded — otherwise a remount (e.g. a
+                    resize crossing the mobile/desktop breakpoint resets tagIndex while
+                    the refetch is in flight) would flash "No zones yet" over real zones. */}
+                {rootLocationId && tagIndex && canvasTags.length === 0 && (
                   <div className="absolute inset-0 flex items-center justify-center">
                     <button
                       onClick={handleEnterEdit}
@@ -1412,8 +1453,10 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
           </div>
         )}
 
-        {/* Floating zone popover — right side, below FAB toolbar, visible when a zone is selected */}
-        {store.selectedZoneId && (!isEditing || !!inlinePrompt) && (
+        {/* Floating zone popover — right side, below FAB toolbar, visible when a zone is
+            selected. Suppressed when the parent owns the selection surface (desktop right
+            pane via onSelectZone); still used on mobile, where there is no right pane. */}
+        {store.selectedZoneId && !onSelectZone && (!isEditing || !!inlinePrompt) && (
           <div className="absolute top-[72px] right-3 z-40 w-52 max-h-[60%] flex flex-col rounded-xl border border-tertiary/15 bg-themewhite shadow-md overflow-hidden">
             {/* Header: zone title (tap to rename) + dismiss */}
             <div className="shrink-0 flex items-center gap-1 px-3 py-2 bg-themewhite3/50 border-b border-primary/10">

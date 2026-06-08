@@ -101,6 +101,83 @@ export const TextInput = ({
   </label>
 )
 
+/* ── Blood Pressure Input (systolic / diastolic) ── */
+
+/** Paired systolic / diastolic entry. Stores a single 'sys/dia' string (diastolic
+ *  may be 'p' for palpable). Same transparent / border-bottom family as TextInput —
+ *  NOT a pill. Default renders a full labelled field row; pass `bare` to render only
+ *  the inputs for embedding in a custom layout (e.g. VitalSignsCalculator cells). */
+export const BloodPressureInput = ({
+  value,
+  onChange,
+  label,
+  hint,
+  placeholderSys = '120',
+  placeholderDia = '80',
+  bare = false,
+  inputClassName,
+  containerClassName,
+  separatorClassName,
+}: {
+  value: string
+  onChange: (val: string) => void
+  label?: string
+  hint?: string | null
+  placeholderSys?: string
+  placeholderDia?: string
+  bare?: boolean
+  inputClassName?: string
+  containerClassName?: string
+  separatorClassName?: string
+}) => {
+  const sys = value.split('/')[0]?.trim() ?? ''
+  const dia = value.split('/')[1]?.trim() ?? ''
+
+  const sysInput = (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={sys}
+      onChange={(e) => onChange(`${e.target.value}/${dia}`)}
+      placeholder={placeholderSys}
+      className={inputClassName ?? 'w-14 text-right bg-transparent text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none'}
+    />
+  )
+  const diaInput = (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={dia}
+      onChange={(e) => onChange(`${sys}/${e.target.value}`)}
+      placeholder={placeholderDia}
+      className={inputClassName ?? 'w-14 text-right bg-transparent text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none'}
+    />
+  )
+  const sep = <span className={separatorClassName ?? 'text-tertiary px-0.5 shrink-0'}>/</span>
+
+  // Bare: just the inputs, caller owns the wrapper/label (dense embeds).
+  if (bare) {
+    return (
+      <div className={containerClassName ?? 'flex items-center gap-1'}>
+        {sysInput}{sep}{diaInput}
+      </div>
+    )
+  }
+
+  // Default: full field row matching the TextInput family (border-bottom, no pill).
+  return (
+    <label className="block border-b border-primary/6 last:border-b-0">
+      <div className="flex items-center gap-3 px-4 py-3">
+        {label && <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest shrink-0">{label}</span>}
+        <div className={containerClassName ?? 'flex items-center flex-1 gap-1 justify-end'}>
+          {sysInput}{sep}{diaInput}
+        </div>
+      </div>
+      {hint && <span className="block px-4 pb-2 text-[9pt] font-medium text-themeyellow">{hint}</span>}
+    </label>
+  )
+}
+
 /* ── Picker Input (drawer/modal selection) ── */
 
 type PickerOption = string | { value: string; label: string }

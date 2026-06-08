@@ -437,7 +437,7 @@ export type Database = {
       }
       event_intake_credentials: {
         Row: {
-          clinic_invite_id: string
+          clinic_id: string
           created_at: string
           created_by: string | null
           id: string
@@ -451,7 +451,7 @@ export type Database = {
           passphrase_rotated_at: string
         }
         Insert: {
-          clinic_invite_id: string
+          clinic_id: string
           created_at?: string
           created_by?: string | null
           id?: string
@@ -465,7 +465,7 @@ export type Database = {
           passphrase_rotated_at?: string
         }
         Update: {
-          clinic_invite_id?: string
+          clinic_id?: string
           created_at?: string
           created_by?: string | null
           id?: string
@@ -480,10 +480,10 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "event_intake_credentials_clinic_invite_id_fkey"
-            columns: ["clinic_invite_id"]
+            foreignKeyName: "event_intake_credentials_clinic_id_fkey"
+            columns: ["clinic_id"]
             isOneToOne: true
-            referencedRelation: "clinic_invites"
+            referencedRelation: "clinics"
             referencedColumns: ["id"]
           },
         ]
@@ -1687,10 +1687,6 @@ export type Database = {
       _oncall_ring_set: { Args: { p_clinic_id: string }; Returns: string[] }
       _random_passphrase: { Args: never; Returns: string }
       _random_unambiguous: { Args: { p_len: number }; Returns: string }
-      _resolve_active_clinic_invite_id: {
-        Args: { p_clinic_id: string }
-        Returns: string
-      }
       _sanitize_outside_name: { Args: { p: string }; Returns: string }
       accept_oncall: {
         Args: { p_answer_sdp: Json; p_call_id: string }

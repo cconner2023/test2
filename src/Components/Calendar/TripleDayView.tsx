@@ -4,13 +4,14 @@ import type { CalendarEvent } from '../../Types/CalendarTypes'
 import { STATUS_META, DAY_START_HOUR, DAY_END_HOUR, HOUR_HEIGHT_PX, toDateKey, eventFallsOnDate, formatShortDayLabel } from '../../Types/CalendarTypes'
 import { useCategoryColors } from '../../Hooks/useCategoryColors'
 import { formatHour, getEventPosition, resolveOverlaps } from './timeGrid'
+import { menuPressHandlers, type MenuPressState } from './menuPress'
 
 interface TripleDayViewProps {
   date: Date
   events: CalendarEvent[]
   onSelectEvent: (id: string) => void
-  onEventContextMenu?: (eventId: string, x: number, y: number) => void
-  onDayContextMenu?: (dateKey: string, x: number, y: number) => void
+  onEventContextMenu?: (eventId: string, rect: DOMRect) => void
+  onDayContextMenu?: (dateKey: string, rect: DOMRect) => void
   onPrevDay?: () => void
   onNextDay?: () => void
   onDateTap?: () => void
@@ -30,6 +31,8 @@ interface ColumnData {
 export function TripleDayView({ date, events, onSelectEvent, onEventContextMenu, onDayContextMenu, onPrevDay, onNextDay, onDateTap }: TripleDayViewProps) {
   const { resolve: resolveCategoryColor } = useCategoryColors()
   const scrollRef = useRef<HTMLDivElement>(null)
+  const eventPressRef = useRef<MenuPressState | null>(null)
+  const dayPressRef = useRef<MenuPressState | null>(null)
 
   const hours = useMemo(() => Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, i) => DAY_START_HOUR + i), [])
   const totalHeight = hours.length * HOUR_HEIGHT_PX
@@ -134,13 +137,8 @@ export function TripleDayView({ date, events, onSelectEvent, onEventContextMenu,
                     return (
                       <button
                         key={e.id}
-                        onClick={() => onSelectEvent(e.id)}
-                        onContextMenu={(ev) => {
-                          if (onEventContextMenu) {
-                            ev.preventDefault()
-                            onEventContextMenu(e.id, ev.clientX, ev.clientY)
-                          }
-                        }}
+                        onClick={() => { if (eventPressRef.current?.fired) return; onSelectEvent(e.id) }}
+                        {...menuPressHandlers(onEventContextMenu ? (rect) => onEventContextMenu(e.id, rect) : undefined, eventPressRef)}
                         className={`w-full text-left rounded flex items-stretch gap-1 overflow-hidden bg-primary/5 ${sm.opacity} active:scale-95 transition-all duration-200`}
                       >
                         <div className={`w-0.5 shrink-0 rounded-full ${resolveCategoryColor(e.category, e.color).solid}`} />
@@ -179,12 +177,7 @@ export function TripleDayView({ date, events, onSelectEvent, onEventContextMenu,
             <div
               key={col.dateKey}
               className="relative border-l border-primary/10"
-              onContextMenu={(e) => {
-                if (onDayContextMenu) {
-                  e.preventDefault()
-                  onDayContextMenu(col.dateKey, e.clientX, e.clientY)
-                }
-              }}
+              {...menuPressHandlers(onDayContextMenu ? (rect) => onDayContextMenu(col.dateKey, rect) : undefined, dayPressRef)}
             >
               {hours.map((h, i) => (
                 <div
@@ -212,13 +205,8 @@ export function TripleDayView({ date, events, onSelectEvent, onEventContextMenu,
                     key={event.id}
                     role="button"
                     tabIndex={0}
-                    onClick={() => onSelectEvent(event.id)}
-                    onContextMenu={(e) => {
-                      if (onEventContextMenu) {
-                        e.preventDefault()
-                        onEventContextMenu(event.id, e.clientX, e.clientY)
-                      }
-                    }}
+                    onClick={() => { if (eventPressRef.current?.fired) return; onSelectEvent(event.id) }}
+                    {...menuPressHandlers(onEventContextMenu ? (rect) => onEventContextMenu(event.id, rect) : undefined, eventPressRef)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') onSelectEvent(event.id)
                     }}

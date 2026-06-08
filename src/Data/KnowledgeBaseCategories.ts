@@ -64,7 +64,7 @@ export const kbCategories: KBCategory[] = [
     // ── Calculators ───────────────────────────────────────────
     {
         id: 'vital-signs',
-        label: 'Vital Signs',
+        label: 'Conversions',
         description: 'Height, weight, BMI & temperature',
         icon: Calculator,
         group: 'calculators',

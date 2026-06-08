@@ -1,0 +1,346 @@
+/**
+ * Portable object bundles — the cross-cluster counterpart to a `shared_ref`.
+ *
+ * A `shared_ref` is a LIVE link: it resolves an opaque id against the RECEIVER's
+ * own clinic vault, so it only works inside the sending cluster. To share a
+ * calendar event or map overlay with a user in ANOTHER cluster, the actual data
+ * has to travel as a FROZEN, self-contained value the receiver re-materializes
+ * as a brand-new local copy in their own vault.
+ *
+ * This module owns that value:
+ *  - export projection  (event/overlay → bundle)  — strips PHI + cluster-local refs
+ *  - import remint      (bundle → fresh local object) — NEW ids, receiver's clinic
+ *  - integrity hash     (sha-256 of the canonical bundle JSON)
+ *  - transport pack/unpack via the existing encrypted-attachment path
+ *    (`message-attachments` bucket; AES key rides inside the E2E Signal message).
+ *
+ * NO-PHI INVARIANT (enforced at EXPORT): events drop assignees / property /
+ * subtasks / mission data; overlays drop `tc3_card_id`. Only operational
+ * vocabulary leaves the device. Mirrors the `.ics` export rule (which already
+ * strips assignments) and the no-PHI-on-the-map overlay invariant.
+ */
+
+import type { CalendarEvent, EventCategory } from '../Types/CalendarTypes'
+import type { MapOverlay, OverlayFeature } from '../Types/MapOverlayTypes'
+import { uploadEncryptedAttachment, downloadDecryptedAttachment } from './signal/attachmentService'
+import { ok, err, type Result } from './result'
+import { createLogger } from '../Utilities/Logger'
+
+const logger = createLogger('ObjectBundle')
+
+export const CALENDAR_BUNDLE_SCHEMA = 1
+export const OVERLAY_BUNDLE_SCHEMA = 1
+
+// ---- Bundle payloads (the frozen value that travels) ----
+
+/** Operational, non-PHI projection of a calendar event. No ids, no assignees. */
+export interface BundledEvent {
+  title: string
+  description: string | null
+  category: EventCategory
+  start_time: string
+  end_time: string
+  all_day: boolean
+  location: string | null
+  uniform: string | null
+  report_time: string | null
+  opord_notes: string | null
+}
+
+/** Operational projection of a single overlay feature. No id / overlay_id /
+ *  tc3_card_id — ids are reminted on import, the TC3 link never leaves. */
+export interface BundledFeature {
+  type: OverlayFeature['type']
+  geometry: [number, number][]
+  label: string
+  style: OverlayFeature['style']
+  waypoint_type?: OverlayFeature['waypoint_type']
+  mgrs?: string
+  notes?: string
+  recorded?: boolean
+  recorded_started_at?: string
+  recorded_ended_at?: string
+}
+
+export interface CalendarEventBundle {
+  schema: number
+  kind: 'calendar-event'
+  /** ISO timestamp the bundle was exported. */
+  exportedAt: string
+  /** Human label of the originating cluster — shown as "from [cluster]". */
+  sourceCluster: string
+  event: BundledEvent
+}
+
+export interface MapOverlayBundle {
+  schema: number
+  kind: 'map-overlay'
+  exportedAt: string
+  sourceCluster: string
+  overlay: {
+    name: string
+    description: string | null
+    center: [number, number]
+    zoom: number
+    features: BundledFeature[]
+  }
+}
+
+export type ObjectBundle = CalendarEventBundle | MapOverlayBundle
+
+/** Source object handed to the share picker so it can build a bundle for a
+ *  cross-cluster recipient (the picker still sends a live `shared_ref` to
+ *  same-cluster recipients, where the object is already vault-resolvable). */
+export type BundleSource =
+  | { kind: 'calendar-event'; event: CalendarEvent }
+  | { kind: 'map-overlay'; overlay: MapOverlay }
+
+// ---- Export projection (object → bundle) ----
+
+export function eventToBundle(event: CalendarEvent, sourceCluster: string, exportedAt: string): CalendarEventBundle {
+  return {
+    schema: CALENDAR_BUNDLE_SCHEMA,
+    kind: 'calendar-event',
+    exportedAt,
+    sourceCluster,
+    event: {
+      title: event.title,
+      description: event.description ?? null,
+      category: event.category,
+      start_time: event.start_time,
+      end_time: event.end_time,
+      all_day: event.all_day,
+      location: event.location ?? null,
+      uniform: event.uniform ?? null,
+      report_time: event.report_time ?? null,
+      opord_notes: event.opord_notes ?? null,
+    },
+  }
+}
+
+export function overlayToBundle(overlay: MapOverlay, sourceCluster: string, exportedAt: string): MapOverlayBundle {
+  return {
+    schema: OVERLAY_BUNDLE_SCHEMA,
+    kind: 'map-overlay',
+    exportedAt,
+    sourceCluster,
+    overlay: {
+      name: overlay.name,
+      description: overlay.description ?? null,
+      center: overlay.center,
+      zoom: overlay.zoom,
+      features: overlay.features.map(featureToBundled),
+    },
+  }
+}
+
+/** Strip ids + tc3 link; keep only operational geometry/label/style. */
+function featureToBundled(f: OverlayFeature): BundledFeature {
+  const out: BundledFeature = {
+    type: f.type,
+    geometry: f.geometry,
+    label: f.label,
+    style: f.style,
+  }
+  if (f.waypoint_type) out.waypoint_type = f.waypoint_type
+  if (f.mgrs) out.mgrs = f.mgrs
+  if (f.notes) out.notes = f.notes
+  if (f.recorded) {
+    out.recorded = true
+    if (f.recorded_started_at) out.recorded_started_at = f.recorded_started_at
+    if (f.recorded_ended_at) out.recorded_ended_at = f.recorded_ended_at
+  }
+  return out
+}
+
+export function bundleSourceToBundle(source: BundleSource, sourceCluster: string, exportedAt: string): ObjectBundle {
+  return source.kind === 'calendar-event'
+    ? eventToBundle(source.event, sourceCluster, exportedAt)
+    : overlayToBundle(source.overlay, sourceCluster, exportedAt)
+}
+
+// ---- Import remint (bundle → fresh local object) ----
+
+/** Context the receiver supplies when materializing a bundle into their cluster. */
+export interface IngestContext {
+  clinicId: string
+  userId: string
+  /** ISO 'now' — caller stamps it (Date.now is unavailable in some contexts). */
+  now: string
+}
+
+/**
+ * Remint a calendar bundle into a fresh CalendarEvent in the receiver's cluster.
+ * NEW id, the receiver's clinic_id/created_by, empty assignees/property, no
+ * originId. `templated` is coerced to `appointment` so the imported copy isn't
+ * locked behind the supervisor-only edit gate.
+ */
+export function bundleToEvent(bundle: CalendarEventBundle, ctx: IngestContext): CalendarEvent {
+  const category: EventCategory = bundle.event.category === 'templated' ? 'appointment' : bundle.event.category
+  return {
+    id: crypto.randomUUID(),
+    clinic_id: ctx.clinicId,
+    title: bundle.event.title,
+    description: bundle.event.description,
+    category,
+    status: 'pending',
+    start_time: bundle.event.start_time,
+    end_time: bundle.event.end_time,
+    all_day: bundle.event.all_day,
+    location: bundle.event.location,
+    opord_notes: bundle.event.opord_notes,
+    uniform: bundle.event.uniform,
+    report_time: bundle.event.report_time,
+    assigned_to: [],
+    property_item_ids: [],
+    created_by: ctx.userId,
+    created_at: ctx.now,
+    updated_at: ctx.now,
+  }
+}
+
+/** Remint an overlay bundle into fresh writeOverlay params (NEW overlay id +
+ *  NEW feature ids + overlay_id rebind). Returns the new overlay id too so the
+ *  caller can deep-link to it after the write lands. */
+export function bundleToOverlay(
+  bundle: MapOverlayBundle,
+  ctx: IngestContext,
+): { overlayId: string; clinicId: string; name: string; description?: string; center: [number, number]; zoom: number; features: OverlayFeature[] } {
+  const overlayId = crypto.randomUUID()
+  const features: OverlayFeature[] = bundle.overlay.features.map(bf => ({
+    id: crypto.randomUUID(),
+    overlay_id: overlayId,
+    type: bf.type,
+    geometry: bf.geometry,
+    label: bf.label,
+    style: bf.style,
+    created_at: ctx.now,
+    updated_at: ctx.now,
+    ...(bf.waypoint_type ? { waypoint_type: bf.waypoint_type } : {}),
+    ...(bf.mgrs ? { mgrs: bf.mgrs } : {}),
+    ...(bf.notes ? { notes: bf.notes } : {}),
+    ...(bf.recorded
+      ? {
+          recorded: true,
+          ...(bf.recorded_started_at ? { recorded_started_at: bf.recorded_started_at } : {}),
+          ...(bf.recorded_ended_at ? { recorded_ended_at: bf.recorded_ended_at } : {}),
+        }
+      : {}),
+  }))
+  return {
+    overlayId,
+    clinicId: ctx.clinicId,
+    name: bundle.overlay.name,
+    ...(bundle.overlay.description ? { description: bundle.overlay.description } : {}),
+    center: bundle.overlay.center,
+    zoom: bundle.overlay.zoom,
+    features,
+  }
+}
+
+// ---- Labels (for the chat card + conversation preview) ----
+
+export function bundleLabel(bundle: ObjectBundle): { label: string; subLabel?: string } {
+  if (bundle.kind === 'calendar-event') {
+    return { label: bundle.event.title || 'Event', subLabel: formatEventSub(bundle.event) }
+  }
+  const n = bundle.overlay.features.length
+  return { label: bundle.overlay.name || 'Overlay', subLabel: `${n} ${n === 1 ? 'feature' : 'features'}` }
+}
+
+function formatEventSub(e: BundledEvent): string {
+  try {
+    const start = new Date(e.start_time)
+    const d = start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    if (e.all_day) return `${d} · all day`
+    const t = start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+    return `${d} · ${t}`
+  } catch {
+    return ''
+  }
+}
+
+// ---- Integrity hash ----
+
+/** sha-256 hex of an arbitrary string (the canonical bundle JSON). */
+export async function sha256Hex(text: string): Promise<string> {
+  const bytes = new TextEncoder().encode(text)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+// ---- Transport (pack to / unpack from message-attachments) ----
+
+export interface PackedBundle {
+  kind: ObjectBundle['kind']
+  path: string
+  key: string
+  contentHash: string
+  label: string
+  subLabel?: string
+  sourceCluster: string
+}
+
+/**
+ * Serialize → hash → AES-encrypt → upload to the message-attachments bucket.
+ * Returns everything the SharedBundleContent message needs to carry. The blob
+ * in storage is ciphertext; the key is returned to ride INSIDE the E2E message.
+ */
+export async function packBundle(userId: string, bundle: ObjectBundle): Promise<Result<PackedBundle>> {
+  const json = JSON.stringify(bundle)
+  const contentHash = await sha256Hex(json)
+  const blob = new Blob([json], { type: 'application/json' })
+  const up = await uploadEncryptedAttachment(userId, blob)
+  if (!up.ok) return err(up.error)
+  const { label, subLabel } = bundleLabel(bundle)
+  return ok({
+    kind: bundle.kind,
+    path: up.data.path,
+    key: up.data.key,
+    contentHash,
+    label,
+    ...(subLabel ? { subLabel } : {}),
+    sourceCluster: bundle.sourceCluster,
+  })
+}
+
+/**
+ * Download ciphertext from the bucket, decrypt with the carried key, verify the
+ * integrity hash, and parse back into a typed bundle.
+ */
+export async function unpackBundle(path: string, key: string, expectedHash: string): Promise<Result<ObjectBundle>> {
+  const dl = await downloadDecryptedAttachment(path, key)
+  if (!dl.ok) return err(dl.error)
+  let json: string
+  try {
+    json = await dl.data.text()
+  } catch {
+    return err('Could not read bundle blob')
+  }
+  const actualHash = await sha256Hex(json)
+  if (actualHash !== expectedHash) {
+    logger.warn('Bundle hash mismatch — refusing to ingest')
+    return err('Bundle integrity check failed')
+  }
+  const parsed = parseBundle(json)
+  if (!parsed) return err('Bundle could not be parsed')
+  return ok(parsed)
+}
+
+/** Defensive parse — validates the discriminant + schema before trusting it. */
+export function parseBundle(json: string): ObjectBundle | null {
+  try {
+    const raw = JSON.parse(json) as Partial<ObjectBundle>
+    if (raw.kind === 'calendar-event' && raw.event && typeof (raw as CalendarEventBundle).event.title === 'string') {
+      return raw as CalendarEventBundle
+    }
+    if (raw.kind === 'map-overlay' && (raw as MapOverlayBundle).overlay && Array.isArray((raw as MapOverlayBundle).overlay.features)) {
+      return raw as MapOverlayBundle
+    }
+    return null
+  } catch {
+    return null
+  }
+}

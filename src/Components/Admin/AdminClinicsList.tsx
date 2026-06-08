@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Pencil, Trash2, Building2, Eye, ChevronRight } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { Pencil, Trash2, Building2, Eye, ChevronRight, MoreHorizontal } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { SectionCard } from '../Section'
-import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
+import { type ContextMenuItem } from '../ContextMenu'
+import { LiftedRowMenu } from '../LiftedRowMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { AdminListSkeleton } from './AdminSkeletons'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
-import { useLongPress } from '../../Hooks/useLongPress'
 import { listClinics, listAllUsers, deleteClinic } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import { useInvalidation, invalidate } from '../../stores/useInvalidationStore'
@@ -39,8 +39,8 @@ export function AdminClinicsList({
   const [loading, setLoading] = useState(true)
   const showLoading = useMinLoadTime(loading)
 
-  // ── Context menu state ──────────────────────────────────────
-  const [contextMenu, setContextMenu] = useState<{ clinicId: string; x: number; y: number } | null>(null)
+  // ── Context menu state (iOS lifted-clone, anchored to the row rect) ──────
+  const [contextMenu, setContextMenu] = useState<{ clinicId: string; rect: DOMRect } | null>(null)
 
   // ── Delete state ────────────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState<{ ids: string[]; label: string } | null>(null)
@@ -142,7 +142,7 @@ export function AdminClinicsList({
       depth={depth}
       assignedUserCount={usersInClinic(clinic.id).length}
       onTap={() => onSelectClinic(clinic)}
-      onContextMenu={(x, y) => setContextMenu({ clinicId: clinic.id, x, y })}
+      onMenu={(rect) => setContextMenu({ clinicId: clinic.id, rect })}
     />
   )
 
@@ -162,43 +162,32 @@ export function AdminClinicsList({
   // ── Shared: overlays ──────────────────────────────────────
   const renderOverlays = () => (
     <>
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          onClose={() => setContextMenu(null)}
-          items={[
-            {
-              key: 'view',
-              label: 'View',
-              icon: Eye,
-              onAction: () => {
-                const clinic = clinics.find((c) => c.id === contextMenu.clinicId)
-                if (clinic) onSelectClinic(clinic)
-              },
-            },
-            {
-              key: 'edit',
-              label: 'Edit',
-              icon: Pencil,
-              onAction: () => {
-                const clinic = clinics.find((c) => c.id === contextMenu.clinicId)
-                if (clinic) onEditClinic(clinic)
-              },
-            },
-            {
-              key: 'delete',
-              label: 'Delete',
-              icon: Trash2,
-              destructive: true,
-              onAction: () => {
-                const clinic = clinics.find((c) => c.id === contextMenu.clinicId)
-                if (clinic) confirmDeleteSingle(clinic)
-              },
-            },
-          ]}
-        />
-      )}
+      {contextMenu && (() => {
+        const clinic = clinics.find((c) => c.id === contextMenu.clinicId)
+        if (!clinic) return null
+        const items: ContextMenuItem[] = [
+          { key: 'view', label: 'View', icon: Eye, onAction: () => onSelectClinic(clinic) },
+          { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditClinic(clinic) },
+          { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => confirmDeleteSingle(clinic) },
+        ]
+        return (
+          <LiftedRowMenu
+            isOpen
+            layout="list"
+            anchorRect={contextMenu.rect}
+            onClose={() => setContextMenu(null)}
+            items={items}
+            row={(
+              <div className="flex items-center gap-3 px-4 py-3.5 bg-themewhite">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                  <Building2 size={16} className="text-tertiary" />
+                </div>
+                <span className="flex-1 min-w-0 text-sm font-medium text-primary truncate">{clinic.name}</span>
+              </div>
+            )}
+          />
+        )
+      })()}
 
       <ConfirmDialog
         visible={deleteTarget !== null}
@@ -261,26 +250,39 @@ interface ClinicCardProps {
   assignedUserCount: number
   depth?: number
   onTap: () => void
-  onContextMenu: (x: number, y: number) => void
+  onMenu: (rect: DOMRect) => void
 }
 
-function ClinicCard({ clinic, assignedUserCount, depth = 0, onTap, onContextMenu }: ClinicCardProps) {
-  const { isPressing, ...longPressHandlers } = useLongPress((x, y) => onContextMenu(x, y))
+function ClinicCard({ clinic, assignedUserCount, depth = 0, onTap, onMenu }: ClinicCardProps) {
+  const rowRef = useRef<HTMLDivElement>(null)
+  const longPress = useRef<number | null>(null)
+  const preventTap = useRef(false)
+
+  const fireMenu = useCallback(() => {
+    if (rowRef.current) onMenu(rowRef.current.getBoundingClientRect())
+  }, [onMenu])
+
+  const clearLongPress = useCallback(() => {
+    if (longPress.current) { clearTimeout(longPress.current); longPress.current = null }
+  }, [])
 
   return (
     <div
+      ref={rowRef}
       role="button"
       tabIndex={0}
       aria-label={`Open cluster ${clinic.name}`}
-      onClick={onTap}
+      onClick={() => { if (preventTap.current) { preventTap.current = false; return } onTap() }}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTap() } }}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        onContextMenu(e.clientX, e.clientY)
+      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); fireMenu() }}
+      onTouchStart={() => {
+        preventTap.current = false
+        longPress.current = window.setTimeout(() => { preventTap.current = true; fireMenu() }, 500)
       }}
-      {...longPressHandlers}
+      onTouchEnd={clearLongPress}
+      onTouchMove={clearLongPress}
       style={depth > 0 ? { paddingLeft: `${1 + depth * 1.25}rem` } : undefined}
-      className={`flex items-center gap-3 px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5 cursor-pointer select-none ${depth > 0 ? 'border-l-2 border-l-themeblue3/15' : ''} ${isPressing ? 'opacity-60' : ''}`}
+      className={`flex items-center gap-3 px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5 cursor-pointer select-none ${depth > 0 ? 'border-l-2 border-l-themeblue3/15' : ''}`}
     >
       <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
         <Building2 size={16} className="text-tertiary" />
@@ -296,6 +298,13 @@ function ClinicCard({ clinic, assignedUserCount, depth = 0, onTap, onContextMenu
       <span className="text-[9pt] text-tertiary shrink-0">
         {assignedUserCount} user{assignedUserCount !== 1 ? 's' : ''}
       </span>
+      <button
+        onClick={(e) => { e.stopPropagation(); fireMenu() }}
+        aria-label="More actions"
+        className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all shrink-0"
+      >
+        <MoreHorizontal size={16} />
+      </button>
       <ChevronRight size={16} className="text-tertiary shrink-0" />
     </div>
   )

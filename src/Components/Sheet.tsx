@@ -22,7 +22,7 @@ import { createPortal } from 'react-dom';
 import { X, ChevronUp, ChevronDown } from 'lucide-react';
 import { HeaderPill, PillButton } from './HeaderPill';
 import { DRAWER_TIMING } from '../Utilities/constants';
-import { Z } from './BaseOverlay';
+import { Z, OverlayStackContext, STACK_BUMP } from './BaseOverlay';
 
 type SheetHeight = 'fit' | 'snap';
 type SheetBackdrop = 'dismiss' | 'block' | 'none';
@@ -232,7 +232,10 @@ export function Sheet({
         : 'translateY(calc(100% + 1rem))';
 
     return createPortal(
-        <>
+        // Publish a stack ceiling so pickers / modals / confirm dialogs opened
+        // INSIDE the sheet (PreviewOverlay, BaseOverlay-based) auto-stack above
+        // it, even though the sheet portals to body at a high z.
+        <OverlayStackContext.Provider value={zIndex + STACK_BUMP}>
             {/* Backdrop — omitted entirely for 'none' so what's underneath stays
                 interactive. 'dismiss' closes on tap; 'block' is non-dismissing. */}
             {backdrop !== 'none' && (
@@ -360,7 +363,7 @@ export function Sheet({
                     </>
                 )}
             </div>
-        </>,
+        </OverlayStackContext.Provider>,
         document.body,
     );
 }

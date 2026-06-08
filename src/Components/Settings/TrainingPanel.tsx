@@ -13,7 +13,8 @@ import { AudioAidPlayer } from '../AudioAidPlayer'
 import { skillLevelLabels, categoryOrder } from '../../Data/TrainingConstants'
 import { StepCallout, PerformanceStepItem } from '../TrainingStepComponents'
 import { SectionHeader } from '../Section'
-import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
+import { LiftedRowMenu } from '../LiftedRowMenu'
+import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from '../liftPress'
 import { useNavPreferencesStore } from '../../stores/useNavPreferencesStore'
 import { useShallow } from 'zustand/react/shallow'
 
@@ -171,9 +172,7 @@ function TaskRow({
     isTaskViewed,
     assignment,
     isPinned,
-    onContextMenu,
-    onTouchStart,
-    onTouchEnd,
+    pressHandlers,
 }: {
     task: FlatTask
     onClick: () => void
@@ -181,9 +180,7 @@ function TaskRow({
     isTaskViewed: (id: string) => boolean
     assignment?: ReturnType<ReturnType<typeof useTrainingCompletions>['getAssignment']>
     isPinned: boolean
-    onContextMenu: (e: React.MouseEvent) => void
-    onTouchStart: (e: React.TouchEvent) => void
-    onTouchEnd: () => void
+    pressHandlers: ReturnType<typeof liftPressHandlers>
 }) {
     const hasData = !!getTaskData(task.taskId)
     const completed = isTaskCompleted(task.taskId)
@@ -202,10 +199,7 @@ function TaskRow({
         <button
             onClick={() => hasData && onClick()}
             disabled={!hasData}
-            onContextMenu={hasData ? onContextMenu : undefined}
-            onTouchStart={hasData ? onTouchStart : undefined}
-            onTouchEnd={hasData ? onTouchEnd : undefined}
-            onTouchCancel={hasData ? onTouchEnd : undefined}
+            {...(hasData ? pressHandlers : {})}
             className={`flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all
                 ${hasData
                     ? 'active:scale-95 hover:bg-themeblue2/5 cursor-pointer'
@@ -266,38 +260,15 @@ function TrainingList({
         useShallow(s => ({ pinnedKB: s.pinnedKB, togglePinKB: s.togglePinKB }))
     )
 
-    // ── Context menu state ───────────────────────────────────
-    const [contextMenu, setContextMenu] = useState<{ id: string; position: { x: number; y: number } } | null>(null)
-    const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const longPressTriggered = useRef(false)
+    // ── Lift-and-clone menu (long-press / right-click) ────────
+    const [lifted, setLifted] = useState<({ id: string } & LiftSnapshot) | null>(null)
+    const pressRef = useRef<LiftPressState | null>(null)
 
-    const handleTouchStart = useCallback((taskId: string, e: React.TouchEvent) => {
-        longPressTriggered.current = false
-        const touch = e.touches[0]
-        const pos = { x: touch.clientX, y: touch.clientY }
-        longPressTimer.current = setTimeout(() => {
-            longPressTriggered.current = true
-            setContextMenu({ id: taskId, position: pos })
-        }, 500)
-    }, [])
-
-    const handleTouchEnd = useCallback(() => {
-        if (longPressTimer.current) {
-            clearTimeout(longPressTimer.current)
-            longPressTimer.current = null
-        }
-    }, [])
-
-    const handleContextMenu = useCallback((taskId: string, e: React.MouseEvent) => {
-        e.preventDefault()
-        setContextMenu({ id: taskId, position: { x: e.clientX, y: e.clientY } })
-    }, [])
+    const makeHandlers = useCallback((id: string) =>
+        liftPressHandlers((snap) => setLifted({ id, ...snap }), pressRef), [])
 
     const handleTaskClick = useCallback((task: FlatTask) => {
-        if (longPressTriggered.current) {
-            longPressTriggered.current = false
-            return
-        }
+        if (pressRef.current?.fired) return
         onSelectTask(task.option)
     }, [onSelectTask])
 
@@ -376,9 +347,7 @@ function TrainingList({
                                         isTaskViewed={isTaskViewed}
                                         assignment={getAssignment(task.taskId)}
                                         isPinned={pinnedKB.includes('task:' + task.taskId)}
-                                        onContextMenu={(e) => handleContextMenu('task:' + task.taskId, e)}
-                                        onTouchStart={(e) => handleTouchStart('task:' + task.taskId, e)}
-                                        onTouchEnd={handleTouchEnd}
+                                        pressHandlers={makeHandlers('task:' + task.taskId)}
                                     />
                                 </div>
                             ))}
@@ -388,16 +357,18 @@ function TrainingList({
             )}
         </div>
 
-        {contextMenu && (
-            <ContextMenu
-                x={contextMenu.position.x}
-                y={contextMenu.position.y}
-                onClose={() => setContextMenu(null)}
+        {lifted && (
+            <LiftedRowMenu
+                isOpen
+                anchorRect={lifted.rect}
+                row={<div dangerouslySetInnerHTML={{ __html: lifted.html }} />}
+                onClose={() => setLifted(null)}
+                layout="list"
                 items={[{
                     key: 'pin',
-                    label: pinnedKB.includes(contextMenu.id) ? 'Unpin' : 'Pin',
+                    label: pinnedKB.includes(lifted.id) ? 'Unpin' : 'Pin',
                     icon: Pin,
-                    onAction: () => togglePinKB(contextMenu.id),
+                    onAction: () => togglePinKB(lifted.id),
                 }]}
             />
         )}

@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Clock, Users2, CalendarDays, X, Check, Pencil, Trash2, CalendarPlus, Play, CheckCircle2, Ban, Share2, CircleDashed } from 'lucide-react'
-import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
+import { Clock, Users2, CalendarDays, X, Check, Pencil, Trash2, CalendarPlus, Play, CheckCircle2, Ban, Share2, CircleDashed, Move, MessageSquare } from 'lucide-react'
+import { type ContextMenuItem } from '../ContextMenu'
+import { LiftedRowMenu } from '../LiftedRowMenu'
 import { useShallow } from 'zustand/react/shallow'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { EventForm } from './EventForm'
@@ -10,6 +11,7 @@ import { DayView } from './DayView'
 import { TripleDayView } from './TripleDayView'
 import { TroopsToTaskView } from './TroopsToTaskView'
 import { InfiniteScrollCalendar } from './InfiniteScrollCalendar'
+import { useShareToChat } from '../Messages/ShareToChatPicker'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { ActionSheet } from '../ActionSheet'
 import { BaseDrawer } from '../BaseDrawer'
@@ -36,7 +38,7 @@ import { getOverlays } from '../../lib/mapOverlayService'
 import { useMapOverlayWrite } from '../../Hooks/useMapOverlayWrite'
 import type { OverlayOption, RoomOption, HuddleTaskOption } from './EventForm'
 import { getInitials } from '../../Utilities/nameUtils'
-import type { CalendarEvent, EventFormData, EventStatus } from '../../Types/CalendarTypes'
+import type { CalendarEvent, EventFormData, EventStatus, EventSubtask } from '../../Types/CalendarTypes'
 import {
   eventToFormData, toDateKey, eventFallsOnDate, generateId, createEmptyFormData,
   PROVIDER_HUDDLE_TASK_ID, isEventEditable, isTemplateStructureMutable, toLocalISOString,
@@ -47,6 +49,105 @@ import { shareCalendar, shareSingleEvent, shareTroopsToTaskCsv } from '../../lib
 
 type PanelView = 'calendar' | 'detail' | 'form' | 'template' | 'block'
 type DayDrawerView = 'detail' | 'edit'
+
+/**
+ * Normalize a pressed element's rect into a compact, on-screen anchor for the
+ * LiftedRowMenu clone/raise peek. The generic clone is a fixed-size card (not a
+ * faithful copy of the pressed row), so we re-center a `w`×`h` box on the press
+ * point and clamp it inside the viewport — a tiny month pill and a tall day cell
+ * both lift as the same tidy card.
+ */
+function compactAnchorRect(r: DOMRect, w: number, h: number): DOMRect {
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const left = Math.max(12, Math.min(r.left + r.width / 2 - w / 2, vw - w - 12))
+  const top = Math.max(12, Math.min(r.top, vh - h - 80))
+  return { x: left, y: top, left, top, width: w, height: h, right: left + w, bottom: top + h, toJSON() {} } as DOMRect
+}
+
+function cloneTime(event: CalendarEvent): string {
+  const day = new Date(event.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  if (event.all_day) return `${day} · All day`
+  const fmt = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  return `${day} · ${fmt(event.start_time)} – ${fmt(event.end_time)}`
+}
+
+/** Estimate the rendered clone height so the menu drops in just below it (the
+ *  lift math anchors off anchorRect.bottom — a wrong height overlaps the two). */
+function estimateEventCloneHeight(e: CalendarEvent): number {
+  // Err slightly high — an over-estimate leaves a small gap, an under-estimate
+  // lets the menu overlap the clone (the menu anchors off anchorRect.bottom).
+  let h = 80 // p-3 padding + title (text-sm) + date/time line
+  if (e.location) h += 24
+  if (e.assigned_to.length) h += 24
+  const n = e.subtasks?.length ?? 0
+  if (n) h += 12 + n * 26 // space-y-2 gap + per-row checklist line
+  return h
+}
+
+/** Generic lifted-row clone for an event — title, date/time, location, assigned,
+ *  and the full subtask checklist. Same card regardless of which view (month
+ *  pill / day card / T2T bar) was pressed. */
+function EventClone({ event, assigned, subtaskLines, onToggleSubtask }: {
+  event: CalendarEvent
+  assigned: string[]
+  subtaskLines: { id: string; label: string; done: boolean }[]
+  /** When provided, subtask rows are tappable (assignee may tick). The clone is
+   *  otherwise pointer-events-none in the lifted menu, so these rows opt back in. */
+  onToggleSubtask?: (subtaskId: string) => void
+}) {
+  return (
+    <div className="w-full rounded-xl border border-primary/10 bg-themewhite p-3 space-y-2">
+      <div className="min-w-0 space-y-0.5">
+        <p className="text-sm font-semibold text-primary truncate">{event.title || 'Untitled event'}</p>
+        <p className="text-[10pt] text-tertiary truncate">{cloneTime(event)}</p>
+        {event.location && (
+          <p className="text-[10pt] text-tertiary truncate">{event.location}</p>
+        )}
+        {assigned.length > 0 && (
+          <p className="text-[10pt] text-tertiary truncate">{assigned.join(', ')}</p>
+        )}
+      </div>
+      {subtaskLines.length > 0 && (
+        <div className="space-y-1 pl-0.5">
+          {subtaskLines.map((t) => {
+            const box = (
+              <>
+                <span className={`shrink-0 w-4 h-4 rounded border flex items-center justify-center ${t.done ? 'bg-themeblue3 border-themeblue3' : 'border-tertiary/30'}`}>
+                  {t.done && <Check size={10} className="text-white" />}
+                </span>
+                <span className={`flex-1 min-w-0 truncate text-[10pt] text-left ${t.done ? 'text-tertiary line-through' : 'text-primary'}`}>{t.label}</span>
+              </>
+            )
+            return onToggleSubtask ? (
+              <button
+                key={t.id}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onToggleSubtask(t.id) }}
+                className="w-full flex items-center gap-2 pointer-events-auto active:scale-[0.98] transition-transform"
+              >
+                {box}
+              </button>
+            ) : (
+              <div key={t.id} className="flex items-center gap-2">{box}</div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Generic lifted-row clone for a day cell — a date chip. */
+function DayClone({ dateKey }: { dateKey: string }) {
+  const label = new Date(dateKey + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  return (
+    <div className="w-full rounded-xl border border-primary/10 bg-themewhite px-3 py-2.5 flex items-center gap-2">
+      <CalendarDays size={14} className="text-tertiary shrink-0" />
+      <span className="text-sm font-semibold text-primary truncate">{label}</span>
+    </div>
+  )
+}
 
 interface CalendarPanelProps {
   onBack: () => void
@@ -164,8 +265,11 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const [blockNonce, setBlockNonce] = useState(0)
 
   const [confirmDeleteEvent, setConfirmDeleteEvent] = useState<string | null>(null)
-  const [contextMenu, setContextMenu] = useState<{ eventId: string; x: number; y: number } | null>(null)
-  const [dayContextMenu, setDayContextMenu] = useState<{ dateKey: string; x: number; y: number } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ eventId: string; rect: DOMRect } | null>(null)
+  const [dayContextMenu, setDayContextMenu] = useState<{ dateKey: string; rect: DOMRect } | null>(null)
+  const [moveModeEventId, setMoveModeEventId] = useState<string | null>(null)
+  const moveToDateRef = useRef<(eventId: string, targetDateKey: string) => void>(() => {})
+  const { share: shareToChat, picker: shareToChatPicker } = useShareToChat()
   const [newEventDateKey, setNewEventDateKey] = useState<string | undefined>(undefined)
   const [newEventHuddleTaskId, setNewEventHuddleTaskId] = useState<string | null>(null)
   const [newEventPrefill, setNewEventPrefill] = useState<{ title?: string; startISO?: string } | null>(null)
@@ -224,6 +328,15 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const medicList = useMemo(() => Array.from(medicLookup.values()), [medicLookup])
 
   const propertyStoreItems = usePropertyStore(s => s.items)
+  const propertyStoreLocations = usePropertyStore(s => s.locations)
+  // Subtask → display label (mirrors EventTasksCard.labelFor) for the lifted clone.
+  const subtaskLabel = useCallback((sub: EventSubtask): string => {
+    switch (sub.kind) {
+      case 'task':              return sub.label
+      case 'property_item':     return sub.label_override ?? propertyStoreItems.find(p => p.id === sub.ref)?.name ?? '(deleted item)'
+      case 'property_location': return propertyStoreLocations.find(p => p.id === sub.ref)?.name ?? '(deleted location)'
+    }
+  }, [propertyStoreItems, propertyStoreLocations])
   const propertyItems = useMemo(() =>
     propertyStoreItems.filter(i => !i.parent_item_id).map(i => ({
       id: i.id,
@@ -292,6 +405,42 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     if (!event) return
     await writeEvent({ ...event, subtasks: next, updated_at: new Date().toISOString() })
   }, [events, writeEvent])
+
+  // Tick a single subtask straight from the lifted clone. Tick is assignee-gated
+  // (same rule as EventTasksCard). OPTIMISTIC + BATCHED: each tick writes the new
+  // state to the store/IDB immediately (so the clone and everything else read it)
+  // but does NOT fan out to the vault — that would be one egress message per tap.
+  // The deferred vault fanout is flushed ONCE when the menu closes / the next
+  // action runs (flushCloneSubtasks). dirtyCloneEventRef marks the event awaiting
+  // that flush.
+  const dirtyCloneEventRef = useRef<string | null>(null)
+
+  const handleToggleCloneSubtask = useCallback((eventId: string, subtaskId: string) => {
+    const event = useCalendarStore.getState().events.find(e => e.id === eventId)
+    if (!event) return
+    const uid = user?.id ?? null
+    if (!uid || !event.assigned_to.includes(uid)) return
+    const next = (event.subtasks ?? []).map(s =>
+      s.id !== subtaskId
+        ? s
+        : s.done_at
+          ? { ...s, done_by: null, done_at: null }
+          : { ...s, done_by: uid, done_at: new Date().toISOString() },
+    )
+    // Store-only update (optimistic, persists to IDB) — no vaultUpdate here.
+    useCalendarStore.getState().updateEvent(eventId, { ...event, subtasks: next, updated_at: new Date().toISOString() })
+    dirtyCloneEventRef.current = eventId
+  }, [user])
+
+  // Fan out the batched subtask edits once. Called on menu close (and folded into
+  // the status path, which fans out the full event itself). Cleared on delete.
+  const flushCloneSubtasks = useCallback(() => {
+    const id = dirtyCloneEventRef.current
+    dirtyCloneEventRef.current = null
+    if (!id) return
+    const event = useCalendarStore.getState().events.find(e => e.id === id)
+    if (event) vaultUpdate(event)
+  }, [vaultUpdate])
 
   // Deep-link from external sources (e.g. Mission Board) — open specific event in detail or edit view
   useEffect(() => {
@@ -374,11 +523,16 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   // ── Date selection ──
 
   const handleSelectDate = useCallback((date: Date) => {
+    if (moveModeEventId) {
+      moveToDateRef.current(moveModeEventId, toDateKey(date))
+      setMoveModeEventId(null)
+      return
+    }
     setSelectedDate(date)
     if (viewMode === 'month') {
       setViewMode('day')
     }
-  }, [viewMode])
+  }, [viewMode, moveModeEventId, setSelectedDate, setViewMode])
 
   const handlePrevDay = useCallback(() => {
     const prev = new Date(selectedDate)
@@ -682,6 +836,10 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     vaultUpdate(movedEvent)
   }, [vaultUpdate, isSupervisor])
 
+  // handleSelectDate (declared earlier) reaches move-to-date through this ref to
+  // avoid a temporal-dead-zone reference to the later-defined callback.
+  moveToDateRef.current = handleMoveEventToDate
+
   const handleDeleteEvent = useCallback(async (id: string) => {
     const event = useCalendarStore.getState().events.find(e => e.id === id)
     if (event && !isTemplateStructureMutable(event, isSupervisor)) return
@@ -738,14 +896,24 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     setContextMenu(null)
   }, [vaultUpdate, isSupervisor])
 
-  const handleEventContextMenu = useCallback((eventId: string, x: number, y: number) => {
-    if (isMobile) return
-    setContextMenu({ eventId, x, y })
-  }, [isMobile])
-
-  const handleDayContextMenu = useCallback((dateKey: string, x: number, y: number) => {
-    setDayContextMenu({ dateKey, x, y })
+  const handleEventContextMenu = useCallback((eventId: string, rect: DOMRect) => {
+    const ev = useCalendarStore.getState().events.find(e => e.id === eventId)
+    const w = Math.min(Math.max(rect.width, 240), 340)
+    const h = ev ? estimateEventCloneHeight(ev) : 72
+    setContextMenu({ eventId, rect: compactAnchorRect(rect, w, h) })
   }, [])
+
+  const handleDayContextMenu = useCallback((dateKey: string, rect: DOMRect) => {
+    setDayContextMenu({ dateKey, rect: compactAnchorRect(rect, 200, 44) })
+  }, [])
+
+  // "Move" from the event menu: enter move mode and drop to the month grid so the
+  // next day tap relocates the event (replaces touch drag-to-reschedule).
+  const enterMoveMode = useCallback((eventId: string) => {
+    setContextMenu(null)
+    setMoveModeEventId(eventId)
+    setViewMode('month')
+  }, [setViewMode])
 
   // ── Day drawer handlers (mobile) ──
 
@@ -861,6 +1029,23 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             </button>
           </div>
         )}
+        {/* Move-mode banner — tap a day to relocate the chosen event */}
+        {moveModeEventId && (() => {
+          const mv = events.find(e => e.id === moveModeEventId)
+          return (
+            <div className="absolute top-0 inset-x-0 z-30 flex items-center justify-between gap-2 px-3 py-2 bg-themeblue3/15 border-b border-themeblue2/30 text-[10pt]">
+              <span className="text-themeblue1 font-medium truncate">
+                Tap a day to move{mv ? ` “${mv.title}”` : ' the event'}
+              </span>
+              <button
+                onClick={() => setMoveModeEventId(null)}
+                className="shrink-0 text-themeblue2 hover:text-themeblue1 font-semibold"
+              >
+                Cancel
+              </button>
+            </div>
+          )
+        })()}
         {/* Calendar — always visible */}
         <div className="flex-1 min-w-0 relative">
           <div className="absolute inset-0 flex flex-col">
@@ -1319,46 +1504,78 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
         const ctxEvent = events.find(e => e.id === contextMenu.eventId)
         const ctxEditable = ctxEvent ? isEventEditable(ctxEvent, isSupervisor) : false
         const ctxDeletable = ctxEvent ? isTemplateStructureMutable(ctxEvent, isSupervisor) : false
-        const statusSubmenu: ContextMenuItem[] = ctxEvent && ctxEditable ? [
-          ...(ctxEvent.status !== 'pending'     ? [{ key: 'status-pending',     label: 'Pending',      icon: Clock,        onAction: () => handleStatusChange(contextMenu.eventId, 'pending') }] : []),
-          ...(ctxEvent.status !== 'in_progress' ? [{ key: 'status-inprogress',  label: 'Active',       icon: Play,         onAction: () => handleStatusChange(contextMenu.eventId, 'in_progress') }] : []),
-          ...(ctxEvent.status !== 'completed'   ? [{ key: 'status-completed',   label: 'Done',         icon: CheckCircle2, onAction: () => handleStatusChange(contextMenu.eventId, 'completed') }] : []),
-          ...(ctxEvent.status !== 'cancelled'   ? [{ key: 'status-cancelled',   label: 'Cancel',       icon: Ban,          onAction: () => handleStatusChange(contextMenu.eventId, 'cancelled'), destructive: true }] : []),
+        // Status options as a horizontal icon strip in the top row of the menu
+        // (same affordance as message reactions). Current status is color-lit;
+        // the rest are tertiary. Editable events only. A status change fans out
+        // the WHOLE event (incl. any pending subtask ticks), so clear the dirty
+        // flag — its fanout already covers the batched subtasks (no double send).
+        const applyCloneStatus = (status: EventStatus) => { handleStatusChange(contextMenu.eventId, status); dirtyCloneEventRef.current = null }
+        const statusReactions: ContextMenuItem[] = ctxEvent && ctxEditable ? [
+          { key: 'st-pending',  label: 'Pending', node: <CircleDashed size={18} className={ctxEvent.status === 'pending'     ? 'text-themeblue3'  : 'text-tertiary'} />, onAction: () => applyCloneStatus('pending') },
+          { key: 'st-active',   label: 'Active',  node: <Play         size={18} className={ctxEvent.status === 'in_progress' ? 'text-themeblue1'  : 'text-tertiary'} />, onAction: () => applyCloneStatus('in_progress') },
+          { key: 'st-done',     label: 'Done',    node: <CheckCircle2 size={18} className={ctxEvent.status === 'completed'   ? 'text-themegreen'  : 'text-tertiary'} />, onAction: () => applyCloneStatus('completed') },
+          { key: 'st-cancel',   label: 'Cancel',  node: <Ban          size={18} className={ctxEvent.status === 'cancelled'   ? 'text-themeredred' : 'text-tertiary'} />, onAction: () => applyCloneStatus('cancelled') },
         ] : []
-        const STATUS_TRIGGER: Record<string, typeof Clock> = {
-          pending: CircleDashed, in_progress: Play, completed: CheckCircle2, cancelled: Ban,
-        }
-        const statusItems: ContextMenuItem[] = statusSubmenu.length > 0 && ctxEvent
-          ? [{ key: 'status', label: 'Status', icon: STATUS_TRIGGER[ctxEvent.status] ?? CircleDashed, submenu: statusSubmenu }]
-          : []
         const editItems: ContextMenuItem[] = [
           ...(ctxEditable ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => handleEditEvent(contextMenu.eventId) }] : []),
-          ...(ctxDeletable ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteEvent(contextMenu.eventId) }] : []),
+          ...(ctxEditable ? [{ key: 'move', label: 'Move', icon: Move, onAction: () => enterMoveMode(contextMenu.eventId) }] : []),
+          // Share is read-only — available on any event regardless of edit gating.
+          // Reuses the same live-ref share as the EventDetailPanel "Share to chat".
+          { key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: () => {
+            const ev = ctxEvent
+            setContextMenu(null)
+            if (ev) shareToChat(
+              { type: 'shared_ref', refKind: 'calendar-event', refId: ev.id, label: ev.title || 'Event', subLabel: cloneTime(ev) },
+              { kind: 'calendar-event', event: ev },
+            )
+          } },
+          // Delete fans out 'd' on its own — drop any pending subtask flush.
+          ...(ctxDeletable ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => { dirtyCloneEventRef.current = null; setConfirmDeleteEvent(contextMenu.eventId) } }] : []),
         ]
-        if (statusItems.length === 0 && editItems.length === 0) {
-          setContextMenu(null)
-          return null
-        }
+        if (!ctxEvent) return null
+        const ctxAssigned = ctxEvent.assigned_to
+          .map(id => medicLookup.get(id)?.name)
+          .filter((n): n is string => !!n)
+        const ctxSubLines = [...(ctxEvent.subtasks ?? [])]
+          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+          .map(s => ({ id: s.id, label: subtaskLabel(s), done: !!s.done_at }))
+        const canTickClone = !!userId && ctxEvent.assigned_to.includes(userId)
+        const cloneEventId = ctxEvent.id
         return (
-          <ContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            onClose={() => setContextMenu(null)}
-            items={[...statusItems, ...editItems]}
+          <LiftedRowMenu
+            isOpen
+            anchorRect={contextMenu.rect}
+            row={(
+              <EventClone
+                event={ctxEvent}
+                assigned={ctxAssigned}
+                subtaskLines={ctxSubLines}
+                onToggleSubtask={canTickClone ? (sid) => handleToggleCloneSubtask(cloneEventId, sid) : undefined}
+              />
+            )}
+            layout="list"
+            reactions={statusReactions}
+            items={editItems}
+            onClose={() => { flushCloneSubtasks(); setContextMenu(null) }}
           />
         )
       })()}
 
       {dayContextMenu && (
-        <ContextMenu
-          x={dayContextMenu.x}
-          y={dayContextMenu.y}
-          onClose={() => setDayContextMenu(null)}
+        <LiftedRowMenu
+          isOpen
+          anchorRect={dayContextMenu.rect}
+          row={<DayClone dateKey={dayContextMenu.dateKey} />}
+          layout="list"
           items={[
             { key: 'add', label: 'Add Event', icon: CalendarPlus, onAction: () => handleNewEvent(dayContextMenu.dateKey) },
           ]}
+          onClose={() => setDayContextMenu(null)}
         />
       )}
+
+      {/* Share to chat: live deep-link ref (same flow as EventDetailPanel) */}
+      {shareToChatPicker}
     </>
   )
 }

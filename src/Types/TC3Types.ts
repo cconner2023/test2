@@ -134,6 +134,7 @@ export interface TC3VitalSet {
   avpu: AVPU | ''
   painScale: string
   temp: string        // temperature as entered (°F or °C)
+  tempRoute: 'oral' | 'rectal' | ''   // route the temperature was taken
   gcs: { eye: number; verbal: number; motor: number } | null
 }
 
@@ -152,6 +153,9 @@ export interface TC3Card {
     bloodType: BloodType
     service: string
     allergies: string
+    ht: string          // height, inches
+    wt: string          // weight, lbs
+    lmp: string         // last menstrual period, ISO date
     dateTimeOfInjury: string
     dateTimeOfTreatment: string
   }

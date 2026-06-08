@@ -372,7 +372,7 @@ export function KnowledgeBaseDrawer({
                 isOpen={calculatorOpen}
                 onClose={() => { setCalculatorOpen(false); setLmpPicker(false) }}
                 anchorRect={null}
-                title={lmpPicker ? 'LMP' : 'Vital Signs'}
+                title={lmpPicker ? 'LMP' : 'Conversions'}
                 onBack={lmpPicker ? () => setLmpPicker(false) : undefined}
                 maxWidth={390}
                 footer={lmpPicker ? undefined : (
@@ -396,6 +396,7 @@ export function KnowledgeBaseDrawer({
                         value={vitals}
                         onChange={setVitals}
                         onRequestLmpPicker={() => setLmpPicker(true)}
+                        conversionOnly
                     />
                 )}
             </PreviewOverlay>

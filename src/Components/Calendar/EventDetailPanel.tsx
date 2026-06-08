@@ -119,7 +119,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
       refId: event.id,
       label: event.title || 'Event',
       subLabel: formatDateTime(event.start_time, event.all_day),
-    })
+    }, { kind: 'calendar-event', event })
   }
 
   function handleMedevacCopy() {

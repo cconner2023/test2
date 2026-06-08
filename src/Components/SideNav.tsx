@@ -7,7 +7,9 @@ import { useTotalUnread } from '../stores/useMessagingStore'
 import { useFeatureVotesStore, selectHasUnvotedActiveCycle } from '../stores/useFeatureVotesStore'
 import { getInitials } from '../Utilities/nameUtils'
 import { useNavItems } from '../Hooks/useNavItems'
-import { ContextMenu, type ContextMenuItem } from './ContextMenu'
+import { type ContextMenuItem } from './ContextMenu'
+import { LiftedRowMenu } from './LiftedRowMenu'
+import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from './liftPress'
 
 const iconMapMobile: Record<string, React.ReactNode> = {
   'import': <Upload size={20} className="text-primary" />,
@@ -40,7 +42,6 @@ const iconMapDesktop: Record<string, React.ReactNode> = {
 }
 
 const BETA_ACTIONS = new Set(['lora'])
-const LONG_PRESS_MS = 500
 
 const subscribeOnline = (cb: () => void) => {
   window.addEventListener('online', cb)
@@ -74,43 +75,19 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
     starred, toggleStar, toggleHide, moveItem,
   } = useNavItems()
 
-  const [contextMenu, setContextMenu] = useState<{
-    action: string
-    label: string
-    position: { x: number; y: number }
-  } | null>(null)
-
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const longPressFired = useRef(false)
+  const [lifted, setLifted] = useState<({ action: string; label: string } & LiftSnapshot) | null>(null)
+  const pressRef = useRef<LiftPressState | null>(null)
 
   const handleItemClick = (action: string) => {
     onMenuItemClick(action)
     onClose()
   }
 
-  const startLongPress = useCallback((action: string, label: string, e: React.TouchEvent | React.MouseEvent) => {
-    if (action === 'settings') return
-    longPressFired.current = false
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
-    longPressTimer.current = setTimeout(() => {
-      longPressFired.current = true
-      setContextMenu({ action, label, position: { x: clientX, y: clientY } })
-    }, LONG_PRESS_MS)
-  }, [])
-
-  const cancelLongPress = useCallback(() => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current)
-      longPressTimer.current = null
-    }
-  }, [])
+  const makeHandlers = useCallback((action: string, label: string) =>
+    liftPressHandlers((snap) => setLifted({ action, label, ...snap }), pressRef), [])
 
   const handleClick = useCallback((action: string) => {
-    if (longPressFired.current) {
-      longPressFired.current = false
-      return
-    }
+    if (pressRef.current?.fired) return
     handleItemClick(action)
   }, [onMenuItemClick, onClose])
 
@@ -169,13 +146,7 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
                 <button
                   data-tour={`sidenav-${item.action}`}
                   onClick={() => handleClick(item.action)}
-                  onTouchStart={isPinned ? undefined : (e) => startLongPress(item.action, item.text, e)}
-                  onTouchEnd={cancelLongPress}
-                  onTouchMove={cancelLongPress}
-                  onContextMenu={isPinned ? undefined : (e) => {
-                    e.preventDefault()
-                    setContextMenu({ action: item.action, label: item.text, position: { x: e.clientX, y: e.clientY } })
-                  }}
+                  {...(isPinned ? {} : makeHandlers(item.action, item.text))}
                   className={`w-full text-left flex items-center ${isMobile ? 'pl-7 pr-4 py-3.5' : 'pl-5 pr-3 py-2.5'} rounded-xl cursor-pointer hover:bg-themewhite2/60 bg-transparent active:scale-95 transform-gpu transition-colors`}
                 >
                   <div className="mr-4 relative">
@@ -229,48 +200,50 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
         </div>
       </div>
 
-      {contextMenu && (() => {
-        const canMoveUp = currentActionOrder.indexOf(contextMenu.action) > 0
+      {lifted && (() => {
+        const canMoveUp = currentActionOrder.indexOf(lifted.action) > 0
         const canMoveDown = (() => {
-          const idx = currentActionOrder.indexOf(contextMenu.action)
+          const idx = currentActionOrder.indexOf(lifted.action)
           const settingsIdx = currentActionOrder.indexOf('settings')
           return idx < (settingsIdx !== -1 ? settingsIdx - 1 : currentActionOrder.length - 1)
         })()
-        const isStarred = starred.includes(contextMenu.action)
+        const isStarred = starred.includes(lifted.action)
         const items: ContextMenuItem[] = [
           {
             key: 'pin',
             label: isStarred ? 'Unpin' : 'Pin',
             icon: Pin,
-            onAction: () => toggleStar(contextMenu.action),
+            onAction: () => toggleStar(lifted.action),
           },
           {
             key: 'up',
             label: 'Move Up',
             icon: ChevronUp,
-            onAction: () => moveItem(contextMenu.action, 'up', currentActionOrder),
+            onAction: () => moveItem(lifted.action, 'up', currentActionOrder),
             disabled: !canMoveUp,
           },
           {
             key: 'down',
             label: 'Move Down',
             icon: ChevronDown,
-            onAction: () => moveItem(contextMenu.action, 'down', currentActionOrder),
+            onAction: () => moveItem(lifted.action, 'down', currentActionOrder),
             disabled: !canMoveDown,
           },
           {
             key: 'hide',
             label: 'Hide',
             icon: EyeOff,
-            onAction: () => toggleHide(contextMenu.action),
+            onAction: () => toggleHide(lifted.action),
             destructive: true,
           },
         ]
         return (
-          <ContextMenu
-            x={contextMenu.position.x}
-            y={contextMenu.position.y}
-            onClose={() => setContextMenu(null)}
+          <LiftedRowMenu
+            isOpen
+            anchorRect={lifted.rect}
+            row={<div dangerouslySetInnerHTML={{ __html: lifted.html }} />}
+            onClose={() => setLifted(null)}
+            layout="list"
             items={items}
           />
         )

@@ -1,14 +1,14 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Pencil, KeyRound, Trash2, LogOut, Eye, Mail } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { Pencil, KeyRound, Trash2, LogOut, Eye, Mail, MoreHorizontal } from 'lucide-react'
 import { UserRow } from '../UserRow'
 import { EmptyState } from '../EmptyState'
 import { SectionCard } from '../Section'
-import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
+import { type ContextMenuItem } from '../ContextMenu'
+import { LiftedRowMenu } from '../LiftedRowMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { AdminListSkeleton } from './AdminSkeletons'
 import { ResetPasswordForm } from './ResetPasswordForm'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
-import { useLongPress } from '../../Hooks/useLongPress'
 import { useResetPasswordFlow } from '../../Hooks/useResetPasswordFlow'
 import { formatLastActive, RoleBadge, SupervisorCreatedBadge } from './adminUtils'
 import {
@@ -38,33 +38,46 @@ export interface AdminUsersListProps {
 interface UserCardProps {
   user: AdminUser
   onTap: () => void
-  onContextMenu: (x: number, y: number) => void
+  onMenu: (rect: DOMRect) => void
   children: React.ReactNode
 }
 
-function UserCard({ user, onTap, onContextMenu, children }: UserCardProps) {
-  const { isPressing, ...longPressHandlers } = useLongPress((x, y) => onContextMenu(x, y))
+function UserCard({ user, onTap, onMenu, children }: UserCardProps) {
+  const rowRef = useRef<HTMLDivElement>(null)
+  const longPress = useRef<number | null>(null)
+  const preventTap = useRef(false)
   const label = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email || 'user'
+
+  const fireMenu = useCallback(() => {
+    if (rowRef.current) onMenu(rowRef.current.getBoundingClientRect())
+  }, [onMenu])
+
+  const clearLongPress = useCallback(() => {
+    if (longPress.current) { clearTimeout(longPress.current); longPress.current = null }
+  }, [])
 
   return (
     <div
-      key={user.id}
+      ref={rowRef}
+      data-admin-user-row
       role="button"
       tabIndex={0}
       aria-label={`Open ${label}`}
-      onClick={onTap}
+      onClick={() => { if (preventTap.current) { preventTap.current = false; return } onTap() }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
           onTap()
         }
       }}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        onContextMenu(e.clientX, e.clientY)
+      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); fireMenu() }}
+      onTouchStart={() => {
+        preventTap.current = false
+        longPress.current = window.setTimeout(() => { preventTap.current = true; fireMenu() }, 500)
       }}
-      {...longPressHandlers}
-      className={`cursor-pointer transition-opacity duration-100 ${isPressing ? 'opacity-60' : ''}`}
+      onTouchEnd={clearLongPress}
+      onTouchMove={clearLongPress}
+      className="cursor-pointer"
     >
       {children}
     </div>
@@ -93,11 +106,10 @@ export function AdminUsersList({
   // Current user ID (to prevent self-deletion / self-logout)
   const currentUserId = currentUser?.id ?? null
 
-  // Context menu
+  // Context menu (iOS lifted-clone, anchored to the row rect)
   const [contextMenu, setContextMenu] = useState<{
     userId: string
-    x: number
-    y: number
+    rect: DOMRect
   } | null>(null)
 
   // Inline reset password
@@ -309,7 +321,7 @@ export function AdminUsersList({
       <UserCard
         user={user}
         onTap={() => onSelectUser(user)}
-        onContextMenu={(x, y) => setContextMenu({ userId: user.id, x, y })}
+        onMenu={(rect) => setContextMenu({ userId: user.id, rect })}
       >
         <UserRow
           avatarId={user.avatar_id}
@@ -327,7 +339,24 @@ export function AdminUsersList({
               {user.supervisor_created && <SupervisorCreatedBadge />}
             </div>
           )}
-          right={<span className="text-[9pt] text-tertiary/50 shrink-0">{formatLastActive(user.last_active_at)}</span>}
+          right={(
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="text-[9pt] text-tertiary/50">{formatLastActive(user.last_active_at)}</span>
+              {user.id !== currentUserId && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    const row = (e.currentTarget as HTMLElement).closest('[data-admin-user-row]') as HTMLElement | null
+                    if (row) setContextMenu({ userId: user.id, rect: row.getBoundingClientRect() })
+                  }}
+                  aria-label="More actions"
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                >
+                  <MoreHorizontal size={16} />
+                </button>
+              )}
+            </div>
+          )}
         />
       </UserCard>
 
@@ -362,12 +391,31 @@ export function AdminUsersList({
       {contextMenu && (() => {
         const contextUser = users.find((u) => u.id === contextMenu.userId)
         if (!contextUser) return null
+        const items = buildContextMenuItems(contextUser)
+        if (items.length === 0) return null
         return (
-          <ContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
+          <LiftedRowMenu
+            isOpen
+            layout="list"
+            anchorRect={contextMenu.rect}
             onClose={() => setContextMenu(null)}
-            items={buildContextMenuItems(contextUser)}
+            items={items}
+            row={(
+              <div className="bg-themewhite">
+                <UserRow
+                  avatarId={contextUser.avatar_id}
+                  avatarBlob={contextUser.avatar_blob}
+                  userId={contextUser.id}
+                  firstName={contextUser.first_name}
+                  lastName={contextUser.last_name}
+                  middleInitial={contextUser.middle_initial}
+                  rank={contextUser.rank}
+                  lastActiveAt={contextUser.last_active_at}
+                  subtitle={[contextUser.credential, contextUser.uic, contextUser.clinic_name, contextUser.email].filter(Boolean).join(' · ')}
+                  right={<span className="text-[9pt] text-tertiary/50 shrink-0">{formatLastActive(contextUser.last_active_at)}</span>}
+                />
+              </div>
+            )}
           />
         )
       })()}

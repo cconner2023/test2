@@ -6,26 +6,20 @@ import { medList, type medListTypes } from '../Data/MedData'
 import { tc3MedList } from '../Data/TC3MedData'
 import { useNavPreferencesStore } from '../stores/useNavPreferencesStore'
 import { useShallow } from 'zustand/react/shallow'
-import { ContextMenu, type ContextMenuItem } from './ContextMenu'
+import { LiftedRowMenu } from './LiftedRowMenu'
+import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from './liftPress'
 
-const LONG_PRESS_MS = 500
-
-function MedicationListItem({ medication, onClick, isPinned, onContextMenu, onTouchStart, onTouchEnd }: {
+function MedicationListItem({ medication, onClick, isPinned, pressHandlers }: {
     medication: medListTypes
     onClick: () => void
     isPinned: boolean
-    onContextMenu: (e: React.MouseEvent) => void
-    onTouchStart: (e: React.TouchEvent) => void
-    onTouchEnd: () => void
+    pressHandlers: ReturnType<typeof liftPressHandlers>
 }) {
     return (
         <div
             className="flex items-center py-3 px-4 w-full border-b border-primary/6 last:border-0 cursor-pointer transition-colors active:bg-themeblue2/5"
             onClick={onClick}
-            onContextMenu={onContextMenu}
-            onTouchStart={onTouchStart}
-            onTouchEnd={onTouchEnd}
-            onTouchCancel={onTouchEnd}
+            {...pressHandlers}
         >
             <div className="flex-1 min-w-0">
                 <div className="text-[10pt] font-normal text-primary">
@@ -64,38 +58,15 @@ export function MedicationContent({
     )
     const list = tc3Mode ? tc3MedList : medList
 
-    // ── Context menu state ───────────────────────────────────
-    const [contextMenu, setContextMenu] = useState<{ id: string; position: { x: number; y: number } } | null>(null)
-    const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const longPressTriggered = useRef(false)
+    // ── Lift-and-clone menu (long-press / right-click) ────────
+    const [lifted, setLifted] = useState<({ id: string } & LiftSnapshot) | null>(null)
+    const pressRef = useRef<LiftPressState | null>(null)
 
-    const handleTouchStart = useCallback((medId: string, e: React.TouchEvent) => {
-        longPressTriggered.current = false
-        const touch = e.touches[0]
-        const pos = { x: touch.clientX, y: touch.clientY }
-        longPressTimer.current = setTimeout(() => {
-            longPressTriggered.current = true
-            setContextMenu({ id: medId, position: pos })
-        }, LONG_PRESS_MS)
-    }, [])
-
-    const handleTouchEnd = useCallback(() => {
-        if (longPressTimer.current) {
-            clearTimeout(longPressTimer.current)
-            longPressTimer.current = null
-        }
-    }, [])
-
-    const handleContextMenu = useCallback((medId: string, e: React.MouseEvent) => {
-        e.preventDefault()
-        setContextMenu({ id: medId, position: { x: e.clientX, y: e.clientY } })
-    }, [])
+    const makeHandlers = useCallback((id: string) =>
+        liftPressHandlers((snap) => setLifted({ id, ...snap }), pressRef), [])
 
     const handleMedClick = useCallback((med: medListTypes) => {
-        if (longPressTriggered.current) {
-            longPressTriggered.current = false
-            return
-        }
+        if (pressRef.current?.fired) return
         onMedicationSelect(med)
     }, [onMedicationSelect])
 
@@ -135,9 +106,7 @@ export function MedicationContent({
                                 medication={medication}
                                 onClick={() => handleMedClick(medication)}
                                 isPinned
-                                onContextMenu={(e) => handleContextMenu('med:' + medication.icon, e)}
-                                onTouchStart={(e) => handleTouchStart('med:' + medication.icon, e)}
-                                onTouchEnd={handleTouchEnd}
+                                pressHandlers={makeHandlers('med:' + medication.icon)}
                             />
                         ))}
                     </SectionCard>
@@ -152,24 +121,24 @@ export function MedicationContent({
                             medication={medication}
                             onClick={() => handleMedClick(medication)}
                             isPinned={false}
-                            onContextMenu={(e) => handleContextMenu('med:' + medication.icon, e)}
-                            onTouchStart={(e) => handleTouchStart('med:' + medication.icon, e)}
-                            onTouchEnd={handleTouchEnd}
+                            pressHandlers={makeHandlers('med:' + medication.icon)}
                         />
                     ))}
                 </SectionCard>
             )}
 
-            {contextMenu && (
-                <ContextMenu
-                    x={contextMenu.position.x}
-                    y={contextMenu.position.y}
-                    onClose={() => setContextMenu(null)}
+            {lifted && (
+                <LiftedRowMenu
+                    isOpen
+                    anchorRect={lifted.rect}
+                    row={<div dangerouslySetInnerHTML={{ __html: lifted.html }} />}
+                    onClose={() => setLifted(null)}
+                    layout="list"
                     items={[{
                         key: 'pin',
-                        label: pinnedKB.includes(contextMenu.id) ? 'Unpin' : 'Pin',
+                        label: pinnedKB.includes(lifted.id) ? 'Unpin' : 'Pin',
                         icon: Pin,
-                        onAction: () => togglePinKB(contextMenu.id),
+                        onAction: () => togglePinKB(lifted.id),
                     }]}
                 />
             )}

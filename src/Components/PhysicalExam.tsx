@@ -1265,7 +1265,7 @@ export function PhysicalExam({
                                                         }`}>
                                                             {selected && <Check size={12} strokeWidth={2.5} />}
                                                         </span>
-                                                        <span className="text-[10pt] font-medium text-primary">{block.label}</span>
+                                                        <span className="text-[10pt] text-primary">{block.label}</span>
                                                     </button>
                                                     {block.key === 'msk' && selected && MSK_CHILD_KEYS
                                                         .filter(k => !lc || MASTER_BLOCK_LIBRARY[k]?.label.toLowerCase().includes(lc))
@@ -1287,7 +1287,7 @@ export function PhysicalExam({
                                                                     }`}>
                                                                         {childSel && <Check size={10} strokeWidth={2.5} />}
                                                                     </span>
-                                                                    <span className="text-[9pt] font-medium text-secondary">{child.label}</span>
+                                                                    <span className="text-[9pt] text-secondary">{child.label}</span>
                                                                 </button>
                                                             );
                                                         })}

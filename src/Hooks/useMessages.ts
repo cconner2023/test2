@@ -468,9 +468,13 @@ export interface UseMessagesReturn {
    * Send a structured-content message to a peer (1:1). Mirrors sendMessage's
    * accepted-conversation path but accepts arbitrary MessageContent + a
    * caller-supplied originId. Used for non-text payloads like shared object
-   * references. Only valid in an open (received/accepted) conversation.
+   * references. Only valid in an open (received/accepted) conversation —
+   * UNLESS `opts.openAsRequest` is set, in which case a 'none' conversation is
+   * opened by sending the content as the first message REQUEST (used by the
+   * cross-cluster bundle share, which starts a fresh thread with an out-cluster
+   * peer). 'sent' (a pending outbound request already exists) still refuses.
    */
-  sendStructured: (peerId: string, content: MessageContent, originId: string, preview: string) => Promise<boolean>
+  sendStructured: (peerId: string, content: MessageContent, originId: string, preview: string, opts?: { openAsRequest?: boolean }) => Promise<boolean>
   /**
    * Toggle an emoji reaction on a message. Works for 1:1, self, and group
    * conversations (routes by the conversation key). Applies optimistically to
@@ -1050,6 +1054,7 @@ export function useMessages(): UseMessagesReturn {
     content: MessageContent,
     originId: string,
     preview: string,
+    opts?: { openAsRequest?: boolean },
   ): Promise<boolean> => {
     const localDeviceId = useMessagingStore.getState().localDeviceId
     if (!userId || !localDeviceId) return false
@@ -1088,20 +1093,27 @@ export function useMessages(): UseMessagesReturn {
     }
 
     const status = getRequestStatus(useMessagingStore.getState().conversations[peerId], userId)
-    if (status === 'none' || status === 'sent') return false
+    if (status === 'sent') return false
+
+    // Open a fresh thread by sending the structured content as the first
+    // REQUEST (cross-cluster bundle share). Mirrors sendMessage's 'none' path
+    // but carries structured content. Without openAsRequest a 'none'
+    // conversation still refuses (a shared_ref must not open a request thread).
+    const messageType: 'message' | 'request' = status === 'none' ? 'request' : 'message'
+    if (status === 'none' && !opts?.openAsRequest) return false
 
     const localId = crypto.randomUUID()
     const now = new Date().toISOString()
     addMessage({
       id: localId, senderId: userId, recipientId: peerId, plaintext: preview,
-      content, messageType: 'message', createdAt: now, readAt: null,
+      content, messageType, createdAt: now, readAt: null,
       status: 'sending', originId,
     })
 
     store().setSending(peerId, true)
     try {
       const serialized = serializeContent(content)
-      const result = await encryptAndSendToPeer(userId, localDeviceId, peerId, serialized, 'message', undefined, originId)
+      const result = await encryptAndSendToPeer(userId, localDeviceId, peerId, serialized, messageType, undefined, originId)
       if (!result.ok) {
         logger.error('Failed to send structured message:', result.error)
         removeOptimisticMessage(peerId, localId)
@@ -1109,7 +1121,7 @@ export function useMessages(): UseMessagesReturn {
       }
       updateMessageStatus(peerId, localId, result.data)
       sendSyncToOwnDevices(userId, localDeviceId, {
-        forPeerId: peerId, serialized, originalMessageType: 'message',
+        forPeerId: peerId, serialized, originalMessageType: messageType,
         originalTimestamp: now, originalMessageId: result.data,
       }, undefined, originId).catch(e =>
         errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendStructured', message: 'Failed to sync structured message to own devices', timestamp: Date.now(), metadata: { error: e } })

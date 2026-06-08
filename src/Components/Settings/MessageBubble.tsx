@@ -8,6 +8,7 @@ import { ReactionChips, hasReactions, type ReactionCode } from '../Messages/Reac
 import { IntakeRequestCard } from '../Messages/IntakeRequestCard'
 import { OncallCallCard } from '../Messages/OncallCallCard'
 import { OutsideMessageCard } from '../Messages/OutsideMessageCard'
+import { SharedBundleCard } from '../Messages/SharedBundleCard'
 import { OverlaySnapshot } from '../MapOverlay/OverlaySnapshot'
 import { detectFirstDate } from '../../Utilities/dateDetect'
 import { useNavigationStore } from '../../stores/useNavigationStore'
@@ -244,6 +245,22 @@ export function MessageBubble({
         createdAt={message.createdAt}
         onLongPress={(x, y) => onLongPress?.(message, x, y)}
         messageId={message.id}
+      />
+    )
+  }
+
+  // Cross-cluster shared object bundle: a frozen calendar event / map overlay
+  // from another cluster, rendered as an "Add to my cluster" card. The dedicated
+  // card mounts the calendar/overlay write hooks itself (only for bundle
+  // messages) so the main bubble path stays light.
+  if (message.content?.type === 'shared_bundle') {
+    return (
+      <SharedBundleCard
+        content={message.content}
+        isOwn={isOwn}
+        senderName={senderName}
+        messageId={message.id}
+        onLongPress={(x, y) => onLongPress?.(message, x, y)}
       />
     )
   }

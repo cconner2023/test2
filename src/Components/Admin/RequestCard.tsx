@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from 'react'
+import { useState, useCallback, useMemo, useRef, type ReactNode } from 'react'
 import { Clock, Building2, Trash2, UserCheck, X, HelpCircle, Check, RefreshCw, Mail } from 'lucide-react'
 import { TextInput, PickerInput, MultiPickerInput, UicPinInput } from '../FormInputs'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -8,7 +8,6 @@ import { Z } from '../BaseOverlay'
 import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
 import { StepResults, type StepResult } from './StepResults'
-import { useLongPress } from '../../Hooks/useLongPress'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import type { Component } from '../../Data/User'
 import {
@@ -44,7 +43,7 @@ export interface RequestCardProps {
   setConfirmDeleteId: (id: string | null) => void
   matchedClinic: AdminClinic | undefined
   isExistingUser: boolean
-  setContextMenu: (v: { requestId: string; x: number; y: number } | null) => void
+  setContextMenu: (v: { requestId: string; rect: DOMRect; clone: ReactNode } | null) => void
   clinics: AdminClinic[]
   uicToClinic: Map<string, AdminClinic>
   onApproved?: (userId: string, request: AccountRequest, configured: { roles: string[]; clinicId: string | null; warnings: string[] }) => void
@@ -294,11 +293,41 @@ export function RequestCard({
     }
   }, [request.id, setExpandedId, onRefresh])
 
-  // ── Long press ──────────────────────────────────────────
-  const { isPressing, ...longPress } = useLongPress((x: number, y: number) => {
-    if (!hasActions) return
-    setContextMenu({ requestId: request.id, x, y })
-  }, { delay: 500 })
+  // ── Lifted-clone context menu (right-click + long-press) ──
+  const longPressTimer = useRef<number | null>(null)
+  const preventTap = useRef(false)
+  const openMenu = () => {
+    if (!hasActions || !cardRef.current) return
+    setContextMenu({
+      requestId: request.id,
+      rect: cardRef.current.getBoundingClientRect(),
+      clone: (
+        <div className="bg-themewhite">
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
+              <IconComponent size={16} className={iconColor} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-primary truncate">
+                {isSupport
+                  ? `${request.first_name}${request.last_name ? ` ${request.last_name}` : ''}`
+                  : [request.rank, request.first_name, request.middle_initial, request.last_name].filter(Boolean).join(' ')}
+              </p>
+              <p className="text-[9pt] text-tertiary mt-0.5 truncate">
+                {isSupport ? request.email : [request.credential, request.email].filter(Boolean).join(' · ')}
+              </p>
+            </div>
+            <span className={`text-[9pt] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0 ${getRequestStatusColor(request.status)}`}>
+              {isSupport ? 'Help' : request.status}
+            </span>
+          </div>
+        </div>
+      ),
+    })
+  }
+  const clearLongPress = () => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
+  }
 
   const handleTap = useCallback(() => {
     if (!hasActions) return
@@ -414,13 +443,12 @@ export function RequestCard({
     <>
       <div
         ref={cardRef}
-        {...longPress}
-        onContextMenu={hasActions ? (e) => {
-          e.preventDefault()
-          setContextMenu({ requestId: request.id, x: e.clientX, y: e.clientY })
-        } : undefined}
-        onClick={handleTap}
-        className={`transition-all hover:bg-themeblue2/5 cursor-pointer select-none ${isPressing ? 'opacity-60' : ''}`}
+        onContextMenu={hasActions ? (e) => { e.preventDefault(); e.stopPropagation(); openMenu() } : undefined}
+        onTouchStart={hasActions ? () => { preventTap.current = false; longPressTimer.current = window.setTimeout(() => { preventTap.current = true; openMenu() }, 500) } : undefined}
+        onTouchEnd={hasActions ? clearLongPress : undefined}
+        onTouchMove={hasActions ? clearLongPress : undefined}
+        onClick={() => { if (preventTap.current) { preventTap.current = false; return } handleTap() }}
+        className="transition-all hover:bg-themeblue2/5 cursor-pointer select-none"
       >
         {/* Row 1: icon + name/subtitle + status badge */}
         <div className="flex items-center gap-3 px-4 py-3.5">

@@ -1,5 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react'
-import { useLongPress } from '../../Hooks/useLongPress'
+import { useCallback, useMemo, useRef, type ReactNode } from 'react'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { getDisplayName } from '../../Utilities/nameUtils'
 import { SYSTEM_USER_ID } from '../../lib/signal/systemIdentity'
@@ -8,7 +7,7 @@ import type { AdminSystemConversation } from '../../Hooks/useAdminSystemConversa
 export interface SystemConversationCardProps {
   conversation: AdminSystemConversation
   onSelect: (peerId: string) => void
-  setContextMenu: (v: { peerId: string; x: number; y: number } | null) => void
+  setContextMenu: (v: { peerId: string; rect: DOMRect; clone: ReactNode } | null) => void
 }
 
 function formatTimestamp(iso: string): string {
@@ -28,9 +27,36 @@ export function SystemConversationCard({ conversation, onSelect, setContextMenu 
   const { peerId, peerProfile, lastMessage, unreadCount } = conversation
   const cardRef = useRef<HTMLDivElement>(null)
 
-  const { isPressing, ...longPress } = useLongPress((x: number, y: number) => {
-    setContextMenu({ peerId, x, y })
-  }, { delay: 500 })
+  const longPressTimer = useRef<number | null>(null)
+  const preventTap = useRef(false)
+  const openMenu = () => {
+    if (!cardRef.current) return
+    setContextMenu({
+      peerId,
+      rect: cardRef.current.getBoundingClientRect(),
+      clone: (
+        <div className="bg-themewhite">
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <UserAvatar
+              avatarId={peerProfile?.avatarId ?? null}
+              avatarBlob={peerProfile?.avatarBlob ?? null}
+              userId={peerProfile?.id ?? null}
+              firstName={peerProfile?.firstName ?? null}
+              lastName={peerProfile?.lastName ?? null}
+              className="w-9 h-9"
+            />
+            <span className="flex-1 min-w-0 text-sm font-medium text-primary truncate">{displayName}</span>
+            <span className="text-[9pt] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0 bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
+              System
+            </span>
+          </div>
+        </div>
+      ),
+    })
+  }
+  const clearLongPress = () => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
+  }
 
   const handleTap = useCallback(() => {
     onSelect(peerId)
@@ -53,13 +79,12 @@ export function SystemConversationCard({ conversation, onSelect, setContextMenu 
   return (
     <div
       ref={cardRef}
-      onClick={handleTap}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        setContextMenu({ peerId, x: e.clientX, y: e.clientY })
-      }}
-      {...longPress}
-      className={`transition-all hover:bg-themeblue2/5 cursor-pointer select-none ${isPressing ? 'scale-[0.98]' : ''}`}
+      onClick={() => { if (preventTap.current) { preventTap.current = false; return } handleTap() }}
+      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); openMenu() }}
+      onTouchStart={() => { preventTap.current = false; longPressTimer.current = window.setTimeout(() => { preventTap.current = true; openMenu() }, 500) }}
+      onTouchEnd={clearLongPress}
+      onTouchMove={clearLongPress}
+      className="transition-all hover:bg-themeblue2/5 cursor-pointer select-none"
     >
       <div className="flex items-center gap-3 px-4 py-3.5">
         <UserAvatar
