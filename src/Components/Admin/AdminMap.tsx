@@ -89,17 +89,24 @@ export function AdminMap({ searchQuery, onClearSearch, onSelectUser, onSelectCli
     const ancestry = useMemo(() => ancestryOf(focusId, idx), [focusId, idx])
 
     // ── Container measurement ────────────────────────────────────────────────
-    const containerRef = useRef<HTMLDivElement>(null)
+    // Callback ref, NOT a mount effect: the canvas only enters the tree once the
+    // loading skeleton clears (the `showLoading` early-return below). A `[]`-deps
+    // effect would run while the ref is still null and never re-subscribe, so the
+    // observer must attach the moment the node actually mounts.
+    const roRef = useRef<ResizeObserver | null>(null)
     const [size, setSize] = useState({ w: 0, h: 0 })
-    useEffect(() => {
-        const el = containerRef.current
-        if (!el) return
+    const measureRef = useCallback((el: HTMLDivElement | null) => {
+        roRef.current?.disconnect()
+        if (!el) { roRef.current = null; return }
+        // Measure immediately so the first paint after mount already has a size.
+        const r = el.getBoundingClientRect()
+        setSize({ w: r.width, h: r.height })
         const ro = new ResizeObserver(([entry]) => {
-            const r = entry.contentRect
-            setSize({ w: r.width, h: r.height })
+            const cr = entry.contentRect
+            setSize({ w: cr.width, h: cr.height })
         })
         ro.observe(el)
-        return () => ro.disconnect()
+        roRef.current = ro
     }, [])
 
     // ── Navigation ───────────────────────────────────────────────────────────
@@ -236,7 +243,7 @@ export function AdminMap({ searchQuery, onClearSearch, onSelectUser, onSelectCli
 
             {/* Canvas — tap empty space to back out one ring */}
             <div
-                ref={containerRef}
+                ref={measureRef}
                 onClick={goUp}
                 className="absolute inset-0"
             >

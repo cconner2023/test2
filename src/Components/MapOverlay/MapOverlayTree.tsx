@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, type ReactNode } from 'react';
-import { ChevronRight, ChevronDown, Eye, EyeOff, Pencil, Trash2, X, Check, ArrowDownToLine, Wifi, Loader2, Plus, CalendarClock, Link2, Link2Off, MessageSquare, MoreHorizontal } from 'lucide-react';
+import { ChevronRight, ChevronDown, Eye, EyeOff, Pencil, Trash2, X, Check, ArrowDownToLine, Wifi, Loader2, Plus, CalendarClock, Link2, Link2Off, MessageSquare, MoreHorizontal, Copy } from 'lucide-react';
 import { LiftedRowMenu } from '../LiftedRowMenu';
 import type { ContextMenuItem } from '../ContextMenu';
 import { EmptyState } from '../EmptyState';
@@ -110,6 +110,8 @@ interface MapOverlayTreeProps {
   onOpenFeatureLinksEditor: (overlayId: string, featureId: string, anchor: HTMLElement) => void;
   /** Delete a single feature from its overlay. */
   onDeleteFeature: (overlayId: string, featureId: string) => void;
+  /** Duplicate a feature into another overlay (or a brand-new one). Opens the target chooser. */
+  onCopyFeatureToOverlay: (overlayId: string, featureId: string) => void;
 }
 
 export function MapOverlayTree({
@@ -134,6 +136,7 @@ export function MapOverlayTree({
   onOpenLinksEditor,
   onOpenFeatureLinksEditor,
   onDeleteFeature,
+  onCopyFeatureToOverlay,
 }: MapOverlayTreeProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -470,6 +473,7 @@ export function MapOverlayTree({
         const items: ContextMenuItem[] = [
               { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onSelectFeature(feature, overlay.id) },
               { key: 'share-to-chat', label: 'Share to chat', icon: MessageSquare, onAction: () => shareFeature(overlay, feature) },
+              { key: 'copy-to-overlay', label: 'Copy to overlay…', icon: Copy, onAction: () => onCopyFeatureToOverlay(overlay.id, feature.id) },
               {
                 key: 'manage-links',
                 label: 'Manage event links…',

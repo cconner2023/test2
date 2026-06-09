@@ -1,15 +1,33 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Calendar, Map as MapIcon, Image as ImageIcon, Package, ChevronRight } from 'lucide-react'
+import { Calendar, Map as MapIcon, Image as ImageIcon, Package, ChevronRight, MapPin, Route, Hexagon } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { useMapOverlaysStore, useMapOverlaysCache } from '../../stores/useMapOverlaysStore'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { fetchClinicItems } from '../../lib/propertyService'
 import type { LocalPropertyItem } from '../../Types/PropertyTypes'
+import type { LocalMapOverlay, OverlayFeature } from '../../Types/MapOverlayTypes'
 import type { SharedRefContent } from '../../lib/signal/messageContent'
 
 type RefKind = 'calendar-event' | 'map-overlay' | 'property-item'
-type Step = 'menu' | RefKind
+// 'map-feature' is a drill-in sub-step of 'map-overlay' — pick a single feature
+// (or the whole overlay) so the shared_ref can carry a featureId.
+type Step = 'menu' | RefKind | 'map-feature'
+
+/** Sentinel row id for the "Whole overlay" option inside the feature step. */
+const WHOLE_OVERLAY = '__whole_overlay__'
+
+function featureTypeLabel(f: OverlayFeature): string {
+  if (f.type === 'waypoint') return f.waypoint_type ? `Waypoint · ${f.waypoint_type.toUpperCase()}` : 'Waypoint'
+  if (f.type === 'route') return f.recorded ? 'Recorded route' : 'Route'
+  return 'Area'
+}
+
+function featureIcon(f: OverlayFeature) {
+  if (f.type === 'route') return Route
+  if (f.type === 'area') return Hexagon
+  return MapPin
+}
 
 interface SharedObjectPickerProps {
   isOpen: boolean
@@ -57,6 +75,8 @@ export function SharedObjectPicker({
   const overlays = useMapOverlaysStore(s => s.overlays)
   const storeItems = usePropertyStore(s => s.items)
   const [step, setStep] = useState<Step>('menu')
+  // Overlay whose features the user is drilling into (map-feature step).
+  const [featureOverlay, setFeatureOverlay] = useState<LocalMapOverlay | null>(null)
 
   // Property store only inits when its drawer opens; if a chat reaches the
   // property step with no cached items, do a one-shot clinic-items fetch.
@@ -69,7 +89,7 @@ export function SharedObjectPicker({
   const propertyItems = storeItems.length > 0 ? storeItems : (fetchedItems ?? [])
 
   // Reset to the menu whenever the picker (re)opens.
-  useEffect(() => { if (isOpen) setStep('menu') }, [isOpen])
+  useEffect(() => { if (isOpen) { setStep('menu'); setFeatureOverlay(null) } }, [isOpen])
 
   const buildRows = useMemo(() => (filter: string): Row[] => {
     const q = filter.trim().toLowerCase()
@@ -108,17 +128,68 @@ export function SharedObjectPicker({
           }
         })
     }
+    if (step === 'map-feature' && featureOverlay) {
+      const feats = featureOverlay.features ?? []
+      const featureRows: Row[] = feats
+        .filter(f => !q || (f.label ?? '').toLowerCase().includes(q))
+        .map(f => ({ id: f.id, label: f.label || 'Untitled feature', sub: featureTypeLabel(f) }))
+      // "Whole overlay" stays pinned at top when not actively filtering.
+      const whole: Row = {
+        id: WHOLE_OVERLAY,
+        label: 'Whole overlay',
+        sub: `${feats.length} ${feats.length === 1 ? 'feature' : 'features'}`,
+      }
+      return q ? featureRows : [whole, ...featureRows]
+    }
     return []
-  }, [step, events, overlays, propertyItems])
+  }, [step, events, overlays, propertyItems, featureOverlay])
 
   const handlePick = (kind: RefKind, row: Row) => {
     onPick({ type: 'shared_ref', refKind: kind, refId: row.id, label: row.label, subLabel: row.sub })
     onClose()
   }
 
+  // Map-overlay rows drill into a feature step instead of picking immediately —
+  // unless the overlay has no features, in which case share the whole overlay.
+  const handleRowClick = (kind: RefKind, row: Row) => {
+    if (kind === 'map-overlay') {
+      const o = overlays.find(ov => ov.id === row.id)
+      if (o && (o.features?.length ?? 0) > 0) { setFeatureOverlay(o); setStep('map-feature'); return }
+    }
+    handlePick(kind, row)
+  }
+
+  // Feature step: "Whole overlay" → overlay-scoped ref; a feature → ref + featureId.
+  const handlePickFeature = (row: Row) => {
+    if (!featureOverlay) return
+    if (row.id === WHOLE_OVERLAY) {
+      const count = featureOverlay.features?.length ?? 0
+      onPick({
+        type: 'shared_ref',
+        refKind: 'map-overlay',
+        refId: featureOverlay.id,
+        label: featureOverlay.name || 'Untitled overlay',
+        subLabel: featureOverlay.description || `${count} ${count === 1 ? 'feature' : 'features'}`,
+      })
+    } else {
+      const f = featureOverlay.features?.find(ff => ff.id === row.id)
+      if (!f) return
+      onPick({
+        type: 'shared_ref',
+        refKind: 'map-overlay',
+        refId: featureOverlay.id,
+        featureId: f.id,
+        label: f.label || 'Waypoint',
+        subLabel: featureOverlay.name || 'Overlay',
+      })
+    }
+    onClose()
+  }
+
   const title = step === 'menu' ? 'Share'
     : step === 'calendar-event' ? 'Share an event'
     : step === 'property-item' ? 'Share an item'
+    : step === 'map-feature' ? (featureOverlay?.name || 'Share a feature')
     : 'Share a map'
 
   // ── Menu step ──────────────────────────────────────────────────────────
@@ -166,34 +237,47 @@ export function SharedObjectPicker({
     </div>
   )
 
-  // ── Object-list step ───────────────────────────────────────────────────
+  // ── Object-list step (also the map-feature drill-in) ────────────────────
   const list = (filter: string) => {
+    const isFeatureStep = step === 'map-feature'
     const kind = step as RefKind
     const rows = buildRows(filter)
     const Icon = kind === 'calendar-event' ? Calendar : kind === 'property-item' ? Package : MapIcon
-    const emptyText = kind === 'calendar-event' ? 'No events to share'
+    const emptyText = isFeatureStep ? 'No features to share'
+      : kind === 'calendar-event' ? 'No events to share'
       : kind === 'property-item' ? 'No property to share'
       : 'No maps to share'
     if (rows.length === 0) {
       return <p className="text-[10pt] text-tertiary text-center py-10">{emptyText}</p>
     }
+    const rowIcon = (row: Row) => {
+      if (!isFeatureStep || row.id === WHOLE_OVERLAY) return Icon
+      const f = featureOverlay?.features?.find(ff => ff.id === row.id)
+      return f ? featureIcon(f) : MapIcon
+    }
     return (
       <div className="py-1">
-        {rows.map(row => (
-          <button
-            key={row.id}
-            onClick={() => handlePick(kind, row)}
-            className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-primary/5 active:scale-[0.99] transition-all text-left"
-          >
-            <div className="w-9 h-9 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
-              <Icon size={16} className="text-themeblue3" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11pt] font-medium text-primary truncate">{row.label}</p>
-              <p className="text-[9pt] text-tertiary truncate">{row.sub}</p>
-            </div>
-          </button>
-        ))}
+        {rows.map(row => {
+          const RowIcon = rowIcon(row)
+          return (
+            <button
+              key={row.id}
+              onClick={() => isFeatureStep ? handlePickFeature(row) : handleRowClick(kind, row)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-primary/5 active:scale-[0.99] transition-all text-left"
+            >
+              <div className="w-9 h-9 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
+                <RowIcon size={16} className="text-themeblue3" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11pt] font-medium text-primary truncate">{row.label}</p>
+                <p className="text-[9pt] text-tertiary truncate">{row.sub}</p>
+              </div>
+              {!isFeatureStep && kind === 'map-overlay' && (
+                <ChevronRight size={16} className="text-tertiary shrink-0" />
+              )}
+            </button>
+          )
+        })}
       </div>
     )
   }
@@ -206,7 +290,7 @@ export function SharedObjectPicker({
       containerRef={containerRef}
       anchored
       title={title}
-      onBack={step === 'menu' ? undefined : () => setStep('menu')}
+      onBack={step === 'menu' ? undefined : step === 'map-feature' ? () => setStep('map-overlay') : () => setStep('menu')}
       maxWidth={320}
       previewMaxHeight="50dvh"
       {...(step === 'menu'

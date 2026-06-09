@@ -55,6 +55,7 @@ import { MapOverlayTree } from './MapOverlayTree';
 import { OverlayEventPicker } from './OverlayEventPicker';
 import { useCalendarWrite } from '../../Hooks/useCalendarWrite';
 import { addFeatureLink, addOverlayLink, removeFeatureLink, removeOverlayLink } from '../../lib/eventLinks';
+import { cloneFeatureForOverlay } from '../../lib/cloneFeature';
 import { useNavigationStore } from '../../stores/useNavigationStore';
 import { resolveSearch } from './searchResolver';
 import { MapSearchOverlay, type SearchOverlaySelection } from './MapSearchOverlay';
@@ -1665,6 +1666,69 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     setConfirmDeleteFeature(featureId);
   }, []);
 
+  // ── Copy a feature into another overlay (or a brand-new one) ──
+  // Containment model: "copy to overlay" DUPLICATES the feature (fresh id +
+  // new home overlay) rather than sharing one instance. The copies diverge
+  // immediately — independent edit/delete. copyFeatureTarget drives the
+  // target-chooser ActionSheet; performCopyFeature runs the chosen target.
+  const [copyFeatureTarget, setCopyFeatureTarget] = useState<{ sourceOverlayId: string; featureId: string } | null>(null);
+
+  const handleCopyFeatureToOverlay = useCallback((sourceOverlayId: string, featureId: string) => {
+    setCopyFeatureTarget({ sourceOverlayId, featureId });
+  }, []);
+
+  const resolveCopySourceFeature = useCallback(
+    (src: { sourceOverlayId: string; featureId: string }): OverlayFeature | null => {
+      // Prefer the live editing state when the source is the open overlay so
+      // unsaved edits ride along; otherwise read the last-saved overlays list.
+      if (src.sourceOverlayId === overlayId) {
+        const live = features.find(f => f.id === src.featureId);
+        if (live) return live;
+      }
+      const ov = overlays.find(o => o.id === src.sourceOverlayId);
+      return ov?.features.find(f => f.id === src.featureId) ?? null;
+    },
+    [overlayId, features, overlays],
+  );
+
+  // target: 'new' → create a fresh overlay framed on the feature; else copy
+  // into the existing overlay id. Both paths persist + fan out through the
+  // standard write hooks (upsertFeature 'c' / writeOverlay bulk), so the
+  // sync substrate is untouched and the tree refreshes via invalidate.
+  const performCopyFeature = useCallback(async (target: 'new' | string) => {
+    const src = copyFeatureTarget;
+    setCopyFeatureTarget(null);
+    if (!src || !activeClinicId) return;
+    const source = resolveCopySourceFeature(src);
+    if (!source) return;
+
+    if (target === 'new') {
+      const newOverlayId = crypto.randomUUID();
+      const clone = cloneFeatureForOverlay(source, newOverlayId);
+      const center: [number, number] = source.geometry[0] ?? mapCenter;
+      await writeOverlay({
+        overlayId: newOverlayId,
+        clinicId: activeClinicId,
+        name: source.label?.trim() || 'New overlay',
+        center,
+        zoom: Math.max(mapZoom, 13),
+        features: [clone],
+      });
+      return;
+    }
+
+    const clone = cloneFeatureForOverlay(source, target);
+    await upsertFeature({ overlayId: target, clinicId: activeClinicId, feature: clone });
+    // If the destination is the overlay currently open in the editor, mirror
+    // the already-persisted clone into the live list AND advance the saved
+    // baseline so the draft-diff Save doesn't re-send it as a pending feature.
+    if (target === overlayId) {
+      skipDirtyRef.current = true;
+      setFeatures(prev => [...prev, clone]);
+      lastSavedFeaturesRef.current = [...lastSavedFeaturesRef.current, clone];
+    }
+  }, [copyFeatureTarget, activeClinicId, resolveCopySourceFeature, overlayId, mapCenter, mapZoom, writeOverlay, upsertFeature]);
+
   const handleConfirmDeleteFeature = useCallback(async () => {
     const targetId = confirmDeleteFeature;
     setConfirmDeleteFeature(null);
@@ -1919,6 +1983,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 onOpenLinksEditor={handleOpenLinksEditor}
                 onOpenFeatureLinksEditor={handleOpenFeatureLinksEditor}
                 onDeleteFeature={handleDeleteFeatureFromTree}
+                onCopyFeatureToOverlay={handleCopyFeatureToOverlay}
               />
               <OverlayEventPicker
                 isOpen={!!linkPicker}
@@ -2054,6 +2119,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                         onOpenLinksEditor={handleOpenLinksEditor}
                         onOpenFeatureLinksEditor={(ov, fid, anchor) => { handleOpenFeatureLinksEditor(ov, fid, anchor); setShowMobileTree(false); }}
                         onDeleteFeature={(ov, fid) => { handleDeleteFeatureFromTree(ov, fid); setShowMobileTree(false); }}
+                        onCopyFeatureToOverlay={(ov, fid) => { handleCopyFeatureToOverlay(ov, fid); setShowMobileTree(false); }}
                       />
                     </section>
                   </div>
@@ -2380,6 +2446,31 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                     title={title}
                     options={options}
                     onClose={() => setAddSheet(null)}
+                  />
+                );
+              })()}
+
+              {/* Copy-to-overlay target chooser — "New overlay" first so the
+                  user is never trapped into an existing overlay, then every
+                  other overlay (the source is excluded — copying onto itself
+                  is a no-op). */}
+              {copyFeatureTarget && (() => {
+                const targets = overlays.filter(o => o.id !== copyFeatureTarget.sourceOverlayId);
+                const options: ActionSheetOption[] = [
+                  { key: 'new-overlay', label: 'New overlay', icon: Plus, onAction: () => performCopyFeature('new') },
+                  ...targets.map(o => ({
+                    key: o.id,
+                    label: o.name || 'Untitled overlay',
+                    icon: Layers,
+                    onAction: () => performCopyFeature(o.id),
+                  })),
+                ];
+                return (
+                  <ActionSheet
+                    visible
+                    title="Copy to overlay"
+                    options={options}
+                    onClose={() => setCopyFeatureTarget(null)}
                   />
                 );
               })()}

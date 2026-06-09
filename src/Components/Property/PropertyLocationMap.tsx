@@ -139,6 +139,34 @@ function flattenToWorld(tagIndex: TagIndex, rootId: string): LocationTag[] {
   return result
 }
 
+/**
+ * Lay out N tag-less child zones in a grid of canvas-relative (0..1) rects.
+ * Used both for the view-mode auto-render (converted to world space) and for
+ * seeding editable zones in nested edit — so a child location created without
+ * drawn geometry still shows up inside its parent and can be dragged to persist.
+ */
+function layoutChildZones(count: number): { x: number; y: number; width: number; height: number }[] {
+  if (count <= 0) return []
+  const PAD = 0.06
+  const GAP = 0.12
+  const cols = Math.ceil(Math.sqrt(count))
+  const rows = Math.ceil(count / cols)
+  const cellW = (1 - PAD * 2) / cols
+  const cellH = (1 - PAD * 2) / rows
+  const rects: { x: number; y: number; width: number; height: number }[] = []
+  for (let i = 0; i < count; i++) {
+    const cx = i % cols
+    const cy = Math.floor(i / cols)
+    rects.push({
+      x: PAD + cx * cellW + (cellW * GAP) / 2,
+      y: PAD + cy * cellH + (cellH * GAP) / 2,
+      width: cellW * (1 - GAP),
+      height: cellH * (1 - GAP),
+    })
+  }
+  return rects
+}
+
 
 // ── Component ─────────────────────────────────────────────────
 
@@ -365,6 +393,66 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     return [...baseTags, ...autoPins]
   }, [visibleTags, items, store.selectedZoneId])
 
+  // ── Auto-rendered child zones ──
+  // Child locations that have NO drawn zone tag get a default grid rectangle laid
+  // out inside their parent's world bounds (mirrors the item auto-pin pattern above),
+  // so a "New area" sub-zone renders + is tappable the instant it's created. Dragging
+  // one in nested edit persists a real tag.
+  const childZoneAutoTags: LocationTag[] = useMemo(() => {
+    const selectedId = store.selectedZoneId
+    if (!selectedId) return []
+
+    // Place every tag-less child of `parentLocId` inside `parentZone` (a world-space rect).
+    const placeChildren = (parentZone: LocationTag, parentLocId: string): LocationTag[] => {
+      const taggedChildIds = new Set(
+        allWorldTags
+          .filter((t) => t.location_id === parentLocId && t.target_type === 'location')
+          .map((t) => t.target_id),
+      )
+      const untagged = locations.filter((l) => l.parent_id === parentLocId && !taggedChildIds.has(l.id))
+      const rects = layoutChildZones(untagged.length)
+      const pw = parentZone.width ?? 0
+      const ph = parentZone.height ?? 0
+      return untagged.map((loc, i) => ({
+        id: `autozone-${loc.id}`,
+        location_id: parentLocId,
+        target_type: 'location' as const,
+        target_id: loc.id,
+        x: parentZone.x + rects[i].x * pw,
+        y: parentZone.y + rects[i].y * ph,
+        width: rects[i].width * pw,
+        height: rects[i].height * ph,
+        label: loc.name,
+        rects: null,
+      }))
+    }
+
+    const selectedRealZone = allWorldTags.find(
+      (t) => t.target_id === selectedId && (t.width ?? 0) > 0 && (t.height ?? 0) > 0,
+    )
+    if (selectedRealZone) {
+      // Selected zone has real geometry → render its tag-less children inside it.
+      return placeChildren(selectedRealZone, selectedId)
+    }
+
+    // Selected zone is itself tag-less (an auto-zone that was tapped). Render it (and
+    // its siblings) inside its real parent so it doesn't vanish, then its own children.
+    const selLoc = locations.find((l) => l.id === selectedId)
+    const parentId = selLoc?.parent_id
+    if (!parentId) return []
+    const parentZone = allWorldTags.find(
+      (t) => t.target_id === parentId && (t.width ?? 0) > 0 && (t.height ?? 0) > 0,
+    )
+    if (!parentZone) return []
+    const siblings = placeChildren(parentZone, parentId)
+    const selfZone = siblings.find((t) => t.target_id === selectedId)
+    if (!selfZone) return siblings
+    return [...siblings, ...placeChildren(selfZone, selectedId)]
+  }, [store.selectedZoneId, allWorldTags, locations])
+  // Ref so handleZoneTap can zoom to an auto-zone (not present in allWorldTags).
+  const childZoneAutoTagsRef = useRef<LocationTag[]>([])
+  childZoneAutoTagsRef.current = childZoneAutoTags
+
   // ── Zoom to a world-coord rect { x, y, width, height } ──
   const zoomToRect = useCallback(
     (rect: { x: number; y: number; width: number; height: number }, smooth = true) => {
@@ -496,7 +584,9 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
       const prevId = store.selectedZoneId
       store.selectZone(targetId)
-      const tag = allWorldTags.find((t) => t.target_id === targetId)
+      const tag =
+        allWorldTags.find((t) => t.target_id === targetId) ??
+        childZoneAutoTagsRef.current.find((t) => t.target_id === targetId)
       if (!tag) return
 
       // If navigating between siblings/unrelated zones, use shared-parent animation
@@ -667,7 +757,30 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     // Separate zone tags from item pins — CanvasEditOverlay only processes zone tags
     const zoneTags = allTags.filter((t) => t.target_type !== 'item')
     setEditCanvasId(canvasId)
-    setEditCanvasTags(zoneTags)
+
+    // Seed default rectangles for child locations that have no drawn zone yet, so
+    // they appear as editable zones (drag/resize to persist). target_id is the
+    // existing location id → handleEditSave won't re-create it, just persists the tag.
+    if (canvasId !== rootLocationId) {
+      const taggedChildIds = new Set(zoneTags.filter((t) => t.target_type === 'location').map((t) => t.target_id))
+      const untaggedChildren = locationsRef.current.filter((l) => l.parent_id === canvasId && !taggedChildIds.has(l.id))
+      const rects = layoutChildZones(untaggedChildren.length)
+      const seededZones: LocationTag[] = untaggedChildren.map((loc, i) => ({
+        id: crypto.randomUUID(),
+        location_id: canvasId,
+        target_type: 'location' as const,
+        target_id: loc.id,
+        x: rects[i].x,
+        y: rects[i].y,
+        width: rects[i].width,
+        height: rects[i].height,
+        label: loc.name,
+        rects: null,
+      }))
+      setEditCanvasTags([...zoneTags, ...seededZones])
+    } else {
+      setEditCanvasTags(zoneTags)
+    }
 
     // Load item pins for non-root zone edits; auto-place any items without a saved pin
     if (canvasId !== rootLocationId) {
@@ -784,8 +897,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       // Merge item pins back in so they aren't clobbered by the zone tag save
       const savedTags = await upsertLocationTags(canvasId, [...resolvedTags, ...editItemPinsRef.current])
 
-      // Optimistic: update tagIndex directly — no bumpTagVersion() here to avoid
-      // racing reconcileLocationTagsWithServer with the Supabase push in upsertLocationTags
+      // Optimistic: update tagIndex directly so the new zones show instantly.
       if (savedTags.success && savedTags.tags) {
         setTagIndex((prev) => {
           if (!prev) return prev
@@ -796,8 +908,17 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       }
 
       handleExitEdit()
+
+      // onCreateLocation (above) mutated `locations`, which already re-fired the
+      // tagIndex effect MID-save with a stale fetch that started before the tags
+      // were written — left alone it resolves late and clobbers the optimistic
+      // update (the "nested zones never render" bug). The Supabase push in
+      // upsertLocationTags is awaited by now, so bumping tagVersion is safe: it
+      // invalidates that stale fetch via the effect's `stale` guard and runs one
+      // authoritative refetch after the write has landed on both IDB and server.
+      store.bumpTagVersion()
     },
-    [editCanvasId, rootLocationId, clinicId, onCreateLocation, onDeleteLocation, onEditItem, handleExitEdit],
+    [editCanvasId, rootLocationId, clinicId, onCreateLocation, onDeleteLocation, onEditItem, handleExitEdit, store],
   )
 
   // ── Drill up one level in the zone hierarchy ──
@@ -1276,7 +1397,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
             <div className="relative" style={{ width: totalW, height: totalH }}>
               <div className="absolute" style={{ left: padX, top: padY, width: contentW, height: contentH }}>
                 <LocationTagPhoto
-                  tags={visibleTagsWithPins}
+                  tags={[...visibleTagsWithPins, ...childZoneAutoTags]}
                   selectedZoneId={store.selectedZoneId}
                   onZoneTap={handleZoneTap}
                   scale={1}
@@ -1335,9 +1456,11 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
           </button>
         )}
 
-        {/* Edit mode toolbar — only visible when editing */}
+        {/* Edit mode toolbar — only visible when editing. Mobile clears the floating
+            glass header via --drawer-header-h (same offset as the view-mode edit
+            button); desktop's solid header needs no offset. */}
         {isEditing && (
-          <div className="absolute top-3 right-3 z-20 flex flex-col items-end">
+          <div className={`absolute right-3 z-20 flex flex-col items-end ${isMobile ? 'top-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]' : 'top-3'}`}>
             <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 flex items-center shadow-sm">
               <button
                 onClick={() => { setIsDrawing((d) => !d); setIsResizing(false); setIsMoving(false) }}
