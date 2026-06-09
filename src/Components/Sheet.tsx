@@ -43,6 +43,10 @@ interface SheetProps {
 
     /** Optional header title. Omit (with hideClose) for a pure content card. */
     title?: string;
+    /** Optional rich title node — replaces the plain `title` text in the header
+     *  slot (e.g. a breadcrumb stacked above a name). `title` is still used for
+     *  the dialog aria-label. */
+    titleNode?: ReactNode;
     /** Hide the built-in close affordance (consumer renders its own / none). */
     hideClose?: boolean;
     /** Header-left cluster (before the title). */
@@ -73,6 +77,7 @@ export function Sheet({
     peekHeight = 40,
     fullHeight = 92,
     title,
+    titleNode,
     hideClose,
     leftContent,
     rightContent,
@@ -299,7 +304,9 @@ export function Sheet({
                                 <div className="flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-2 min-w-0">
                                         {leftContent && <div className="shrink-0">{leftContent}</div>}
-                                        <h2 className="truncate text-[13pt] font-semibold text-primary min-w-0">{title}</h2>
+                                        {titleNode
+                                            ? <div className="min-w-0 flex-1">{titleNode}</div>
+                                            : <h2 className="truncate text-[13pt] font-semibold text-primary min-w-0">{title}</h2>}
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0">
                                         {rightContent}
@@ -342,11 +349,13 @@ export function Sheet({
                                 <div className="w-9 h-1 rounded-full bg-tertiary/25" />
                             </div>
                         )}
-                        {(title || leftContent || rightContent || actions || !hideClose) && (
+                        {(title || titleNode || leftContent || rightContent || actions || !hideClose) && (
                             <div className="flex items-center justify-between gap-2 px-4 pt-1 pb-2 shrink-0 border-b border-primary/6">
                                 <div className="flex items-center gap-2 min-w-0">
                                     {leftContent && <div className="shrink-0">{leftContent}</div>}
-                                    {title && <span className="truncate text-[13pt] font-semibold text-primary min-w-0">{title}</span>}
+                                    {titleNode
+                                        ? <div className="min-w-0 flex-1">{titleNode}</div>
+                                        : title && <span className="truncate text-[13pt] font-semibold text-primary min-w-0">{title}</span>}
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
                                     {rightContent}

@@ -91,7 +91,11 @@ async function canReachSupabase(): Promise<boolean> {
       headers: { apikey: import.meta.env.VITE_SUPABASE_ANON_KEY },
       signal: controller.signal,
     })
-    return resp.ok
+    // Any non-5xx response proves the server is reachable. The unauthenticated
+    // HEAD has no bearer token, so PostgREST answers 401 — that still means we're
+    // online. The old `resp.ok` check treated 401 as unreachable, which kept
+    // wasOnline=false and re-fired this probe every 30s indefinitely.
+    return resp.status < 500
   } catch {
     return false
   } finally {
@@ -854,6 +858,9 @@ export function setupConnectivityListeners(
   const PERIODIC_CHECK_MS = 30_000
   const periodicTimer = setInterval(async () => {
     if (syncInProgress) return
+    // Don't probe/sync while backgrounded — the 'online' event + a foreground
+    // tick will catch up when the tab is visible again.
+    if (typeof document !== 'undefined' && document.hidden) return
 
     const pendingItems = await getPendingSyncItems(userId)
     const hasPending = pendingItems.length > 0

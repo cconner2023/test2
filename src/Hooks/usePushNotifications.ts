@@ -44,6 +44,12 @@ export function usePushNotifications() {
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       if (event.data?.type === 'PUSH_RECEIVED') {
+        // Message-routed pushes carry only the generic FCM copy ('New Message').
+        // The locally-decrypted realtime path already renders a specific
+        // "Sender / message" banner via MessageNotificationToast, so suppress the
+        // generic duplicate here and let that rich banner be the sole one.
+        const url = event.data.url as string | undefined
+        if (url?.includes('view=messages')) return
         if (foregroundTimerRef.current) clearTimeout(foregroundTimerRef.current)
         setForegroundPush({
           title: event.data.title || 'Notification',

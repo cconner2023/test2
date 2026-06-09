@@ -713,6 +713,17 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     return base
   }, [newEventDateKey, newEventHuddleTaskId, newEventPrefill, activeClinicId])
 
+  // Force EventForm to remount whenever the form session changes. EventForm
+  // seeds its internal state from initialData ONCE (useState), so a prefill that
+  // lands a tick after the form first mounts (e.g. the deep-link "new event"
+  // effect setting newEventPrefill, or a message-detected date) would otherwise
+  // never reach the inputs — the form would render blank. Keying by the data
+  // identity guarantees a clean remount with the current initialData; it only
+  // changes when a new session opens, so it never clobbers in-progress edits.
+  const formKey = editingEvent
+    ? `edit-${editingEvent.id}`
+    : `new-${newEventDateKey ?? ''}-${newEventHuddleTaskId ?? ''}-${newEventPrefill?.startISO ?? ''}-${newEventPrefill?.title ?? ''}`
+
   const handleEditEvent = useCallback((id: string) => {
     const event = events.find(e => e.id === id)
     if (event && isEventEditable(event, isSupervisor)) {
@@ -1161,6 +1172,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           >
             <div className="relative h-full">
               <EventForm
+                key={formKey}
                 ref={eventFormRef}
                 initialData={editingEvent ? eventToFormData(editingEvent) : newEventInitialData}
                 onSave={handleSaveEvent}
@@ -1365,6 +1377,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto">
                     <EventForm
+                      key={formKey}
                       ref={eventFormRef}
                       initialData={editingEvent ? eventToFormData(editingEvent) : newEventInitialData}
                       onSave={handleSaveEvent}

@@ -6,13 +6,13 @@ import { AddFab } from '../AddFab'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useShallow } from 'zustand/react/shallow'
 import { PropertyLocationTree } from './PropertyLocationTree'
-import { PropertyLocationList, type PropertyLocationListHandle } from './PropertyLocationList'
+import { PropertyBreadcrumb } from './PropertyBreadcrumb'
+import { PropertySearchOverlay } from './PropertySearchOverlay'
 import { PropertyLocationForm, type PropertyLocationFormHandle } from './PropertyLocationForm'
 import { PropertyLocationDetail, buildLocationMenuItems, usePropertyPhotoUpload } from './PropertyLocationDetail'
 import { PropertyItemForm, type PropertyItemFormHandle } from './PropertyItemForm'
 import { PropertyLocationMap, type MapNavHandle } from './PropertyLocationMap'
 import { Sheet } from '../Sheet'
-import { SearchInput } from '../SearchInput'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useClinicName } from '../../Hooks/useClinicNameResolver'
@@ -35,8 +35,11 @@ interface PropertyPanelProps {
   isMobile?: boolean
   onRegisterAddLocation?: (trigger: () => void) => void
   onRegisterAddItem?: (trigger: () => void) => void
-  locationListRef?: React.Ref<unknown>
   onSearchChange?: (query: string) => void
+  /** Mobile only — whether the header search is focused (drives the results overlay). */
+  searchFocused?: boolean
+  /** Mobile only — set search focus (e.g. clear on result tap / back). */
+  onSearchFocusChange?: (focused: boolean) => void
   onEnrollItem?: (item: LocalPropertyItem) => void
   /** Open the shared add ActionSheet (FAB lives over the center map pane). */
   onOpenAddSheet?: () => void
@@ -58,8 +61,8 @@ export const PropertyPanel = memo(function PropertyPanel({
   isMobile = true,
   onRegisterAddLocation,
   onRegisterAddItem,
-  locationListRef,
-  onSearchChange,
+  searchFocused = false,
+  onSearchFocusChange,
   onEnrollItem,
   onOpenAddSheet,
   showLocationSheet,
@@ -95,6 +98,9 @@ export const PropertyPanel = memo(function PropertyPanel({
   const itemFormRef = useRef<PropertyItemFormHandle>(null)
   const locationFormRef = useRef<PropertyLocationFormHandle>(null)
   const itemDetailRef = useRef<PropertyItemDetailHandle>(null)
+  // Set when we programmatically navigate the canvas to an item's zone (item
+  // select), so the resulting onSelectZone doesn't close the item we just opened.
+  const pendingItemZoneRef = useRef<string | null>(null)
   // The zone selected on the canvas (or tree) drives the right-pane detail (desktop)
   // / detail sheet (mobile).
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
@@ -146,10 +152,19 @@ export const PropertyPanel = memo(function PropertyPanel({
   }, [onRegisterAddItem])
 
   const handleSelectItem = useCallback((item: LocalPropertyItem) => {
+    // Auto-navigate the canvas to the item's zone so it surfaces "within that
+    // location" — the breadcrumb then points to that zone/sub-zone. Flag the
+    // programmatic selection so onSelectZone keeps the item open.
+    const targetZone = item.location_id ?? null
+    if (targetZone && targetZone !== selectedLocationId) {
+      pendingItemZoneRef.current = targetZone
+      mapRef.current?.navigateToZone(targetZone)
+      setTimeout(() => { pendingItemZoneRef.current = null }, 0)
+    }
     // Mobile: nest the item inside the location sheet (back returns to the zone).
     if (isMobile) { setMobileItem(item); return }
     onSelectItem(item)
-  }, [isMobile, onSelectItem])
+  }, [isMobile, onSelectItem, selectedLocationId])
 
   // Keep the nested mobile item fresh as the store mutates; drop it if it vanishes.
   useEffect(() => {
@@ -202,6 +217,15 @@ export const PropertyPanel = memo(function PropertyPanel({
     mapRef.current?.clearSelection()
   }, [])
 
+  // Breadcrumb (in the detail header) → navigate the canvas to an ancestor zone,
+  // or to root. Leaving any open item/form first so the target zone surfaces.
+  const handleBreadcrumbNavigate = useCallback((id: string | null) => {
+    if (isMobile) { setMobileItem(null); closeMobileForm() }
+    else if (view === 'property-detail' || view === 'property-form') { onBack() }
+    if (id) mapRef.current?.navigateToZone(id)
+    else mapRef.current?.resetZoom()
+  }, [isMobile, view, onBack, closeMobileForm])
+
   const handleMoveLocation = useCallback(async (locationId: string, newParentId: string | null) => {
     await store.editLocation(locationId, { parent_id: newParentId })
   }, [store])
@@ -251,7 +275,13 @@ export const PropertyPanel = memo(function PropertyPanel({
       onUpdateLocation={(id, updates) => store.editLocation(id, updates)}
       onSelectItem={handleSelectItem}
       onCreateItem={() => handleAddItemAtLocation(null)}
-      onSelectZone={(id) => { setSelectedLocationId(id); setMobileItem(null); setMobileForm(null) }}
+      onSelectZone={(id) => {
+        setSelectedLocationId(id)
+        // Keep the item open when this zone change was the auto-navigation that
+        // revealed it; otherwise a real zone change closes the open item/form.
+        if (id && id === pendingItemZoneRef.current) return
+        setMobileItem(null); setMobileForm(null)
+      }}
     />
   ) : null
 
@@ -269,13 +299,19 @@ export const PropertyPanel = memo(function PropertyPanel({
     onDelete: () => setPendingDeleteLocId(loc.id),
   })
 
+  // Bare lg FAB in a positioning wrapper — mirrors MapOverlayPanel's add FAB.
+  // The SAB padding rides the wrapper (not a tray), so the button stays a clean
+  // circle instead of the old tray stretching vertically.
   const addFab = onOpenAddSheet ? (
-    <AddFab
-      tour="property-add-fab"
-      label="Add"
-      onClick={onOpenAddSheet}
-      className="absolute bottom-4 right-4 z-30 pb-[max(0.25rem,calc(var(--sab,0px)+0.25rem))]"
-    />
+    <div className="absolute bottom-4 right-4 z-30 pb-[max(0rem,var(--sab,0px))] pointer-events-none">
+      <AddFab
+        tour="property-add-fab"
+        label="Add"
+        size="lg"
+        tray={false}
+        onClick={onOpenAddSheet}
+      />
+    </div>
   ) : null
 
   // Desktop layout — left rail (location tree) · center map · right pane (detail/form),
@@ -354,7 +390,16 @@ export const PropertyPanel = memo(function PropertyPanel({
                       <ChevronLeft size={18} />
                     </button>
                   )}
-                  <p className="flex-1 min-w-0 truncate text-sm font-medium text-primary">{selectedItem.name}</p>
+                  <div className="flex-1 min-w-0">
+                    <PropertyBreadcrumb
+                      locationId={selectedItem.location_id ?? null}
+                      locations={visibleLocations}
+                      rootLabel={clinicName}
+                      onNavigate={handleBreadcrumbNavigate}
+                      className="mb-0.5"
+                    />
+                    <p className="truncate text-sm font-medium text-primary">{selectedItem.name}</p>
+                  </div>
                   <HeaderPill>
                     <span className="inline-flex" onClick={(e) => itemDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
                       <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
@@ -409,7 +454,17 @@ export const PropertyPanel = memo(function PropertyPanel({
                       <ChevronLeft size={18} />
                     </button>
                   )}
-                  <p className="flex-1 min-w-0 truncate text-sm font-medium text-primary">{selectedLocation.name}</p>
+                  <div className="flex-1 min-w-0">
+                    <PropertyBreadcrumb
+                      locationId={selectedLocation.id}
+                      locations={visibleLocations}
+                      rootLabel={clinicName}
+                      onNavigate={handleBreadcrumbNavigate}
+                      excludeLeaf
+                      className="mb-0.5"
+                    />
+                    <p className="truncate text-sm font-medium text-primary">{selectedLocation.name}</p>
+                  </div>
                   <HeaderPill>
                     <span className="inline-flex" onClick={openLocMenu}>
                       <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
@@ -469,6 +524,17 @@ export const PropertyPanel = memo(function PropertyPanel({
       <div data-tour="property-locations" className="h-full relative">
         {mapEl}
         {addFab}
+        {/* Search results page — mirrors the map overlay's MapSearchOverlay:
+            focusing the header search reveals this over the full-screen canvas. */}
+        <PropertySearchOverlay
+          isVisible={searchFocused}
+          value={searchQuery}
+          items={store.items}
+          locations={visibleLocations}
+          holders={store.holders}
+          onSelectItem={(item) => { handleSelectItem(item); onSearchFocusChange?.(false) }}
+          onOpenLocation={(loc) => { mapRef.current?.navigateToZone(loc.id); onSearchFocusChange?.(false) }}
+        />
       </div>
 
       {/* Selected zone → detail sheet (mirrors the map overlay's feature sheet):
@@ -484,6 +550,23 @@ export const PropertyPanel = memo(function PropertyPanel({
                 ? (store.editingItem ? 'Edit Item' : 'New Item')
                 : (mobileForm.loc ? 'Edit Location' : 'New Location'))
             : mobileItem ? mobileItem.name : (selectedLocation?.name ?? '')
+        }
+        titleNode={
+          !mobileForm && (mobileItem || selectedLocation) ? (
+            <div className="min-w-0">
+              <PropertyBreadcrumb
+                locationId={mobileItem ? (mobileItem.location_id ?? null) : (selectedLocation?.id ?? null)}
+                locations={visibleLocations}
+                rootLabel={clinicName}
+                onNavigate={handleBreadcrumbNavigate}
+                excludeLeaf={!mobileItem}
+                className="mb-0.5"
+              />
+              <span className="block truncate text-[13pt] font-semibold text-primary">
+                {mobileItem ? mobileItem.name : selectedLocation?.name}
+              </span>
+            </div>
+          ) : undefined
         }
         height="fit"
         maxHeight={60}
@@ -582,33 +665,25 @@ export const PropertyPanel = memo(function PropertyPanel({
         maxHeight={70}
         zIndex={1200}
       >
-        <div>
-          {onSearchChange && (
-            <div className="px-3 pt-2 pb-1">
-              <SearchInput
-                value={searchQuery}
-                onChange={onSearchChange}
-                placeholder="Search items..."
-              />
-            </div>
-          )}
-          <PropertyLocationList
-            ref={locationListRef as React.Ref<PropertyLocationListHandle>}
-            locations={visibleLocations}
-            items={store.items}
-            holders={store.holders}
-            clinicName={clinicName}
-            searchQuery={searchQuery}
-            onOpenLocation={(loc) => { mapRef.current?.navigateToZone(loc.id); onCloseLocationSheet?.() }}
-            onSelectItem={(item) => { handleSelectItem(item); onCloseLocationSheet?.() }}
-            onEditLocation={handleEditLocation}
-            onEditItem={handleEditItemRow}
-            onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
-            onDeleteItem={onDeleteItem ? (item) => setPendingDeleteItem(item) : undefined}
-            onAddChildLocation={handleAddChildLocation}
-            onAddItemAtLocation={handleAddItemAtLocation}
-          />
-        </div>
+        {/* List view renders the SAME tree as the desktop rail (not cards). */}
+        <PropertyLocationTree
+          locations={visibleLocations}
+          items={store.items}
+          clinicName={clinicName}
+          activeLocationId={selectedLocationId}
+          allSelected={!selectedLocationId}
+          onSelectAll={() => { mapRef.current?.resetZoom(); onCloseLocationSheet?.() }}
+          onSelectLocation={(loc) => { mapRef.current?.navigateToZone(loc.id); onCloseLocationSheet?.() }}
+          onSelectItem={(item) => { handleSelectItem(item); onCloseLocationSheet?.() }}
+          onMoveLocation={handleMoveLocation}
+          onMoveItem={handleMoveItem}
+          onEditLocation={handleEditLocation}
+          onEditItem={handleEditItemRow}
+          onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
+          onDeleteItem={onDeleteItem ? (item) => setPendingDeleteItem(item) : undefined}
+          onAddChildLocation={handleAddChildLocation}
+          onAddItemAtLocation={handleAddItemAtLocation}
+        />
       </Sheet>
 
       <ConfirmDialog

@@ -28,6 +28,10 @@ import {
   deleteLocalFeatureVoteCandidate,
   saveLocalFeatureVote,
   getLocalFeatureVoteForUserCycle,
+  getLocalFeatureVoteCycles,
+  getLocalFeatureVoteCandidates,
+  getLocalFeatureVoteSuggestions,
+  getLocalFeatureVoteSuggestionsByUser,
   updateFeatureVoteSyncStatus,
   saveLocalFeatureVoteSuggestion,
   deleteLocalFeatureVoteSuggestion,
@@ -42,6 +46,7 @@ import { immediateSync } from './syncEngine'
 import { type Result, ok, err, type ServiceResult, succeed, fail } from './result'
 import { ErrorCode } from './errorCodes'
 import { getErrorMessage } from '../Utilities/errorUtils'
+import { deltaRead, invalidateDeltaCache, localStorageBase, type DeltaCacheConfig } from './deltaCache'
 
 const logger = createLogger('FeatureVotingService')
 
@@ -154,6 +159,55 @@ function rowToSuggestion(r: Record<string, unknown>): FeatureVoteSuggestion {
 }
 
 // ============================================================
+// UI → Local (write-through cache mappers)
+// ============================================================
+
+function cycleToLocal(c: FeatureVoteCycle): LocalFeatureVoteCycle {
+  return {
+    id: c.id,
+    title: c.title,
+    description: c.description,
+    opened_at: c.openedAt,
+    closed_at: c.closedAt,
+    created_by: c.createdBy,
+    created_at: c.createdAt,
+    updated_at: c.updatedAt,
+  }
+}
+
+function candidateToLocal(c: FeatureVoteCandidate): LocalFeatureVoteCandidate {
+  return {
+    id: c.id,
+    cycle_id: c.cycleId,
+    title: c.title,
+    description: c.description,
+    sort_order: c.sortOrder,
+    source_suggestion_id: c.sourceSuggestionId,
+    created_at: c.createdAt,
+    updated_at: c.updatedAt,
+  }
+}
+
+function suggestionToLocal(s: FeatureVoteSuggestion): LocalFeatureVoteSuggestion {
+  return {
+    id: s.id,
+    cycle_id: s.cycleId,
+    user_id: s.userId,
+    title: s.title,
+    description: s.description,
+    status: s.status,
+    reviewed_at: s.reviewedAt,
+    reviewed_by: s.reviewedBy,
+    created_at: s.createdAt,
+    updated_at: s.updatedAt,
+    _sync_status: 'synced',
+    _sync_retry_count: 0,
+    _last_sync_error: null,
+    _last_sync_error_message: null,
+  }
+}
+
+// ============================================================
 // Public Reads
 // ============================================================
 
@@ -168,20 +222,64 @@ export async function fetchActiveCycle(): Promise<Result<FeatureVoteCycle | null
     .maybeSingle()
 
   if (error) {
-    logger.error('fetchActiveCycle failed', error.message)
-    return err(error.message, error.code)
+    // Network failure → serve last-known open cycle from IDB (offline-first).
+    logger.warn('fetchActiveCycle network failed, falling back to IDB', error.message)
+    const local = await getLocalFeatureVoteCycles()
+    const open = local
+      .filter((c) => !c.closed_at)
+      .sort((a, b) => b.opened_at.localeCompare(a.opened_at))
+    return ok(open[0] ? rowToCycle(open[0] as unknown as Record<string, unknown>) : null)
   }
-  return ok(data ? rowToCycle(data as Record<string, unknown>) : null)
+  const cycle = data ? rowToCycle(data as Record<string, unknown>) : null
+  if (cycle) await saveLocalFeatureVoteCycle(cycleToLocal(cycle))
+  return ok(cycle)
+}
+
+// Admin-only cycle list (AdminFeatureVotesSection reloads on every tab open).
+// Cache-first + updated_at delta. feature_vote_cycles is hard-deleted (no archived_at
+// column), so deletes can't ride the delta — clearCyclesCache() wipes after every cycle
+// mutation and the next read cold-refetches. Dev-only/single-actor, so cross-device
+// delete staleness is a non-issue. The user-facing store uses fetchActiveCycle, not this.
+/** Raw cycle DB row: an opaque record carrying the cursor + (absent) tombstone. */
+interface CycleDeltaRow {
+  [key: string]: unknown
+  id: string
+  updated_at: string
+  archived_at?: string | null
+}
+
+const CYCLES_KEY = 'fvcycles:all'
+const CYCLES_TTL_MS = 5 * 60 * 1000
+const cyclesBase = localStorageBase<FeatureVoteCycle>('adtmc_fvcycles_cache_v1', CYCLES_TTL_MS)
+
+const allCyclesCfg: DeltaCacheConfig<FeatureVoteCycle, CycleDeltaRow> = {
+  key: CYCLES_KEY,
+  loadBase: cyclesBase.loadBase,
+  saveBase: cyclesBase.saveBase,
+  fetchDelta: async (since) => {
+    let q = supabase.from('feature_vote_cycles').select('*').order('updated_at')
+    if (since) q = q.gt('updated_at', since)
+    const { data, error } = await q
+    if (error) throw error
+    return (data ?? []) as unknown as CycleDeltaRow[]
+  },
+  toRow: (r) => rowToCycle(r),
+  memTtlMs: 60 * 1000,
+}
+
+/** Wipe the cycles cache after any cycle mutation (hard-delete can't ride the delta). */
+function clearCyclesCache(): void {
+  invalidateDeltaCache(CYCLES_KEY)
+  cyclesBase.clearBase(CYCLES_KEY)
 }
 
 export async function fetchAllCycles(): Promise<Result<FeatureVoteCycle[]>> {
-  const { data, error } = await supabase
-    .from('feature_vote_cycles')
-    .select('*')
-    .order('opened_at', { ascending: false })
-
-  if (error) return err(error.message, error.code)
-  return ok(((data as Record<string, unknown>[]) ?? []).map(rowToCycle))
+  try {
+    const rows = await deltaRead(allCyclesCfg)
+    return ok([...rows].sort((a, b) => b.openedAt.localeCompare(a.openedAt)))
+  } catch (e) {
+    return err(getErrorMessage(e, 'Failed to load cycles'))
+  }
 }
 
 export async function fetchCandidates(cycleId: string): Promise<Result<FeatureVoteCandidate[]>> {
@@ -191,8 +289,19 @@ export async function fetchCandidates(cycleId: string): Promise<Result<FeatureVo
     .eq('cycle_id', cycleId)
     .order('sort_order', { ascending: true })
 
-  if (error) return err(error.message, error.code)
-  return ok(((data as Record<string, unknown>[]) ?? []).map(rowToCandidate))
+  if (error) {
+    // Candidates are immutable for the life of a cycle → IDB is authoritative offline.
+    logger.warn('fetchCandidates network failed, falling back to IDB', error.message)
+    const local = await getLocalFeatureVoteCandidates(cycleId)
+    return ok(
+      local
+        .map((r) => rowToCandidate(r as unknown as Record<string, unknown>))
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+    )
+  }
+  const candidates = ((data as Record<string, unknown>[]) ?? []).map(rowToCandidate)
+  await Promise.all(candidates.map((c) => saveLocalFeatureVoteCandidate(candidateToLocal(c))))
+  return ok(candidates)
 }
 
 export async function fetchUserVote(cycleId: string, userId: string): Promise<Result<FeatureVote | null>> {
@@ -203,7 +312,12 @@ export async function fetchUserVote(cycleId: string, userId: string): Promise<Re
     .eq('user_id', userId)
     .maybeSingle()
 
-  if (error) return err(error.message, error.code)
+  if (error) {
+    // The user's own vote is already persisted locally on submit.
+    logger.warn('fetchUserVote network failed, falling back to IDB', error.message)
+    const local = await getLocalFeatureVoteForUserCycle(userId, cycleId)
+    return ok(local ? rowToVote(local as unknown as Record<string, unknown>) : null)
+  }
   return ok(data ? rowToVote(data as Record<string, unknown>) : null)
 }
 
@@ -272,8 +386,21 @@ export async function fetchSuggestions(opts?: { status?: FeatureVoteSuggestionSt
   if (opts?.status) q = q.eq('status', opts.status)
   if (opts?.userId) q = q.eq('user_id', opts.userId)
   const { data, error } = await q
-  if (error) return err(error.message, error.code)
-  return ok(((data as Record<string, unknown>[]) ?? []).map(rowToSuggestion))
+  if (error) {
+    logger.warn('fetchSuggestions network failed, falling back to IDB', error.message)
+    const local = opts?.userId
+      ? await getLocalFeatureVoteSuggestionsByUser(opts.userId)
+      : await getLocalFeatureVoteSuggestions()
+    const filtered = opts?.status ? local.filter((s) => s.status === opts.status) : local
+    return ok(
+      filtered
+        .map((r) => rowToSuggestion(r as unknown as Record<string, unknown>))
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    )
+  }
+  const suggestions = ((data as Record<string, unknown>[]) ?? []).map(rowToSuggestion)
+  await Promise.all(suggestions.map((s) => saveLocalFeatureVoteSuggestion(suggestionToLocal(s))))
+  return ok(suggestions)
 }
 
 // ============================================================
@@ -479,6 +606,7 @@ export async function createCycle(params: {
     created_at: cycle.createdAt,
     updated_at: cycle.updatedAt,
   })
+  clearCyclesCache()
   return succeed({ cycle })
 }
 
@@ -504,6 +632,7 @@ export async function updateCycle(cycleId: string, patch: { title?: string; desc
 
   if (error) return fail(error.message)
   const cycle = rowToCycle(data as Record<string, unknown>)
+  clearCyclesCache()
   return succeed({ cycle })
 }
 
@@ -518,6 +647,7 @@ export async function deleteCycle(cycleId: string): Promise<ServiceResult> {
   const { error } = await supabase.from('feature_vote_cycles').delete().eq('id', cycleId)
   if (error) return fail(error.message)
   await deleteLocalFeatureVoteCycle(cycleId)
+  clearCyclesCache()
   return succeed()
 }
 

@@ -10,7 +10,7 @@
  */
 import { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle, forwardRef, memo } from 'react'
 import { flushSync } from 'react-dom'
-import { Pencil, Check, PenTool, ZoomIn, ZoomOut, Scissors, Merge, X, Copy, Camera, Trash2, Maximize2, Move, ChevronLeft, ChevronRight, Plus, Package } from 'lucide-react'
+import { Pencil, Check, PenTool, Minus, Scissors, Merge, X, Copy, Camera, Trash2, Maximize2, Move, ChevronLeft, ChevronRight, Plus, Package } from 'lucide-react'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { fetchAllLocationTags, fetchLocationTags, upsertLocationTags } from '../../lib/propertyService'
@@ -151,6 +151,9 @@ const BASE_CANVAS_SCALE = 3
 /** Sub-zones appear once their parent fills at least this fraction of the viewport. */
 const LOD_FILL_THRESHOLD = 0.5
 
+/** Floating map-control button — mirrors MapView's CTRL_BTN (zoom + info chrome). */
+const CTRL_BTN = 'w-9 h-9 rounded-lg flex items-center justify-center bg-themewhite2/90 dark:bg-themewhite3/90 text-primary shadow-sm active:scale-95 transition-all backdrop-blur-sm'
+
 export interface MapNavHandle {
   navigateToZone: (targetId: string) => void
   resetZoom: () => void
@@ -174,7 +177,7 @@ interface PropertyLocationMapProps {
   onSelectZone?: (locationId: string | null) => void
 }
 
-export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapProps>(function PropertyLocationMap({ clinicId, clinicName, locations, items, onCreateLocation, onDeleteLocation, onEditItem, onUpdateLocation, onSelectItem, onCreateItem, onSelectZone }, ref) {
+export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapProps>(function PropertyLocationMap({ clinicId, locations, items, onCreateLocation, onDeleteLocation, onEditItem, onUpdateLocation, onSelectItem, onCreateItem, onSelectZone }, ref) {
   const store = usePropertyStore()
   const isMobile = useIsMobile()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -1161,12 +1164,13 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
   return (
     <div className="flex flex-col h-full">
-      {/* Canvas wrapper — relative so controls float over scroll area */}
-      <div className="flex-1 min-h-[200px] relative m-2">
+      {/* Canvas wrapper — relative so controls float over scroll area. Full-bleed
+          (no margin/border/rounded) so the canvas fills the pane like the map. */}
+      <div className="flex-1 min-h-[200px] relative">
         {/* Scrollable canvas */}
         <div
           ref={scrollRef}
-          className={`absolute inset-0 overflow-auto bg-themewhite2 border border-tertiary/15 rounded-lg ${isEditing ? (isDrawing ? 'cursor-crosshair' : isResizing ? 'cursor-nwse-resize' : isMoving ? 'cursor-move' : 'cursor-default') : 'cursor-default'}`}
+          className={`absolute inset-0 overflow-auto bg-themewhite2 ${isEditing ? (isDrawing ? 'cursor-crosshair' : isResizing ? 'cursor-nwse-resize' : isMoving ? 'cursor-move' : 'cursor-default') : 'cursor-default'}`}
           style={{ touchAction: (isDrawing || isMoving || isResizing) ? 'none' : 'pan-x pan-y' }}
           onPointerDown={handlePanStart}
           onPointerMove={handlePanMove}
@@ -1305,34 +1309,29 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
           )}
         </div>
 
-        {/* Floating zoom controls — bottom-left vertical pill */}
+        {/* Floating zoom controls — bottom-left, mirrors MapView's stacked Plus/Minus */}
         {!isEditing && (
-          <div data-zoom-controls className="absolute bottom-3 left-3 z-20 rounded-full border border-tertiary/20 bg-themewhite p-0.5 flex flex-col items-center shadow-sm">
-            <button
-              onClick={handleZoomIn}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-primary hover:bg-primary/5 active:scale-95 transition-all"
-            >
-              <ZoomIn size={14} />
+          <div data-zoom-controls className="absolute bottom-3 left-3 z-20 flex flex-col gap-1.5 pb-[max(0rem,var(--sab,0px))]">
+            <button onClick={handleZoomIn} className={CTRL_BTN} aria-label="Zoom in" title="Zoom in">
+              <Plus size={16} />
             </button>
-            <div className="w-5 h-px bg-tertiary/15" />
-            <button
-              onClick={handleZoomOut}
-              disabled={!isZoomed}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-primary hover:bg-primary/5 active:scale-95 transition-all disabled:opacity-30"
-            >
-              <ZoomOut size={14} />
+            <button onClick={handleZoomOut} disabled={!isZoomed} className={`${CTRL_BTN} disabled:opacity-30`} aria-label="Zoom out" title="Zoom out">
+              <Minus size={16} />
             </button>
           </div>
         )}
 
-        {/* Edit entry — top-right, view mode only */}
+        {/* Edit entry — top-right, view mode only. Same chrome/shape/size/position
+            as the map's info button (CTRL_BTN). Mobile clears the floating glass
+            header via --drawer-header-h; desktop's solid header needs no offset. */}
         {!isEditing && (
           <button
             onClick={() => handleEnterEdit()}
-            className="absolute top-3 right-3 z-20 w-9 h-9 rounded-full border border-tertiary/20 bg-themewhite shadow-sm flex items-center justify-center text-tertiary hover:text-primary hover:bg-primary/5 active:scale-95 transition-all"
+            className={`absolute right-3 z-20 ${CTRL_BTN} ${isMobile ? 'top-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]' : 'top-3'}`}
             title="Edit layout"
+            aria-label="Edit layout"
           >
-            <Pencil size={14} />
+            <Pencil size={16} />
           </button>
         )}
 

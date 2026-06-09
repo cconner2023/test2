@@ -62,14 +62,14 @@ export function FeatureVotePrompt({ onOpenPanel }: Props) {
 
   return (
     <div
-      className={`fixed left-1/2 -translate-x-1/2 z-[80] transition-all duration-300 ease-out
+      className={`fixed left-0 right-0 z-[80] px-4 transition-all duration-300 ease-out
         bottom-[max(1rem,calc(var(--sab,0px)+1rem))]
         ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}
       `}
       role="dialog"
       aria-live="polite"
     >
-      <div className="mx-4 max-w-md bg-themewhite/95 backdrop-blur-md rounded-2xl shadow-lg border border-tertiary/15 overflow-hidden">
+      <div className="mx-auto max-w-md bg-themewhite/95 backdrop-blur-md rounded-2xl shadow-lg border border-tertiary/15 overflow-hidden">
         <div className="flex items-start gap-3 p-4">
           <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeblue2/15">
             <MessageCircleQuestion size={18} className="text-themeblue2" />

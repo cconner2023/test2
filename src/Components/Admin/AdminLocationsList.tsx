@@ -30,6 +30,10 @@ interface AdminLocationsListProps {
   onCreateLocation: () => void
   searchQuery?: string
   bare?: boolean
+  /** When true, renders as a labelled section inside the unified Directory tab. */
+  embedded?: boolean
+  /** Section heading shown above the list in embedded mode. */
+  title?: string
 }
 
 export function AdminLocationsList({
@@ -37,6 +41,8 @@ export function AdminLocationsList({
   onEditLocation,
   searchQuery: searchQueryProp,
   bare,
+  embedded,
+  title,
 }: AdminLocationsListProps) {
   const searchQuery = searchQueryProp ?? ''
   const gen = useInvalidation('locations', 'clinics')
@@ -167,6 +173,30 @@ export function AdminLocationsList({
   if (bare) {
     if (filtered.length === 0) return null
     return <>{renderItems()}{overlays}</>
+  }
+
+  // ── Embedded mode: labelled section inside the Directory tab ──
+  if (embedded) {
+    if (filtered.length === 0 && searchQuery) return null
+    return (
+      <section className="space-y-2">
+        {title && (
+          <div className="flex items-baseline justify-between px-1">
+            <h3 className="text-[11pt] font-semibold text-primary">{title}</h3>
+            <span className="text-[9pt] text-tertiary">{filtered.length}</span>
+          </div>
+        )}
+        {error && <div className="mb-1"><ErrorDisplay message={error} /></div>}
+        {showLoading ? (
+          <AdminListSkeleton />
+        ) : filtered.length === 0 ? (
+          <EmptyState title="No locations" />
+        ) : (
+          <SectionCard>{renderItems()}</SectionCard>
+        )}
+        {overlays}
+      </section>
+    )
   }
 
   return (

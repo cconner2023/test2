@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/useAuthStore'
 import { fireNotification } from './notifyDispatcher'
 import { fromSupabase, succeed, fail, type ServiceResult } from './result'
 import { getErrorMessage } from '../Utilities/errorUtils'
+import { deltaRead, revalidateDeltaCache, localStorageBase, type DeltaCacheConfig } from './deltaCache'
 
 const logger = createLogger('FeedbackService')
 
@@ -25,6 +26,41 @@ export interface FeedbackRow {
   desired_feature: string | null
   needs_improvement: string | null
   created_at: string
+}
+
+// ─── Delta cache for the dev-only feedback list ───────────────────────────────
+// getFeedbackList polled repeatedly in the admin panel (see api logs). Single
+// dev-scope set; cache-first + updated_at delta so reopening transfers nothing.
+// Deletes soft-delete via archived_at so removals ride the delta.
+
+/** Delta row = stored feedback plus the cursor + tombstone the cache consumes. */
+interface FeedbackDeltaRow extends FeedbackRow {
+  updated_at: string
+  archived_at: string | null
+}
+
+/** Dev tolerates up to 5 min staleness on the feedback list before a bg delta. */
+const FEEDBACK_TTL_MS = 5 * 60 * 1000
+// Globally-namespaced mem-cache key (deltaCache mem Map is shared across tables).
+const FEEDBACK_KEY = 'feedback:all'
+const feedbackBase = localStorageBase<FeedbackRow>('adtmc_feedback_cache_v1', FEEDBACK_TTL_MS)
+
+const feedbackListCfg: DeltaCacheConfig<FeedbackRow, FeedbackDeltaRow> = {
+  key: FEEDBACK_KEY,
+  loadBase: feedbackBase.loadBase,
+  saveBase: feedbackBase.saveBase,
+  fetchDelta: async (since) => {
+    // since!==null → include archived rows so removals propagate; cold → live only.
+    let q = supabase.from('feedback').select('*').order('updated_at')
+    q = since ? q.gt('updated_at', since) : q.is('archived_at', null)
+    const { data, error } = await q
+    if (error) throw error
+    return (data ?? []) as unknown as FeedbackDeltaRow[]
+  },
+  toRow: ({ updated_at: _u, archived_at: _a, ...row }) => row as FeedbackRow,
+  // Monitoring view: refresh warm memory via a cheap delta at most every 30s so a
+  // dev catches new submissions within a session without re-pulling the full list.
+  memTtlMs: 30 * 1000,
 }
 
 /**
@@ -81,8 +117,14 @@ export async function submitFeedback(
  */
 export async function deleteFeedback(id: string): Promise<ServiceResult> {
   try {
-    const { error } = await supabase.from('feedback').delete().eq('id', id)
+    // Soft-delete: stamp archived_at so the tombstone rides the updated_at delta
+    // (the BEFORE UPDATE trigger bumps updated_at). Dev-gated by feedback_update_dev RLS.
+    const { error } = await supabase
+      .from('feedback')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('id', id)
     if (error) return fail(error.message)
+    void revalidateDeltaCache(feedbackListCfg)
     return succeed()
   } catch (error) {
     return fail(getErrorMessage(error, 'Failed to delete feedback'))
@@ -95,19 +137,9 @@ export async function deleteFeedback(id: string): Promise<ServiceResult> {
  */
 export async function getFeedbackList(): Promise<FeedbackRow[]> {
   try {
-    const result = fromSupabase<FeedbackRow[]>(
-      await supabase
-        .from('feedback')
-        .select('*')
-        .order('created_at', { ascending: false })
-    )
-
-    if (!result.ok) {
-      logger.error('Failed to get feedback:', result.error)
-      return []
-    }
-
-    return result.data
+    // Cache-first + delta. Cache holds insertion order; restore the public sort.
+    const rows = await deltaRead(feedbackListCfg)
+    return [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at))
   } catch (error) {
     logger.error('Failed to get feedback:', error)
     return []

@@ -31,6 +31,11 @@ export interface AdminUsersListProps {
   searchQuery?: string
   /** When true, renders items without wrapper chrome (for unified search results) */
   bare?: boolean
+  /** When true, renders as a labelled section inside the unified Directory tab:
+   *  no page padding, no clinic grouping, collapses to null on an empty search. */
+  embedded?: boolean
+  /** Section heading shown above the list in embedded mode. */
+  title?: string
 }
 
 // ─── Per-card wrapper with long-press support ─────────────────────────────
@@ -93,6 +98,8 @@ export function AdminUsersList({
   filterUserId,
   searchQuery: searchQueryProp,
   bare,
+  embedded,
+  title,
 }: AdminUsersListProps) {
   const searchQuery = searchQueryProp ?? ''
   const gen = useInvalidation('users')
@@ -185,7 +192,7 @@ export function AdminUsersList({
     return entries
   }, [filteredUsers])
 
-  const useGrouping = !searchQuery && !filterUserId && !bare
+  const useGrouping = !searchQuery && !filterUserId && !bare && !embedded
 
   // ─── Actions ───────────────────────────────────────────────────────────
 
@@ -479,6 +486,31 @@ export function AdminUsersList({
         {renderUserItems()}
         {renderOverlays()}
       </>
+    )
+  }
+
+  // ── Embedded mode: labelled section inside the Directory tab ──
+  if (embedded) {
+    // Collapse to nothing when a search yields no matches, so the Directory
+    // doesn't stack three "No results" cards for a single-section hit.
+    if (filteredUsers.length === 0 && searchQuery) return null
+    return (
+      <section className="space-y-2">
+        {title && (
+          <div className="flex items-baseline justify-between px-1">
+            <h3 className="text-[11pt] font-semibold text-primary">{title}</h3>
+            <span className="text-[9pt] text-tertiary">{filteredUsers.length}</span>
+          </div>
+        )}
+        {showLoading ? (
+          <AdminListSkeleton />
+        ) : filteredUsers.length === 0 ? (
+          <EmptyState title="No users" />
+        ) : (
+          <SectionCard>{renderUserItems()}</SectionCard>
+        )}
+        {renderOverlays()}
+      </section>
     )
   }
 

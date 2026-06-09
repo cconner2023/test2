@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
-import { ArrowUp, X, Plus, Mic, Copy, Pencil, Download, Reply, Trash2, Forward, SmilePlus } from 'lucide-react'
+import { ArrowUp, X, Plus, Mic, Copy, Pencil, Download, Reply, Trash2, Forward, SmilePlus, CalendarPlus, ScanLine } from 'lucide-react'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MessageBubble } from './Settings/MessageBubble'
 import { SharedObjectPicker } from './Messages/SharedObjectPicker'
@@ -14,6 +14,11 @@ import { useAuth } from '../Hooks/useAuth'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useImagePaste } from '../Hooks/useImagePaste'
 import { useChatInteractions } from '../Hooks/useChatInteractions'
+import { useNavigationStore } from '../stores/useNavigationStore'
+import { detectFirstDate } from '../Utilities/dateDetect'
+import { detectEncodedNote } from '../Utilities/noteDecode'
+import { calendarArgsForMessage } from '../Utilities/messageCalendar'
+import { DecodedNotePreview } from './DecodedNotePreview'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useVoiceRecorder } from '../Hooks/useVoiceRecorder'
 import type { VoiceRecordingResult } from '../Hooks/useVoiceRecorder'
@@ -275,6 +280,35 @@ export function ChatDetailView({
     inputRef,
     sendMessage,
   })
+
+  // Lifted-menu affordances mirroring the inline bubble icons: add-to-calendar
+  // (dev-gated) and decode-note. Both act on contextMsg.
+  const requestNewCalendarEvent = useNavigationStore(s => s.requestNewCalendarEvent)
+  const isDevRole = useAuthStore(s => s.isDevRole)
+  const [decodeMenu, setDecodeMenu] = useState<{ token: string; rect: DOMRect | null } | null>(null)
+
+  const handleMenuAddToCalendar = useCallback(() => {
+    if (!contextMsg) return
+    const detected = detectFirstDate(contextMsg.plaintext ?? '')
+    if (!detected) return
+    requestNewCalendarEvent(
+      ...calendarArgsForMessage(contextMsg.plaintext ?? '', detected, {
+        conversationId,
+        conversationIsGroup,
+        conversationPeerName,
+        messageId: contextMsg.id,
+      }),
+    )
+    closeContextMenu()
+  }, [contextMsg, requestNewCalendarEvent, conversationId, conversationIsGroup, conversationPeerName, closeContextMenu])
+
+  const handleMenuDecode = useCallback(() => {
+    if (!contextMsg) return
+    const hit = detectEncodedNote(contextMsg.plaintext ?? '')
+    if (!hit) return
+    setDecodeMenu({ token: hit.token, rect: contextMenu?.rect ?? null })
+    closeContextMenu()
+  }, [contextMsg, contextMenu, closeContextMenu])
 
   const {
     isRecording, duration: recDuration, amplitude,
@@ -825,10 +859,17 @@ export function ChatDetailView({
               onAction: () => handleReact(contextMsg, code),
             }))
           : []
+        // Inline-affordance parity: surface add-to-calendar (dev-gated) and
+        // decode-note on the lifted menu when the message text supports them.
+        const isTextMsg = !contextMsg.content || contextMsg.content.type === 'text'
+        const menuDetectedDate = isTextMsg && isDevRole ? detectFirstDate(contextMsg.plaintext ?? '') : null
+        const menuDecoded = isTextMsg ? detectEncodedNote(contextMsg.plaintext ?? '') : null
         const actionItems: ContextMenuItem[] = [
           { key: 'reply', label: 'Reply', icon: Reply, onAction: handleContextReply },
           ...(!isMedia ? [{ key: 'copy', label: 'Copy', icon: Copy, onAction: handleCopy }] : []),
           ...(isMedia && handleSaveImage ? [{ key: 'save', label: 'Save', icon: Download, onAction: handleSaveImage }] : []),
+          ...(menuDetectedDate ? [{ key: 'calendar', label: 'Add to calendar', icon: CalendarPlus, onAction: handleMenuAddToCalendar }] : []),
+          ...(menuDecoded ? [{ key: 'decode', label: 'Decode note', icon: ScanLine, onAction: handleMenuDecode }] : []),
           ...(isOwn && !isMedia ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: handleStartEdit }] : []),
           { key: 'forward', label: 'Forward', icon: Forward, onAction: handleContextForward },
           ...(isOwn || isClearableCard ? [{ key: 'delete', label: 'Delete', icon: Trash2, onAction: handleContextDelete, destructive: true }] : []),
@@ -870,6 +911,16 @@ export function ChatDetailView({
           {renderMessageList(threadMessages, 'No messages', true, undefined, true)}
           {renderInputArea()}
         </div>
+      )}
+
+      {/* Decode overlay for the lifted-menu "Decode note" action. */}
+      {decodeMenu && (
+        <DecodedNotePreview
+          token={decodeMenu.token}
+          isOpen={!!decodeMenu}
+          anchorRect={decodeMenu.rect}
+          onClose={() => setDecodeMenu(null)}
+        />
       )}
 
       <ConfirmDialog

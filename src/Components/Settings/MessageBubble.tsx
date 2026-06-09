@@ -1,5 +1,5 @@
 import { useRef, useCallback, useState, useEffect, useMemo } from 'react'
-import { Check, CheckCheck, X, Reply, Trash2, Clock, Play, Pause, Copy, Download, CalendarPlus, Calendar, Map as MapIcon, Package, ChevronRight, MoreHorizontal } from 'lucide-react'
+import { Check, CheckCheck, X, Reply, Trash2, Clock, Play, Pause, Copy, Download, CalendarPlus, Calendar, Map as MapIcon, Package, ChevronRight, MoreHorizontal, ScanLine } from 'lucide-react'
 import { ActionButton } from '../ActionButton'
 import { GESTURE_THRESHOLDS, isInteractiveTarget } from '../../Utilities/GestureUtils'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
@@ -10,10 +10,13 @@ import { OncallCallCard } from '../Messages/OncallCallCard'
 import { OutsideMessageCard } from '../Messages/OutsideMessageCard'
 import { SharedBundleCard } from '../Messages/SharedBundleCard'
 import { OverlaySnapshot } from '../MapOverlay/OverlaySnapshot'
+import type { LucideIcon } from 'lucide-react'
 import { detectFirstDate } from '../../Utilities/dateDetect'
+import { detectEncodedNote } from '../../Utilities/noteDecode'
+import { calendarArgsForMessage } from '../../Utilities/messageCalendar'
+import { DecodedNotePreview } from '../DecodedNotePreview'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useAuthStore } from '../../stores/useAuthStore'
-import { toLocalISOString } from '../../Types/CalendarTypes'
 
 export type SwipeAction = 'reply' | 'delete'
 
@@ -162,6 +165,8 @@ export function MessageBubble({
   const replyIconRef = useRef<HTMLDivElement>(null)
   const deleteIconRef = useRef<HTMLDivElement>(null)
   const [showFullImage, setShowFullImage] = useState(false)
+  const [decodeOpen, setDecodeOpen] = useState(false)
+  const decodeAnchorRef = useRef<DOMRect | null>(null)
   const [tapped, setTapped] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -201,20 +206,59 @@ export function MessageBubble({
     e.stopPropagation()
     if (!detectedDate) return
     requestNewCalendarEvent(
-      {
-        title: (message.plaintext ?? '').trim().slice(0, 80),
-        startISO: toLocalISOString(detectedDate.date),
-      },
-      conversationId
-        ? {
-            conversationId,
-            isGroup: conversationIsGroup,
-            peerName: conversationPeerName,
-            messageId: message.id,
-          }
-        : undefined,
+      ...calendarArgsForMessage(message.plaintext ?? '', detectedDate, {
+        conversationId,
+        conversationIsGroup,
+        conversationPeerName,
+        messageId: message.id,
+      }),
     )
   }, [detectedDate, message.plaintext, message.id, requestNewCalendarEvent, conversationId, conversationIsGroup, conversationPeerName])
+
+  // Detect a shared encoded note (enc:/9L:/TC3|/plain) in the message text —
+  // drives the "decode" affordance. Cheap sync scan; the actual decrypt+parse
+  // happens on tap in DecodedNotePreview, on-device only (no wire/PHI exposure).
+  const decodedNote = useMemo(() => {
+    if (message.content && message.content.type !== 'text') return null
+    return detectEncodedNote(message.plaintext ?? '')
+  }, [message.content, message.plaintext])
+
+  const handleDecode = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    decodeAnchorRef.current = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    setDecodeOpen(true)
+  }, [])
+
+  // Inline message affordances (add-to-calendar, decode-note) — share one color
+  // and slot. Rendered as a single cluster on the ellipsis side of the bubble.
+  const affordances: { key: string; icon: LucideIcon; title: string; onClick: (e: React.MouseEvent) => void }[] = []
+  if (detectedDate && !isEditing) {
+    affordances.push({ key: 'calendar', icon: CalendarPlus, title: `Add to calendar — ${detectedDate.date.toLocaleDateString()}`, onClick: handleAddToCalendar })
+  }
+  if (decodedNote && !isEditing) {
+    affordances.push({ key: 'decode', icon: ScanLine, title: 'Decode note', onClick: handleDecode })
+  }
+
+  const renderAffordances = (side: 'left' | 'right') =>
+    affordances.length > 0 ? (
+      <div className={`shrink-0 self-center flex items-center gap-1 ${side === 'left' ? 'mr-1.5' : 'ml-1.5'}`}>
+        {affordances.map(a => {
+          const Icon = a.icon
+          return (
+            <button
+              key={a.key}
+              onClick={a.onClick}
+              title={a.title}
+              aria-label={a.title}
+              className="w-7 h-7 rounded-full bg-themeblue3 text-white shadow-sm
+                         flex items-center justify-center active:scale-95 transition-all"
+            >
+              <Icon size={14} />
+            </button>
+          )
+        })}
+      </div>
+    ) : null
 
   const swipeEnabled = !isEditing
 
@@ -690,20 +734,10 @@ export function MessageBubble({
           </button>
         )}
 
-        {/* Detected-date affordance — rides on the same side as the ellipses
-            (own → left, peer → right). Surfaces when text contains a schedulable
-            date (dev-gated). */}
-        {isOwn && detectedDate && !isEditing && (
-          <button
-            onClick={handleAddToCalendar}
-            title={`Add to calendar — ${detectedDate.date.toLocaleDateString()}`}
-            aria-label="Add to calendar"
-            className="shrink-0 self-center mr-1.5 w-7 h-7 rounded-full bg-themeblue3 text-white shadow-sm
-                       flex items-center justify-center active:scale-95 transition-all"
-          >
-            <CalendarPlus size={14} />
-          </button>
-        )}
+        {/* Inline affordances (calendar / decode) — ride on the ellipsis side
+            (own → left). Calendar surfaces on a schedulable date (dev-gated);
+            decode on a shared encoded note. */}
+        {isOwn && renderAffordances('left')}
 
         {/* Bubble wrapper — icons sit behind, bubble slides over them. */}
         <div
@@ -800,18 +834,8 @@ export function MessageBubble({
           </div>
         </div>
 
-        {/* Detected-date affordance for peer bubbles — right side, beside the ellipses. */}
-        {!isOwn && detectedDate && !isEditing && (
-          <button
-            onClick={handleAddToCalendar}
-            title={`Add to calendar — ${detectedDate.date.toLocaleDateString()}`}
-            aria-label="Add to calendar"
-            className="shrink-0 self-center ml-1.5 w-7 h-7 rounded-full bg-themeblue3 text-white shadow-sm
-                       flex items-center justify-center active:scale-95 transition-all"
-          >
-            <CalendarPlus size={14} />
-          </button>
-        )}
+        {/* Inline affordances for peer bubbles — right side, beside the ellipses. */}
+        {!isOwn && renderAffordances('right')}
 
         {/* Hover ellipses (desktop only) — right of peer bubble */}
         {!isOwn && onLongPress && (
@@ -880,6 +904,16 @@ export function MessageBubble({
             />
           </div>
         </div>
+      )}
+
+      {/* Decoded-note preview — reuses the barcode-import overlay. */}
+      {decodedNote && (
+        <DecodedNotePreview
+          token={decodedNote.token}
+          isOpen={decodeOpen}
+          anchorRect={decodeAnchorRef.current}
+          onClose={() => setDecodeOpen(false)}
+        />
       )}
     </>
   )

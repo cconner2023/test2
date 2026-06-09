@@ -37,7 +37,7 @@ interface ImportResultPopoverProps {
 
 // ── Preview card content for a decoded note ─────────────────────────────────
 
-function NotePreviewContent({ preview }: { preview: ImportPreview }) {
+export function NotePreviewContent({ preview }: { preview: ImportPreview }) {
   const [authorAvatarSvg, setAuthorAvatarSvg] = useState<ReactNode>(null)
   const colors = getColorClasses(preview.dispositionType as any)
 

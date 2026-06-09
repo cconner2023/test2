@@ -710,10 +710,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
         if (initialOverlayId) {
           const target = loaded.find(o => o.id === initialOverlayId);
           if (target) {
-            handleOpenOverlay(target as MapOverlay);
-            if (initialFeatureId && target.features.some(f => f.id === initialFeatureId)) {
-              setSelectedFeatureId(initialFeatureId);
-            }
+            const feat = initialFeatureId ? target.features.find(f => f.id === initialFeatureId) : null;
+            // Shared a specific feature → open the overlay framed on THAT
+            // feature (not the whole overlay). focus is the single camera op.
+            handleOpenOverlay(target as MapOverlay, feat ? { focus: feat } : undefined);
           } else {
             handleNewOverlay({ recenter: true });
           }
@@ -872,7 +872,23 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     skipDirtyRef.current = true;
   }, [startWatching, initialCenter]);
 
-  const handleOpenOverlay = useCallback((overlay: MapOverlay) => {
+  // Single zoom-to-feature routine shared by every selection entry point
+  // (tree/settings select, on-map icon tap, open-from-message). Waypoints fly
+  // to the pin at >=15; routes/areas fit to their bbox. `delay` lets callers
+  // defer the camera move when the map needs a beat to settle first.
+  const focusFeature = useCallback((feature: OverlayFeature, delay = 0) => {
+    if (feature.geometry.length === 0) return;
+    if (feature.type === 'waypoint') {
+      const [lat, lng] = feature.geometry[0];
+      const targetZoom = Math.max(mapZoom, 15);
+      setTimeout(() => mapRef.current?.flyTo(lat, lng, targetZoom), delay);
+    } else {
+      const bbox = computeOverlayBbox([feature]);
+      if (bbox) setTimeout(() => mapRef.current?.fitBounds(bbox), delay);
+    }
+  }, [mapZoom]);
+
+  const handleOpenOverlay = useCallback((overlay: MapOverlay, opts?: { focus?: OverlayFeature }) => {
     setOverlayId(overlay.id);
     setOverlayName(overlay.name);
     setFeatures(overlay.features);
@@ -896,13 +912,18 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     setShowPopover(false);
     setVisibleOverlayIds(prev => new Set([...prev, overlay.id]));
     startWatching();
-    if (overlay.features.length > 0) {
+    if (opts?.focus) {
+      // Caller wants a specific feature framed — focus ONLY it (the camera's
+      // single op on open) so the whole-overlay fit never competes.
+      setSelectedFeatureId(opts.focus.id);
+      focusFeature(opts.focus, 400);
+    } else if (overlay.features.length > 0) {
       const bbox = computeOverlayBbox(overlay.features);
       if (bbox) setTimeout(() => mapRef.current?.fitBounds(bbox), 400);
     } else if (initialCenter) {
       setTimeout(() => mapRef.current?.flyTo(initialCenter[0], initialCenter[1], 12), 400);
     }
-  }, [startWatching, initialCenter]);
+  }, [startWatching, initialCenter, focusFeature]);
 
   const handleToggleVisible = useCallback((overlayId: string) => {
     setVisibleOverlayIds(prev => {
@@ -1431,24 +1452,17 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   const handleSelectFeatureFromTree = useCallback((feature: OverlayFeature, sourceOverlayId: string) => {
     if (drawMode === 'route' || drawMode === 'area') return;
     const switching = sourceOverlayId !== overlayId;
-    if (switching) {
-      const target = overlays.find(o => o.id === sourceOverlayId);
-      if (target) handleOpenOverlay(target as MapOverlay);
-    }
     setSelectedFeatureId(feature.id);
-    // Defer focus past handleOpenOverlay's 400ms fitBounds so this wins when switching
-    if (feature.geometry.length > 0) {
-      const delay = switching ? 450 : 0;
-      if (feature.type === 'waypoint') {
-        const [lat, lng] = feature.geometry[0];
-        const targetZoom = Math.max(mapZoom, 15);
-        setTimeout(() => mapRef.current?.flyTo(lat, lng, targetZoom), delay);
-      } else {
-        const bbox = computeOverlayBbox([feature]);
-        if (bbox) setTimeout(() => mapRef.current?.fitBounds(bbox), delay);
-      }
+    if (switching) {
+      // Open the target overlay focused on this feature in ONE camera op —
+      // handleOpenOverlay skips its whole-overlay fit when given a focus,
+      // so its fitBounds moveend can't clobber the feature focus.
+      const target = overlays.find(o => o.id === sourceOverlayId);
+      if (target) handleOpenOverlay(target as MapOverlay, { focus: feature });
+    } else {
+      focusFeature(feature);
     }
-  }, [drawMode, overlayId, overlays, handleOpenOverlay, mapZoom]);
+  }, [drawMode, overlayId, overlays, handleOpenOverlay, focusFeature]);
 
   // Tour orchestrator hooks — let the guided Map tour drive selection and
   // settings without depending on click coordinates the tour can't compute.
@@ -1523,8 +1537,15 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
       return;
     }
     setTempPoint(null);
-    setSelectedFeatureId(prev => prev === featureId ? null : featureId);
-  }, [drawMode, features, handleMapClick, tempRoute]);
+    const selecting = selectedFeatureId !== featureId;
+    setSelectedFeatureId(selecting ? featureId : null);
+    // Zoom to the tapped icon on select (mirrors tree/settings select); a
+    // re-tap deselects and stays put.
+    if (selecting) {
+      const feature = features.find(f => f.id === featureId);
+      if (feature) focusFeature(feature);
+    }
+  }, [drawMode, features, handleMapClick, tempRoute, selectedFeatureId, focusFeature]);
 
   // ── Drag-driven geometry update (waypoint drag, route/area vertex drag) ──
   const handleFeatureGeometryChange = useCallback((featureId: string, geometry: [number, number][]) => {

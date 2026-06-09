@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Pencil, X, Trash2, List } from 'lucide-react'
+import { Pencil, X, Trash2, List, ChevronLeft } from 'lucide-react'
 import { HeaderPill, PillButton } from './HeaderPill'
+import { SearchInput } from './SearchInput'
 import { BaseDrawer } from './BaseDrawer'
 import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -9,7 +10,6 @@ import { PropertyNavSheet, type PropertyNavSheetHandle } from './Property/Proper
 import { EnrollScanStep } from './Property/EnrollScanStep'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import type { LocalPropertyItem } from '../Types/PropertyTypes'
-import type { PropertyLocationListHandle } from './Property/PropertyLocationList'
 import { ActionSheet } from './ActionSheet'
 import { usePropertyStore } from '../stores/usePropertyStore'
 import { useAuthStore } from '../stores/useAuthStore'
@@ -43,10 +43,10 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const [view, setView] = useState<PropertyView>('property')
     const [showLocationSheet, setShowLocationSheet] = useState(false)
 
-    const locationListRef = useRef<PropertyLocationListHandle>(null)
     const navSheetRef = useRef<PropertyNavSheetHandle>(null)
 
     const [searchQuery, setSearchQuery] = useState('')
+    const [searchFocused, setSearchFocused] = useState(false)
     const [selectedItem, setSelectedItem] = useState<LocalPropertyItem | null>(null)
     const [pendingDeleteItem, setPendingDeleteItem] = useState<LocalPropertyItem | null>(null)
     const [scanMode, setScanMode] = useState(false)
@@ -57,7 +57,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const addLocationTriggerRef = useRef<(() => void) | null>(null)
     const initRef = useRef(false)
 
-    useEffect(() => { setSearchQuery('') }, [view])
+    useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
 
     // Keep selectedItem fresh when store items update (e.g. after edit)
     useEffect(() => {
@@ -157,6 +157,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const handleClose = useCallback(() => {
         setView('property')
         setSearchQuery('')
+        setSearchFocused(false)
         setShowLocationSheet(false)
         setSelectedItem(null)
         setEditingItem(null)
@@ -174,14 +175,32 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         switch (view) {
             case 'property':
                 if (!isMobile) return { title: 'Property Book', rightContent: mainHeaderActions, hideDefaultClose: true }
+                // Mobile mirrors the map overlay shell: left Locations/Back pill ·
+                // center search · right Close. Focusing the search opens the
+                // results page (PropertySearchOverlay) over the full-screen canvas.
                 return {
-                    title: 'Property Book',
-                    leftContent: (
-                        <HeaderPill>
-                            <PillButton icon={List} onClick={() => setShowLocationSheet(s => !s)} label="Locations" />
-                        </HeaderPill>
+                    title: '',
+                    rightContentFill: true,
+                    rightContent: (
+                        <div className="flex items-center w-full gap-2">
+                            <HeaderPill>
+                                {searchFocused
+                                    ? <PillButton icon={ChevronLeft} onClick={() => setSearchFocused(false)} label="Back" />
+                                    : <PillButton icon={List} onClick={() => setShowLocationSheet(s => !s)} label="Locations" />}
+                            </HeaderPill>
+                            <div className="flex-1 min-w-0">
+                                <SearchInput
+                                    value={searchQuery}
+                                    onChange={setSearchQuery}
+                                    onFocus={() => setSearchFocused(true)}
+                                    placeholder="Search items..."
+                                />
+                            </div>
+                            <HeaderPill>
+                                <PillButton icon={X} onClick={handleClose} label="Close" />
+                            </HeaderPill>
+                        </div>
                     ),
-                    rightContent: mainHeaderActions,
                     hideDefaultClose: true,
                 }
             case 'property-detail':
@@ -201,7 +220,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 if (!isMobile) return { title: 'Property Book', rightContent: mainHeaderActions, hideDefaultClose: true }
                 return { title: selectedItem ? 'Edit Item' : 'Add Item', showBack: true, onBack: handleBack }
         }
-    }, [view, handleBack, isMobile, mainHeaderActions, selectedItem, handleEditItem, handleDeleteItem, isSupervisorRole])
+    }, [view, handleBack, isMobile, mainHeaderActions, selectedItem, handleEditItem, handleDeleteItem, isSupervisorRole, searchFocused, searchQuery, handleClose])
 
     return (
         <BaseDrawer
@@ -212,6 +231,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             desktopPosition="left"
             desktopWidth="w-[90%]"
             header={headerConfig}
+            glassHeader={isMobile}
             scrollDisabled
         >
             <div className="h-full relative">
@@ -221,6 +241,8 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         view={view}
                         searchQuery={searchQuery}
                         onSearchChange={setSearchQuery}
+                        searchFocused={searchFocused}
+                        onSearchFocusChange={setSearchFocused}
                         selectedItem={selectedItem}
                         showLocationSheet={showLocationSheet}
                         onCloseLocationSheet={() => setShowLocationSheet(false)}
@@ -230,7 +252,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onDeleteItem={isSupervisorRole ? handleDeleteItem : undefined}
                         onAddItem={handleAddItem}
                         onBack={handleBack}
-                        locationListRef={locationListRef}
                         onEnrollItem={(item) => setEnrollingItem(item)}
                         onRegisterAddItem={(t) => { addItemTriggerRef.current = t }}
                         onRegisterAddLocation={(t) => { addLocationTriggerRef.current = t }}

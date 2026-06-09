@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
-import { Building2, X, Inbox, Users, ChevronLeft, MessageCircleQuestion, MapPin } from 'lucide-react'
+import { X, Inbox, List, Waypoints, ChevronLeft, MessageCircleQuestion } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from './BaseDrawer'
 import { BottomIsland, IslandButton } from './BottomIsland'
 import { AddFab } from './AddFab'
@@ -31,6 +31,7 @@ import { AdminClinicsList } from './Admin/AdminClinicsList'
 import { AdminClinicDetail, type ClusterCreatePrefill } from './Admin/AdminClinicDetail'
 import { AdminLocationsList } from './Admin/AdminLocationsList'
 import { AdminLocationDetail } from './Admin/AdminLocationDetail'
+import { AdminMap } from './Admin/AdminMap'
 import { AdminSummary } from './Admin/AdminSummary'
 import { AdminFeatureVotesSection } from './Admin/AdminFeatureVotesSection'
 import { AdminSystemConversationView } from './Admin/AdminSystemConversationView'
@@ -46,23 +47,25 @@ export type AdminView =
     | 'admin-location-detail'
     | 'admin-system-conversation'
 
-const ALL_TABS = ['requests', 'users', 'clinics', 'locations', 'feature-votes'] as const
+// Island: requests · directory · map · votes. The old users/clinics/locations
+// tabs are consolidated — Directory stacks all three (typed sections), Map is
+// the relational containment web over the same data. 'feature-votes' keeps its
+// slug (Settings deep-links to it) but reads as "Votes" in the island.
+const ALL_TABS = ['requests', 'list', 'map', 'feature-votes'] as const
 type AdminTab = typeof ALL_TABS[number]
 
 const TAB_ICONS: Record<AdminTab, typeof Inbox> = {
     requests: Inbox,
-    users: Users,
-    clinics: Building2,
-    locations: MapPin,
+    list: List,
+    map: Waypoints,
     'feature-votes': MessageCircleQuestion,
 }
 
 const TAB_LABELS: Record<AdminTab, string> = {
     requests: 'Requests',
-    users: 'Users',
-    clinics: 'Clinics',
-    locations: 'Locations',
-    'feature-votes': 'Feature Votes',
+    list: 'Directory',
+    map: 'Map',
+    'feature-votes': 'Votes',
 }
 
 interface AdminDrawerProps {
@@ -138,7 +141,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         )
     }, [isVisible, isDevRole, isPageVisible])
     const visibleTabs = useMemo<AdminTab[]>(
-        () => isDevRole ? [...ALL_TABS] : ALL_TABS.filter(t => t !== 'feature-votes' && t !== 'locations'),
+        () => isDevRole ? [...ALL_TABS] : ALL_TABS.filter(t => t !== 'feature-votes' && t !== 'map'),
         [isDevRole]
     )
 
@@ -431,7 +434,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // shared discard guard so the work is preserved unless explicitly dropped.
     const handleSummarySwitchTab = useCallback((tab: 'requests' | 'users' | 'clinics') => {
         guardNav(() => {
-            setActiveTab(tab)
+            // users + clinics now live in the consolidated Directory tab.
+            setActiveTab(tab === 'requests' ? 'requests' : 'list')
             if (view !== 'admin') {
                 setView('admin')
                 setSelectedUser(null)
@@ -755,19 +759,15 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // ActionSheet options per tab
     const addSheetOptions = useMemo(() => {
         const options: Array<{ key: string; label: string; onAction: () => void }> = []
-        if (activeTab === 'feature-votes') return options
-        if (activeTab === 'locations') {
+        // Only the Directory + Map tabs create entities; both offer the full set.
+        if (activeTab !== 'list' && activeTab !== 'map') return options
+        options.push({ key: 'user', label: 'New User', onAction: () => { setShowAddSheet(false); handleCreateUser() } })
+        options.push({ key: 'clinic', label: 'New Cluster', onAction: () => { setShowAddSheet(false); handleCreateClinic() } })
+        if (isDevRole) {
             options.push({ key: 'location', label: 'New Location', onAction: () => { setShowAddSheet(false); handleCreateLocation() } })
-            return options
-        }
-        if (activeTab !== 'clinics') {
-            options.push({ key: 'user', label: 'New User', onAction: () => { setShowAddSheet(false); handleCreateUser() } })
-        }
-        if (activeTab !== 'users') {
-            options.push({ key: 'clinic', label: 'New Cluster', onAction: () => { setShowAddSheet(false); handleCreateClinic() } })
         }
         return options
-    }, [activeTab, handleCreateUser, handleCreateClinic, handleCreateLocation])
+    }, [activeTab, isDevRole, handleCreateUser, handleCreateClinic, handleCreateLocation])
 
     // Bottom island — tab switcher (centered) + FAB (right), matching Property/Calendar pattern
     const bottomIsland = (
@@ -775,8 +775,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             role="tablist"
             ariaLabel="Admin sections"
             fab={
-                // FAB — absolute right, aligned to island. Hidden on tabs that don't create entities (requests = approval workflow, feature-votes = inline mgmt).
-                activeTab !== 'feature-votes' && activeTab !== 'requests' && !(activeTab === 'locations' && !isDevRole) ? (
+                // FAB — absolute right, aligned to island. Only Directory + Map
+                // create entities (requests = approval workflow, votes = inline mgmt).
+                activeTab === 'list' || activeTab === 'map' ? (
                     <AddFab label="Add new" onClick={() => setShowAddSheet(true)} className="absolute right-4" />
                 ) : null
             }
@@ -793,7 +794,42 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         </BottomIsland>
     )
 
-    // Shared: list content for active tab (no search wrapper)
+    // Directory tab — the three consolidated lists as labelled, typed sections.
+    // Each filters itself on the shared search query and collapses when empty,
+    // so a search differentiates results by section instead of one flat blur.
+    const renderDirectory = () => (
+        <div className="px-5 pt-4 pb-24 space-y-6">
+            <AdminUsersList
+                embedded
+                title="Users"
+                onSelectUser={handleSelectUser}
+                onEditUser={handleEditUser}
+                onCreateUser={handleCreateUser}
+                searchQuery={searchQuery}
+            />
+            <AdminClinicsList
+                embedded
+                title="Clusters"
+                onSelectClinic={handleSelectClinic}
+                onEditClinic={handleEditClinic}
+                onCreateClinic={handleCreateClinic}
+                searchQuery={searchQuery}
+            />
+            {isDevRole && (
+                <AdminLocationsList
+                    embedded
+                    title="Locations"
+                    onSelectLocation={handleSelectLocation}
+                    onEditLocation={handleEditLocation}
+                    onCreateLocation={handleCreateLocation}
+                    searchQuery={searchQuery}
+                />
+            )}
+        </div>
+    )
+
+    // Shared: content for the active tab. Search is scoped to the active tab
+    // (Directory filters its sections, Requests filters its feed, Map jumps).
     const renderTabLists = () => (
         <>
             {activeTab === 'requests' && (
@@ -803,62 +839,20 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     onSelectSystemPeer={isDevRole ? handleSelectSystemPeer : undefined}
                 />
             )}
-            {activeTab === 'users' && (
-                <AdminUsersList
+            {activeTab === 'list' && renderDirectory()}
+            {activeTab === 'map' && isDevRole && (
+                <AdminMap
+                    searchQuery={searchQuery}
+                    onClearSearch={() => setSearchQuery('')}
                     onSelectUser={handleSelectUser}
-                    onEditUser={handleEditUser}
-                    onCreateUser={handleCreateUser}
-                    searchQuery={searchQuery}
-                />
-            )}
-            {activeTab === 'clinics' && (
-                <AdminClinicsList
                     onSelectClinic={handleSelectClinic}
-                    onEditClinic={handleEditClinic}
-                    onCreateClinic={handleCreateClinic}
-                    searchQuery={searchQuery}
-                />
-            )}
-            {activeTab === 'locations' && isDevRole && (
-                <AdminLocationsList
                     onSelectLocation={handleSelectLocation}
-                    onEditLocation={handleEditLocation}
-                    onCreateLocation={handleCreateLocation}
-                    searchQuery={searchQuery}
                 />
             )}
             {activeTab === 'feature-votes' && isDevRole && (
                 <AdminFeatureVotesSection />
             )}
         </>
-    )
-
-    // Shared: unified search results across all tabs
-    const renderSearchResults = () => (
-        <div className="px-5 pt-4 pb-4">
-            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-themeblue3/10">
-                <AdminRequestsList
-                    searchQuery={searchQuery}
-                    bare
-                    onApproved={handleRequestApproved}
-                    onSelectSystemPeer={isDevRole ? handleSelectSystemPeer : undefined}
-                />
-                <AdminUsersList
-                    onSelectUser={handleSelectUser}
-                    onEditUser={handleEditUser}
-                    onCreateUser={handleCreateUser}
-                    searchQuery={searchQuery}
-                    bare
-                />
-                <AdminClinicsList
-                    onSelectClinic={handleSelectClinic}
-                    onEditClinic={handleEditClinic}
-                    onCreateClinic={handleCreateClinic}
-                    searchQuery={searchQuery}
-                    bare
-                />
-            </div>
-        </div>
     )
 
     const renderMainView = () => (
@@ -871,7 +865,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     <div className="px-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.5rem)] pb-2">
                         <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
                     </div>
-                    {searchQuery.trim() ? renderSearchResults() : renderTabLists()}
+                    {renderTabLists()}
                 </div>
                 {bottomIsland}
             </div>
@@ -879,7 +873,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             // Desktop: scrollable content + absolute-positioned island (like Property)
             <div className="relative h-full">
                 <div className="h-full overflow-y-auto">
-                    {searchQuery.trim() ? renderSearchResults() : renderTabLists()}
+                    {renderTabLists()}
                 </div>
                 {bottomIsland}
             </div>

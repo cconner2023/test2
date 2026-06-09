@@ -20,6 +20,10 @@ interface AdminClinicsListProps {
   searchQuery?: string
   /** When true, renders items without wrapper chrome (for unified search results) */
   bare?: boolean
+  /** When true, renders as a labelled section inside the unified Directory tab. */
+  embedded?: boolean
+  /** Section heading shown above the list in embedded mode. */
+  title?: string
 }
 
 export function AdminClinicsList({
@@ -29,6 +33,8 @@ export function AdminClinicsList({
   filterClinicId,
   searchQuery: searchQueryProp,
   bare,
+  embedded,
+  title,
 }: AdminClinicsListProps) {
   const searchQuery = searchQueryProp ?? ''
   const gen = useInvalidation('clinics', 'users')
@@ -219,6 +225,29 @@ export function AdminClinicsList({
         {renderClinicItems()}
         {renderOverlays()}
       </>
+    )
+  }
+
+  // ── Embedded mode: labelled section inside the Directory tab ──
+  if (embedded) {
+    if (filteredClinics.length === 0 && searchQuery) return null
+    return (
+      <section className="space-y-2">
+        {title && (
+          <div className="flex items-baseline justify-between px-1">
+            <h3 className="text-[11pt] font-semibold text-primary">{title}</h3>
+            <span className="text-[9pt] text-tertiary">{filteredClinics.length}</span>
+          </div>
+        )}
+        {showLoading ? (
+          <AdminListSkeleton />
+        ) : filteredClinics.length === 0 ? (
+          <EmptyState title="No clusters" />
+        ) : (
+          <SectionCard>{useTreeView ? renderClinicTree() : renderClinicItems()}</SectionCard>
+        )}
+        {renderOverlays()}
+      </section>
     )
   }
 

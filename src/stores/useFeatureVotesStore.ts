@@ -31,6 +31,17 @@ const DISMISS_PROMPT_KEY_PREFIX = 'featureVote.promptDismissed'
 const OTHER_VOTE_KEY_PREFIX = 'featureVote.otherVote'
 
 /**
+ * Hydrate is called from both FeatureVotePrompt (login toast) and the Settings
+ * Feature Votes panel — they mount together and each fired 4–5 PostgREST GETs.
+ * Module-level in-flight dedup + a short TTL collapse concurrent callers and
+ * remounts into a single network hydrate. The store is a singleton, so state
+ * survives remounts and a TTL-skip leaves the already-loaded data on screen.
+ */
+const HYDRATE_TTL_MS = 60_000
+let hydrateInflight: Promise<void> | null = null
+let lastHydrate: { userId: string; at: number } | null = null
+
+/**
  * Sentinel candidate id for the client-side "Other — share feedback" tile.
  * Not a DB row — userVote with this candidateId is a local-only marker meaning
  * "this user submitted feedback for this cycle instead of picking a candidate".
@@ -81,6 +92,13 @@ export const useFeatureVotesStore = create<FeatureVotesState & FeatureVotesActio
   ...initialState,
 
   hydrate: async (userId) => {
+    // Collapse concurrent callers (prompt + settings panel) onto one network hydrate.
+    if (hydrateInflight) return hydrateInflight
+    // Skip refetch on remount within the TTL — state is still in the singleton store.
+    if (lastHydrate && lastHydrate.userId === userId && Date.now() - lastHydrate.at < HYDRATE_TTL_MS) {
+      return
+    }
+    hydrateInflight = (async () => {
     set({ loading: true, error: null })
     try {
       const cycleResult = await fetchActiveCycle()
@@ -88,6 +106,9 @@ export const useFeatureVotesStore = create<FeatureVotesState & FeatureVotesActio
         set({ loading: false, error: cycleResult.error })
         return
       }
+      // Cycle fetch succeeded (incl. offline IDB fallback) → cache positive AND
+      // negative ("no open cycle") answers for the TTL window.
+      lastHydrate = { userId, at: Date.now() }
       const cycle = cycleResult.data
       if (!cycle) {
         set({ activeCycle: null, candidates: [], userVote: null, tally: {}, mySuggestions: [], loading: false })
@@ -141,7 +162,15 @@ export const useFeatureVotesStore = create<FeatureVotesState & FeatureVotesActio
       get().loadPromptDismissedForCycle(cycle.id)
     } catch (e) {
       logger.warn('hydrate failed', e)
+      // Network/parse failure → allow a retry on the next mount (don't cache the failure).
+      lastHydrate = null
       set({ loading: false, error: e instanceof Error ? e.message : String(e) })
+    }
+    })()
+    try {
+      await hydrateInflight
+    } finally {
+      hydrateInflight = null
     }
   },
 
@@ -226,7 +255,11 @@ export const useFeatureVotesStore = create<FeatureVotesState & FeatureVotesActio
     void get().refreshTally()
   },
 
-  reset: () => set(initialState),
+  reset: () => {
+    lastHydrate = null
+    hydrateInflight = null
+    set(initialState)
+  },
 }))
 
 /** True when the user has already engaged with the active cycle — voted or submitted a suggestion for it. */

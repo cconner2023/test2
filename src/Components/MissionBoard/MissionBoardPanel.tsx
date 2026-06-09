@@ -569,34 +569,34 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
           if (startCol === -1) continue
           weekEvents.push({ event: e, startCol: startCol + 1, span: endCol - startCol + 1 })
         }
-        // Cap to the earliest WEEK_PREVIEW_LIMIT events by start time (all-day first),
-        // matching the task-list/kanban preview-limit pattern.
+        // Greedy lane-pack ALL events first. A lane spans the full week, so events
+        // on different days (non-overlapping columns) share a lane — Mon/Wed/Fri
+        // singletons collapse into one row. Then cap to WEEK_PREVIEW_LIMIT *lanes*,
+        // not events, so later-week days aren't starved by earlier-day stacking.
         const totalWeekEvents = weekEvents.length
-        weekEvents.sort((a, b) =>
-          (a.event.all_day === b.event.all_day ? 0 : a.event.all_day ? -1 : 1) ||
-          a.event.start_time.localeCompare(b.event.start_time)
-        )
-        const shownWeekEvents = weekEvents.slice(0, WEEK_PREVIEW_LIMIT)
-        const weekExtra = totalWeekEvents - shownWeekEvents.length
 
-        // Spatial order for greedy lane packing of the capped set.
-        shownWeekEvents.sort((a, b) =>
+        // Spatial order for greedy lane packing.
+        weekEvents.sort((a, b) =>
           a.startCol - b.startCol ||
           b.span - a.span ||
           (a.event.all_day === b.event.all_day ? 0 : a.event.all_day ? -1 : 1) ||
           a.event.start_time.localeCompare(b.event.start_time)
         )
 
-        const lanes: WeekEvent[][] = []
-        for (const we of shownWeekEvents) {
+        const allLanes: WeekEvent[][] = []
+        for (const we of weekEvents) {
           const weEnd = we.startCol + we.span - 1
           let laneIdx = 0
           while (
-            lanes[laneIdx]?.some(o => we.startCol <= o.startCol + o.span - 1 && o.startCol <= weEnd)
+            allLanes[laneIdx]?.some(o => we.startCol <= o.startCol + o.span - 1 && o.startCol <= weEnd)
           ) laneIdx++
-          if (!lanes[laneIdx]) lanes[laneIdx] = []
-          lanes[laneIdx].push(we)
+          if (!allLanes[laneIdx]) allLanes[laneIdx] = []
+          allLanes[laneIdx].push(we)
         }
+
+        const lanes = allLanes.slice(0, WEEK_PREVIEW_LIMIT)
+        const shownWeekCount = lanes.reduce((n, l) => n + l.length, 0)
+        const weekExtra = totalWeekEvents - shownWeekCount
 
         const weekHasEvents = totalWeekEvents > 0
 

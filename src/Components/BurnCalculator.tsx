@@ -13,7 +13,7 @@ export function BurnCalculator() {
     const [weight, setWeight] = useState('')
     const [burnedRegions, setBurnedRegions] = useState<Set<string>>(new Set())
     const measurementsRef = useRef<HTMLDivElement>(null)
-    const parklandRef = useRef<HTMLDivElement>(null)
+    const resultsRef = useRef<HTMLDivElement>(null)
 
     const toggleRegion = useCallback((id: string) => {
         setBurnedRegions(prev => {
@@ -43,6 +43,21 @@ export function BurnCalculator() {
     const wtKgDisplay = wtKg !== null ? wtKg.toFixed(1) : null
     const hasWeight = wtKg !== null && wtKg > 0
 
+    // Rule of Ten (USAISR / JTS Burn CPG) — the field initial-rate method.
+    // Initial LR rate (mL/hr) = %TBSA × 10 for adults 40–80 kg;
+    // add 100 mL/hr for every full 10 kg over 80 kg. Titrate to UOP 30–50 mL/hr.
+    const ruleOfTen = useMemo(() => {
+        if (totalTBSA <= 0 || !hasWeight || wtKg === null) return null
+        const base = totalTBSA * 10
+        const adder = Math.floor(Math.max(0, wtKg - 80) / 10) * 100
+        return {
+            adder,
+            rate: Math.round(base + adder),
+            over80: wtKg > 80,
+        }
+    }, [totalTBSA, wtKg, hasWeight])
+
+    // Parkland — 24-hour volume reference (4 mL × %TBSA × kg, half over first 8 hr).
     const parkland = useMemo(() => {
         if (totalTBSA <= 0 || !hasWeight || wtKg === null) return null
         const total = 4 * totalTBSA * wtKg
@@ -57,15 +72,15 @@ export function BurnCalculator() {
         }
     }, [totalTBSA, wtKg, hasWeight])
 
-    const showParkland = parkland !== null
-    // Scroll to Parkland section when it becomes visible
+    const showResults = ruleOfTen !== null
+    // Scroll to results when they become visible
     useEffect(() => {
-        if (showParkland) {
+        if (showResults) {
             requestAnimationFrame(() => {
-                parklandRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
             })
         }
-    }, [showParkland])
+    }, [showResults])
 
     const handleReset = useCallback(() => {
         setWeight('')
@@ -130,9 +145,39 @@ export function BurnCalculator() {
                 </Section>
             </div>
 
-            {/* Parkland Formula — appears when both Wt and TBSA are set */}
+            {/* Rule of Ten — initial resuscitation rate (USAISR / JTS); appears when both Wt and TBSA are set */}
+            {ruleOfTen && wtKg !== null && (
+                <div ref={resultsRef} className="animate-cardAppearIn">
+                    <Section title="Rule of Ten">
+                        <SectionCard>
+                            {/* Formula row → initial LR rate */}
+                            <div className="flex items-center gap-3 px-4 py-3.5">
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-primary">
+                                        {totalTBSA.toFixed(1)}% × 10{ruleOfTen.over80 ? ` + ${ruleOfTen.adder.toLocaleString()}` : ''}
+                                    </p>
+                                    <p className="text-[9pt] text-tertiary">
+                                        Initial LR rate{ruleOfTen.over80 ? ' · +100 mL/hr per 10 kg over 80' : ''}
+                                    </p>
+                                </div>
+                                <span className="text-sm font-bold text-primary">{ruleOfTen.rate.toLocaleString()} mL/hr</span>
+                            </div>
+
+                            {/* Titration endpoint */}
+                            <div className="flex items-center gap-3 px-4 py-3.5 border-t border-tertiary/10">
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-primary">Titrate to urine output</p>
+                                </div>
+                                <span className="text-sm font-bold text-themeblue2">30–50 mL/hr</span>
+                            </div>
+                        </SectionCard>
+                    </Section>
+                </div>
+            )}
+
+            {/* Parkland Formula — 24-hour volume reference */}
             {parkland && wtKg !== null && (
-                <div ref={parklandRef} className="animate-cardAppearIn">
+                <div className="animate-cardAppearIn">
                     <Section title="Parkland Formula">
                         <SectionCard>
                             {/* Formula row */}
