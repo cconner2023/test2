@@ -395,14 +395,18 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
     return () => { cancelled = true }
   }, [clinicId])
 
-  // Week-view swipe: attach native pointer listeners so stopPropagation fires
-  // before @use-gesture/react's listener on the parent ColumnA carousel.
+  // Week-view swipe: attach native pointer listeners that detect a horizontal
+  // week-paging swipe. Only stopPropagation ONCE a horizontal drag is locked
+  // (see onPointerMove) — do NOT swallow the bare pointerdown. Swallowing every
+  // pointerdown disrupts the synthesized click on iOS when it stacks with the
+  // event button's own menuPress touchstart stopPropagation, killing taps while
+  // the long-press timer still fires. (The carousel uses touch events, not
+  // pointer events, so a pointerdown stopPropagation never shielded it anyway.)
   useEffect(() => {
     const el = weekViewElRef.current
     if (!el) return
     let startX = 0, startY = 0, active = false, locked: boolean | null = null
     const onPointerDown = (e: PointerEvent) => {
-      e.stopPropagation()
       startX = e.clientX; startY = e.clientY; active = true; locked = null
     }
     const onPointerMove = (e: PointerEvent) => {

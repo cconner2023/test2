@@ -190,6 +190,24 @@ export function Sheet({
     const dragStartY = useRef(0);
     const fitDraggable = !isSnap && draggable;
 
+    // 'fit': measure the non-scrolling chrome (handle + header) so the scroll
+    // body can take an EXPLICIT max-height. iOS Safari won't create a scroll
+    // region for a flex-shrink child under a max-height-only parent (no definite
+    // height) — it lays the child out full-height and the card's overflow-hidden
+    // clips the tail, making content unreachable. Capping the body directly fixes
+    // it. min-h-0 alone isn't enough here.
+    const fitChromeRef = useRef<HTMLDivElement>(null);
+    const [fitChromeH, setFitChromeH] = useState(0);
+    useEffect(() => {
+        if (isSnap || !isMounted || !fitChromeRef.current) return;
+        const el = fitChromeRef.current;
+        const measure = () => setFitChromeH(el.offsetHeight);
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [isSnap, isMounted, isOpen]);
+
     // Unified touch handlers: snap mode feeds overscroll; fit mode tracks a
     // dismiss drag started from the handle.
     const onTouchStart = useCallback((e: React.TouchEvent) => {
@@ -335,40 +353,51 @@ export function Sheet({
                     </>
                 ) : (
                     <>
-                        {/* Plain in-flow header. Drag handle (optional) is the
-                            drag-zone; the title row appears only if it has content. */}
-                        {draggable && (
-                            <div
-                                className="flex justify-center pt-2 pb-1 shrink-0"
-                                data-drag-zone
-                                style={{ touchAction: 'none' }}
-                                onTouchStart={onTouchStart}
-                                onTouchMove={onTouchMove}
-                                onTouchEnd={onTouchEnd}
-                            >
-                                <div className="w-9 h-1 rounded-full bg-tertiary/25" />
-                            </div>
-                        )}
-                        {(title || titleNode || leftContent || rightContent || actions || !hideClose) && (
-                            <div className="flex items-center justify-between gap-2 px-4 pt-1 pb-2 shrink-0 border-b border-primary/6">
-                                <div className="flex items-center gap-2 min-w-0">
-                                    {leftContent && <div className="shrink-0">{leftContent}</div>}
-                                    {titleNode
-                                        ? <div className="min-w-0 flex-1">{titleNode}</div>
-                                        : title && <span className="truncate text-[13pt] font-semibold text-primary min-w-0">{title}</span>}
+                        {/* Non-scrolling chrome (handle + header), measured so the
+                            body below can take an explicit max-height. */}
+                        <div ref={fitChromeRef} className="shrink-0">
+                            {/* Plain in-flow header. Drag handle (optional) is the
+                                drag-zone; the title row appears only if it has content. */}
+                            {draggable && (
+                                <div
+                                    className="flex justify-center pt-2 pb-1"
+                                    data-drag-zone
+                                    style={{ touchAction: 'none' }}
+                                    onTouchStart={onTouchStart}
+                                    onTouchMove={onTouchMove}
+                                    onTouchEnd={onTouchEnd}
+                                >
+                                    <div className="w-9 h-1 rounded-full bg-tertiary/25" />
                                 </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                    {rightContent}
-                                    {!hideClose && (
-                                        <HeaderPill>
-                                            {actions}
-                                            <PillButton icon={X} onClick={handleClose} label="Close" />
-                                        </HeaderPill>
-                                    )}
+                            )}
+                            {(title || titleNode || leftContent || rightContent || actions || !hideClose) && (
+                                <div className="flex items-center justify-between gap-2 px-4 pt-1 pb-2 border-b border-primary/6">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        {leftContent && <div className="shrink-0">{leftContent}</div>}
+                                        {titleNode
+                                            ? <div className="min-w-0 flex-1">{titleNode}</div>
+                                            : title && <span className="truncate text-[13pt] font-semibold text-primary min-w-0">{title}</span>}
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        {rightContent}
+                                        {!hideClose && (
+                                            <HeaderPill>
+                                                {actions}
+                                                <PillButton icon={X} onClick={handleClose} label="Close" />
+                                            </HeaderPill>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
-                        <div className="min-h-0 overflow-y-auto overscroll-y-contain">{children}</div>
+                            )}
+                        </div>
+                        {/* Explicit cap (card cap minus chrome) so iOS Safari makes
+                            this a real scroll region instead of clipping the tail. */}
+                        <div
+                            className="min-h-0 overflow-y-auto overscroll-y-contain"
+                            style={{ maxHeight: `calc(min(${maxHeight}dvh, 100dvh - 1.5rem) - ${fitChromeH}px)` }}
+                        >
+                            {children}
+                        </div>
                     </>
                 )}
             </div>
