@@ -300,103 +300,95 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
                 <p className={`text-primary whitespace-pre-wrap ${txt}`}>{event.description}</p>
               </div>
             )}
-          </SectionCard>
-        </div>
 
-        {/* Tasks */}
-        {onUpdateSubtasks && (
-          <EventTasksCard
-            subtasks={event.subtasks ?? []}
-            templates={checklistTemplates}
-            assignedIds={event.assigned_to ?? []}
-            canEdit={false}
-            onChange={(next) => onUpdateSubtasks(event.id, next)}
-            isMobile={isMobile}
-          />
-        )}
+            {/* Tasks */}
+            {onUpdateSubtasks && (event.subtasks?.length ?? 0) > 0 && (
+              <div className={rowPad}>
+                <EventTasksCard
+                  subtasks={event.subtasks ?? []}
+                  templates={checklistTemplates}
+                  assignedIds={event.assigned_to ?? []}
+                  canEdit={false}
+                  onChange={(next) => onUpdateSubtasks(event.id, next)}
+                  isMobile={isMobile}
+                />
+              </div>
+            )}
 
-        {/* Equipment card */}
-        {linkedPropertyItems.length > 0 && (
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Equipment</span>
-              <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
-                {linkedPropertyItems.length}
-              </span>
-            </div>
-            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-              {linkedPropertyItems.map((item) => (
-                <div key={item.id} className={`flex items-center ${isMobile ? 'gap-3 px-4 py-3' : 'gap-2 px-3 py-2'}`}>
-                  <div className="min-w-0">
-                    <p className={`font-medium text-primary truncate ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{item.name}</p>
-                    {item.nsn && <p className="text-[9pt] text-tertiary">{item.nsn}</p>}
+            {/* Equipment */}
+            {linkedPropertyItems.length > 0 && (
+              <div className={rowPad}>
+                <SectionHeader>Equipment ({linkedPropertyItems.length})</SectionHeader>
+                <div className="space-y-1.5">
+                  {linkedPropertyItems.map((item) => (
+                    <div key={item.id} className="min-w-0">
+                      <p className={`font-medium text-primary truncate ${txt}`}>{item.name}</p>
+                      {item.nsn && <p className="text-[9pt] text-tertiary">{item.nsn}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 9-line MEDEVAC */}
+            {event.medevac_data && (
+              <div className={rowPad}>
+                <div className="flex items-center justify-between">
+                  <SectionHeader>MEDEVAC Request</SectionHeader>
+                  <div className="flex items-center gap-0.5 -mt-1">
+                    <button
+                      type="button"
+                      onClick={handleMedevacCopy}
+                      title="Copy"
+                      className={`p-1.5 rounded-full transition-all active:scale-95 ${copied ? 'text-themegreen' : 'text-tertiary hover:text-primary hover:bg-themewhite3'}`}
+                    >
+                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleMedevacPrint}
+                      title="Print"
+                      className="p-1.5 rounded-full text-tertiary hover:text-primary hover:bg-themewhite3 active:scale-95 transition-all"
+                    >
+                      <Printer className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+                <p className={`text-tertiary whitespace-pre-wrap leading-relaxed ${txt}`}>
+                  {medevacToText(event.medevac_data)}
+                </p>
 
-        {/* 9-line MEDEVAC */}
-        {event.medevac_data && (
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">MEDEVAC Request</span>
-              <div className="flex items-center gap-0.5">
-                <button
-                  type="button"
-                  onClick={handleMedevacCopy}
-                  title="Copy"
-                  className={`p-1.5 rounded-full transition-all active:scale-95 ${copied ? 'text-themegreen' : 'text-tertiary hover:text-primary hover:bg-themewhite3'}`}
-                >
-                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleMedevacPrint}
-                  title="Print"
-                  className="p-1.5 rounded-full text-tertiary hover:text-primary hover:bg-themewhite3 active:scale-95 transition-all"
-                >
-                  <Printer className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-            <div className="rounded-xl bg-themewhite2 overflow-hidden">
-              <div className="px-4 py-3 text-tertiary text-[10pt] whitespace-pre-wrap leading-relaxed">
-                {medevacToText(event.medevac_data)}
-              </div>
-            </div>
-
-            {/* Data Matrix */}
-            <div className="mt-3">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Data Matrix</span>
-                <div className="flex items-center gap-0.5">
-                  <button
-                    type="button"
-                    onClick={handleCopyImage}
-                    title="Copy image"
-                    className={`p-1.5 rounded-full transition-all active:scale-95 ${copiedDm === 'image' ? 'text-themegreen' : 'text-tertiary hover:text-primary hover:bg-themewhite3'}`}
-                  >
-                    {copiedDm === 'image' ? <Check className="w-4 h-4" /> : <Image className="w-4 h-4" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCopyCode}
-                    title="Copy code"
-                    className={`p-1.5 rounded-full transition-all active:scale-95 ${copiedDm === 'code' ? 'text-themegreen' : 'text-tertiary hover:text-primary hover:bg-themewhite3'}`}
-                  >
-                    {copiedDm === 'code' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  </button>
+                {/* Data Matrix */}
+                <div className="mt-3">
+                  <div className="flex items-center justify-between">
+                    <SectionHeader>Data Matrix</SectionHeader>
+                    <div className="flex items-center gap-0.5 -mt-1">
+                      <button
+                        type="button"
+                        onClick={handleCopyImage}
+                        title="Copy image"
+                        className={`p-1.5 rounded-full transition-all active:scale-95 ${copiedDm === 'image' ? 'text-themegreen' : 'text-tertiary hover:text-primary hover:bg-themewhite3'}`}
+                      >
+                        {copiedDm === 'image' ? <Check className="w-4 h-4" /> : <Image className="w-4 h-4" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCopyCode}
+                        title="Copy code"
+                        className={`p-1.5 rounded-full transition-all active:scale-95 ${copiedDm === 'code' ? 'text-themegreen' : 'text-tertiary hover:text-primary hover:bg-themewhite3'}`}
+                      >
+                        {copiedDm === 'code' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div ref={barcodeRef} className="rounded-xl overflow-hidden">
+                    <BarcodeDisplay encodedText={medevacToCompact(event.medevac_data)} layout="col" />
+                  </div>
                 </div>
               </div>
-              <div ref={barcodeRef} className="rounded-xl overflow-hidden">
-                <BarcodeDisplay encodedText={medevacToCompact(event.medevac_data)} layout="col" />
-              </div>
-            </div>
-          </div>
-        )}
-
+            )}
+          </SectionCard>
+        </div>
 
         <div className={isMobile ? 'h-16 shrink-0' : 'h-8 shrink-0'} />
       </div>

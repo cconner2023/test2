@@ -2,7 +2,8 @@ import { useState, useMemo, forwardRef, useImperativeHandle } from 'react'
 import { createPortal } from 'react-dom'
 import { ScanLine, ArrowRightLeft, GitMerge, Plus, Minus, Check, X, MessageSquare, Pencil, Trash2 } from 'lucide-react'
 import { SectionCard } from '../Section'
-import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
+import { type ContextMenuItem } from '../ContextMenu'
+import { LiftedRowMenu } from '../LiftedRowMenu'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
@@ -59,9 +60,9 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
   const [showMergeSheet, setShowMergeSheet] = useState(false)
   const [splitQty, setSplitQty] = useState(1)
   const [splitTargetId, setSplitTargetId] = useState<string | null>(null)
-  const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null)
+  const [menuAnchor, setMenuAnchor] = useState<{ rect: DOMRect } | null>(null)
   useImperativeHandle(ref, () => ({
-    openMenu: (anchor: DOMRect) => setMenuAnchor({ x: anchor.left, y: anchor.bottom + 6 }),
+    openMenu: (anchor: DOMRect) => setMenuAnchor({ rect: anchor }),
   }), [])
 
   const { share: shareToChat, picker: shareToChatPicker } = useShareToChat()
@@ -197,10 +198,16 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
       {/* Action menu — opened from the host header ellipsis (openMenu handle).
           All item actions live here so Move/Merge/Share sheets stay co-located. */}
       {menuAnchor && (
-        <ContextMenu
-          x={menuAnchor.x}
-          y={menuAnchor.y}
+        <LiftedRowMenu
+          isOpen
+          anchorRect={menuAnchor.rect}
           onClose={() => setMenuAnchor(null)}
+          layout="list"
+          row={
+            <div className="w-full flex items-center py-1.5 px-3 bg-themewhite">
+              <span className="text-[10pt] text-primary truncate flex-1">{item.name || item.nomenclature || 'Item'}</span>
+            </div>
+          }
           items={[
             ...(onEdit ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: onEdit } as ContextMenuItem] : []),
             ...(!item.is_serialized ? [{

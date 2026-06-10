@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { X, MoreHorizontal, Check, ChevronLeft } from 'lucide-react'
 import { ConfirmDialog } from '../ConfirmDialog'
-import { ContextMenu } from '../ContextMenu'
+import { LiftedRowMenu } from '../LiftedRowMenu'
 import { AddFab } from '../AddFab'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useShallow } from 'zustand/react/shallow'
@@ -20,6 +20,7 @@ import type { LocalPropertyItem, LocalPropertyLocation } from '../../Types/Prope
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
 import { PropertyItemDetail, type PropertyItemDetailHandle } from './PropertyItemDetail'
 import { HeaderPill, PillButton } from '../HeaderPill'
+import { SearchInput } from '../SearchInput'
 
 export type PropertyView = 'property' | 'property-detail' | 'property-form'
 
@@ -114,12 +115,14 @@ export const PropertyPanel = memo(function PropertyPanel({
     | { kind: 'location'; loc: LocalPropertyLocation | null; parentId: string | null }
     | null
   >(null)
+  // Desktop: left-rail tree search (mirrors the calendar desktop sidebar's search).
+  const [desktopSearch, setDesktopSearch] = useState('')
   // Desktop: location form shown in the right pane (create or edit).
   const [editLocationTarget, setEditLocationTarget] = useState<{ loc: LocalPropertyLocation | null; parentId: string | null } | null>(null)
   const [pendingDeleteItem, setPendingDeleteItem] = useState<LocalPropertyItem | null>(null)
   const [pendingDeleteLocId, setPendingDeleteLocId] = useState<string | null>(null)
   // Selected-location action menu (header ellipsis) anchor + photo upload plumbing.
-  const [locMenu, setLocMenu] = useState<{ x: number; y: number } | null>(null)
+  const [locMenu, setLocMenu] = useState<{ rect: DOMRect } | null>(null)
   const { trigger: triggerPhoto, input: photoInput } = usePropertyPhotoUpload(
     (id, dataUrl) => store.editLocation(id, { photo_data: dataUrl }),
   )
@@ -208,8 +211,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   }, [selectedLocationId])
 
   const openLocMenu = useCallback((e: React.MouseEvent) => {
-    const r = e.currentTarget.getBoundingClientRect()
-    setLocMenu({ x: r.left, y: r.bottom + 6 })
+    setLocMenu({ rect: e.currentTarget.getBoundingClientRect() })
   }, [])
 
   const closeLocationDetail = useCallback(() => {
@@ -324,14 +326,21 @@ export const PropertyPanel = memo(function PropertyPanel({
           <div data-tour="property-locations" className={`shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50 transition-all duration-300 ${
             railCollapsed ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-[260px] opacity-100'
           }`}>
-            <div className="shrink-0 px-4 py-3 border-b border-primary/10">
-              <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide px-2">Locations</p>
+            <div className="shrink-0 px-3 pt-2 pb-1">
+              <SearchInput
+                value={desktopSearch}
+                onChange={setDesktopSearch}
+                placeholder="Search items, serials, locations"
+              />
             </div>
             <div className="flex-1 overflow-y-auto">
               <PropertyLocationTree
                 locations={visibleLocations}
                 items={store.items}
                 clinicName={clinicName}
+                holders={store.holders}
+                searchQuery={desktopSearch}
+                hoverActions
                 activeLocationId={selectedLocationId}
                 onSelectLocation={handleSelectLocationDesktop}
                 onSelectItem={handleSelectItem}
@@ -487,10 +496,16 @@ export const PropertyPanel = memo(function PropertyPanel({
         </div>
 
         {locMenu && selectedLocation && (
-          <ContextMenu
-            x={locMenu.x}
-            y={locMenu.y}
+          <LiftedRowMenu
+            isOpen
+            anchorRect={locMenu.rect}
             onClose={() => setLocMenu(null)}
+            layout="list"
+            row={
+              <div className="w-full flex items-center py-1.5 px-3 bg-themewhite">
+                <span className="text-[10pt] text-primary truncate flex-1">{selectedLocation.name}</span>
+              </div>
+            }
             items={locMenuItems(selectedLocation)}
           />
         )}
@@ -648,10 +663,16 @@ export const PropertyPanel = memo(function PropertyPanel({
       </Sheet>
 
       {locMenu && selectedLocation && (
-        <ContextMenu
-          x={locMenu.x}
-          y={locMenu.y}
+        <LiftedRowMenu
+          isOpen
+          anchorRect={locMenu.rect}
           onClose={() => setLocMenu(null)}
+          layout="list"
+          row={
+            <div className="w-full flex items-center py-1.5 px-3 bg-themewhite">
+              <span className="text-[10pt] text-primary truncate flex-1">{selectedLocation.name}</span>
+            </div>
+          }
           items={locMenuItems(selectedLocation)}
         />
       )}

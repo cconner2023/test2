@@ -33,8 +33,8 @@ import {
 } from './MissionGantt'
 import { useCategoryColors } from '../../Hooks/useCategoryColors'
 import { useClinicCategoryColorsSync } from '../../Hooks/useClinicCategoryColors'
-import { ContextMenu } from '../ContextMenu'
 import type { ContextMenuItem } from '../ContextMenu'
+import { menuPressHandlers, type MenuPressState } from '../Calendar/menuPress'
 import { LiftedRowMenu } from '../LiftedRowMenu'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
@@ -43,6 +43,39 @@ import { EmptyState } from '../EmptyState'
 const TASK_PREVIEW_LIMIT = 4
 const KANBAN_PREVIEW_LIMIT = 3
 const WEEK_PREVIEW_LIMIT = 3
+
+const EVENT_CLONE_W = 300
+const EVENT_CLONE_H = 60
+
+/** Re-center a fixed EVENT_CLONE_W×H box on the press point and clamp to the
+ *  viewport, so the four differently-rendered event surfaces (task row, kanban
+ *  card, week bar, huddle row) all lift as the SAME tidy clone card. Mirrors
+ *  CalendarPanel's compactAnchorRect / generic-EventClone approach. */
+function compactAnchorRect(r: DOMRect, w: number, h: number): DOMRect {
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const left = Math.max(12, Math.min(r.left + r.width / 2 - w / 2, vw - w - 12))
+  const top = Math.max(12, Math.min(r.top, vh - h - 80))
+  return { x: left, y: top, left, top, width: w, height: h, right: left + w, bottom: top + h, toJSON() {} } as DOMRect
+}
+
+/** Generic lifted-row clone for a mission event — category stripe + title +
+ *  time. Same card regardless of which widget (task / kanban / week / huddle)
+ *  was pressed. */
+function MissionEventClone({ event, stripe }: { event: CalendarEvent; stripe: string }) {
+  const time = event.all_day
+    ? 'All day'
+    : `${event.start_time.slice(11, 16)}–${event.end_time.slice(11, 16)}`
+  return (
+    <div className="w-full flex items-stretch rounded-lg overflow-hidden border border-themeblue3/10 bg-themewhite">
+      <div className={`w-1 shrink-0 ${stripe}`} />
+      <div className="flex-1 min-w-0 px-2.5 py-2">
+        <p className="text-[10pt] font-medium text-primary truncate">{event.title || 'Untitled event'}</p>
+        <p className="text-[9pt] text-secondary tabular-nums">{time}</p>
+      </div>
+    </div>
+  )
+}
 
 // ── Messages widget ──────────────────────────────────────────────────────────
 
@@ -256,21 +289,20 @@ function MessagesWidget({ action }: { action: WidgetActionDescriptor | null }) {
   )
 }
 
-function KanbanCard({ event, onTap, onContext }: {
+function KanbanCard({ event, onTap, onMenu }: {
   event: CalendarEvent
   onTap: () => void
-  onContext: (x: number, y: number) => void
+  onMenu: (rect: DOMRect) => void
 }) {
-  const { isPressing, ...longPressHandlers } = useLongPress(onContext)
+  const pressRef = useRef<MenuPressState | null>(null)
   const { resolve: resolveCategoryColor } = useCategoryColors()
   const stripe = resolveCategoryColor(event.category, event.color).solid
   const isDone = event.status === 'completed' || event.status === 'cancelled'
   return (
     <button
-      onClick={onTap}
-      onContextMenu={(e) => { e.preventDefault(); onContext(e.clientX, e.clientY) }}
-      {...longPressHandlers}
-      className={`flex items-stretch text-left rounded overflow-hidden border border-themeblue3/10 active:scale-[0.98] w-full transition-opacity duration-100 ${isDone ? 'opacity-50' : isPressing ? 'opacity-60' : ''}`}
+      onClick={() => { if (pressRef.current?.fired) return; onTap() }}
+      {...menuPressHandlers(onMenu, pressRef)}
+      className={`flex items-stretch text-left rounded overflow-hidden border border-themeblue3/10 active:scale-[0.98] w-full transition-opacity duration-100 ${isDone ? 'opacity-50' : ''}`}
     >
       <div className={`w-1 shrink-0 ${stripe}`} />
       <div className="flex-1 min-w-0 px-1.5 py-1 bg-themewhite2">
@@ -329,7 +361,16 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   const [missionOverlayFeatures, setMissionOverlayFeatures] = useState<OverlayFeature[]>([])
   const [missionOverlayId, setMissionOverlayId] = useState<string | undefined>(undefined)
   const [selectedDate, setSelectedDate] = useState(() => new Date())
-  const [contextMenu, setContextMenu] = useState<{ event: CalendarEvent; x: number; y: number } | null>(null)
+  const [eventMenu, setEventMenu] = useState<{ event: CalendarEvent; rect: DOMRect } | null>(null)
+
+  // Shared press buckets for the inline event surfaces (week bars, huddle rows).
+  // Only one press is active at a time, so one ref per surface is enough.
+  const weekPressRef = useRef<MenuPressState | null>(null)
+  const huddlePressRef = useRef<MenuPressState | null>(null)
+
+  const openEventMenu = useCallback((event: CalendarEvent, rect: DOMRect) => {
+    setEventMenu({ event, rect: compactAnchorRect(rect, EVENT_CLONE_W, EVENT_CLONE_H) })
+  }, [])
 
   const weekViewElRef = useRef<HTMLDivElement | null>(null)
   const [weekViewMounted, setWeekViewMounted] = useState(false)
@@ -460,7 +501,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
                 key={event.id}
                 event={event}
                 onClick={() => handleEventClick(event.id)}
-                onContextMenu={(x, y) => setContextMenu({ event, x, y })}
+                onMenu={(rect) => openEventMenu(event, rect)}
               />
             ))}
             {extraCount > 0 && (
@@ -530,7 +571,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
                             key={event.id}
                             event={event}
                             onTap={() => handleEventClick(event.id)}
-                            onContext={(x, y) => setContextMenu({ event, x, y })}
+                            onMenu={(rect) => openEventMenu(event, rect)}
                           />
                         ))}
                         {extra > 0 && (
@@ -652,8 +693,8 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
                         <button
                           key={we.event.id}
                           type="button"
-                          onClick={() => handleEventClick(we.event.id)}
-                          onContextMenu={(e) => { e.preventDefault(); setContextMenu({ event: we.event, x: e.clientX, y: e.clientY }) }}
+                          onClick={() => { if (weekPressRef.current?.fired) return; handleEventClick(we.event.id) }}
+                          {...menuPressHandlers((rect) => openEventMenu(we.event, rect), weekPressRef)}
                           style={{ gridColumn: `${we.startCol} / span ${we.span}` }}
                           className={`min-w-0 px-1.5 py-0.5 rounded text-left overflow-hidden active:opacity-60 ${stripe} ${isDone ? 'opacity-50' : ''}`}
                         >
@@ -737,8 +778,8 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
                   return (
                     <button
                       key={ev.id}
-                      onClick={() => handleEventClick(ev.id)}
-                      onContextMenu={(e) => { e.preventDefault(); setContextMenu({ event: ev, x: e.clientX, y: e.clientY }) }}
+                      onClick={() => { if (huddlePressRef.current?.fired) return; handleEventClick(ev.id) }}
+                      {...menuPressHandlers((rect) => openEventMenu(ev, rect), huddlePressRef)}
                       className="flex items-center gap-2 text-left rounded px-1.5 py-1 active:bg-themeblue2/10"
                     >
                       <span className="text-[9pt] text-secondary tabular-nums shrink-0">{ev.start_time.slice(11, 16)}</span>
@@ -814,25 +855,28 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
         </>
       )}
 
-      {contextMenu && (() => {
-        const ev = contextMenu.event
+      {eventMenu && (() => {
+        const ev = eventMenu.event
         const editable = isEventEditable(ev, isSupervisor)
         const deletable = isTemplateStructureMutable(ev, isSupervisor)
-        const items = [
+        const items: ContextMenuItem[] = [
           ...(editable ? statusMenuItems(ev, (status) => {
             handleStatusChange(ev.id, status)
-            setContextMenu(null)
+            setEventMenu(null)
           }) : []),
-          ...(editable ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => { openCalendarEventForEdit(ev.id); setContextMenu(null) } }] : []),
-          ...(deletable ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => { setConfirmDeleteEvent(ev.id); setContextMenu(null) } }] : []),
+          ...(editable ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => { openCalendarEventForEdit(ev.id); setEventMenu(null) } }] : []),
+          ...(deletable ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => { setConfirmDeleteEvent(ev.id); setEventMenu(null) } }] : []),
         ]
-        if (items.length === 0) { setContextMenu(null); return null }
+        if (items.length === 0) { setEventMenu(null); return null }
+        const stripe = resolveCategoryColor(ev.category, ev.color).solid
         return (
-          <ContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            onClose={() => setContextMenu(null)}
+          <LiftedRowMenu
+            isOpen
+            anchorRect={eventMenu.rect}
+            row={<MissionEventClone event={ev} stripe={stripe} />}
             items={items}
+            onClose={() => setEventMenu(null)}
+            layout="list"
           />
         )
       })()}

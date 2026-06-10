@@ -4,6 +4,19 @@ export interface AudioAid {
     description?: string
 }
 
+export interface ImageAid {
+    /** Short heading, e.g. "Strep pharyngitis" */
+    label: string
+    /** Filename hosted under public/trainingAids/ (same dir as audio aids) */
+    file: string
+    /** Healthy baseline vs pathologic finding */
+    state: 'normal' | 'abnormal'
+    /** Teaching caption describing what to look for */
+    caption?: string
+    /** Source/license credit — required for CC-BY bundled images */
+    attribution?: string
+}
+
 export interface TaskTrainingData {
     taskNumber: string
     title: string
@@ -13,6 +26,8 @@ export interface TaskTrainingData {
     caution?: string
     performanceSteps: PerformanceStep[]
     audioAids?: AudioAid[]
+    /** Dev-gated visual reference: healthy vs abnormal exam findings */
+    imageAids?: ImageAid[]
     gradedSteps?: string[]
 }
 
@@ -736,7 +751,15 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
             { number: "6d1", text: "Referral to MO.", isSubStep: true, caution: "Patients are advised to avoid contact sports (football) for at least 30 days after diagnosis due to the increased risk of splenic rupture (rupture of the spleen)." },
             { number: "6d2", text: "The MO may order a blood test or rapid mononucleosis test along with a throat culture to rule out \"strep\" and confirm mononucleosis.", isSubStep: true },
             { number: "7", text: "Document treatment on appropriate form." },
-        ]
+        ],
+        imageAids: [
+            { label: "Normal oral cavity (reference)", state: 'normal', file: "throat_normal_pharynx.png", caption: "Anatomical baseline: tonsils within the pillars, uvula midline, soft palate intact. Healthy pharynx is pink and moist with no exudate.", attribution: "Gray's Anatomy (1918), Henry Vandyke Carter — public domain" },
+            { label: "Strep pharyngitis", state: 'abnormal', file: "throat_strep_exudate.jpg", caption: "Reddened tonsils/pharynx with white exudate; may show strawberry tongue. Step 5b.", attribution: "Whispyhistory, CC BY-SA 4.0, via Wikimedia Commons" },
+            { label: "Peritonsillar abscess", state: 'abnormal', file: "throat_peritonsillar_abscess.jpg", caption: "Unilateral tonsillar swelling pushing the uvula toward the opposite side. Surgical emergency. Step 5c.", attribution: "James Heilman, MD, CC BY-SA 3.0, via Wikimedia Commons" },
+            { label: "Infectious mononucleosis", state: 'abnormal', file: "throat_mono_exudate.jpg", caption: "Shaggy white-grey tonsillar exudate, often bilateral. Step 5d.", attribution: "Fateagued, CC BY-SA 3.0, via Wikimedia Commons" },
+            { label: "Oral thrush", state: 'abnormal', file: "oral_thrush.jpg", caption: "White, removable plaques on the tongue/buccal mucosa (candidiasis).", attribution: "CDC PHIL #1217 — public domain" },
+            { label: "Aphthous ulcer", state: 'abnormal', file: "oral_aphthous_ulcer.jpg", caption: "Shallow ulcer with a grey-white base and erythematous halo.", attribution: "ProjectManhattan, CC BY-SA 3.0, via Wikimedia Commons" },
+        ],
     },
     // Medical Management: Treat Sinus Disorder
     {

@@ -2,19 +2,25 @@
  * AdminMap.tsx
  *
  * The Admin "Map" tab — a relational node-web over the same users / clusters /
- * locations the Directory lists, drawn as containment instead of three flat
- * lists. One ring at a time: the focused entity sits at the hub, the things it
- * *contains* orbit it, spokes join them. Tapping a child re-centres on it
- * (drill in); tapping the hub opens that entity's detail. The recenter +
- * scale/blur transition is the "2.5D orientation" feel without a 3D camera —
- * touch-reliable, tour-anchorable, no WebGL.
+ * locations the Directory lists, drawn as geographic containment instead of
+ * three flat lists. Instead of one giant ring of ~100 locations, the top tier
+ * groups by country → region(state) → location → cluster → user, so every
+ * level is a readable handful of nodes.
+ *
+ * Each level renders as an organic force-relaxed web (Obsidian-style) on a
+ * single pan/zoom canvas: the focused entity sits at the hub, the things it
+ * *contains* float around it, spokes join them. Tapping a child re-centres on
+ * it (drill in); tapping the hub opens that entity's detail; the Back control
+ * (or a tap on empty space) backs out one ring. Pinch / wheel zooms, drag pans
+ * — the scale gives the "2.5D" depth feel without a 3D camera or WebGL
+ * (iOS-Safari PWA constraint).
  *
  * Containment + the dashed peer/loan link layer are computed in adminGraph.ts;
- * this file is layout + interaction only.
+ * the force layout in forceLayout.ts; this file is layout-fit + interaction.
  */
 
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { MapPin, Building2, User, Network, ChevronRight, Link2, Link2Off, X } from 'lucide-react'
+import { MapPin, Building2, User, Network, ChevronRight, ChevronLeft, Link2, Link2Off, X, Globe, Map as MapIcon } from 'lucide-react'
 import { AdminListSkeleton } from './AdminSkeletons'
 import { EmptyState } from '../EmptyState'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
@@ -31,6 +37,7 @@ import {
     type GraphNode,
     type GraphNodeType,
 } from './adminGraph'
+import { relaxRing, boundsOf } from './forceLayout'
 
 interface AdminMapProps {
     searchQuery?: string
@@ -42,6 +49,8 @@ interface AdminMapProps {
 
 const TYPE_ICON: Record<GraphNodeType, typeof MapPin> = {
     root: Network,
+    country: Globe,
+    region: MapIcon,
     location: MapPin,
     clinic: Building2,
     user: User,
@@ -50,9 +59,26 @@ const TYPE_ICON: Record<GraphNodeType, typeof MapPin> = {
 // Per-type chrome — keeps the legend obvious at a glance (containment anchor).
 const TYPE_CHROME: Record<GraphNodeType, string> = {
     root: 'bg-primary/10 border-primary/25 text-primary',
+    country: 'bg-primary/10 border-primary/30 text-primary',
+    region: 'bg-themeblue2/10 border-themeblue2/30 text-themeblue2',
     location: 'bg-themeblue2/15 border-themeblue2/35 text-themeblue2',
     clinic: 'bg-themeblue3/15 border-themeblue3/35 text-themeblue3',
     user: 'bg-tertiary/10 border-tertiary/25 text-tertiary',
+}
+
+// Virtual-space node diameters (px before zoom). Geography tiers read as bigger
+// "bubbles"; leaves are smaller. The pan/zoom transform handles visual scale.
+const NODE_SIZE: Record<GraphNodeType, number> = {
+    root: 96, country: 84, region: 78, location: 66, clinic: 60, user: 52,
+}
+const HUB_SIZE = 96
+
+const MIN_SCALE = 0.1
+const MAX_SCALE = 4
+const TAP_SLOP = 6 // px of movement under which a pointer-up counts as a tap
+
+function dist(a: { x: number; y: number }, b: { x: number; y: number }) {
+    return Math.hypot(a.x - b.x, a.y - b.y)
 }
 
 export function AdminMap({ searchQuery, onClearSearch, onSelectUser, onSelectClinic, onSelectLocation }: AdminMapProps) {
@@ -88,17 +114,35 @@ export function AdminMap({ searchQuery, onClearSearch, onSelectUser, onSelectCli
     const children = useMemo(() => childrenOf(focusId, idx), [focusId, idx])
     const ancestry = useMemo(() => ancestryOf(focusId, idx), [focusId, idx])
 
+    // Back out one ring (declared early — the pointer handlers below close over it).
+    const goUp = useCallback(() => {
+        const parent = ancestry[ancestry.length - 1]
+        setFocusId(parent ? parent.id : ROOT_ID)
+    }, [ancestry])
+
+    // ── Force layout (virtual space, hub at origin) ───────────────────────────
+    const positioned = useMemo(() => {
+        const pts = relaxRing(children.length)
+        return children.map((node, i) => ({ node, x: pts[i].x, y: pts[i].y }))
+    }, [children])
+
     // ── Container measurement ────────────────────────────────────────────────
     // Callback ref, NOT a mount effect: the canvas only enters the tree once the
     // loading skeleton clears (the `showLoading` early-return below). A `[]`-deps
-    // effect would run while the ref is still null and never re-subscribe, so the
-    // observer must attach the moment the node actually mounts.
+    // effect would run while the ref is still null and never re-subscribe.
     const roRef = useRef<ResizeObserver | null>(null)
+    const outerRef = useRef<HTMLDivElement | null>(null)
+    const wheelRef = useRef<((e: WheelEvent) => void) | null>(null)
+    // zoomAt is defined below; the native wheel listener calls it via this ref so
+    // we can register wheel as non-passive (React's onWheel is passive → can't
+    // preventDefault the page from scrolling under a desktop zoom).
+    const zoomAtRef = useRef<(x: number, y: number, f: number) => void>(() => {})
     const [size, setSize] = useState({ w: 0, h: 0 })
     const measureRef = useCallback((el: HTMLDivElement | null) => {
         roRef.current?.disconnect()
+        if (wheelRef.current && outerRef.current) outerRef.current.removeEventListener('wheel', wheelRef.current)
+        outerRef.current = el
         if (!el) { roRef.current = null; return }
-        // Measure immediately so the first paint after mount already has a size.
         const r = el.getBoundingClientRect()
         setSize({ w: r.width, h: r.height })
         const ro = new ResizeObserver(([entry]) => {
@@ -107,25 +151,114 @@ export function AdminMap({ searchQuery, onClearSearch, onSelectUser, onSelectCli
         })
         ro.observe(el)
         roRef.current = ro
+        const onWheelNative = (e: WheelEvent) => {
+            e.preventDefault()
+            zoomAtRef.current(e.clientX, e.clientY, e.deltaY < 0 ? 1.12 : 1 / 1.12)
+        }
+        el.addEventListener('wheel', onWheelNative, { passive: false })
+        wheelRef.current = onWheelNative
     }, [])
+
+    // ── Pan / zoom view transform ─────────────────────────────────────────────
+    // Inner plane is anchored at the canvas centre (left/top 50%, origin 0 0).
+    // A world point (wx,wy) renders at  centre + (tx + s·wx, ty + s·wy).
+    const [view, setView] = useState({ s: 1, tx: 0, ty: 0 })
+    const [animate, setAnimate] = useState(false)
+
+    // Fit the current ring to the canvas whenever the focus or size changes.
+    const fit = useMemo(() => {
+        const { w, h } = size
+        if (!w || !h) return { s: 1, tx: 0, ty: 0 }
+        const b = boundsOf(positioned.map(p => ({ x: p.x, y: p.y })))
+        const pad = 90 // room for the biggest bubble + its label
+        const contentW = (b.maxX - b.minX) + NODE_SIZE.country + pad
+        const contentH = (b.maxY - b.minY) + NODE_SIZE.country + pad
+        const s = Math.min(1.3, Math.max(MIN_SCALE, Math.min((w - 32) / contentW, (h - 32) / contentH)))
+        const cx = (b.minX + b.maxX) / 2
+        const cy = (b.minY + b.maxY) / 2
+        return { s, tx: -s * cx, ty: -s * cy }
+    }, [positioned, size])
+
+    useEffect(() => {
+        setAnimate(true)
+        setView(fit)
+    }, [fit])
+
+    // ── Pointer gestures (pan + pinch); wheel zoom ────────────────────────────
+    const pointers = useRef(new Map<number, { x: number; y: number }>())
+    const moved = useRef(false)
+    const pinchDist = useRef(0)
+
+    const zoomAt = useCallback((clientX: number, clientY: number, factor: number) => {
+        const el = outerRef.current
+        if (!el) return
+        const rect = el.getBoundingClientRect()
+        const px = clientX - rect.left - rect.width / 2
+        const py = clientY - rect.top - rect.height / 2
+        setAnimate(false)
+        setView(v => {
+            const ns = Math.min(MAX_SCALE, Math.max(MIN_SCALE, v.s * factor))
+            const wx = (px - v.tx) / v.s
+            const wy = (py - v.ty) / v.s
+            return { s: ns, tx: px - wx * ns, ty: py - wy * ns }
+        })
+    }, [])
+    zoomAtRef.current = zoomAt
+
+    const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        outerRef.current?.setPointerCapture(e.pointerId)
+        pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+        moved.current = false
+        if (pointers.current.size === 2) {
+            const [a, b] = [...pointers.current.values()]
+            pinchDist.current = dist(a, b)
+        }
+    }, [])
+
+    const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        const prev = pointers.current.get(e.pointerId)
+        if (!prev) return
+        const cur = { x: e.clientX, y: e.clientY }
+        pointers.current.set(e.pointerId, cur)
+
+        if (pointers.current.size >= 2) {
+            const [a, b] = [...pointers.current.values()]
+            const d = dist(a, b)
+            if (pinchDist.current > 0) {
+                zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, d / pinchDist.current)
+            }
+            pinchDist.current = d
+            moved.current = true
+            return
+        }
+        const dx = cur.x - prev.x
+        const dy = cur.y - prev.y
+        if (Math.abs(dx) > TAP_SLOP || Math.abs(dy) > TAP_SLOP) moved.current = true
+        setAnimate(false)
+        setView(v => ({ ...v, tx: v.tx + dx, ty: v.ty + dy }))
+    }, [zoomAt])
+
+    const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        const wasSingle = pointers.current.size === 1
+        pointers.current.delete(e.pointerId)
+        if (pointers.current.size < 2) pinchDist.current = 0
+        // A clean tap on empty canvas backs out one ring.
+        if (wasSingle && !moved.current) goUp()
+    }, [goUp])
 
     // ── Navigation ───────────────────────────────────────────────────────────
     const openDetail = useCallback((node: GraphNode) => {
         if (node.type === 'user') onSelectUser(node.raw as AdminUser)
         else if (node.type === 'clinic') onSelectClinic(node.raw as AdminClinic)
         else if (node.type === 'location') onSelectLocation(node.raw as AdminLocation)
+        // country / region are synthetic — no detail row to open.
     }, [onSelectUser, onSelectClinic, onSelectLocation])
 
     const handleNodeTap = useCallback((node: GraphNode) => {
-        // Drillable nodes re-centre; leaves (users, empty clusters) open detail.
+        // Drillable nodes re-centre; leaves (users, empty groups) open detail.
         if (node.childCount > 0) setFocusId(node.id)
         else openDetail(node)
     }, [openDetail])
-
-    const goUp = useCallback(() => {
-        const parent = ancestry[ancestry.length - 1]
-        setFocusId(parent ? parent.id : ROOT_ID)
-    }, [ancestry])
 
     // ── Search → jump list ───────────────────────────────────────────────────
     const searchMatches = useMemo<GraphNode[]>(() => {
@@ -158,29 +291,18 @@ export function AdminMap({ searchQuery, onClearSearch, onSelectUser, onSelectCli
         onClearSearch?.()
     }, [idx, onClearSearch])
 
-    // ── Layout math ──────────────────────────────────────────────────────────
-    const { w, h } = size
-    const cx = w / 2
-    const cy = h / 2
-    const n = children.length
-    const childSize = n <= 8 ? 60 : n <= 14 ? 48 : n <= 22 ? 40 : 34
-    const focusSize = 84
-    // Ring radius leaves room for both node radii + labels; clamp to stay on-canvas.
-    const radius = Math.max(72, Math.min(w, h) / 2 - focusSize / 2 - childSize / 2 - 30)
+    // ── Link layer among on-screen nodes ──────────────────────────────────────
+    const posById = useMemo(() => {
+        const m = new Map<string, { x: number; y: number }>()
+        for (const p of positioned) m.set(p.node.id, { x: p.x, y: p.y })
+        if (focusNode) m.set(focusNode.id, { x: 0, y: 0 })
+        return m
+    }, [positioned, focusNode])
 
-    const positioned = useMemo(() => children.map((node, i) => {
-        const angle = (i / Math.max(n, 1)) * Math.PI * 2 - Math.PI / 2
-        return { node, x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) }
-    }), [children, n, cx, cy, radius])
-
-    // Dashed link layer among everything on screen (hub + ring).
     const links = useMemo(() => {
         if (!showLinks) return []
         const visible = new Set<string>(children.map(c => c.id))
         if (focusNode) visible.add(focusNode.id)
-        const posById = new Map<string, { x: number; y: number }>()
-        for (const p of positioned) posById.set(p.node.id, { x: p.x, y: p.y })
-        if (focusNode) posById.set(focusNode.id, { x: cx, y: cy })
         return linksAmong(visible, idx)
             .map(l => {
                 const a = posById.get(l.fromId)
@@ -188,7 +310,7 @@ export function AdminMap({ searchQuery, onClearSearch, onSelectUser, onSelectCli
                 return a && b ? { ...l, a, b } : null
             })
             .filter(Boolean) as Array<{ kind: 'association' | 'loan'; a: { x: number; y: number }; b: { x: number; y: number } }>
-    }, [showLinks, children, focusNode, positioned, cx, cy, idx])
+    }, [showLinks, children, focusNode, posById, idx])
 
     // ── Render ────────────────────────────────────────────────────────────────
     if (showLoading) return <div className="p-5"><AdminListSkeleton /></div>
@@ -196,11 +318,23 @@ export function AdminMap({ searchQuery, onClearSearch, onSelectUser, onSelectCli
     const isEmpty = !focusNode && children.length === 0
     const FocusIcon = focusNode ? TYPE_ICON[focusNode.type] : Network
     const rootCounts = `${locations.length} locations · ${clinics.length} clusters · ${users.length} users`
+    const innerTransform = `translate(${view.tx}px, ${view.ty}px) scale(${view.s})`
+    const labelVisible = (d: number) => view.s * d >= 30
 
     return (
         <div className="relative h-full w-full overflow-hidden">
-            {/* Breadcrumb trail */}
+            {/* Breadcrumb trail + Back */}
             <div className="absolute top-2 left-2 right-2 z-20 flex items-center gap-1 overflow-x-auto rounded-xl bg-themewhite2/90 backdrop-blur-sm px-2 py-1.5 shadow-sm">
+                {focusId !== ROOT_ID && (
+                    <button
+                        type="button"
+                        onClick={goUp}
+                        aria-label="Back one level"
+                        className="shrink-0 -ml-0.5 mr-0.5 flex items-center text-tertiary hover:text-primary active:scale-90"
+                    >
+                        <ChevronLeft size={16} />
+                    </button>
+                )}
                 <button
                     type="button"
                     onClick={() => setFocusId(ROOT_ID)}
@@ -241,24 +375,33 @@ export function AdminMap({ searchQuery, onClearSearch, onSelectUser, onSelectCli
                 Links
             </button>
 
-            {/* Canvas — tap empty space to back out one ring */}
+            {/* Canvas — drag to pan, pinch/scroll to zoom, tap empty space to back out */}
             <div
                 ref={measureRef}
-                onClick={goUp}
-                className="absolute inset-0"
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerCancel={onPointerUp}
+                className="absolute inset-0 touch-none cursor-grab active:cursor-grabbing"
             >
                 {isEmpty ? (
                     <div className="flex h-full items-center justify-center p-8">
                         <EmptyState title="Nothing to map yet" />
                     </div>
-                ) : (
-                    <>
-                        {/* Spokes + dashed links */}
-                        {w > 0 && (
-                        <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden>
-                            <g className="text-themeblue3/25" stroke="currentColor" strokeWidth={1.5}>
+                ) : size.w > 0 && (
+                    <div
+                        className="absolute left-1/2 top-1/2"
+                        style={{
+                            transform: innerTransform,
+                            transformOrigin: '0 0',
+                            transition: animate ? 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)' : 'none',
+                        }}
+                    >
+                        {/* Spokes + dashed links (vector-effect keeps strokes crisp under zoom) */}
+                        <svg className="pointer-events-none absolute overflow-visible" style={{ left: 0, top: 0, width: 1, height: 1 }} aria-hidden>
+                            <g className="text-themeblue3/25" stroke="currentColor" strokeWidth={1.5} vectorEffect="non-scaling-stroke">
                                 {positioned.map(p => (
-                                    <line key={`spoke-${p.node.id}`} x1={cx} y1={cy} x2={p.x} y2={p.y} />
+                                    <line key={`spoke-${p.node.id}`} x1={0} y1={0} x2={p.x} y2={p.y} vectorEffect="non-scaling-stroke" />
                                 ))}
                             </g>
                             {links.map((l, i) => (
@@ -269,62 +412,65 @@ export function AdminMap({ searchQuery, onClearSearch, onSelectUser, onSelectCli
                                     strokeWidth={1.5}
                                     strokeDasharray="4 4"
                                     opacity={0.7}
+                                    vectorEffect="non-scaling-stroke"
                                 />
                             ))}
                         </svg>
-                        )}
 
-                        {/* Hub (focused entity) */}
-                        {w > 0 && (
-                            <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); if (focusNode) openDetail(focusNode) }}
-                                style={{ left: cx, top: cy }}
-                                className="absolute z-10 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 active:scale-95"
+                        {/* Hub (focused entity) at the origin */}
+                        <button
+                            type="button"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => { e.stopPropagation(); if (focusNode) openDetail(focusNode) }}
+                            style={{ left: 0, top: 0 }}
+                            className="absolute z-10 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 active:scale-95"
+                        >
+                            <div
+                                style={{ width: HUB_SIZE, height: HUB_SIZE }}
+                                className={`flex flex-col items-center justify-center rounded-full border-2 shadow-md ${focusNode ? TYPE_CHROME[focusNode.type] : TYPE_CHROME.root}`}
                             >
-                                <div
-                                    style={{ width: focusSize, height: focusSize }}
-                                    className={`flex flex-col items-center justify-center rounded-full border-2 shadow-md ${focusNode ? TYPE_CHROME[focusNode.type] : TYPE_CHROME.root}`}
-                                >
-                                    <FocusIcon size={focusSize * 0.32} />
-                                    {!focusNode && <span className="mt-0.5 px-2 text-center text-[7pt] leading-tight text-primary/70">{rootCounts}</span>}
-                                </div>
-                                <span className="max-w-[150px] truncate text-[10pt] font-semibold text-primary">
-                                    {focusNode ? focusNode.label : 'Network'}
-                                </span>
-                                {focusNode && <span className="text-[8pt] text-tertiary">Tap to open</span>}
-                            </button>
-                        )}
+                                <FocusIcon size={HUB_SIZE * 0.3} />
+                                {!focusNode && <span className="mt-0.5 px-2 text-center text-[7pt] leading-tight text-primary/70">{rootCounts}</span>}
+                            </div>
+                            <span className="max-w-[150px] truncate text-[10pt] font-semibold text-primary">
+                                {focusNode ? focusNode.label : 'Network'}
+                            </span>
+                            {focusNode && focusNode.type !== 'country' && focusNode.type !== 'region' && (
+                                <span className="text-[8pt] text-tertiary">Tap to open</span>
+                            )}
+                        </button>
 
                         {/* Ring (contained entities) */}
-                        {w > 0 && positioned.map(p => {
+                        {positioned.map(p => {
                             const Icon = TYPE_ICON[p.node.type]
+                            const nodeSize = NODE_SIZE[p.node.type]
                             return (
                                 <button
                                     key={p.node.id}
                                     type="button"
+                                    onPointerDown={(e) => e.stopPropagation()}
                                     onClick={(e) => { e.stopPropagation(); handleNodeTap(p.node) }}
                                     style={{ left: p.x, top: p.y }}
                                     className="absolute z-10 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5 active:scale-95"
                                 >
                                     <div
-                                        style={{ width: childSize, height: childSize }}
+                                        style={{ width: nodeSize, height: nodeSize }}
                                         className={`relative flex items-center justify-center rounded-full border shadow-sm ${TYPE_CHROME[p.node.type]}`}
                                     >
-                                        <Icon size={childSize * 0.4} />
+                                        <Icon size={nodeSize * 0.4} />
                                         {p.node.childCount > 0 && (
                                             <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-themeblue3 px-1 text-[7pt] font-semibold text-themewhite">
                                                 {p.node.childCount}
                                             </span>
                                         )}
                                     </div>
-                                    {childSize >= 40 && (
-                                        <span className="max-w-[88px] truncate text-[8pt] text-primary/80">{p.node.label}</span>
+                                    {labelVisible(nodeSize) && (
+                                        <span className="max-w-[96px] truncate text-[8pt] text-primary/80">{p.node.label}</span>
                                     )}
                                 </button>
                             )
                         })}
-                    </>
+                    </div>
                 )}
             </div>
 

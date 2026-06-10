@@ -4,13 +4,19 @@ import { ChevronRight, ChevronDown, Pencil, Trash2, Eye, FolderPlus, PackagePlus
 import { useDrag } from '@use-gesture/react'
 import { type ContextMenuItem } from '../ContextMenu'
 import { LiftedRowMenu } from '../LiftedRowMenu'
-import type { LocalPropertyLocation, LocalPropertyItem } from '../../Types/PropertyTypes'
+import type { LocalPropertyLocation, LocalPropertyItem, HolderInfo } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
 
 interface PropertyLocationTreeProps {
   locations: LocalPropertyLocation[]
   items: LocalPropertyItem[]
   clinicName?: string
+  /** Holders, for matching items by their current holder's name while searching. */
+  holders?: Map<string, HolderInfo>
+  /** Filter the tree to locations/items matching this query (name, nsn, lin, serial, …). */
+  searchQuery?: string
+  /** Reveal each row's ellipsis only on hover (desktop rail); off = always shown (mobile). */
+  hoverActions?: boolean
   onSelectLocation: (location: LocalPropertyLocation) => void
   onSelectItem: (item: LocalPropertyItem) => void
   onMoveLocation?: (locationId: string, newParentId: string | null) => void
@@ -45,6 +51,9 @@ export function PropertyLocationTree({
   locations,
   items,
   clinicName,
+  holders,
+  searchQuery,
+  hoverActions,
   onSelectLocation,
   onSelectItem,
   onMoveLocation,
@@ -163,6 +172,47 @@ export function PropertyLocationTree({
     return { roots, unassignedItems, memberNodes }
   }, [locations, items])
 
+  // Search filter — when a query is present, prune the tree to matching items /
+  // locations (a matching location keeps its whole subtree; otherwise keep only
+  // matching descendants). Mirrors PropertySearchOverlay's match fields.
+  const q = (searchQuery ?? '').trim().toLowerCase()
+  const isSearching = q.length > 0
+  const { displayRoots, displayMembers, displayUnassigned } = useMemo(() => {
+    if (!isSearching) return { displayRoots: roots, displayMembers: memberNodes, displayUnassigned: unassignedItems }
+
+    const locName = (id: string | null) => (id ? locations.find(l => l.id === id)?.name ?? null : null)
+    const itemMatches = (i: LocalPropertyItem) => {
+      const holder = i.current_holder_id ? holders?.get(i.current_holder_id) : null
+      return (
+        i.name.toLowerCase().includes(q) ||
+        !!i.nomenclature?.toLowerCase().includes(q) ||
+        !!i.nsn?.toLowerCase().includes(q) ||
+        !!i.lin?.toLowerCase().includes(q) ||
+        !!i.serial_number?.toLowerCase().includes(q) ||
+        !!i.notes?.toLowerCase().includes(q) ||
+        !!holder?.displayName.toLowerCase().includes(q) ||
+        !!locName(i.location_id ?? null)?.toLowerCase().includes(q)
+      )
+    }
+    const filterNode = (node: TreeNode): TreeNode | null => {
+      if (node.location.name.toLowerCase().includes(q)) return node // name hit → keep whole subtree
+      const children = node.children.map(filterNode).filter((n): n is TreeNode => n !== null)
+      const nodeItems = node.items.filter(itemMatches)
+      if (children.length === 0 && nodeItems.length === 0) return null
+      return { ...node, children, items: nodeItems }
+    }
+    return {
+      displayRoots: roots.map(filterNode).filter((n): n is TreeNode => n !== null),
+      displayMembers: memberNodes.map(filterNode).filter((n): n is TreeNode => n !== null),
+      displayUnassigned: unassignedItems.filter(itemMatches),
+    }
+  }, [isSearching, q, roots, memberNodes, unassignedItems, locations, holders])
+
+  // Ellipsis button — hover-revealed in the desktop rail, always shown elsewhere.
+  const actionBtnCls = `w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0 ${
+    hoverActions ? 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100' : ''
+  }`
+
   // Helper to keep ref + state in sync
   const updateDropTarget = useCallback((id: string | null) => {
     dropTargetRef.current = id
@@ -267,10 +317,10 @@ export function PropertyLocationTree({
     }
   }, { filterTaps: true, delay: 150 })
 
-  if (roots.length === 0 && unassignedItems.length === 0 && memberNodes.length === 0) {
+  if (displayRoots.length === 0 && displayUnassigned.length === 0 && displayMembers.length === 0) {
     return (
       <div className="px-6 py-8 text-center text-[10pt] text-tertiary">
-        No locations or items yet.
+        {isSearching ? 'No matches.' : 'No locations or items yet.'}
       </div>
     )
   }
@@ -278,7 +328,8 @@ export function PropertyLocationTree({
   function renderNode(node: TreeNode, depth: number) {
     const isMember = !!node.location.holder_user_id
     const hasChildren = node.children.length > 0 || node.items.length > 0
-    const isCollapsed = collapsed.has(node.location.id)
+    // Searching force-expands so matches deep in the tree stay visible.
+    const isCollapsed = !isSearching && collapsed.has(node.location.id)
     const isDragSource = !isMember && dragState?.id === node.location.id
     const isDropTarget = !isMember && dropTargetId === node.location.id
     const isActive = activeLocationId === node.location.id
@@ -287,14 +338,14 @@ export function PropertyLocationTree({
       <div key={node.location.id}>
         {/* Location row */}
         <div
-          className={`flex items-center gap-2 py-2 pr-6 transition-colors ${
+          className={`group flex items-center gap-2 py-2 pr-6 transition-colors border-l-2 ${
             isDragSource ? 'opacity-30' : ''
           } ${
             isDropTarget
-              ? 'bg-themeblue3/10 ring-1 ring-themeblue3/30'
+              ? 'border-l-transparent bg-themeblue3/10 ring-1 ring-themeblue3/30'
               : isActive
-                ? 'bg-primary/5 border-l-2 border-l-primary/40'
-                : 'hover:bg-secondary/5'
+                ? 'bg-themeblue3/8 border-l-themeblue3'
+                : 'hover:bg-secondary/5 border-l-transparent'
           }`}
           style={{ paddingLeft: `${16 + depth * 20}px` }}
           data-prop-row
@@ -334,7 +385,7 @@ export function PropertyLocationTree({
             <button
               onClick={(e) => { e.stopPropagation(); openRowMenu('location', node.location.id, (e.currentTarget as HTMLElement).closest('[data-prop-row]') as HTMLElement | null) }}
               aria-label="More actions"
-              className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0"
+              className={actionBtnCls}
             >
               <MoreHorizontal size={15} />
             </button>
@@ -353,7 +404,7 @@ export function PropertyLocationTree({
                   key={item.id}
                   role="button"
                   tabIndex={0}
-                  className={`flex items-center gap-2 w-full py-2 pr-6 transition-colors text-left cursor-pointer ${
+                  className={`group flex items-center gap-2 w-full py-2 pr-6 transition-colors text-left cursor-pointer border-l-2 border-l-transparent ${
                     isItemDragSource ? 'opacity-30' : 'hover:bg-secondary/5'
                   }`}
                   style={{ paddingLeft: `${16 + (depth + 1) * 20 + 18}px` }}
@@ -378,7 +429,7 @@ export function PropertyLocationTree({
                     <button
                       onClick={(e) => { e.stopPropagation(); openRowMenu('item', item.id, (e.currentTarget as HTMLElement).closest('[data-prop-row]') as HTMLElement | null) }}
                       aria-label="More actions"
-                      className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0"
+                      className={actionBtnCls}
                     >
                       <MoreHorizontal size={15} />
                     </button>
@@ -393,7 +444,7 @@ export function PropertyLocationTree({
   }
 
   // Show unassigned section when there are unassigned items OR when dragging an item (as drop target)
-  const showUnassigned = unassignedItems.length > 0 || dragState?.type === 'item'
+  const showUnassigned = displayUnassigned.length > 0 || (!isSearching && dragState?.type === 'item')
   const isUnassignedDropTarget = dropTargetId === '__unassigned__'
 
   return (
@@ -403,14 +454,14 @@ export function PropertyLocationTree({
       style={{ touchAction: 'none' }}
     >
       {/* All Locations node */}
-      {onSelectAll && (
+      {onSelectAll && !isSearching && (
         <div
           role="button"
           tabIndex={0}
-          className={`flex items-center gap-2 py-2 pr-6 transition-colors cursor-pointer ${
+          className={`flex items-center gap-2 py-2 pr-6 transition-colors cursor-pointer border-l-2 ${
             allSelected
-              ? 'bg-primary/5 border-l-2 border-l-primary/40'
-              : 'hover:bg-secondary/5'
+              ? 'bg-themeblue3/8 border-l-themeblue3'
+              : 'hover:bg-secondary/5 border-l-transparent'
           }`}
           style={{ paddingLeft: '16px' }}
           onClick={onSelectAll}
@@ -421,8 +472,8 @@ export function PropertyLocationTree({
         </div>
       )}
 
-      {memberNodes.map((node) => renderNode(node, 0))}
-      {roots.map((node) => renderNode(node, 0))}
+      {displayMembers.map((node) => renderNode(node, 0))}
+      {displayRoots.map((node) => renderNode(node, 0))}
 
       {/* Root drop zone — only visible when dragging a location */}
       {dragState?.type === 'location' && (
@@ -442,10 +493,10 @@ export function PropertyLocationTree({
       {showUnassigned && (
         <div>
           <div
-            className={`flex items-center gap-2 py-2 pr-6 transition-colors ${
+            className={`flex items-center gap-2 py-2 pr-6 transition-colors border-l-2 ${
               isUnassignedDropTarget
-                ? 'bg-themeyellow/10 ring-1 ring-themeyellow/30'
-                : 'hover:bg-secondary/5'
+                ? 'border-l-transparent bg-themeyellow/10 ring-1 ring-themeyellow/30'
+                : 'hover:bg-secondary/5 border-l-transparent'
             }`}
             style={{ paddingLeft: '16px' }}
             data-drop-id="__unassigned__"
@@ -458,13 +509,13 @@ export function PropertyLocationTree({
             </button>
             <span className="text-[10pt] font-medium text-tertiary italic flex-1">Unassigned</span>
             <span className="text-[10pt] font-medium px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary shrink-0">
-              {unassignedItems.length}
+              {displayUnassigned.length}
             </span>
           </div>
 
-          {!collapsed.has('__unassigned__') && (
+          {(isSearching || !collapsed.has('__unassigned__')) && (
             <>
-              {unassignedItems.map((item) => {
+              {displayUnassigned.map((item) => {
                 const isItemDragSource = dragState?.id === item.id
                 const expiry = expiryStatus(item.expiry_date ?? null)
                 return (

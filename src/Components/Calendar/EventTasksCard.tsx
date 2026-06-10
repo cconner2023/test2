@@ -1,12 +1,10 @@
-import { forwardRef, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Check, ListChecks, MapPin, Package, Plus, Type, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { EventSubtask } from '../../Types/CalendarTypes'
 import type { ClinicPreCombatCheck } from '../../lib/supervisorService'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { usePropertyStore } from '../../stores/usePropertyStore'
-import { SectionHeader } from '../Section'
-import { EmptyState } from '../EmptyState'
 import { PreviewOverlay, type ContextMenuAction } from '../PreviewOverlay'
 import { TextInput } from '../FormInputs'
 import { ActionPill } from '../ActionPill'
@@ -33,23 +31,11 @@ const KIND_META: Record<ItemKind, { label: string; icon: LucideIcon }> = {
   task:              { label: 'Free text', icon: Type },
 }
 
-// Corner add affordance for the populated card — lifted out of the overflow-hidden
-// chrome as a sibling so its negative translate isn't clipped.
-const ActionPillFab = forwardRef<HTMLDivElement, { onClick: () => void }>(
-  function ActionPillFab({ onClick }, ref) {
-    return (
-      <ActionPill ref={ref} shadow="sm" placement="overlay">
-        <ActionButton icon={Plus} label="Add task" onClick={onClick} />
-      </ActionPill>
-    )
-  },
-)
-
 export function EventTasksCard({ subtasks, onChange, templates = [], assignedIds, canEdit, isMobile }: Props) {
   const currentUserId = useAuthStore(s => s.user?.id ?? null)
   const propertyItems = usePropertyStore(s => s.items)
   const propertyLocations = usePropertyStore(s => s.locations)
-  const pillRef = useRef<HTMLDivElement>(null)
+  const addBtnRef = useRef<HTMLButtonElement>(null)
   const addFabRef = useRef<HTMLDivElement>(null)
   const [overlayOpen, setOverlayOpen] = useState(false)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
@@ -209,26 +195,31 @@ export function EventTasksCard({ subtasks, onChange, templates = [], assignedIds
 
   return (
     <div>
-      <SectionHeader>Tasks</SectionHeader>
+      <div className="flex items-center justify-between mb-1.5">
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Tasks</p>
+        {canEdit && (
+          <button
+            ref={addBtnRef}
+            type="button"
+            onClick={() => addBtnRef.current && openOverlay(addBtnRef.current)}
+            aria-label="Add task"
+            className="shrink-0 w-7 h-7 rounded-full bg-themeblue3 flex items-center justify-center active:scale-90 transition-transform"
+          >
+            <Plus size={14} className="text-white" />
+          </button>
+        )}
+      </div>
 
       {sorted.length === 0 ? (
-        <EmptyState
-          title="No tasks yet"
-          action={canEdit ? { icon: Plus, label: 'Add task', onClick: openOverlay } : undefined}
-        />
+        canEdit ? (
+          <p className="text-[10pt] text-tertiary">No tasks yet — tap + to add.</p>
+        ) : null
       ) : (
-        <div className="relative">
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-            <div className="px-4 py-1.5">{taskRows}</div>
-          </div>
-          {canEdit && (
-            <ActionPillFab ref={pillRef} onClick={() => pillRef.current && openOverlay(pillRef.current)} />
-          )}
-        </div>
+        <div>{taskRows}</div>
       )}
 
       {!canTick && sorted.length > 0 && (
-        <p className="px-1 pt-2 text-[9pt] text-tertiary">Only event assignees can tick tasks.</p>
+        <p className="pt-2 text-[9pt] text-tertiary">Only event assignees can tick tasks.</p>
       )}
 
       {/* Add overlay — "select from cluster" (checklist seed) up top, "+" opens the add-new step flow. */}

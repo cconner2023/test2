@@ -439,24 +439,14 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
               />
             </div>
           )}
-        </div>
 
-        {/* 9-line MEDEVAC — shown when category is medevac */}
-        {form.category === 'medevac' && (
-          <div className="mt-3">
-            <MedevacForm
-              value={form.medevac_data}
-              onChange={req => updateField('medevac_data', req)}
-            />
-          </div>
-        )}
-
-        {medics && medics.length > 0 && (
-          <div className="mt-3">
-            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
-              Personnel ({form.assigned_to.length})
-            </p>
-            <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+          {medics && medics.length > 0 && (
+            <div className="border-b border-primary/6">
+              <div className="px-4 pt-3 pb-1.5">
+                <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
+                  Personnel ({form.assigned_to.length})
+                </p>
+              </div>
               {medics.map(medic => {
                 const isSelected = form.assigned_to.includes(medic.id)
                 return (
@@ -487,15 +477,15 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                 )
               })}
             </div>
-          </div>
-        )}
+          )}
 
-        {propertyItems && propertyItems.length > 0 && (
-          <div className="mt-3">
-            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
-              Equipment ({form.property_item_ids.length})
-            </p>
-            <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+          {propertyItems && propertyItems.length > 0 && (
+            <div className="border-b border-primary/6">
+              <div className="px-4 pt-3 pb-1.5">
+                <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
+                  Equipment ({form.property_item_ids.length})
+                </p>
+              </div>
               {propertyItems.map(item => {
                 const isSelected = form.property_item_ids.includes(item.id)
                 return (
@@ -519,6 +509,16 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                 )
               })}
             </div>
+          )}
+        </div>
+
+        {/* 9-line MEDEVAC — shown when category is medevac */}
+        {form.category === 'medevac' && (
+          <div className="mt-3">
+            <MedevacForm
+              value={form.medevac_data}
+              onChange={req => updateField('medevac_data', req)}
+            />
           </div>
         )}
 

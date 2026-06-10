@@ -5,7 +5,7 @@ import { toDateKey, formatShortDayLabel } from '../../Types/CalendarTypes'
 import type { CalendarEvent, EventStatus } from '../../Types/CalendarTypes'
 import { MissionEventBar } from './MissionEventBar'
 import { type ContextMenuItem } from '../ContextMenu'
-import { useLongPress } from '../../Hooks/useLongPress'
+import { menuPressHandlers, type MenuPressState } from '../Calendar/menuPress'
 import { useCategoryColors } from '../../Hooks/useCategoryColors'
 
 // ─── Gantt constants ────────────────────────────────────────────────────────
@@ -141,21 +141,20 @@ const STATUS_CIRCLE: Partial<Record<string, string>> = {
   cancelled:   'bg-themeredred',
 }
 
-export function TaskRow({ event, onClick, onContextMenu }: { event: CalendarEvent; onClick: () => void; onContextMenu: (x: number, y: number) => void }) {
+export function TaskRow({ event, onClick, onMenu }: { event: CalendarEvent; onClick: () => void; onMenu: (rect: DOMRect) => void }) {
   const { resolve: resolveCategoryColor } = useCategoryColors()
   const stripe = resolveCategoryColor(event.category, event.color).solid
   const isDone   = event.status === 'completed' || event.status === 'cancelled'
   const isActive = event.status === 'in_progress'
   const circleColor = STATUS_CIRCLE[event.status]
-  const { isPressing, ...longPressHandlers } = useLongPress(onContextMenu)
+  const pressRef = useRef<MenuPressState | null>(null)
 
   return (
     <button
-      onClick={onClick}
-      onContextMenu={(e) => { e.preventDefault(); onContextMenu(e.clientX, e.clientY) }}
-      {...longPressHandlers}
+      onClick={() => { if (pressRef.current?.fired) return; onClick() }}
+      {...menuPressHandlers(onMenu, pressRef)}
       className={`w-full flex items-stretch text-left rounded-lg overflow-hidden border border-themeblue3/10 active:scale-[0.99] transition-opacity duration-100 ${
-        isDone ? 'opacity-45' : isPressing ? 'opacity-60' : 'opacity-100'
+        isDone ? 'opacity-45' : 'opacity-100'
       }`}
     >
       <div className={`w-1 shrink-0 ${stripe} ${isActive ? 'animate-pulse' : ''}`} />

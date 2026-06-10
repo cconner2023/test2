@@ -10,6 +10,8 @@ import type { subjectAreaArrayOptions } from '../../Types/CatTypes'
 import { useTrainingCompletions, type TrainingCompletionUI } from '../../Hooks/useTrainingCompletions'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { AudioAidPlayer } from '../AudioAidPlayer'
+import { ImageAidGallery } from '../ImageAidGallery'
+import { useAuthStore } from '../../stores/useAuthStore'
 import { skillLevelLabels, categoryOrder } from '../../Data/TrainingConstants'
 import { StepCallout, PerformanceStepItem } from '../TrainingStepComponents'
 import { SectionHeader } from '../Section'
@@ -387,6 +389,7 @@ function TaskDetail({
     taskNumber: string
 }) {
     const { markTaskViewed, markTaskCompleted, isTaskCompleted, getAssignment } = useTrainingCompletions()
+    const isDevRole = useAuthStore(s => s.isDevRole)
     const bottomRef = useRef<HTMLDivElement>(null)
     const completed = isTaskCompleted(taskNumber)
     const assignment = getAssignment(taskNumber)
@@ -493,6 +496,11 @@ function TaskDetail({
             {/* Audio Training Aids */}
             {taskData.audioAids && taskData.audioAids.length > 0 && (
                 <AudioAidPlayer audioAids={taskData.audioAids} />
+            )}
+
+            {/* Visual Exam Reference — dev-gated */}
+            {isDevRole && taskData.imageAids && taskData.imageAids.length > 0 && (
+                <ImageAidGallery imageAids={taskData.imageAids} />
             )}
 
             {/* Performance Steps */}

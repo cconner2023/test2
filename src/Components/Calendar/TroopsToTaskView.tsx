@@ -689,9 +689,12 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
           {/* Task rows — one per supervisor-defined station. Tap-armed medic drops here; empty tap creates a new huddle. */}
           {huddleTasks.map(task => {
             const positioned = taskLanes.get(task.id) ?? []
+            const isDropTarget = !!armedMedicId && !!onAssignMedicToHuddle
+            // Hide empty stations — only render a row that has a scheduled huddle,
+            // or surface every station as a drop target while a medic is armed.
+            if (positioned.length === 0 && !isDropTarget) return null
             const laneCount = positioned.length > 0 ? Math.max(...positioned.map(p => p.lane)) + 1 : 1
             const rowHeight = ROW_PAD * 2 + laneCount * (LANE_HEIGHT_HUDDLE + LANE_GAP)
-            const isDropTarget = !!armedMedicId && !!onAssignMedicToHuddle
             const handleRowClick = isDropTarget
               ? () => {
                   onAssignMedicToHuddle!(armedMedicId!, task.id, visibleDateKey || toDateKey(date))

@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { CalendarEvent } from '../../Types/CalendarTypes';
 import { useSpring, animated } from '@react-spring/web';
-import { ChevronLeft, ChevronRight, Settings, MapPin, Route, Pentagon, Trash2, X, Ruler, RadioTower, Undo2, Activity, Pause, Play, Square, Plus, Check, Navigation, Layers, Pencil, Clock, MoreHorizontal, MessageSquare, Share2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, MapPin, Route, Pentagon, Trash2, X, Ruler, RadioTower, Undo2, Activity, Pause, Play, Square, Plus, Check, Navigation, Layers, Pencil, Clock, MoreHorizontal, MessageSquare, Share2, Copy } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ActionSheet, type ActionSheetOption } from '../ActionSheet';
 import { AddFab } from '../AddFab';
@@ -61,7 +61,7 @@ import { resolveSearch } from './searchResolver';
 import { MapSearchOverlay, type SearchOverlaySelection } from './MapSearchOverlay';
 import { useMapSearchStore } from '../../stores/useMapSearchStore';
 import { GotoWaypointCard } from './GotoWaypointCard';
-import { ContextMenu } from '../ContextMenu';
+import { LiftedRowMenu } from '../LiftedRowMenu';
 import { useShareToChat } from '../Messages/ShareToChatPicker';
 import { parseGPX, serializeGPX } from '../../lib/gpx';
 import { parseKML, serializeKML } from '../../lib/kml';
@@ -331,8 +331,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   // z-1200). Default Z.POPOVER(80) would trap the picker under the sheet — bump
   // above it, matching the ConfirmDialogs in this file.
   const { share: shareFeatureToChat, picker: shareToChatPicker } = useShareToChat({ zIndex: 1300 });
-  // Anchor for the selected-feature "more actions" (ellipsis) ContextMenu.
-  const [featureMenu, setFeatureMenu] = useState<{ x: number; y: number } | null>(null);
+  // Anchor for the selected-feature "more actions" (ellipsis) lift-and-clone menu.
+  const [featureMenu, setFeatureMenu] = useState<{ rect: DOMRect } | null>(null);
 
   const [view, setView] = useState<ViewState>('viewer');
   const [showPopover, setShowPopover] = useState(false);
@@ -1658,8 +1658,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
 
   // Open the selected-feature ellipsis menu anchored under the tapped pill.
   const openFeatureMenu = useCallback((e: React.MouseEvent) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    setFeatureMenu({ x: r.left, y: r.bottom + 6 });
+    setFeatureMenu({ rect: e.currentTarget.getBoundingClientRect() });
   }, []);
 
   const handleDeleteFeatureFromTree = useCallback((_overlayId: string, featureId: string) => {
@@ -2801,10 +2800,18 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           Edit/Delete/Close used to sit inline in the header; collapsed to an
           ellipsis (this menu) + Close to declutter the mobile header. */}
       {featureMenu && selectedFeature && (
-        <ContextMenu
-          x={featureMenu.x}
-          y={featureMenu.y}
+        <LiftedRowMenu
+          isOpen
+          anchorRect={featureMenu.rect}
           onClose={() => setFeatureMenu(null)}
+          layout="list"
+          row={
+            <div className="w-full flex items-center py-1.5 px-3 bg-themewhite">
+              <span className="text-[10pt] text-primary truncate flex-1">
+                {selectedFeature.label || `Untitled ${selectedFeature.type}`}
+              </span>
+            </div>
+          }
           items={[
             { key: 'edit', label: 'Edit', icon: Pencil, onAction: handleToggleFeatureEditMode },
             ...(selectedFeature.type === 'waypoint' && selectedFeature.geometry.length > 0
@@ -2813,6 +2820,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
             { key: 'forward', label: 'Share to chat', icon: MessageSquare, onAction: handleForwardSelected },
             ...(selectedFeature.geometry.length > 0
               ? [{ key: 'share', label: 'Share location', icon: Share2, onAction: handleShareLocationSelected }]
+              : []),
+            ...(overlayId
+              ? [{ key: 'copy-to-overlay', label: 'Copy to overlay…', icon: Copy, onAction: () => handleCopyFeatureToOverlay(overlayId, selectedFeature.id) }]
               : []),
             { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: handleDeleteSelected },
           ]}
