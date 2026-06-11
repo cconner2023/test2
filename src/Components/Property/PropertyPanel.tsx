@@ -333,7 +333,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 placeholder="Search items, serials, locations"
               />
             </div>
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-auto">
               <PropertyLocationTree
                 locations={visibleLocations}
                 items={store.items}

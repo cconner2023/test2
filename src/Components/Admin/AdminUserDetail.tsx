@@ -49,6 +49,7 @@ import {
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import { ClinicPickerInput } from './AdminPickers'
 import { fetchAllCertifications } from '../../lib/certificationService'
+import { openMailto } from '../../lib/mailto'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { UI_TIMING } from '../../Utilities/constants'
 import { invalidate } from '../../stores/useInvalidationStore'
@@ -735,7 +736,7 @@ export function AdminUserDetail({
                   label: 'Email user',
                   icon: Mail,
                   onAction: () => {
-                    window.location.href = `mailto:${user.email}?subject=${encodeURIComponent('Beacon Inquiry')}&body=${encodeURIComponent(`${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n`)}`
+                    openMailto({ to: user.email!, subject: 'Beacon Inquiry', body: `${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n` })
                   },
                 }] as ContextMenuItem[] : []),
                 ...(isDevRole && messagesCtx ? [{

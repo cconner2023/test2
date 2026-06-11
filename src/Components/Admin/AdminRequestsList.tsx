@@ -30,6 +30,7 @@ import {
   type FeatureVoteSuggestion,
 } from '../../lib/featureVotingService'
 import { getFeedbackList, deleteFeedback, type FeedbackRow } from '../../lib/feedbackService'
+import { openMailto } from '../../lib/mailto'
 import { invalidate, useInvalidation } from '../../stores/useInvalidationStore'
 import { UI_TIMING } from '../../Utilities/constants'
 
@@ -297,7 +298,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
         const name = ctxRequest.request_type === 'support'
           ? [ctxRequest.first_name, ctxRequest.last_name].filter(Boolean).join(' ')
           : [ctxRequest.rank, ctxRequest.last_name].filter(Boolean).join(' ')
-        window.location.href = `mailto:${ctxRequest.email}?subject=${encodeURIComponent('ADTMC Web App Inquiry')}&body=${encodeURIComponent(`${name},\n\n`)}`
+        openMailto({ to: ctxRequest.email, subject: 'ADTMC Web App Inquiry', body: `${name},\n\n` })
       },
     }] : []
     const deleteLabel = ctxRequest.request_type === 'support' ? 'Dismiss' : 'Delete'
@@ -415,7 +416,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
       icon: Mail,
       onAction: () => {
         const name = ctxFeedback.display_name || ''
-        window.location.href = `mailto:${ctxEmail}?subject=${encodeURIComponent('ADTMC Web App Feedback')}&body=${encodeURIComponent(`${name},\n\nThanks for the feedback.\n\n`)}`
+        openMailto({ to: ctxEmail, subject: 'ADTMC Web App Feedback', body: `${name},\n\nThanks for the feedback.\n\n` })
       },
     }] : []
     const chatItem = (messagesCtx && ctxFeedback.user_id) ? [{

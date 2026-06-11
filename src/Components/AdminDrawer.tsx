@@ -1,6 +1,7 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
-import { X, Inbox, List, Waypoints, ChevronLeft, MessageCircleQuestion } from 'lucide-react'
+import { useState, useCallback, useMemo, useEffect, useRef, type ReactNode } from 'react'
+import { X, Inbox, List, ChevronLeft, MessageCircleQuestion } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from './BaseDrawer'
+import { Sheet } from './Sheet'
 import { BottomIsland, IslandButton } from './BottomIsland'
 import { AddFab } from './AddFab'
 import { SearchInput } from './SearchInput'
@@ -31,7 +32,6 @@ import { AdminClinicsList } from './Admin/AdminClinicsList'
 import { AdminClinicDetail, type ClusterCreatePrefill } from './Admin/AdminClinicDetail'
 import { AdminLocationsList } from './Admin/AdminLocationsList'
 import { AdminLocationDetail } from './Admin/AdminLocationDetail'
-import { AdminMap } from './Admin/AdminMap'
 import { AdminSummary } from './Admin/AdminSummary'
 import { AdminFeatureVotesSection } from './Admin/AdminFeatureVotesSection'
 import { AdminSystemConversationView } from './Admin/AdminSystemConversationView'
@@ -47,24 +47,21 @@ export type AdminView =
     | 'admin-location-detail'
     | 'admin-system-conversation'
 
-// Island: requests · directory · map · votes. The old users/clinics/locations
-// tabs are consolidated — Directory stacks all three (typed sections), Map is
-// the relational containment web over the same data. 'feature-votes' keeps its
-// slug (Settings deep-links to it) but reads as "Votes" in the island.
-const ALL_TABS = ['requests', 'list', 'map', 'feature-votes'] as const
+// Island: requests · directory · votes. The old users/clinics/locations tabs
+// are consolidated — Directory stacks all three (typed sections). 'feature-votes'
+// keeps its slug (Settings deep-links to it) but reads as "Votes" in the island.
+const ALL_TABS = ['requests', 'list', 'feature-votes'] as const
 type AdminTab = typeof ALL_TABS[number]
 
 const TAB_ICONS: Record<AdminTab, typeof Inbox> = {
     requests: Inbox,
     list: List,
-    map: Waypoints,
     'feature-votes': MessageCircleQuestion,
 }
 
 const TAB_LABELS: Record<AdminTab, string> = {
     requests: 'Requests',
     list: 'Directory',
-    map: 'Map',
     'feature-votes': 'Votes',
 }
 
@@ -141,7 +138,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         )
     }, [isVisible, isDevRole, isPageVisible])
     const visibleTabs = useMemo<AdminTab[]>(
-        () => isDevRole ? [...ALL_TABS] : ALL_TABS.filter(t => t !== 'feature-votes' && t !== 'map'),
+        () => isDevRole ? [...ALL_TABS] : ALL_TABS.filter(t => t !== 'feature-votes'),
         [isDevRole]
     )
 
@@ -452,15 +449,14 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setActiveTab(tab)
     }, [])
 
-    // Header actions for main 'admin' view
-    const mainHeaderActions = useMemo(() => {
-        if (view !== 'admin') return undefined
-        return (
-            <HeaderPill>
-                <PillButton icon={X} onClick={handleClose} label="Close" />
-            </HeaderPill>
-        )
-    }, [view, handleClose])
+    // Header actions for the main list header — the drawer-wide Close. Always
+    // present: on mobile the detail views now overlay the list via a Sheet, so
+    // the underlying header stays the list header (Close), not a detail header.
+    const mainHeaderActions = useMemo(() => (
+        <HeaderPill>
+            <PillButton icon={X} onClick={handleClose} label="Close" />
+        </HeaderPill>
+    ), [handleClose])
 
     const isUserCreateMode = view === 'admin-user-detail' && selectedUser === null
     const isClinicCreateMode = view === 'admin-clinic-detail' && selectedClinic === null
@@ -504,6 +500,20 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         }
     }, [trail, enterUserDetail, enterClinicDetail])
 
+    // Walk the lateral trail back to crumb `index` — used by the mobile detail
+    // Sheet's breadcrumb, which surfaces the whole trail (vs the desktop header's
+    // single immediate-parent crumb). Truncates the trail to everything before
+    // the target, then re-enters that entity's detail. Guarded for pending edits.
+    const navigateToCrumb = useCallback((index: number) => {
+        guardNav(() => {
+            const entry = trail[index]
+            if (!entry) return
+            setTrail(t => t.slice(0, index))
+            if (entry.kind === 'user') enterUserDetail(entry.user, false)
+            else enterClinicDetail(entry.clinic, false)
+        })
+    }, [trail, enterUserDetail, enterClinicDetail, guardNav])
+
     // Header actions for detail views — user/clinic share DetailHeaderActions.
     const detailHeaderActions = useMemo(() => {
         if (view === 'admin-user-detail') {
@@ -516,7 +526,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     onStartEdit={() => userEdit.setEditing(true)}
                     onRequestDelete={userEdit.requestDelete}
                     onRequestSave={userEdit.requestSave}
-                    onClose={handleClose}
+                    onClose={isMobile ? handleBack : handleClose}
                     showCloseWhenIdle={isMobile}
                     // Tap-to-edit-overlay pattern owns edit entry + save + delete;
                     // header keeps only Close. Create flow still flows through here
@@ -535,7 +545,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     onStartEdit={() => clinicEdit.setEditing(true)}
                     onRequestDelete={clinicEdit.requestDelete}
                     onRequestSave={clinicEdit.requestSave}
-                    onClose={handleClose}
+                    onClose={isMobile ? handleBack : handleClose}
                     showCloseWhenIdle={isMobile}
                     // Tap-to-edit-overlay pattern owns edit entry + save + delete;
                     // header keeps only Close. Mirrors AdminUserDetail.
@@ -551,13 +561,13 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     onCancelEdit={() => locationEdit.setEditing(false)}
                     onStartEdit={() => locationEdit.setEditing(true)}
                     onRequestSave={locationEdit.requestSave}
-                    onClose={handleClose}
+                    onClose={isMobile ? handleBack : handleClose}
                     showCloseWhenIdle={isMobile}
                 />
             )
         }
         return undefined
-    }, [view, selectedUser, userEdit, clinicEdit, locationEdit, isUserCreateMode, isClinicCreateMode, isLocationCreateMode, handleClose, currentUserId, isMobile])
+    }, [view, selectedUser, userEdit, clinicEdit, locationEdit, isUserCreateMode, isClinicCreateMode, isLocationCreateMode, handleClose, handleBack, currentUserId, isMobile])
 
     // Header config per view
     // Desktop always shows the "Admin Panel" header — detail views get their own
@@ -571,36 +581,19 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             }
         }
         switch (view) {
+            // User/clinic/location detail overlay the list via a Sheet, so the
+            // underlying drawer header stays the list header (title + Close).
             case 'admin':
+            case 'admin-user-detail':
+            case 'admin-clinic-detail':
+            case 'admin-location-detail':
                 return {
                     title: 'Admin Panel',
                     rightContent: mainHeaderActions,
                     hideDefaultClose: !!mainHeaderActions,
                 }
-            case 'admin-user-detail':
-                return {
-                    title: detailTitle,
-                    showBack: true,
-                    onBack: handleBack,
-                    rightContent: detailHeaderActions,
-                    hideDefaultClose: !!detailHeaderActions,
-                }
-            case 'admin-clinic-detail':
-                return {
-                    title: detailTitle,
-                    showBack: true,
-                    onBack: handleBack,
-                    rightContent: detailHeaderActions,
-                    hideDefaultClose: !!detailHeaderActions,
-                }
-            case 'admin-location-detail':
-                return {
-                    title: detailTitle,
-                    showBack: true,
-                    onBack: handleBack,
-                    rightContent: detailHeaderActions,
-                    hideDefaultClose: !!detailHeaderActions,
-                }
+            // System conversation remains a full-panel push (chat owns its scroll;
+            // a fit-Sheet would fight it) — keep the back-chevron detail header.
             case 'admin-system-conversation':
                 return {
                     title: detailTitle,
@@ -608,7 +601,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     onBack: handleBack,
                 }
         }
-    }, [isMobile, view, detailTitle, handleBack, detailHeaderActions, mainHeaderActions])
+    }, [isMobile, view, detailTitle, handleBack, mainHeaderActions])
 
 
     // After creating a user, switch to view mode immediately using the
@@ -666,10 +659,17 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         ? 'px-4 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)] pb-8'
         : 'px-4 py-3 md:p-5 pb-8'
 
-    const renderDetailContent = () => {
+    // Mobile detail (user/clinic/location) renders inside a Sheet whose body
+    // already scrolls + clears its own header — so it gets bare content (no
+    // ScrollPane, no glass-header offset). Desktop right-pane + the mobile
+    // system-conversation push keep the ScrollPane wrapper.
+    const renderDetailContent = (inSheet = false) => {
+        const wrap = (node: ReactNode, innerCls = 'px-4 pt-1 pb-8') =>
+            inSheet
+                ? <div className={innerCls}>{node}</div>
+                : <ScrollPane className={detailScrollCls}>{node}</ScrollPane>
         if (view === 'admin-user-detail') {
-            return (
-                <ScrollPane className={detailScrollCls}>
+            return wrap(
                     <AdminUserDetail
                         user={selectedUser}
                         onUserUpdated={(u) => setSelectedUser(u)}
@@ -683,12 +683,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         onRequestDelete={selectedUser && currentUserId !== selectedUser.id ? userEdit.requestDelete : undefined}
                         prefillClinicId={userCreatePrefillClinicId}
                     />
-                </ScrollPane>
             )
         }
         if (view === 'admin-clinic-detail') {
-            return (
-                <ScrollPane className={detailScrollCls}>
+            return wrap(
                     <AdminClinicDetail
                         clinic={selectedClinic}
                         onClinicUpdated={(c) => setSelectedClinic(c)}
@@ -705,26 +703,22 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         onCreateRelatedCluster={handleCreateRelatedCluster}
                         onCreateUserInCluster={handleCreateUserInCluster}
                     />
-                </ScrollPane>
             )
         }
         if (view === 'admin-location-detail') {
-            return (
-                <ScrollPane className={detailScrollCls}>
-                    <div className="px-5 pb-8">
-                        <AdminLocationDetail
-                            location={selectedLocation}
-                            onLocationUpdated={(l) => setSelectedLocation(l)}
-                            onCreated={handleLocationCreated}
-                            onArchived={handleLocationArchived}
-                            editing={locationEdit.editing}
-                            onEditingChange={locationEdit.setEditing}
-                            saveRequested={locationEdit.saveRequested}
-                            onSaveComplete={locationEdit.completeSave}
-                            onPendingChangesChange={locationEdit.setHasPending}
-                        />
-                    </div>
-                </ScrollPane>
+            return wrap(
+                    <AdminLocationDetail
+                        location={selectedLocation}
+                        onLocationUpdated={(l) => setSelectedLocation(l)}
+                        onCreated={handleLocationCreated}
+                        onArchived={handleLocationArchived}
+                        editing={locationEdit.editing}
+                        onEditingChange={locationEdit.setEditing}
+                        saveRequested={locationEdit.saveRequested}
+                        onSaveComplete={locationEdit.completeSave}
+                        onPendingChangesChange={locationEdit.setHasPending}
+                    />,
+                    inSheet ? 'px-4 pt-1 pb-8' : 'px-5 pb-8',
             )
         }
         if (view === 'admin-system-conversation' && selectedSystemPeerId) {
@@ -743,14 +737,11 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         return null
     }
 
-    // Render active content — mobile slides between main and detail via `view`.
+    // Mobile content. User/clinic/location detail now overlay the list via a
+    // Sheet (rendered below), so the base layer is always the list — only the
+    // system-conversation chat keeps the full-panel push.
     const renderContent = () => {
-        if (
-            view === 'admin-user-detail' ||
-            view === 'admin-clinic-detail' ||
-            view === 'admin-location-detail' ||
-            view === 'admin-system-conversation'
-        ) {
+        if (view === 'admin-system-conversation') {
             return renderDetailContent()
         }
         return renderMainView()
@@ -759,8 +750,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // ActionSheet options per tab
     const addSheetOptions = useMemo(() => {
         const options: Array<{ key: string; label: string; onAction: () => void }> = []
-        // Only the Directory + Map tabs create entities; both offer the full set.
-        if (activeTab !== 'list' && activeTab !== 'map') return options
+        // Only the Directory tab creates entities (requests = approval workflow,
+        // votes = inline mgmt).
+        if (activeTab !== 'list') return options
         options.push({ key: 'user', label: 'New User', onAction: () => { setShowAddSheet(false); handleCreateUser() } })
         options.push({ key: 'clinic', label: 'New Cluster', onAction: () => { setShowAddSheet(false); handleCreateClinic() } })
         if (isDevRole) {
@@ -769,15 +761,46 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         return options
     }, [activeTab, isDevRole, handleCreateUser, handleCreateClinic, handleCreateLocation])
 
+    const detailSheetOpen = isMobile && (
+        view === 'admin-user-detail' ||
+        view === 'admin-clinic-detail' ||
+        view === 'admin-location-detail'
+    )
+
+    // Mobile detail-Sheet breadcrumb: the lateral trail as clickable crumbs
+    // stacked above the current entity name. Replaces the panel-push back
+    // chevron — crumbs walk laterally, dismissing the sheet returns to the list.
+    const sheetTitleNode = (
+        <div className="min-w-0">
+            {trail.length > 0 && (
+                <div className="flex items-center gap-1 overflow-hidden text-[9pt] text-tertiary mb-0.5">
+                    {trail.map((entry, i) => (
+                        <div key={i} className="flex items-center gap-1 min-w-0 shrink">
+                            <button
+                                type="button"
+                                onClick={() => navigateToCrumb(i)}
+                                className="truncate max-w-[120px] hover:text-primary active:scale-95 transition-transform"
+                            >
+                                {entry.label}
+                            </button>
+                            <span aria-hidden className="shrink-0 text-tertiary/50">›</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+            <div className="truncate text-[13pt] font-semibold text-primary leading-tight">{detailTitle}</div>
+        </div>
+    )
+
     // Bottom island — tab switcher (centered) + FAB (right), matching Property/Calendar pattern
     const bottomIsland = (
         <BottomIsland
             role="tablist"
             ariaLabel="Admin sections"
             fab={
-                // FAB — absolute right, aligned to island. Only Directory + Map
-                // create entities (requests = approval workflow, votes = inline mgmt).
-                activeTab === 'list' || activeTab === 'map' ? (
+                // FAB — absolute right, aligned to island. Only Directory creates
+                // entities (requests = approval workflow, votes = inline mgmt).
+                activeTab === 'list' ? (
                     <AddFab label="Add new" onClick={() => setShowAddSheet(true)} className="absolute right-4" />
                 ) : null
             }
@@ -840,15 +863,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 />
             )}
             {activeTab === 'list' && renderDirectory()}
-            {activeTab === 'map' && isDevRole && (
-                <AdminMap
-                    searchQuery={searchQuery}
-                    onClearSearch={() => setSearchQuery('')}
-                    onSelectUser={handleSelectUser}
-                    onSelectClinic={handleSelectClinic}
-                    onSelectLocation={handleSelectLocation}
-                />
-            )}
             {activeTab === 'feature-votes' && isDevRole && (
                 <AdminFeatureVotesSection />
             )}
@@ -892,7 +906,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             scrollDisabled
             glassHeader={isMobile}
         >
-            <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && view !== 'admin' ? swipeHandlers : undefined}>
+            <ContentWrapper
+                slideDirection={isMobile && view === 'admin-system-conversation' ? slideDirection : ''}
+                swipeHandlers={isMobile && view === 'admin-system-conversation' ? swipeHandlers : undefined}
+            >
                 <div className="h-full relative">
                     {/* Desktop: three-pane (summary | list | detail). Opening detail
                         collapses the summary sidebar and slides the detail pane in —
@@ -984,6 +1001,26 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 onClose={() => setShowAddSheet(false)}
             />
         </BaseDrawer>
+
+        {/* Mobile detail Sheet — user/clinic/location detail overlays the list
+            instead of switching panels. The breadcrumb (lateral trail) rides the
+            sheet header above the entity name; dismissing returns to the list.
+            Portals to body, so it sits outside BaseDrawer in the tree. */}
+        {isMobile && (
+            <Sheet
+                isOpen={detailSheetOpen}
+                onClose={handleBack}
+                height="fit"
+                maxHeight={92}
+                backdrop="dismiss"
+                title={detailTitle}
+                titleNode={sheetTitleNode}
+                rightContent={detailHeaderActions}
+                hideClose={!!detailHeaderActions}
+            >
+                {renderDetailContent(true)}
+            </Sheet>
+        )}
 
         {/* Discard unsaved changes confirmation */}
         <ConfirmDialog

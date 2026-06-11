@@ -4,6 +4,7 @@ import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
 import type { FeedbackRow } from '../../lib/feedbackService'
+import { openMailto } from '../../lib/mailto'
 
 export interface FeedbackCardProps {
   feedback: FeedbackRow
@@ -132,7 +133,7 @@ export function FeedbackCard({
                 label="Email"
                 onClick={() => {
                   const name = feedback.display_name || ''
-                  window.location.href = `mailto:${email}?subject=${encodeURIComponent('ADTMC Web App Feedback')}&body=${encodeURIComponent(`${name},\n\nThanks for the feedback.\n\n`)}`
+                  openMailto({ to: email, subject: 'ADTMC Web App Feedback', body: `${name},\n\nThanks for the feedback.\n\n` })
                 }}
               />
             )}

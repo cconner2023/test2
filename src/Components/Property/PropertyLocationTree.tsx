@@ -451,7 +451,10 @@ export function PropertyLocationTree({
     <div
       {...bindDrag()}
       className="flex flex-col py-1"
-      style={{ touchAction: 'none' }}
+      // pan-y lets the sheet/rail scroll on a quick vertical swipe; the 150ms
+      // delay on bindDrag means a long-press-then-move still starts a reorder
+      // drag. touchAction:'none' here blocked ALL touch scrolling.
+      style={{ touchAction: 'pan-y' }}
     >
       {/* All Locations node */}
       {onSelectAll && !isSearching && (
