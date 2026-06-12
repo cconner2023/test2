@@ -23,7 +23,7 @@ import {
 } from '../../lib/adminService'
 import type { AdminClinic } from '../../lib/adminService'
 import type { AccountRequest } from '../../lib/accountRequestService'
-import { buildMailtoHref, openMailto } from '../../lib/mailto'
+import { buildMailtoHref } from '../../lib/mailto'
 import { invalidate } from '../../stores/useInvalidationStore'
 
 const AVAILABLE_ROLES = ['medic', 'supervisor', 'dev', 'provider'] as const
@@ -381,7 +381,7 @@ export function RequestCard({
     <ActionPill>
       <a
         href={mailtoHref}
-        onClick={(e) => { e.stopPropagation(); e.preventDefault(); openMailto({ to: request.email, subject: 'ADTMC Web App Inquiry', body: mailtoBody }) }}
+        onClick={(e) => e.stopPropagation()}
         className="w-9 h-9 rounded-full flex items-center justify-center bg-themeblue2/8 text-primary active:scale-95 transition-all"
         aria-label="Email"
         title="Email"

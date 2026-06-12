@@ -85,7 +85,9 @@ export function IntakeRequestCard({ message, content, isOwn, avatar, senderName,
     const url = `mailto:${encodeURIComponent(content.requester_email)}`
       + `?subject=${encodeURIComponent(subject)}`
       + `&body=${encodeURIComponent(body)}`
-    window.open(url, '_blank')
+    // mailto: is non-http — assign location directly (window.open is blocked as
+    // a popup, target="_blank" opens about:blank). See src/lib/mailto.ts.
+    window.location.href = url
   }, [content, profile])
 
   const onApprove = useCallback(async () => {

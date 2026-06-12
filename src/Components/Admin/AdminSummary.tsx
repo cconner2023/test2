@@ -25,6 +25,8 @@ interface AdminSummaryProps {
 interface ClinicNode {
   clinic: AdminClinic
   children: ClinicNode[]
+  /** Users assigned directly to this cluster — selectable leaf rows. */
+  users: AdminUser[]
   userCount: number
   totalUserCount: number
 }
@@ -153,6 +155,26 @@ export function AdminSummary({
     return map
   }, [users])
 
+  /** clinic_id → its assigned users (sorted), so the tree can expand to show
+   *  individual users as selectable leaves under their cluster. */
+  const usersByClinicList = useMemo(() => {
+    const map = new Map<string, AdminUser[]>()
+    for (const user of users) {
+      if (!user.clinic_id) continue
+      const arr = map.get(user.clinic_id) ?? []
+      arr.push(user)
+      map.set(user.clinic_id, arr)
+    }
+    for (const arr of map.values()) {
+      arr.sort((a, b) => {
+        const na = `${a.last_name ?? ''} ${a.first_name ?? ''}`.trim()
+        const nb = `${b.last_name ?? ''} ${b.first_name ?? ''}`.trim()
+        return na.localeCompare(nb)
+      })
+    }
+    return map
+  }, [users])
+
   const unassignedUsers = useMemo(
     () => users.filter(u => !u.clinic_id).sort((a, b) => {
       const nameA = `${a.last_name ?? ''} ${a.first_name ?? ''}`.trim()
@@ -182,6 +204,7 @@ export function AdminSummary({
       return {
         clinic,
         children,
+        users: usersByClinicList.get(clinic.id) ?? [],
         userCount: usersByClinic.get(clinic.id) ?? 0,
         totalUserCount: countTotal(clinic),
       }
@@ -192,10 +215,35 @@ export function AdminSummary({
       .sort((a, b) => a.name.localeCompare(b.name))
 
     return { roots: rootClinics.map(buildNode) }
-  }, [clinics, usersByClinic, childrenByParent])
+  }, [clinics, usersByClinic, usersByClinicList, childrenByParent])
+
+  // Selectable user leaf under a cluster (or unassigned) — shared row renderer.
+  function renderUserLeaf(user: AdminUser, depth: number) {
+    const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email
+    return (
+      <button
+        key={user.id}
+        onClick={() => { if (preventTap.current) { preventTap.current = false; return } onSelectUser(user) }}
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); openUserMenu(user, e.currentTarget as HTMLElement) }}
+        onTouchStart={(e) => { const el = e.currentTarget as HTMLElement; preventTap.current = false; longPressTimer.current = window.setTimeout(() => { preventTap.current = true; openUserMenu(user, el) }, 500) }}
+        onTouchEnd={clearLongPress}
+        onTouchMove={clearLongPress}
+        style={{ paddingLeft: `${16 + depth * 16}px` }}
+        className={`flex items-center gap-2 w-full py-1.5 pr-4 text-left cursor-pointer transition-all active:scale-[0.98] ${
+          activeUserId === user.id ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3' : 'hover:bg-secondary/5'
+        }`}
+      >
+        <span className="w-[18px] shrink-0" />
+        <User size={13} className="text-tertiary shrink-0" />
+        <span className="text-[9.5pt] text-primary truncate">{name}</span>
+      </button>
+    )
+  }
 
   function renderClinicRow(node: ClinicNode, depth: number) {
-    const hasChildren = node.children.length > 0
+    // Expandable when it has sub-clusters OR assigned users (so the chevron can
+    // reveal individual members, not just child clusters).
+    const hasChildren = node.children.length > 0 || node.users.length > 0
     const isCollapsed = collapsed.has(node.clinic.id)
     const isActive = activeClinicId === node.clinic.id
 
@@ -242,7 +290,12 @@ export function AdminSummary({
           </span>
         </div>
 
-        {hasChildren && !isCollapsed && node.children.map(child => renderClinicRow(child, depth + 1))}
+        {hasChildren && !isCollapsed && (
+          <>
+            {node.users.map(user => renderUserLeaf(user, depth + 1))}
+            {node.children.map(child => renderClinicRow(child, depth + 1))}
+          </>
+        )}
       </div>
     )
   }

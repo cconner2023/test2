@@ -1,14 +1,19 @@
-// Opening a `mailto:` link reliably from inside the installed PWA / SPA shell.
+// Opening a `mailto:` link from inside the installed PWA / SPA shell.
 //
-// `window.location.href = 'mailto:…'` navigates the SPA window — which the
-// service worker / router intercepts, so the mail client never launches.
-// `window.open('mailto:…')` is treated like a popup and is silently blocked.
-// An anchor with target="_blank" opens an empty about:blank tab on desktop
-// instead of handing off to the mail client.
+// The reliable form is a plain `window.location` assignment. `mailto:` is a
+// non-http scheme, so the service worker's fetch handler never sees it (Workbox
+// only intercepts http/https) and the SPA router ignores it — the browser hands
+// it straight to the OS protocol handler without navigating the page.
 //
-// A plain anchor click (no target) is the reliable form: the browser hands
-// `mailto:` to the OS protocol handler without navigating the current page,
-// and SPA routers ignore non-http protocols so they don't intercept it.
+// Forms that DON'T work here and must not be reintroduced:
+//   • `window.open('mailto:…')`            → treated as a popup, silently blocked
+//   • `<a target="_blank">` click          → opens an empty about:blank tab
+//   • a synthetic `document.createElement('a').click()` → never launches the
+//     mail client in the installed shell (the regression this replaces)
+//
+// When a real, user-clicked `<a href={buildMailtoHref(...)}>` is already in the
+// markup, prefer letting the native anchor fire (gold standard) over calling
+// openMailto from its onClick.
 
 interface MailtoParts {
   to: string
@@ -24,9 +29,5 @@ export function buildMailtoHref({ to, subject, body }: MailtoParts): string {
 }
 
 export function openMailto(parts: MailtoParts): void {
-  const a = document.createElement('a')
-  a.href = buildMailtoHref(parts)
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
+  window.location.href = buildMailtoHref(parts)
 }
