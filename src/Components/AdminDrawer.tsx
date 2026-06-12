@@ -10,7 +10,6 @@ import { DetailHeaderActions } from './Admin/DetailHeaderActions'
 import { useDetailEditState } from '../Hooks/useDetailEditState'
 import { ContentWrapper } from './ContentWrapper'
 import { ConfirmDialog } from './ConfirmDialog'
-import { Z } from './BaseOverlay'
 import { ActionSheet } from './ActionSheet'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
@@ -1080,6 +1079,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 titleNode={sheetTitleNode}
                 rightContent={detailHeaderActions}
                 hideClose={!!detailHeaderActions}
+                // Portals to body — must clear the mobileFullScreen drawer
+                // (z-60). Matches the overlay-sheet convention (Property/Map).
+                zIndex={1200}
             >
                 {renderDetailContent(true)}
             </Sheet>
@@ -1098,6 +1100,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 maxHeight={88}
                 backdrop="dismiss"
                 title="Hierarchy"
+                // Same as the detail Sheet — clear the z-60 full-screen drawer.
+                zIndex={1200}
             >
                 <div style={{ height: '72dvh' }} className="flex flex-col">
                     <AdminSummary
@@ -1124,6 +1128,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             variant="danger"
             onConfirm={handleDiscardConfirmed}
             onCancel={handleDiscardCancelled}
+            zIndex={1300}
         />
 
         {/* Clinic delete confirmation — triggered from header pill */}
@@ -1136,7 +1141,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             processing={clinicEdit.deleteProcessing}
             onConfirm={handleDeleteClinic}
             onCancel={clinicEdit.cancelDelete}
-            zIndex={Z.POPOVER + 30}
+            zIndex={1300}
         />
 
         {/* User delete confirmation — triggered from header pill */}
@@ -1149,7 +1154,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             processing={userEdit.deleteProcessing}
             onConfirm={handleDeleteUser}
             onCancel={userEdit.cancelDelete}
-            zIndex={Z.POPOVER + 30}
+            zIndex={1300}
         />
         </>
     )
