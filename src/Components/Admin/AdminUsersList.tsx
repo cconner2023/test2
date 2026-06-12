@@ -17,6 +17,7 @@ import {
   forceLogoutUser,
 } from '../../lib/adminService'
 import type { AdminUser } from '../../lib/adminService'
+import { UNASSIGNED_ID } from './adminHierarchy'
 import { openMailto } from '../../lib/mailto'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useInvalidation, invalidate } from '../../stores/useInvalidationStore'
@@ -29,6 +30,9 @@ export interface AdminUsersListProps {
   onEditUser: (user: AdminUser) => void
   onCreateUser: () => void
   filterUserId?: string | null
+  /** Restrict to users assigned (clinic_id) to this cluster — the Directory
+   *  roster's Members list. Combines with searchQuery. */
+  filterClinicId?: string | null
   searchQuery?: string
   /** When true, renders items without wrapper chrome (for unified search results) */
   bare?: boolean
@@ -97,6 +101,7 @@ export function AdminUsersList({
   onEditUser,
   onCreateUser,
   filterUserId,
+  filterClinicId,
   searchQuery: searchQueryProp,
   bare,
   embedded,
@@ -161,6 +166,13 @@ export function AdminUsersList({
       result = result.filter((u) => u.id === filterUserId)
     }
 
+    if (filterClinicId) {
+      // UNASSIGNED_ID sentinel = users with no cluster (clinic_id null).
+      result = filterClinicId === UNASSIGNED_ID
+        ? result.filter((u) => !u.clinic_id)
+        : result.filter((u) => u.clinic_id === filterClinicId)
+    }
+
     if (!searchQuery) return result
 
     const q = searchQuery.toLowerCase()
@@ -173,7 +185,7 @@ export function AdminUsersList({
         u.clinic_name?.toLowerCase().includes(q) ||
         u.surrogate_clinic_name?.toLowerCase().includes(q),
     )
-  }, [users, searchQuery, filterUserId])
+  }, [users, searchQuery, filterUserId, filterClinicId])
 
   /** Users grouped by clinic (cluster). Used when no search/filter is active. */
   const groupedUsers = useMemo(() => {

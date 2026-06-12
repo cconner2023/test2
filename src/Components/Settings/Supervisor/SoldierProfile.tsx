@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from 'react'
-import { Building2, ChevronRight, ClipboardList, Calendar, Plus, Check, Trash2, Loader2 } from 'lucide-react'
+import { Building2, ChevronRight, ClipboardList, Calendar, Plus, Check, Trash2, Loader2, Activity } from 'lucide-react'
 import { ActionButton } from '../../ActionButton'
 import { ConfirmDialog } from '../../ConfirmDialog'
 import { PreviewOverlay } from '../../PreviewOverlay'
@@ -14,7 +14,7 @@ import {
 } from '../../../lib/certificationService'
 import { CertOverlayFields } from '../../Certifications/CertOverlayFields'
 import { useIsMobile } from '../../../Hooks/useIsMobile'
-import { formatMedicName, getLatestTestByTask } from './supervisorHelpers'
+import { formatMedicName, getLatestTestByTask, groupEncounters } from './supervisorHelpers'
 import { getExpirationStatus, emptyCertForm, type CertFormData } from '../../Certifications/certHelpers'
 import type { FlatTask } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
@@ -67,6 +67,8 @@ interface SoldierProfileProps {
   testableTaskMap: Map<string, FlatTask[]>
   onNavigateToArea?: (areaName: string) => void
   calendarEvents: CalendarEvent[]
+  /** Algorithm encounter records for this soldier (full history, newest first). */
+  encounterEvents: CalendarEvent[]
   onOpenCalendar: () => void
   onOpenEvent: (eventId: string) => void
   /** When provided, the soldier card becomes tap-to-edit (rank/roles/delete via popover) */
@@ -89,6 +91,7 @@ export function SoldierProfile({
   testableTaskMap,
   onNavigateToArea,
   calendarEvents,
+  encounterEvents,
   onOpenCalendar,
   onOpenEvent,
   onEditMember,
@@ -232,6 +235,8 @@ export function SoldierProfile({
       return (priority[aStatus] ?? 3) - (priority[bStatus] ?? 3)
     })
   }, [certs])
+
+  const encounterGroups = useMemo(() => groupEncounters(encounterEvents), [encounterEvents])
 
   const sortedTests = useMemo(() => {
     return [...tests].sort((a, b) => {
@@ -411,6 +416,38 @@ export function SoldierProfile({
           <ActionPill shadow="sm" placement="overlay">
             <ActionButton icon={Calendar} label="View in calendar" onClick={onOpenCalendar} />
           </ActionPill>
+        </div>
+      </div>
+
+      {/* Encounter Log — algorithm completions logged to calendar */}
+      <div>
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
+          Encounter Log{encounterEvents.length > 0 && ` · ${encounterEvents.length}`}
+        </p>
+        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          {encounterGroups.length === 0 ? (
+            <p className="text-[10pt] text-tertiary px-4 py-4">No algorithm encounters logged yet</p>
+          ) : (
+            encounterGroups.map((g, idx) => (
+              <div
+                key={g.algorithmId}
+                className={`flex items-center gap-3 px-4 py-3 ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
+              >
+                <div className="w-7 h-7 rounded-lg bg-themeblue3/10 flex items-center justify-center shrink-0">
+                  <Activity size={14} className="text-themeblue2" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-primary truncate">{g.label}</p>
+                  <p className="text-[9pt] text-tertiary">
+                    Last {new Date(g.lastAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </p>
+                </div>
+                <span className="text-[9pt] font-semibold text-themeblue2 bg-themeblue3/10 px-2 py-0.5 rounded-full shrink-0">
+                  ×{g.count}
+                </span>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

@@ -40,7 +40,18 @@ export const PlanPanel = () => {
     const clinicPlanOrderSets = clinicContent.planOrderSets;
     const clinicId = editingClinicId;
 
-    const planOrderTags = profile.planOrderTags ?? EMPTY_TAGS;
+    // Normalize per-key — older saved shapes can omit a category (e.g. followUp),
+    // and a missing key would throw "not iterable" when spread below.
+    const planOrderTags = useMemo<PlanOrderTags>(() => {
+        const p = profile.planOrderTags;
+        return {
+            referral:  p?.referral  ?? [],
+            meds:      p?.meds      ?? [],
+            radiology: p?.radiology ?? [],
+            lab:       p?.lab       ?? [],
+            followUp:  p?.followUp  ?? [],
+        };
+    }, [profile.planOrderTags]);
     const planInstructionTags = profile.planInstructionTags ?? [];
     const planOrderSets = profile.planOrderSets ?? [];
 

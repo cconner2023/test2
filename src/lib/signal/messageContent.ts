@@ -88,6 +88,9 @@ export interface CalendarEventPayload {
   clinic_id?: string
   created_at?: string
   updated_at?: string
+  /** Algorithm id when this event was auto-logged from a completed clinical
+   *  algorithm (WriteNote "log to calendar"). Operational only — not PHI. */
+  encounter_algorithm_id?: string | null
   /** Origin ID for tracking the broadcast message on the server. */
   originId?: string
 }

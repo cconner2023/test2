@@ -23,6 +23,7 @@ export function useAlgorithmMetrics() {
       description: null,
       category: 'training',
       status: 'completed',
+      encounter_algorithm_id: algorithmId,
       start_time: nowStr,
       end_time: nowStr,
       all_day: false,

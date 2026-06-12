@@ -72,6 +72,13 @@ export interface CalendarEvent {
    * event_intake_requests. Rides the Signal vault fanout like any other event field.
    */
   intake_id?: string
+  /**
+   * Set when this event was auto-logged from a completed clinical algorithm
+   * (WriteNote "log to calendar"). Holds the algorithm id so supervisor surfaces
+   * can roll up encounters per soldier. Presence of this field marks the event as
+   * an encounter record. Operational vocabulary only (algorithm id) — never PHI.
+   */
+  encounter_algorithm_id?: string | null
 }
 
 /** Origin of an event subtask. 'standardized' = seeded from a clinic Checklist template; 'custom' = added ad-hoc on the event. */

@@ -14,6 +14,7 @@ import { updateAssignmentCalendarOriginId } from '../lib/trainingService'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useNavigationStore } from '../stores/useNavigationStore'
 import { useSupervisorData } from './Settings/Supervisor/useSupervisorData'
+import { isEncounterEvent } from './Settings/Supervisor/supervisorHelpers'
 import { SoldierProfile } from './Settings/Supervisor/SoldierProfile'
 import { EvaluateFlow } from './Settings/Supervisor/EvaluateFlow'
 import { AssignTaskFlow } from './Settings/Supervisor/AssignTaskFlow'
@@ -175,6 +176,24 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       })
       .sort((a, b) => a.start_time.localeCompare(b.start_time))
   }, [calendarEvents])
+
+  // Encounter log: algorithm "log to calendar" records (tagged with
+  // encounter_algorithm_id). Unlike the schedule, this is the full history held
+  // in the store — encounters are past events, so the 7/14-day window would hide
+  // them. Newest first.
+  const encounterEvents = useMemo(() => {
+    return calendarEvents
+      .filter(e => isEncounterEvent(e) && e.status !== 'cancelled')
+      .sort((a, b) => b.start_time.localeCompare(a.start_time))
+  }, [calendarEvents])
+
+  const encounterCountBySoldier = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const e of encounterEvents) {
+      for (const uid of e.assigned_to) counts.set(uid, (counts.get(uid) ?? 0) + 1)
+    }
+    return counts
+  }, [encounterEvents])
 
   // Tour: navigate into first coverage area programmatically
   useEffect(() => {
@@ -493,6 +512,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
               clinicName={clinicName}
               onNavigateToArea={handleNavigateToArea}
               teamEvents={windowedEvents}
+              encounterCountBySoldier={encounterCountBySoldier}
               onOpenCalendar={handleOpenCalendar}
               onOpenEvent={handleOpenEvent}
               onEditClinic={isSupervisor && clinicId ? setClinicEditAnchor : undefined}
@@ -525,6 +545,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
               setView({ screen: 'coverage-tasks', areaName, soldier })
             }}
             calendarEvents={windowedEvents.filter(e => e.assigned_to.includes(soldier.id))}
+            encounterEvents={encounterEvents.filter(e => e.assigned_to.includes(soldier.id))}
             onOpenCalendar={handleOpenCalendar}
             onOpenEvent={handleOpenEvent}
             onEditMember={isSupervisor && clinicId

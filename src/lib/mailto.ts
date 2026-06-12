@@ -3,12 +3,12 @@
 // `window.location.href = 'mailto:…'` navigates the SPA window — which the
 // service worker / router intercepts, so the mail client never launches.
 // `window.open('mailto:…')` is treated like a popup and is silently blocked.
-// A real anchor click with target="_blank" is the only form the browser hands
-// off to the OS protocol handler in every context (desktop + standalone iOS).
+// An anchor with target="_blank" opens an empty about:blank tab on desktop
+// instead of handing off to the mail client.
 //
-// This is the programmatic equivalent of the user manually doing
-// "right-click → open in new tab" on a mailto anchor, which is the one path
-// that has been observed to work.
+// A plain anchor click (no target) is the reliable form: the browser hands
+// `mailto:` to the OS protocol handler without navigating the current page,
+// and SPA routers ignore non-http protocols so they don't intercept it.
 
 interface MailtoParts {
   to: string
@@ -26,8 +26,6 @@ export function buildMailtoHref({ to, subject, body }: MailtoParts): string {
 export function openMailto(parts: MailtoParts): void {
   const a = document.createElement('a')
   a.href = buildMailtoHref(parts)
-  a.target = '_blank'
-  a.rel = 'noopener'
   document.body.appendChild(a)
   a.click()
   a.remove()

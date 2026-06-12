@@ -35,6 +35,8 @@ interface TeamReportingProps {
   onNavigateToArea?: (areaName: string) => void
   clinicName?: string | null
   teamEvents: CalendarEvent[]
+  /** Per-soldier count of logged algorithm encounters (full history). */
+  encounterCountBySoldier?: Map<string, number>
   onOpenCalendar: () => void
   onOpenEvent: (eventId: string) => void
   /** When provided, the clinic-overview card becomes tap-to-edit (supervisor surface) */
@@ -68,6 +70,7 @@ export function TeamReporting({
   onNavigateToArea,
   clinicName,
   teamEvents,
+  encounterCountBySoldier,
   onOpenCalendar,
   onOpenEvent,
   onEditClinic,
@@ -265,6 +268,17 @@ export function TeamReporting({
                     </span>
                   </div>
                 </div>
+                {(() => {
+                  const encCount = encounterCountBySoldier?.get(entry.soldierId) ?? 0
+                  return encCount > 0 ? (
+                    <span
+                      className="text-[9pt] font-medium text-themeblue2 bg-themeblue3/10 px-1.5 py-0.5 rounded-full flex-shrink-0"
+                      title={`${encCount} algorithm encounter${encCount === 1 ? '' : 's'} logged`}
+                    >
+                      {encCount} enc
+                    </span>
+                  ) : null
+                })()}
                 {entry.overdueCount > 0 && (
                   <span className="text-[9pt] font-medium text-themeredred bg-themeredred/10 px-1.5 py-0.5 rounded-full flex-shrink-0">
                     {entry.overdueCount}

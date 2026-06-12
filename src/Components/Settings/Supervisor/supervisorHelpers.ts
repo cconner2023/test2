@@ -4,7 +4,65 @@ import { categoryOrder } from '../../../Data/TrainingConstants'
 import { isTaskTestable } from '../../../Data/TrainingData'
 import type { TrainingCompletionUI } from '../../../lib/trainingService'
 import type { Certification } from '../../../Data/User'
+import type { CalendarEvent } from '../../../Types/CalendarTypes'
 import { getExpirationStatus } from '../../Certifications/certHelpers'
+
+// ─── Encounter Log (algorithm completions) ───────────────────────────────────
+// Algorithm "log to calendar" writes a calendar event tagged with
+// encounter_algorithm_id (see useAlgorithmMetrics). These helpers roll those
+// events up for supervisor surfaces. Operational only — title carries the
+// algorithm name, never PHI.
+
+/**
+ * True when an event is an algorithm encounter record. Primary signal is the
+ * encounter_algorithm_id tag; the `ADTMC ` title prefix is a backward-compat
+ * fallback for encounters logged before the tag existed.
+ */
+export function isEncounterEvent(e: CalendarEvent): boolean {
+  return !!e.encounter_algorithm_id || e.title.startsWith('ADTMC ')
+}
+
+/** Resolve the grouping id for an encounter event (tag, else parsed from title). */
+function encounterAlgorithmId(e: CalendarEvent): string {
+  if (e.encounter_algorithm_id) return e.encounter_algorithm_id
+  // Title shape: `ADTMC ${id} — ${name}` — pull the id between prefix and dash.
+  const dashIdx = e.title.indexOf('—')
+  const head = dashIdx >= 0 ? e.title.slice(0, dashIdx) : e.title
+  return head.replace(/^ADTMC\s+/, '').trim() || e.title
+}
+
+/** Returns only the calendar events that are algorithm encounter records. */
+export function filterEncounters(events: CalendarEvent[]): CalendarEvent[] {
+  return events.filter(isEncounterEvent)
+}
+
+export interface EncounterGroup {
+  algorithmId: string
+  /** Display label — the algorithm name parsed from the event title. */
+  label: string
+  count: number
+  /** ISO start_time of the most recent encounter in this group. */
+  lastAt: string
+}
+
+/** Group encounter events by algorithm, most-recently-used first. */
+export function groupEncounters(events: CalendarEvent[]): EncounterGroup[] {
+  const byAlgo = new Map<string, EncounterGroup>()
+  for (const e of events) {
+    if (!isEncounterEvent(e)) continue
+    const id = encounterAlgorithmId(e)
+    const dashIdx = e.title.indexOf('—')
+    const label = dashIdx >= 0 ? e.title.slice(dashIdx + 1).trim() : e.title
+    const existing = byAlgo.get(id)
+    if (existing) {
+      existing.count += 1
+      if (e.start_time > existing.lastAt) existing.lastAt = e.start_time
+    } else {
+      byAlgo.set(id, { algorithmId: id, label, count: 1, lastAt: e.start_time })
+    }
+  }
+  return Array.from(byAlgo.values()).sort((a, b) => b.lastAt.localeCompare(a.lastAt))
+}
 
 // ─── Name Formatting ─────────────────────────────────────────────────────────
 

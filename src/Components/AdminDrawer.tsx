@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef, type ReactNode } from 'react'
-import { X, Inbox, List, ChevronLeft, MessageCircleQuestion } from 'lucide-react'
+import { X, Inbox, List, ChevronLeft, MessageCircleQuestion, Network } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from './BaseDrawer'
 import { Sheet } from './Sheet'
 import { BottomIsland, IslandButton } from './BottomIsland'
@@ -32,6 +32,10 @@ import { AdminClinicsList } from './Admin/AdminClinicsList'
 import { AdminClinicDetail, type ClusterCreatePrefill } from './Admin/AdminClinicDetail'
 import { AdminLocationsList } from './Admin/AdminLocationsList'
 import { AdminLocationDetail } from './Admin/AdminLocationDetail'
+import { AdminHierarchyTree } from './Admin/AdminHierarchyTree'
+import { AdminDirectoryRoster } from './Admin/AdminDirectoryRoster'
+import { useAdminHierarchy } from './Admin/useAdminHierarchy'
+import type { HierNode } from './Admin/adminHierarchy'
 import { AdminSummary } from './Admin/AdminSummary'
 import { AdminFeatureVotesSection } from './Admin/AdminFeatureVotesSection'
 import { AdminSystemConversationView } from './Admin/AdminSystemConversationView'
@@ -112,6 +116,24 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     // FAB action sheet
     const [showAddSheet, setShowAddSheet] = useState(false)
+
+    // ── Directory hierarchy (Location ⊃ Cluster ⊃ Users) ──────────────────
+    // The tree is the Directory navigator: desktop renders it inline, mobile in
+    // a Sheet opened from the header pill. `selectedDirNode` drives the mobile
+    // roster body (the selected node's sub-clusters + members). Built once here
+    // and shared so the tree-Sheet and the roster never diverge.
+    const { hierarchy, loading: hierLoading } = useAdminHierarchy()
+    const [showTreeSheet, setShowTreeSheet] = useState(false)
+    const [selectedDirNode, setSelectedDirNode] = useState<string | null>(null)
+    const [expandedTreeIds, setExpandedTreeIds] = useState<Set<string>>(new Set())
+    const toggleTreeExpand = useCallback((id: string) => {
+        setExpandedTreeIds(prev => {
+            const next = new Set(prev)
+            if (next.has(id)) next.delete(id)
+            else next.add(id)
+            return next
+        })
+    }, [])
 
     // Discard pending changes confirmation. The pending action is held in a
     // ref so any nav path (back, tab switch, drawer close, summary jump) can
@@ -388,6 +410,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setUserCreatePrefillClinicId(null)
         setSlideDirection('')
         setSearchQuery('')
+        setShowTreeSheet(false)
+        setSelectedDirNode(null)
+        setExpandedTreeIds(new Set())
         clearTrail()
         clinicEdit.reset()
         userEdit.reset()
@@ -457,6 +482,13 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             <PillButton icon={X} onClick={handleClose} label="Close" />
         </HeaderPill>
     ), [handleClose])
+
+    // Mobile header-left pill (Directory tab only) — opens the hierarchy Sheet.
+    const hierarchyPill = useMemo(() => (
+        <HeaderPill>
+            <PillButton icon={Network} onClick={() => setShowTreeSheet(true)} label="Hierarchy" />
+        </HeaderPill>
+    ), [])
 
     const isUserCreateMode = view === 'admin-user-detail' && selectedUser === null
     const isClinicCreateMode = view === 'admin-clinic-detail' && selectedClinic === null
@@ -589,6 +621,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             case 'admin-location-detail':
                 return {
                     title: 'Admin Panel',
+                    // Directory tab gets the hierarchy pill (opens the tree Sheet).
+                    leftContent: activeTab === 'list' ? hierarchyPill : undefined,
                     rightContent: mainHeaderActions,
                     hideDefaultClose: !!mainHeaderActions,
                 }
@@ -601,7 +635,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     onBack: handleBack,
                 }
         }
-    }, [isMobile, view, detailTitle, handleBack, mainHeaderActions])
+    }, [isMobile, view, detailTitle, handleBack, mainHeaderActions, activeTab, hierarchyPill])
 
 
     // After creating a user, switch to view mode immediately using the
@@ -792,6 +826,20 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         </div>
     )
 
+    // Desktop hierarchy-tree tap: clusters + (dev) locations open their detail
+    // pane; synthetic group rows just toggle expand.
+    const handleTreeSelectDesktop = useCallback((node: HierNode) => {
+        if (node.kind === 'cluster') handleSelectClinic(node.clinic)
+        else if (node.kind === 'location' && node.location && isDevRole) handleSelectLocation(node.location)
+        else toggleTreeExpand(node.id)
+    }, [handleSelectClinic, handleSelectLocation, isDevRole, toggleTreeExpand])
+
+    // Mobile tree-Sheet tap: point the roster at that node, then close the sheet.
+    const handleTreeSelectMobile = useCallback((node: HierNode) => {
+        setSelectedDirNode(node.id)
+        setShowTreeSheet(false)
+    }, [])
+
     // Bottom island — tab switcher (centered) + FAB (right), matching Property/Calendar pattern
     const bottomIsland = (
         <BottomIsland
@@ -817,10 +865,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         </BottomIsland>
     )
 
-    // Directory tab — the three consolidated lists as labelled, typed sections.
-    // Each filters itself on the shared search query and collapses when empty,
-    // so a search differentiates results by section instead of one flat blur.
-    const renderDirectory = () => (
+    // Directory SEARCH results — the three lists as labelled, typed sections,
+    // each filtered by the query and collapsing when empty. Shown ONLY while a
+    // search is active; an empty query shows the hierarchy (tree/roster) instead.
+    const renderDirectorySearch = () => (
         <div className="px-5 pt-4 pb-24 space-y-6">
             <AdminUsersList
                 embedded
@@ -851,8 +899,40 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         </div>
     )
 
-    // Shared: content for the active tab. Search is scoped to the active tab
-    // (Directory filters its sections, Requests filters its feed, Map jumps).
+    // Directory HIERARCHY (no active search) — the Location ⊃ Cluster ⊃ Users
+    // containment view. Desktop renders the tree inline (tap → detail pane);
+    // mobile renders the roster (tap a node = drill; tree-Sheet = jump).
+    const renderDirectoryHierarchy = () => (
+        isMobile ? (
+            <AdminDirectoryRoster
+                hierarchy={hierarchy}
+                loading={hierLoading}
+                isDevRole={isDevRole}
+                selectedId={selectedDirNode}
+                onSelectNode={(n) => setSelectedDirNode(n.id)}
+                onNavigate={(id) => setSelectedDirNode(id)}
+                onSelectUser={handleSelectUser}
+                onEditUser={handleEditUser}
+                onCreateUser={handleCreateUser}
+                onOpenCluster={handleSelectClinic}
+                onOpenLocation={handleSelectLocation}
+            />
+        ) : (
+            <div className="px-5 pt-4 pb-24">
+                <AdminHierarchyTree
+                    hierarchy={hierarchy}
+                    loading={hierLoading}
+                    expandedIds={expandedTreeIds}
+                    onToggle={toggleTreeExpand}
+                    selectedId={selectedClinic?.id ?? selectedLocation?.id ?? null}
+                    onSelect={handleTreeSelectDesktop}
+                />
+            </div>
+        )
+    )
+
+    // Shared: content for the active tab. On Directory, a query shows flat typed
+    // search results; an empty query shows the hierarchy.
     const renderTabLists = () => (
         <>
             {activeTab === 'requests' && (
@@ -862,7 +942,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     onSelectSystemPeer={isDevRole ? handleSelectSystemPeer : undefined}
                 />
             )}
-            {activeTab === 'list' && renderDirectory()}
+            {activeTab === 'list' && (searchQuery ? renderDirectorySearch() : renderDirectoryHierarchy())}
             {activeTab === 'feature-votes' && isDevRole && (
                 <AdminFeatureVotesSection />
             )}
@@ -899,7 +979,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         <BaseDrawer
             isVisible={isVisible}
             onClose={handleClose}
-            fullHeight="90dvh"
+            fullHeight="95dvh"
+            mobileFullScreen
             desktopPosition="left"
             desktopWidth="w-[90%]"
             header={headerConfig}
@@ -1019,6 +1100,31 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 hideClose={!!detailHeaderActions}
             >
                 {renderDetailContent(true)}
+            </Sheet>
+        )}
+
+        {/* Mobile hierarchy Sheet — the Directory navigator (Location ⊃ Cluster).
+            Opened by the header pill; tapping a node points the roster at it and
+            closes. Expand/collapse walks the echelon in place. */}
+        {isMobile && (
+            <Sheet
+                isOpen={showTreeSheet}
+                onClose={() => setShowTreeSheet(false)}
+                height="fit"
+                maxHeight={85}
+                backdrop="dismiss"
+                title="Hierarchy"
+            >
+                <div className="px-3 pt-1 pb-6">
+                    <AdminHierarchyTree
+                        hierarchy={hierarchy}
+                        loading={hierLoading}
+                        expandedIds={expandedTreeIds}
+                        onToggle={toggleTreeExpand}
+                        selectedId={selectedDirNode}
+                        onSelect={handleTreeSelectMobile}
+                    />
+                </div>
             </Sheet>
         )}
 

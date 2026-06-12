@@ -23,7 +23,7 @@ import {
 } from '../../lib/adminService'
 import type { AdminClinic } from '../../lib/adminService'
 import type { AccountRequest } from '../../lib/accountRequestService'
-import { buildMailtoHref } from '../../lib/mailto'
+import { buildMailtoHref, openMailto } from '../../lib/mailto'
 import { invalidate } from '../../stores/useInvalidationStore'
 
 const AVAILABLE_ROLES = ['medic', 'supervisor', 'dev', 'provider'] as const
@@ -338,14 +338,11 @@ export function RequestCard({
 
   const handleClose = useCallback(() => setExpandedId(null), [setExpandedId])
 
-  const mailtoHref = buildMailtoHref({
-    to: request.email,
-    subject: 'ADTMC Web App Inquiry',
-    body: `${(isSupport
-      ? [request.first_name, request.last_name]
-      : [request.rank, request.last_name]
-    ).filter(Boolean).join(' ')},\n\n`,
-  })
+  const mailtoBody = `${(isSupport
+    ? [request.first_name, request.last_name]
+    : [request.rank, request.last_name]
+  ).filter(Boolean).join(' ')},\n\n`
+  const mailtoHref = buildMailtoHref({ to: request.email, subject: 'ADTMC Web App Inquiry', body: mailtoBody })
 
   // ── Icon styling ────────────────────────────────────────
   const iconBg = isSupport
@@ -384,9 +381,7 @@ export function RequestCard({
     <ActionPill>
       <a
         href={mailtoHref}
-        target="_blank"
-        rel="noopener"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => { e.stopPropagation(); e.preventDefault(); openMailto({ to: request.email, subject: 'ADTMC Web App Inquiry', body: mailtoBody }) }}
         className="w-9 h-9 rounded-full flex items-center justify-center bg-themeblue2/8 text-primary active:scale-95 transition-all"
         aria-label="Email"
         title="Email"
