@@ -28,7 +28,6 @@ import { formatLastActive, RoleBadge, SupervisorCreatedBadge } from './adminUtil
 import { StepResults, type StepResult } from './StepResults'
 import { useResetPasswordFlow } from '../../Hooks/useResetPasswordFlow'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
-import { SystemMessageComposePopover } from './SystemMessageComposePopover'
 import { drainSystemInbox } from '../../lib/signal/systemIdentity'
 import { createLogger } from '../../Utilities/Logger'
 
@@ -79,6 +78,10 @@ interface AdminUserDetailProps {
    *  action, seeds editClinicId so the new user lands assigned to that
    *  cluster on save (setUserClinic runs after createUser in handleSave). */
   prefillClinicId?: string | null
+  /** Dev-only — opens the full system-conversation chat panel with this user.
+   *  Wired by AdminDrawer to handleSelectSystemPeer. When provided, the
+   *  "Message user" action navigates here instead of the inline compose popover. */
+  onOpenConversation?: (peerId: string) => void
 }
 
 const AVAILABLE_ROLES = ['medic', 'supervisor', 'dev', 'provider'] as const
@@ -97,6 +100,7 @@ export function AdminUserDetail({
   onPendingChangesChange,
   onRequestDelete,
   prefillClinicId,
+  onOpenConversation,
 }: AdminUserDetailProps) {
   const currentUser = useAuthStore(s => s.user)
   const currentUserId = currentUser?.id ?? null
@@ -129,7 +133,6 @@ export function AdminUserDetail({
 
   // System-message compose popover (dev-only). Reuses the same pillRef anchor
   // as the reset-password popover so it lands next to the other actions.
-  const [sysMsgAnchor, setSysMsgAnchor] = useState<DOMRect | null>(null)
   const [vaultMissingOpen, setVaultMissingOpen] = useState(false)
   const messagesCtx = useMessagesContext()
 
@@ -739,17 +742,16 @@ export function AdminUserDetail({
                     openMailto({ to: user.email!, subject: 'Beacon Inquiry', body: `${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n` })
                   },
                 }] as ContextMenuItem[] : []),
-                ...(isDevRole && messagesCtx ? [{
+                ...(isDevRole && messagesCtx && onOpenConversation ? [{
                   key: 'send-msg',
-                  label: 'Send system message',
+                  label: 'Message user',
                   icon: MessageSquare,
                   onAction: () => {
                     if (!user?.last_active_at) {
                       setVaultMissingOpen(true)
                       return
                     }
-                    const rect = pillRef.current?.getBoundingClientRect() ?? null
-                    setSysMsgAnchor(rect)
+                    if (user?.id) onOpenConversation(user.id)
                   },
                 }] as ContextMenuItem[] : []),
                 { key: 'reset-pw', label: 'Reset password', icon: KeyRound, onAction: openResetPassword },
@@ -765,16 +767,6 @@ export function AdminUserDetail({
           </div>
         )}
       </div>
-
-      {/* System message compose popover — dev-only, anchored to corner ActionPill. */}
-      {user && messagesCtx && (
-        <SystemMessageComposePopover
-          anchorRect={sysMsgAnchor}
-          title={`Message ${userName}`}
-          onClose={() => setSysMsgAnchor(null)}
-          onSend={async (text) => messagesCtx.sendSystemMessageToUser(user.id, text)}
-        />
-      )}
 
       <ConfirmDialog
         visible={vaultMissingOpen}

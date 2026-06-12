@@ -38,6 +38,11 @@ interface AdminRequestsListProps {
   searchQuery?: string
   /** When true, renders items without wrapper chrome (for unified search results) */
   bare?: boolean
+  /** When true, renders as a labelled section inside the unified search results:
+   *  page-padding-free, collapses to null on an empty search. */
+  embedded?: boolean
+  /** Section heading shown above the list in embedded mode. */
+  title?: string
   onApproved?: (
     userId: string,
     request: AccountRequest,
@@ -49,7 +54,7 @@ interface AdminRequestsListProps {
   onSelectSystemPeer?: (peerId: string) => void
 }
 
-export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApproved, onSelectSystemPeer }: AdminRequestsListProps) {
+export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded, title, onApproved, onSelectSystemPeer }: AdminRequestsListProps) {
   const searchQuery = searchQueryProp ?? ''
 
   const gen = useInvalidation('requests')
@@ -519,6 +524,51 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, onApprov
       onCancel={() => setConfirmDeleteSystemPeerId(null)}
     />
   )
+
+  // ── Embedded mode: labelled section inside the unified search results ──
+  if (embedded) {
+    // Collapse to nothing when a search yields no matches, so the results view
+    // doesn't stack a "No items" card for a single-section hit.
+    if (feedItems.length === 0 && searchQuery) return null
+    return (
+      <section className="space-y-2">
+        {title && (
+          <div className="flex items-baseline justify-between px-1">
+            <h3 className="text-[11pt] font-semibold text-primary">{title}</h3>
+            <span className="text-[9pt] text-tertiary">{feedItems.length}</span>
+          </div>
+        )}
+        {showLoading ? (
+          <AdminListSkeleton />
+        ) : feedItems.length === 0 ? (
+          <EmptyState title="No pending items" />
+        ) : (
+          <SectionCard className="divide-y divide-themeblue3/10">
+            {feedItems.map(renderFeedItem)}
+          </SectionCard>
+        )}
+        {renderContextMenu()}
+        {renderFeedbackContextMenu()}
+        {renderSystemContextMenu()}
+        <ConfirmDialog
+          visible={!!confirmDeleteId}
+          title="Delete this request?"
+          subtitle="Permanent."
+          confirmLabel="Delete"
+          variant="danger"
+          processing={deleteProcessing}
+          zIndex={confirmZ}
+          onConfirm={() => { if (confirmDeleteId) handleDeleteRequest(confirmDeleteId) }}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
+        {suggestionConfirmDialog}
+        {feedbackConfirmDialog}
+        {systemConfirmDialog}
+        {chatComposePopover}
+        {notifyDialog}
+      </section>
+    )
+  }
 
   // ── Bare mode: just the items (no wrapper chrome) ──────
   if (bare) {

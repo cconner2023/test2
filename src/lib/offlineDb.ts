@@ -97,6 +97,21 @@ const logger = createLogger('OfflineDb')
 /** Sync status for local training completions. */
 export type TrainingCompletionSyncStatus = 'pending' | 'synced' | 'error'
 
+/**
+ * Persisted base for an admin delta-cache key (see src/lib/deltaCache.ts).
+ * Used by the admin user list, whose rows carry avatar_blob — too large to keep
+ * in localStorage, so the base lives in IDB (blob-safe, large quota). Keyed by
+ * the delta-cache key (e.g. 'user:all'). `rows` is stored opaquely; the consumer
+ * in adminService.ts owns the row shape and casts on load.
+ */
+export interface AdminCacheEntry {
+  key: string
+  rows: unknown[]
+  hwm: string | null
+  /** Epoch ms when this base was last written — drives the SWR staleness window. */
+  ts: number
+}
+
 // ---- Database Schema ----
 
 export interface SyncQueueItem {
@@ -304,10 +319,14 @@ interface PackageBackEndDB extends DBSchema {
       'by-status': string
     }
   }
+  adminCache: {
+    key: string  // delta-cache key, e.g. 'user:all'
+    value: AdminCacheEntry
+  }
 }
 
 const DB_NAME = 'packagebackend-offline'
-const DB_VERSION = 13
+const DB_VERSION = 14
 
 let dbInstance: IDBPDatabase<PackageBackEndDB> | null = null
 
@@ -457,6 +476,12 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
         const suggStore = db.createObjectStore('featureVoteSuggestions', { keyPath: 'id' })
         suggStore.createIndex('by-user', 'user_id')
         suggStore.createIndex('by-status', 'status')
+      }
+
+      // v14: admin delta-cache base store (blob-safe persisted base for the
+      // admin user list — avatar_blob is too large for localStorage).
+      if (oldVersion < 14) {
+        db.createObjectStore('adminCache', { keyPath: 'key' })
       }
     },
   })
@@ -1093,6 +1118,40 @@ export async function clearAllUserData(): Promise<void> {
 // ============================================================
 // Feature Voting Operations
 // ============================================================
+
+// ---- Admin delta-cache base (IDB-backed persistence for deltaCache) ----
+
+/** Load the persisted delta-cache base for an admin key (e.g. 'user:all'). */
+export async function getAdminCache(key: string): Promise<AdminCacheEntry | null> {
+  try {
+    const db = await getDb()
+    return (await db.get('adminCache', key)) ?? null
+  } catch (error) {
+    logger.error('getAdminCache failed:', error)
+    return null
+  }
+}
+
+/** Persist (replace) the delta-cache base for an admin key. Stamps ts for SWR. */
+export async function putAdminCache(key: string, rows: unknown[], hwm: string | null): Promise<void> {
+  try {
+    const db = await getDb()
+    await db.put('adminCache', { key, rows, hwm, ts: Date.now() })
+  } catch (error) {
+    // Best effort — the in-memory deltaCache layer still applies this session.
+    logger.error('putAdminCache failed:', error)
+  }
+}
+
+/** Drop the persisted base for an admin key (forces a cold full refetch). */
+export async function clearAdminCache(key: string): Promise<void> {
+  try {
+    const db = await getDb()
+    await db.delete('adminCache', key)
+  } catch (error) {
+    logger.error('clearAdminCache failed:', error)
+  }
+}
 
 export async function getLocalFeatureVoteCycles(): Promise<LocalFeatureVoteCycle[]> {
   const db = await getDb()

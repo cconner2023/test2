@@ -20,6 +20,10 @@ interface AdminSummaryProps {
   activeClinicId?: string | null
   activeUserId?: string | null
   allSelected?: boolean
+  /** Tree-only mode for the mobile hierarchy sheet: drops the stats summary
+   *  block + per-row entity icons, rendering a clean map-overlay-style tree
+   *  (All Clusters → clusters → user leaves → an Unassigned node). */
+  treeOnly?: boolean
 }
 
 interface ClinicNode {
@@ -41,6 +45,7 @@ export function AdminSummary({
   activeClinicId,
   activeUserId,
   allSelected,
+  treeOnly,
 }: AdminSummaryProps) {
   const gen = useInvalidation('users', 'clinics', 'requests')
   const [clinics, setClinics] = useState<AdminClinic[]>([])
@@ -234,7 +239,7 @@ export function AdminSummary({
         }`}
       >
         <span className="w-[18px] shrink-0" />
-        <User size={13} className="text-tertiary shrink-0" />
+        {!treeOnly && <User size={13} className="text-tertiary shrink-0" />}
         <span className="text-[9.5pt] text-primary truncate">{name}</span>
       </button>
     )
@@ -315,7 +320,10 @@ export function AdminSummary({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Stats */}
+      {/* Stats — hidden in tree-only mode (the mobile hierarchy sheet wants a
+          clean map-overlay-style tree, no summary header). */}
+      {!treeOnly && (
+      <>
       <div className="px-4 py-3 space-y-1.5">
         <button
           onClick={() => onSwitchTab('users')}
@@ -391,6 +399,8 @@ export function AdminSummary({
       <div className="px-4 py-2.5">
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Hierarchy</p>
       </div>
+      </>
+      )}
 
       {/* Clinic tree */}
       <div className="flex-1 overflow-y-auto">
@@ -410,6 +420,27 @@ export function AdminSummary({
         </button>
 
         {roots.map(node => renderClinicRow(node, 0))}
+
+        {/* Unassigned users — rendered as a tree node in tree-only mode (in
+            the stats variant these live in the summary block above). */}
+        {treeOnly && unassignedCount > 0 && (
+          <div>
+            <button
+              onClick={() => setShowUnassigned(!showUnassigned)}
+              aria-expanded={showUnassigned}
+              aria-label={`${showUnassigned ? 'Collapse' : 'Expand'} unassigned users`}
+              className="flex items-center gap-2 w-full py-2 pr-4 text-left cursor-pointer transition-all active:scale-[0.98] hover:bg-secondary/5"
+              style={{ paddingLeft: '16px' }}
+            >
+              <span className="p-0.5 text-tertiary shrink-0">
+                {showUnassigned ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </span>
+              <span className="text-[10pt] font-medium text-tertiary italic flex-1">Unassigned</span>
+              <span className="text-[9pt] font-normal text-tertiary tabular-nums shrink-0">{unassignedCount}</span>
+            </button>
+            {showUnassigned && unassignedUsers.map(u => renderUserLeaf(u, 1))}
+          </div>
+        )}
       </div>
 
       {contextMenu && (() => {

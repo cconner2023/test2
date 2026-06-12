@@ -615,8 +615,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             case 'admin-location-detail':
                 return {
                     title: 'Admin Panel',
-                    // Users tab gets the Hierarchy pill (opens the cluster-tree Sheet).
-                    leftContent: activeTab === 'users' ? hierarchyPill : undefined,
+                    // Hierarchy pill (opens the cluster-tree Sheet) is always present —
+                    // the tree spans every tab, so it's not scoped to the Users tab.
+                    leftContent: hierarchyPill,
                     rightContent: mainHeaderActions,
                     hideDefaultClose: !!mainHeaderActions,
                 }
@@ -710,6 +711,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         onPendingChangesChange={userEdit.setHasPending}
                         onRequestDelete={selectedUser && currentUserId !== selectedUser.id ? userEdit.requestDelete : undefined}
                         prefillClinicId={userCreatePrefillClinicId}
+                        onOpenConversation={isDevRole ? handleSelectSystemPeer : undefined}
                     />
             )
         }
@@ -861,25 +863,41 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         { key: 'users', label: 'Users' },
         { key: 'clinics', label: 'Clusters' },
     ]
-    const renderUsersTab = () => (
-        <div className="px-3 md:px-5 pt-4 pb-24 space-y-5">
-            {/* Type island — segmented filter, map-overlay style. */}
-            <div className="flex items-center gap-1 p-1 rounded-full bg-themewhite2 border border-tertiary/10 w-fit">
+
+    // Floating secondary island — the All/Users/Clusters type filter, hovering
+    // just above the bottom island when the Users tab is selected (mirrors the
+    // map overlay's basemap picker floating above its control island). Mobile
+    // hides it during universal search (search bypasses the type filter).
+    const showFilterIsland = activeTab === 'users' && !(isMobile && searchQuery.trim())
+    const userFilterIsland = showFilterIsland ? (
+        <div className="absolute bottom-[4.75rem] inset-x-0 flex items-center justify-center z-20 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
+            <div
+                role="tablist"
+                aria-label="Filter users and clusters"
+                className="flex items-center gap-1 rounded-full bg-themewhite2/90 dark:bg-themewhite3/90 backdrop-blur-sm border border-tertiary/20 px-1 py-1 shadow-lg pointer-events-auto"
+            >
                 {FILTER_OPTS.map(o => (
                     <button
                         key={o.key}
                         type="button"
+                        role="tab"
                         onClick={() => setUserFilter(o.key)}
-                        aria-pressed={userFilter === o.key}
-                        className={`px-3.5 py-1 rounded-full text-[10pt] font-medium transition-all active:scale-95 ${
-                            userFilter === o.key ? 'bg-themeblue3 text-themewhite shadow-sm' : 'text-tertiary'
+                        aria-selected={userFilter === o.key}
+                        className={`px-3.5 py-1.5 rounded-full text-[10pt] font-medium transition-all active:scale-95 ${
+                            userFilter === o.key ? 'bg-themeblue3 text-white shadow-sm' : 'text-tertiary hover:text-primary'
                         }`}
                     >
                         {o.label}
                     </button>
                 ))}
             </div>
+        </div>
+    ) : null
 
+    const renderUsersTab = () => (
+        <div className="px-3 md:px-5 pt-4 pb-24 space-y-5">
+            {/* Type filter (All/Users/Clusters) now lives in a floating secondary
+                island above the bottom island — see userFilterIsland. */}
             {(userFilter === 'all' || userFilter === 'users') && (
                 <AdminUsersList
                     embedded
@@ -928,6 +946,49 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         </>
     )
 
+    // Universal search (mobile) — when a query is active, results span EVERY
+    // section regardless of the selected bottom island, instead of filtering
+    // only the active tab. Each embedded list collapses to null on no match,
+    // so only the sections with hits render. The type-island (All/Users/
+    // Clusters) is bypassed — users + clusters both show.
+    const renderSearchResults = () => (
+        <div className="px-3 pt-4 pb-24 space-y-5">
+            <AdminRequestsList
+                embedded
+                title="Requests"
+                searchQuery={searchQuery}
+                onApproved={handleRequestApproved}
+                onSelectSystemPeer={isDevRole ? handleSelectSystemPeer : undefined}
+            />
+            <AdminUsersList
+                embedded
+                title="Users"
+                onSelectUser={handleSelectUser}
+                onEditUser={handleEditUser}
+                onCreateUser={handleCreateUser}
+                searchQuery={searchQuery}
+            />
+            <AdminClinicsList
+                embedded
+                title="Clusters"
+                onSelectClinic={handleSelectClinic}
+                onEditClinic={handleEditClinic}
+                onCreateClinic={handleCreateClinic}
+                searchQuery={searchQuery}
+            />
+            {isDevRole && (
+                <AdminLocationsList
+                    embedded
+                    title="Locations"
+                    onSelectLocation={handleSelectLocation}
+                    onEditLocation={handleEditLocation}
+                    onCreateLocation={handleCreateLocation}
+                    searchQuery={searchQuery}
+                />
+            )}
+        </div>
+    )
+
     const renderMainView = () => (
         isMobile ? (
             // Mobile: search bar + list share one scroller whose top sits at the
@@ -936,10 +997,11 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             <div className="relative h-full">
                 <div className="h-full overflow-y-auto overscroll-y-contain">
                     <div className="px-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.5rem)] pb-2">
-                        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
+                        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search all..." />
                     </div>
-                    {renderTabLists()}
+                    {searchQuery.trim() ? renderSearchResults() : renderTabLists()}
                 </div>
+                {userFilterIsland}
                 {bottomIsland}
             </div>
         ) : (
@@ -948,6 +1010,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 <div className="h-full overflow-y-auto">
                     {renderTabLists()}
                 </div>
+                {userFilterIsland}
                 {bottomIsland}
             </div>
         )
@@ -1105,6 +1168,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             >
                 <div style={{ height: '72dvh' }} className="flex flex-col">
                     <AdminSummary
+                        treeOnly
                         onSelectClinic={closeTreeThen(handleSelectClinic)}
                         onSelectUser={closeTreeThen(handleSelectUser)}
                         onEditClinic={closeTreeThen(handleEditClinic)}

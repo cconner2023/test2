@@ -35,8 +35,24 @@ import { getErrorMessage } from '../Utilities/errorUtils'
 import { succeed, fail, type ServiceResult } from './result'
 import { classifySupabaseError, ErrorCode } from './errorCodes'
 import { validateRpcResult, validateRpcArray } from './validators'
+import {
+  deltaRead,
+  revalidateDeltaCache,
+  invalidateDeltaCache,
+  localStorageBase,
+  type DeltaCacheConfig,
+} from './deltaCache'
+import { getAdminCache, putAdminCache, clearAdminCache } from './offlineDb'
 
 const logger = createLogger('AdminService')
+
+/**
+ * SWR freshness window for the admin delta caches (users + clinics). A warm read
+ * past this age serves cached rows instantly AND kicks a background delta, so a
+ * dev editing across a long session still catches others' writes. These are
+ * monitoring views — see the memTtlMs note in src/lib/deltaCache.ts.
+ */
+const ADMIN_CACHE_TTL_MS = 5 * 60 * 1000
 
 export interface AdminUser {
   id: string
@@ -195,6 +211,9 @@ export async function approveAccountRequest(
       return fail(validated.error ?? 'Approval succeeded but returned unexpected data')
     }
 
+    // Approval created a new auth user + profile — pull it into the user cache.
+    void bustUserCache()
+
     return succeed({
       userId: validated.data.user_id,
       email: validated.data.email,
@@ -335,6 +354,7 @@ export async function setUserRoles(
     })
 
     if (error) return fail(error.message)
+    void bustUserCache()
     return succeed()
   } catch (error) {
     return fail(getErrorMessage(error))
@@ -362,6 +382,7 @@ export async function addUserRole(
     })
 
     if (error) return fail(error.message)
+    void bustUserCache()
     return succeed()
   } catch (error) {
     return fail(getErrorMessage(error))
@@ -387,6 +408,7 @@ export async function removeUserRole(
     })
 
     if (error) return fail(error.message)
+    void bustUserCache()
     return succeed()
   } catch (error) {
     return fail(getErrorMessage(error))
@@ -394,58 +416,100 @@ export async function removeUserRole(
 }
 
 /**
- * Promise cache for listAllUsers, keyed by the `users` invalidation generation.
+ * Admin user list — tier-2 deltaCache (see v2/conventions egress drawer).
+ *
  * Five admin surfaces (AdminSummary, AdminRequestsList, AdminClinicsList,
- * AdminUsersList, AdminUserDetail) call listAllUsers on mount — and the admin
- * drawer never rides the offline-first IDB pipeline, so without this each open
- * re-pulled the full user list (incl. avatar_blob) once per caller. The cache
- * holds the in-flight promise so concurrent callers share one round-trip; when
- * `invalidate('users')` bumps the generation the next call refetches. A
- * rejected/empty promise is cleared so a transient error doesn't poison the
- * cache. Mirrors the listClinics cache below.
+ * AdminUsersList, AdminUserDetail) call listAllUsers on mount, and the admin
+ * drawer never rides the offline-first IDB pipeline, so every open used to
+ * re-pull the FULL user list (incl. avatar_blob) — the dominant account-
+ * maintenance egress sink. Now: a persisted base + an `updated_at`-keyed delta
+ * (admin_list_users(p_since)) — a cold read pulls the full list once, then every
+ * reload pulls only the users that actually changed.
+ *
+ * Persisted base lives in IDB (adminCache store), NOT localStorage, because rows
+ * carry avatar_blob (encrypted photo) — too large for the ~5MB localStorage quota.
+ *
+ * HARD-DELETE / AUTH-EDIT caveat: profiles has no archived_at, so a delete can't
+ * ride an updated_at delta; and updateUserEmail touches auth.users (not profiles)
+ * so it never advances updated_at. Both must WIPE this cache (bustUserCache({wipe:
+ * true})) to force a cold refetch. Every other mutation does a cheap delta-since-
+ * hwm revalidate. Dev-only single-actor console, so cross-device delete staleness
+ * between wipes is acceptable (same posture as feature_vote_cycles).
  */
-let listAllUsersCache: { gen: number; promise: Promise<AdminUser[]> } | null = null
+interface AdminUserDelta extends AdminUser {
+  updated_at: string
+}
+
+const USER_CACHE_KEY = 'user:all'
+
+const userCacheCfg: DeltaCacheConfig<AdminUser, AdminUserDelta> = {
+  key: USER_CACHE_KEY,
+  loadBase: async (key) => {
+    const e = await getAdminCache(key)
+    if (!e) return null
+    return { rows: e.rows as AdminUser[], hwm: e.hwm, stale: Date.now() - e.ts > ADMIN_CACHE_TTL_MS }
+  },
+  saveBase: (key, rows, hwm) => putAdminCache(key, rows, hwm),
+  fetchDelta: async (since) => {
+    // p_since was added by the admin_list_users_since_delta migration; cast the
+    // args until database.types.ts is regenerated.
+    const { data, error } = await supabase.rpc(
+      'admin_list_users',
+      (since ? { p_since: since } : {}) as never,
+    )
+    if (error) throw error
+    const validated = validateRpcArray<AdminUserDelta>(data, ['id', 'email'], 'listAllUsers')
+    if (!validated.ok) {
+      logger.error('listAllUsers validation failed:', validated.error)
+      throw new Error(validated.error ?? 'listAllUsers validation failed')
+    }
+    return validated.data.map(u => ({
+      ...u,
+      supervisor_created: u.supervisor_created ?? false,
+      surrogate_clinic_id: u.surrogate_clinic_id ?? null,
+      surrogate_clinic_name: u.surrogate_clinic_name ?? null,
+    }))
+  },
+  // Strip the delta cursor; AdminUser doesn't carry updated_at.
+  toRow: ({ updated_at, ...row }) => row,
+  memTtlMs: ADMIN_CACHE_TTL_MS,
+}
 
 /**
- * List all users (profiles + email). Dev only.
- *
- * supervisor_created, surrogate_clinic_id and surrogate_clinic_name are now
- * returned inline by the admin_list_users RPC, so this is a single round-trip
- * (previously the RPC plus a full-table profiles scan plus a clinics lookup).
- * Served from the gen-keyed promise cache; bust via invalidate('users').
+ * Bust the admin user cache after a mutation. `wipe` forces a cold refetch — use
+ * it for a hard delete or an auth.users-only change (email) that can't ride the
+ * updated_at delta. Otherwise a cheap delta-since-hwm revalidate that pulls only
+ * the touched row. Returns a promise the caller may await before re-listing.
+ */
+export function bustUserCache(opts?: { wipe?: boolean }): Promise<unknown> {
+  if (opts?.wipe) {
+    invalidateDeltaCache(USER_CACHE_KEY)
+    return clearAdminCache(USER_CACHE_KEY)
+  }
+  return revalidateDeltaCache(userCacheCfg)
+}
+
+/** Match the RPC's `order by last_name, first_name nulls last` — deltaCache
+ *  returns insertion order, so the public sort contract is restored here. */
+function compareAdminUsers(a: AdminUser, b: AdminUser): number {
+  // Empty/null names sort last (matches the RPC's `nulls last`).
+  const cmp = (x: string | null, y: string | null) => {
+    const xe = x == null || x === ''
+    const ye = y == null || y === ''
+    if (xe || ye) return xe === ye ? 0 : xe ? 1 : -1
+    return x.toLowerCase().localeCompare(y.toLowerCase())
+  }
+  const ln = cmp(a.last_name, b.last_name)
+  return ln !== 0 ? ln : cmp(a.first_name, b.first_name)
+}
+
+/**
+ * List all users (profiles + email). Dev only. Cache-first delta read; never
+ * throws (deltaRead serves the stale base on network failure).
  */
 export async function listAllUsers(): Promise<AdminUser[]> {
-  const gen = useInvalidationStore.getState().generations.users
-  if (listAllUsersCache && listAllUsersCache.gen === gen) {
-    return listAllUsersCache.promise
-  }
-
-  const promise = (async () => {
-    try {
-      const { data, error } = await supabase.rpc('admin_list_users')
-      if (error) throw error
-      const validated = validateRpcArray<AdminUser>(data, ['id', 'email'], 'listAllUsers')
-      if (!validated.ok) {
-        logger.error('listAllUsers validation failed:', validated.error)
-        // Drop the cache entry so the next call retries.
-        if (listAllUsersCache?.gen === gen) listAllUsersCache = null
-        return []
-      }
-      return validated.data.map(u => ({
-        ...u,
-        supervisor_created: u.supervisor_created ?? false,
-        surrogate_clinic_id: u.surrogate_clinic_id ?? null,
-        surrogate_clinic_name: u.surrogate_clinic_name ?? null,
-      }))
-    } catch (error) {
-      logger.error('Failed to list users:', error)
-      if (listAllUsersCache?.gen === gen) listAllUsersCache = null
-      return []
-    }
-  })()
-
-  listAllUsersCache = { gen, promise }
-  return promise
+  const rows = await deltaRead(userCacheCfg)
+  return [...rows].sort(compareAdminUsers)
 }
 
 /**
@@ -488,6 +552,8 @@ export async function createUser(userData: {
     const validated = validateRpcResult<{ user_id: string; email: string; message: string }>(
       data, ['user_id'], 'createUser'
     )
+    // New profile row (updated_at = now) flows in via the next delta.
+    void bustUserCache()
     return succeed({ userId: validated.ok ? validated.data.user_id : undefined })
   } catch (error) {
     logger.error('Failed to create user:', error)
@@ -542,6 +608,8 @@ export async function deleteUser(
     })
 
     if (error) return fail(error.message)
+    // Hard delete — no archived_at to ride the delta, so wipe + cold refetch.
+    await bustUserCache({ wipe: true })
     return succeed()
   } catch (error) {
     logger.error('Failed to delete user:', error)
@@ -919,74 +987,93 @@ export async function archiveLocation(id: string): Promise<ServiceResult<Record<
 const locationDecryptCache = new Map<string, string | null>()
 
 /**
- * Promise cache for listClinics keyed by the `clinics` invalidation generation.
- * Every admin tab's loadData calls listClinics, so without this each save
- * triggers N redundant supabase round-trips + array maps. The cache holds the
- * in-flight promise so concurrent callers share one request; when `invalidate
- * ('clinics')` bumps the generation the next call refetches. A rejected
- * promise is cleared so a transient network error doesn't poison subsequent
- * calls.
+ * Admin clinic list — tier-2 deltaCache. Same egress discipline as listAllUsers,
+ * but the persisted base lives in localStorage (clinic rows are small — no blob).
+ * Cold read pulls the full live set once; reloads pull only clinics whose
+ * `updated_at` advanced (the trg_clinics_updated_at trigger bumps it, and the
+ * reciprocal-association sync bumps each touched peer's row too).
+ *
+ * The persisted base stores the DECRYPTED location string (operational, non-PHI)
+ * and NEVER the encryption_key — decryption happens inside fetchDelta.
+ *
+ * HARD-DELETE caveat: clinics has no archived_at, so deleteClinic WIPES the cache
+ * (bustClinicCache({wipe:true})). Create/update do a cheap revalidate.
  */
-let listClinicsCache: { gen: number; promise: Promise<AdminClinic[]> } | null = null
+interface ClinicDeltaRow extends AdminClinic {
+  updated_at: string
+}
+
+const CLINIC_CACHE_KEY = 'clinic:all'
+const clinicBase = localStorageBase<AdminClinic>('beacon.admincache', ADMIN_CACHE_TTL_MS)
+
+const clinicCacheCfg: DeltaCacheConfig<AdminClinic, ClinicDeltaRow> = {
+  key: CLINIC_CACHE_KEY,
+  loadBase: clinicBase.loadBase,
+  saveBase: clinicBase.saveBase,
+  fetchDelta: async (since) => {
+    let q = supabase
+      .from('clinics')
+      .select('id, name, uics, child_clinic_ids, associated_clinic_ids, location, location_id, parent_clinic_id, rooms, encryption_key, updated_at')
+      .order('updated_at')
+    if (since) q = q.gt('updated_at', since)
+    const { data, error } = await q
+    if (error) throw error
+
+    // Decrypt location fields using each clinic's own encryption key (memoized).
+    return Promise.all(
+      (data || []).map(async (row) => {
+        let location: string | null = row.location
+        if (row.encryption_key && row.location) {
+          const cacheKey = `${row.id}:${row.encryption_key}:${row.location}`
+          const cached = locationDecryptCache.get(cacheKey)
+          if (cached !== undefined) {
+            location = cached
+          } else {
+            location = await decryptWithRawKey(row.encryption_key, row.location)
+            locationDecryptCache.set(cacheKey, location)
+          }
+        }
+        return {
+          id: row.id,
+          name: row.name,
+          uics: row.uics || [],
+          child_clinic_ids: row.child_clinic_ids || [],
+          associated_clinic_ids: row.associated_clinic_ids || [],
+          location,
+          location_id: row.location_id ?? null,
+          parent_clinic_id: row.parent_clinic_id ?? null,
+          rooms: (row.rooms as ClinicRoom[]) || [],
+          updated_at: row.updated_at as string,
+        }
+      })
+    )
+  },
+  // Strip the delta cursor (also drops encryption_key — never persisted).
+  toRow: ({ updated_at, ...row }) => row,
+  memTtlMs: ADMIN_CACHE_TTL_MS,
+}
 
 /**
- * List all clinics. Dev only.
+ * Bust the admin clinic cache after a mutation. `wipe` forces a cold refetch
+ * (hard delete); otherwise a cheap delta-since-hwm revalidate. Returns a promise
+ * the caller may await before re-listing (createClinic does, to find the new row).
+ */
+export function bustClinicCache(opts?: { wipe?: boolean }): Promise<unknown> {
+  if (opts?.wipe) {
+    invalidateDeltaCache(CLINIC_CACHE_KEY)
+    clinicBase.clearBase(CLINIC_CACHE_KEY)
+    return Promise.resolve()
+  }
+  return revalidateDeltaCache(clinicCacheCfg)
+}
+
+/**
+ * List all clinics. Dev only. Cache-first delta read; never throws. Sorted by
+ * name to preserve the public contract (deltaCache returns insertion order).
  */
 export async function listClinics(): Promise<AdminClinic[]> {
-  const gen = useInvalidationStore.getState().generations.clinics
-  if (listClinicsCache && listClinicsCache.gen === gen) {
-    return listClinicsCache.promise
-  }
-
-  const promise = (async () => {
-    try {
-      const { data, error } = await supabase
-        .from('clinics')
-        .select('id, name, uics, child_clinic_ids, associated_clinic_ids, location, location_id, parent_clinic_id, rooms, encryption_key')
-        .order('name')
-
-      if (error) throw error
-
-      // Decrypt location fields using each clinic's own encryption key (memoized)
-      const clinics = await Promise.all(
-        (data || []).map(async (row) => {
-          let location: string | null = row.location
-          if (row.encryption_key && row.location) {
-            const cacheKey = `${row.id}:${row.encryption_key}:${row.location}`
-            const cached = locationDecryptCache.get(cacheKey)
-            if (cached !== undefined) {
-              location = cached
-            } else {
-              location = await decryptWithRawKey(row.encryption_key, row.location)
-              locationDecryptCache.set(cacheKey, location)
-            }
-          }
-          return {
-            id: row.id,
-            name: row.name,
-            uics: row.uics || [],
-            child_clinic_ids: row.child_clinic_ids || [],
-            associated_clinic_ids: row.associated_clinic_ids || [],
-            location,
-            location_id: row.location_id ?? null,
-            parent_clinic_id: row.parent_clinic_id ?? null,
-            rooms: (row.rooms as ClinicRoom[]) || [],
-          }
-        })
-      )
-
-      return clinics
-    } catch (error) {
-      logger.error('Failed to list clinics:', error)
-      // Drop the cache entry so the next call retries instead of returning the
-      // empty fallback forever.
-      if (listClinicsCache?.gen === gen) listClinicsCache = null
-      return []
-    }
-  })()
-
-  listClinicsCache = { gen, promise }
-  return promise
+  const rows = await deltaRead(clinicCacheCfg)
+  return [...rows].sort((a, b) => a.name.localeCompare(b.name))
 }
 
 /**
@@ -1067,6 +1154,10 @@ export async function createClinic(data: {
         warnings.push(`Peer clinic sync failed for ${syncFailures.length} clinic(s)`)
       }
     }
+
+    // Await the revalidate so a caller that re-lists (handleClinicCreated) finds
+    // the new row. The new clinic + any bumped peers ride the delta-since-hwm.
+    await bustClinicCache()
 
     return succeed({ id: newId, warnings: warnings.length > 0 ? warnings : undefined })
   } catch (error) {
@@ -1235,6 +1326,8 @@ export async function updateClinic(
       .eq('id', id)
 
     if (error) return fail(error.message)
+    // Edited clinic + any reciprocal peers ride the delta (each bumps updated_at).
+    await bustClinicCache()
     return succeed({ warnings: warnings.length > 0 ? warnings : undefined })
   } catch (error) {
     logger.error('Failed to update clinic:', error)
@@ -1255,6 +1348,8 @@ export async function deleteClinic(
       .eq('id', id)
 
     if (error) return fail(error.message)
+    // Hard delete — no archived_at to ride the delta, so wipe + cold refetch.
+    await bustClinicCache({ wipe: true })
     return succeed()
   } catch (error) {
     logger.error('Failed to delete clinic:', error)
@@ -1283,6 +1378,8 @@ export async function setUserClinic(
     })
 
     if (error) return fail(error.message)
+    // clinic_id change bumps profiles.updated_at (+ clears surrogate via trigger).
+    void bustUserCache()
     return succeed()
   } catch (error) {
     logger.error('Failed to set user clinic:', error)
@@ -1403,6 +1500,7 @@ export async function updateUserProfile(
     })
 
     if (error) return fail(error.message)
+    void bustUserCache()
     return succeed()
   } catch (error) {
     logger.error('Failed to update profile:', error)
@@ -1436,6 +1534,9 @@ export async function updateUserEmail(
     })
 
     if (error) return fail(error.message)
+    // Email lives in auth.users, NOT profiles — it never advances updated_at, so
+    // the delta can't carry it. Wipe to force a cold refetch with the new email.
+    await bustUserCache({ wipe: true })
     return succeed()
   } catch (error) {
     logger.error('Failed to update user email:', error)
