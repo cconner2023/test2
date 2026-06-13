@@ -1168,13 +1168,13 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 isOpen={showTreeSheet}
                 onClose={() => setShowTreeSheet(false)}
                 height="fit"
-                maxHeight={88}
+                maxHeight={60}
                 backdrop="dismiss"
                 title="Hierarchy"
                 // Same as the detail Sheet — clear the z-60 full-screen drawer.
                 zIndex={1200}
             >
-                <div style={{ height: '72dvh' }} className="flex flex-col">
+                <div style={{ height: '52dvh' }} className="flex flex-col">
                     <AdminSummary
                         treeOnly
                         onSelectClinic={closeTreeThen(handleSelectClinic)}
