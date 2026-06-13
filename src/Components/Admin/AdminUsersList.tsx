@@ -498,9 +498,8 @@ export function AdminUsersList({
     return (
       <section className="space-y-2">
         {title && (
-          <div className="flex items-baseline justify-between px-1">
+          <div className="flex items-baseline px-1">
             <h3 className="text-[11pt] font-semibold text-primary">{title}</h3>
-            <span className="text-[9pt] text-tertiary">{filteredUsers.length}</span>
           </div>
         )}
         {showLoading ? (

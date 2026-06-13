@@ -11,6 +11,7 @@ import { NotificationSettingsPanel } from './NotificationSettingsPanel';
 import { FeedbackPanel } from './FeedbackPanel';
 import { PrivacyPolicyPanel } from './PrivacyPolicyPanel';
 import { NoteContentPanel } from './NoteContentPanel';
+import { ChecklistsPanel } from './ChecklistsPanel';
 import { OverviewWidgetsPanel } from './OverviewWidgetsPanel';
 import { PlanPanel } from './PlanPanel';
 import { TextTemplatesPanel } from './TextTemplatesPanel';
@@ -57,7 +58,7 @@ export const Settings = ({
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
     const { themeName } = useTheme();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'guided-tours' | 'overview-widgets' | 'theme-picker' | 'storage' | 'feature-votes'>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'guided-tours' | 'overview-widgets' | 'theme-picker' | 'storage' | 'feature-votes' | 'checklists'>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const prevVisibleRef = useRef(false);
@@ -271,6 +272,9 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
             if (activePanel === 'provider-templates') {
                 return () => { handleSlideAnimation('right'); setActivePanel('note-content'); };
             }
+            if (activePanel === 'checklists') {
+                return () => { handleSlideAnimation('right'); setActivePanel('note-content'); };
+            }
             return () => { handleSlideAnimation('right'); setActivePanel('main'); };
         }, [activePanel, handleSlideAnimation, guardedClinicAction]),
         activePanel !== 'main',
@@ -335,6 +339,14 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                     title: 'Provider Templates',
                     showBack: true as const,
                     onBack: doProvTemplatesBack,
+                };
+            }
+            case 'checklists': {
+                const doChecklistsBack = () => { handleSlideAnimation('right'); setActivePanel('note-content'); };
+                return {
+                    title: 'Checklists',
+                    showBack: true as const,
+                    onBack: doChecklistsBack,
                 };
             }
             case 'plan-settings': {
@@ -495,6 +507,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                             'theme-picker':     <ThemePickerPanel />,
                             'storage':          <StoragePanel />,
                             'plan-settings':    <PlanPanel />,
+                            'checklists':       <ChecklistsPanel />,
                             'provider-templates': <ProviderTemplatesPanel />,
                             'text-templates': <TextTemplatesPanel />,
                             'notification-settings': <NotificationSettingsPanel />,

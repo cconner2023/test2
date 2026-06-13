@@ -39,7 +39,6 @@ import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionButton } from '../ActionButton'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { ActionPill } from '../ActionPill'
-import { CalendarClinicEditor } from '../Calendar/CalendarClinicEditor'
 import { ClinicIdentityEditPopover } from '../ClinicAdmin/ClinicIdentityEditPopover'
 import { MemberEditPopover } from '../ClinicAdmin/MemberEditPopover'
 import { AddMemberPopover } from '../ClinicAdmin/AddMemberPopover'
@@ -879,9 +878,6 @@ export function ClinicPanel({
             </div>
           </section>
         )}
-
-        {/* ── Pre-Combat Checks (clinic-only; huddle/rooms/appt types/colors live in calendar settings) ── */}
-        <CalendarClinicEditor variant="clinic" />
 
       </div>
 

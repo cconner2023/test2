@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef, type ReactNode } from 'react'
-import { X, Inbox, ChevronLeft, MessageCircleQuestion, Network, Users, MapPin } from 'lucide-react'
+import { X, Inbox, ChevronLeft, MessageCircleQuestion, Network, Users, MapPin, Building2, List } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from './BaseDrawer'
+import { ActionPill } from './ActionPill'
 import { Sheet } from './Sheet'
 import { BottomIsland, IslandButton } from './BottomIsland'
 import { AddFab } from './AddFab'
@@ -858,10 +859,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // Both AdminUsersList + AdminClinicsList run in embedded mode, so they filter
     // on the shared search query and collapse empty sections. The cluster echelon
     // hierarchy is NOT inline here — it's the AdminSummary sidebar / mobile Sheet.
-    const FILTER_OPTS: { key: UserFilter; label: string }[] = [
-        { key: 'all', label: 'All' },
-        { key: 'users', label: 'Users' },
-        { key: 'clinics', label: 'Clusters' },
+    const FILTER_OPTS: { key: UserFilter; label: string; icon: typeof Users }[] = [
+        { key: 'all', label: 'All', icon: List },
+        { key: 'users', label: 'Users', icon: Users },
+        { key: 'clinics', label: 'Clusters', icon: Building2 },
     ]
 
     // Floating secondary island — the All/Users/Clusters type filter, hovering
@@ -871,26 +872,32 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const showFilterIsland = activeTab === 'users' && !(isMobile && searchQuery.trim())
     const userFilterIsland = showFilterIsland ? (
         <div className="absolute bottom-[4.75rem] inset-x-0 flex items-center justify-center z-20 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
-            <div
+            <ActionPill
                 role="tablist"
                 aria-label="Filter users and clusters"
-                className="flex items-center gap-1 rounded-full bg-themewhite2/90 dark:bg-themewhite3/90 backdrop-blur-sm border border-tertiary/20 px-1 py-1 shadow-lg pointer-events-auto"
+                className="pointer-events-auto"
             >
-                {FILTER_OPTS.map(o => (
-                    <button
-                        key={o.key}
-                        type="button"
-                        role="tab"
-                        onClick={() => setUserFilter(o.key)}
-                        aria-selected={userFilter === o.key}
-                        className={`px-3.5 py-1.5 rounded-full text-[10pt] font-medium transition-all active:scale-95 ${
-                            userFilter === o.key ? 'bg-themeblue3 text-white shadow-sm' : 'text-tertiary hover:text-primary'
-                        }`}
-                    >
-                        {o.label}
-                    </button>
-                ))}
-            </div>
+                {FILTER_OPTS.map(o => {
+                    const Icon = o.icon
+                    const active = userFilter === o.key
+                    return (
+                        <button
+                            key={o.key}
+                            type="button"
+                            role="tab"
+                            onClick={() => setUserFilter(o.key)}
+                            aria-selected={active}
+                            title={o.label}
+                            aria-label={o.label}
+                            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
+                                active ? 'bg-themeblue3 text-white' : 'bg-themeblue2/8 text-primary'
+                            }`}
+                        >
+                            <Icon size={16} />
+                        </button>
+                    )
+                })}
+            </ActionPill>
         </div>
     ) : null
 
@@ -1060,6 +1067,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                         onSelectUser={handleSelectUser}
                                         onEditClinic={handleEditClinic}
                                         onEditUser={handleEditUser}
+                                        onChatUser={isDevRole ? (u) => handleSelectSystemPeer(u.id) : undefined}
                                         onSelectAll={() => { setView('admin'); setSelectedUser(null); setSelectedClinic(null); setSelectedSystemPeerId(null); setClusterCreatePrefill(null); setUserCreatePrefillClinicId(null) }}
                                         onSwitchTab={handleSummarySwitchTab}
                                         activeClinicId={selectedClinic?.id}
@@ -1173,6 +1181,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         onSelectUser={closeTreeThen(handleSelectUser)}
                         onEditClinic={closeTreeThen(handleEditClinic)}
                         onEditUser={closeTreeThen(handleEditUser)}
+                        onChatUser={isDevRole ? closeTreeThen((u: AdminUser) => handleSelectSystemPeer(u.id)) : undefined}
                         onSelectAll={() => setShowTreeSheet(false)}
                         onSwitchTab={closeTreeThen(handleSummarySwitchTab)}
                         activeClinicId={selectedClinic?.id}

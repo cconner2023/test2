@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Check, RotateCcw, Plus, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, X, Trash2, GripVertical } from 'lucide-react';
+import { Check, RotateCcw, Plus, AlertTriangle, ChevronLeft, ChevronRight, X, Trash2, GripVertical, Activity } from 'lucide-react';
 import { PreviewOverlay } from './PreviewOverlay';
 import type { ContextMenuAction } from './PreviewOverlay';
 import { ExamBlockPreview } from './ExamBlockPreview';
@@ -559,10 +559,14 @@ export function PhysicalExam({
 
     // ── Block picker (template mode) ─────────────────────────
     const [showBlockPicker, setShowBlockPicker] = useState(false);
-    const [pickerSection, setPickerSection] = useState<'vitals' | 'systems'>('vitals');
-    const [pickerView, setPickerView] = useState<'main' | 'lmp'>('main');
     const [blockPickerAnchorRect, setBlockPickerAnchorRect] = useState<DOMRect | null>(null);
     const cardActionPillRef = useRef<HTMLDivElement>(null);
+
+    // ── Vital Signs picker (template mode — pinned first row, separate from +) ──
+    const [showVitalsPicker, setShowVitalsPicker] = useState(false);
+    const [vitalsPickerAnchor, setVitalsPickerAnchor] = useState<DOMRect | null>(null);
+    const [vitalsView, setVitalsView] = useState<'main' | 'lmp'>('main');
+    const vitalsRowRef = useRef<HTMLDivElement>(null);
 
     // Imperatively open the block picker each time pickerOpenSignal increments.
     const lastPickerSignalRef = useRef<number | undefined>(pickerOpenSignal);
@@ -1043,7 +1047,7 @@ export function PhysicalExam({
     return (
         <div className="space-y-4">
             {/* ── Exam Blocks ──────────────────────────────────────── */}
-            {mode === 'template' && flatBlockList.length === 0 ? (
+            {mode === 'template' && flatBlockList.length === 0 && !hasAnyVitals ? (
                 /* Empty state owned by parent — picker is auto-opened via initialPickerAnchor. */
                 null
             ) : (
@@ -1085,6 +1089,30 @@ export function PhysicalExam({
                                 </div>
                             )}
                         </div>
+
+                        {/* Pinned Vital Signs row — separate from the + (which is systems-only) */}
+                        {mode === 'template' && (
+                            <div ref={vitalsRowRef}>
+                                <ListItemRow
+                                    as="div"
+                                    onClick={() => {
+                                        if (vitalsRowRef.current) setVitalsPickerAnchor(vitalsRowRef.current.getBoundingClientRect());
+                                        setVitalsView('main');
+                                        setShowVitalsPicker(true);
+                                    }}
+                                    className="py-2.5 active:scale-[0.98] transition-all cursor-pointer"
+                                    left={<div className="shrink-0 text-tertiary"><Activity size={16} /></div>}
+                                    center={
+                                        <>
+                                            <p className="text-sm font-medium text-primary truncate">Vital Signs</p>
+                                            <p className={`text-[9pt] mt-0.5 truncate ${hasAnyVitals ? 'text-tertiary' : 'text-tertiary/60 italic'}`}>
+                                                {hasAnyVitals ? vitalsSummary : 'Tap to add'}
+                                            </p>
+                                        </>
+                                    }
+                                />
+                            </div>
+                        )}
 
                         <div
                             ref={listRef}
@@ -1169,146 +1197,77 @@ export function PhysicalExam({
                 />
             )}
 
-            {/* ── Block picker popover (template mode) ── */}
+            {/* ── Block picker popover (template mode) — systems only; vitals own their row ── */}
             {mode === 'template' && onBlockKeysChange && (
                 <PreviewOverlay
                     isOpen={showBlockPicker}
-                    onClose={() => { setShowBlockPicker(false); setPickerView('main'); }}
+                    onClose={() => setShowBlockPicker(false)}
                     anchorRect={blockPickerAnchorRect}
                     maxWidth={340}
-                    title={pickerView === 'lmp' ? 'LMP' : undefined}
-                    onBack={pickerView === 'lmp' ? () => setPickerView('main') : undefined}
-                    searchPlaceholder={pickerView === 'lmp' ? undefined : 'Search systems...'}
-                    preview={(filter, clearFilter) => {
-                        if (pickerView === 'lmp') {
-                            return (
-                                <div className="py-1">
-                                    <DatePickerCalendar
-                                        value={vitals.lmp || ''}
-                                        onChange={(v) => setVitals(prev => ({ ...prev, lmp: v }))}
-                                        onClose={() => setPickerView('main')}
-                                        maxDate={new Date().toISOString().slice(0, 10)}
-                                    />
-                                </div>
-                            );
-                        }
+                    title="Add System"
+                    searchPlaceholder="Search systems..."
+                    preview={(filter) => {
                         const lc = filter.toLowerCase();
                         const tl = lc ? MASTER_BLOCKS_TOP_LEVEL.filter(b => b.label.toLowerCase().includes(lc)) : MASTER_BLOCKS_TOP_LEVEL;
                         const childMatch = lc ? MSK_CHILD_KEYS.filter(k => MASTER_BLOCK_LIBRARY[k]?.label.toLowerCase().includes(lc)) : [];
                         const showMsk = tl.some(b => b.key === 'msk') || childMatch.length > 0;
                         const blocks = showMsk && !tl.some(b => b.key === 'msk') ? [...tl, MASTER_BLOCK_LIBRARY['msk']!] : tl;
-                        const systemsExpanded = pickerSection === 'systems' || lc.length > 0;
-                        const vitalsExpanded = pickerSection === 'vitals' && lc.length === 0;
-                        const selectedCount = (templateBlockKeys ?? []).length;
-                        const filledVitals = Object.values(vitals).filter(v => v?.trim()).length;
-                        const sectionHeader = (label: string, count: number, open: boolean, onToggle: () => void) => (
-                            <button
-                                type="button"
-                                onClick={onToggle}
-                                className="w-full flex items-center justify-between gap-2 px-3 pt-2 pb-1 text-left active:opacity-70 transition-opacity"
-                            >
-                                <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider">
-                                    {label}{count > 0 && ` · ${count}`}
-                                </span>
-                                <ChevronDown
-                                    size={14}
-                                    className={`text-tertiary transition-transform duration-200 ${open ? '' : '-rotate-90'}`}
-                                />
-                            </button>
-                        );
                         return (
-                            <div>
-                                {sectionHeader('Vital Signs', filledVitals, vitalsExpanded, () => {
-                                    if (lc.length > 0) clearFilter();
-                                    setPickerSection(s => s === 'vitals' ? 'systems' : 'vitals');
+                            <div className="py-1">
+                                {blocks.map(block => {
+                                    if (!block) return null;
+                                    const selected = (templateBlockKeys ?? []).includes(block.key);
+                                    return (
+                                        <React.Fragment key={block.key}>
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleBlockKey(block.key)}
+                                                className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-all active:scale-[0.98] ${
+                                                    selected ? 'bg-themegreen/8' : 'hover:bg-tertiary/5'
+                                                }`}
+                                            >
+                                                <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                                                    selected ? 'bg-themegreen text-white' : 'bg-tertiary/10'
+                                                }`}>
+                                                    {selected && <Check size={12} strokeWidth={2.5} />}
+                                                </span>
+                                                <span className="text-[10pt] text-primary">{block.label}</span>
+                                            </button>
+                                            {block.key === 'msk' && selected && MSK_CHILD_KEYS
+                                                .filter(k => !lc || MASTER_BLOCK_LIBRARY[k]?.label.toLowerCase().includes(lc))
+                                                .map(childKey => {
+                                                    const child = MASTER_BLOCK_LIBRARY[childKey];
+                                                    if (!child) return null;
+                                                    const childSel = (templateBlockKeys ?? []).includes(childKey);
+                                                    return (
+                                                        <button
+                                                            key={childKey}
+                                                            type="button"
+                                                            onClick={() => toggleBlockKey(childKey)}
+                                                            className={`w-full flex items-center gap-2.5 pl-8 pr-3 py-2 text-left transition-all active:scale-[0.98] ${
+                                                                childSel ? 'bg-themeblue3/8' : 'hover:bg-tertiary/5'
+                                                            }`}
+                                                        >
+                                                            <span className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                                                                childSel ? 'bg-themeblue3 text-white' : 'bg-tertiary/8'
+                                                            }`}>
+                                                                {childSel && <Check size={10} strokeWidth={2.5} />}
+                                                            </span>
+                                                            <span className="text-[9pt] text-secondary">{child.label}</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                        </React.Fragment>
+                                    );
                                 })}
-                                <div
-                                    className={`grid transition-all duration-200 ease-out ${
-                                        vitalsExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-                                    }`}
-                                >
-                                    <div className="overflow-hidden min-h-0">
-                                        <div className="px-1 pb-2">
-                                            <VitalSignsCalculator
-                                                value={vitals}
-                                                onChange={setVitals}
-                                                compact
-                                                onRequestLmpPicker={() => setPickerView('lmp')}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {sectionHeader('Systems', selectedCount, systemsExpanded, () => {
-                                    setPickerSection(s => s === 'systems' ? 'vitals' : 'systems');
-                                })}
-                                <div
-                                    className={`grid transition-all duration-200 ease-out ${
-                                        systemsExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-                                    }`}
-                                >
-                                    <div className="overflow-hidden min-h-0">
-                                        {blocks.map(block => {
-                                            if (!block) return null;
-                                            const selected = (templateBlockKeys ?? []).includes(block.key);
-                                            return (
-                                                <React.Fragment key={block.key}>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => toggleBlockKey(block.key)}
-                                                        className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-all active:scale-[0.98] ${
-                                                            selected ? 'bg-themegreen/8' : 'hover:bg-tertiary/5'
-                                                        }`}
-                                                    >
-                                                        <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
-                                                            selected ? 'bg-themegreen text-white' : 'bg-tertiary/10'
-                                                        }`}>
-                                                            {selected && <Check size={12} strokeWidth={2.5} />}
-                                                        </span>
-                                                        <span className="text-[10pt] text-primary">{block.label}</span>
-                                                    </button>
-                                                    {block.key === 'msk' && selected && MSK_CHILD_KEYS
-                                                        .filter(k => !lc || MASTER_BLOCK_LIBRARY[k]?.label.toLowerCase().includes(lc))
-                                                        .map(childKey => {
-                                                            const child = MASTER_BLOCK_LIBRARY[childKey];
-                                                            if (!child) return null;
-                                                            const childSel = (templateBlockKeys ?? []).includes(childKey);
-                                                            return (
-                                                                <button
-                                                                    key={childKey}
-                                                                    type="button"
-                                                                    onClick={() => toggleBlockKey(childKey)}
-                                                                    className={`w-full flex items-center gap-2.5 pl-8 pr-3 py-2 text-left transition-all active:scale-[0.98] ${
-                                                                        childSel ? 'bg-themeblue3/8' : 'hover:bg-tertiary/5'
-                                                                    }`}
-                                                                >
-                                                                    <span className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition-colors ${
-                                                                        childSel ? 'bg-themeblue3 text-white' : 'bg-tertiary/8'
-                                                                    }`}>
-                                                                        {childSel && <Check size={10} strokeWidth={2.5} />}
-                                                                    </span>
-                                                                    <span className="text-[9pt] text-secondary">{child.label}</span>
-                                                                </button>
-                                                            );
-                                                        })}
-                                                </React.Fragment>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
                             </div>
                         );
                     }}
-                    actions={pickerView === 'lmp' ? [] : [{
+                    actions={[{
                         key: 'reset',
                         label: 'Reset',
                         icon: RotateCcw,
                         onAction: () => {
-                            setVitals(() => {
-                                const init: Record<string, string> = {};
-                                VITAL_SIGNS.forEach(v => { init[v.key] = ''; });
-                                return init;
-                            });
                             if (onBlockKeysChange) onBlockKeysChange([]);
                             setBlockStates({});
                         },
@@ -1319,6 +1278,61 @@ export function PhysicalExam({
                         label: 'Done',
                         icon: Check,
                         onAction: () => setShowBlockPicker(false),
+                    }]}
+                />
+            )}
+
+            {/* ── Vital Signs picker popover (template mode) — opened from the pinned row ── */}
+            {mode === 'template' && (
+                <PreviewOverlay
+                    isOpen={showVitalsPicker}
+                    onClose={() => { setShowVitalsPicker(false); setVitalsView('main'); }}
+                    anchorRect={vitalsPickerAnchor}
+                    maxWidth={340}
+                    title={vitalsView === 'lmp' ? 'LMP' : 'Vital Signs'}
+                    onBack={vitalsView === 'lmp' ? () => setVitalsView('main') : undefined}
+                    preview={() => {
+                        if (vitalsView === 'lmp') {
+                            return (
+                                <div className="py-1">
+                                    <DatePickerCalendar
+                                        value={vitals.lmp || ''}
+                                        onChange={(v) => setVitals(prev => ({ ...prev, lmp: v }))}
+                                        onClose={() => setVitalsView('main')}
+                                        maxDate={new Date().toISOString().slice(0, 10)}
+                                    />
+                                </div>
+                            );
+                        }
+                        return (
+                            <div className="px-1 py-1">
+                                <VitalSignsCalculator
+                                    value={vitals}
+                                    onChange={setVitals}
+                                    compact
+                                    onRequestLmpPicker={() => setVitalsView('lmp')}
+                                />
+                            </div>
+                        );
+                    }}
+                    actions={vitalsView === 'lmp' ? [] : [{
+                        key: 'reset',
+                        label: 'Reset',
+                        icon: RotateCcw,
+                        onAction: () => {
+                            setVitals(() => {
+                                const init: Record<string, string> = {};
+                                VITAL_SIGNS.forEach(v => { init[v.key] = ''; });
+                                return init;
+                            });
+                        },
+                        closesOnAction: false,
+                        variant: 'danger',
+                    }, {
+                        key: 'done',
+                        label: 'Done',
+                        icon: Check,
+                        onAction: () => setShowVitalsPicker(false),
                     }]}
                 />
             )}

@@ -17,6 +17,7 @@ import { createLogger } from '../Utilities/Logger'
 import { getErrorMessage } from '../Utilities/errorUtils'
 import {
   getPendingSyncItems,
+  getFailedSyncItems,
   markSyncItemSynced,
   markSyncItemFailed,
   resetFailedItemsForRetry,
@@ -664,9 +665,18 @@ export async function healStuckPendingRecords(userId: string): Promise<void> {
   try {
     const db = await getDb()
 
-    // Collect all record IDs that actually have pending sync queue entries
+    // Collect all record IDs that still have an OUTSTANDING sync obligation —
+    // both 'pending' AND 'failed' queue items. A failed create has NOT reached
+    // the server, so its record must stay 'pending'. Treating only 'pending'
+    // queue items as outstanding (the old bug) let a record whose create had
+    // failed get flipped to 'synced', after which the server pull (reconcile)
+    // deletes it for being absent from the server — silent data loss
+    // (e.g. a "New area" sub-zone whose create FK-failed once, then vanished).
     const pendingQueueItems = await getPendingSyncItems(userId)
-    const pendingRecordIds = new Set(pendingQueueItems.map((q) => q.record_id))
+    const failedQueueItems = await getFailedSyncItems(userId)
+    const pendingRecordIds = new Set(
+      [...pendingQueueItems, ...failedQueueItems].map((q) => q.record_id),
+    )
 
     // Heal propertyItems
     const allItems = await db.getAll('propertyItems')

@@ -1048,9 +1048,20 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     // it resurface instantly if a message arrives. Exception: the currently
     // selected peer must remain in allMedics so name resolution works for a
     // freshly-added contact whose chat is open but has no messages yet.
+    //
+    // Gate on a VISIBLE message, not raw length: a deleted conversation can
+    // leave behind only a `request-accepted` marker (or threaded replies),
+    // which is invisible in Recent (recentEntries/activeConversationIds use the
+    // same filter). Keying extras on raw length re-admitted such a peer into
+    // allMedics, where it rendered as a bare "My Cluster" contact (foreign/null
+    // clinicId, useClinicGroupedMedics) with NO delete affordance (contact rows
+    // build hasConversation:false) — an un-removable phantom. Mirror the visible
+    // filter so a marker-only conversation drops the peer entirely.
+    const hasVisibleMessage = (msgs: DecryptedSignalMessage[] | undefined) =>
+      !!msgs?.some(m => m.messageType !== 'request-accepted' && !m.threadId)
     const extras = peerList.filter(m =>
       !have.has(m.id) && (
-        (conversations[m.id]?.length ?? 0) > 0 ||
+        hasVisibleMessage(conversations[m.id]) ||
         m.id === selectedPeerId
       ),
     )

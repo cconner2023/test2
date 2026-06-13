@@ -22,7 +22,8 @@ import { PreCombatChecksSection } from './PreCombatChecksSection'
 import { CategoryColorSettings } from './CategoryColorSettings'
 
 // Which slice of clinic config this editor renders.
-//  - 'clinic'   → Checklists only (shown in Settings/ClinicPanel)
+//  - 'clinic'   → Checklists only (now surfaced via Settings → Note Content →
+//                 Checklists, which renders PreCombatChecksSection directly)
 //  - 'calendar' → Huddle Tasks, Rooms, Appointment Types, Category Colors (CalendarDrawer settings)
 // Each section lives in exactly one surface so clinic management holds only
 // clinic concerns and calendar settings hold only calendar concerns.

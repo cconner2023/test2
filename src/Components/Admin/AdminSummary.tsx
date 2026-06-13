@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from 'react'
-import { ChevronRight, ChevronDown, AlertTriangle, User, Building2, Eye, Pencil, Trash2 } from 'lucide-react'
+import { ChevronRight, ChevronDown, AlertTriangle, User, Building2, Eye, Pencil, Trash2, Mail, MessageSquare } from 'lucide-react'
 import { listClinics, listAllUsers, getAllAccountRequests, deleteClinic, deleteUser } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
+import { openMailto } from '../../lib/mailto'
 import { useInvalidation, invalidate } from '../../stores/useInvalidationStore'
 import { AdminSummarySkeleton } from './AdminSkeletons'
 import { EmptyState } from '../EmptyState'
@@ -15,6 +16,9 @@ interface AdminSummaryProps {
   onSelectUser: (user: AdminUser) => void
   onEditClinic: (clinic: AdminClinic) => void
   onEditUser: (user: AdminUser) => void
+  /** Open an in-app system conversation with a user. Passed only for dev role;
+   *  when absent the tree context menu omits the Chat action. */
+  onChatUser?: (user: AdminUser) => void
   onSelectAll: () => void
   onSwitchTab: (tab: 'requests' | 'users' | 'clinics') => void
   activeClinicId?: string | null
@@ -40,6 +44,7 @@ export function AdminSummary({
   onSelectUser,
   onEditClinic,
   onEditUser,
+  onChatUser,
   onSelectAll,
   onSwitchTab,
   activeClinicId,
@@ -239,7 +244,6 @@ export function AdminSummary({
         }`}
       >
         <span className="w-[18px] shrink-0" />
-        {!treeOnly && <User size={13} className="text-tertiary shrink-0" />}
         <span className="text-[9.5pt] text-primary truncate">{name}</span>
       </button>
     )
@@ -380,7 +384,6 @@ export function AdminSummary({
                       activeUserId === u.id ? 'bg-themeblue3/8' : 'hover:bg-secondary/5'
                     }`}
                   >
-                    <User size={14} className="text-tertiary shrink-0" />
                     <span className="text-[10pt] text-primary truncate">
                       {[u.first_name, u.last_name].filter(Boolean).join(' ') || u.email}
                     </span>
@@ -460,6 +463,15 @@ export function AdminSummary({
           items = [
             { key: 'view', label: 'View', icon: Eye, onAction: () => onSelectUser(user) },
             { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditUser(user) },
+            // Chat — in-app system conversation. Dev-only (onChatUser gated by
+            // role upstream) and only once the user has a vault (last_active_at).
+            ...(onChatUser && user.last_active_at ? [{
+              key: 'chat', label: 'Chat', icon: MessageSquare, onAction: () => onChatUser(user),
+            }] : []),
+            ...(user.email ? [{
+              key: 'email', label: 'Email', icon: Mail,
+              onAction: () => openMailto({ to: user.email!, subject: 'Beacon Inquiry', body: `${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n` }),
+            }] : []),
             { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDelete({ kind: 'user', id: user.id, label }) },
           ]
         }

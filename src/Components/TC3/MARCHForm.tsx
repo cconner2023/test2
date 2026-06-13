@@ -1,7 +1,7 @@
 import { memo, useState, useCallback, useRef } from 'react'
-import { Plus, X, Check, ChevronRight, MapPin } from 'lucide-react'
+import { Plus, X, Check, ChevronRight } from 'lucide-react'
 import type {
-  TC3Tourniquet, TC3Hemostatic, TC3IVAccess, TC3Medication,
+  TC3Tourniquet, TC3Hemostatic, TC3IVAccess, TC3Medication, TC3Marker,
   TourniquetType, TQCategory, DressingType, NeedleDecompSide,
   MedRoute, MedCategory, BodyRegion,
 } from '../../Types/TC3Types'
@@ -14,52 +14,79 @@ import { EmptyState } from '../EmptyState'
 import { getBodyRegion, getRegionLabel, getRegionCenter } from '../../Utilities/bodyRegionMap'
 import { TC3BodyDiagramSvg } from './TC3BodyDiagramSvg'
 
-// ── Shared input / select classes ────────────────
-const inputCls = 'w-full px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary'
-const selectCls = 'px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:outline-none transition-all'
+// ── Cell primitives — match the VitalsForm popover language ──────
+// Bare inputs (no rounded-full / shadow), iOS-zoom-safe (text-base on mobile).
+const cellInput = 'w-full bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-base md:text-sm'
+const cellSelect = 'w-full bg-transparent text-primary focus:outline-none text-base md:text-sm -ml-0.5'
 
-// ── Location region picker ────────────────────────
-function LocationRegionPicker({
-  value,
-  onChange,
-}: {
-  value: string
-  onChange: (label: string, region: BodyRegion | '') => void
+/** Bordered card that hosts a vertical stack of cells inside a popover preview. */
+function CellCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl overflow-hidden border border-primary/6 bg-primary/6 grid grid-cols-1 gap-px">
+      {children}
+    </div>
+  )
+}
+
+/** One labelled cell — label on top, value below. */
+function Cell({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5 px-3 py-2 bg-themewhite">
+      <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">{label}</span>
+      {children}
+    </div>
+  )
+}
+
+/** Flat segmented selector — NO pills (see conventions/TOGGLE pattern). */
+function Segmented<T extends string>({ options, value, onChange, capitalize }: {
+  options: readonly T[]
+  value: T
+  onChange: (v: T) => void
+  capitalize?: boolean
 }) {
-  const [open, setOpen] = useState(false)
+  return (
+    <div className="flex flex-wrap mt-0.5">
+      {options.map((opt) => (
+        <button
+          key={opt} type="button" onClick={() => onChange(opt)}
+          className={`px-3 py-0.5 transition-colors ${value === opt ? 'bg-themeblue3' : 'active:bg-tertiary/5'}`}
+        >
+          <span className={`text-[9pt] ${capitalize ? 'capitalize' : ''} ${value === opt ? 'text-white font-medium' : 'text-secondary'}`}>{opt}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
 
+/** Location picker — the body diagram is ALWAYS visible (never a blank input). */
+function LocationCell({ value, marker, onChange, label = 'Location' }: {
+  value: string
+  marker?: TC3Marker | null
+  onChange: (label: string, region: BodyRegion | '') => void
+  label?: string
+}) {
   const handlePick = (x: number, y: number) => {
     const region = getBodyRegion(x, y)
-    const label = region ? getRegionLabel(region) : ''
-    if (label) {
-      onChange(label, region)
-      setOpen(false)
-    }
+    const regionLabel = region ? getRegionLabel(region) : ''
+    if (regionLabel) onChange(regionLabel, region)
   }
-
   return (
-    <div className="space-y-2">
-      <button
-        type="button"
-        onClick={() => setOpen(s => !s)}
-        className="w-full px-4 py-2.5 rounded-full text-sm bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:outline-none transition-all flex items-center justify-between gap-2"
-      >
-        <span className={value ? 'text-primary' : 'text-tertiary'}>{value || 'Select on diagram'}</span>
-        {value ? (
-          <X
-            size={14}
-            className="text-tertiary shrink-0"
-            onClick={(e) => { e.stopPropagation(); onChange('', '') }}
-          />
-        ) : (
-          <MapPin size={14} className="text-tertiary shrink-0" />
-        )}
-      </button>
-      {open && (
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden flex justify-center py-2">
-          <TC3BodyDiagramSvg onAddMarker={handlePick} compact />
+    <div className="flex flex-col gap-1 px-3 py-2 bg-themewhite">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">{label}</span>
+        <div className="flex items-center gap-1.5">
+          <span className={`text-[9pt] font-medium ${value ? 'text-primary' : 'text-tertiary/50'}`}>{value || 'Tap diagram'}</span>
+          {value && (
+            <button type="button" onClick={() => onChange('', '')} className="text-tertiary active:scale-90">
+              <X size={12} />
+            </button>
+          )}
         </div>
-      )}
+      </div>
+      <div className="flex justify-center pt-1">
+        <TC3BodyDiagramSvg markers={marker ? [marker] : []} onAddMarker={handlePick} compact />
+      </div>
     </div>
   )
 }
@@ -150,25 +177,6 @@ function nowHHMM() {
   return new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })
 }
 
-function PillSelector<T extends string>({ options, value, onChange }: { options: T[]; value: T; onChange: (v: T) => void }) {
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {options.map((opt) => (
-        <button
-          key={opt} type="button" onClick={() => onChange(opt)}
-          className={`px-3 py-1.5 rounded-full text-[9pt] font-semibold border transition-all active:scale-95
-            ${value === opt
-              ? 'bg-themeblue3 text-white border-transparent'
-              : 'border-tertiary/15 text-tertiary bg-tertiary/8 hover:bg-tertiary/12'
-            }`}
-        >
-          {opt}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 function InjuryBadge({ injuryId }: { injuryId?: string }) {
   const injuries = useTC3Store((s) => s.card.injuries)
   if (!injuryId) return null
@@ -226,6 +234,7 @@ const ADD_MENU: AddMenuItem[] = [
 // ── Popover previews ─────────────────────────────
 function TourniquetPreview({ id }: { id: string }) {
   const tq = useTC3Store((s) => s.card.march.massiveHemorrhage.tourniquets.find((t) => t.id === id))
+  const markers = useTC3Store((s) => s.card.markers)
   const updateTourniquet = useTC3Store((s) => s.updateTourniquet)
   const addMarker = useTC3Store((s) => s.addMarker)
   const updateMarker = useTC3Store((s) => s.updateMarker)
@@ -252,27 +261,24 @@ function TourniquetPreview({ id }: { id: string }) {
     }
   }
 
+  const marker = tq.injuryId ? markers.find((m) => m.id === tq.injuryId) : null
+
   return (
-    <div className="px-4 py-3 space-y-3" onClick={(e) => e.stopPropagation()}>
-      <div className="space-y-1.5">
-        <SectionHeader>Category</SectionHeader>
-        <PillSelector options={TQ_CATEGORIES} value={tq.tqCategory} onChange={(v) => updateTourniquet(id, { tqCategory: v })} />
-      </div>
-      <div className="space-y-1.5">
-        <SectionHeader>Type</SectionHeader>
-        <PillSelector options={TOURNIQUET_TYPES} value={tq.type} onChange={(v) => updateTourniquet(id, { type: v })} />
-      </div>
-      <div className="space-y-1.5">
-        <SectionHeader>Location</SectionHeader>
-        <LocationRegionPicker value={tq.location} onChange={handleLocation} />
-      </div>
-      <div className="space-y-1.5">
-        <SectionHeader>Time</SectionHeader>
-        <input type="text" value={tq.time}
-          onChange={(e) => updateTourniquet(id, { time: e.target.value })}
-          placeholder="HH:MM"
-          className={inputCls} />
-      </div>
+    <div className="px-3 py-3 space-y-2" onClick={(e) => e.stopPropagation()}>
+      <CellCard>
+        <Cell label="Time">
+          <input type="text" inputMode="numeric" value={tq.time}
+            onChange={(e) => updateTourniquet(id, { time: e.target.value })}
+            placeholder="HH:MM" className={cellInput} />
+        </Cell>
+        <Cell label="Category">
+          <Segmented options={TQ_CATEGORIES} value={tq.tqCategory} onChange={(v) => updateTourniquet(id, { tqCategory: v })} />
+        </Cell>
+        <Cell label="Type">
+          <Segmented options={TOURNIQUET_TYPES} value={tq.type} onChange={(v) => updateTourniquet(id, { type: v })} />
+        </Cell>
+        <LocationCell value={tq.location} marker={marker} onChange={handleLocation} />
+      </CellCard>
       <InjuryBadge injuryId={tq.injuryId} />
     </div>
   )
@@ -280,6 +286,7 @@ function TourniquetPreview({ id }: { id: string }) {
 
 function DressingPreview({ id }: { id: string }) {
   const h = useTC3Store((s) => s.card.march.massiveHemorrhage.hemostatics.find((d) => d.id === id))
+  const markers = useTC3Store((s) => s.card.markers)
   const updateHemostatic = useTC3Store((s) => s.updateHemostatic)
   const addMarker = useTC3Store((s) => s.addMarker)
   const updateMarker = useTC3Store((s) => s.updateMarker)
@@ -305,23 +312,21 @@ function DressingPreview({ id }: { id: string }) {
     }
   }
 
+  const marker = h.injuryId ? markers.find((m) => m.id === h.injuryId) : null
+
   return (
-    <div className="px-4 py-3 space-y-3" onClick={(e) => e.stopPropagation()}>
-      <div className="space-y-1.5">
-        <SectionHeader>Dressing Type</SectionHeader>
-        <PillSelector options={DRESSING_TYPES} value={h.dressingType} onChange={(v) => updateHemostatic(id, { dressingType: v })} />
-      </div>
-      <div className="space-y-1.5">
-        <SectionHeader>Agent</SectionHeader>
-        <input type="text" value={h.type}
-          onChange={(e) => updateHemostatic(id, { type: e.target.value })}
-          placeholder="Combat Gauze, QuikClot..."
-          className={inputCls} />
-      </div>
-      <div className="space-y-1.5">
-        <SectionHeader>Location</SectionHeader>
-        <LocationRegionPicker value={h.location} onChange={handleLocation} />
-      </div>
+    <div className="px-3 py-3 space-y-2" onClick={(e) => e.stopPropagation()}>
+      <CellCard>
+        <Cell label="Dressing Type">
+          <Segmented options={DRESSING_TYPES} value={h.dressingType} onChange={(v) => updateHemostatic(id, { dressingType: v })} />
+        </Cell>
+        <Cell label="Agent">
+          <input type="text" value={h.type}
+            onChange={(e) => updateHemostatic(id, { type: e.target.value })}
+            placeholder="Combat Gauze, QuikClot..." className={cellInput} />
+        </Cell>
+        <LocationCell value={h.location} marker={marker} onChange={handleLocation} />
+      </CellCard>
       <InjuryBadge injuryId={h.injuryId} />
     </div>
   )
@@ -331,13 +336,12 @@ function NeedleDecompPreview() {
   const nd = useTC3Store((s) => s.card.march.respiration.needleDecomp)
   const updateNeedleDecomp = useTC3Store((s) => s.updateNeedleDecomp)
   return (
-    <div className="px-4 py-3 space-y-2" onClick={(e) => e.stopPropagation()}>
-      <SectionHeader>Side</SectionHeader>
-      <PillSelector
-        options={SIDE_OPTIONS}
-        value={nd.side}
-        onChange={(side) => updateNeedleDecomp({ side })}
-      />
+    <div className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+      <CellCard>
+        <Cell label="Side">
+          <Segmented options={SIDE_OPTIONS} value={nd.side} onChange={(side) => updateNeedleDecomp({ side })} capitalize />
+        </Cell>
+      </CellCard>
     </div>
   )
 }
@@ -346,13 +350,12 @@ function ChestSealPreview() {
   const cs = useTC3Store((s) => s.card.march.respiration.chestSeal)
   const updateChestSeal = useTC3Store((s) => s.updateChestSeal)
   return (
-    <div className="px-4 py-3 space-y-2" onClick={(e) => e.stopPropagation()}>
-      <SectionHeader>Side</SectionHeader>
-      <PillSelector
-        options={SIDE_OPTIONS}
-        value={cs.side}
-        onChange={(side) => updateChestSeal({ side })}
-      />
+    <div className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+      <CellCard>
+        <Cell label="Side">
+          <Segmented options={SIDE_OPTIONS} value={cs.side} onChange={(side) => updateChestSeal({ side })} capitalize />
+        </Cell>
+      </CellCard>
     </div>
   )
 }
@@ -361,12 +364,14 @@ function O2Preview() {
   const resp = useTC3Store((s) => s.card.march.respiration)
   const updateRespirationO2 = useTC3Store((s) => s.updateRespirationO2)
   return (
-    <div className="px-4 py-3 space-y-2" onClick={(e) => e.stopPropagation()}>
-      <SectionHeader>Method</SectionHeader>
-      <input type="text" autoFocus value={resp.o2Method}
-        onChange={(e) => updateRespirationO2(true, e.target.value)}
-        placeholder="NRB, NC, BVM..."
-        className={inputCls} />
+    <div className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+      <CellCard>
+        <Cell label="Method">
+          <input type="text" autoFocus value={resp.o2Method}
+            onChange={(e) => updateRespirationO2(true, e.target.value)}
+            placeholder="NRB, NC, BVM..." className={cellInput} />
+        </Cell>
+      </CellCard>
     </div>
   )
 }
@@ -375,12 +380,14 @@ function AirwayTypePreview() {
   const airway = useTC3Store((s) => s.card.march.airway)
   const updateAirway = useTC3Store((s) => s.updateAirway)
   return (
-    <div className="px-4 py-3 space-y-2" onClick={(e) => e.stopPropagation()}>
-      <SectionHeader>Type / Size</SectionHeader>
-      <input type="text" autoFocus value={airway.airwayType}
-        onChange={(e) => updateAirway({ airwayType: e.target.value })}
-        placeholder="Type / size..."
-        className={inputCls} />
+    <div className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+      <CellCard>
+        <Cell label="Type / Size">
+          <input type="text" autoFocus value={airway.airwayType}
+            onChange={(e) => updateAirway({ airwayType: e.target.value })}
+            placeholder="Type / size..." className={cellInput} />
+        </Cell>
+      </CellCard>
     </div>
   )
 }
@@ -701,122 +708,128 @@ export const MARCHForm = memo(function MARCHForm() {
         }
       }
       popoverPreview = (
-        <div className="px-4 py-3 space-y-3">
-          <div className="space-y-1.5">
-            <SectionHeader>Access Type</SectionHeader>
-            <PillSelector options={ROUTE_OPTIONS} value={draftIV.type} onChange={(v) => setDraftIV(d => ({ ...d, type: v }))} />
-          </div>
-          <div className="space-y-1.5">
-            <SectionHeader>Site</SectionHeader>
-            <LocationRegionPicker value={draftIV.site} onChange={handleIVSite} />
-          </div>
-          <div className="space-y-1.5">
-            <SectionHeader>Gauge</SectionHeader>
-            <input type="text" value={draftIV.gauge}
-              onChange={(e) => setDraftIV(d => ({ ...d, gauge: e.target.value }))}
-              placeholder="e.g. 18g"
-              className={inputCls} />
-          </div>
+        <div className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+          <CellCard>
+            <Cell label="Time">
+              <input type="text" inputMode="numeric" value={draftIV.time}
+                onChange={(e) => setDraftIV(d => ({ ...d, time: e.target.value }))}
+                placeholder="HH:MM" className={cellInput} />
+            </Cell>
+            <Cell label="Access Type">
+              <Segmented options={ROUTE_OPTIONS} value={draftIV.type} onChange={(v) => setDraftIV(d => ({ ...d, type: v }))} />
+            </Cell>
+            <LocationCell label="Site" value={draftIV.site} marker={markers.find(m => m.id === draftIV.id) ?? null} onChange={handleIVSite} />
+            <Cell label="Gauge">
+              <input type="text" value={draftIV.gauge}
+                onChange={(e) => setDraftIV(d => ({ ...d, gauge: e.target.value }))}
+                placeholder="e.g. 18g" className={cellInput} />
+            </Cell>
+          </CellCard>
         </div>
       )
       popoverActions = [removeAction, { key: 'done', label: 'Done', icon: Check, onAction: handleEditDoneIV }]
     } else if (editing.kind === 'med') {
       popoverPreview = (
-        <div className="px-4 py-3 space-y-3">
-          <div className="space-y-1.5">
-            <SectionHeader>Medication</SectionHeader>
-            <input type="text" autoFocus value={draftMed.name}
-              onChange={(e) => setDraftMed(d => ({ ...d, name: e.target.value }))}
-              placeholder="Medication name"
-              className={inputCls} />
-          </div>
-          <div className="flex gap-2">
-            <input type="text" value={draftMed.dose}
-              onChange={(e) => setDraftMed(d => ({ ...d, dose: e.target.value }))}
-              placeholder="Dose"
-              className={`flex-1 px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary`} />
-            <select value={draftMed.route}
-              onChange={(e) => setDraftMed(d => ({ ...d, route: e.target.value as MedRoute }))}
-              className={selectCls}>
-              {MED_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </div>
-          <select value={draftMed.category}
-            onChange={(e) => setDraftMed(d => ({ ...d, category: e.target.value as MedCategory }))}
-            className={`w-full ${selectCls}`}>
-            <option value="Analgesic">Analgesic</option>
-            <option value="Antibiotic">Antibiotic</option>
-            <option value="Other">Other</option>
-          </select>
-          <div className="space-y-1.5">
-            <SectionHeader>Time</SectionHeader>
-            <input type="text" value={draftMed.time}
-              onChange={(e) => setDraftMed(d => ({ ...d, time: e.target.value }))}
-              placeholder="HH:MM"
-              className={inputCls} />
-          </div>
+        <div className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+          <CellCard>
+            <Cell label="Time">
+              <input type="text" inputMode="numeric" value={draftMed.time}
+                onChange={(e) => setDraftMed(d => ({ ...d, time: e.target.value }))}
+                placeholder="HH:MM" className={cellInput} />
+            </Cell>
+            <Cell label="Medication">
+              <input type="text" autoFocus value={draftMed.name}
+                onChange={(e) => setDraftMed(d => ({ ...d, name: e.target.value }))}
+                placeholder="Medication name" className={cellInput} />
+            </Cell>
+            <div className="grid grid-cols-2 gap-px bg-primary/6">
+              <Cell label="Dose">
+                <input type="text" value={draftMed.dose}
+                  onChange={(e) => setDraftMed(d => ({ ...d, dose: e.target.value }))}
+                  placeholder="Dose" className={cellInput} />
+              </Cell>
+              <Cell label="Route">
+                <select value={draftMed.route}
+                  onChange={(e) => setDraftMed(d => ({ ...d, route: e.target.value as MedRoute }))}
+                  className={cellSelect}>
+                  {MED_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </Cell>
+            </div>
+            <Cell label="Category">
+              <select value={draftMed.category}
+                onChange={(e) => setDraftMed(d => ({ ...d, category: e.target.value as MedCategory }))}
+                className={cellSelect}>
+                <option value="Analgesic">Analgesic</option>
+                <option value="Antibiotic">Antibiotic</option>
+                <option value="Other">Other</option>
+              </select>
+            </Cell>
+          </CellCard>
         </div>
       )
       popoverActions = [removeAction, { key: 'done', label: 'Done', icon: Check, onAction: handleEditDoneMed }]
     } else if (editing.kind === 'fluid') {
       popoverPreview = (
-        <div className="px-4 py-3 space-y-3">
-          <div className="space-y-1.5">
-            <SectionHeader>Fluid Type</SectionHeader>
-            <input type="text" autoFocus value={draftFluid.type}
-              onChange={(e) => setDraftFluid(d => ({ ...d, type: e.target.value }))}
-              placeholder="e.g. Normal Saline"
-              className={inputCls} />
-          </div>
-          <div className="flex gap-2">
-            <input type="text" value={draftFluid.volume}
-              onChange={(e) => setDraftFluid(d => ({ ...d, volume: e.target.value }))}
-              placeholder="Volume"
-              className={`flex-1 px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary`} />
-            <select value={draftFluid.route}
-              onChange={(e) => setDraftFluid(d => ({ ...d, route: e.target.value as MedRoute }))}
-              className={selectCls}>
-              {MED_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <SectionHeader>Time</SectionHeader>
-            <input type="text" value={draftFluid.time}
-              onChange={(e) => setDraftFluid(d => ({ ...d, time: e.target.value }))}
-              placeholder="HH:MM"
-              className={inputCls} />
-          </div>
+        <div className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+          <CellCard>
+            <Cell label="Time">
+              <input type="text" inputMode="numeric" value={draftFluid.time}
+                onChange={(e) => setDraftFluid(d => ({ ...d, time: e.target.value }))}
+                placeholder="HH:MM" className={cellInput} />
+            </Cell>
+            <Cell label="Fluid Type">
+              <input type="text" autoFocus value={draftFluid.type}
+                onChange={(e) => setDraftFluid(d => ({ ...d, type: e.target.value }))}
+                placeholder="e.g. Normal Saline" className={cellInput} />
+            </Cell>
+            <div className="grid grid-cols-2 gap-px bg-primary/6">
+              <Cell label="Volume">
+                <input type="text" value={draftFluid.volume}
+                  onChange={(e) => setDraftFluid(d => ({ ...d, volume: e.target.value }))}
+                  placeholder="Volume" className={cellInput} />
+              </Cell>
+              <Cell label="Route">
+                <select value={draftFluid.route}
+                  onChange={(e) => setDraftFluid(d => ({ ...d, route: e.target.value as MedRoute }))}
+                  className={cellSelect}>
+                  {MED_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </Cell>
+            </div>
+          </CellCard>
         </div>
       )
       popoverActions = [removeAction, { key: 'done', label: 'Done', icon: Check, onAction: handleEditDoneFluid }]
     } else if (editing.kind === 'blood') {
       popoverPreview = (
-        <div className="px-4 py-3 space-y-3">
-          <div className="space-y-1.5">
-            <SectionHeader>Blood Product</SectionHeader>
-            <input type="text" autoFocus value={draftBlood.type}
-              onChange={(e) => setDraftBlood(d => ({ ...d, type: e.target.value }))}
-              placeholder="e.g. Whole Blood"
-              className={inputCls} />
-          </div>
-          <div className="flex gap-2">
-            <input type="text" value={draftBlood.volume}
-              onChange={(e) => setDraftBlood(d => ({ ...d, volume: e.target.value }))}
-              placeholder="Volume"
-              className={`flex-1 px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary`} />
-            <select value={draftBlood.route}
-              onChange={(e) => setDraftBlood(d => ({ ...d, route: e.target.value as MedRoute }))}
-              className={selectCls}>
-              {MED_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <SectionHeader>Time</SectionHeader>
-            <input type="text" value={draftBlood.time}
-              onChange={(e) => setDraftBlood(d => ({ ...d, time: e.target.value }))}
-              placeholder="HH:MM"
-              className={inputCls} />
-          </div>
+        <div className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+          <CellCard>
+            <Cell label="Time">
+              <input type="text" inputMode="numeric" value={draftBlood.time}
+                onChange={(e) => setDraftBlood(d => ({ ...d, time: e.target.value }))}
+                placeholder="HH:MM" className={cellInput} />
+            </Cell>
+            <Cell label="Blood Product">
+              <input type="text" autoFocus value={draftBlood.type}
+                onChange={(e) => setDraftBlood(d => ({ ...d, type: e.target.value }))}
+                placeholder="e.g. Whole Blood" className={cellInput} />
+            </Cell>
+            <div className="grid grid-cols-2 gap-px bg-primary/6">
+              <Cell label="Volume">
+                <input type="text" value={draftBlood.volume}
+                  onChange={(e) => setDraftBlood(d => ({ ...d, volume: e.target.value }))}
+                  placeholder="Volume" className={cellInput} />
+              </Cell>
+              <Cell label="Route">
+                <select value={draftBlood.route}
+                  onChange={(e) => setDraftBlood(d => ({ ...d, route: e.target.value as MedRoute }))}
+                  className={cellSelect}>
+                  {MED_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </Cell>
+            </div>
+          </CellCard>
         </div>
       )
       popoverActions = [removeAction, { key: 'done', label: 'Done', icon: Check, onAction: handleEditDoneBlood }]
@@ -828,22 +841,23 @@ export const MARCHForm = memo(function MARCHForm() {
 
   if (addMenuPopover === 'iv') {
     popoverPreview = (
-      <div className="px-4 py-3 space-y-3">
-        <div className="space-y-1.5">
-          <SectionHeader>Access Type</SectionHeader>
-          <PillSelector options={ROUTE_OPTIONS} value={draftIV.type} onChange={(v) => setDraftIV(d => ({ ...d, type: v }))} />
-        </div>
-        <div className="space-y-1.5">
-          <SectionHeader>Site</SectionHeader>
-          <LocationRegionPicker value={draftIV.site} onChange={(label) => setDraftIV(d => ({ ...d, site: label }))} />
-        </div>
-        <div className="space-y-1.5">
-          <SectionHeader>Gauge</SectionHeader>
-          <input type="text" value={draftIV.gauge}
-            onChange={(e) => setDraftIV(d => ({ ...d, gauge: e.target.value }))}
-            placeholder="e.g. 18g"
-            className={inputCls} />
-        </div>
+      <div className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+        <CellCard>
+          <Cell label="Time">
+            <input type="text" inputMode="numeric" value={draftIV.time}
+              onChange={(e) => setDraftIV(d => ({ ...d, time: e.target.value }))}
+              placeholder="HH:MM" className={cellInput} />
+          </Cell>
+          <Cell label="Access Type">
+            <Segmented options={ROUTE_OPTIONS} value={draftIV.type} onChange={(v) => setDraftIV(d => ({ ...d, type: v }))} />
+          </Cell>
+          <LocationCell label="Site" value={draftIV.site} onChange={(label) => setDraftIV(d => ({ ...d, site: label }))} />
+          <Cell label="Gauge">
+            <input type="text" value={draftIV.gauge}
+              onChange={(e) => setDraftIV(d => ({ ...d, gauge: e.target.value }))}
+              placeholder="e.g. 18g" className={cellInput} />
+          </Cell>
+        </CellCard>
       </div>
     )
     popoverActions = [{ key: 'done', label: 'Done', icon: Check, onAction: handleDoneIV }]
@@ -862,30 +876,38 @@ export const MARCHForm = memo(function MARCHForm() {
             </div>
           </div>
         ))}
-        <div className="border-t border-tertiary/10 pt-3 space-y-2">
+        <div className="pt-1 space-y-2">
           <SectionHeader>Custom</SectionHeader>
-          <input type="text" value={draftMed.name}
-            onChange={(e) => setDraftMed(d => ({ ...d, name: e.target.value }))}
-            placeholder="Medication name"
-            className={inputCls} />
-          <div className="flex gap-2">
-            <input type="text" value={draftMed.dose}
-              onChange={(e) => setDraftMed(d => ({ ...d, dose: e.target.value }))}
-              placeholder="Dose"
-              className={`flex-1 px-4 py-2.5 rounded-full text-sm text-primary bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary`} />
-            <select value={draftMed.route}
-              onChange={(e) => setDraftMed(d => ({ ...d, route: e.target.value as MedRoute }))}
-              className={selectCls}>
-              {MED_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </div>
-          <select value={draftMed.category}
-            onChange={(e) => setDraftMed(d => ({ ...d, category: e.target.value as MedCategory }))}
-            className={`w-full ${selectCls}`}>
-            <option value="Analgesic">Analgesic</option>
-            <option value="Antibiotic">Antibiotic</option>
-            <option value="Other">Other</option>
-          </select>
+          <CellCard>
+            <Cell label="Medication">
+              <input type="text" value={draftMed.name}
+                onChange={(e) => setDraftMed(d => ({ ...d, name: e.target.value }))}
+                placeholder="Medication name" className={cellInput} />
+            </Cell>
+            <div className="grid grid-cols-2 gap-px bg-primary/6">
+              <Cell label="Dose">
+                <input type="text" value={draftMed.dose}
+                  onChange={(e) => setDraftMed(d => ({ ...d, dose: e.target.value }))}
+                  placeholder="Dose" className={cellInput} />
+              </Cell>
+              <Cell label="Route">
+                <select value={draftMed.route}
+                  onChange={(e) => setDraftMed(d => ({ ...d, route: e.target.value as MedRoute }))}
+                  className={cellSelect}>
+                  {MED_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </Cell>
+            </div>
+            <Cell label="Category">
+              <select value={draftMed.category}
+                onChange={(e) => setDraftMed(d => ({ ...d, category: e.target.value as MedCategory }))}
+                className={cellSelect}>
+                <option value="Analgesic">Analgesic</option>
+                <option value="Antibiotic">Antibiotic</option>
+                <option value="Other">Other</option>
+              </select>
+            </Cell>
+          </CellCard>
         </div>
       </div>
     )
@@ -901,16 +923,20 @@ export const MARCHForm = memo(function MARCHForm() {
             </button>
           ))}
         </div>
-        <div className="border-t border-tertiary/10 pt-3 space-y-2">
+        <div className="pt-1 space-y-2">
           <SectionHeader>Custom</SectionHeader>
-          <input type="text" value={draftFluid.type}
-            onChange={(e) => setDraftFluid(d => ({ ...d, type: e.target.value }))}
-            placeholder="Fluid type"
-            className={inputCls} />
-          <input type="text" value={draftFluid.volume}
-            onChange={(e) => setDraftFluid(d => ({ ...d, volume: e.target.value }))}
-            placeholder="Volume"
-            className={inputCls} />
+          <CellCard>
+            <Cell label="Fluid Type">
+              <input type="text" value={draftFluid.type}
+                onChange={(e) => setDraftFluid(d => ({ ...d, type: e.target.value }))}
+                placeholder="e.g. Normal Saline" className={cellInput} />
+            </Cell>
+            <Cell label="Volume">
+              <input type="text" value={draftFluid.volume}
+                onChange={(e) => setDraftFluid(d => ({ ...d, volume: e.target.value }))}
+                placeholder="Volume" className={cellInput} />
+            </Cell>
+          </CellCard>
         </div>
       </div>
     )
