@@ -8,6 +8,7 @@ import { ReactionChips, hasReactions, type ReactionCode } from '../Messages/Reac
 import { IntakeRequestCard } from '../Messages/IntakeRequestCard'
 import { OncallCallCard } from '../Messages/OncallCallCard'
 import { OutsideMessageCard } from '../Messages/OutsideMessageCard'
+import { OutsideSessionCard } from '../Messages/OutsideSessionCard'
 import { SharedBundleCard } from '../Messages/SharedBundleCard'
 import { OverlaySnapshot } from '../MapOverlay/OverlaySnapshot'
 import type { LucideIcon } from 'lucide-react'
@@ -320,6 +321,20 @@ export function MessageBubble({
       />
     )
   }
+
+  // Outside-session reply-lane card: live status + reply history + composer.
+  if (message.content?.type === 'outside_session') {
+    return (
+      <OutsideSessionCard
+        content={message.content}
+        createdAt={message.createdAt}
+        onLongPress={(x, y, rect, html) => onLongPress?.(message, x, y, rect, html)}
+        messageId={message.id}
+      />
+    )
+  }
+  // Out-of-band session updates fold onto the card — never a standalone bubble.
+  if (message.content?.type === 'outside_session_update') return null
 
   // System text notices (operator → user / clinic broadcasts) render as normal
   // chat bubbles — sender-name header (group) or conversation chrome name (1:1)

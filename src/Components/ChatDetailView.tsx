@@ -862,9 +862,9 @@ export function ChatDetailView({
         const isOwn = contextMsg.senderId === userId
         const isMedia = contextMsg.content?.type === 'image' || contextMsg.content?.type === 'voice'
         const cardType = contextMsg.content?.type
-        const isClearableCard = cardType === 'outside_message' || cardType === 'oncall_call'
+        const isClearableCard = cardType === 'outside_message' || cardType === 'oncall_call' || cardType === 'outside_session'
         // Dedicated cards render without a chip row, so skip the React action there.
-        const isCard = cardType === 'intake_request' || cardType === 'oncall_call' || cardType === 'outside_message'
+        const isCard = cardType === 'intake_request' || cardType === 'oncall_call' || cardType === 'outside_message' || cardType === 'outside_session'
         // Reaction glyphs — the horizontal icon strip in the lifted menu; folded
         // into a React submenu for the cursor-pill fallback.
         const reactionItems: ContextMenuItem[] = reactionsEnabled && !isCard

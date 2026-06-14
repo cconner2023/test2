@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { MoreHorizontal, FileSpreadsheet, FileDown } from 'lucide-react'
 import { ActionButton } from '../ActionButton'
-import { ActionSheet, type ActionSheetOption } from '../ActionSheet'
+import { AnchoredMenu } from '../LiftedRowMenu'
+import type { ContextMenuItem } from '../ContextMenu'
 import { NoteBlocksCSVImportDrawer } from './NoteBlocksCSVImportDrawer'
 import { downloadNoteBlocksTemplate, type NoteBlocksCSVKind } from '../../Utilities/noteBlocksCSV'
 
@@ -19,10 +20,11 @@ interface Props {
  * the bundle-based Share-to-chat lives in NoteBlocksTransferMenu instead.
  */
 export function CsvActionsMenu({ kind, onExportCsv, hasData }: Props) {
-  const [menuOpen, setMenuOpen] = useState(false)
+  const triggerRef = useRef<HTMLSpanElement>(null)
+  const [menuRect, setMenuRect] = useState<DOMRect | null>(null)
   const [importOpen, setImportOpen] = useState(false)
 
-  const options: ActionSheetOption[] = [
+  const options: ContextMenuItem[] = [
     ...(hasData ? [{ key: 'export-csv', label: 'Export CSV', icon: FileSpreadsheet, onAction: onExportCsv }] : []),
     { key: 'import-csv', label: 'Import CSV', icon: FileSpreadsheet, onAction: () => setImportOpen(true) },
     { key: 'csv-template', label: 'Download CSV template', icon: FileDown, onAction: () => downloadNoteBlocksTemplate(kind) },
@@ -30,8 +32,21 @@ export function CsvActionsMenu({ kind, onExportCsv, hasData }: Props) {
 
   return (
     <>
-      <ActionButton icon={MoreHorizontal} label="Import or export CSV" onClick={() => setMenuOpen(true)} />
-      <ActionSheet visible={menuOpen} title="CSV" options={options} onClose={() => setMenuOpen(false)} />
+      <span ref={triggerRef} className="inline-flex">
+        <ActionButton
+          icon={MoreHorizontal}
+          label="Import or export CSV"
+          onClick={() => setMenuRect(triggerRef.current?.getBoundingClientRect() ?? null)}
+        />
+      </span>
+      <AnchoredMenu
+        isOpen={!!menuRect}
+        anchorRect={menuRect}
+        onClose={() => setMenuRect(null)}
+        layout="list"
+        align="right"
+        items={options}
+      />
       <NoteBlocksCSVImportDrawer visible={importOpen} onClose={() => setImportOpen(false)} kind={kind} />
     </>
   )

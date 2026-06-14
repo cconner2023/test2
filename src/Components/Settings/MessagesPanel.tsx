@@ -325,7 +325,7 @@ function ConversationPane({
           <span className="text-[10pt] text-themeblue2 font-medium">Setting up encryption…</span>
         </div>
       )}
-      <div className="pt-1 pb-10">
+      <div className="pt-1 pb-28 md:pb-10">
         {/* Search results */}
         {searchResults ? (
           <div>

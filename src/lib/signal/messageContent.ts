@@ -287,6 +287,71 @@ export interface OutsideMessageContent {
 }
 
 /**
+ * Outside-session durable CARD — the cluster-side record of a tab-bound outside
+ * reply session (cluster→outside text + medic ring-back while the outside tab
+ * stays open). UNLIKE the edge-authored E2E cards above (intake_request /
+ * oncall_call / outside_message), this is NOT a ratchet envelope: the
+ * `outside-session-open` / `-close` payloads are PLAINTEXT system jsonb rows
+ * (recipient=SYSTEM-fanout, like `oncall-ring`), constructed into this content
+ * type directly in useSignalMessages decryptRow — they never pass through
+ * parseMessageContent. It is therefore RECEIVE-ONLY: a client must never author
+ * or send it, so serializeContent throws for it. `status` flips active→ended
+ * when the matching `outside-session-close` payload arrives. `outside_pub` is a
+ * public key (base64 P-256 SPKI) — operational, not PHI.
+ */
+export interface OutsideSessionContent {
+  type: 'outside_session'
+  session_id: string
+  clinic_id: string
+  /** Outside-supplied display name (sanitized server-side). Operational — no PHI. */
+  requester_name: string
+  /** base64 P-256 SPKI — seal target for cluster→outside replies / ring-back offers. */
+  outside_pub: string
+  /** ISO timestamp the session opened. */
+  opened_at: string
+  /** Lifecycle status — flips to 'ended' when a close payload arrives. */
+  status: 'active' | 'ended'
+  /** Close reason (present once ended): tab_closed | ttl_expired | stale_30s | explicit. */
+  closed_reason?: string
+  /** ISO timestamp (present once ended). */
+  closed_at?: string
+  /** Cluster-side reply history, folded on from `outside-session-reply-sent`
+   *  payloads (plaintext, operational only — no PHI). Every clinic member sees
+   *  the whole conversation on the card (fan-to-all). Absent until first reply. */
+  replies?: OutsideSessionReplyEntry[]
+}
+
+/** One cluster→outside reply, as shown on the durable cluster card. */
+export interface OutsideSessionReplyEntry {
+  reply_id: string
+  /** Sending cluster member's display name (server-stamped — operational, not PHI). */
+  from_name: string
+  /** Reply body (operational vocabulary only — no PHI). */
+  text: string
+  /** ISO timestamp. */
+  created_at: string
+}
+
+/**
+ * Out-of-band UPDATE folded onto an existing OutsideSessionContent card (matched
+ * by session_id), constructed in decryptRow from a plaintext
+ * `outside-session-close` (status/closed_*) or `outside-session-reply-sent`
+ * (reply) SYSTEM payload. Like a reaction, it NEVER renders as its own bubble —
+ * handleIncomingMessage folds it onto the card and returns. RECEIVE-ONLY:
+ * serializeContent throws for it.
+ */
+export interface OutsideSessionUpdate {
+  type: 'outside_session_update'
+  session_id: string
+  /** Present on a close. */
+  status?: 'ended'
+  closed_reason?: string
+  closed_at?: string
+  /** Present on a reply-sent — appended to the card's replies[]. */
+  reply?: OutsideSessionReplyEntry
+}
+
+/**
  * Emoji reaction targeting another message. Carries ONLY the target's id, an
  * opaque emoji code, and a remove flag — never any free text, never PHI. It is
  * authored into a 1:1 or group thread and rides the standard send pipeline, but
@@ -306,7 +371,7 @@ export interface ReactionContent {
   remove?: boolean
 }
 
-export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | SharedRefContent | SharedBundleContent | IntakeRequestContent | OncallCallContent | OutsideMessageContent | ReactionContent
+export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | SharedRefContent | SharedBundleContent | IntakeRequestContent | OncallCallContent | OutsideMessageContent | OutsideSessionContent | OutsideSessionUpdate | ReactionContent
 
 // ---- Compact wire shapes ----
 
@@ -589,6 +654,14 @@ export function serializeContent(content: MessageContent): string {
     const wire: WireReaction = { t: 'rx', id: content.targetId, e: content.emoji }
     if (content.remove) wire.r = 1
     return JSON.stringify(wire)
+  }
+
+  if (content.type === 'outside_session' || content.type === 'outside_session_update') {
+    // RECEIVE-ONLY: constructed from plaintext SYSTEM payloads in
+    // useSignalMessages decryptRow (kind 'outside-session-open'/'-close'/
+    // '-reply-sent'), never authored or sent by a client. No wire shape;
+    // serializing would be a bug (a client trying to send a system-only card).
+    throw new Error('OutsideSession content is receive-only (system-authored); never serialize')
   }
 
   if (content.type === 'oncall_call') {

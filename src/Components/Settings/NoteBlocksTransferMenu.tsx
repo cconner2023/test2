@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { MoreHorizontal, MessageSquare, Download, Upload, FileSpreadsheet, FileDown } from 'lucide-react'
 import { ActionButton } from '../ActionButton'
-import { ActionSheet, type ActionSheetOption } from '../ActionSheet'
+import { AnchoredMenu } from '../LiftedRowMenu'
+import type { ContextMenuItem } from '../ContextMenu'
 import { useNoteBlocksTransfer } from '../../Hooks/useNoteBlocksTransfer'
 import { NoteBlocksCSVImportDrawer } from './NoteBlocksCSVImportDrawer'
 import { exportTemplatesCSV, exportOrderSetsCSV, downloadNoteBlocksTemplate, type NoteBlocksCSVKind } from '../../Utilities/noteBlocksCSV'
@@ -30,7 +31,8 @@ interface Props {
  */
 export function NoteBlocksTransferMenu({ data, baseName, hasData, kind }: Props) {
   const { share, exportFile, pickImport, picker, importOverlays } = useNoteBlocksTransfer()
-  const [menuOpen, setMenuOpen] = useState(false)
+  const triggerRef = useRef<HTMLSpanElement>(null)
+  const [menuRect, setMenuRect] = useState<DOMRect | null>(null)
   const [csvImportOpen, setCsvImportOpen] = useState(false)
 
   const exportCSV = () => {
@@ -38,7 +40,7 @@ export function NoteBlocksTransferMenu({ data, baseName, hasData, kind }: Props)
     else exportOrderSetsCSV(data.planOrderSets ?? [])
   }
 
-  const options: ActionSheetOption[] = [
+  const options: ContextMenuItem[] = [
     ...(hasData ? [
       { key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: () => share(data, `my ${baseName}`) },
       { key: 'export', label: 'Export to file', icon: Download, onAction: () => exportFile(data, baseName) },
@@ -51,13 +53,21 @@ export function NoteBlocksTransferMenu({ data, baseName, hasData, kind }: Props)
 
   return (
     <>
-      <ActionButton icon={MoreHorizontal} label="Share, export or import" onClick={() => setMenuOpen(true)} />
+      <span ref={triggerRef} className="inline-flex">
+        <ActionButton
+          icon={MoreHorizontal}
+          label="Share, export or import"
+          onClick={() => setMenuRect(triggerRef.current?.getBoundingClientRect() ?? null)}
+        />
+      </span>
 
-      <ActionSheet
-        visible={menuOpen}
-        title={`Share ${baseName}`}
-        options={options}
-        onClose={() => setMenuOpen(false)}
+      <AnchoredMenu
+        isOpen={!!menuRect}
+        anchorRect={menuRect}
+        onClose={() => setMenuRect(null)}
+        layout="list"
+        align="right"
+        items={options}
       />
 
       <NoteBlocksCSVImportDrawer visible={csvImportOpen} onClose={() => setCsvImportOpen(false)} kind={kind} />

@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { DateTimeRow, combineDateTime } from './IntakePickers'
 import { IntakeRejectDialog } from './IntakeRejectDialog'
 import { OncallCallView } from './OncallCallView'
+import { OutsideSessionView } from './OutsideSessionView'
 import { submitClusterMessage, submitEventIntake } from '../../lib/oncallAnonService'
 
 interface IntakeFormProps {
@@ -67,6 +68,11 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
   const [messageActive, setMessageActive] = useState(false)
   const [messageBody, setMessageBody] = useState('')
   const [submittedVia, setSubmittedVia] = useState<'event' | 'message'>('event')
+  // After a successful one-way message, keep a tab-bound reply session live so the
+  // cluster can reply / call back while this page stays open. Registered only here
+  // (passphrase already validated by the submit above → register's bcrypt never
+  // becomes a pre-submit oracle). See OutsideSessionView.
+  const [replySession, setReplySession] = useState(false)
 
   // Bad passphrase / on-call disabled during request_oncall — same recovery as a
   // rejected event submission: clear both credential fields, show the reject card.
@@ -195,8 +201,11 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
       return
     }
     setSubmittedVia('message')
-    setSubmit({ kind: 'submitted' })
     setMessageActive(false)
+    setSubmit({ kind: 'idle' })
+    // Message delivered. Open the tab-bound reply lane (cluster can reply / call
+    // back) instead of the static success card — the passphrase is now known-good.
+    setReplySession(true)
   }, [supabase, stage1, name, messageBody, passcode, passphrase])
 
   // A dead QR / shared link: arrived with a passcode baked into the URL that
@@ -252,7 +261,16 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
         onDismiss={() => setSubmit({ kind: 'idle' })}
       />
 
-      {submit.kind === 'submitted' ? (
+      {replySession ? (
+        <OutsideSessionView
+          supabase={supabase}
+          passcode={passcode}
+          passphrase={passphrase.trim()}
+          requesterName={name.trim()}
+          clinicName={stage1.kind === 'resolved' ? stage1.clinicName : ''}
+          onEnd={() => { setReplySession(false); setSubmit({ kind: 'submitted' }) }}
+        />
+      ) : submit.kind === 'submitted' ? (
         <>
           <div className="pb-2">
             <p className="text-[9pt] font-semibold text-secondary tracking-widest uppercase">Submitted</p>

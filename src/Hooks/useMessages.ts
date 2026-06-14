@@ -72,7 +72,7 @@ import {
 import {
   serializeContent,
 } from '../lib/signal/messageContent'
-import type { MessageContent, ImageContent, VoiceContent, ReplyTo } from '../lib/signal/messageContent'
+import type { MessageContent, ImageContent, VoiceContent, ReplyTo, OutsideSessionContent } from '../lib/signal/messageContent'
 import type { CallSignalBody } from '../lib/webrtc/callSignalBus'
 import { getOrCreateClinicSystemGroup } from '../lib/systemMessageService'
 import {
@@ -685,6 +685,45 @@ export function useMessages(): UseMessagesReturn {
         m => m.id === targetId || m.originId === targetId,
       )
       if (updated && userId) saveMessage(updated, userId).catch(() => {})
+      markMessagesRead([msg.id]).catch(() => {})
+      return
+    }
+
+    // Outside-session card lifecycle (lives in the on-call group conversation).
+    // open → upsert the durable card; close/reply-sent → fold onto it (status +
+    // appended replies), never a standalone bubble. De-duped by session_id.
+    if (msg.content?.type === 'outside_session') {
+      const c = msg.content
+      const conversationKey = msg.groupId ?? msg.recipientId
+      const exists = (store().conversations[conversationKey] ?? []).some(
+        m => m.content?.type === 'outside_session' && m.content.session_id === c.session_id,
+      )
+      if (!exists) addMessage(msg)
+      markMessagesRead([msg.id]).catch(() => {})
+      return
+    }
+    if (msg.content?.type === 'outside_session_update') {
+      const upd = msg.content
+      const conversationKey = msg.groupId ?? msg.recipientId
+      const card = store().conversations[conversationKey]?.find(
+        m => m.content?.type === 'outside_session' && m.content.session_id === upd.session_id,
+      )
+      if (card && card.content?.type === 'outside_session') {
+        const prev = card.content
+        const replies = upd.reply && !(prev.replies ?? []).some(r => r.reply_id === upd.reply!.reply_id)
+          ? [...(prev.replies ?? []), upd.reply]
+          : prev.replies
+        const merged: OutsideSessionContent = {
+          ...prev,
+          ...(upd.status === 'ended' ? { status: 'ended' as const } : {}),
+          ...(upd.closed_reason ? { closed_reason: upd.closed_reason } : {}),
+          ...(upd.closed_at ? { closed_at: upd.closed_at } : {}),
+          ...(replies ? { replies } : {}),
+        }
+        store().updateMessageContent(conversationKey, card.id, merged)
+        const updated = store().conversations[conversationKey]?.find(m => m.id === card.id)
+        if (updated && userId) saveMessage(updated, userId).catch(() => {})
+      }
       markMessagesRead([msg.id]).catch(() => {})
       return
     }

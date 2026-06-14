@@ -88,7 +88,7 @@ export function CallsPane({ entries, onRedial, searchQuery }: CallsPaneProps) {
   }
 
   return (
-    <div className="pt-1 pb-10">
+    <div className="pt-1 pb-28 md:pb-10">
       {filtered.map(entry => (
         <CallRow key={entry.callId} entry={entry} onRedial={onRedial} />
       ))}

@@ -258,7 +258,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                 </div>
                 {/* Bottom-center island: Chat | Calls lens toggle (list view only) */}
                 {view === 'messages' && (
-                    <BottomIsland role="tablist" ariaLabel="Message view">
+                    <BottomIsland role="tablist" ariaLabel="Message view" glass>
                         {([['chat', MessageSquare, 'Chat'], ['calls', Headset, 'Calls']] as const).map(([l, Icon, label]) => (
                             <IslandButton key={l} active={lens === l} onClick={() => setLens(l)} label={label} role="tab">
                                 <Icon className="w-5 h-5" />

@@ -29,6 +29,7 @@ import type { SignalMessageRow, DecryptedSignalMessage } from '../lib/signal/tra
 import type { SyncMessagePayload } from '../lib/signal/transportTypes'
 import type { SenderKeyMessage, SenderKeyDistribution } from '../lib/signal/types'
 import { parseMessageContent } from '../lib/signal/messageContent'
+import type { OutsideSessionContent, OutsideSessionUpdate } from '../lib/signal/messageContent'
 import { emitCallSignal, type CallSignalBody } from '../lib/webrtc/callSignalBus'
 import { emitOncallRing } from '../lib/webrtc/oncallSignalBus'
 import { isCalendarEvent, routeCalendarEvent } from '../lib/calendarRouting'
@@ -128,6 +129,77 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
       if (maybeIntake && maybeIntake.kind === 'oncall-ring-cancel') {
         emitOncallRing({ kind: 'cancel', callId: String(maybeIntake.call_id) })
         return null
+      }
+
+      // ── Outside-session reply lane (SYSTEM-authored plaintext fanout) ──
+      // open  → a durable OutsideSessionContent card (rendered in the on-call group).
+      // close → an OutsideSessionUpdate(status:ended) folded onto that card.
+      // reply-sent → an OutsideSessionUpdate(reply) appended to that card's history.
+      // close/reply-sent NEVER render as their own bubble (folded like reactions).
+      if (maybeIntake && maybeIntake.kind === 'outside-session-open') {
+        return {
+          id: row.id,
+          senderId: SYSTEM_USER_ID,
+          recipientId: row.recipient_id,
+          plaintext: 'Outside session',
+          content: {
+            type: 'outside_session',
+            session_id: String(maybeIntake.session_id),
+            clinic_id: String(maybeIntake.clinic_id ?? ''),
+            requester_name: String(maybeIntake.requester_name ?? ''),
+            outside_pub: String(maybeIntake.outside_pub ?? ''),
+            opened_at: String(maybeIntake.opened_at ?? row.created_at),
+            status: 'active',
+          } satisfies OutsideSessionContent,
+          messageType: 'message' as const,
+          createdAt: row.created_at,
+          readAt: row.read_at,
+          ...(row.group_id && { groupId: row.group_id }),
+          originId: row.origin_id ?? undefined,
+        }
+      }
+      if (maybeIntake && maybeIntake.kind === 'outside-session-close') {
+        return {
+          id: row.id,
+          senderId: SYSTEM_USER_ID,
+          recipientId: row.recipient_id,
+          plaintext: 'Outside session ended',
+          content: {
+            type: 'outside_session_update',
+            session_id: String(maybeIntake.session_id),
+            status: 'ended',
+            ...(maybeIntake.reason ? { closed_reason: String(maybeIntake.reason) } : {}),
+            ...(maybeIntake.closed_at ? { closed_at: String(maybeIntake.closed_at) } : {}),
+          } satisfies OutsideSessionUpdate,
+          messageType: 'message' as const,
+          createdAt: row.created_at,
+          readAt: row.read_at,
+          ...(row.group_id && { groupId: row.group_id }),
+          originId: row.origin_id ?? undefined,
+        }
+      }
+      if (maybeIntake && maybeIntake.kind === 'outside-session-reply-sent') {
+        return {
+          id: row.id,
+          senderId: SYSTEM_USER_ID,
+          recipientId: row.recipient_id,
+          plaintext: String(maybeIntake.text ?? 'Reply'),
+          content: {
+            type: 'outside_session_update',
+            session_id: String(maybeIntake.session_id),
+            reply: {
+              reply_id: String(maybeIntake.reply_id),
+              from_name: String(maybeIntake.from_name ?? ''),
+              text: String(maybeIntake.text ?? ''),
+              created_at: String(maybeIntake.created_at ?? row.created_at),
+            },
+          } satisfies OutsideSessionUpdate,
+          messageType: 'message' as const,
+          createdAt: row.created_at,
+          readAt: row.read_at,
+          ...(row.group_id && { groupId: row.group_id }),
+          originId: row.origin_id ?? undefined,
+        }
       }
       // NOTE: the resolved CALL card and outside→cluster MESSAGES are no longer
       // plaintext kind rows. They are authored by the oncall-resolve /
