@@ -98,6 +98,7 @@ interface MapViewProps {
   onActiveFloorChange?: (floor: number | null) => void;
   /** When provided, the floor rail shows a "+" to append a new floor. */
   onAddFloor?: () => void;
+}
 
 const DEFAULT_CENTER: [number, number] = [38.8977, -77.0365];
 const DEFAULT_ZOOM = 13;
