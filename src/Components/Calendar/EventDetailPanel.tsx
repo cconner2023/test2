@@ -9,7 +9,8 @@ import type { OverlayFeature } from '../../Types/MapOverlayTypes'
 import type { CalendarEvent, EventStatus, EventSubtask } from '../../Types/CalendarTypes'
 import type { ClinicPreCombatCheck } from '../../lib/supervisorService'
 import { EventTasksCard } from './EventTasksCard'
-import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
+import { type ContextMenuItem } from '../ContextMenu'
+import { AnchoredMenu } from '../LiftedRowMenu'
 import { SectionHeader, SectionCard } from '../Section'
 import { formatShortDayLabel, isEventEditable, isUnscheduledTemplate } from '../../Types/CalendarTypes'
 import { useAuthStore } from '../../stores/useAuthStore'
@@ -99,12 +100,12 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
   const editable = isEventEditable(event, isSupervisor)
   const showCancelTemplate = event.category === 'templated' && !!onCancelTemplate && !isUnscheduledTemplate(event, apptTypeNames)
   const StatusIcon = STATUS_TRIGGER_ICON[event.status]
-  const [statusMenu, setStatusMenu] = useState<{ x: number; y: number } | null>(null)
+  const [statusMenu, setStatusMenu] = useState<{ rect: DOMRect } | null>(null)
   const statusBtnRef = useRef<HTMLDivElement>(null)
   const openStatusMenu = () => {
     const rect = statusBtnRef.current?.getBoundingClientRect()
     if (!rect) return
-    setStatusMenu({ x: rect.left, y: rect.bottom + 4 })
+    setStatusMenu({ rect })
   }
   void canDeleteTemplate
   const [copied, setCopied] = useState(false)
@@ -402,7 +403,14 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
         if (event.status !== 'cancelled')   items.push({ key: 'cancelled',  label: 'Cancel',  icon: Ban,          onAction: () => apply('cancelled'), destructive: true })
         if (items.length === 0) { setStatusMenu(null); return null }
         return (
-          <ContextMenu x={statusMenu.x} y={statusMenu.y} onClose={() => setStatusMenu(null)} items={items} />
+          <AnchoredMenu
+            isOpen
+            anchorRect={statusMenu.rect}
+            onClose={() => setStatusMenu(null)}
+            layout="list"
+            header="Set status"
+            items={items}
+          />
         )
       })()}
 

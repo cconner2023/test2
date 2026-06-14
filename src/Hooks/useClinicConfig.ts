@@ -21,7 +21,6 @@ import type {
   ClinicHuddleTask,
   ClinicPreCombatCheck,
 } from '../lib/supervisorService'
-import type { ClinicRoom } from '../lib/adminService'
 import type { CategoryColorMap } from '../Types/CalendarTypes'
 
 export interface ClinicConfig {
@@ -29,7 +28,6 @@ export interface ClinicConfig {
   appointmentTypes: ClinicAppointmentType[]
   huddleTasks: ClinicHuddleTask[]
   categoryColors: CategoryColorMap
-  rooms: ClinicRoom[]
   preCombatChecks: ClinicPreCombatCheck[]
 }
 
@@ -40,12 +38,11 @@ const EMPTY: ClinicConfig = {
   appointmentTypes: [],
   huddleTasks: [],
   categoryColors: {},
-  rooms: [],
   preCombatChecks: [],
 }
 
 const CLINIC_CONFIG_COLUMNS =
-  'name, appointment_types, huddle_tasks, calendar_category_colors, rooms, pre_combat_checks'
+  'name, appointment_types, huddle_tasks, calendar_category_colors, pre_combat_checks'
 
 // Resolved snapshots + in-flight promises, both keyed `${clinicId}::${gen}`.
 // One round-trip per (clinic, invalidation generation), shared across hooks.
@@ -108,7 +105,6 @@ function fetchClinicConfig(clinicId: string, key: string): Promise<ClinicConfig>
         appointmentTypes: (data.appointment_types as ClinicAppointmentType[]) ?? [],
         huddleTasks: (data.huddle_tasks as ClinicHuddleTask[]) ?? [],
         categoryColors: (data.calendar_category_colors as CategoryColorMap) ?? {},
-        rooms: (data.rooms as ClinicRoom[]) ?? [],
         preCombatChecks: (data.pre_combat_checks as ClinicPreCombatCheck[]) ?? [],
       }
       snapshots.set(key, cfg)

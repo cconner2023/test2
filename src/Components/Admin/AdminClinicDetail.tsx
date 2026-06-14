@@ -20,7 +20,8 @@ import { invalidate, useInvalidation } from '../../stores/useInvalidationStore'
 import { sameStringSet } from '../../Utilities/arrayEquals'
 import { ActionPill } from '../ActionPill'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
+import { type ContextMenuItem } from '../ContextMenu'
+import { AnchoredMenu } from '../LiftedRowMenu'
 import { OverlayActionMenu } from '../OverlayActionMenu'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
@@ -89,10 +90,10 @@ const AdminClinicDetail = ({
   const [loanedOutMap, setLoanedOutMap] = useState<Map<string, string[]>>(new Map())
   const usersGen = useInvalidation('users')
 
-  // Relationship sections — row tap opens a ContextMenu anchored at the
-  // tap point; section FAB opens a PreviewOverlay picker (needs search).
+  // Relationship sections — row tap opens a no-clone AnchoredMenu anchored to
+  // the row rect; section FAB opens a PreviewOverlay picker (needs search).
   type RelAction =
-    | { kind: 'parent-row' | 'child-row' | 'assoc-row'; x: number; y: number; target: AdminClinic }
+    | { kind: 'parent-row' | 'child-row' | 'assoc-row'; rect: DOMRect; target: AdminClinic }
     | { kind: 'add-parent' | 'add-child' | 'add-assoc'; rect: DOMRect }
   const [relAction, setRelAction] = useState<RelAction | null>(null)
   const [relBusy, setRelBusy] = useState(false)
@@ -805,7 +806,8 @@ const AdminClinicDetail = ({
                 <button
                   type="button"
                   onClick={(e) => {
-                    setRelAction({ kind: 'parent-row', x: e.clientX, y: e.clientY, target: parentClinic })
+                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                    setRelAction({ kind: 'parent-row', rect, target: parentClinic })
                   }}
                   className="flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5"
                 >
@@ -856,7 +858,8 @@ const AdminClinicDetail = ({
                     key={child.id}
                     type="button"
                     onClick={(e) => {
-                      setRelAction({ kind: 'child-row', x: e.clientX, y: e.clientY, target: child })
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                      setRelAction({ kind: 'child-row', rect, target: child })
                     }}
                     className={`flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5${idx < subClinics.length - 1 ? ' border-b border-primary/6' : ''}`}
                   >
@@ -904,7 +907,8 @@ const AdminClinicDetail = ({
                     key={peer.id}
                     type="button"
                     onClick={(e) => {
-                      setRelAction({ kind: 'assoc-row', x: e.clientX, y: e.clientY, target: peer })
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                      setRelAction({ kind: 'assoc-row', rect, target: peer })
                     }}
                     className={`flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5${idx < associatedClinics.length - 1 ? ' border-b border-primary/6' : ''}`}
                   >
@@ -936,7 +940,7 @@ const AdminClinicDetail = ({
         </section>
       )}
 
-      {/* Row context menu — Open / Remove, anchored at tap point. */}
+      {/* Row context menu — Open / Remove, anchored to the row (no-clone lift). */}
       {relAction && (relAction.kind === 'parent-row' || relAction.kind === 'child-row' || relAction.kind === 'assoc-row') && (() => {
         const target = relAction.target
         const removeLabel =
@@ -967,9 +971,10 @@ const AdminClinicDetail = ({
           onAction: onRemove,
         })
         return (
-          <ContextMenu
-            x={relAction.x}
-            y={relAction.y}
+          <AnchoredMenu
+            isOpen
+            anchorRect={relAction.rect}
+            layout="list"
             items={items}
             onClose={() => setRelAction(null)}
           />

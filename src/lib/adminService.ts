@@ -650,12 +650,6 @@ export async function forceLogoutUser(
 /**
  * Clinic summary returned by listClinics.
  */
-export interface ClinicRoom {
-  id: string
-  name: string
-  sort_order: number
-}
-
 export interface AdminClinic {
   id: string
   name: string
@@ -669,7 +663,6 @@ export interface AdminClinic {
   location_id: string | null
   /** Single-parent command tree. Null = root clinic. Edited admin-only. */
   parent_clinic_id: string | null
-  rooms: ClinicRoom[]
 }
 
 /**
@@ -1013,7 +1006,7 @@ const clinicCacheCfg: DeltaCacheConfig<AdminClinic, ClinicDeltaRow> = {
   fetchDelta: async (since) => {
     let q = supabase
       .from('clinics')
-      .select('id, name, uics, child_clinic_ids, associated_clinic_ids, location, location_id, parent_clinic_id, rooms, encryption_key, updated_at')
+      .select('id, name, uics, child_clinic_ids, associated_clinic_ids, location, location_id, parent_clinic_id, encryption_key, updated_at')
       .order('updated_at')
     if (since) q = q.gt('updated_at', since)
     const { data, error } = await q
@@ -1042,7 +1035,6 @@ const clinicCacheCfg: DeltaCacheConfig<AdminClinic, ClinicDeltaRow> = {
           location,
           location_id: row.location_id ?? null,
           parent_clinic_id: row.parent_clinic_id ?? null,
-          rooms: (row.rooms as ClinicRoom[]) || [],
           updated_at: row.updated_at as string,
         }
       })
@@ -1291,7 +1283,6 @@ export async function updateClinic(
     child_clinic_ids?: string[]
     associated_clinic_ids?: string[]
     parent_clinic_id?: string | null
-    rooms?: ClinicRoom[]
   }
 ): Promise<ServiceResult<{ warnings?: string[] }>> {
   try {

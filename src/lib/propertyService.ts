@@ -516,6 +516,56 @@ export async function ensureMemberLocations(
   await upsertLocationTags(rootLocationId, [...existingTags, ...additionalTags])
 }
 
+/**
+ * Ensure the clinic has exactly one default cluster zone (the battalion aid
+ * station, BAS) as a physical zone under the root canvas — the sibling-to-
+ * personnel-zones counterpart of {@link ensureMemberLocations}. Additive and
+ * idempotent: created once on first drawer open, then skipped. This zone is the
+ * default `room_id` target for calendar events (the cluster's standing location).
+ */
+export async function ensureDefaultClusterZone(
+  clinicId: string,
+  userId: string,
+  rootLocationId: string,
+): Promise<void> {
+  const allLocs = await getLocalPropertyLocations(clinicId)
+  if (allLocs.some(l => l.is_default_zone)) return
+
+  const result = await createLocation(
+    {
+      clinic_id: clinicId,
+      parent_id: rootLocationId,
+      name: DEFAULT_CLUSTER_ZONE_NAME,
+      photo_data: null,
+      holder_user_id: null,
+      is_default_zone: true,
+      created_by: userId,
+    },
+    userId,
+  )
+  if (!result.success) return
+
+  // Place its zone tile on the root canvas, after any existing zones.
+  const existingTags = await fetchLocationTags(rootLocationId)
+  const zoneCount = existingTags.filter(t => t.target_type === 'location').length
+  const col = zoneCount % 4
+  const row = Math.floor(zoneCount / 4)
+  await upsertLocationTags(rootLocationId, [
+    ...existingTags,
+    {
+      id: crypto.randomUUID(),
+      location_id: rootLocationId,
+      target_type: 'location' as const,
+      target_id: result.location.id,
+      x: 0.05 + col * 0.23,
+      y: 0.05 + row * 0.18,
+      width: 0.2,
+      height: 0.14,
+      label: DEFAULT_CLUSTER_ZONE_NAME,
+    },
+  ])
+}
+
 // ── Zone → Location Reconciliation ───────────────────────────
 
 /**
@@ -575,7 +625,7 @@ export async function reconcileLocationsFromTags(
 
 // ── Root Location (invisible canvas host) ────────────────────
 
-import { ROOT_LOCATION_NAME } from '../Types/PropertyTypes'
+import { ROOT_LOCATION_NAME, DEFAULT_CLUSTER_ZONE_NAME } from '../Types/PropertyTypes'
 
 /**
  * Ensure the invisible root location exists for the clinic.

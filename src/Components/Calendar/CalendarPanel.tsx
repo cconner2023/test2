@@ -26,7 +26,7 @@ import { useCalendarStore } from '../../stores/useCalendarStore'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
-import { useClinicRooms } from '../../Hooks/useClinicRooms'
+import { useClinicZones, defaultZoneId } from '../../Hooks/useClinicZones'
 import { useClinicHuddleTasks } from '../../Hooks/useClinicHuddleTasks'
 import { useClinicPreCombatChecks } from '../../Hooks/useClinicPreCombatChecks'
 import { usePropertyStore } from '../../stores/usePropertyStore'
@@ -282,14 +282,14 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
   const { medics: allMedics } = useClinicMedics()
   const { ownClinicMedics } = useClinicGroupedMedics(allMedics)
-  const clinicRooms = useClinicRooms(activeClinicId)
-  const activeRooms = useMemo(() => clinicRooms.filter(r => !r.archived_at), [clinicRooms])
+  // Calendar "rooms" are structural property zones (BAS + sub-zones); see useClinicZones.
+  const clinicZones = useClinicZones(activeClinicId)
   const roomFormOptions: RoomOption[] = useMemo(
-    () => [...activeRooms]
-      .sort((a, b) => a.sort_order - b.sort_order)
-      .map(r => ({ id: r.id, name: r.name })),
-    [activeRooms],
+    () => clinicZones.map(z => ({ id: z.id, name: z.name })),
+    [clinicZones],
   )
+  // New events default to the cluster's standing zone (BAS).
+  const defaultRoomId = useMemo(() => defaultZoneId(clinicZones), [clinicZones])
   const huddleTasks = useClinicHuddleTasks(activeClinicId)
   const sortedHuddleTasks = useMemo(
     () => [...huddleTasks].sort((a, b) => a.sort_order - b.sort_order),
@@ -708,7 +708,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
    *  loaned medic creating an event lands it in the cluster they're currently
    *  viewing. EventForm picker may override per-event on dual-membership users. */
   const newEventInitialData = useMemo(() => {
-    let base = { ...createEmptyFormData(newEventDateKey), clinic_id: activeClinicId ?? null }
+    let base = { ...createEmptyFormData(newEventDateKey), clinic_id: activeClinicId ?? null, room_id: defaultRoomId }
     // Prefill from a deep-link (e.g. a detected date in a message). Seeds the
     // title and pins start_time to the parsed datetime; end defaults to +1h.
     if (newEventPrefill) {
@@ -726,7 +726,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       return { ...base, category: 'huddle' as const, huddle_task_id: newEventHuddleTaskId }
     }
     return base
-  }, [newEventDateKey, newEventHuddleTaskId, newEventPrefill, activeClinicId])
+  }, [newEventDateKey, newEventHuddleTaskId, newEventPrefill, activeClinicId, defaultRoomId])
 
   // Force EventForm to remount whenever the form session changes. EventForm
   // seeds its internal state from initialData ONCE (useState), so a prefill that
@@ -1127,7 +1127,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 date={selectedDate}
                 events={filteredEvents}
                 medics={ownClinicMedics}
-                rooms={activeRooms}
                 huddleTasks={sortedHuddleTasks}
                 zoom={t2tZoom}
                 onSelectEvent={handleSelectEvent}

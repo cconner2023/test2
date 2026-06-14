@@ -501,11 +501,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             anchorRect={locMenu.rect}
             onClose={() => setLocMenu(null)}
             layout="list"
-            row={
-              <div className="w-full flex items-center py-1.5 px-3 bg-themewhite">
-                <span className="text-[10pt] text-primary truncate flex-1">{selectedLocation.name}</span>
-              </div>
-            }
+            align="right"
             items={locMenuItems(selectedLocation)}
           />
         )}
@@ -668,11 +664,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           anchorRect={locMenu.rect}
           onClose={() => setLocMenu(null)}
           layout="list"
-          row={
-            <div className="w-full flex items-center py-1.5 px-3 bg-themewhite">
-              <span className="text-[10pt] text-primary truncate flex-1">{selectedLocation.name}</span>
-            </div>
-          }
+          align="right"
           items={locMenuItems(selectedLocation)}
         />
       )}

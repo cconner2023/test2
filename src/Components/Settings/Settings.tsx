@@ -216,7 +216,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         items.push(
             { type: 'header', label: 'Preferences' },
             opt(PANEL.TOGGLE_THEME, <Palette size={20} />, 'Appearance', themeName.charAt(0).toUpperCase() + themeName.slice(1)),
-            opt(PANEL.NOTE_CONTENT, <Stethoscope size={20} />, 'Note Content', 'Exam blocks, templates, order sets'),
+            opt(PANEL.NOTE_CONTENT, <Stethoscope size={20} />, 'App Content', 'Exam blocks, templates, order sets, checklists'),
             opt(PANEL.OVERVIEW_WIDGETS, <LayoutDashboard size={20} />, 'Mission Overview', 'Widgets shown on the home screen'),
             opt(PANEL.PIN_SETUP, <Lock size={20} />, 'Security', 'App lock, biometrics, permissions'),
             opt(PANEL.NOTIFICATION_SETTINGS, <Bell size={20} />, 'Notifications', 'Push subscriptions and alerts'),
@@ -321,7 +321,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
             case 'guided-tours':        return { title: 'Guided Tours', ...backTo() };
             case 'feedback':            return { title: 'Feedback', ...backTo() };
             case 'privacy-policy':      return { title: 'Privacy Policy', ...backTo() };
-            case 'note-content':            return { title: 'Note Content', ...backTo() };
+            case 'note-content':            return { title: 'App Content', ...backTo() };
             case 'overview-widgets':        return { title: 'Mission Overview', ...backTo() };
             case 'theme-picker':            return { title: 'Appearance', ...backTo() };
             case 'storage':                 return { title: 'Local Storage', ...backTo() };

@@ -15,10 +15,12 @@ interface OrderSetManagerProps {
     onTapRow: (os: PlanOrderSet, anchor: HTMLElement) => void;
     onTapNew: (anchor: HTMLElement) => void;
     clusterPicker?: ReactNode;
+    /** Panel-wide Share/Export/Import ellipsis, folded into the corner pill. */
+    transferMenu?: ReactNode;
 }
 
 export const OrderSetManager = ({
-    orderSets, clinicOrderSetIds, isSupervisorRole, filter = '', onTapRow, onTapNew, clusterPicker,
+    orderSets, clinicOrderSetIds, isSupervisorRole, filter = '', onTapRow, onTapNew, clusterPicker, transferMenu,
 }: OrderSetManagerProps) => {
     const fabRef = useRef<HTMLDivElement>(null);
 
@@ -80,6 +82,7 @@ export const OrderSetManager = ({
                 <ActionPill ref={fabRef} shadow="sm" placement="overlay">
                     {clusterPicker}
                     <ActionButton icon={Plus} label="New order set" onClick={() => fabRef.current && onTapNew(fabRef.current)} />
+                    {transferMenu}
                 </ActionPill>
             </div>
         </section>

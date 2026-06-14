@@ -22,7 +22,8 @@ import { Z } from '../BaseOverlay'
 import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { ContextMenu, type ContextMenuItem } from '../ContextMenu'
+import { type ContextMenuItem } from '../ContextMenu'
+import { AnchoredMenu } from '../LiftedRowMenu'
 import { OverlayActionMenu } from '../OverlayActionMenu'
 import { formatLastActive, RoleBadge, SupervisorCreatedBadge } from './adminUtils'
 import { StepResults, type StepResult } from './StepResults'
@@ -147,8 +148,8 @@ export function AdminUserDetail({
   // Clusters section — tap-to-overlay edit surface for home/loan. Replaces
   // the cluster pickers that used to live in the edit overlay.
   type ClusterAction =
-    | { kind: 'loan-row'; x: number; y: number; clinic: AdminClinic }
-    | { kind: 'home-row'; x: number; y: number; rect: DOMRect; clinic: AdminClinic }
+    | { kind: 'loan-row'; rect: DOMRect; clinic: AdminClinic }
+    | { kind: 'home-row'; rect: DOMRect; clinic: AdminClinic }
     | { kind: 'pick-home'; rect: DOMRect }
     | { kind: 'add-loan'; rect: DOMRect }
   const [clusterAction, setClusterAction] = useState<ClusterAction | null>(null)
@@ -933,7 +934,7 @@ export function AdminUserDetail({
                 onClick={(e) => {
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                   if (homeClinic) {
-                    setClusterAction({ kind: 'home-row', x: e.clientX, y: e.clientY, rect, clinic: homeClinic })
+                    setClusterAction({ kind: 'home-row', rect, clinic: homeClinic })
                   } else {
                     setClusterAction({ kind: 'pick-home', rect })
                   }
@@ -960,7 +961,8 @@ export function AdminUserDetail({
                     key={c.id}
                     type="button"
                     onClick={(e) => {
-                      setClusterAction({ kind: 'loan-row', x: e.clientX, y: e.clientY, clinic: c })
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                      setClusterAction({ kind: 'loan-row', rect, clinic: c })
                     }}
                     className={`flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5${isLast ? '' : ' border-b border-primary/6'}`}
                   >
@@ -1013,11 +1015,12 @@ export function AdminUserDetail({
           onAction: () => setClusterAction({ kind: 'pick-home', rect }),
         })
         return (
-          <ContextMenu
-            x={clusterAction.x}
-            y={clusterAction.y}
+          <AnchoredMenu
+            isOpen
+            anchorRect={clusterAction.rect}
+            layout="list"
             items={items}
-            // Functional update — ContextMenu fires onAction then onClose in the
+            // Functional update — the menu fires onAction then onClose in the
             // same handler. "Change home" sets kind='pick-home'; a plain
             // setClusterAction(null) here would clobber it (last write wins in
             // a React batch). Only clear if we're still on the home-row menu.
@@ -1026,7 +1029,7 @@ export function AdminUserDetail({
         )
       })()}
 
-      {/* Loan-row context menu — anchored at tap point. */}
+      {/* Loan-row context menu — anchored to the row (no-clone lift). */}
       {clusterAction?.kind === 'loan-row' && (() => {
         const c = clusterAction.clinic
         const items: ContextMenuItem[] = [
@@ -1053,9 +1056,10 @@ export function AdminUserDetail({
           })
         }
         return (
-          <ContextMenu
-            x={clusterAction.x}
-            y={clusterAction.y}
+          <AnchoredMenu
+            isOpen
+            anchorRect={clusterAction.rect}
+            layout="list"
             items={items}
             onClose={() => setClusterAction(null)}
           />

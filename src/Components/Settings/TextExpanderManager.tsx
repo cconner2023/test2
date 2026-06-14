@@ -30,6 +30,8 @@ interface TextExpanderManagerProps {
     clinicAbbrSet?: Set<string>;
     isSupervisorRole?: boolean;
     clusterPicker?: ReactNode;
+    /** Panel-wide Share/Export/Import ellipsis, folded into the corner pill. */
+    transferMenu?: ReactNode;
 }
 
 export const TextExpanderManager = ({
@@ -40,6 +42,7 @@ export const TextExpanderManager = ({
     clinicAbbrSet,
     isSupervisorRole = false,
     clusterPicker,
+    transferMenu,
 }: TextExpanderManagerProps) => {
     const fabRef = useRef<HTMLDivElement>(null);
 
@@ -60,6 +63,7 @@ export const TextExpanderManager = ({
                 <ActionPill ref={fabRef} data-tour="expander-fab" placement="overlay" shadow="sm">
                     {clusterPicker}
                     <ActionButton icon={Plus} label="New shortcut" onClick={() => fabRef.current && onStartNew(fabRef.current)} />
+                    {transferMenu}
                 </ActionPill>
                 <div data-tour="expander-list" className="rounded-xl bg-themewhite2 overflow-hidden">
                 <div className="px-2 py-2">

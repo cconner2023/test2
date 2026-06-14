@@ -298,17 +298,10 @@ export interface ClinicDetails {
   location: string | null
   location_id: string | null
   associatedClinicIds: string[]
-  rooms: ClinicRoom[]
   huddleTasks: ClinicHuddleTask[]
 }
 
-export interface ClinicRoom {
-  id: string
-  name: string
-  sort_order: number
-}
-
-/** Supervisor-defined huddle station (e.g. "Front Desk", "Triage"). Same shape as ClinicRoom. */
+/** Supervisor-defined huddle station (e.g. "Front Desk", "Triage"). */
 export interface ClinicHuddleTask {
   id: string
   name: string
@@ -348,11 +341,11 @@ export async function getClinicDetails(
   try {
     const { data } = await supabase
       .from('clinics')
-      .select('name, uics, location, location_id, encryption_key, associated_clinic_ids, rooms, huddle_tasks')
+      .select('name, uics, location, location_id, encryption_key, associated_clinic_ids, huddle_tasks')
       .eq('id', clinicId)
       .single()
 
-    if (!data) return { name: null, uics: [], location: null, location_id: null, associatedClinicIds: [], rooms: [], huddleTasks: [] }
+    if (!data) return { name: null, uics: [], location: null, location_id: null, associatedClinicIds: [], huddleTasks: [] }
 
     let location: string | null = data.location ?? null
     if (location && data.encryption_key) {
@@ -369,11 +362,10 @@ export async function getClinicDetails(
       location,
       location_id: (data as { location_id?: string | null }).location_id ?? null,
       associatedClinicIds: data.associated_clinic_ids ?? [],
-      rooms: (data.rooms as ClinicRoom[]) ?? [],
       huddleTasks: ((data as { huddle_tasks?: ClinicHuddleTask[] }).huddle_tasks as ClinicHuddleTask[]) ?? [],
     }
   } catch {
-    return { name: null, uics: [], location: null, location_id: null, associatedClinicIds: [], rooms: [], huddleTasks: [] }
+    return { name: null, uics: [], location: null, location_id: null, associatedClinicIds: [], huddleTasks: [] }
   }
 }
 
@@ -396,24 +388,6 @@ export async function updateSupervisorClinicLocationId(
   }
 }
 
-// ─── Update Clinic Rooms (dedicated RPC) ───────────────────────────────────
-
-export async function updateSupervisorClinicRooms(
-  clinicId: string,
-  rooms: ClinicRoom[],
-): Promise<ServiceResult> {
-  try {
-    const { error } = await supabase.rpc('supervisor_update_clinic_rooms', {
-      p_clinic_id: clinicId,
-      p_rooms: rooms,
-    })
-    if (error) return fail(error.message)
-    return succeed()
-  } catch (error) {
-    logger.error('Failed to update clinic rooms:', error)
-    return fail(getErrorMessage(error))
-  }
-}
 
 // ─── Update Clinic Huddle Tasks (dedicated RPC) ────────────────────────────
 

@@ -1,17 +1,14 @@
 import { useCallback, useRef, useState } from 'react'
-import { Check, Clock, DoorClosed, ListChecks, Loader2, Plus, Trash2, X } from 'lucide-react'
+import { Check, Clock, ListChecks, Loader2, Plus, Trash2, X } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
-import { useClinicRooms } from '../../Hooks/useClinicRooms'
 import { useClinicHuddleTasks } from '../../Hooks/useClinicHuddleTasks'
 import { useClinicAppointmentTypes } from '../../Hooks/useClinicAppointmentTypes'
 import {
-  updateSupervisorClinicRooms,
   updateSupervisorClinicHuddleTasks,
   updateSupervisorClinicAppointmentTypes,
   type ClinicHuddleTask,
   type ClinicAppointmentType,
 } from '../../lib/supervisorService'
-import type { ClinicRoom } from '../../lib/adminService'
 import { patchClinicConfig } from '../../Hooks/useClinicConfig'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
@@ -22,7 +19,7 @@ import { PreCombatChecksSection } from './PreCombatChecksSection'
 import { CategoryColorSettings } from './CategoryColorSettings'
 
 // Which slice of clinic config this editor renders.
-//  - 'clinic'   → Checklists only (now surfaced via Settings → Note Content →
+//  - 'clinic'   → Checklists only (now surfaced via Settings → App Content →
 //                 Checklists, which renders PreCombatChecksSection directly)
 //  - 'calendar' → Huddle Tasks, Rooms, Appointment Types, Category Colors (CalendarDrawer settings)
 // Each section lives in exactly one surface so clinic management holds only
@@ -32,21 +29,15 @@ export type ClinicEditorVariant = 'clinic' | 'calendar'
 export function CalendarClinicEditor({ variant = 'clinic' }: { variant?: ClinicEditorVariant } = {}) {
   const showClinic = variant === 'clinic'
   const showCalendar = variant === 'calendar'
-  // Pivot on the supervisor toggle so editing rooms / huddle tasks /
-  // appointment types targets the active clinic context (assigned by default,
-  // surrogate when toggled).
+  // Pivot on the supervisor toggle so editing huddle tasks / appointment types
+  // targets the active clinic context (assigned by default, surrogate when toggled).
+  // Rooms are no longer edited here — they are property zones, managed in the
+  // property book (see useClinicZones / v2/property zone-unification).
   const { clinicId: assignedClinicId, supervisingClinicId, isSupervisorRole } = useAuth()
   const clinicId = supervisingClinicId ?? assignedClinicId
-  const clinicRooms = useClinicRooms(clinicId)
   const clinicHuddleTasks = useClinicHuddleTasks(clinicId)
 
   const [error, setError] = useState<string | null>(null)
-
-  const roomFabRef = useRef<HTMLDivElement>(null)
-  const [roomPopover, setRoomPopover] = useState<{ mode: 'edit' | 'new'; anchor: DOMRect; room?: ClinicRoom } | null>(null)
-  const [roomDraftName, setRoomDraftName] = useState('')
-  const [roomSaving, setRoomSaving] = useState(false)
-  const [confirmDeleteRoom, setConfirmDeleteRoom] = useState<ClinicRoom | null>(null)
 
   const taskFabRef = useRef<HTMLDivElement>(null)
   const [taskPopover, setTaskPopover] = useState<{ mode: 'edit' | 'new'; anchor: DOMRect; task?: ClinicHuddleTask } | null>(null)
@@ -61,70 +52,6 @@ export function CalendarClinicEditor({ variant = 'clinic' }: { variant?: ClinicE
   const [apptDraftDuration, setApptDraftDuration] = useState('20')
   const [apptSaving, setApptSaving] = useState(false)
   const [confirmDeleteAppt, setConfirmDeleteAppt] = useState<ClinicAppointmentType | null>(null)
-
-  const closeRoomPopover = useCallback(() => {
-    setRoomPopover(null)
-    setRoomDraftName('')
-    setRoomSaving(false)
-  }, [])
-
-  const openRoomEditPopover = useCallback((room: ClinicRoom, target: HTMLElement) => {
-    setRoomPopover({ mode: 'edit', anchor: target.getBoundingClientRect(), room })
-    setRoomDraftName(room.name)
-  }, [])
-
-  const openRoomNewPopover = useCallback(() => {
-    if (!roomFabRef.current) return
-    setRoomPopover({ mode: 'new', anchor: roomFabRef.current.getBoundingClientRect() })
-    setRoomDraftName('')
-  }, [])
-
-  const persistRooms = useCallback(async (next: ClinicRoom[]): Promise<boolean> => {
-    if (!clinicId) return false
-    setRoomSaving(true)
-    setError(null)
-    const result = await updateSupervisorClinicRooms(clinicId, next)
-    setRoomSaving(false)
-    if (!result.success) {
-      setError(result.error)
-      return false
-    }
-    patchClinicConfig(clinicId, { rooms: next })
-    return true
-  }, [clinicId])
-
-  const handleSaveRoom = useCallback(async () => {
-    if (!roomPopover) return
-    const trimmed = roomDraftName.trim()
-    if (!trimmed) return
-    const lower = trimmed.toLowerCase()
-    let next: ClinicRoom[]
-    if (roomPopover.mode === 'new') {
-      if (clinicRooms.some(r => r.name.toLowerCase() === lower)) {
-        setError('A room with that name already exists')
-        return
-      }
-      const nextSort = clinicRooms.reduce((m, r) => Math.max(m, r.sort_order), -1) + 1
-      next = [...clinicRooms, { id: crypto.randomUUID(), name: trimmed, sort_order: nextSort }]
-    } else {
-      const target = roomPopover.room!
-      if (clinicRooms.some(r => r.id !== target.id && r.name.toLowerCase() === lower)) {
-        setError('A room with that name already exists')
-        return
-      }
-      next = clinicRooms.map(r => r.id === target.id ? { ...r, name: trimmed } : r)
-    }
-    const ok = await persistRooms(next)
-    if (ok) closeRoomPopover()
-  }, [roomPopover, roomDraftName, clinicRooms, persistRooms, closeRoomPopover])
-
-  const handleConfirmDeleteRoom = useCallback(async () => {
-    if (!confirmDeleteRoom) return
-    const next = clinicRooms.filter(r => r.id !== confirmDeleteRoom.id)
-    const ok = await persistRooms(next)
-    setConfirmDeleteRoom(null)
-    if (ok) closeRoomPopover()
-  }, [confirmDeleteRoom, clinicRooms, persistRooms, closeRoomPopover])
 
   const closeTaskPopover = useCallback(() => {
     setTaskPopover(null)
@@ -308,46 +235,6 @@ export function CalendarClinicEditor({ variant = 'clinic' }: { variant?: ClinicE
         </div>
       </section>}
 
-      {showCalendar && <section data-tour="clinic-rooms">
-        <div className="pb-2 flex items-center gap-2">
-          <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Rooms</p>
-        </div>
-        <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
-          <div className="px-4 py-3">
-            {clinicRooms.length === 0 ? (
-              <p className="text-[10pt] text-tertiary py-4 text-center">No clinic rooms formatted</p>
-            ) : (
-              <div className="space-y-1">
-                {[...clinicRooms]
-                  .sort((a, b) => a.sort_order - b.sort_order)
-                  .map((room) => (
-                    <button
-                      key={room.id}
-                      type="button"
-                      onClick={(e) => isSupervisorRole && openRoomEditPopover(room, e.currentTarget)}
-                      disabled={!isSupervisorRole}
-                      className="w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left hover:bg-secondary/5 active:scale-95 disabled:active:scale-100 transition-all"
-                    >
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center bg-tertiary/10 shrink-0">
-                        <DoorClosed size={14} className="text-tertiary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-primary truncate">{room.name}</p>
-                      </div>
-                    </button>
-                  ))}
-              </div>
-            )}
-          </div>
-          </div>
-          {isSupervisorRole && (
-            <ActionPill ref={roomFabRef} shadow="sm" placement="overlay">
-              <ActionButton icon={Plus} label="New room" onClick={openRoomNewPopover} />
-            </ActionPill>
-          )}
-        </div>
-      </section>}
-
       {showCalendar && <section data-tour="clinic-appointment-types">
         <div className="pb-2">
           <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Appointment Types</p>
@@ -390,67 +277,6 @@ export function CalendarClinicEditor({ variant = 'clinic' }: { variant?: ClinicE
       </section>}
 
       {showCalendar && <CategoryColorSettings />}
-
-      <PreviewOverlay
-        isOpen={!!roomPopover}
-        onClose={closeRoomPopover}
-        anchorRect={roomPopover?.anchor ?? null}
-        title={roomPopover?.mode === 'new' ? 'New room' : 'Edit room'}
-        maxWidth={340}
-        footer={
-          roomPopover ? (
-            <ActionPill>
-              <ActionButton
-                icon={roomSaving ? Loader2 : Check}
-                label={roomSaving ? 'Saving…' : 'Save'}
-                variant={roomSaving || !roomDraftName.trim() ? 'disabled' : 'success'}
-                onClick={handleSaveRoom}
-              />
-              {roomPopover.mode === 'edit' && (
-                <ActionButton
-                  icon={Trash2}
-                  label="Delete"
-                  variant="danger"
-                  onClick={() => {
-                    const room = roomPopover.room
-                    if (!room) return
-                    closeRoomPopover()
-                    setTimeout(() => setConfirmDeleteRoom(room), 320)
-                  }}
-                />
-              )}
-            </ActionPill>
-          ) : undefined
-        }
-      >
-        {roomPopover && (
-          <label className="block border-b border-primary/6">
-            <input
-              autoFocus
-              type="text"
-              value={roomDraftName}
-              onChange={(e) => setRoomDraftName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && roomDraftName.trim() && !roomSaving) handleSaveRoom()
-              }}
-              placeholder="Room name"
-              maxLength={60}
-              className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none"
-            />
-          </label>
-        )}
-      </PreviewOverlay>
-
-      <ConfirmDialog
-        visible={!!confirmDeleteRoom}
-        title="Delete this room?"
-        subtitle="Past events stop showing the room pill but are otherwise unaffected."
-        confirmLabel="Delete"
-        variant="danger"
-        processing={roomSaving}
-        onConfirm={handleConfirmDeleteRoom}
-        onCancel={() => setConfirmDeleteRoom(null)}
-      />
 
       <PreviewOverlay
         isOpen={!!taskPopover}

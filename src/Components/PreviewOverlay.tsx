@@ -16,10 +16,10 @@ export interface ContextMenuAction {
   closesOnAction?: boolean
 }
 
-export function PopoverHeader({ title, onClose, onBack }: { title: string; onClose: () => void; onBack?: () => void }) {
+export function PopoverHeader({ title, onClose, onBack, headerActions }: { title: string; onClose: () => void; onBack?: () => void; headerActions?: ReactNode }) {
   return (
     <div className="flex items-center justify-between px-4 pt-3.5 pb-3">
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 min-w-0">
         {onBack && (
           <button
             onClick={onBack}
@@ -29,15 +29,18 @@ export function PopoverHeader({ title, onClose, onBack }: { title: string; onClo
             <ChevronLeft size={16} />
           </button>
         )}
-        <span className="text-sm font-medium text-primary">{title}</span>
+        <span className="text-sm font-medium text-primary truncate">{title}</span>
       </div>
-      <button
-        onClick={onClose}
-        className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-tertiary active:scale-95 transition-all"
-        aria-label="Close"
-      >
-        <X size={16} />
-      </button>
+      <div className="flex items-center gap-1 shrink-0">
+        {headerActions}
+        <button
+          onClick={onClose}
+          className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-tertiary active:scale-95 transition-all"
+          aria-label="Close"
+        >
+          <X size={16} />
+        </button>
+      </div>
     </div>
   )
 }
@@ -59,6 +62,9 @@ interface PreviewOverlayProps {
   rightFooter?: ReactNode
   /** Title shown in the outer shell header alongside the X close button */
   title?: string
+  /** Optional overflow control(s) rendered left of the header X (e.g. an ellipsis
+   *  menu for object-level Share/Export/Delete). Requires `title`. */
+  headerActions?: ReactNode
   /** When provided, shows a back chevron to the left of the title */
   onBack?: () => void
   /** Override the default max-width (340px) of the card */
@@ -101,6 +107,7 @@ export function PreviewOverlay({
   actions = [],
   footer,
   title,
+  headerActions,
   onBack,
   maxWidth,
   previewMaxHeight,
@@ -236,7 +243,7 @@ export function PreviewOverlay({
 
                 {/* Inner white card — title + search + scrollable preview */}
                 <div className="bg-themewhite rounded-2xl overflow-hidden min-h-0">
-                  {title && <PopoverHeader title={title} onClose={onClose} onBack={onBack} />}
+                  {title && <PopoverHeader title={title} onClose={onClose} onBack={onBack} headerActions={headerActions} />}
                   {searchPlaceholder && preview && (
                     <div className="border-b border-tertiary/10 px-2 py-1.5 flex items-center gap-1.5">
                       {searchPrefix}
@@ -253,55 +260,52 @@ export function PreviewOverlay({
                   <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: previewMaxHeight ?? '40dvh' }}>
                     {resolvedContent}
                   </div>
+
+                  {/* Add input — additive row at the bottom of the card, revealed by the footer + */}
+                  {onAdd && (
+                    <div
+                      className="grid transition-[grid-template-rows] duration-300 ease-out"
+                      style={{ gridTemplateRows: addOpen ? '1fr' : '0fr' }}
+                    >
+                      <div className="overflow-hidden min-h-0">
+                        <div className="flex items-center gap-2 px-3 py-2.5 border-t border-tertiary/10">
+                          {addPrefix}
+                          <div className="flex-1">
+                            <input
+                              ref={addInputRef}
+                              type="text"
+                              value={addValue}
+                              onChange={(e) => setAddValue(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') handleAddConfirm() }}
+                              placeholder={addPlaceholder}
+                              className="w-full text-[10pt] pl-3 pr-3 py-2 rounded-full border border-tertiary/15 bg-themewhite text-primary outline-none focus:border-themeblue1/30 placeholder:text-tertiary transition-all duration-200"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => { setAddValue(''); setAddOpen(false) }}
+                            className="w-8 h-8 rounded-full bg-tertiary/8 flex items-center justify-center active:scale-95 transition-all shrink-0"
+                          >
+                            <X size={14} className="text-tertiary" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleAddConfirm}
+                            disabled={!addValue.trim()}
+                            className={`w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all shrink-0 ${
+                              addValue.trim() ? 'bg-themegreen/15' : 'bg-tertiary/8'
+                            }`}
+                          >
+                            <Check size={14} className={addValue.trim() ? 'text-themegreen' : 'text-tertiary'} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Optional content between inner card and footer */}
                 {supplemental}
-
-                {/* Add input — animated reveal */}
-                {onAdd && (
-                  <div
-                    className="grid transition-[grid-template-rows,opacity] duration-300 ease-out"
-                    style={{
-                      gridTemplateRows: addOpen ? '1fr' : '0fr',
-                      opacity: addOpen ? 1 : 0,
-                    }}
-                  >
-                    <div className="overflow-hidden min-h-0">
-                      <div className="flex items-center gap-2 pt-1">
-                        {addPrefix}
-                        <div className="flex-1">
-                          <input
-                            ref={addInputRef}
-                            type="text"
-                            value={addValue}
-                            onChange={(e) => setAddValue(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') handleAddConfirm() }}
-                            placeholder={addPlaceholder}
-                            className="w-full text-[10pt] pl-3 pr-3 py-2 rounded-full border border-tertiary/15 bg-themewhite text-primary outline-none focus:border-themeblue1/30 placeholder:text-tertiary transition-all duration-200"
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => { setAddValue(''); setAddOpen(false) }}
-                          className="w-8 h-8 rounded-full bg-tertiary/8 flex items-center justify-center active:scale-95 transition-all shrink-0"
-                        >
-                          <X size={14} className="text-tertiary" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleAddConfirm}
-                          disabled={!addValue.trim()}
-                          className={`w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all shrink-0 ${
-                            addValue.trim() ? 'bg-themegreen/15' : 'bg-tertiary/8'
-                          }`}
-                        >
-                          <Check size={14} className={addValue.trim() ? 'text-themegreen' : 'text-tertiary'} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {/* Footer row — actions pill LEFT, dismiss RIGHT */}
                 <div className="flex items-center justify-between px-0.5">

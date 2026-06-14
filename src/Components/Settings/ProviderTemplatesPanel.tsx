@@ -1,10 +1,13 @@
 import { useState, useCallback, useRef } from 'react';
 import { Plus } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
+import { useAuthStore } from '../../stores/useAuthStore';
 import type { UserTypes, ProviderNoteTemplate } from '../../Data/User';
 import { PROVIDER_TOUR_TEMPLATE_PREFIX } from '../../Data/GuidedTourData';
 import { ActionPill } from '../ActionPill';
 import { ActionButton } from '../ActionButton';
+import { CsvActionsMenu } from './CsvActionsMenu';
+import { exportProviderTemplatesCSV } from '../../Utilities/noteBlocksCSV';
 import { ProviderTemplateEditPopover, type EditState } from '../Provider/ProviderTemplateEditPopover';
 
 function fieldPreview(t: ProviderNoteTemplate): string {
@@ -21,8 +24,10 @@ function fieldPreview(t: ProviderNoteTemplate): string {
 
 export const ProviderTemplatesPanel = () => {
     const { profile, updateProfile, syncProfileField } = useUserProfile();
+    const clinicPlanOrderSets = useAuthStore(s => s.clinicPlanOrderSets);
 
     const templates = profile.providerNoteTemplates ?? [];
+    const orderSets = [...(clinicPlanOrderSets ?? []), ...(profile.planOrderSets ?? [])];
 
     const [editState, setEditState] = useState<EditState | null>(null);
     const fabRef = useRef<HTMLDivElement>(null);
@@ -91,6 +96,11 @@ export const ProviderTemplatesPanel = () => {
                         </div>
                         </div>
                         <ActionPill ref={fabRef} shadow="sm" placement="overlay">
+                            <CsvActionsMenu
+                                kind="providerTemplates"
+                                hasData={templates.length > 0}
+                                onExportCsv={() => exportProviderTemplatesCSV(templates, orderSets)}
+                            />
                             <ActionButton
                                 icon={Plus}
                                 label="New template"

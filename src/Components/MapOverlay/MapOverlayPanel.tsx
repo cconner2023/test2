@@ -2805,13 +2805,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           anchorRect={featureMenu.rect}
           onClose={() => setFeatureMenu(null)}
           layout="list"
-          row={
-            <div className="w-full flex items-center py-1.5 px-3 bg-themewhite">
-              <span className="text-[10pt] text-primary truncate flex-1">
-                {selectedFeature.label || `Untitled ${selectedFeature.type}`}
-              </span>
-            </div>
-          }
+          align="right"
           items={[
             { key: 'edit', label: 'Edit', icon: Pencil, onAction: handleToggleFeatureEditMode },
             ...(selectedFeature.type === 'waypoint' && selectedFeature.geometry.length > 0

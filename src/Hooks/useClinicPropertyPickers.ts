@@ -13,7 +13,7 @@ export interface PropertyPickerOption {
  * Fetches lean { id, name } lists of property items + locations for an arbitrary clinic.
  * Used by the PCC template editor so a supervisor toggled into a surrogate cluster
  * sees that cluster's equipment/locations, not their assigned cluster's. Mirrors the
- * useClinicRooms / useClinicHuddleTasks pattern.
+ * useClinicZones / useClinicHuddleTasks pattern.
  */
 export function useClinicPropertyPickers(clinicId?: string | null) {
   const propertiesGen = useInvalidation('properties')

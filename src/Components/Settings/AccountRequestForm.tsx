@@ -4,6 +4,7 @@ import type { Component } from '../../Data/User'
 import { submitAccountRequest, checkRequestStatus, checkEmailAvailability, type AccountRequest } from '../../lib/accountRequestService'
 import { TextInput, PickerInput, PasswordInput, UicPinInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
+import { ConfirmDialog } from '../ConfirmDialog'
 import { validatePasswordComplexity } from '../../lib/constants'
 
 const LOCAL_STORAGE_TOKEN_KEY = 'account_request_token'
@@ -52,6 +53,7 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isDuplicateError, setIsDuplicateError] = useState(false)
+  const [showEmailConfirm, setShowEmailConfirm] = useState(false)
   const [emailWarning, setEmailWarning] = useState<string | null>(null)
   const [checkingEmail, setCheckingEmail] = useState(false)
   const [requestStatus, setRequestStatus] = useState<AccountRequest | null>(null)
@@ -133,7 +135,7 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
@@ -143,6 +145,14 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
     if (pwError) { setError(pwError); return }
     if (password !== confirmPassword) { setError('Passwords do not match'); return }
 
+    // Catch email typos before an account gets baked with a wrong address —
+    // surface the typed email for a final visual check.
+    setShowEmailConfirm(true)
+  }
+
+  const doSubmit = async () => {
+    setShowEmailConfirm(false)
+    setError(null)
     setIsDuplicateError(false)
     setSubmitting(true)
 
@@ -385,6 +395,17 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
         )}
       </form>
 
+      <ConfirmDialog
+        visible={showEmailConfirm}
+        variant="primary"
+        title="Is your email correct?"
+        subtitle={`Approval and sign-in use this address — check it for typos:  ${email.trim()}`}
+        confirmLabel="Yes, submit request"
+        cancelLabel="Edit email"
+        processing={submitting}
+        onConfirm={doSubmit}
+        onCancel={() => setShowEmailConfirm(false)}
+      />
     </div>
   )
 }

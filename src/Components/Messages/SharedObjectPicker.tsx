@@ -1,18 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Calendar, Map as MapIcon, Image as ImageIcon, Package, ChevronRight, MapPin, Route, Hexagon } from 'lucide-react'
+import { Calendar, Map as MapIcon, Image as ImageIcon, Package, ChevronRight, MapPin, Route, Hexagon, FileText, ClipboardList } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { useMapOverlaysStore, useMapOverlaysCache } from '../../stores/useMapOverlaysStore'
 import { usePropertyStore } from '../../stores/usePropertyStore'
+import { useUserProfile } from '../../Hooks/useUserProfile'
+import { useEditableClinicContent } from '../../Hooks/useEditableClinicContent'
 import { fetchClinicItems } from '../../lib/propertyService'
 import type { LocalPropertyItem } from '../../Types/PropertyTypes'
 import type { LocalMapOverlay, OverlayFeature } from '../../Types/MapOverlayTypes'
 import type { SharedRefContent } from '../../lib/signal/messageContent'
+import type { BundleSource } from '../../lib/objectBundle'
+import type { TextExpander, PlanOrderSet } from '../../Data/User'
 
 type RefKind = 'calendar-event' | 'map-overlay' | 'property-item'
 // 'map-feature' is a drill-in sub-step of 'map-overlay' — pick a single feature
 // (or the whole overlay) so the shared_ref can carry a featureId.
-type Step = 'menu' | RefKind | 'map-feature'
+// 'template' lists the user's text templates + plan order sets — these have NO
+// live shared_ref (objectBundle.ts), so a pick sends a frozen note-blocks bundle.
+type Step = 'menu' | RefKind | 'map-feature' | 'template'
 
 /** Sentinel row id for the "Whole overlay" option inside the feature step. */
 const WHOLE_OVERLAY = '__whole_overlay__'
@@ -42,6 +48,9 @@ interface SharedObjectPickerProps {
   onPickPhoto: () => void
   /** User picked a clustered object to share. */
   onPick: (content: SharedRefContent) => void
+  /** User picked a text template / order set — sent as a frozen note-blocks
+   *  bundle (no live ref exists for config). Caller packs + sends into the chat. */
+  onPickBundle: (source: BundleSource) => void
 }
 
 function formatEventWhen(startISO: string, category: string): string {
@@ -54,11 +63,15 @@ function formatEventWhen(startISO: string, category: string): string {
 interface Row { id: string; label: string; sub: string }
 
 /**
- * Anchored picker for sharing a clustered object (calendar event or map
- * overlay) into a chat as a deep-link card. Two steps inside one PreviewOverlay:
- * a menu (Photo / Event / Map), then a searchable object list. Reads the
- * already-synced Zustand caches — sends only an opaque id + operational label,
- * never the payload, never PHI.
+ * Anchored picker for the chat composer's "+" add menu. Two steps inside one
+ * PreviewOverlay: a menu (Photo / Event / Map / Property / Template), then a
+ * searchable list.
+ *
+ * Event / Map / Property send a LIVE `shared_ref` (opaque id + operational label,
+ * resolved against the receiver's vault) via onPick. Template lists the user's
+ * text templates + plan order sets and sends a FROZEN note-blocks bundle via
+ * onPickBundle — config has no live ref (objectBundle.ts). Never the payload,
+ * never PHI.
  */
 export function SharedObjectPicker({
   isOpen,
@@ -68,12 +81,29 @@ export function SharedObjectPicker({
   onClose,
   onPickPhoto,
   onPick,
+  onPickBundle,
 }: SharedObjectPickerProps) {
   useMapOverlaysCache(clinicId)
 
   const events = useCalendarStore(s => s.events)
   const overlays = useMapOverlaysStore(s => s.overlays)
   const storeItems = usePropertyStore(s => s.items)
+
+  // Note-block sources for the 'template' step: personal (profile) + clinic
+  // content, merged. Text templates dedupe by abbr, order sets by id.
+  const { profile } = useUserProfile()
+  const { content: clinicContent } = useEditableClinicContent(clinicId)
+  const textTemplates = useMemo<TextExpander[]>(() => {
+    const merged = [...clinicContent.textExpanders, ...(profile.textExpanders ?? [])]
+    const seen = new Set<string>()
+    return merged.filter(t => { const k = t.abbr.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true })
+  }, [clinicContent.textExpanders, profile.textExpanders])
+  const orderSets = useMemo<PlanOrderSet[]>(() => {
+    const merged = [...clinicContent.planOrderSets, ...(profile.planOrderSets ?? [])]
+    const seen = new Set<string>()
+    return merged.filter(o => { if (seen.has(o.id)) return false; seen.add(o.id); return true })
+  }, [clinicContent.planOrderSets, profile.planOrderSets])
+
   const [step, setStep] = useState<Step>('menu')
   // Overlay whose features the user is drilling into (map-feature step).
   const [featureOverlay, setFeatureOverlay] = useState<LocalMapOverlay | null>(null)
@@ -186,9 +216,67 @@ export function SharedObjectPicker({
     onClose()
   }
 
+  // ── Template step (text templates + order sets → frozen note-blocks bundle) ──
+  interface TemplateRow { id: string; label: string; sub: string; isOrderSet: boolean }
+  const orderSetSub = (o: PlanOrderSet): string => {
+    const n = Object.values(o.presets).reduce((sum, arr) => sum + (arr?.length ?? 0), 0)
+    return `Order set · ${n} ${n === 1 ? 'order' : 'orders'}`
+  }
+  const buildTemplateRows = (filter: string): TemplateRow[] => {
+    const q = filter.trim().toLowerCase()
+    const te: TemplateRow[] = textTemplates
+      .filter(t => !q || t.abbr.toLowerCase().includes(q) || (t.expansion ?? '').toLowerCase().includes(q))
+      .map(t => ({ id: `te:${t.abbr}`, label: t.abbr, sub: t.expansion?.trim() || 'Text template', isOrderSet: false }))
+    const os: TemplateRow[] = orderSets
+      .filter(o => !q || o.name.toLowerCase().includes(q))
+      .map(o => ({ id: `os:${o.id}`, label: o.name, sub: orderSetSub(o), isOrderSet: true }))
+    return [...te, ...os].slice(0, 80)
+  }
+  const handlePickTemplate = (row: TemplateRow) => {
+    if (row.isOrderSet) {
+      const o = orderSets.find(x => `os:${x.id}` === row.id)
+      if (!o) return
+      onPickBundle({ kind: 'note-blocks', blocks: { planOrderSets: [o] }, label: o.name, subLabel: 'Order set' })
+    } else {
+      const t = textTemplates.find(x => `te:${x.abbr}` === row.id)
+      if (!t) return
+      onPickBundle({ kind: 'note-blocks', blocks: { textExpanders: [t] }, label: t.abbr, subLabel: 'Text template' })
+    }
+    onClose()
+  }
+  const templateList = (filter: string) => {
+    const rows = buildTemplateRows(filter)
+    if (rows.length === 0) {
+      return <p className="text-[10pt] text-tertiary text-center py-10">No templates to share</p>
+    }
+    return (
+      <div className="py-1">
+        {rows.map(row => {
+          const RowIcon = row.isOrderSet ? ClipboardList : FileText
+          return (
+            <button
+              key={row.id}
+              onClick={() => handlePickTemplate(row)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-primary/5 active:scale-[0.99] transition-all text-left"
+            >
+              <div className="w-9 h-9 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
+                <RowIcon size={16} className="text-themeblue3" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11pt] font-medium text-primary truncate">{row.label}</p>
+                <p className="text-[9pt] text-tertiary truncate">{row.sub}</p>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
+
   const title = step === 'menu' ? 'Share'
     : step === 'calendar-event' ? 'Share an event'
     : step === 'property-item' ? 'Share an item'
+    : step === 'template' ? 'Share a template'
     : step === 'map-feature' ? (featureOverlay?.name || 'Share a feature')
     : 'Share a map'
 
@@ -232,6 +320,16 @@ export function SharedObjectPicker({
           <Package size={16} className="text-themeblue3" />
         </div>
         <span className="text-[11pt] font-medium text-primary flex-1">Property</span>
+        <ChevronRight size={16} className="text-tertiary shrink-0" />
+      </button>
+      <button
+        onClick={() => setStep('template')}
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-primary/5 active:scale-[0.99] transition-all text-left"
+      >
+        <div className="w-9 h-9 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
+          <FileText size={16} className="text-themeblue3" />
+        </div>
+        <span className="text-[11pt] font-medium text-primary flex-1">Template</span>
         <ChevronRight size={16} className="text-tertiary shrink-0" />
       </button>
     </div>
@@ -295,7 +393,7 @@ export function SharedObjectPicker({
       previewMaxHeight="50dvh"
       {...(step === 'menu'
         ? {}
-        : { searchPlaceholder: 'Filter…', preview: (filter: string) => list(filter) })}
+        : { searchPlaceholder: 'Filter…', preview: (filter: string) => step === 'template' ? templateList(filter) : list(filter) })}
     >
       {step === 'menu' ? menu : null}
     </PreviewOverlay>

@@ -86,6 +86,11 @@ export interface PropertyLocation {
   name: string
   photo_data: string | null   // base64 data URL
   holder_user_id: string | null  // set on member-locations; null for physical locations
+  /** Optional real-world map anchor — links this zone to a map OverlayFeature (geo coords). */
+  overlay_feature_id?: string | null
+  overlay_id?: string | null
+  /** True on the single auto-provisioned cluster default zone (BAS / aid station) per clinic. */
+  is_default_zone?: boolean
   created_by: string
   created_at: string
   updated_at: string
@@ -93,6 +98,9 @@ export interface PropertyLocation {
 
 /** Sentinel name for the invisible root location that hosts the top-level canvas. */
 export const ROOT_LOCATION_NAME = '__root__'
+
+/** Display name for the auto-provisioned default cluster zone (battalion aid station). */
+export const DEFAULT_CLUSTER_ZONE_NAME = 'BAS'
 
 /** A single rectangle within a composite zone shape, normalised 0..1 within the zone bounding box. */
 export interface ZoneRect {

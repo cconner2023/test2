@@ -10,8 +10,8 @@ interface AnchoredMenuProps {
    *  the trigger button (ellipsis / selector). */
   anchorRect: DOMRect | null
   /** Visual clone of the row — rendered floating, lifted off the list (iOS peek).
-   *  OMIT for ellipsis / selector menus: with no clone the menu drops straight off
-   *  the anchor like a dropdown (no lift, no dim). */
+   *  OMIT for ellipsis / selector menus: with no clone the menu still dims the bg
+   *  and rises into place (same lifted feel) — it just has no row to lift. */
   row?: ReactNode
   items: ContextMenuItem[]
   onClose: () => void
@@ -26,9 +26,10 @@ interface AnchoredMenuProps {
   /** Reaction glyphs — rendered as a horizontal icon strip (the icon context
    *  menu) ABOVE the lifted row. List layout only. */
   reactions?: ContextMenuItem[]
-  /** Backdrop. Defaults to 'dim' when a clone is lifted (peek replaces context),
-   *  'plain' otherwise (transparent catcher — keeps surrounding context visible,
-   *  like a dropdown). */
+  /** Backdrop. Defaults to 'dim' (fade-in dim+blur) for BOTH the lifted-row peek
+   *  and clone-less ellipsis/selector menus — so the no-clone case keeps the same
+   *  lifted feel. Pass 'plain' to opt back into a transparent context-preserving
+   *  catcher (true dropdown). */
   backdrop?: 'dim' | 'plain'
   /** Optional uppercase section header at the top of a list card (selectors). */
   header?: string
@@ -82,8 +83,10 @@ function MenuListRow({ item, onSelect }: { item: ContextMenuItem; onSelect: (ite
  * for the action menu that drops in beneath it, over a dimmed/blurred backdrop.
  * Shared by mobile (long-press) and desktop (right-click) object rows.
  *
- * WITHOUT a `row` (ellipsis menus, selectors): no clone, no lift, no dim — the
- * menu simply drops off the anchor like a dropdown, keeping context visible.
+ * WITHOUT a `row` (ellipsis menus, selectors): no clone to lift, but it keeps the
+ * same lifted feel — the dim+blur backdrop still fades in and the menu card RISES
+ * up into place off the anchor (rather than a flat dropdown). Pass backdrop='plain'
+ * to opt back into a transparent context-preserving dropdown.
  *
  * `LiftedRowMenu` is a back-compat alias for callers that pass a clone.
  */
@@ -105,7 +108,9 @@ export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = f
   const vh = window.innerHeight
 
   const hasClone = !!row
-  const dimmed = backdrop ? backdrop === 'dim' : hasClone
+  // Dim by default (fade-in bg) for clone peeks AND clone-less menus alike — the
+  // no-clone case shouldn't read as a flat dropdown. 'plain' opts out.
+  const dimmed = backdrop ? backdrop === 'dim' : true
 
   const isList = layout === 'list'
   // Reactions ride as the top row of the list-card (horizontal emoji row).
@@ -142,6 +147,9 @@ export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = f
   const cloneOrigin = bare ? (align === 'right' ? 'right bottom' : 'left bottom') : 'center bottom'
   const vAlign = openUp ? 'bottom' : 'top'
   const menuOrigin = `${vAlign} ${align === 'right' ? 'right' : 'left'}`
+  // Entrance: a clone-peek menu settles DOWN beneath the lifted row; a clone-less
+  // menu RISES UP into place (echoes the lifted feel) instead of dropping flat.
+  const menuHidden = hasClone ? 'scale(0.92) translateY(-8px)' : 'scale(0.96) translateY(12px)'
 
   return createPortal(
     <div className="fixed inset-0" style={{ zIndex: 9998 }}>
@@ -192,7 +200,7 @@ export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = f
             WebkitTouchCallout: 'none',
             touchAction: 'manipulation',
             boxShadow: visible ? '0 18px 44px rgba(0,0,0,0.28)' : '0 0 0 rgba(0,0,0,0)',
-            transform: visible ? 'scale(1) translateY(0)' : 'scale(0.92) translateY(-8px)',
+            transform: visible ? 'scale(1) translateY(0)' : menuHidden,
             opacity: visible ? 1 : 0,
             transformOrigin: menuOrigin,
             transition:
@@ -247,7 +255,7 @@ export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = f
             position: 'absolute',
             left: menuLeft,
             top: menuTop,
-            transform: visible ? 'scale(1) translateY(0)' : 'scale(0.9) translateY(-8px)',
+            transform: visible ? 'scale(1) translateY(0)' : menuHidden,
             opacity: visible ? 1 : 0,
             transformOrigin: menuOrigin,
             transition:

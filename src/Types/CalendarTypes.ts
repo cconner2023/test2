@@ -24,7 +24,7 @@ export interface CalendarEvent {
   report_time: string | null
   assigned_to: string[]
   property_item_ids: string[]
-  /** Stable reference to a clinic room (clinics.rooms[].id). Resolved client-side. */
+  /** Stable reference to a structural property zone (property_locations.id). Resolved client-side. */
   room_id?: string | null
   /**
    * Stable reference to a supervisor-defined huddle task / station
@@ -138,7 +138,7 @@ export interface EventFormData {
   report_time: string
   assigned_to: string[]
   property_item_ids: string[]
-  /** Selected clinic room id (clinics.rooms[].id). Empty string = no room. */
+  /** Selected property zone id (property_locations.id). Empty string = no zone. */
   room_id?: string | null
   /** Selected huddle task id (clinics.huddle_tasks[].id). Only meaningful when category === 'huddle'. */
   huddle_task_id?: string | null

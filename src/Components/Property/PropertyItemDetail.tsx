@@ -203,11 +203,7 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
           anchorRect={menuAnchor.rect}
           onClose={() => setMenuAnchor(null)}
           layout="list"
-          row={
-            <div className="w-full flex items-center py-1.5 px-3 bg-themewhite">
-              <span className="text-[10pt] text-primary truncate flex-1">{item.name || item.nomenclature || 'Item'}</span>
-            </div>
-          }
+          align="right"
           items={[
             ...(onEdit ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: onEdit } as ContextMenuItem] : []),
             ...(!item.is_serialized ? [{

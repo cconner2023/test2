@@ -23,6 +23,7 @@ import {
   syncLocationNameToTags,
   ensureRootLocation,
   ensureMemberLocations,
+  ensureDefaultClusterZone,
   reconcileLocationsFromTags,
   updateFingerprint,
   recordExpendedEntry,
@@ -182,6 +183,8 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
 
       // Eagerly ensure every clinic member has a persisted location record
       await ensureMemberLocations(clinicId, user.id, memberList, rootLoc.id)
+      // Ensure the cluster's default zone (BAS) exists as the standing calendar room
+      await ensureDefaultClusterZone(clinicId, user.id, rootLoc.id)
       const freshLocations = await fetchClinicLocations(clinicId)
       set({ locations: freshLocations, isLoading: false })
 

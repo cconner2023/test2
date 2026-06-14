@@ -506,7 +506,7 @@ const textExpanderTour: TourDefinition = {
   steps: [
     {
       target: 'settings-note-content',
-      text: 'Text expanders live inside Note Content settings.',
+      text: 'Text expanders live inside App Content settings.',
       placement: 'bottom',
       beforeStep: 'open:settings',
       delay: 400,
@@ -905,7 +905,7 @@ const calendarTour: TourDefinition = {
     // ── Huddle band (inline above medic timeline rows) ──
     {
       target: 'calendar-huddle-band',
-      text: 'Huddle band — provider/medic pairings sit above the medic rows, anchored to each day. Pan horizontally to see other days; manage rooms in cluster settings.',
+      text: 'Huddle band — provider/medic pairings sit above the medic rows, anchored to each day. Pan horizontally to see other days; manage zones in the property book.',
       placement: 'bottom',
       beforeStep: 'calendar:view:troops',
       delay: 400,
@@ -975,7 +975,7 @@ const calendarTour: TourDefinition = {
     // ── Room picker ──
     {
       target: 'event-form-room',
-      text: 'Tag a cluster room so the event shows on that room\'s schedule. Rooms are managed in cluster settings.',
+      text: 'Tag a cluster zone so the event shows on that zone\'s schedule. Zones (BAS, rooms, sub-areas) are managed in the property book.',
       placement: 'top',
       duration: 5000,
     },

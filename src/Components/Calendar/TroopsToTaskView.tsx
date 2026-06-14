@@ -7,7 +7,6 @@ import { useCategoryColors } from '../../Hooks/useCategoryColors'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useIsMobile } from '../../Hooks/useIsMobile'
-import type { ClinicRoom } from '../../lib/adminService'
 import type { ClinicHuddleTask } from '../../lib/supervisorService'
 import { DatePickerCalendar } from '../FormInputs'
 import { PreviewOverlay } from '../PreviewOverlay'
@@ -17,7 +16,6 @@ interface TroopsToTaskViewProps {
   date: Date
   events: CalendarEvent[]
   medics: ClinicMedic[]
-  rooms: ClinicRoom[]
   /** Supervisor-defined huddle stations, sorted by sort_order. One band row per task. */
   huddleTasks: ClinicHuddleTask[]
   onSelectEvent: (id: string) => void
@@ -207,7 +205,7 @@ function assignLanes(assignments: CalendarEvent[], days: DaySlot[], cfg: ZoomCfg
   return positioned
 }
 
-export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onSelectEvent, onEventContextMenu, onDateChange, onNewHuddleEvent, onAssignMedicToHuddle, zoom = 'hour' }: TroopsToTaskViewProps) {
+export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEvent, onEventContextMenu, onDateChange, onNewHuddleEvent, onAssignMedicToHuddle, zoom = 'hour' }: TroopsToTaskViewProps) {
   const { resolve: resolveCategoryColor } = useCategoryColors()
   const cfg = ZOOM_CFG[zoom]
   const ticks = useMemo(() => buildTicks(cfg), [cfg])

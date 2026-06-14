@@ -5,7 +5,8 @@ import { GlassBand } from './GlassBand'
 import { MessageBubble } from './Settings/MessageBubble'
 import { SharedObjectPicker } from './Messages/SharedObjectPicker'
 import { PreviewOverlay } from './PreviewOverlay'
-import type { MessageContent } from '../lib/signal/messageContent'
+import type { MessageContent, SharedBundleContent } from '../lib/signal/messageContent'
+import { packBundle, bundleSourceToBundle, type BundleSource } from '../lib/objectBundle'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import { LiftedRowMenu } from './LiftedRowMenu'
 import { ReactionGlyph, REACTION_CODES, REACTION_LABELS } from './Messages/ReactionGlyphs'
@@ -257,6 +258,26 @@ export function ChatDetailView({
     const preview = content.type === 'shared_ref' || content.type === 'shared_bundle' ? content.label : 'Shared item'
     void sendStructured(conversationId, content, originId, preview)
   }, [sendStructured, conversationId])
+
+  // Text templates / order sets have no live shared_ref (objectBundle.ts) — pack
+  // a frozen note-blocks bundle and send it as shared_bundle into this chat.
+  const handleShareBundle = useCallback(async (source: BundleSource) => {
+    if (!sendStructured || !userId) return
+    const bundle = bundleSourceToBundle(source, user?.clinicName ?? 'another cluster', new Date().toISOString())
+    const packed = await packBundle(userId, bundle)
+    if (!packed.ok) return
+    const content: SharedBundleContent = {
+      type: 'shared_bundle',
+      bundleKind: packed.data.kind,
+      path: packed.data.path,
+      key: packed.data.key,
+      contentHash: packed.data.contentHash,
+      label: packed.data.label,
+      ...(packed.data.subLabel ? { subLabel: packed.data.subLabel } : {}),
+      sourceCluster: packed.data.sourceCluster,
+    }
+    void sendStructured(conversationId, content, crypto.randomUUID(), content.label)
+  }, [sendStructured, userId, user?.clinicName, conversationId])
 
   const [threadClosing, setThreadClosing] = useState(false)
   const [highlightId, setHighlightId] = useState<string | null>(null)
@@ -823,6 +844,7 @@ export function ChatDetailView({
           onClose={() => setAttachOpen(false)}
           onPickPhoto={() => fileInputRef.current?.click()}
           onPick={handleShareObject}
+          onPickBundle={handleShareBundle}
         />
       )}
       {!showThread && blockedReason && (

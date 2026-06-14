@@ -9,10 +9,12 @@ import { TextExpanderManager } from './TextExpanderManager';
 import { TextExpanderEditPopover, type TextExpanderEditState, type ExpanderScope } from './TextExpanderEditPopover';
 import { ClusterEditButton } from './ClusterEditPicker';
 import { NoteBlocksTransferMenu } from './NoteBlocksTransferMenu';
+import { useNoteBlocksTransfer } from '../../Hooks/useNoteBlocksTransfer';
 import { DEMO_EXPANDER_ABBR, DEMO_EXPANDER_BUILDS } from '../../Data/GuidedTourData';
 
 export const TextTemplatesPanel = () => {
     const { profile, updateProfile, syncProfileField } = useUserProfile();
+    const transfer = useNoteBlocksTransfer();
     const isSupervisorRole = useAuthStore(s => s.isSupervisorRole);
     const homeClinicId = useAuthStore(s => s.clinicId);
     const [editingClinicId, setEditingClinicId] = useState<string | null>(homeClinicId);
@@ -162,19 +164,12 @@ export const TextTemplatesPanel = () => {
                 />
             </div>
             <div data-tour="expander-usage-hint" className="px-5 py-4 space-y-5">
-                    <div className="flex items-start gap-3">
-                        <p data-tour="expander-edit-hint" className="flex-1 text-[10pt] text-tertiary leading-relaxed">
-                            Autotext shortcuts that expand abbreviations as you type in your notes.
-                            {clinicTextExpanders.length > 0 && (
-                                <span className="text-tertiary"> Includes cluster-wide shortcuts.</span>
-                            )}
-                        </p>
-                        <NoteBlocksTransferMenu
-                            baseName="text templates"
-                            data={{ textExpanders }}
-                            hasData={textExpanders.length > 0}
-                        />
-                    </div>
+                    <p data-tour="expander-edit-hint" className="text-[10pt] text-tertiary leading-relaxed">
+                        Autotext shortcuts that expand abbreviations as you type in your notes.
+                        {clinicTextExpanders.length > 0 && (
+                            <span className="text-tertiary"> Includes cluster-wide shortcuts.</span>
+                        )}
+                    </p>
 
                     <TextExpanderManager
                         expanders={allExpanders}
@@ -189,6 +184,14 @@ export const TextTemplatesPanel = () => {
                                 onSelect={setEditingClinicId}
                             />
                         }
+                        transferMenu={
+                            <NoteBlocksTransferMenu
+                                baseName="text templates"
+                                kind="templates"
+                                data={{ textExpanders }}
+                                hasData={textExpanders.length > 0}
+                            />
+                        }
                     />
             </div>
 
@@ -199,7 +202,11 @@ export const TextTemplatesPanel = () => {
                 onClose={() => setEditState(null)}
                 onSave={handleSave}
                 onDelete={handleDelete}
+                onShareItem={(e) => transfer.share({ textExpanders: [e] }, e.abbr)}
+                onExportItem={(e) => transfer.exportFile({ textExpanders: [e] }, e.abbr)}
             />
+
+            {transfer.picker}
         </>
     );
 };

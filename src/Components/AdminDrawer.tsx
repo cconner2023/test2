@@ -835,6 +835,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         <BottomIsland
             role="tablist"
             ariaLabel="Admin sections"
+            glass
             fab={
                 // FAB — absolute right, aligned to island. Users (user/cluster) +
                 // Locations (dev) create entities; requests/votes don't.
@@ -1008,8 +1009,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     </div>
                     {searchQuery.trim() ? renderSearchResults() : renderTabLists()}
                 </div>
-                {userFilterIsland}
-                {bottomIsland}
+                {!detailSheetOpen && userFilterIsland}
+                {!detailSheetOpen && bottomIsland}
             </div>
         ) : (
             // Desktop: scrollable content + absolute-positioned island (like Property)
@@ -1017,8 +1018,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 <div className="h-full overflow-y-auto">
                     {renderTabLists()}
                 </div>
-                {userFilterIsland}
-                {bottomIsland}
+                {!detailSheetOpen && userFilterIsland}
+                {!detailSheetOpen && bottomIsland}
             </div>
         )
     )

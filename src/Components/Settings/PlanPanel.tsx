@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { Check, Trash2, X, User, Building2 } from 'lucide-react';
+import { Check, Trash2, X, User, Building2, MessageSquare, Download } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useEditableClinicContent } from '../../Hooks/useEditableClinicContent';
@@ -15,6 +15,9 @@ import { CATEGORY_META, PlanTagManager } from './PlanTagManager';
 import { OrderSetManager } from './OrderSetManager';
 import { ClusterEditButton } from './ClusterEditPicker';
 import { NoteBlocksTransferMenu } from './NoteBlocksTransferMenu';
+import { useNoteBlocksTransfer } from '../../Hooks/useNoteBlocksTransfer';
+import { OverlayHeaderMenu } from '../OverlayHeaderMenu';
+import type { ContextMenuItem } from '../ContextMenu';
 import { ActionPill } from '../ActionPill'
 
 const ALL_KEYS: PlanBlockKey[] = [...PLAN_ORDER_CATEGORIES, 'instructions'];
@@ -32,6 +35,7 @@ type OrderSetPopover =
 
 export const PlanPanel = () => {
     const { profile, updateProfile, syncProfileField } = useUserProfile();
+    const transfer = useNoteBlocksTransfer();
     const isSupervisorRole = useAuthStore(s => s.isSupervisorRole);
     const homeClinicId = useAuthStore(s => s.clinicId);
     const [editingClinicId, setEditingClinicId] = useState<string | null>(homeClinicId);
@@ -203,19 +207,12 @@ export const PlanPanel = () => {
                 />
             </div>
             <div className="px-5 py-4 space-y-5" data-tour="plan-settings-panel">
-                    <div className="flex items-start gap-3">
-                        <p className="flex-1 text-[10pt] text-tertiary leading-relaxed">
-                            Manage order tags and order sets for the plan section of your notes.
-                            {(clinicPlanOrderTags || (clinicPlanOrderSets?.length ?? 0) > 0) && (
-                                <span className="text-tertiary"> Includes cluster-wide items.</span>
-                            )}
-                        </p>
-                        <NoteBlocksTransferMenu
-                            baseName="order sets"
-                            data={{ planOrderSets, planOrderTags, planInstructionTags }}
-                            hasData={planOrderSets.length > 0 || planInstructionTags.length > 0 || Object.values(planOrderTags).some(v => v.length > 0)}
-                        />
-                    </div>
+                    <p className="text-[10pt] text-tertiary leading-relaxed">
+                        Manage order tags and order sets for the plan section of your notes.
+                        {(clinicPlanOrderTags || (clinicPlanOrderSets?.length ?? 0) > 0) && (
+                            <span className="text-tertiary"> Includes cluster-wide items.</span>
+                        )}
+                    </p>
 
                     <OrderSetManager
                         orderSets={activePlanOrderSets}
@@ -233,6 +230,14 @@ export const PlanPanel = () => {
                             <ClusterEditButton
                                 selectedClinicId={editingClinicId}
                                 onSelect={setEditingClinicId}
+                            />
+                        }
+                        transferMenu={
+                            <NoteBlocksTransferMenu
+                                baseName="order sets"
+                                kind="orderSets"
+                                data={{ planOrderSets, planOrderTags, planInstructionTags }}
+                                hasData={planOrderSets.length > 0 || planInstructionTags.length > 0 || Object.values(planOrderTags).some(v => v.length > 0)}
                             />
                         }
                     />
@@ -262,6 +267,8 @@ export const PlanPanel = () => {
                 onSubmitNew={(scope, key, tag) => { addTag(scope, key, tag); setTagPopover(null); }}
                 onRename={(scope, key, original, next) => { renameTag(scope, key, original, next); setTagPopover(null); }}
                 onDelete={(scope, key, tag) => { deleteTag(scope, key, tag); setTagPopover(null); }}
+                onShareItem={(key, tag) => transfer.share(tagToData(key, tag), tag)}
+                onExportItem={(key, tag) => transfer.exportFile(tagToData(key, tag), tag)}
             />
 
             <OrderSetEditPopover
@@ -273,14 +280,25 @@ export const PlanPanel = () => {
                 hasClinic={!!clinicId}
                 onSave={(scope, set) => { upsertOrderSet(scope, set); setOrderSetPopover(null); }}
                 onDelete={(scope, id) => { deleteOrderSet(scope, id); setOrderSetPopover(null); }}
+                onShareItem={(set) => transfer.share({ planOrderSets: [set] }, set.name)}
+                onExportItem={(set) => transfer.exportFile({ planOrderSets: [set] }, set.name)}
             />
+
+            {transfer.picker}
         </>
     );
 };
 
+/** Build a single-tag note-blocks payload — instructions land in their own list,
+ *  every other category goes under planOrderTags keyed by category. */
+function tagToData(key: PlanBlockKey, tag: string): { planOrderTags?: PlanOrderTags; planInstructionTags?: string[] } {
+    if (key === 'instructions') return { planInstructionTags: [tag] };
+    return { planOrderTags: { ...EMPTY_TAGS, [key]: [tag] } };
+}
+
 // ── Tag edit / new popover ─────────────────────────────────────────
 
-function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitNew, onRename, onDelete }: {
+function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitNew, onRename, onDelete, onShareItem, onExportItem }: {
     state: TagPopover | null;
     onClose: () => void;
     isSupervisorRole: boolean;
@@ -288,6 +306,8 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitN
     onSubmitNew: (scope: Scope, key: PlanBlockKey, tag: string) => void;
     onRename: (scope: Scope, key: PlanBlockKey, original: string, next: string) => void;
     onDelete: (scope: Scope, key: PlanBlockKey, tag: string) => void;
+    onShareItem?: (key: PlanBlockKey, tag: string) => void;
+    onExportItem?: (key: PlanBlockKey, tag: string) => void;
 }) {
     const [name, setName] = useState('');
     const [category, setCategory] = useState<PlanBlockKey>('meds');
@@ -330,13 +350,22 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitN
 
     const editMeta = isEdit ? CATEGORY_META[(state as Extract<TagPopover, { mode: 'edit' }>).key] : null;
     const placeholder = isEdit ? editMeta?.label ?? 'Tag' : CATEGORY_META[category].label;
+    const editTitle = isEdit ? `Edit ${editMeta?.label ?? ''} tag` : 'New tag';
+
+    // Share/Export/Delete fold into the header ellipsis (edit mode); footer = Save.
+    const headerOptions: ContextMenuItem[] = isEdit ? [
+        ...(onShareItem ? [{ key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: () => { const s = state as Extract<TagPopover, { mode: 'edit' }>; onShareItem(s.key, trimmed || s.original); } }] : []),
+        ...(onExportItem ? [{ key: 'export', label: 'Export to file', icon: Download, onAction: () => { const s = state as Extract<TagPopover, { mode: 'edit' }>; onExportItem(s.key, trimmed || s.original); } }] : []),
+        { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: handleDelete },
+    ] : [];
 
     return (
         <PreviewOverlay
             isOpen={isOpen}
             onClose={onClose}
             anchorRect={state?.anchor ?? null}
-            title={isEdit ? `Edit ${editMeta?.label ?? ''} tag` : 'New tag'}
+            title={editTitle}
+            headerActions={<OverlayHeaderMenu items={headerOptions} />}
             maxWidth={360}
             footer={
                 <ActionPill>
@@ -346,14 +375,6 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitN
                         variant={canSave ? 'success' : 'disabled'}
                         onClick={handleSave}
                     />
-                    {isEdit && (
-                        <ActionButton
-                            icon={Trash2}
-                            label="Delete"
-                            variant="danger"
-                            onClick={handleDelete}
-                        />
-                    )}
                 </ActionPill>
             }
             rightFooter={!isEdit ? (
@@ -404,7 +425,7 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitN
 
 function OrderSetEditPopover({
     state, onClose, allOrderTags, allInstructionTags, isSupervisorRole, hasClinic,
-    onSave, onDelete,
+    onSave, onDelete, onShareItem, onExportItem,
 }: {
     state: OrderSetPopover | null;
     onClose: () => void;
@@ -414,6 +435,8 @@ function OrderSetEditPopover({
     hasClinic: boolean;
     onSave: (scope: Scope, set: PlanOrderSet) => void;
     onDelete: (scope: Scope, id: string) => void;
+    onShareItem?: (set: PlanOrderSet) => void;
+    onExportItem?: (set: PlanOrderSet) => void;
 }) {
     const [name, setName] = useState('');
     const [presets, setPresets] = useState<Partial<Record<PlanBlockKey, string[]>>>({});
@@ -478,14 +501,18 @@ function OrderSetEditPopover({
         [presets]
     );
 
-    const handleSave = () => {
-        if (!canSave) return;
+    const buildCurrentSet = (): PlanOrderSet => {
         const cleaned: Partial<Record<PlanBlockKey, string[]>> = {};
         for (const k of ALL_KEYS) {
             const v = presets[k];
             if (v && v.length > 0) cleaned[k] = v;
         }
-        onSave(scope, { id: idRef.current, name: trimmed, presets: cleaned });
+        return { id: idRef.current, name: trimmed, presets: cleaned };
+    };
+
+    const handleSave = () => {
+        if (!canSave) return;
+        onSave(scope, buildCurrentSet());
     };
 
     const handleDelete = () => {
@@ -493,12 +520,22 @@ function OrderSetEditPopover({
         onDelete(scope, state.orderSet.id);
     };
 
+    const osTitle = isEdit ? 'Edit order set' : 'New order set';
+
+    // Share/Export/Delete fold into the header ellipsis (edit mode); footer = Save.
+    const headerOptions: ContextMenuItem[] = isEdit ? [
+        ...(canSave && onShareItem ? [{ key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: () => onShareItem(buildCurrentSet()) }] : []),
+        ...(canSave && onExportItem ? [{ key: 'export', label: 'Export to file', icon: Download, onAction: () => onExportItem(buildCurrentSet()) }] : []),
+        { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: handleDelete },
+    ] : [];
+
     return (
         <PreviewOverlay
             isOpen={isOpen}
             onClose={onClose}
             anchorRect={state?.anchor ?? null}
-            title={isEdit ? 'Edit order set' : 'New order set'}
+            title={osTitle}
+            headerActions={<OverlayHeaderMenu items={headerOptions} />}
             maxWidth={520}
             previewMaxHeight="40dvh"
             searchPlaceholder="Search tags"
@@ -564,13 +601,6 @@ function OrderSetEditPopover({
                 </ActionPill>
             ) : undefined}
             actions={[
-                ...(isEdit ? [{
-                    key: 'delete',
-                    label: 'Delete',
-                    icon: Trash2,
-                    onAction: handleDelete,
-                    variant: 'danger' as const,
-                }] : []),
                 {
                     key: 'save',
                     label: 'Save',

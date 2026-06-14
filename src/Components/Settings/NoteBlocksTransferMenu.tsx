@@ -1,14 +1,11 @@
-import { useCallback, useRef, useState } from 'react'
-import { MoreHorizontal, MessageSquare, Download, Upload, User, Building2, Check } from 'lucide-react'
-import { ActionPill } from '../ActionPill'
+import { useState } from 'react'
+import { MoreHorizontal, MessageSquare, Download, Upload, FileSpreadsheet, FileDown } from 'lucide-react'
 import { ActionButton } from '../ActionButton'
-import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionSheet, type ActionSheetOption } from '../ActionSheet'
-import { useShareToChat } from '../Messages/ShareToChatPicker'
-import { useNoteBlocksIngest, summarizeIngest, type IngestScope } from '../../Hooks/useNoteBlocksIngest'
-import { downloadNoteBlocks, readNoteBlocksFile } from '../../lib/noteBlocksFile'
-import { useAuthStore } from '../../stores/useAuthStore'
-import type { NoteBlocksData, NoteBlocksBundle } from '../../lib/objectBundle'
+import { useNoteBlocksTransfer } from '../../Hooks/useNoteBlocksTransfer'
+import { NoteBlocksCSVImportDrawer } from './NoteBlocksCSVImportDrawer'
+import { exportTemplatesCSV, exportOrderSetsCSV, downloadNoteBlocksTemplate, type NoteBlocksCSVKind } from '../../Utilities/noteBlocksCSV'
+import type { NoteBlocksData } from '../../lib/objectBundle'
 
 interface Props {
   /** The blocks to share / export (the user's own — personal scope). */
@@ -17,62 +14,44 @@ interface Props {
   baseName: string
   /** Whether `data` actually holds anything to send. */
   hasData: boolean
+  /** Which CSV schema this panel imports/exports. */
+  kind: NoteBlocksCSVKind
 }
 
 /**
- * Drop-in Share / Export / Import control for a settings blocks panel (text
- * templates, order sets, plan tags). Share + Export send the user's own blocks
- * (one bundle, same projection as the chat card). Import reads a file and merges
- * with duplicate-checking into the chosen scope. One menu, consistent across
- * every blocks panel.
+ * Panel-wide Share / Export / Import control. Renders just the ellipsis trigger
+ * (+ its overlays) so it nests inside a manager's corner ActionPill alongside the
+ * cluster picker and the New button — one consolidated action menu instead of a
+ * separate floating ellipsis. Per-item Share/Export lives in the edit popovers via
+ * the same `useNoteBlocksTransfer` hook.
+ *
+ * Two transport flavors: the frozen `.json` bundle (cross-cluster, lossless) and a
+ * human-authorable `.csv` (the CSV mirrors property import — see noteBlocksCSV.ts).
  */
-export function NoteBlocksTransferMenu({ data, baseName, hasData }: Props) {
-  const clinicName = useAuthStore(s => s.user?.clinicName ?? null)
-  const { ingest, canIngestToClinic } = useNoteBlocksIngest()
-  const { shareBundle, picker } = useShareToChat()
-
-  const fileRef = useRef<HTMLInputElement>(null)
+export function NoteBlocksTransferMenu({ data, baseName, hasData, kind }: Props) {
+  const { share, exportFile, pickImport, picker, importOverlays } = useNoteBlocksTransfer()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [scopePick, setScopePick] = useState<NoteBlocksBundle | null>(null)
-  const [result, setResult] = useState<string | null>(null)
+  const [csvImportOpen, setCsvImportOpen] = useState(false)
 
-  const doShare = useCallback(() => {
-    shareBundle({ kind: 'note-blocks', blocks: data, label: `my ${baseName}` })
-  }, [shareBundle, data, baseName])
-
-  const doExport = useCallback(() => {
-    downloadNoteBlocks(data, clinicName ?? 'cluster', baseName)
-  }, [data, clinicName, baseName])
-
-  const runIngest = useCallback((bundle: NoteBlocksBundle, scope: IngestScope) => {
-    setResult(summarizeIngest(ingest(bundle, scope)))
-  }, [ingest])
-
-  const onFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    e.target.value = '' // allow re-picking the same file
-    if (!file) return
-    const res = await readNoteBlocksFile(file)
-    if (!res.ok) { setResult(res.error); return }
-    if (canIngestToClinic) setScopePick(res.data)
-    else runIngest(res.data, 'personal')
-  }, [canIngestToClinic, runIngest])
+  const exportCSV = () => {
+    if (kind === 'templates') exportTemplatesCSV(data.textExpanders ?? [])
+    else exportOrderSetsCSV(data.planOrderSets ?? [])
+  }
 
   const options: ActionSheetOption[] = [
     ...(hasData ? [
-      { key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: doShare },
-      { key: 'export', label: 'Export to file', icon: Download, onAction: doExport },
+      { key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: () => share(data, `my ${baseName}`) },
+      { key: 'export', label: 'Export to file', icon: Download, onAction: () => exportFile(data, baseName) },
+      { key: 'export-csv', label: 'Export CSV', icon: FileSpreadsheet, onAction: exportCSV },
     ] : []),
-    { key: 'import', label: 'Import from file', icon: Upload, onAction: () => fileRef.current?.click() },
+    { key: 'import', label: 'Import from file', icon: Upload, onAction: pickImport },
+    { key: 'import-csv', label: 'Import CSV', icon: FileSpreadsheet, onAction: () => setCsvImportOpen(true) },
+    { key: 'csv-template', label: 'Download CSV template', icon: FileDown, onAction: () => downloadNoteBlocksTemplate(kind) },
   ]
 
   return (
     <>
-      <ActionPill shadow="sm">
-        <ActionButton icon={MoreHorizontal} label="Share, export or import" onClick={() => setMenuOpen(true)} />
-      </ActionPill>
-
-      <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={onFile} />
+      <ActionButton icon={MoreHorizontal} label="Share, export or import" onClick={() => setMenuOpen(true)} />
 
       <ActionSheet
         visible={menuOpen}
@@ -81,29 +60,9 @@ export function NoteBlocksTransferMenu({ data, baseName, hasData }: Props) {
         onClose={() => setMenuOpen(false)}
       />
 
-      {/* Import scope chooser — only reached when this user can write clinic content. */}
-      <ActionSheet
-        visible={!!scopePick}
-        title="Add to…"
-        options={[
-          { key: 'personal', label: 'My personal blocks', icon: User, onAction: () => { if (scopePick) runIngest(scopePick, 'personal'); setScopePick(null) } },
-          { key: 'clinic', label: clinicName ? `${clinicName} (cluster)` : 'My cluster', icon: Building2, onAction: () => { if (scopePick) runIngest(scopePick, 'clinic'); setScopePick(null) } },
-        ]}
-        onClose={() => setScopePick(null)}
-      />
+      <NoteBlocksCSVImportDrawer visible={csvImportOpen} onClose={() => setCsvImportOpen(false)} kind={kind} />
 
-      {/* Result readout. */}
-      <PreviewOverlay
-        isOpen={!!result}
-        onClose={() => setResult(null)}
-        anchorRect={null}
-        title="Import"
-        maxWidth={320}
-        actions={[{ key: 'done', label: 'Done', icon: Check, onAction: () => setResult(null) }]}
-      >
-        <p className="px-4 py-5 text-[11pt] text-primary text-center">{result}</p>
-      </PreviewOverlay>
-
+      {importOverlays}
       {picker}
     </>
   )
