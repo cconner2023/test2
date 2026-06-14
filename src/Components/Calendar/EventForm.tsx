@@ -231,6 +231,10 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                   if (cat.value === 'medevac' && !form.medevac_data) {
                     updateField('medevac_data', emptyMedevacRequest())
                   }
+                  // Room is a huddle-only concept — drop any stale binding when leaving huddle.
+                  if (cat.value !== 'huddle' && form.room_id) {
+                    updateField('room_id', null)
+                  }
                 }}
                 options={EVENT_CATEGORIES.filter(c => !c.hidden && (!c.devOnly || isDevRole)).map(c => c.label)}
                 placeholder="Category *"
@@ -377,7 +381,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           </div>
           {errors.end_time && <p className="px-4 py-2 text-[10pt] text-themeredred border-b border-primary/6">{errors.end_time}</p>}
 
-          {form.category !== 'medevac' && roomOptions && roomOptions.length > 0 && (
+          {form.category === 'huddle' && roomOptions && roomOptions.length > 0 && (
             <div data-tour="event-form-room">
               <PickerInput
                 value={form.room_id ?? ''}

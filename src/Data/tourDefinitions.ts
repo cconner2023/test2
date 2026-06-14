@@ -38,6 +38,10 @@ export interface TourDefinition {
   scene?: string
   /** If true, only visible to dev-role users (tour not yet production-ready) */
   devOnly?: boolean
+  /** If true, this tour is NOT listed in the Guided Tours catalog — it is reachable
+   *  only via a release note that references its id. Returns the user to the Release
+   *  Notes panel on completion. Retired when its note rolls off Release.ts. */
+  releaseOnly?: boolean
   /** Suppress the per-step dot row in the tooltip (use for long tours where the dots would push nav off the card). Replaced with a compact `n / total` label. */
   hideStepperDots?: boolean
 }
@@ -1591,6 +1595,85 @@ const mapOverlayTour: TourDefinition = {
 
 // ─── Exports ─────────────────────────────────────────────────────────────────
 
+// ─── Release-only tours ──────────────────────────────────────────────────────
+// Reachable ONLY via a release note (Release.ts `tourId`). Hidden from the Guided
+// Tours catalog (`releaseOnly`). Return the user to the Release Notes panel on
+// completion. When a note rolls off Release.ts, retire its tour here too.
+
+const releaseEventSubtasksTour: TourDefinition = {
+  id: 'release-event-subtasks',
+  name: 'Event sub-tasks & clusters',
+  tier: 'medic',
+  category: 'reference-network',
+  releaseOnly: true,
+  description: 'Break a calendar event into a checklist — seed a PCC/PCI cluster or add ad-hoc tasks.',
+  steps: [
+    {
+      target: 'calendar-month-grid',
+      text: 'New this release: every calendar event can carry a checklist of sub-tasks. Let\'s open the event form.',
+      placement: 'bottom',
+      beforeStep: 'calendar:setup',
+      delay: 600,
+      duration: 5000,
+    },
+    {
+      target: 'event-form-title',
+      text: 'This is the new-event form. Sub-tasks attach to any event — scroll down to the Tasks card.',
+      placement: 'bottom',
+      beforeStep: 'calendar:open-event-form',
+      delay: 400,
+      duration: 4500,
+    },
+    {
+      target: 'event-form-tasks',
+      text: 'The Tasks card turns an event into a checklist. Tap + to seed a whole PCC/PCI cluster — a saved packing list — in one go, or add ad-hoc tasks: free text, a piece of equipment, or a location. Assignees tick items off as they go.',
+      placement: 'top',
+      beforeStep: 'scroll-to:event-form-tasks',
+      delay: 400,
+      duration: 7000,
+      pausePoint: true,
+      afterStep: 'calendar:cleanup',
+    },
+  ],
+}
+
+const releaseOutsideContactsTour: TourDefinition = {
+  id: 'release-outside-contacts',
+  name: 'Outside contacts',
+  tier: 'medic',
+  category: 'reference-network',
+  releaseOnly: true,
+  scene: 'outside-contacts',
+  description: 'How people outside your cluster reach you — on-call chat and event requests, no account needed.',
+  steps: [
+    {
+      target: 'oc-roster',
+      text: 'Outside contacts route to whoever is on-call. Keep the roster current so only medics on shift get notified.',
+      placement: 'bottom',
+      duration: 6000,
+    },
+    {
+      target: 'oc-publish',
+      text: 'A supervisor publishes a secure link plus passphrase. People outside your cluster use it to reach you — no account required.',
+      placement: 'bottom',
+      duration: 6000,
+    },
+    {
+      target: 'oc-outside-message',
+      text: 'Their chat lands as a one-way note to the on-call group, marked External so it is never mistaken for a teammate. No PHI crosses the wire.',
+      placement: 'bottom',
+      duration: 6500,
+    },
+    {
+      target: 'oc-intake-request',
+      text: 'Event requests arrive as a card. A supervisor approves it to drop the event straight onto the calendar, or declines it.',
+      placement: 'top',
+      duration: 6500,
+      pausePoint: true,
+    },
+  ],
+}
+
 export const allTours: TourDefinition[] = [
   // Tier 1: Medic
   gettingStarted,
@@ -1613,6 +1696,9 @@ export const allTours: TourDefinition[] = [
   providerTemplateClearTour,
   // Tier 3: Provider
   providerTour,
+  // Release-only (hidden from catalog; reached via Release.ts tourId)
+  releaseEventSubtasksTour,
+  releaseOutsideContactsTour,
 ]
 
 export const DEFAULT_STEP_DURATION = 4000

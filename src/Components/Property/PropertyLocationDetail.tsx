@@ -1,5 +1,5 @@
 import { useRef, useCallback } from 'react'
-import { Pencil, Package, FolderPlus, Camera, X, Trash2 } from 'lucide-react'
+import { Pencil, Package, FolderPlus, Camera, X, Trash2, MapPin } from 'lucide-react'
 import type { ContextMenuItem } from '../ContextMenu'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { PropertyLocationTree } from './PropertyLocationTree'
@@ -83,13 +83,16 @@ export function buildLocationMenuItems(opts: {
   onNewArea: () => void
   onPhoto: () => void
   onRemovePhoto: () => void
+  onLinkMap: () => void
   onDelete: () => void
 }): ContextMenuItem[] {
   const hasPhoto = !!opts.location.photo_data
+  const hasMapLink = !!opts.location.overlay_id
   return [
     { key: 'rename', label: 'Rename', icon: Pencil, onAction: opts.onRename },
     { key: 'new-item', label: 'New item', icon: Package, onAction: opts.onNewItem },
     { key: 'new-area', label: 'New area', icon: FolderPlus, onAction: opts.onNewArea },
+    { key: 'link-map', label: hasMapLink ? 'Map link' : 'Link to map', icon: MapPin, onAction: opts.onLinkMap },
     { key: 'photo', label: hasPhoto ? 'Change photo' : 'Add photo', icon: Camera, onAction: opts.onPhoto },
     ...(hasPhoto ? [{ key: 'remove-photo', label: 'Remove photo', icon: X, onAction: opts.onRemovePhoto } as ContextMenuItem] : []),
     ...(opts.canDelete ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: opts.onDelete } as ContextMenuItem] : []),

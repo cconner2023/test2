@@ -10,6 +10,7 @@ import { PropertyBreadcrumb } from './PropertyBreadcrumb'
 import { PropertySearchOverlay } from './PropertySearchOverlay'
 import { PropertyLocationForm, type PropertyLocationFormHandle } from './PropertyLocationForm'
 import { PropertyLocationDetail, buildLocationMenuItems, usePropertyPhotoUpload } from './PropertyLocationDetail'
+import { LocationMapLinkPicker } from './LocationMapLinkPicker'
 import { PropertyItemForm, type PropertyItemFormHandle } from './PropertyItemForm'
 import { PropertyLocationMap, type MapNavHandle } from './PropertyLocationMap'
 import { Sheet } from '../Sheet'
@@ -42,6 +43,8 @@ interface PropertyPanelProps {
   /** Mobile only — set search focus (e.g. clear on result tap / back). */
   onSearchFocusChange?: (focused: boolean) => void
   onEnrollItem?: (item: LocalPropertyItem) => void
+  /** New-item enroll: routed through a ConfirmDialog before the scan modal. */
+  onEnrollNewItem?: (item: LocalPropertyItem) => void
   /** Open the shared add ActionSheet (FAB lives over the center map pane). */
   onOpenAddSheet?: () => void
   /** Mobile only — whether the location-select sheet is open (driven by the drawer header). */
@@ -65,6 +68,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   searchFocused = false,
   onSearchFocusChange,
   onEnrollItem,
+  onEnrollNewItem,
   onOpenAddSheet,
   showLocationSheet,
   onCloseLocationSheet,
@@ -123,6 +127,8 @@ export const PropertyPanel = memo(function PropertyPanel({
   const [pendingDeleteLocId, setPendingDeleteLocId] = useState<string | null>(null)
   // Selected-location action menu (header ellipsis) anchor + photo upload plumbing.
   const [locMenu, setLocMenu] = useState<{ rect: DOMRect } | null>(null)
+  // Zone whose map link is being edited (LocationMapLinkPicker open).
+  const [mapLinkLoc, setMapLinkLoc] = useState<LocalPropertyLocation | null>(null)
   const { trigger: triggerPhoto, input: photoInput } = usePropertyPhotoUpload(
     (id, dataUrl) => store.editLocation(id, { photo_data: dataUrl }),
   )
@@ -298,6 +304,7 @@ export const PropertyPanel = memo(function PropertyPanel({
     onNewArea: () => handleAddChildLocation(loc.id),
     onPhoto: () => triggerPhoto(loc.id),
     onRemovePhoto: () => store.editLocation(loc.id, { photo_data: null }),
+    onLinkMap: () => setMapLinkLoc(loc),
     onDelete: () => setPendingDeleteLocId(loc.id),
   })
 
@@ -447,7 +454,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                     ref={itemFormRef}
                     editingItem={store.editingItem}
                     onClose={() => { store.setEditingItem(null); onBack() }}
-                    onEnrollNew={onEnrollItem}
+                    onEnrollNew={onEnrollNewItem}
                   />
                 </div>
               </>
@@ -516,6 +523,14 @@ export const PropertyPanel = memo(function PropertyPanel({
           />
         )}
         {photoInput}
+        {mapLinkLoc && store.clinicId && (
+          <LocationMapLinkPicker
+            location={mapLinkLoc}
+            clinicId={store.clinicId}
+            onClose={() => setMapLinkLoc(null)}
+            onLink={(update) => store.editLocation(mapLinkLoc.id, update)}
+          />
+        )}
 
         <ConfirmDialog
           visible={!!pendingDeleteItem}
@@ -637,7 +652,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             ref={itemFormRef}
             editingItem={store.editingItem}
             onClose={closeMobileForm}
-            onEnrollNew={onEnrollItem}
+            onEnrollNew={onEnrollNewItem}
           />
         ) : mobileForm?.kind === 'location' ? (
           <PropertyLocationForm
@@ -737,6 +752,14 @@ export const PropertyPanel = memo(function PropertyPanel({
         onConfirm={handleConfirmDeleteLocation}
         onCancel={() => setPendingDeleteLocId(null)}
       />
+      {mapLinkLoc && store.clinicId && (
+        <LocationMapLinkPicker
+          location={mapLinkLoc}
+          clinicId={store.clinicId}
+          onClose={() => setMapLinkLoc(null)}
+          onLink={(update) => store.editLocation(mapLinkLoc.id, update)}
+        />
+      )}
     </>
   )
 })

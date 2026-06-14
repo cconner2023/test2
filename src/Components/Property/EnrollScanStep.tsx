@@ -9,15 +9,19 @@ interface EnrollScanStepProps {
   itemName: string
   onEnrolled: (fingerprint: VisualFingerprint) => void
   onSkip: () => void
+  /** Skip the initial "Scan Now / Skip" card and open the camera immediately
+   * (used when enrollment was already confirmed upstream via ConfirmDialog). */
+  autoStart?: boolean
 }
 
 type EnrollPhase = 'initial' | 'camera' | 'processing' | 'done'
 
-export function EnrollScanStep({ itemName, onEnrolled, onSkip }: EnrollScanStepProps) {
+export function EnrollScanStep({ itemName, onEnrolled, onSkip, autoStart }: EnrollScanStepProps) {
   const [phase, setPhase] = useState<EnrollPhase>('initial')
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const fingerprintRef = useRef<VisualFingerprint | null>(null)
+  const autoStartedRef = useRef(false)
 
   // Auto-call onEnrolled once done phase is reached
   useEffect(() => {
@@ -35,6 +39,14 @@ export function EnrollScanStep({ itemName, onEnrolled, onSkip }: EnrollScanStepP
       if (streamRef.current) closeCamera(streamRef.current)
     }
   }, [])
+
+  // Confirmed upstream — jump straight to the camera, no initial card.
+  useEffect(() => {
+    if (autoStart && !autoStartedRef.current) {
+      autoStartedRef.current = true
+      handleScanNow()
+    }
+  }, [autoStart])
 
   async function handleScanNow() {
     try {

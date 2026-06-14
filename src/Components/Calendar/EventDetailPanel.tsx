@@ -1,11 +1,17 @@
-import { useEffect, useState, useRef } from 'react'
-import { Pencil, X, Share2, Map as MapIcon, Copy, Check, Printer, Image, Ban, CircleDashed, Play, CheckCircle2, Clock, MessageSquare } from 'lucide-react'
+import { useEffect, useState, useRef, useMemo } from 'react'
+import { Pencil, X, Share2, Map as MapIcon, Copy, Check, Printer, Image, Ban, CircleDashed, Play, CheckCircle2, Clock, MessageSquare, FileText } from 'lucide-react'
 import { reverseGeocode } from '../MapOverlay/searchResolver'
 import { latLngToUTM } from '../MapOverlay/utmProjection'
 import { OverlayTilePreview } from '../MapOverlay/OverlayTilePreview'
 import { useMapOverlaysStore } from '../../stores/useMapOverlaysStore'
+import { useTheme } from '../../Utilities/ThemeContext'
+import { getTileTheme } from '../MapOverlay/ThemedTileLayer'
+import { usePropertyStore } from '../../stores/usePropertyStore'
+import { renderConopMapSnapshot } from '../../lib/conop/mapSnapshot'
+import { generateConopPdf, type ConopData } from '../../lib/conop/generateConopPdf'
+import { downloadPdfBytes } from '../../Utilities/downloadUtils'
 import type { LucideIcon } from 'lucide-react'
-import type { OverlayFeature } from '../../Types/MapOverlayTypes'
+import type { OverlayFeature, LocalMapOverlay } from '../../Types/MapOverlayTypes'
 import type { CalendarEvent, EventStatus, EventSubtask } from '../../Types/CalendarTypes'
 import type { ClinicPreCombatCheck } from '../../lib/supervisorService'
 import { EventTasksCard } from './EventTasksCard'
@@ -64,6 +70,10 @@ interface EventDetailPanelProps {
     center?: [number, number]
     features?: { id: string; label: string; type: 'waypoint' | 'route' | 'area'; lat?: number; lng?: number }[]
   }[]
+  /** Map anchor of the event's scheduling zone (room_id), when that zone is
+   *  linked to an overlay (Phase 2 zone↔overlay link). Surfaces the zone's map
+   *  in Where alongside any event-specific linked overlays/features. */
+  roomAnchor?: { name: string; overlay_id: string; overlay_feature_id: string | null }
   hideHeader?: boolean
 }
 
@@ -90,14 +100,75 @@ const STATUS_TRIGGER_COLOR: Record<EventStatus, string> = {
   cancelled:   'text-themeredred',
 }
 
-export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, onCancelTemplate, apptTypeNames = [], canDeleteTemplate, onStatusChange, onUpdateSubtasks, checklistTemplates = [], assignedNames = [], linkedPropertyItems = [], overlayOptions, hideHeader }: EventDetailPanelProps) {
+export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, onCancelTemplate, apptTypeNames = [], canDeleteTemplate, onStatusChange, onUpdateSubtasks, checklistTemplates = [], assignedNames = [], linkedPropertyItems = [], overlayOptions, roomAnchor, hideHeader }: EventDetailPanelProps) {
   const isMobile = useIsMobile()
   const txt = isMobile ? 'text-sm' : 'text-[10pt]'
   const rowPad = isMobile ? 'px-4 py-3' : 'px-3 py-2.5'
   const isSupervisor = useAuthStore(s => s.isSupervisorRole)
   const openMapOverlay = useNavigationStore(s => s.setShowMapOverlayDrawer)
   const overlaysCache = useMapOverlaysStore(s => s.overlays)
+  const { theme, themeName } = useTheme()
+  const propertyItems = usePropertyStore(s => s.items)
+  const propertyLocations = usePropertyStore(s => s.locations)
+  const [exportingConop, setExportingConop] = useState(false)
   const editable = isEventEditable(event, isSupervisor)
+
+  // Linked geometry for the CONOP map snapshot (deduped union of all links).
+  const conopGeometry = useMemo(
+    () => gatherLinkedGeometry(event, overlaysCache, roomAnchor),
+    [event, overlaysCache, roomAnchor],
+  )
+  const canExportConop = conopGeometry.features.length > 0
+
+  // Mirrors EventTasksCard.labelFor — resolves property refs to display names.
+  const subtaskLabel = (sub: EventSubtask): string => {
+    switch (sub.kind) {
+      case 'task':              return sub.label
+      case 'property_item':     return sub.label_override ?? propertyItems.find(p => p.id === sub.ref)?.name ?? '(deleted item)'
+      case 'property_location': return propertyLocations.find(p => p.id === sub.ref)?.name ?? '(deleted location)'
+    }
+  }
+
+  const handleExportConop = async () => {
+    if (exportingConop) return
+    setExportingConop(true)
+    try {
+      const snap = canExportConop
+        ? await renderConopMapSnapshot({
+            features: conopGeometry.features,
+            overlayId: conopGeometry.overlayId,
+            theme: getTileTheme(themeName, theme),
+            width: 1040,
+            height: 980,
+          })
+        : null
+
+      const sorted = [...(event.subtasks ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      const data: ConopData = {
+        title: event.title || 'CONOP',
+        dtgRange:
+          formatDateTime(event.start_time, event.all_day) +
+          (!event.all_day ? ` – ${formatDateTime(event.end_time, false)}` : ''),
+        category: event.category,
+        location: event.location,
+        assignedNames: assignedNames.map(a => a.name),
+        uniform: event.uniform,
+        reportTime: event.report_time,
+        notes: event.description,
+        subtasks: sorted.map(s => ({ label: subtaskLabel(s), done: !!s.done_at })),
+        mapPng: snap?.pngBytes ?? null,
+        mapW: snap?.width,
+        mapH: snap?.height,
+        generatedAt: new Date().toISOString(),
+      }
+
+      const bytes = await generateConopPdf(data)
+      const safe = (event.title || 'conop').replace(/[^\w-]+/g, '_').slice(0, 40) || 'conop'
+      downloadPdfBytes(bytes, `conop-${safe}.pdf`)
+    } finally {
+      setExportingConop(false)
+    }
+  }
   const showCancelTemplate = event.category === 'templated' && !!onCancelTemplate && !isUnscheduledTemplate(event, apptTypeNames)
   const StatusIcon = STATUS_TRIGGER_ICON[event.status]
   const [statusMenu, setStatusMenu] = useState<{ rect: DOMRect } | null>(null)
@@ -171,6 +242,9 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
             {showCancelTemplate && (
               <PillButton icon={Ban} iconSize={16} onClick={() => onCancelTemplate?.(event.id)} label="Cancel appointment" />
             )}
+            {canExportConop && (
+              <PillButton icon={FileText} iconSize={16} onClick={handleExportConop} label="CONOP PDF" />
+            )}
             {editable && <PillButton icon={Pencil} iconSize={16} onClick={() => onEdit(event.id)} label="Edit" />}
             <PillButton icon={X} iconSize={16} onClick={onClose} label="Close" />
           </HeaderPill>
@@ -221,7 +295,16 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
               const fullIds = event.linked_overlays ?? []
               const featureAnchors = (event.linked_features ?? []).filter(f => !fullIds.includes(f.overlay_id))
               const hasLocation = !!event.location
-              const hasMaps = !!overlayOptions && (fullIds.length > 0 || featureAnchors.length > 0)
+              // The scheduling zone's own map anchor (Phase 2) — shown unless the
+              // same overlay/feature is already an explicit event link.
+              const roomDup = roomAnchor && (
+                fullIds.includes(roomAnchor.overlay_id) ||
+                (roomAnchor.overlay_feature_id
+                  ? featureAnchors.some(f => f.overlay_id === roomAnchor.overlay_id && f.feature_id === roomAnchor.overlay_feature_id)
+                  : false)
+              )
+              const showRoom = !!overlayOptions && !!roomAnchor && !roomDup
+              const hasMaps = !!overlayOptions && (fullIds.length > 0 || featureAnchors.length > 0 || showRoom)
               if (!hasLocation && !hasMaps) return null
               const overlayFor = (id: string) => overlayOptions?.find(o => o.id === id)
               const cachedOverlay = (id: string) => overlaysCache.find(o => o.id === id)
@@ -259,6 +342,20 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
                   onClick: () => openMapOverlay(true, f.overlay_id, f.feature_id),
                   overlayId: f.overlay_id,
                   features: cachedFeat ? [cachedFeat] : [],
+                })
+              }
+              if (showRoom && roomAnchor) {
+                const fid = roomAnchor.overlay_feature_id
+                const cached = cachedOverlay(roomAnchor.overlay_id)
+                const cachedFeat = fid ? cached?.features.find(x => x.id === fid) : undefined
+                rows.push({
+                  key: `room-${roomAnchor.overlay_id}-${fid ?? 'all'}`,
+                  name: roomAnchor.name,
+                  lat: fid ? cachedFeat?.geometry?.[0]?.[0] : overlayFor(roomAnchor.overlay_id)?.center?.[0],
+                  lng: fid ? cachedFeat?.geometry?.[0]?.[1] : overlayFor(roomAnchor.overlay_id)?.center?.[1],
+                  onClick: () => openMapOverlay(true, roomAnchor.overlay_id, fid ?? undefined),
+                  overlayId: roomAnchor.overlay_id,
+                  features: fid ? (cachedFeat ? [cachedFeat] : []) : (cached?.features ?? []),
                 })
               }
               return (
@@ -417,6 +514,53 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
       {shareToChatPicker}
     </div>
   )
+}
+
+/**
+ * Collect every overlay feature the event links — structured_location,
+ * linked_overlays (whole overlays), linked_features (single features), and the
+ * scheduling-zone roomAnchor — into one deduped list for the CONOP map snapshot.
+ * Full geometry comes from the overlays cache (overlayOptions carries only a
+ * slim projection). `overlayId` is the primary overlay whose cached tiles back
+ * the offline render. "Whatever is linked": a lone feature → tight zoom; a whole
+ * overlay → overlay-extent zoom (the snapshot fits bbox to this union).
+ */
+function gatherLinkedGeometry(
+  event: CalendarEvent,
+  overlays: LocalMapOverlay[],
+  roomAnchor?: { overlay_id: string; overlay_feature_id: string | null },
+): { features: OverlayFeature[]; overlayId?: string } {
+  const byId = new Map(overlays.map(o => [o.id, o]))
+  const seen = new Set<string>()
+  const features: OverlayFeature[] = []
+  const add = (f?: OverlayFeature) => {
+    if (f && !seen.has(f.id)) { seen.add(f.id); features.push(f) }
+  }
+
+  const fullIds = event.linked_overlays ?? []
+  for (const id of fullIds) byId.get(id)?.features.forEach(add)
+
+  for (const fa of event.linked_features ?? []) {
+    if (fullIds.includes(fa.overlay_id)) continue
+    add(byId.get(fa.overlay_id)?.features.find(x => x.id === fa.feature_id))
+  }
+
+  const sl = event.structured_location
+  if (sl?.overlay_id && !fullIds.includes(sl.overlay_id)) {
+    const o = byId.get(sl.overlay_id)
+    if (sl.primary_waypoint_id) add(o?.features.find(x => x.id === sl.primary_waypoint_id))
+    else o?.features.forEach(add)
+  }
+
+  if (roomAnchor) {
+    const o = byId.get(roomAnchor.overlay_id)
+    if (roomAnchor.overlay_feature_id) add(o?.features.find(x => x.id === roomAnchor.overlay_feature_id))
+    else o?.features.forEach(add)
+  }
+
+  const overlayId =
+    sl?.overlay_id ?? fullIds[0] ?? event.linked_features?.[0]?.overlay_id ?? roomAnchor?.overlay_id
+  return { features, overlayId }
 }
 
 interface LinkedLocationRowProps {

@@ -287,7 +287,7 @@ export function MessageBubble({
       <OncallCallCard
         content={message.content}
         createdAt={message.createdAt}
-        onLongPress={(x, y) => onLongPress?.(message, x, y)}
+        onLongPress={(x, y, rect, html) => onLongPress?.(message, x, y, rect, html)}
         messageId={message.id}
       />
     )
@@ -304,7 +304,7 @@ export function MessageBubble({
         isOwn={isOwn}
         senderName={senderName}
         messageId={message.id}
-        onLongPress={(x, y) => onLongPress?.(message, x, y)}
+        onLongPress={(x, y, rect, html) => onLongPress?.(message, x, y, rect, html)}
       />
     )
   }
@@ -315,7 +315,7 @@ export function MessageBubble({
       <OutsideMessageCard
         content={message.content}
         createdAt={message.createdAt}
-        onLongPress={(x, y) => onLongPress?.(message, x, y)}
+        onLongPress={(x, y, rect, html) => onLongPress?.(message, x, y, rect, html)}
         messageId={message.id}
       />
     )

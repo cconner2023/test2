@@ -17,6 +17,7 @@ import {
   deleteItem,
   fetchClinicLocations,
   createLocation,
+  createLevel,
   updateLocation,
   deleteLocation,
   fetchSubItems,
@@ -53,11 +54,14 @@ interface PropertyState {
   defaultLocationId: string | null
   tagVersion: number
   transitionState: 'idle' | 'zooming-in' | 'zooming-out'
+  /** Active floor per level-container (containerLocationId → active level locationId). */
+  activeLevelByContainer: Record<string, string>
 
   visibleLocations: () => LocalPropertyLocation[]
 
   setEditingItem: (item: LocalPropertyItem | null) => void
   selectZone: (zoneId: string | null) => void
+  setActiveLevel: (containerId: string, levelId: string) => void
   navigateToPath: (path: string[]) => void
   setRootLocationId: (id: string | null) => void
   setDefaultLocationId: (id: string | null) => void
@@ -69,6 +73,7 @@ interface PropertyState {
   editItem: (id: string, updates: Partial<PropertyItem>) => Promise<void>
   removeItem: (id: string) => Promise<void>
   addLocation: (data: Omit<PropertyLocation, 'id' | 'created_at' | 'updated_at'>) => Promise<{ success: boolean; location?: LocalPropertyLocation }>
+  addLevel: (parentId: string, name: string, ordinal: number) => Promise<LocalPropertyLocation | null>
   editLocation: (id: string, updates: Partial<PropertyLocation>) => Promise<void>
   removeLocation: (id: string) => Promise<void>
   refreshItems: () => Promise<void>
@@ -96,6 +101,7 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
   defaultLocationId: null,
   tagVersion: 0,
   transitionState: 'idle',
+  activeLevelByContainer: {},
 
   visibleLocations: () => {
     return get().locations.filter(l => l.name !== ROOT_LOCATION_NAME)
@@ -103,6 +109,8 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
 
   setEditingItem: (item) => set({ editingItem: item }),
   selectZone: (zoneId) => set({ selectedZoneId: zoneId }),
+  setActiveLevel: (containerId, levelId) =>
+    set((state) => ({ activeLevelByContainer: { ...state.activeLevelByContainer, [containerId]: levelId } })),
 
   navigateToPath: (path) => set({
     selectedZoneId: path[path.length - 1] ?? null,
@@ -133,7 +141,7 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
         return
       }
 
-      set({ clinicId })
+      set({ clinicId, activeLevelByContainer: {} })
 
       healStuckPendingRecords(user.id)
 
@@ -258,6 +266,19 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     return { success: false }
   },
 
+  addLevel: async (parentId, name, ordinal) => {
+    const user = useAuthStore.getState().user
+    const { clinicId } = get()
+    if (!user || !clinicId) return null
+
+    const result = await createLevel(clinicId, user.id, parentId, name, ordinal)
+    if (result.success) {
+      set({ locations: [...get().locations, result.location], tagVersion: get().tagVersion + 1 })
+      return result.location
+    }
+    return null
+  },
+
   editLocation: async (id, updates) => {
     const user = useAuthStore.getState().user
     if (!user) return
@@ -338,11 +359,10 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     const item = items.find(i => i.id === itemId)
     if (!item) return
 
-    if (item.is_serialized || item.quantity - quantityDelta <= 0) {
-      await get().removeItem(itemId)
-    } else {
-      await get().editItem(itemId, { quantity: item.quantity - quantityDelta })
-    }
+    // Never hard-delete on expend: clamp to 0 so the record survives as a
+    // reorder signal (qty 0 = depleted, needs restock) vs. re-inputting from scratch.
+    const newQty = Math.max(0, item.quantity - quantityDelta)
+    await get().editItem(itemId, { quantity: newQty })
 
     await recordExpendedEntry(itemId, quantityDelta, clinicId, user.id)
   },

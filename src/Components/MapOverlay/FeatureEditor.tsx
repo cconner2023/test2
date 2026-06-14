@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { Copy, Check, ChevronDown, Spline, Hexagon, Navigation } from 'lucide-react';
+import { Copy, Check, ChevronDown, Spline, Hexagon, Navigation, Plus } from 'lucide-react';
+import { floorLabel } from './FloorSelector';
 import { latLngToMgrs } from '../../lib/mgrsFormat';
 import { latLngToUTM } from './utmProjection';
 import type { OverlayFeature, WaypointType } from '../../Types/MapOverlayTypes';
@@ -35,6 +36,13 @@ interface FeatureEditorProps {
    *  PickerInput-style rows for TC3 + linked events. Read mode shows
    *  informational rows and action affordances only. */
   isEditMode?: boolean;
+  /** Distinct floor levels available in the overlay, ascending. When more than
+   *  one floor exists (or onChangeFloor is given) a floor-reassign row shows in
+   *  edit mode. */
+  floors?: number[];
+  /** Reassign this feature to a floor (0 = base). The parent also switches the
+   *  active floor so the moved feature stays visible after the move. */
+  onChangeFloor?: (level: number) => void;
 }
 
 const WAYPOINT_SNAP_M = 15; // legs that end within this distance of a waypoint borrow its label
@@ -82,7 +90,7 @@ function nearestWaypointLabel(
   return best ? best.label : null;
 }
 
-export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, linkedEventCount, onOpenLinksEditor, isEditMode = false }: FeatureEditorProps) {
+export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, linkedEventCount, onOpenLinksEditor, isEditMode = false, floors = [], onChangeFloor }: FeatureEditorProps) {
   const [copied, setCopied] = useState(false);
   const bearingReference = useMapPrefsStore(s => s.bearingReference);
   // Phase 4.1 — TC3 link integration. We subscribe with selectors so the
@@ -512,6 +520,41 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
               />
             );
           })}
+        </div>
+      )}
+
+      {/* Floor reassign — EDIT mode. Move this feature to another depth level.
+          Shown only when the overlay actually has depth (>1 floor) so flat
+          overlays stay uncluttered. "+" moves it to a brand-new floor. */}
+      {isEditMode && onChangeFloor && floors.length > 1 && (
+        <div data-tour="map-feature-floor" className="px-3 py-2 border-b border-primary/6 flex items-center gap-2">
+          <span className="text-[9pt] font-medium text-tertiary uppercase tracking-widest shrink-0">Floor</span>
+          <div className="flex items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+            {floors.map((level) => {
+              const active = (feature.level ?? 0) === level;
+              return (
+                <button
+                  key={level}
+                  type="button"
+                  onClick={() => onChangeFloor(level)}
+                  className={`shrink-0 w-8 h-8 rounded-md flex items-center justify-center text-[10pt] font-semibold transition-all active:scale-95 ${active ? 'bg-themeblue3 text-white' : 'bg-themewhite text-tertiary hover:text-primary'}`}
+                  aria-label={`Floor ${floorLabel(level)}`}
+                  title={`Floor ${floorLabel(level)}`}
+                >
+                  {floorLabel(level)}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => onChangeFloor(Math.max(0, ...floors) + 1)}
+              className="shrink-0 px-2 h-8 rounded-md flex items-center justify-center bg-themewhite text-tertiary hover:text-primary transition-all active:scale-95"
+              aria-label="Move to new floor"
+              title="Move to new floor"
+            >
+              <Plus size={14} />
+            </button>
+          </div>
         </div>
       )}
 

@@ -1,10 +1,13 @@
-import { useMemo, useRef } from 'react';
-import { Plus, UserPlus, Pill, ScanLine, FlaskConical, CalendarCheck, ClipboardList } from 'lucide-react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { Plus, UserPlus, Pill, ScanLine, FlaskConical, CalendarCheck, ClipboardList, MessageSquare, Download, Trash2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { PlanOrderTags, PlanBlockKey } from '../../Data/User';
 import { PLAN_ORDER_CATEGORIES } from '../../Data/User';
 import { ActionButton } from '../ActionButton';
 import { ActionPill } from '../ActionPill'
+import { LiftedRowMenu } from '../LiftedRowMenu';
+import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from '../liftPress';
+import type { ContextMenuItem } from '../ContextMenu';
 
 const ALL_KEYS: PlanBlockKey[] = [...PLAN_ORDER_CATEGORIES, 'instructions'];
 
@@ -25,12 +28,25 @@ interface PlanTagManagerProps {
     filter?: string;
     onTapTag: (key: PlanBlockKey, tag: string, anchor: HTMLElement) => void;
     onTapNew: (anchor: HTMLElement) => void;
+    /** Per-row actions (long-press / right-click lifted-row menu). */
+    onShareItem?: (key: PlanBlockKey, tag: string) => void;
+    onExportItem?: (key: PlanBlockKey, tag: string) => void;
+    onDeleteItem?: (key: PlanBlockKey, tag: string) => void;
 }
 
 export const PlanTagManager = ({
     orderTags, instructionTags, clinicTagSets, isSupervisorRole, filter = '', onTapTag, onTapNew,
+    onShareItem, onExportItem, onDeleteItem,
 }: PlanTagManagerProps) => {
     const fabRef = useRef<HTMLDivElement>(null);
+
+    // Lift-and-clone row menu (long-press / right-click) — Share / Export / Delete
+    // ride the tag row (clone includes the text) instead of an editor-header icon.
+    const [lifted, setLifted] = useState<({ key: PlanBlockKey; tag: string } & LiftSnapshot) | null>(null);
+    const pressRef = useRef<LiftPressState | null>(null);
+    const hasRowActions = !!(onShareItem || onExportItem || onDeleteItem);
+    const makeHandlers = useCallback((key: PlanBlockKey, tag: string) =>
+        liftPressHandlers((snap) => setLifted({ key, tag, ...snap }), pressRef), []);
 
     const getTagsForKey = (key: PlanBlockKey): string[] =>
         key === 'instructions' ? instructionTags : (orderTags[key] ?? []);
@@ -83,7 +99,8 @@ export const PlanTagManager = ({
                                                     key={i}
                                                     type="button"
                                                     disabled={!canEdit}
-                                                    onClick={(e) => onTapTag(key, tag, e.currentTarget)}
+                                                    onClick={(e) => { if (pressRef.current?.fired) return; onTapTag(key, tag, e.currentTarget); }}
+                                                    {...(canEdit && hasRowActions ? makeHandlers(key, tag) : {})}
                                                     className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left border-b border-primary/6 last:border-0 hover:bg-themeblue3/5 active:scale-[0.99] disabled:active:scale-100 transition-colors"
                                                 >
                                                     <span className="text-sm text-primary min-w-0 break-words">{tag}</span>
@@ -114,6 +131,21 @@ export const PlanTagManager = ({
                     <ActionButton icon={Plus} label="New tag" onClick={() => fabRef.current && onTapNew(fabRef.current)} />
                 </ActionPill>
             </div>
+
+            {lifted && (
+                <LiftedRowMenu
+                    isOpen
+                    anchorRect={lifted.rect}
+                    row={<div dangerouslySetInnerHTML={{ __html: lifted.html }} />}
+                    onClose={() => setLifted(null)}
+                    layout="list"
+                    items={[
+                        ...(onShareItem ? [{ key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: () => onShareItem(lifted.key, lifted.tag) }] : []),
+                        ...(onExportItem ? [{ key: 'export', label: 'Export to file', icon: Download, onAction: () => onExportItem(lifted.key, lifted.tag) }] : []),
+                        ...(onDeleteItem ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteItem(lifted.key, lifted.tag) }] : []),
+                    ] as ContextMenuItem[]}
+                />
+            )}
         </section>
     );
 };

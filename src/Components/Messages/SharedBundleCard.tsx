@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Calendar, Map as MapIcon, Plus, Check, RefreshCw } from 'lucide-react'
 import type { SharedBundleContent } from '../../lib/signal/messageContent'
 import type { OverlayFeature } from '../../Types/MapOverlayTypes'
@@ -25,7 +25,7 @@ interface Props {
   isOwn: boolean
   senderName?: string
   messageId: string
-  onLongPress?: (x: number, y: number) => void
+  onLongPress?: (x: number, y: number, rect?: DOMRect, html?: string) => void
 }
 
 /** Map a decrypted overlay bundle's features into the OverlayFeature shape the
@@ -140,7 +140,15 @@ function ObjectBundleCard({ content, isOwn, senderName, messageId, onLongPress }
     }
   }, [userId, clinicId, busy, added, bundle, content, writeEvent, writeOverlay, openCalendarEvent, setShowMapOverlayDrawer])
 
-  const longPress = useLongPress((x, y) => onLongPress?.(x, y))
+  // Snapshot the bubble's rect + markup so the lifted menu clones the whole card
+  // (text included) instead of opening cloneless at the cursor.
+  const rowRef = useRef<HTMLDivElement>(null)
+  const captureCard = useCallback((): { rect?: DOMRect; html?: string } => {
+    const el = rowRef.current
+    if (!el) return {}
+    return { rect: el.getBoundingClientRect(), html: el.outerHTML }
+  }, [])
+  const longPress = useLongPress((x, y) => { const s = captureCard(); onLongPress?.(x, y, s.rect, s.html) })
 
   const cardBg = isOwn ? 'bg-themeblue2 text-white' : 'bg-themewhite2 text-primary'
   const align = isOwn ? 'justify-end' : 'justify-start'
@@ -149,9 +157,10 @@ function ObjectBundleCard({ content, isOwn, senderName, messageId, onLongPress }
   return (
     <div className={`group flex ${align} items-center px-1 mb-1.5`} data-message-id={messageId}>
       <div
+        ref={rowRef}
         className={`max-w-[260px] w-[260px] p-3 rounded-2xl ${corner} ${cardBg} select-none`}
         style={{ touchAction: 'pan-y' }}
-        onContextMenu={(e) => { e.preventDefault(); onLongPress?.(e.clientX, e.clientY) }}
+        onContextMenu={(e) => { e.preventDefault(); const s = captureCard(); onLongPress?.(e.clientX, e.clientY, s.rect, s.html) }}
         onTouchStart={longPress.onTouchStart}
         onTouchMove={longPress.onTouchMove}
         onTouchEnd={longPress.onTouchEnd}

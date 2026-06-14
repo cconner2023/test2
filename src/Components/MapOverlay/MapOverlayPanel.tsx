@@ -343,6 +343,11 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   const [overlayId, setOverlayId] = useState<string | null>(null);
   const [overlayName, setOverlayName] = useState('');
   const [features, setFeatures] = useState<OverlayFeature[]>([]);
+  // Floor / depth (Genshin-style). `activeFloor` null = show all floors.
+  // `extraFloors` holds floors added via the rail that have no features yet —
+  // ephemeral (not persisted; an empty floor has nothing to save).
+  const [activeFloor, setActiveFloor] = useState<number | null>(null);
+  const [extraFloors, setExtraFloors] = useState<number[]>([]);
   const [drawMode, setDrawMode] = useState<DrawMode>('pan');
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
   // Read vs. edit mode for the selected-feature panel. Title-in-header is the
@@ -653,6 +658,37 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
 
   const selectedFeature = features.find(f => f.id === selectedFeatureId) ?? null;
 
+  // ── Floors / depth ──
+  // Distinct levels present (features + any empty floors the user added),
+  // ascending. Base floor (0) is always implied so the rail can grow from it.
+  const floorLevels = useMemo(() => {
+    const s = new Set<number>([0]);
+    for (const f of features) s.add(f.level ?? 0);
+    for (const n of extraFloors) s.add(n);
+    return [...s].sort((a, b) => a - b);
+  }, [features, extraFloors]);
+
+  // If the active floor disappears (its last feature was deleted), fall back to
+  // "All" so the map never renders blank with a dangling filter.
+  useEffect(() => {
+    if (activeFloor != null && !floorLevels.includes(activeFloor)) setActiveFloor(null);
+  }, [activeFloor, floorLevels]);
+
+  const handleAddFloor = useCallback(() => {
+    const next = (floorLevels.length ? Math.max(...floorLevels) : 0) + 1;
+    setExtraFloors(prev => [...prev, next]);
+    setActiveFloor(next);
+  }, [floorLevels]);
+
+  // Stamp newly-created features with the active floor. Read via ref so the
+  // many creation callbacks don't each need `activeFloor` in their deps.
+  const activeFloorRef = useRef<number | null>(null);
+  useEffect(() => { activeFloorRef.current = activeFloor; }, [activeFloor]);
+  const stampFloor = useCallback((f: OverlayFeature): OverlayFeature => {
+    const lvl = activeFloorRef.current;
+    return lvl != null && lvl !== 0 ? { ...f, level: lvl } : f;
+  }, []);
+
   const recorder = useTrackRecorder({
     overlayId,
     gps: gpsPosition ? { lat: gpsPosition.lat, lng: gpsPosition.lng, accuracy: gpsPosition.accuracy } : null,
@@ -686,7 +722,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
       created_at: now,
       updated_at: now,
     };
-    setFeatures(prev => [...prev, recordedFeature]);
+    setFeatures(prev => [...prev, stampFloor(recordedFeature)]);
     setDrawMode('pan');
   }, [overlayId, recorder]);
 
@@ -850,6 +886,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     setOverlayId(id);
     setOverlayName('');
     setFeatures([]);
+    setActiveFloor(null);
+    setExtraFloors([]);
     setDrawMode('pan');
     setSelectedFeatureId(null);
     setSearchQuery('');
@@ -878,6 +916,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   // to the pin at >=15; routes/areas fit to their bbox. `delay` lets callers
   // defer the camera move when the map needs a beat to settle first.
   const focusFeature = useCallback((feature: OverlayFeature, delay = 0) => {
+    // Selecting a feature on a specific floor switches the depth filter to it
+    // so the target isn't hidden behind the active-floor gate.
+    if (feature.level != null) setActiveFloor(feature.level);
     if (feature.geometry.length === 0) return;
     if (feature.type === 'waypoint') {
       const [lat, lng] = feature.geometry[0];
@@ -893,6 +934,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     setOverlayId(overlay.id);
     setOverlayName(overlay.name);
     setFeatures(overlay.features);
+    setActiveFloor(null);
+    setExtraFloors([]);
     setDrawMode('pan');
     setSelectedFeatureId(null);
     setSearchQuery('');
@@ -995,6 +1038,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     setSelectedFeatureId(null);
     setMeasurePoints([]);
     setMeasureResult(null);
+    setActiveFloor(null);
+    setExtraFloors([]);
     resetInProgressDrawing();
     onClose();
   }, [stopWatching, onClose, resetInProgressDrawing]);
@@ -1030,7 +1075,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
         created_at: now,
         updated_at: now,
       };
-      return [...prev, feature];
+      return [...prev, stampFloor(feature)];
     });
     setSelectedFeatureId(id);
     // After placement the feature drawer/panel takes over editing, so the
@@ -1081,7 +1126,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
               created_at: now,
               updated_at: now,
             };
-            return [...prev, feature];
+            return [...prev, stampFloor(feature)];
           });
           setTempRoute(null);
           setSelectedFeatureId(id);
@@ -1152,7 +1197,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           created_at: now,
           updated_at: now,
         };
-        setFeatures(prev => [...prev, feature]);
+        setFeatures(prev => [...prev, stampFloor(feature)]);
         setSelectedFeatureId(id);
       } else {
         const ipId = inProgressFeatureId.current;
@@ -1182,7 +1227,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           created_at: now,
           updated_at: now,
         };
-        setFeatures(prev => [...prev, feature]);
+        setFeatures(prev => [...prev, stampFloor(feature)]);
         setSelectedFeatureId(id);
       } else {
         const ipId = inProgressFeatureId.current;
@@ -1282,7 +1327,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
         created_at: now,
         updated_at: now,
       };
-      return [...prev, feature];
+      return [...prev, stampFloor(feature)];
     });
     setTempRoute(null);
     setSelectedFeatureId(id);
@@ -1304,7 +1349,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
         created_at: now,
         updated_at: now,
       };
-      return [...prev, feature];
+      return [...prev, stampFloor(feature)];
     });
     setTempRoute(null);
     setSelectedFeatureId(id);
@@ -1503,6 +1548,18 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   const handleUpdateSelectedFeature = useCallback((updated: OverlayFeature) => {
     setFeatures(prev => prev.map(f => f.id === updated.id ? updated : f));
   }, []);
+
+  // Reassign the selected feature to a floor. Store base (0) as undefined to
+  // keep flat overlays clean. Switch the active floor to the destination so the
+  // feature stays visible (and selected) after the move instead of vanishing
+  // behind the depth filter.
+  const handleChangeFeatureFloor = useCallback((level: number) => {
+    if (!selectedFeatureId) return;
+    setFeatures(prev => prev.map(f => f.id === selectedFeatureId
+      ? { ...f, level: level === 0 ? undefined : level, updated_at: new Date().toISOString() }
+      : f));
+    setActiveFloor(level === 0 ? null : level);
+  }, [selectedFeatureId]);
 
   // ── Feature click ──
   // Add vs Select are strictly separated: only `pan` (and `drag` for moving)
@@ -2055,6 +2112,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 tempPoint={tempPoint}
                 tempRoute={tempRoute}
                 onTempRouteChange={handleTempRouteChange}
+                floors={floorLevels}
+                activeFloor={activeFloor}
+                onActiveFloorChange={setActiveFloor}
+                onAddFloor={handleAddFloor}
               />
 
               {/* ── Map settings (overlays + grid) — drawer/preview-overlay, calendar-settings pattern ── */}
@@ -2200,6 +2261,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                         }, 0)}
                         onOpenLinksEditor={(anchor) => handleOpenFeatureLinksEditor(selectedFeature.overlay_id, selectedFeature.id, anchor)}
                         isEditMode={isFeatureEditMode}
+                        floors={floorLevels}
+                        onChangeFloor={handleChangeFeatureFloor}
                       />
                     </>
                   )}
@@ -2730,6 +2793,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                       }, 0)}
                       onOpenLinksEditor={(anchor) => handleOpenFeatureLinksEditor(selectedFeature.overlay_id, selectedFeature.id, anchor)}
                       isEditMode={isFeatureEditMode}
+                      floors={floorLevels}
+                      onChangeFloor={handleChangeFeatureFloor}
                     />
                   </div>
                 </div>

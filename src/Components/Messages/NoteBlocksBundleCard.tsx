@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { LayoutTemplate, Plus, Check, RefreshCw, User, Building2 } from 'lucide-react'
 import type { SharedBundleContent } from '../../lib/signal/messageContent'
 import { unpackBundle } from '../../lib/objectBundle'
@@ -14,7 +14,7 @@ interface Props {
   isOwn: boolean
   senderName?: string
   messageId: string
-  onLongPress?: (x: number, y: number) => void
+  onLongPress?: (x: number, y: number, rect?: DOMRect, html?: string) => void
 }
 
 /**
@@ -52,7 +52,15 @@ export function NoteBlocksBundleCard({ content, isOwn, senderName, messageId, on
     }
   }, [busy, added, content.path, content.key, content.contentHash, ingest, scope])
 
-  const longPress = useLongPress((x, y) => onLongPress?.(x, y))
+  // Snapshot the bubble's rect + markup so the lifted menu clones the whole card
+  // (text included) instead of opening cloneless at the cursor.
+  const rowRef = useRef<HTMLDivElement>(null)
+  const captureCard = useCallback((): { rect?: DOMRect; html?: string } => {
+    const el = rowRef.current
+    if (!el) return {}
+    return { rect: el.getBoundingClientRect(), html: el.outerHTML }
+  }, [])
+  const longPress = useLongPress((x, y) => { const s = captureCard(); onLongPress?.(x, y, s.rect, s.html) })
 
   const cardBg = isOwn ? 'bg-themeblue2 text-white' : 'bg-themewhite2 text-primary'
   const align = isOwn ? 'justify-end' : 'justify-start'
@@ -61,9 +69,10 @@ export function NoteBlocksBundleCard({ content, isOwn, senderName, messageId, on
   return (
     <div className={`group flex ${align} items-center px-1 mb-1.5`} data-message-id={messageId}>
       <div
+        ref={rowRef}
         className={`max-w-[260px] w-[260px] p-3 rounded-2xl ${corner} ${cardBg} select-none`}
         style={{ touchAction: 'pan-y' }}
-        onContextMenu={(e) => { e.preventDefault(); onLongPress?.(e.clientX, e.clientY) }}
+        onContextMenu={(e) => { e.preventDefault(); const s = captureCard(); onLongPress?.(e.clientX, e.clientY, s.rect, s.html) }}
         onTouchStart={longPress.onTouchStart}
         onTouchMove={longPress.onTouchMove}
         onTouchEnd={longPress.onTouchEnd}

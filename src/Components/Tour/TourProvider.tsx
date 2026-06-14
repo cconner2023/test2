@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useState, useEffect, createContext, useContext } from 'react'
+import { lazy, Suspense, useCallback, useState, useEffect, useRef, createContext, useContext } from 'react'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useTour, type TourActionHandler } from '../../Hooks/useTour'
 import type { TourDefinition } from '../../Data/tourDefinitions'
@@ -11,11 +11,16 @@ import { useNavPreferencesStore } from '../../stores/useNavPreferencesStore'
 
 const TourOverlay = lazy(() => import('./TourOverlay').then(m => ({ default: m.TourOverlay })))
 const GettingStartedScene = lazy(() => import('./scenes/GettingStartedScene'))
+const OutsideContactsScene = lazy(() => import('./scenes/OutsideContactsScene'))
 
 // ─── Context ─────────────────────────────────────────────────────────────────
 
 interface TourContextValue {
   startTour: (tourId: string) => void
+  /** Launch a release-only tour — returns the user to the Release Notes panel on completion. */
+  startReleaseTour: (tourId: string) => void
+  /** Role/dev gate for a tour by id (includes release-only tours hidden from the catalog). */
+  canStartTour: (tourId: string) => boolean
   isActive: boolean
   availableTours: TourDefinition[]
   isCompleted: (tourId: string) => boolean
@@ -73,6 +78,9 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
   const isDark = theme === 'dark'
   const [tooltipHidden, setTooltipHidden] = useState(false)
   const [curtainVisible, setCurtainVisible] = useState(false)
+  // Where a tour's cleanup/return lands the user. Default = Guided Tours catalog;
+  // release-only tours launched from a release note set this to 'release-notes'.
+  const returnTargetRef = useRef<'guided-tours' | 'release-notes'>('guided-tours')
 
   const closeAllDrawers = useCallback(() => {
     const store = nav.getState()
@@ -316,7 +324,7 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       store.closeMenu()
       store.setShowSettings(true)
       await new Promise(r => setTimeout(r, 350))
-      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'guided-tours' }))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: returnTargetRef.current }))
       setCurtainVisible(false)
       await new Promise(r => setTimeout(r, 350))
       return
@@ -466,7 +474,7 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       store.closeMenu()
       store.setShowSettings(true)
       await new Promise(r => setTimeout(r, 350))
-      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'guided-tours' }))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: returnTargetRef.current }))
       setCurtainVisible(false)
       await new Promise(r => setTimeout(r, 350))
       return
@@ -487,7 +495,7 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       store.closeMenu()
       store.setShowSettings(true)
       await new Promise(r => setTimeout(r, 350))
-      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'guided-tours' }))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: returnTargetRef.current }))
       setCurtainVisible(false)
       await new Promise(r => setTimeout(r, 350))
       return
@@ -555,7 +563,7 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       store.closeMenu()
       store.setShowSettings(true)
       await new Promise(r => setTimeout(r, 350))
-      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'guided-tours' }))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: returnTargetRef.current }))
       setCurtainVisible(false)
       await new Promise(r => setTimeout(r, 350))
       return
@@ -634,7 +642,7 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       store.closeMenu()
       store.setShowSettings(true)
       await new Promise(r => setTimeout(r, 350))
-      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'guided-tours' }))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: returnTargetRef.current }))
       setCurtainVisible(false)
       await new Promise(r => setTimeout(r, 350))
       return
@@ -666,7 +674,7 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       store.closeMenu()
       store.setShowSettings(true)
       await new Promise(r => setTimeout(r, 350))
-      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'guided-tours' }))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: returnTargetRef.current }))
       setCurtainVisible(false)
       await new Promise(r => setTimeout(r, 350))
       return
@@ -758,7 +766,7 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       store.closeMenu()
       store.setShowSettings(true)
       await new Promise(r => setTimeout(r, 350))
-      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'guided-tours' }))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: returnTargetRef.current }))
       setCurtainVisible(false)
       await new Promise(r => setTimeout(r, 350))
       return
@@ -832,7 +840,7 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       store.closeMenu()
       store.setShowSettings(true)
       await new Promise(r => setTimeout(r, 350))
-      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'guided-tours' }))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: returnTargetRef.current }))
       setCurtainVisible(false)
       await new Promise(r => setTimeout(r, 350))
       return
@@ -866,7 +874,7 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       // 4. Open Settings → Guided Tours
       store.setShowSettings(true)
       await new Promise(r => setTimeout(r, 350))
-      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'guided-tours' }))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: returnTargetRef.current }))
 
       // 5. Fade out (tooltipHidden resets when next tour starts)
       setCurtainVisible(false)
@@ -935,7 +943,7 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       store.closeMenu()
       store.setShowSettings(true)
       await new Promise(r => setTimeout(r, 350))
-      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'guided-tours' }))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: returnTargetRef.current }))
       setCurtainVisible(false)
       await new Promise(r => setTimeout(r, 350))
       return
@@ -1052,7 +1060,7 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       store.closeMenu()
       store.setShowSettings(true)
       await new Promise(r => setTimeout(r, 350))
-      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'guided-tours' }))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: returnTargetRef.current }))
       setCurtainVisible(false)
       await new Promise(r => setTimeout(r, 350))
       return
@@ -1072,7 +1080,7 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       store.closeMenu()
       store.setShowSettings(true)
       await new Promise(r => setTimeout(r, 350))
-      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: 'guided-tours' }))
+      window.dispatchEvent(new CustomEvent('tour:settings-navigate', { detail: returnTargetRef.current }))
       setCurtainVisible(false)
       await new Promise(r => setTimeout(r, 350))
       return
@@ -1093,8 +1101,22 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
     if (tour.isActive) setTooltipHidden(false)
   }, [tour.isActive])
 
+  // Catalog launch — return to Guided Tours on completion (default).
+  const startTour = useCallback((tourId: string) => {
+    returnTargetRef.current = 'guided-tours'
+    tour.startTour(tourId)
+  }, [tour.startTour])
+
+  // Release-note launch — return to the Release Notes panel on completion.
+  const startReleaseTour = useCallback((tourId: string) => {
+    returnTargetRef.current = 'release-notes'
+    tour.startTour(tourId)
+  }, [tour.startTour])
+
   const contextValue: TourContextValue = {
-    startTour: tour.startTour,
+    startTour,
+    startReleaseTour,
+    canStartTour: tour.canStartTour,
     isActive: tour.isActive,
     availableTours: tour.availableTours,
     isCompleted: tour.isCompleted,
@@ -1109,6 +1131,9 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
         <Suspense fallback={null}>
           {tour.activeTour?.scene === 'getting-started' && (
             <GettingStartedScene currentStep={tour.currentStep} isMobile={isMobile} />
+          )}
+          {tour.activeTour?.scene === 'outside-contacts' && (
+            <OutsideContactsScene currentStep={tour.currentStep} isMobile={isMobile} />
           )}
           <TourOverlay
             activeStep={tour.activeStep}

@@ -25,6 +25,10 @@ export interface ClinicZone {
   id: string
   name: string
   is_default_zone: boolean
+  /** Map anchor (Phase 2 zone↔overlay link). Lets the calendar render a zone's
+   *  map preview for an event scheduled in it. */
+  overlay_id?: string | null
+  overlay_feature_id?: string | null
 }
 
 const EMPTY: ClinicZone[] = []
@@ -62,7 +66,13 @@ function fetchZones(clinicId: string, key: string): Promise<ClinicZone[]> {
           for (const child of childrenByParent.get(node.id) ?? []) queue.push(child)
         }
         zones = subtree
-          .map((l) => ({ id: l.id, name: l.name, is_default_zone: !!l.is_default_zone }))
+          .map((l) => ({
+            id: l.id,
+            name: l.name,
+            is_default_zone: !!l.is_default_zone,
+            overlay_id: l.overlay_id ?? null,
+            overlay_feature_id: l.overlay_feature_id ?? null,
+          }))
           .sort((a, b) =>
             a.is_default_zone === b.is_default_zone
               ? a.name.localeCompare(b.name)

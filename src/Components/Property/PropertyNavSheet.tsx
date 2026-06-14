@@ -38,6 +38,8 @@ interface PropertyNavSheetProps {
   canDelete?: boolean
   /** Forwarded to PropertyItemDetail (enroll fingerprint flow). */
   onEnrollItem?: (item: LocalPropertyItem) => void
+  /** New-item enroll: routed through a ConfirmDialog before the scan modal. */
+  onEnrollNewItem?: (item: LocalPropertyItem) => void
 }
 
 /**
@@ -49,7 +51,7 @@ interface PropertyNavSheetProps {
  * imperative ref handle. All create/edit happens here in a form (no inline UI).
  */
 export const PropertyNavSheet = forwardRef<PropertyNavSheetHandle, PropertyNavSheetProps>(
-  function PropertyNavSheet({ canDelete = false, onEnrollItem }, ref) {
+  function PropertyNavSheet({ canDelete = false, onEnrollItem, onEnrollNewItem }, ref) {
     const store = usePropertyStore(
       useShallow((s) => ({
         items: s.items,
@@ -205,7 +207,7 @@ export const PropertyNavSheet = forwardRef<PropertyNavSheetHandle, PropertyNavSh
               ref={itemFormRef}
               editingItem={store.editingItem}
               onClose={() => { store.setEditingItem(null); popScreen() }}
-              onEnrollNew={onEnrollItem}
+              onEnrollNew={onEnrollNewItem}
             />
           )}
 

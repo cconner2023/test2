@@ -22,6 +22,7 @@ import { MGRSGridLabels } from './MGRSGridLabels';
 import type { OverlayFeature, DrawMode } from '../../Types/MapOverlayTypes';
 import { resolveColor } from '../../Types/MapOverlayTypes';
 import { waypointIconSvg } from './WaypointIcon';
+import { FloorSelector } from './FloorSelector';
 import { useMapPrefsStore } from '../../stores/useMapPrefsStore';
 import { formatBearing } from '../../lib/declination';
 import { latLngToUTM } from './utmProjection';
@@ -88,7 +89,15 @@ interface MapViewProps {
   tempRoute?: { points: [number, number][]; closed?: boolean } | null;
   /** Called on vertex dragend with the updated point list. */
   onTempRouteChange?: (points: [number, number][]) => void;
-}
+  /** Distinct floor levels present in the active overlay, ascending. When
+   *  length > 1 (or onAddFloor is given) a vertical floor rail is shown. */
+  floors?: number[];
+  /** Active depth filter; `null` = all floors. Features whose `level` (??0)
+   *  doesn't match the active floor are not rendered. */
+  activeFloor?: number | null;
+  onActiveFloorChange?: (floor: number | null) => void;
+  /** When provided, the floor rail shows a "+" to append a new floor. */
+  onAddFloor?: () => void;
 
 const DEFAULT_CENTER: [number, number] = [38.8977, -77.0365];
 const DEFAULT_ZOOM = 13;
@@ -174,6 +183,10 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   tempPoint,
   tempRoute,
   onTempRouteChange,
+  floors,
+  activeFloor = null,
+  onActiveFloorChange,
+  onAddFloor,
 }, ref) {
   const { theme, themeName } = useTheme();
   const bearingReference = useMapPrefsStore(s => s.bearingReference);
@@ -450,6 +463,11 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     group.clearLayers();
 
     for (const feature of features) {
+      // Depth filter: when a specific floor is targeted, hide features on
+      // other floors entirely. `null` (All) renders everything — the legacy
+      // behaviour for overlays without floors.
+      if (activeFloor != null && (feature.level ?? 0) !== activeFloor) continue;
+
       const isSelected = feature.id === selectedFeatureId;
       const baseWeight = feature.style.weight ?? 3;
       const weight = isSelected ? baseWeight + SELECTED_WEIGHT_BOOST : baseWeight;
@@ -586,7 +604,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         }
       }
     }
-  }, [features, selectedFeatureId, drawMode, onFeatureClick, onFeatureGeometryChange, onFeatureVertexInsert, bearingReference, labelMode]);
+  }, [features, selectedFeatureId, drawMode, onFeatureClick, onFeatureGeometryChange, onFeatureVertexInsert, bearingReference, labelMode, activeFloor]);
 
   // Sync read-only features (visible but non-active overlays)
   useEffect(() => {
@@ -900,7 +918,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       </div>
 
       {/* Bottom-center island: basemap | locate | coord readout */}
-      <BottomIsland z="z-[1000]" tour="map-control-island" barClassName="max-w-[calc(100%-7rem)]">
+      <BottomIsland z="z-[1000]" tour="map-control-island" barClassName="max-w-[calc(100%-7rem)]" glass>
           <button
             type="button"
             onClick={() => setShowBasemapPicker(v => !v)}
@@ -964,6 +982,17 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
             })}
           </ActionPill>
         </div>
+      )}
+
+      {/* Floor rail — Genshin-style depth selector on the right edge. Shown
+          when the overlay has depth (>1 floor) or floor-creation is enabled. */}
+      {floors && (floors.length > 1 || onAddFloor) && onActiveFloorChange && (
+        <FloorSelector
+          floors={floors}
+          activeFloor={activeFloor}
+          onSelect={onActiveFloorChange}
+          onAddFloor={onAddFloor}
+        />
       )}
 
       {/* Attribution — collapsed info icon top-right so the Add FAB at bottom-right doesn't overlap it */}

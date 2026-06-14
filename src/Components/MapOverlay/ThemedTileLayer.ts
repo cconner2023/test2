@@ -148,7 +148,7 @@ const ThemedGridLayer = L.GridLayer.extend({
   },
 });
 
-function recolorPixels(data: Uint8ClampedArray, colors: TileTheme): void {
+export function recolorPixels(data: Uint8ClampedArray, colors: TileTheme): void {
   const { background: bg, foreground: fg, accent: ac } = colors;
 
   for (let i = 0; i < data.length; i += 4) {

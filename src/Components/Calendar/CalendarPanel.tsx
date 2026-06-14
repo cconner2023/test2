@@ -288,6 +288,14 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     () => clinicZones.map(z => ({ id: z.id, name: z.name })),
     [clinicZones],
   )
+  // Resolve an event's scheduling zone (room_id) to its map anchor, when that
+  // zone is linked to an overlay (Phase 2) — feeds EventDetailPanel's Where map.
+  const roomAnchorFor = (roomId: string | null | undefined) => {
+    if (!roomId) return undefined
+    const z = clinicZones.find(z => z.id === roomId)
+    if (!z?.overlay_id) return undefined
+    return { name: z.name, overlay_id: z.overlay_id, overlay_feature_id: z.overlay_feature_id ?? null }
+  }
   // New events default to the cluster's standing zone (BAS).
   const defaultRoomId = useMemo(() => defaultZoneId(clinicZones), [clinicZones])
   const huddleTasks = useClinicHuddleTasks(activeClinicId)
@@ -708,7 +716,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
    *  loaned medic creating an event lands it in the cluster they're currently
    *  viewing. EventForm picker may override per-event on dual-membership users. */
   const newEventInitialData = useMemo(() => {
-    let base = { ...createEmptyFormData(newEventDateKey), clinic_id: activeClinicId ?? null, room_id: defaultRoomId }
+    let base = { ...createEmptyFormData(newEventDateKey), clinic_id: activeClinicId ?? null, room_id: null }
     // Prefill from a deep-link (e.g. a detected date in a message). Seeds the
     // title and pins start_time to the parsed datetime; end defaults to +1h.
     if (newEventPrefill) {
@@ -723,7 +731,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       }
     }
     if (newEventHuddleTaskId !== null) {
-      return { ...base, category: 'huddle' as const, huddle_task_id: newEventHuddleTaskId }
+      return { ...base, category: 'huddle' as const, huddle_task_id: newEventHuddleTaskId, room_id: defaultRoomId }
     }
     return base
   }, [newEventDateKey, newEventHuddleTaskId, newEventPrefill, activeClinicId, defaultRoomId])
@@ -1336,6 +1344,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   assignedNames={resolveAssigned(dayDrawerEvent.assigned_to)}
                   linkedPropertyItems={resolvePropertyItems(dayDrawerEvent.property_item_ids ?? [])}
                   overlayOptions={overlayOptions}
+                  roomAnchor={roomAnchorFor(dayDrawerEvent.room_id)}
                   hideHeader
                 />
               )}
@@ -1424,6 +1433,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     assignedNames={resolveAssigned(selectedEvent.assigned_to)}
                     linkedPropertyItems={resolvePropertyItems(selectedEvent.property_item_ids ?? [])}
                     overlayOptions={overlayOptions}
+                    roomAnchor={roomAnchorFor(selectedEvent.room_id)}
                   />
                   <LoadingOverlay visible={isDeleting} className="rounded-xl" />
                 </div>

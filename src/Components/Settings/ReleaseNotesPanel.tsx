@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Bug, PlusCircle, RefreshCw, CalendarClock, Loader, Download, CheckCircle2, MessageCircleQuestion, ChevronRight, CheckCircle } from 'lucide-react';
+import { Bug, PlusCircle, RefreshCw, CalendarClock, Loader, Download, CheckCircle2, MessageCircleQuestion, ChevronRight, CheckCircle, Compass } from 'lucide-react';
 import { type ReleaseNoteTypes, ReleaseNotes } from '../../Data/Release';
 import { useServiceWorker } from '../../Hooks/useServiceWorker';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useFeatureVotesStore } from '../../stores/useFeatureVotesStore';
+import { useTourContext } from '../Tour/TourProvider';
 
 type NoteType = Exclude<ReleaseNoteTypes['type'], undefined> | 'default';
 
@@ -23,13 +24,40 @@ const ReleaseNoteItem = ({ note }: { note: ReleaseNoteTypes }) => {
     const noteType: NoteType = note.type || 'default';
     const { icon: Icon, className } = NOTE_ICONS[noteType];
 
+    const tour = useTourContext();
+    // A note is tappable only when it links a tour the current user is allowed to run.
+    const hasTour = !!note.tourId && !!tour?.canStartTour(note.tourId);
+    const tourDone = hasTour && !!tour?.isCompleted(note.tourId!);
+
+    if (!hasTour) {
+        return (
+            <div className="flex items-center gap-3 px-4 py-3 hover:bg-themeblue2/5 transition-all">
+                <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                    <Icon size={14} className={className} />
+                </div>
+                <p className="text-sm text-primary flex-1">{note.text}</p>
+            </div>
+        );
+    }
+
     return (
-        <div className="flex items-center gap-3 px-4 py-3 hover:bg-themeblue2/5 transition-all">
+        <button
+            onClick={() => tour!.startReleaseTour(note.tourId!)}
+            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-themeblue2/5 active:scale-[0.99] transition-all"
+        >
             <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
                 <Icon size={14} className={className} />
             </div>
-            <p className="text-sm text-primary flex-1">{note.text}</p>
-        </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-sm text-primary">{note.text}</p>
+                <span className="inline-flex items-center gap-1 mt-1 text-[9pt] font-semibold text-themeblue2">
+                    {tourDone
+                        ? <><CheckCircle size={11} className="text-themegreen" /> Replay tour</>
+                        : <><Compass size={11} /> Take the tour</>}
+                </span>
+            </div>
+            <ChevronRight size={16} className="text-tertiary shrink-0 self-center" />
+        </button>
     );
 };
 
@@ -145,7 +173,17 @@ const FeatureVotesCard = ({ onOpen }: { onOpen: () => void }) => {
 };
 
 export const ReleaseNotesPanel = ({ onOpenFeatureVotes }: ReleaseNotesPanelProps = {}) => {
-    const groupedNotes = ReleaseNotes.reduce<Record<string, ReleaseNoteTypes[]>>((acc, note) => {
+    const isSupervisor = useAuthStore((s) => s.isSupervisorRole);
+    const isProvider = useAuthStore((s) => s.isProviderRole);
+
+    // Role-scope: hide supervisor/provider notes from users who can't access the feature.
+    const visibleNotes = ReleaseNotes.filter((note) => {
+        if (note.tier === 'supervisor') return isSupervisor;
+        if (note.tier === 'provider') return isProvider;
+        return true;
+    });
+
+    const groupedNotes = visibleNotes.reduce<Record<string, ReleaseNoteTypes[]>>((acc, note) => {
         const version = note.version;
         if (!acc[version]) acc[version] = [];
         acc[version].push(note);

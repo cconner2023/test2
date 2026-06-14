@@ -1,9 +1,12 @@
-import { Plus } from 'lucide-react';
-import { useMemo, useRef, type ReactNode } from 'react';
+import { Plus, MessageSquare, Download, Trash2 } from 'lucide-react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ActionButton } from '../ActionButton';
 import type { PlanOrderSet, PlanBlockKey } from '../../Data/User';
 import { PLAN_ORDER_CATEGORIES } from '../../Data/User';
 import { ActionPill } from '../ActionPill'
+import { LiftedRowMenu } from '../LiftedRowMenu';
+import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from '../liftPress';
+import type { ContextMenuItem } from '../ContextMenu';
 
 const ALL_PLAN_BLOCK_KEYS: PlanBlockKey[] = [...PLAN_ORDER_CATEGORIES, 'instructions'];
 
@@ -17,12 +20,26 @@ interface OrderSetManagerProps {
     clusterPicker?: ReactNode;
     /** Panel-wide Share/Export/Import ellipsis, folded into the corner pill. */
     transferMenu?: ReactNode;
+    /** Per-row actions (long-press / right-click lifted-row menu). When any are
+     *  set, editable rows raise a clone-and-menu with Share / Export / Delete. */
+    onShareItem?: (os: PlanOrderSet) => void;
+    onExportItem?: (os: PlanOrderSet) => void;
+    onDeleteItem?: (os: PlanOrderSet) => void;
 }
 
 export const OrderSetManager = ({
     orderSets, clinicOrderSetIds, isSupervisorRole, filter = '', onTapRow, onTapNew, clusterPicker, transferMenu,
+    onShareItem, onExportItem, onDeleteItem,
 }: OrderSetManagerProps) => {
     const fabRef = useRef<HTMLDivElement>(null);
+
+    // Lift-and-clone row menu (long-press / right-click) — Share / Export / Delete
+    // ride the row itself (clone includes the text) instead of an editor-header icon.
+    const [lifted, setLifted] = useState<({ os: PlanOrderSet } & LiftSnapshot) | null>(null);
+    const pressRef = useRef<LiftPressState | null>(null);
+    const hasRowActions = !!(onShareItem || onExportItem || onDeleteItem);
+    const makeHandlers = useCallback((os: PlanOrderSet) =>
+        liftPressHandlers((snap) => setLifted({ os, ...snap }), pressRef), []);
 
     const collectTags = (os: PlanOrderSet): string[] =>
         ALL_PLAN_BLOCK_KEYS.flatMap(k => os.presets[k] ?? []);
@@ -54,7 +71,8 @@ export const OrderSetManager = ({
                                         key={os.id}
                                         type="button"
                                         disabled={!canEdit}
-                                        onClick={(e) => onTapRow(os, e.currentTarget)}
+                                        onClick={(e) => { if (pressRef.current?.fired) return; onTapRow(os, e.currentTarget); }}
+                                        {...(canEdit && hasRowActions ? makeHandlers(os) : {})}
                                         className="w-full text-left py-2 px-2 rounded-lg cursor-pointer active:scale-[0.98] disabled:active:scale-100 hover:bg-tertiary/5 transition-all"
                                     >
                                         <div className="flex items-center">
@@ -85,6 +103,21 @@ export const OrderSetManager = ({
                     {transferMenu}
                 </ActionPill>
             </div>
+
+            {lifted && (
+                <LiftedRowMenu
+                    isOpen
+                    anchorRect={lifted.rect}
+                    row={<div dangerouslySetInnerHTML={{ __html: lifted.html }} />}
+                    onClose={() => setLifted(null)}
+                    layout="list"
+                    items={[
+                        ...(onShareItem ? [{ key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: () => onShareItem(lifted.os) }] : []),
+                        ...(onExportItem ? [{ key: 'export', label: 'Export to file', icon: Download, onAction: () => onExportItem(lifted.os) }] : []),
+                        ...(onDeleteItem ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteItem(lifted.os) }] : []),
+                    ] as ContextMenuItem[]}
+                />
+            )}
         </section>
     );
 };

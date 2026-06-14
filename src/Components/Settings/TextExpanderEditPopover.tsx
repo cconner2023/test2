@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Trash2, Check, User, Building2, TextCursorInput, Layers, MessageSquare, Download } from 'lucide-react';
+import { Check, User, Building2, TextCursorInput, Layers } from 'lucide-react';
 import type { TextExpander } from '../../Data/User';
 import type { TemplateNode } from '../../Data/TemplateTypes';
 import type { FieldInfo } from '../../Utilities/templateParser';
@@ -9,8 +9,6 @@ import { FieldTextEditor } from './FieldTextEditor';
 import { ActionButton } from '../ActionButton';
 import { PreviewOverlay } from '../PreviewOverlay';
 import { ActionPill } from '../ActionPill'
-import { OverlayHeaderMenu } from '../OverlayHeaderMenu';
-import type { ContextMenuItem } from '../ContextMenu';
 import { TextInput } from '../FormInputs';
 
 export type ExpanderScope = 'personal' | 'clinic';
@@ -25,11 +23,6 @@ interface Props {
     isSupervisorRole?: boolean;
     onClose: () => void;
     onSave: (expander: TextExpander, source: ExpanderScope, originalAbbr?: string, originalSource?: ExpanderScope) => void;
-    onDelete?: (abbr: string) => void;
-    /** Share this single template to chat. Edit mode only. */
-    onShareItem?: (expander: TextExpander) => void;
-    /** Export this single template to a file. Edit mode only. */
-    onExportItem?: (expander: TextExpander) => void;
 }
 
 const initialModeFromState = (state: TextExpanderEditState | null): 'simple' | 'template' => {
@@ -41,7 +34,7 @@ const initialModeFromState = (state: TextExpanderEditState | null): 'simple' | '
 };
 
 export const TextExpanderEditPopover = ({
-    state, existingAbbrs, isSupervisorRole = false, onClose, onSave, onDelete, onShareItem, onExportItem,
+    state, existingAbbrs, isSupervisorRole = false, onClose, onSave,
 }: Props) => {
     const isOpen = !!state;
     const isNew = state?.mode === 'new';
@@ -132,21 +125,12 @@ export const TextExpanderEditPopover = ({
         ? (mode === 'template' ? 'New template' : 'New shortcut')
         : (mode === 'template' ? 'Edit template' : 'Edit shortcut');
 
-    // Object-level actions live in the header ellipsis (edit mode only); the footer
-    // stays focused on the primary Save.
-    const headerOptions: ContextMenuItem[] = (!isNew && editing) ? [
-        ...(onShareItem ? [{ key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: () => onShareItem(editing) }] : []),
-        ...(onExportItem ? [{ key: 'export', label: 'Export to file', icon: Download, onAction: () => onExportItem(editing) }] : []),
-        ...(onDelete ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDelete(editing.abbr) }] : []),
-    ] : [];
-
     return (
         <PreviewOverlay
             isOpen={isOpen}
             onClose={onClose}
             anchorRect={state?.anchor ?? null}
             title={titleText}
-            headerActions={<OverlayHeaderMenu items={headerOptions} />}
             maxWidth={560}
             previewMaxHeight="60dvh"
             footer={

@@ -45,6 +45,26 @@ export interface OverlayFeature {
    * detail. Tap a linked waypoint to open its card.
    */
   tc3_card_id?: string
+  /**
+   * Floor / depth index for Genshin-style multi-level overlays. `undefined`
+   * or `0` = base floor. The map renders a feature only when the active floor
+   * matches it (or "All" is selected). Carried verbatim through
+   * clone/GPX/KML/sync — the per-feature diff in MapOverlayPanel persists it
+   * for free, so no new sync path is required.
+   */
+  level?: number
+}
+
+/**
+ * A named depth level on an overlay. Reserved for labelled floors ("B1", "G",
+ * "Roof"); the v1 floor selector derives its level list from the features'
+ * `level` values, so this is currently optional/unconsumed metadata.
+ */
+export interface OverlayFloor {
+  /** Floor index — matches OverlayFeature.level. 0 = base. */
+  index: number
+  /** Optional display label. Falsy → derived from the index. */
+  label?: string
 }
 
 export interface MapOverlay {
@@ -63,6 +83,11 @@ export interface MapOverlay {
    * reaches the clinic vault — lets a later 'd' pair-clean the vault row.
    */
   originId?: string
+  /**
+   * Reserved for labelled floors. v1 derives the floor list from feature
+   * `level` values and does not persist this array.
+   */
+  floors?: OverlayFloor[]
 }
 
 export interface LocalMapOverlay extends MapOverlay {

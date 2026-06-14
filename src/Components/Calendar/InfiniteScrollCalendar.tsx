@@ -378,8 +378,17 @@ export function InfiniteScrollCalendar({
         <div className="h-[calc(var(--sat,0px)+5rem)] md:hidden shrink-0" />
         {weeks.map((week) => {
           const weekMultiDay = multiDayByWeek.get(week.key) ?? []
-          const laneCount = weekMultiDay.length > 0 ? Math.max(...weekMultiDay.map(s => s.lane)) + 1 : 0
           const DAY_NUM_HEIGHT = 30 // py-1 (4) + h-6 (24) + mb-0.5 (2)
+          // Reserve lanes per-column: only the bars that actually cover this day
+          // push its single-day pills down. A week-wide count would leave empty
+          // gaps above days not under a multi-day bar.
+          const lanesForCol = (col: number) => {
+            let max = -1
+            for (const seg of weekMultiDay) {
+              if (col >= seg.startCol && col < seg.startCol + seg.span && seg.lane > max) max = seg.lane
+            }
+            return max + 1
+          }
 
           return (
             <div
@@ -430,6 +439,7 @@ export function InfiniteScrollCalendar({
                   const isSelected = day.dateKey === selectedKey
                   const isDropTarget = dragState.dropTargetDate === day.dateKey
                   const dayEvents = eventsByDate.get(day.dateKey) ?? []
+                  const laneCount = lanesForCol(i)
 
                   return (
                     <div

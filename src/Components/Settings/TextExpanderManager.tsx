@@ -1,9 +1,12 @@
-import { useMemo, useRef, type ReactNode } from 'react';
-import { Plus, TextCursorInput, Layers } from 'lucide-react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Plus, TextCursorInput, Layers, MessageSquare, Download, Trash2 } from 'lucide-react';
 import type { TextExpander } from '../../Data/User';
 import { isFlatTemplate } from '../../Utilities/templateParser';
 import { ActionButton } from '../ActionButton';
 import { ActionPill } from '../ActionPill'
+import { LiftedRowMenu } from '../LiftedRowMenu';
+import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from '../liftPress';
+import type { ContextMenuItem } from '../ContextMenu';
 
 const hasBranches = (e: TextExpander): boolean =>
     !!(e.template && e.template.length > 0 && !isFlatTemplate(e.template));
@@ -32,6 +35,10 @@ interface TextExpanderManagerProps {
     clusterPicker?: ReactNode;
     /** Panel-wide Share/Export/Import ellipsis, folded into the corner pill. */
     transferMenu?: ReactNode;
+    /** Per-row actions (long-press / right-click lifted-row menu). */
+    onShareItem?: (expander: TextExpander) => void;
+    onExportItem?: (expander: TextExpander) => void;
+    onDeleteItem?: (expander: TextExpander) => void;
 }
 
 export const TextExpanderManager = ({
@@ -43,8 +50,19 @@ export const TextExpanderManager = ({
     isSupervisorRole = false,
     clusterPicker,
     transferMenu,
+    onShareItem,
+    onExportItem,
+    onDeleteItem,
 }: TextExpanderManagerProps) => {
     const fabRef = useRef<HTMLDivElement>(null);
+
+    // Lift-and-clone row menu (long-press / right-click) — Share / Export / Delete
+    // ride the row (clone includes the text) instead of an editor-header icon.
+    const [lifted, setLifted] = useState<({ expander: TextExpander } & LiftSnapshot) | null>(null);
+    const pressRef = useRef<LiftPressState | null>(null);
+    const hasRowActions = !!(onShareItem || onExportItem || onDeleteItem);
+    const makeHandlers = useCallback((expander: TextExpander) =>
+        liftPressHandlers((snap) => setLifted({ expander, ...snap }), pressRef), []);
 
     const lc = filter.trim().toLowerCase();
     const visible = useMemo(() => {
@@ -80,7 +98,8 @@ export const TextExpanderManager = ({
                                 return (
                                     <div
                                         key={e.abbr}
-                                        onClick={canEdit ? (ev) => onCardTap(e, ev.currentTarget) : undefined}
+                                        onClick={canEdit ? (ev) => { if (pressRef.current?.fired) return; onCardTap(e, ev.currentTarget); } : undefined}
+                                        {...(canEdit && hasRowActions ? makeHandlers(e) : {})}
                                         className={`flex items-start gap-3 py-2 px-2 rounded-lg transition-colors ${
                                             canEdit ? 'cursor-pointer active:scale-[0.98] hover:bg-themeblue3/5' : 'opacity-60'
                                         }`}
@@ -113,6 +132,21 @@ export const TextExpanderManager = ({
                 </div>
                 </div>
             </div>
+
+            {lifted && (
+                <LiftedRowMenu
+                    isOpen
+                    anchorRect={lifted.rect}
+                    row={<div dangerouslySetInnerHTML={{ __html: lifted.html }} />}
+                    onClose={() => setLifted(null)}
+                    layout="list"
+                    items={[
+                        ...(onShareItem ? [{ key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: () => onShareItem(lifted.expander) }] : []),
+                        ...(onExportItem ? [{ key: 'export', label: 'Export to file', icon: Download, onAction: () => onExportItem(lifted.expander) }] : []),
+                        ...(onDeleteItem ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteItem(lifted.expander) }] : []),
+                    ] as ContextMenuItem[]}
+                />
+            )}
         </section>
     );
 };

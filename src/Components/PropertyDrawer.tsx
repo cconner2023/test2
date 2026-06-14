@@ -51,6 +51,8 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const [pendingDeleteItem, setPendingDeleteItem] = useState<LocalPropertyItem | null>(null)
     const [scanMode, setScanMode] = useState(false)
     const [enrollingItem, setEnrollingItem] = useState<LocalPropertyItem | null>(null)
+    const [enrollAutoStart, setEnrollAutoStart] = useState(false)
+    const [pendingEnrollNew, setPendingEnrollNew] = useState<LocalPropertyItem | null>(null)
     const [showAddSheet, setShowAddSheet] = useState(false)
     const [showImportSheet, setShowImportSheet] = useState(false)
     const addItemTriggerRef = useRef<(() => void) | null>(null)
@@ -253,6 +255,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onAddItem={handleAddItem}
                         onBack={handleBack}
                         onEnrollItem={(item) => setEnrollingItem(item)}
+                        onEnrollNewItem={(item) => setPendingEnrollNew(item)}
                         onRegisterAddItem={(t) => { addItemTriggerRef.current = t }}
                         onRegisterAddLocation={(t) => { addLocationTriggerRef.current = t }}
                     />
@@ -270,6 +273,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onAddItem={handleAddItem}
                         onBack={handleBack}
                         onEnrollItem={(item) => setEnrollingItem(item)}
+                        onEnrollNewItem={(item) => setPendingEnrollNew(item)}
                         onRegisterAddItem={(t) => { addItemTriggerRef.current = t }}
                         onRegisterAddLocation={(t) => { addLocationTriggerRef.current = t }}
                     />
@@ -282,6 +286,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         ref={navSheetRef}
                         canDelete={isSupervisorRole}
                         onEnrollItem={(item) => setEnrollingItem(item)}
+                        onEnrollNewItem={(item) => setPendingEnrollNew(item)}
                     />
                 )}
             </div>
@@ -308,6 +313,21 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 onCancel={() => setPendingDeleteItem(null)}
             />
 
+            <ConfirmDialog
+                visible={!!pendingEnrollNew}
+                title="Enroll this item in Visual ID?"
+                subtitle="Scan it now so you can identify it later by camera."
+                confirmLabel="Enroll"
+                cancelLabel="Skip"
+                variant="primary"
+                onConfirm={() => {
+                    setEnrollingItem(pendingEnrollNew)
+                    setEnrollAutoStart(true)
+                    setPendingEnrollNew(null)
+                }}
+                onCancel={() => setPendingEnrollNew(null)}
+            />
+
             {scanMode && (
                 <ItemScanner
                     items={items}
@@ -322,11 +342,13 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         <EnrollScanStep
                             itemId={enrollingItem.id}
                             itemName={enrollingItem.name}
+                            autoStart={enrollAutoStart}
                             onEnrolled={async (fp) => {
                                 await store.enrollFingerprint(enrollingItem.id, fp)
                                 setEnrollingItem(null)
+                                setEnrollAutoStart(false)
                             }}
-                            onSkip={() => setEnrollingItem(null)}
+                            onSkip={() => { setEnrollingItem(null); setEnrollAutoStart(false) }}
                         />
                     </div>
                 </div>

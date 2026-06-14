@@ -86,6 +86,16 @@ export interface PropertyLocation {
   name: string
   photo_data: string | null   // base64 data URL
   holder_user_id: string | null  // set on member-locations; null for physical locations
+  /**
+   * Sub-zone shape discriminator:
+   * - 'area'  (default) — a drawn rectangle on its parent's canvas (existing behaviour).
+   * - 'level' — a full-size sub-zone (e.g. a building floor). Occupies its parent's
+   *   whole footprint via a 0..1 full-extent tag; sibling levels stack on the same
+   *   footprint and only the active one renders (Genshin-style floor switcher).
+   */
+  kind?: 'area' | 'level'
+  /** Stack order among sibling levels (floor number; basements negative). Unused for 'area'. */
+  ordinal?: number
   /** Optional real-world map anchor — links this zone to a map OverlayFeature (geo coords). */
   overlay_feature_id?: string | null
   overlay_id?: string | null
@@ -129,6 +139,8 @@ export interface CustodyLedgerEntry {
   item_id: string
   clinic_id: string
   action: CustodyAction
+  /** Units consumed on an 'expended' entry; defaults to 0/unused for transfer actions. */
+  quantity_delta?: number | null
   from_holder_id: string | null
   to_holder_id: string | null
   condition_code: PropertyCondition

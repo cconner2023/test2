@@ -21,6 +21,9 @@ import { LocationTagPhoto } from './LocationTagPhoto'
 import { CanvasEditOverlay } from './CanvasEditOverlay'
 import type { CanvasEditHandle } from './CanvasEditOverlay'
 import { ConfirmDialog } from '../ConfirmDialog'
+import { FloorSwitcher } from './FloorSwitcher'
+import { GlassBand } from '../GlassBand'
+import { collectSuppressedIds, findLevelContainer, getLevels, resolveActiveLevel, nextFloorOrdinal, isStructuralZone } from './levelUtils'
 import { createLogger } from '../../Utilities/Logger'
 import type { LocalPropertyItem, LocalPropertyLocation, PropertyLocation, LocationTag } from '../../Types/PropertyTypes'
 
@@ -281,11 +284,23 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     return tagIndex.byCanvas.get(rootLocationId) ?? []
   }, [tagIndex, rootLocationId])
 
+  // ── Suppressed locations — every inactive level + its subtree (floor switcher) ──
+  // Geometry-free: derived from the parent_id tree + kind/ordinal + active-level map.
+  const suppressedIds = useMemo(
+    () => collectSuppressedIds(locations, store.activeLevelByContainer, rootLocationId),
+    [locations, store.activeLevelByContainer, rootLocationId],
+  )
+
   // ── All tags in world coords (for zoom lookup + toolbar label) ──
+  // Inactive-floor tags are filtered out (by both target and canvas) so only the
+  // active level of each building renders — everything downstream (LOD, zoom, edit,
+  // auto-pin) then operates as if the hidden floors simply don't exist.
   const allWorldTags: LocationTag[] = useMemo(() => {
     if (!tagIndex || !rootLocationId) return []
-    return flattenToWorld(tagIndex, rootLocationId)
-  }, [tagIndex, rootLocationId])
+    const flat = flattenToWorld(tagIndex, rootLocationId)
+    if (suppressedIds.size === 0) return flat
+    return flat.filter((t) => !suppressedIds.has(t.target_id) && !suppressedIds.has(t.location_id))
+  }, [tagIndex, rootLocationId, suppressedIds])
   const allWorldTagsRef = useRef(allWorldTags)
   allWorldTagsRef.current = allWorldTags
 
@@ -409,7 +424,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
           .filter((t) => t.location_id === parentLocId && t.target_type === 'location')
           .map((t) => t.target_id),
       )
-      const untagged = locations.filter((l) => l.parent_id === parentLocId && !taggedChildIds.has(l.id))
+      const untagged = locations.filter((l) => l.parent_id === parentLocId && !taggedChildIds.has(l.id) && l.kind !== 'level')
       const rects = layoutChildZones(untagged.length)
       const pw = parentZone.width ?? 0
       const ph = parentZone.height ?? 0
@@ -763,7 +778,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     // existing location id → handleEditSave won't re-create it, just persists the tag.
     if (canvasId !== rootLocationId) {
       const taggedChildIds = new Set(zoneTags.filter((t) => t.target_type === 'location').map((t) => t.target_id))
-      const untaggedChildren = locationsRef.current.filter((l) => l.parent_id === canvasId && !taggedChildIds.has(l.id))
+      const untaggedChildren = locationsRef.current.filter((l) => l.parent_id === canvasId && !taggedChildIds.has(l.id) && l.kind !== 'level')
       const rects = layoutChildZones(untaggedChildren.length)
       const seededZones: LocationTag[] = untaggedChildren.map((loc, i) => ({
         id: crypto.randomUUID(),
@@ -939,6 +954,25 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       handleResetZoom()
     }
   }, [store, locations, allWorldTags, zoomToTag, handleResetZoom])
+
+  // ── Floor switcher: activate a level + zoom to it once its tag is live ──
+  // setActiveLevel mutates the suppression set → allWorldTags recomputes to include
+  // the newly-active floor; pendingNavRef lets the deferred-nav effect zoom once it lands.
+  const handleSelectLevel = useCallback((containerId: string, levelId: string) => {
+    if (levelId === store.selectedZoneId) return
+    store.setActiveLevel(containerId, levelId)
+    store.selectZone(levelId)
+    pendingNavRef.current = levelId
+  }, [store])
+
+  const handleAddFloor = useCallback(async (containerId: string) => {
+    const ord = nextFloorOrdinal(getLevels(locationsRef.current, containerId))
+    const created = await store.addLevel(containerId, `Floor ${ord}`, ord)
+    if (!created) return
+    store.setActiveLevel(containerId, created.id)
+    store.selectZone(created.id)
+    pendingNavRef.current = created.id
+  }, [store])
 
   // ── Click-drag panning ──
   // Desktop: capture pointer for drag-to-pan.
@@ -1283,6 +1317,17 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       ?? 'Canvas'
     : 'All Items'
 
+  // ── Floor switcher state (building-local) ──
+  // Container = nearest level-bearing ancestor of the selection; falls back to a
+  // plain structural zone so the very first floor can be added to make it a building.
+  const levelContainerId = findLevelContainer(store.selectedZoneId, locations, rootLocationId)
+  const containerLevels = levelContainerId ? getLevels(locations, levelContainerId) : []
+  const activeLevelId = levelContainerId
+    ? resolveActiveLevel(containerLevels, store.activeLevelByContainer, levelContainerId)
+    : null
+  const selectedLocForLevel = locations.find((l) => l.id === store.selectedZoneId)
+  const addFloorTarget = levelContainerId ?? (isStructuralZone(selectedLocForLevel) ? store.selectedZoneId : null)
+
   return (
     <div className="flex flex-col h-full">
       {/* Canvas wrapper — relative so controls float over scroll area. Full-bleed
@@ -1430,6 +1475,17 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
           )}
         </div>
 
+        {/* Glass footer — frosted band feathering UP behind the bottom controls
+            (zoom + the FAB owned by PropertyPanel), mirroring the glass header so
+            canvas content fades out instead of stopping on a hard edge. View mode
+            only; edit mode's own chrome takes over. z-10 sits above the scroll
+            canvas but below the z-20 controls. */}
+        {!isEditing && (
+          <div className="absolute bottom-0 inset-x-0 z-10 h-24 pointer-events-none">
+            <GlassBand edge="bottom" className="inset-0" />
+          </div>
+        )}
+
         {/* Floating zoom controls — bottom-left, mirrors MapView's stacked Plus/Minus */}
         {!isEditing && (
           <div data-zoom-controls className="absolute bottom-3 left-3 z-20 flex flex-col gap-1.5 pb-[max(0rem,var(--sab,0px))]">
@@ -1454,6 +1510,18 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
           >
             <Pencil size={16} />
           </button>
+        )}
+
+        {/* Floor switcher — Genshin-style vertical level stack, building-local.
+            Shows when a level-container is in scope, or a plain structural zone is
+            selected (bootstrap: add its first floor). View mode only. */}
+        {!isEditing && addFloorTarget && (
+          <FloorSwitcher
+            levels={containerLevels}
+            activeLevelId={activeLevelId}
+            onSelect={(levelId) => levelContainerId && handleSelectLevel(levelContainerId, levelId)}
+            onAddFloor={() => handleAddFloor(addFloorTarget)}
+          />
         )}
 
         {/* Edit mode toolbar — only visible when editing. Mobile clears the floating

@@ -99,17 +99,6 @@ export const TextTemplatesPanel = () => {
         setEditState(null);
     }, [profile.textExpanders, clinicTextExpanders, editingClinicId, writeClinic, handleUpdate]);
 
-    const handleDelete = useCallback((abbr: string) => {
-        if (!editState) return;
-        if (editState.source === 'clinic' && editingClinicId) {
-            writeClinic(clinicTextExpanders.filter(e => e.abbr !== abbr));
-        } else {
-            const current = profile.textExpanders ?? [];
-            handleUpdate({ textExpanders: current.filter(e => e.abbr !== abbr) });
-        }
-        setEditState(null);
-    }, [editState, editingClinicId, clinicTextExpanders, profile.textExpanders, writeClinic, handleUpdate]);
-
     // ── Tour: open popover pre-filled with the demo template ──
     useEffect(() => {
         const handleSubmit = () => {
@@ -176,6 +165,13 @@ export const TextTemplatesPanel = () => {
                         clinicAbbrSet={clinicAbbrSet}
                         onCardTap={handleCardTap}
                         onStartNew={handleStartNew}
+                        onShareItem={(e) => transfer.share({ textExpanders: [e] }, e.abbr)}
+                        onExportItem={(e) => transfer.exportFile({ textExpanders: [e] }, e.abbr)}
+                        onDeleteItem={(e) => {
+                            const isClinic = clinicAbbrSet.has(e.abbr.toLowerCase());
+                            if (isClinic && editingClinicId) writeClinic(clinicTextExpanders.filter(x => x.abbr !== e.abbr));
+                            else handleUpdate({ textExpanders: (profile.textExpanders ?? []).filter(x => x.abbr !== e.abbr) });
+                        }}
                         filter={filter}
                         isSupervisorRole={isSupervisorRole}
                         clusterPicker={
@@ -201,9 +197,6 @@ export const TextTemplatesPanel = () => {
                 isSupervisorRole={isSupervisorRole}
                 onClose={() => setEditState(null)}
                 onSave={handleSave}
-                onDelete={handleDelete}
-                onShareItem={(e) => transfer.share({ textExpanders: [e] }, e.abbr)}
-                onExportItem={(e) => transfer.exportFile({ textExpanders: [e] }, e.abbr)}
             />
 
             {transfer.picker}

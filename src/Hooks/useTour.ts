@@ -121,11 +121,22 @@ export function useTour(onAction?: TourActionHandler, isMobile = true) {
   // ── Derived state ──────────────────────────────────────────────────────
 
   const availableTours = allTours.filter(t => {
+    if (t.releaseOnly) return false // reachable only via a release note, not the catalog
     if (t.devOnly && !isDevRole) return false
     if (t.tier === 'supervisor' && !isSupervisorRole) return false
     if (t.tier === 'provider' && !isProviderRole) return false
     return true
   })
+
+  /** Role/dev gate for a tour by id — includes release-only tours (which availableTours hides). */
+  const canStartTour = useCallback((tourId: string) => {
+    const t = allTours.find(x => x.id === tourId)
+    if (!t) return false
+    if (t.devOnly && !isDevRole) return false
+    if (t.tier === 'supervisor' && !isSupervisorRole) return false
+    if (t.tier === 'provider' && !isProviderRole) return false
+    return true
+  }, [isDevRole, isSupervisorRole, isProviderRole])
 
   const activeTour = activeTourId
     ? allTours.find(t => t.id === activeTourId) ?? null
@@ -389,6 +400,7 @@ export function useTour(onAction?: TourActionHandler, isMobile = true) {
 
     // Query
     isCompleted,
+    canStartTour,
     availableTours,
     hasSeenFirstLaunch,
   }

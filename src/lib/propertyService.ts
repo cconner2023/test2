@@ -566,6 +566,56 @@ export async function ensureDefaultClusterZone(
   ])
 }
 
+/**
+ * Create a full-size "level" sub-zone (e.g. a building floor) under `parentId`.
+ *
+ * Unlike "New area" (a drawn rect), a level occupies its parent's WHOLE footprint:
+ * we persist a full-extent 0..1 zone tag on the parent's canvas so the level's own
+ * canvas fills the parent when active. Sibling levels share the footprint (overlap);
+ * the map suppresses inactive ones, so only the active floor renders.
+ */
+export async function createLevel(
+  clinicId: string,
+  userId: string,
+  parentId: string,
+  name: string,
+  ordinal: number,
+): Promise<ServiceResult<{ location: LocalPropertyLocation }>> {
+  const result = await createLocation(
+    {
+      clinic_id: clinicId,
+      parent_id: parentId,
+      name,
+      photo_data: null,
+      holder_user_id: null,
+      kind: 'level',
+      ordinal,
+      created_by: userId,
+    },
+    userId,
+  )
+  if (!result.success) return result
+
+  // Full-extent tag on the parent canvas — the level fills its parent's footprint.
+  const existingTags = await fetchLocationTags(parentId)
+  await upsertLocationTags(parentId, [
+    ...existingTags,
+    {
+      id: crypto.randomUUID(),
+      location_id: parentId,
+      target_type: 'location' as const,
+      target_id: result.location.id,
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+      label: name,
+    },
+  ])
+
+  return result
+}
+
 // ── Zone → Location Reconciliation ───────────────────────────
 
 /**
@@ -1165,27 +1215,34 @@ export async function recordExpendedEntry(
   clinicId: string,
   userId: string,
 ): Promise<ServiceResult> {
-  if (!isOnline()) {
-    logger.warn('recordExpendedEntry: offline — ledger entry skipped (best-effort)')
-    return succeed()
-  }
   try {
     const now = new Date().toISOString()
-    const entry = {
+    // Offline-first: queue the append-only ledger entry so field/offline
+    // expends still produce an accountability record (synced on reconnect).
+    const ledgerEntry: CustodyLedgerEntry = {
+      id: crypto.randomUUID(),
       item_id: itemId,
       clinic_id: clinicId,
-      action: 'expended' as const,
+      action: 'expended',
       quantity_delta: quantityDelta,
       from_holder_id: null,
       to_holder_id: null,
-      condition_code: 'serviceable' as const,
+      condition_code: 'serviceable',
       sub_item_check: null,
       notes: null,
       recorded_at: now,
       recorded_by: userId,
     }
-    const { error } = await supabase.from('custody_ledger').insert(entry)
-    if (error) return fail(error.message)
+
+    await addToSyncQueue({
+      user_id: userId,
+      action: 'create',
+      table_name: 'custody_ledger',
+      record_id: ledgerEntry.id,
+      payload: ledgerEntry as unknown as Record<string, unknown>,
+    })
+
+    immediateSync(userId)
     return succeed()
   } catch (err) {
     return fail(String(err))

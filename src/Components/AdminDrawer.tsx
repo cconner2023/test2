@@ -1135,18 +1135,20 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         </BaseDrawer>
 
         {/* Mobile detail Sheet — user/clinic/location detail overlays the list
-            instead of switching panels (the desktop R-pane → mobile Sheet). Uses
-            the map/property non-blocking primitive (backdrop="none"): close via
-            the header Close or drag-down, list underneath stays live. Breadcrumb
-            (lateral trail) rides the header above the entity name. Portals to
-            body, so it sits outside BaseDrawer in the tree. */}
+            instead of switching panels (the desktop R-pane → mobile Sheet).
+            Unlike map/property (live distinct content underneath = no scrim
+            needed), the admin list shares the drawer bg, so a dimming scrim
+            (backdrop="dismiss") is required for figure/ground separation; tap
+            scrim, header Close, or drag-down to dismiss. Breadcrumb (lateral
+            trail) rides the header above the entity name. Portals to body, so
+            it sits outside BaseDrawer in the tree. */}
         {isMobile && (
             <Sheet
                 isOpen={detailSheetOpen}
                 onClose={handleBack}
                 height="fit"
                 maxHeight={60}
-                backdrop="none"
+                backdrop="dismiss"
                 title={detailTitle}
                 titleNode={sheetTitleNode}
                 rightContent={detailHeaderActions}
