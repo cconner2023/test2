@@ -238,7 +238,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   // Disambiguate the embedded clinic relation by FK name — profiles now has
   // two FKs to clinics (clinic_id + surrogate_clinic_id) and PostgREST
   // refuses to resolve `clinics(name)` when multiple FKs target the same table.
-  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, surrogate_clinic_id, clinic:clinics!profiles_clinic_id_fkey(name), pin_hash, pin_salt, notify_dev_alerts, text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets, needs_password_setup, favorite_medications, provider_note_templates, overview_widgets, theme'
+  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, surrogate_clinic_id, clinic:clinics!profiles_clinic_id_fkey(name), pin_hash, pin_salt, notify_dev_alerts, notify_calendar_assignments, text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets, needs_password_setup, favorite_medications, provider_note_templates, overview_widgets, theme'
   const { data, error: fetchError } = await supabase
     .from('profiles')
     .select(PROFILE_SELECT)
@@ -305,6 +305,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     }
 
     if (sec.notify_dev_alerts != null) profile.notifyDevAlerts = sec.notify_dev_alerts as boolean
+    if (sec.notify_calendar_assignments != null) profile.notifyCalendarAssignments = sec.notify_calendar_assignments as boolean
     if (sec.text_expanders != null) profile.textExpanders = sec.text_expanders as TextExpander[]
     if (sec.plan_order_tags != null) profile.planOrderTags = sec.plan_order_tags as UserTypes['planOrderTags']
     if (sec.plan_instruction_tags != null) profile.planInstructionTags = sec.plan_instruction_tags as string[]

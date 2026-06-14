@@ -15,6 +15,7 @@ import type { MessageContent, MapOverlayContent, MapOverlayPayload, MapFeatureCo
 import type { LocalMapOverlay, OverlayFeature } from '../Types/MapOverlayTypes'
 import {
   getLocalMapOverlay,
+  getLocalMapOverlays,
   saveLocalMapOverlay,
   deleteLocalMapOverlay,
 } from './offlineDb'
@@ -233,10 +234,29 @@ async function applyFeature(content: MapFeatureContent): Promise<void> {
  * LocalMapOverlay rows — the snapshot stores the merged feature[] state, so no
  * per-feature read-modify-write is needed. One invalidation at the end refreshes
  * the map surface.
+ *
+ * Tombstone-guarded: a snapshot can never resurrect an overlay deleted locally
+ * after the snapshot was sealed (mirrors loadSnapshotCalendarEvents). Without
+ * this, a stale snapshot re-writes a deleted overlay into IDB on every login,
+ * and once the paired 'd' tail row is reaped there is nothing left to kill it.
  */
 export async function loadSnapshotOverlays(overlays: LocalMapOverlay[]): Promise<void> {
+  let wrote = false
   for (const ov of overlays) {
+    if (_tombstones.has(ov.id)) continue
     await saveLocalMapOverlay(ov)
+    wrote = true
   }
-  if (overlays.length > 0) invalidate('mapOverlays')
+  if (wrote) invalidate('mapOverlays')
+}
+
+/**
+ * Resolve the live overlay set for a clinic, dropping any tombstoned ids.
+ * The map-overlay equivalent of snapshotCalendarEvents — used when rebuilding
+ * the clinic snapshot so a freshly-sealed snapshot can never re-include an
+ * overlay this device has already deleted (the poison-snapshot guard).
+ */
+export async function snapshotOverlays(clinicId: string): Promise<LocalMapOverlay[]> {
+  const overlays = await getLocalMapOverlays(clinicId)
+  return overlays.filter(o => !_tombstones.has(o.id))
 }

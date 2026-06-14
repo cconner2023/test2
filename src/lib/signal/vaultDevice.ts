@@ -148,6 +148,111 @@ export function setVaultKeyReady(promise: Promise<void>): void {
   _vaultKeyReady = promise
 }
 
+// ---- IDB persistence for the non-extractable wrapping key ----
+//
+// The wrapping key is PBKDF2(password) and lives in module scope, so it is lost
+// on every page reload. A live-session resume (PWA cold start with a still-valid
+// Supabase token) fires INITIAL_SESSION WITHOUT the password sign-in path, so the
+// key was never re-derived and the vault drain no-ops. Mirror backupService's
+// non-extractable-CryptoKey-in-IDB pattern so the drain survives a resume.
+//
+// SAFETY: the persisted record is tagged with { userId, salt, iterations }. On
+// restore we use the key ONLY if all three still match the live vault row. A salt
+// change means the password was reset and the vault re-provisioned, so the stored
+// key is stale and is DISCARDED — never used. This keeps a stale key from ever
+// reaching recoverVaultKeys and tripping the OperationError → vault-wipe path
+// (the wipe must fire only for a freshly password-derived key, never a cached one).
+
+const VAULT_KEY_DB = 'adtmc-vault-key'
+const VAULT_KEY_STORE = 'keys'
+const VAULT_KEY_ID = 'wrapping'
+
+interface StoredVaultKey {
+  key: CryptoKey
+  userId: string
+  salt: string
+  iterations: number
+}
+
+function openVaultKeyDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(VAULT_KEY_DB, 1)
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(VAULT_KEY_STORE)) {
+        req.result.createObjectStore(VAULT_KEY_STORE)
+      }
+    }
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function persistVaultKeyToIdb(record: StoredVaultKey): Promise<void> {
+  const db = await openVaultKeyDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(VAULT_KEY_STORE, 'readwrite')
+    tx.objectStore(VAULT_KEY_STORE).put(record, VAULT_KEY_ID)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+  db.close()
+}
+
+async function loadVaultKeyFromIdb(): Promise<StoredVaultKey | null> {
+  const db = await openVaultKeyDb()
+  const rec = await new Promise<StoredVaultKey | null>((resolve, reject) => {
+    const tx = db.transaction(VAULT_KEY_STORE, 'readonly')
+    const req = tx.objectStore(VAULT_KEY_STORE).get(VAULT_KEY_ID)
+    req.onsuccess = () => resolve((req.result as StoredVaultKey) ?? null)
+    req.onerror = () => reject(req.error)
+  })
+  db.close()
+  return rec
+}
+
+async function clearVaultKeyFromIdb(): Promise<void> {
+  const db = await openVaultKeyDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(VAULT_KEY_STORE, 'readwrite')
+    tx.objectStore(VAULT_KEY_STORE).delete(VAULT_KEY_ID)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+  db.close()
+}
+
+/**
+ * Restore the cached wrapping key from IDB on a live-session resume, but ONLY if
+ * the persisted record still matches the current vault row (same user, salt, and
+ * iterations). Any mismatch means the key is stale (password reset → new salt, or
+ * a different user) — discard it so it can never decrypt against a re-provisioned
+ * blob and trip the OperationError wipe. No-ops if a key is already cached.
+ */
+async function restoreVaultKeyFromIdb(
+  userId: string,
+  currentSalt: string,
+  currentIterations: number,
+): Promise<void> {
+  if (cachedVaultKey) return
+  try {
+    const stored = await loadVaultKeyFromIdb()
+    if (!stored) return
+    if (
+      stored.userId !== userId ||
+      stored.salt !== currentSalt ||
+      stored.iterations !== currentIterations
+    ) {
+      // Stale (password reset / different user). Drop it.
+      await clearVaultKeyFromIdb().catch(() => {})
+      return
+    }
+    cachedVaultKey = stored.key
+    logger.info('Vault wrapping key restored from IDB (live-session resume)')
+  } catch {
+    // IDB unavailable — fall through to the not-cached path.
+  }
+}
+
 // ---- Pending drain ack (two-phase drain) ----
 
 /** Held between the drain (Phase 1) and the post-backup ack (Phase 2).
@@ -428,6 +533,11 @@ export async function deriveAndCacheVaultKey(
 
   const saltBytes = hexToBytes(saltHex)
   cachedVaultKey = await deriveWrappingKey(password, saltBytes, iters)
+  // Persist (non-extractable) so a live-session resume can restore it without the
+  // password. Tagged with salt+iterations so a later reset/re-provision is detected
+  // as stale on load. Fire-and-forget — caching in memory is the source of truth.
+  void persistVaultKeyToIdb({ key: cachedVaultKey, userId, salt: saltHex, iterations: iters })
+    .catch(() => logger.warn('Failed to persist vault key to IDB'))
   logger.info('Vault wrapping key cached')
 }
 
@@ -440,6 +550,9 @@ export function clearVaultKey(): void {
   // otherwise mark-read / replenish under the wrong identity if a different
   // user signs in next.
   _pendingVaultAck = null
+  // Wipe the persisted key so the next user on this device can't load it. The
+  // userId tag on the record is a second guard if this fire-and-forget races.
+  void clearVaultKeyFromIdb().catch(() => {})
 }
 
 /**
@@ -562,6 +675,11 @@ export async function getVaultIdentityDh(
   if (!vaultRow) return null
   // Wait for the PBKDF2 derivation that runs fire-and-forget from signIn().
   try { if (_vaultKeyReady) await _vaultKeyReady } catch { /* fall through */ }
+  // Live-session resume: restore the persisted key (salt-gated) if none cached.
+  if (!cachedVaultKey) {
+    const row = vaultRow as VaultDeviceKeysRow
+    await restoreVaultKeyFromIdb(userId, row.salt, row.kdf_iterations)
+  }
   if (!cachedVaultKey) return null
   const keys = await recoverVaultKeys(vaultRow as VaultDeviceKeysRow)
   _cachedVaultDh = { userId, dhPrivateKey: keys.dhPrivateKey, dhPublicKeyBase64: keys.dhPublicKeyBase64 }
@@ -594,6 +712,14 @@ export async function processVaultMessages(userId: string): Promise<number> {
 
   // Wait for the vault key derivation that runs fire-and-forget from signIn()
   try { if (_vaultKeyReady) await _vaultKeyReady } catch { /* fall through */ }
+
+  // Live-session resume (e.g. PWA cold start with a valid token) never runs the
+  // password sign-in path, so the key was never re-derived. Restore it from IDB,
+  // gated on a salt+iterations match so a stale key is discarded, not used.
+  if (!cachedVaultKey) {
+    const row = vaultRow as VaultDeviceKeysRow
+    await restoreVaultKeyFromIdb(userId, row.salt, row.kdf_iterations)
+  }
 
   if (!cachedVaultKey) {
     logger.warn('Vault wrapping key not cached — cannot process vault messages')
@@ -1255,8 +1381,15 @@ export async function reEncryptVaultKeys(
 
     if (error) return err(error.message)
 
-    // Update cached key
+    // Update cached key + persisted copy (new salt/iterations so any older
+    // persisted record on another device is detected as stale on load).
     cachedVaultKey = newWrappingKey
+    void persistVaultKeyToIdb({
+      key: newWrappingKey,
+      userId,
+      salt: bytesToHex(newSalt),
+      iterations: VAULT_KDF_ITERATIONS,
+    }).catch(() => logger.warn('Failed to persist re-encrypted vault key to IDB'))
 
     logger.info('Vault keys re-encrypted with new password')
     return ok(undefined)

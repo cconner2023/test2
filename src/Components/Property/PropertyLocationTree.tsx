@@ -17,6 +17,13 @@ interface PropertyLocationTreeProps {
   searchQuery?: string
   /** Reveal each row's ellipsis only on hover (desktop rail); off = always shown (mobile). */
   hoverActions?: boolean
+  /**
+   * Scope the tree to one zone's subtree: render that location's direct child
+   * locations as roots and its direct items as top-level rows. Hides the
+   * All-Locations / members / unassigned sections and the top-level drop zone.
+   * Used by the selected-zone surface (PropertyLocationDetail).
+   */
+  rootId?: string
   onSelectLocation: (location: LocalPropertyLocation) => void
   onSelectItem: (item: LocalPropertyItem) => void
   onMoveLocation?: (locationId: string, newParentId: string | null) => void
@@ -54,6 +61,7 @@ export function PropertyLocationTree({
   holders,
   searchQuery,
   hoverActions,
+  rootId,
   onSelectLocation,
   onSelectItem,
   onMoveLocation,
@@ -120,7 +128,7 @@ export function PropertyLocationTree({
     return result
   }, [locationChildrenMap])
 
-  const { roots, unassignedItems, memberNodes } = useMemo(() => {
+  const { roots, unassignedItems, memberNodes, rootItems } = useMemo(() => {
     const childrenMap = new Map<string | null, LocalPropertyLocation[]>()
     for (const loc of locations) {
       const key = loc.parent_id ?? null
@@ -148,6 +156,17 @@ export function PropertyLocationTree({
       return { location: loc, children, items: nodeItems }
     }
 
+    // Scoped mode: render the selected zone's direct children as roots and its
+    // direct items as top-level rows. No members / unassigned / All-Locations.
+    if (rootId) {
+      const scopedRoots = (childrenMap.get(rootId) ?? [])
+        .filter(l => !l.holder_user_id)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(buildNode)
+      const scopedItems = (itemsByLocation.get(rootId) ?? []).sort((a, b) => a.name.localeCompare(b.name))
+      return { roots: scopedRoots, unassignedItems: [], memberNodes: [], rootItems: scopedItems }
+    }
+
     // Member-locations are children of root — split them out for section rendering
     const memberNodes: TreeNode[] = locations
       .filter(l => !!l.holder_user_id)
@@ -169,16 +188,16 @@ export function PropertyLocationTree({
       .filter(i => !i.parent_item_id && !i.location_id)
       .sort((a, b) => a.name.localeCompare(b.name))
 
-    return { roots, unassignedItems, memberNodes }
-  }, [locations, items])
+    return { roots, unassignedItems, memberNodes, rootItems: [] as LocalPropertyItem[] }
+  }, [locations, items, rootId])
 
   // Search filter — when a query is present, prune the tree to matching items /
   // locations (a matching location keeps its whole subtree; otherwise keep only
   // matching descendants). Mirrors PropertySearchOverlay's match fields.
   const q = (searchQuery ?? '').trim().toLowerCase()
   const isSearching = q.length > 0
-  const { displayRoots, displayMembers, displayUnassigned } = useMemo(() => {
-    if (!isSearching) return { displayRoots: roots, displayMembers: memberNodes, displayUnassigned: unassignedItems }
+  const { displayRoots, displayMembers, displayUnassigned, displayRootItems } = useMemo(() => {
+    if (!isSearching) return { displayRoots: roots, displayMembers: memberNodes, displayUnassigned: unassignedItems, displayRootItems: rootItems }
 
     const locName = (id: string | null) => (id ? locations.find(l => l.id === id)?.name ?? null : null)
     const itemMatches = (i: LocalPropertyItem) => {
@@ -205,8 +224,9 @@ export function PropertyLocationTree({
       displayRoots: roots.map(filterNode).filter((n): n is TreeNode => n !== null),
       displayMembers: memberNodes.map(filterNode).filter((n): n is TreeNode => n !== null),
       displayUnassigned: unassignedItems.filter(itemMatches),
+      displayRootItems: rootItems.filter(itemMatches),
     }
-  }, [isSearching, q, roots, memberNodes, unassignedItems, locations, holders])
+  }, [isSearching, q, roots, memberNodes, unassignedItems, rootItems, locations, holders])
 
   // Ellipsis button — hover-revealed in the desktop rail, always shown elsewhere.
   const actionBtnCls = `w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0 ${
@@ -317,10 +337,53 @@ export function PropertyLocationTree({
     }
   }, { filterTaps: true, delay: 150 })
 
-  if (displayRoots.length === 0 && displayUnassigned.length === 0 && displayMembers.length === 0) {
+  if (displayRoots.length === 0 && displayUnassigned.length === 0 && displayMembers.length === 0 && displayRootItems.length === 0) {
     return (
       <div className="px-6 py-8 text-center text-[10pt] text-tertiary">
-        {isSearching ? 'No matches.' : 'No locations or items yet.'}
+        {isSearching ? 'No matches.' : rootId ? 'Nothing here yet' : 'No locations or items yet.'}
+      </div>
+    )
+  }
+
+  // Shared item-row renderer — used for nested items, unassigned items, and the
+  // scoped selected-zone's top-level items. `actionCls` toggles hover-gated vs
+  // always-visible ellipsis.
+  function renderItemRow(item: LocalPropertyItem, paddingLeft: number, actionCls: string) {
+    const isItemDragSource = dragState?.id === item.id
+    const expiry = expiryStatus(item.expiry_date ?? null)
+    return (
+      <div
+        key={item.id}
+        role="button"
+        tabIndex={0}
+        className={`group flex items-center gap-2 w-full py-2 pr-6 transition-colors text-left cursor-pointer border-l-2 border-l-transparent ${
+          isItemDragSource ? 'opacity-30' : 'hover:bg-secondary/5'
+        }`}
+        style={{ paddingLeft: `${paddingLeft}px` }}
+        data-prop-row
+        onClick={() => onSelectItem(item)}
+        onKeyDown={(e) => { if (e.key === 'Enter') onSelectItem(item) }}
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (onDeleteItem || onAddItemAtLocation) openRowMenu('item', item.id, e.currentTarget as HTMLElement) }}
+        data-drag-id={item.id}
+        data-drag-type="item"
+        data-drag-name={item.name}
+      >
+        {expiry && (
+          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${expiry === 'expired' ? 'bg-themeredred' : 'bg-themeyellow'}`} />
+        )}
+        <span className="text-[10pt] text-primary truncate flex-1">{item.name}</span>
+        {item.quantity > 0 && (
+          <span className="text-[9pt] text-tertiary tabular-nums shrink-0">{item.quantity}</span>
+        )}
+        {(onAddItemAtLocation || onDeleteItem) && (
+          <button
+            onClick={(e) => { e.stopPropagation(); openRowMenu('item', item.id, (e.currentTarget as HTMLElement).closest('[data-prop-row]') as HTMLElement | null) }}
+            aria-label="More actions"
+            className={actionCls}
+          >
+            <MoreHorizontal size={15} />
+          </button>
+        )}
       </div>
     )
   }
@@ -396,47 +459,7 @@ export function PropertyLocationTree({
         {hasChildren && !isCollapsed && (
           <>
             {node.children.map((child) => renderNode(child, depth + 1))}
-            {node.items.map((item) => {
-              const isItemDragSource = dragState?.id === item.id
-              const expiry = expiryStatus(item.expiry_date ?? null)
-              return (
-                <div
-                  key={item.id}
-                  role="button"
-                  tabIndex={0}
-                  className={`group flex items-center gap-2 w-full py-2 pr-6 transition-colors text-left cursor-pointer border-l-2 border-l-transparent ${
-                    isItemDragSource ? 'opacity-30' : 'hover:bg-secondary/5'
-                  }`}
-                  style={{ paddingLeft: `${16 + (depth + 1) * 20 + 18}px` }}
-                  data-prop-row
-                  onClick={() => onSelectItem(item)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') onSelectItem(item) }}
-                  onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (onDeleteItem || onAddItemAtLocation) openRowMenu('item', item.id, e.currentTarget as HTMLElement) }}
-                  data-drag-id={item.id}
-                  data-drag-type="item"
-                  data-drag-name={item.name}
-                >
-                  {expiry && (
-                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${expiry === 'expired' ? 'bg-themeredred' : 'bg-themeyellow'}`} />
-                  )}
-                  <span className="text-[10pt] text-primary truncate flex-1">{item.name}</span>
-                  {item.quantity > 0 && (
-                    <span className="text-[9pt] text-tertiary tabular-nums shrink-0">
-                      {item.quantity}
-                    </span>
-                  )}
-                  {(onAddItemAtLocation || onDeleteItem) && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); openRowMenu('item', item.id, (e.currentTarget as HTMLElement).closest('[data-prop-row]') as HTMLElement | null) }}
-                      aria-label="More actions"
-                      className={actionBtnCls}
-                    >
-                      <MoreHorizontal size={15} />
-                    </button>
-                  )}
-                </div>
-              )
-            })}
+            {node.items.map((item) => renderItemRow(item, 16 + (depth + 1) * 20 + 18, actionBtnCls))}
           </>
         )}
       </div>
@@ -444,7 +467,7 @@ export function PropertyLocationTree({
   }
 
   // Show unassigned section when there are unassigned items OR when dragging an item (as drop target)
-  const showUnassigned = displayUnassigned.length > 0 || (!isSearching && dragState?.type === 'item')
+  const showUnassigned = !rootId && (displayUnassigned.length > 0 || (!isSearching && dragState?.type === 'item'))
   const isUnassignedDropTarget = dropTargetId === '__unassigned__'
 
   return (
@@ -478,8 +501,11 @@ export function PropertyLocationTree({
       {displayMembers.map((node) => renderNode(node, 0))}
       {displayRoots.map((node) => renderNode(node, 0))}
 
-      {/* Root drop zone — only visible when dragging a location */}
-      {dragState?.type === 'location' && (
+      {/* Scoped mode: the selected zone's own direct items, as top-level rows */}
+      {rootId && displayRootItems.map((item) => renderItemRow(item, 16 + 18, actionBtnCls))}
+
+      {/* Root drop zone — only visible when dragging a location (not in scoped mode) */}
+      {!rootId && dragState?.type === 'location' && (
         <div
           className={`mx-3 my-1 py-2 rounded-md border-2 border-dashed text-center text-[10pt] font-medium transition-colors ${
             dropTargetId === '__root__'
@@ -518,47 +544,7 @@ export function PropertyLocationTree({
 
           {(isSearching || !collapsed.has('__unassigned__')) && (
             <>
-              {displayUnassigned.map((item) => {
-                const isItemDragSource = dragState?.id === item.id
-                const expiry = expiryStatus(item.expiry_date ?? null)
-                return (
-                  <div
-                    key={item.id}
-                    role="button"
-                    tabIndex={0}
-                    className={`flex items-center gap-2 w-full py-2 pr-6 transition-colors text-left cursor-pointer ${
-                      isItemDragSource ? 'opacity-30' : 'hover:bg-secondary/5'
-                    }`}
-                    style={{ paddingLeft: `${16 + 20 + 18}px` }}
-                    data-prop-row
-                    onClick={() => onSelectItem(item)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') onSelectItem(item) }}
-                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (onDeleteItem || onAddItemAtLocation) openRowMenu('item', item.id, e.currentTarget as HTMLElement) }}
-                    data-drag-id={item.id}
-                    data-drag-type="item"
-                    data-drag-name={item.name}
-                  >
-                    {expiry && (
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${expiry === 'expired' ? 'bg-themeredred' : 'bg-themeyellow'}`} />
-                    )}
-                    <span className="text-[10pt] text-primary truncate flex-1">{item.name}</span>
-                    {item.quantity > 0 && (
-                      <span className="text-[9pt] text-tertiary tabular-nums shrink-0">
-                        {item.quantity}
-                      </span>
-                    )}
-                    {(onAddItemAtLocation || onDeleteItem) && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); openRowMenu('item', item.id, (e.currentTarget as HTMLElement).closest('[data-prop-row]') as HTMLElement | null) }}
-                        aria-label="More actions"
-                        className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0"
-                      >
-                        <MoreHorizontal size={15} />
-                      </button>
-                    )}
-                  </div>
-                )
-              })}
+              {displayUnassigned.map((item) => renderItemRow(item, 16 + 20 + 18, 'w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0'))}
             </>
           )}
         </div>

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Bell, Mail, Code, Info, Volume2, Plus, Trash2, Wifi, WifiOff } from 'lucide-react'
+import { Bell, Mail, Code, Info, Volume2, Plus, Trash2, Wifi, WifiOff, CalendarClock } from 'lucide-react'
 import { usePushNotifications } from '../../Hooks/usePushNotifications'
 import { useUserProfile } from '../../Hooks/useUserProfile'
 import { useAuth } from '../../Hooks/useAuth'
@@ -16,6 +16,7 @@ export const NotificationSettingsPanel = () => {
   const [error, setError] = useState('')
 
   const devAlerts = profile.notifyDevAlerts ?? false
+  const calendarAssignments = profile.notifyCalendarAssignments ?? false
   const [soundsEnabled, setSoundsEnabled] = useState(isMessageSoundsEnabled)
 
   const showSuccess = useCallback((msg: string) => {
@@ -62,6 +63,22 @@ export const NotificationSettingsPanel = () => {
     updateProfile({ notifyDevAlerts: newValue })
     syncProfileField({ notify_dev_alerts: newValue })
     showSuccess(newValue ? 'Dev alerts enabled' : 'Dev alerts disabled')
+  }, [isSubscribed, subscribe, pushError, updateProfile, syncProfileField, showSuccess, showError])
+
+  const handleCalendarAssignToggle = useCallback(async (newValue: boolean) => {
+    setError('')
+
+    if (newValue && !isSubscribed) {
+      const ok = await subscribe()
+      if (!ok) {
+        showError(pushError || 'Could not enable notifications')
+        return
+      }
+    }
+
+    updateProfile({ notifyCalendarAssignments: newValue })
+    syncProfileField({ notify_calendar_assignments: newValue })
+    showSuccess(newValue ? 'Event assignment alerts enabled' : 'Event assignment alerts disabled')
   }, [isSubscribed, subscribe, pushError, updateProfile, syncProfileField, showSuccess, showError])
 
   return (
@@ -157,6 +174,24 @@ export const NotificationSettingsPanel = () => {
                     <p className="text-[9pt] text-tertiary mt-0.5">Play sounds when sending and receiving messages</p>
                   </div>
                   <ToggleSwitch checked={soundsEnabled} />
+                </div>
+
+                {/* Calendar Assignment Toggle — all users */}
+                <div
+                  onClick={() => handleCalendarAssignToggle(!calendarAssignments)}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-tertiary/15 bg-themewhite transition-all cursor-pointer"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCalendarAssignToggle(!calendarAssignments); } }}
+                >
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${calendarAssignments ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                    <CalendarClock size={18} className={calendarAssignments ? 'text-themeblue2' : 'text-tertiary'} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium ${calendarAssignments ? 'text-primary' : 'text-tertiary'}`}>Event Assignments</p>
+                    <p className="text-[9pt] text-tertiary mt-0.5">Get notified when you're assigned to a calendar event</p>
+                  </div>
+                  <ToggleSwitch checked={calendarAssignments} />
                 </div>
 
                 {/* Dev Alerts Toggle — dev users only */}

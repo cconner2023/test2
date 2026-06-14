@@ -447,6 +447,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                     ref={itemFormRef}
                     editingItem={store.editingItem}
                     onClose={() => { store.setEditingItem(null); onBack() }}
+                    onEnrollNew={onEnrollItem}
                   />
                 </div>
               </>
@@ -486,8 +487,17 @@ export const PropertyPanel = memo(function PropertyPanel({
                     location={selectedLocation}
                     locations={visibleLocations}
                     items={store.items}
+                    holders={store.holders}
                     onNavigateZone={(id) => mapRef.current?.navigateToZone(id)}
                     onSelectItem={handleSelectItem}
+                    onMoveLocation={handleMoveLocation}
+                    onMoveItem={handleMoveItem}
+                    onEditLocation={handleEditLocation}
+                    onEditItem={handleEditItemRow}
+                    onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
+                    onDeleteItem={onDeleteItem ? (item) => setPendingDeleteItem(item) : undefined}
+                    onAddChildLocation={handleAddChildLocation}
+                    onAddItemAtLocation={handleAddItemAtLocation}
                   />
                 </div>
               </>
@@ -627,6 +637,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             ref={itemFormRef}
             editingItem={store.editingItem}
             onClose={closeMobileForm}
+            onEnrollNew={onEnrollItem}
           />
         ) : mobileForm?.kind === 'location' ? (
           <PropertyLocationForm
@@ -652,8 +663,17 @@ export const PropertyPanel = memo(function PropertyPanel({
             location={selectedLocation}
             locations={visibleLocations}
             items={store.items}
+            holders={store.holders}
             onNavigateZone={(id) => mapRef.current?.navigateToZone(id)}
             onSelectItem={handleSelectItem}
+            onMoveLocation={handleMoveLocation}
+            onMoveItem={handleMoveItem}
+            onEditLocation={handleEditLocation}
+            onEditItem={handleEditItemRow}
+            onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
+            onDeleteItem={onDeleteItem ? (item) => setPendingDeleteItem(item) : undefined}
+            onAddChildLocation={handleAddChildLocation}
+            onAddItemAtLocation={handleAddItemAtLocation}
           />
         ) : null}
       </Sheet>

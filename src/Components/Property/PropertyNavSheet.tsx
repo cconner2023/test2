@@ -205,6 +205,7 @@ export const PropertyNavSheet = forwardRef<PropertyNavSheetHandle, PropertyNavSh
               ref={itemFormRef}
               editingItem={store.editingItem}
               onClose={() => { store.setEditingItem(null); popScreen() }}
+              onEnrollNew={onEnrollItem}
             />
           )}
 

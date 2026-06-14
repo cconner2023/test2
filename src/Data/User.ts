@@ -121,6 +121,8 @@ export interface UserTypes {
     surrogateClinics?: { id: string; name: string }[];
     /** Dev-only: login alerts, account requests, feedback */
     notifyDevAlerts?: boolean;
+    /** Opt-in: push when assigned to a calendar event */
+    notifyCalendarAssignments?: boolean;
     /** @deprecated Use MASTER_BLOCKS from PhysicalExamData. Kept for backward compat. */
     customPEBlocks?: CustomPEBlock[];
     /** User-defined named exam templates (custom mode) */

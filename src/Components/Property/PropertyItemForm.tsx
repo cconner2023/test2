@@ -5,11 +5,13 @@ import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useShallow } from 'zustand/react/shallow'
 import type { LocalPropertyItem } from '../../Types/PropertyTypes'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
-import { EnrollScanStep } from './EnrollScanStep'
 
 interface PropertyItemFormProps {
   editingItem?: LocalPropertyItem | null
   onClose: () => void
+  /** Called after a brand-new item is created so the host can present the
+   *  visual-ID enroll step as a modal (shared with the detail-menu enroll). */
+  onEnrollNew?: (item: LocalPropertyItem) => void
 }
 
 export interface PropertyItemFormHandle {
@@ -18,7 +20,7 @@ export interface PropertyItemFormHandle {
 }
 
 export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemFormProps>(
-  function PropertyItemForm({ editingItem, onClose }, ref) {
+  function PropertyItemForm({ editingItem, onClose, onEnrollNew }, ref) {
   const {
     locations,
     clinicMembers,
@@ -27,7 +29,6 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
     defaultLocationId,
     addItem,
     editItem,
-    enrollFingerprint,
   } = usePropertyStore(
     useShallow((s) => ({
       locations: s.locations,
@@ -37,7 +38,6 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
       defaultLocationId: s.defaultLocationId,
       addItem: s.addItem,
       editItem: s.editItem,
-      enrollFingerprint: s.enrollFingerprint,
     }))
   )
 
@@ -59,7 +59,6 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   const [expiryDate, setExpiryDate] = useState(editingItem?.expiry_date ?? '')
   const [, setIsSaving] = useState(false)
   const [isSerialized, setIsSerialized] = useState(editingItem?.is_serialized ?? true)
-  const [newItemId, setNewItemId] = useState<string | null>(null)
   const [conditionCode, setConditionCode] = useState<'serviceable' | 'unserviceable' | 'damaged' | 'missing'>(
     editingItem?.condition_code ?? 'serviceable'
   )
@@ -143,8 +142,8 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
           photo_url: null,
           visual_fingerprint: null,
         })
-        if (created) setNewItemId(created.id)
-        else onClose()
+        if (created) onEnrollNew?.(created)
+        onClose()
       } else {
         const validSerials = serialNumbers.map(s => s.trim()).filter(Boolean)
 
@@ -159,8 +158,8 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
             photo_url: null,
             visual_fingerprint: null,
           })
-          if (created) setNewItemId(created.id)
-          else onClose()
+          if (created) onEnrollNew?.(created)
+          onClose()
         } else {
           // Batch — create one item per serial, skip enrollment
           for (const serial of validSerials) {
@@ -185,7 +184,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   }, [
     name, nomenclature, nsn, lin, serialNumbers, quantity,
     locationId, holderId, parentItemId, notes, expiryDate, isSerialized,
-    isEdit, editingItem, clinicId, addItem, editItem, onClose, conditionCode,
+    isEdit, editingItem, clinicId, addItem, editItem, onClose, onEnrollNew, conditionCode,
   ])
 
   useImperativeHandle(ref, () => ({ submit: handleSave }), [handleSave])
@@ -193,24 +192,6 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   const hasLocations = locationOptions.length > 0
   const hasParentItems = parentItemOptions.length > 0
   const filledSerialCount = serialNumbers.filter(s => s.trim()).length
-
-  if (newItemId) {
-    return (
-      <div className="px-4 py-4">
-        <div className="rounded-2xl overflow-hidden">
-          <EnrollScanStep
-          itemId={newItemId}
-          itemName={name.trim()}
-          onEnrolled={async (fp) => {
-            await enrollFingerprint(newItemId, fp)
-            onClose()
-          }}
-          onSkip={onClose}
-        />
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="px-4 py-4">
@@ -236,21 +217,23 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
       </button>
 
       <div className="px-4 py-3 border-b border-primary/6">
-        <div className="flex gap-1.5 flex-wrap">
+        <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">Condition</span>
+        <div className="mt-1.5 flex overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
           {(['serviceable', 'unserviceable', 'damaged', 'missing'] as const).map((code) => (
             <button
               key={code}
               type="button"
               onClick={() => setConditionCode(code)}
-              className={[
-                'px-3 py-1.5 rounded-full text-[9pt] font-medium capitalize border transition-all active:scale-95',
-                conditionCode === code
-                  ? 'bg-themeblue3 text-white border-themeblue1/30'
-                  : 'bg-themewhite text-secondary border-tertiary/20',
-              ].join(' ')}
+              className={`shrink-0 px-4 py-1.5 transition-colors ${
+                conditionCode === code ? 'bg-themeblue3' : 'active:bg-tertiary/5'
+              }`}
               title={`Condition: ${code}`}
             >
-              {code}
+              <span className={`text-[9pt] capitalize transition-colors ${
+                conditionCode === code ? 'text-white font-medium' : 'text-secondary'
+              }`}>
+                {code}
+              </span>
             </button>
           ))}
         </div>

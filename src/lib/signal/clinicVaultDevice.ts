@@ -50,8 +50,7 @@ import { x3dhRespond } from './x3dh'
 import { initReceiver, ratchetDecrypt } from './ratchet'
 import { uploadKeyBundle, registerDevice } from './signalService'
 import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones, publishFullReplayLiveIds, poisonFullReplayReconcile, snapshotCalendarEvents, loadSnapshotCalendarEvents } from '../calendarRouting'
-import { getLocalMapOverlays } from '../offlineDb'
-import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature, initOverlayTombstones, loadSnapshotOverlays } from '../mapOverlayRouting'
+import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature, initOverlayTombstones, loadSnapshotOverlays, snapshotOverlays } from '../mapOverlayRouting'
 import type { CalendarEventContent, MapOverlayContent, MapFeatureContent } from './messageContent'
 import { parseMessageContent } from './messageContent'
 import { deflateRaw, inflateRaw } from 'pako'
@@ -968,7 +967,7 @@ export async function processClinicVaultMessages(
         v: CLINIC_SNAPSHOT_PAYLOAD_VERSION,
         watermark: newWatermark,
         events: snapshotCalendarEvents(clinicId),
-        overlays: await getLocalMapOverlays(clinicId),
+        overlays: await snapshotOverlays(clinicId),
       }
       const newVersion = await writeClinicSnapshot(clinicId, payload, baseVersion)
       if (newVersion > 0) {

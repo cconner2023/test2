@@ -22,6 +22,7 @@ import { useAuth } from './useAuth'
 import { getTombstones } from '../lib/calendarRouting'
 import { addCalendarTombstone, clearPendingVaultSend } from '../lib/calendarEventStore'
 import { deleteCompletionsByCalendarOriginId, relinkCompletionsByOriginId } from '../lib/trainingService'
+import { fireNotification } from '../lib/notifyDispatcher'
 import type { CalendarEvent } from '../Types/CalendarTypes'
 import { createLogger } from '../Utilities/Logger'
 
@@ -77,6 +78,13 @@ export function useCalendarWrite(): UseCalendarWriteResult {
     const oldOriginId = existing?.originId ?? null
     const oldTargets = existing?.target_clinic_ids ?? (existing?.clinic_id ? [existing.clinic_id] : [])
 
+    // Newly-added assignees (this create/edit only), excluding the author. Used
+    // for the arrival-based assignment push below — NOT a time-based alarm.
+    const oldAssigned = existing?.assigned_to ?? []
+    const newlyAssigned = (event.assigned_to ?? []).filter(
+      id => id !== userId && !oldAssigned.includes(id)
+    )
+
     setIsWriting(true)
     try {
       // Resolve the cross-cluster distribution set: authoring clinic + every
@@ -105,6 +113,15 @@ export function useCalendarWrite(): UseCalendarWriteResult {
       }
 
       relinkIfNeeded(oldOriginId, originId)
+
+      // Fire-and-forget assignment ping to newly-added assignees. Server filters
+      // to those opted in (notify_calendar_assignments) and decrypts FCM tokens;
+      // no-PHI generic copy lives in the edge fn. Only fires from this form-driven
+      // path — vaultUpdate/clone-subtask flushes never ping, so drag/status/tick
+      // churn won't re-notify.
+      if (newlyAssigned.length > 0) {
+        fireNotification({ type: 'calendar_assignment', user_ids: newlyAssigned, author_id: userId ?? undefined })
+      }
     } catch (e) {
       logger.warn('writeEvent failed, committing without originId:', e)
       if (existing) {
