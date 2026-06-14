@@ -93,6 +93,9 @@ export interface CalendarEventPayload {
   encounter_algorithm_id?: string | null
   /** Origin ID for tracking the broadcast message on the server. */
   originId?: string
+  /** Clinics this event is distributed to (cross-cluster fan-out targets).
+   *  Operational routing metadata — clinic ids only, not PHI. */
+  target_clinic_ids?: string[]
 }
 
 export interface CalendarEventContent {

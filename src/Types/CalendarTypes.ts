@@ -53,6 +53,15 @@ export interface CalendarEvent {
   updated_at: string
   /** Origin ID of the latest broadcast message — used for hard-delete on update/delete. */
   originId?: string
+  /**
+   * Clinics this event is distributed to = {clinic_id} ∪ each assignee's
+   * [home, ...active loans]. Computed at send time (useCalendarVault
+   * resolveTargetClinics) and stamped on the event so a single source drives
+   * cross-cluster fan-out, the clinic-vault snapshot retain filter, and the
+   * calendar visibility filter. Absent on legacy events → treated as
+   * [clinic_id] (single-clinic, pre-cross-cluster behavior).
+   */
+  target_clinic_ids?: string[]
   /** Last-known field positions for mission participants — keyed by user_id. Updated via location publisher; rides the normal event edit fan-out. */
   field_positions?: Record<string, FieldPosition> | null
   /** 9-line MEDEVAC request data — present when category is 'medevac' or when a mission event includes a MEDEVAC request. */

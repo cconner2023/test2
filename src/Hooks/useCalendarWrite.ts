@@ -17,7 +17,7 @@
 
 import { useState, useCallback } from 'react'
 import { useCalendarStore } from '../stores/useCalendarStore'
-import { useCalendarVault } from './useCalendarVault'
+import { useCalendarVault, resolveTargetClinics } from './useCalendarVault'
 import { useAuth } from './useAuth'
 import { getTombstones } from '../lib/calendarRouting'
 import { addCalendarTombstone, clearPendingVaultSend } from '../lib/calendarEventStore'
@@ -75,13 +75,28 @@ export function useCalendarWrite(): UseCalendarWriteResult {
     const store = useCalendarStore.getState()
     const existing = store.events.find(e => e.id === event.id)
     const oldOriginId = existing?.originId ?? null
+    const oldTargets = existing?.target_clinic_ids ?? (existing?.clinic_id ? [existing.clinic_id] : [])
 
     setIsWriting(true)
     try {
+      // Resolve the cross-cluster distribution set: authoring clinic + every
+      // assignee's home/loan clinics. Stamp it on the event so it drives the
+      // snapshot retain filter and the visibility filter consistently.
+      const newTargets = await resolveTargetClinics(event.clinic_id, event.assigned_to ?? [])
+      const stamped: CalendarEvent = { ...event, target_clinic_ids: newTargets }
+
+      // Fan the new 'c' to the UNION of old+new targets. A clinic dropped from
+      // the set (an assignee removed) thus receives the updated event whose
+      // target_clinic_ids no longer lists it — the visibility filter hides it
+      // and the snapshot reap removes it. We deliberately do NOT send a 'd'
+      // for retract: tombstones are global-by-event-id, so a retract 'd' would
+      // poison the event on any device that also reaches a surviving clinic.
+      const fanUnion = Array.from(new Set([...oldTargets, ...newTargets]))
+
       if (oldOriginId) deleteEvents([oldOriginId], existing?.clinic_id ?? event.clinic_id)
 
-      const originId = await sendEvent('c', event)
-      const committed = { ...event, ...(originId ? { originId } : {}) }
+      const originId = await sendEvent('c', stamped, fanUnion)
+      const committed = { ...stamped, ...(originId ? { originId } : {}) }
 
       if (existing) {
         store.updateEvent(event.id, committed)
@@ -105,12 +120,21 @@ export function useCalendarWrite(): UseCalendarWriteResult {
   const vaultUpdate = useCallback((event: CalendarEvent): void => {
     const existing = useCalendarStore.getState().events.find(e => e.id === event.id)
     const oldOriginId = existing?.originId ?? null
+    const oldTargets = existing?.target_clinic_ids ?? (existing?.clinic_id ? [existing.clinic_id] : [])
 
     if (oldOriginId) deleteEvents([oldOriginId], existing?.clinic_id ?? event.clinic_id)
 
-    sendEvent('c', event).then(originId => {
-      if (originId) useCalendarStore.getState().updateEvent(event.id, { originId })
-      relinkIfNeeded(oldOriginId, originId)
+    // Same cross-cluster resolve + union fan as writeEvent, on the optimistic
+    // (fire-and-forget) path. Reflect new targets in the store first so the
+    // visibility filter is correct before the vault send resolves.
+    resolveTargetClinics(event.clinic_id, event.assigned_to ?? []).then(newTargets => {
+      const stamped: CalendarEvent = { ...event, target_clinic_ids: newTargets }
+      const fanUnion = Array.from(new Set([...oldTargets, ...newTargets]))
+      useCalendarStore.getState().updateEvent(event.id, { target_clinic_ids: newTargets })
+      sendEvent('c', stamped, fanUnion).then(originId => {
+        if (originId) useCalendarStore.getState().updateEvent(event.id, { originId })
+        relinkIfNeeded(oldOriginId, originId)
+      })
     })
   }, [sendEvent, deleteEvents, relinkIfNeeded])
 
@@ -127,6 +151,10 @@ export function useCalendarWrite(): UseCalendarWriteResult {
     const event = store.events.find(e => e.id === id)
     const originId = event?.originId ?? null
     const eventClinicId = event?.clinic_id
+    // Every clinic that holds a copy must receive the 'd' so it tombstones the
+    // event. A real delete (unlike retract) is genuinely gone everywhere, so a
+    // global-by-id tombstone is correct here.
+    const targets = event?.target_clinic_ids ?? (eventClinicId ? [eventClinicId] : [])
 
     // Tombstone first (sync) — resurrection guard before any await.
     getTombstones().add(id)
@@ -143,7 +171,7 @@ export function useCalendarWrite(): UseCalendarWriteResult {
       // 'c'/'d' rows on next processClinicVaultMessages — no client-side
       // hard-delete RPC needed from this path. sendEvent swallows its own
       // errors and returns null on failure.
-      await sendEvent('d', { id, ...(eventClinicId ? { clinic_id: eventClinicId } : {}) })
+      await sendEvent('d', { id, ...(eventClinicId ? { clinic_id: eventClinicId } : {}), target_clinic_ids: targets })
 
       // Cascade: if this event was a training assignment surface, remove the
       // linked completion row too. Idempotent; no-op when nothing is linked.

@@ -494,7 +494,12 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     if (reachableClinicIds.size > 0) {
       out = out.filter(e =>
         reachableClinicIds.has(e.clinic_id) ||
-        (userId !== null && e.assigned_to.includes(userId))
+        (userId !== null && e.assigned_to.includes(userId)) ||
+        // Cross-cluster: an event distributed to any clinic I reach (its
+        // assignee is loaned into / a home member of one of my clinics) is
+        // mine to see, even though its authoring clinic_id is foreign. Mirrors
+        // the fan-out target set so distribution and visibility stay symmetric.
+        (e.target_clinic_ids?.some(c => reachableClinicIds.has(c)) ?? false)
       )
     }
     if (personnelFilter.length > 0) {

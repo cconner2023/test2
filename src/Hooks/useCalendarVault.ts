@@ -93,6 +93,42 @@ async function encryptForAllClinicDevices(
   return results
 }
 
+/**
+ * Resolve the set of clinics an event should be distributed to:
+ * {authoringClinicId} ∪ (each assignee's [home clinic, ...active loans]).
+ *
+ * The assignee membership sets come from get_user_clinic_sets (SECURITY DEFINER)
+ * so co-assignees whose home/loan clinics fall outside the author's own
+ * auth_clinic_ids() still resolve — a plain client-side join would hit RLS and
+ * silently under-fan. The authoring clinic is always seeded so the author keeps
+ * their own copy even when no assignee is a member of it.
+ *
+ * On failure (offline / RPC error) falls back to [authoringClinicId] — i.e. the
+ * pre-cross-cluster single-clinic behavior — rather than dropping the send.
+ */
+export async function resolveTargetClinics(
+  authoringClinicId: string | null | undefined,
+  assignedTo: string[],
+): Promise<string[]> {
+  const set = new Set<string>()
+  if (authoringClinicId) set.add(authoringClinicId)
+  if (assignedTo.length > 0) {
+    try {
+      const { data, error } = await supabase.rpc('get_user_clinic_sets', { p_user_ids: assignedTo })
+      if (error) {
+        logger.warn('get_user_clinic_sets failed, falling back to authoring clinic only:', error.message)
+      } else if (Array.isArray(data)) {
+        for (const row of data as Array<{ clinic_id: string | null }>) {
+          if (row.clinic_id) set.add(row.clinic_id)
+        }
+      }
+    } catch (e) {
+      logger.warn('resolveTargetClinics threw, falling back to authoring clinic only:', e instanceof Error ? e.message : e)
+    }
+  }
+  return Array.from(set)
+}
+
 // ---- Hook ----
 
 interface UseCalendarVaultResult {
@@ -101,11 +137,15 @@ interface UseCalendarVaultResult {
   /**
    * Encrypt and send a calendar event via Signal fan-out. Returns the originId on success.
    *
-   * The fan-out target clinic is `data.clinic_id` when present (edits/deletes
-   * carry the event's own clinic_id, which may be assigned or surrogate);
-   * otherwise falls back to the user's assigned `clinic_id`.
+   * Fan-out targets (in priority order):
+   *   1. `fanToClinics` when provided — the explicit clinic list to fan to.
+   *      Used for edits/retracts where the fan set (union of old+new targets)
+   *      differs from the payload's stamped `target_clinic_ids` (new targets).
+   *   2. else `data.target_clinic_ids` when non-empty — the cross-cluster set.
+   *   3. else `[data.clinic_id ?? clinicId]` — legacy single-clinic fallback.
+   * The same originId is shared across every clinic batch.
    */
-  sendEvent: (action: 'c' | 'u' | 'd', data: Partial<CalendarEvent> & { id: string }) => Promise<string | null>
+  sendEvent: (action: 'c' | 'u' | 'd', data: Partial<CalendarEvent> & { id: string }, fanToClinics?: string[]) => Promise<string | null>
   /** Hard-delete messages by origin ID. Caller passes the clinic that owns the vault. */
   deleteEvents: (originIds: string[], clinicId: string) => Promise<void>
 }
@@ -117,11 +157,16 @@ export function useCalendarVault(): UseCalendarVaultResult {
   const sendEvent = useCallback(async (
     action: 'c' | 'u' | 'd',
     data: Partial<CalendarEvent> & { id: string },
+    fanToClinics?: string[],
   ): Promise<string | null> => {
-    // Target the event's own clinic vault if known; fall back to the user's
-    // assigned clinic for fresh creates that haven't been tagged yet.
-    const targetClinicId = (data.clinic_id as string | undefined) ?? clinicId
-    if (!targetClinicId || !userId) return null
+    // Resolve the clinic set to fan to (see interface doc for priority order).
+    const authoringClinic = (data.clinic_id as string | undefined) ?? clinicId
+    const targetClinics = (fanToClinics && fanToClinics.length > 0)
+      ? Array.from(new Set(fanToClinics))
+      : (data.target_clinic_ids && data.target_clinic_ids.length > 0)
+        ? Array.from(new Set(data.target_clinic_ids))
+        : (authoringClinic ? [authoringClinic] : [])
+    if (targetClinics.length === 0 || !userId) return null
     const localDeviceId = useMessagingStore.getState().localDeviceId
     const clinicDeviceId = useMessagingStore.getState().clinicDeviceId
     if (!localDeviceId || !clinicDeviceId) return null
@@ -133,37 +178,44 @@ export function useCalendarVault(): UseCalendarVaultResult {
       data: data as unknown as CalendarEventPayload,
     }
     const serialized = serializeContent(content)
+    // ONE originId shared across every clinic batch, so the event's single
+    // stored originId resolves hard-delete in any clinic that holds a copy.
     const originId = crypto.randomUUID()
 
-    try {
-      // Fetch all clinic devices (vault + member clinic devices)
-      const devicesResult = await fetchPeerDevices(targetClinicId)
-      if (!devicesResult.ok || devicesResult.data.length === 0) {
-        logger.warn('No clinic devices found for fan-out')
-        return null
-      }
+    // Fan a self-contained batch into each target clinic's vault + member
+    // devices. A failure in one clinic must not abort the rest, so each clinic
+    // is tried independently; the send succeeds if at least one batch landed.
+    let anySent = false
+    for (const targetClinicId of targetClinics) {
+      try {
+        // Fetch all clinic devices (vault + member clinic devices)
+        const devicesResult = await fetchPeerDevices(targetClinicId)
+        if (!devicesResult.ok || devicesResult.data.length === 0) {
+          logger.warn(`No clinic devices found for fan-out to ${targetClinicId}`)
+          continue
+        }
 
-      // Filter out our own clinic device — we don't send to ourselves.
-      // The vault is a peer device that receives every action, including 'd':
-      // cooperative cleanup during processClinicVaultMessages pairs 'c'/'d'
-      // by event_id and hard-deletes the pair from signal_messages.
-      const targetDevices = devicesResult.data.filter(d => d.deviceId !== clinicDeviceId)
-      if (targetDevices.length === 0) {
-        logger.warn('No target clinic devices for fan-out (only self)')
-        return null
-      }
+        // Filter out our own clinic device — we don't send to ourselves.
+        // The vault is a peer device that receives every action, including 'd':
+        // a later snapshot pass materializes resolution and the watermark reap
+        // removes the covered rows wholesale.
+        const targetDevices = devicesResult.data.filter(d => d.deviceId !== clinicDeviceId)
+        if (targetDevices.length === 0) continue
 
-      // Encrypt for all clinic devices using clinic session context
-      const inputs = await encryptForAllClinicDevices(targetClinicId, targetDevices, serialized, userId)
-      if (inputs.length > 0) {
-        await sendMessageFanOut(userId, clinicDeviceId, targetClinicId, inputs, targetClinicId, originId, true)
+        // Encrypt for all clinic devices using clinic session context. Foreign
+        // clinics (the author isn't a member of) seal fine — encryption uses
+        // the recipients' public bundles, no membership/key needed by sender.
+        const inputs = await encryptForAllClinicDevices(targetClinicId, targetDevices, serialized, userId)
+        if (inputs.length > 0) {
+          await sendMessageFanOut(userId, clinicDeviceId, targetClinicId, inputs, targetClinicId, originId, true)
+          anySent = true
+        }
+      } catch (e) {
+        logger.warn(`Failed to send calendar event to ${targetClinicId}:`, e instanceof Error ? e.message : e)
       }
-
-      return originId
-    } catch (e) {
-      logger.warn('Failed to send calendar event:', e instanceof Error ? e.message : e)
-      return null
     }
+
+    return anySent ? originId : null
   }, [clinicId, userId])
 
   const deleteEvents = useCallback(async (originIds: string[], clinicId: string): Promise<void> => {
@@ -188,17 +240,24 @@ export function useCalendarVault(): UseCalendarVaultResult {
     const drain = async () => {
       const pendingSends = await loadPendingVaultSends()
       for (const item of pendingSends) {
-        const originId = await sendEvent('c', item.event)
+        // Re-resolve cross-cluster targets here: the event may have been
+        // enqueued offline, where resolveTargetClinics fell back to the
+        // authoring clinic only. Now that we're online (drain runs on mount /
+        // 'online'), resolve the full set so loaned-assignee events reach
+        // every relevant clinic vault. Falls back to the event's own clinic
+        // on RPC failure.
+        const targets = await resolveTargetClinics(item.event.clinic_id, item.event.assigned_to ?? [])
+        const stamped = { ...item.event, target_clinic_ids: targets }
+        const originId = await sendEvent('c', stamped)
         if (originId) {
           // If the event was deleted while this send was in flight, fan-out
-          // a matching 'd' so the vault pair-cleans the freshly sent 'c' on
-          // the next replay pass.
+          // a matching 'd' to every target so each clinic tombstones it.
           if (getTombstones().has(item.id)) {
-            sendEvent('d', { id: item.id, clinic_id: item.event.clinic_id }).catch(() => {})
+            sendEvent('d', { id: item.id, clinic_id: item.event.clinic_id, target_clinic_ids: targets }).catch(() => {})
             await clearPendingVaultSend(item.id)
           } else {
             await clearPendingVaultSend(item.id)
-            useCalendarStore.getState().updateEvent(item.id, { originId })
+            useCalendarStore.getState().updateEvent(item.id, { originId, target_clinic_ids: targets })
           }
         }
       }

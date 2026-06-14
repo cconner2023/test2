@@ -99,10 +99,19 @@ export function routeCalendarEvent(content: CalendarEventContent): void {
  * source. Reads the store (the synchronous landing spot for every routed event)
  * and filters to this clinic, excluding tombstoned ids. Bridges store→signal so
  * clinicVaultDevice never imports the store directly.
+ *
+ * REAP-SAFETY: this is also the retain filter for the clinic-vault compaction —
+ * reap_clinic_vault_below deletes every vault row this snapshot covers, so an
+ * event NOT returned here is permanently dropped from the clinic. We therefore
+ * include cross-cluster copies fanned in for a loaned assignee
+ * (target_clinic_ids contains this clinic) even though their authoring
+ * clinic_id differs. Omitting that clause would let the reap eat every
+ * cross-cluster copy after the first snapshot cycle.
  */
 export function snapshotCalendarEvents(clinicId: string): CalendarEvent[] {
   return useCalendarStore.getState().events.filter(
-    e => e.clinic_id === clinicId && !_tombstones.has(e.id)
+    e => !_tombstones.has(e.id) &&
+      (e.clinic_id === clinicId || (e.target_clinic_ids?.includes(clinicId) ?? false))
   )
 }
 
