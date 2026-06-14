@@ -1144,7 +1144,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 isOpen={detailSheetOpen}
                 onClose={handleBack}
                 height="fit"
-                maxHeight={92}
+                maxHeight={60}
                 backdrop="none"
                 title={detailTitle}
                 titleNode={sheetTitleNode}

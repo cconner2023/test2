@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react'
 import { useDrag } from '@use-gesture/react';
 import { X, ChevronLeft } from 'lucide-react';
 import { HeaderPill, PillButton } from './HeaderPill';
+import { GlassBand } from './GlassBand';
 import { GESTURE_THRESHOLDS, clamp } from '../Utilities/GestureUtils';
 import { DRAWER_TIMING } from '../Utilities/constants';
 import { useIsMobile } from '../Hooks/useIsMobile';
@@ -66,16 +67,7 @@ function DrawerHeader({
             {/* Glass: one frosted+masked backdrop covering the WHOLE header (drag
              * handle + title row) so the blur hugs the drawer's top edge and
              * feathers to nothing at the bottom — no transparent strip up top. */}
-            {glass && (
-                <div
-                    aria-hidden
-                    className="absolute inset-0 -z-10 backdrop-blur-[2px] bg-themewhite3/15"
-                    style={{
-                        maskImage: 'linear-gradient(to bottom, black 55%, transparent 100%)',
-                        WebkitMaskImage: 'linear-gradient(to bottom, black 55%, transparent 100%)',
-                    }}
-                />
-            )}
+            {glass && <GlassBand edge="top" className="inset-0" />}
             {/* Drag handle — visible on mobile, hidden for full-screen drawers */}
             {isMobile && !mobileFullScreen && (
                 <div className="flex justify-center pt-1.5 pb-1" data-drag-zone style={{ touchAction: 'none' }}>

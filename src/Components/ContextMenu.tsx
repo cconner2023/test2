@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { LucideIcon } from 'lucide-react'
 import { ActionButton, type ActionButtonVariant } from './ActionButton'
@@ -18,6 +18,14 @@ export interface ContextMenuItem {
   variant?: ActionButtonVariant
   /** When set, tapping this item swaps the menu to show these items instead of running onAction. */
   submenu?: ContextMenuItem[]
+  /** Marks the item as the current selection (selector menus) — list rows render
+   *  a highlighted/checked state. Ignored by the horizontal pill layout. */
+  selected?: boolean
+  /** Fully custom button renderer. When set, the item owns its own button + click; the
+   *  menu renders it verbatim and does NOT wrap it or auto-close on select. Use for
+   *  status-aware buttons (ActionIconButton spinner/done) or stateful copy-tint buttons,
+   *  and for buttons that carry their own data-tour anchor. Wins over icon/node/onAction. */
+  render?: () => ReactNode
 }
 
 /** Render a single menu item — a custom-glyph button when `node` is set, else an ActionButton. */
@@ -110,17 +118,21 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
         style={style}
         className="transform-gpu"
       >
-        {activeItems.map((item) => (
-          <MenuItemButton
-            key={item.key}
-            item={item}
-            onSelect={(it) => {
-              if (it.submenu) { setSubmenuItems(it.submenu); return }
-              it.onAction?.()
-              onClose()
-            }}
-          />
-        ))}
+        {activeItems.map((item) =>
+          item.render ? (
+            <Fragment key={item.key}>{item.render()}</Fragment>
+          ) : (
+            <MenuItemButton
+              key={item.key}
+              item={item}
+              onSelect={(it) => {
+                if (it.submenu) { setSubmenuItems(it.submenu); return }
+                it.onAction?.()
+                onClose()
+              }}
+            />
+          ),
+        )}
       </ActionPill>
     </>,
     document.body,

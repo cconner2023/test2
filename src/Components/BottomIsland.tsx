@@ -13,6 +13,7 @@
  * - `barClassName` extends the bar (Map uses `max-w-[…]`).
  */
 import type { ReactNode } from 'react'
+import { GlassBand } from './GlassBand'
 
 interface BottomIslandProps {
   children: ReactNode
@@ -28,11 +29,19 @@ interface BottomIslandProps {
   role?: string
   /** ARIA label for the bar (use with role). */
   ariaLabel?: string
+  /**
+   * Glass footer: render a feathered frosted band behind the island
+   * (mirror of the glass header) so content scrolls UP behind it instead of
+   * stopping on a hard edge. The pill stays opaque on top (iMessage look).
+   * v1: consumers keep their own bottom-content padding for clearance.
+   */
+  glass?: boolean
 }
 
-export function BottomIsland({ children, fab, z = 'z-20', barClassName = '', tour, role, ariaLabel }: BottomIslandProps) {
+export function BottomIsland({ children, fab, z = 'z-20', barClassName = '', tour, role, ariaLabel, glass = false }: BottomIslandProps) {
   return (
-    <div className={`absolute bottom-4 inset-x-0 flex items-center justify-center ${z} pointer-events-none pb-[max(0rem,var(--sab,0px))]`}>
+    <div className={`absolute bottom-0 inset-x-0 flex flex-col items-center justify-end ${z} pointer-events-none pb-[max(1rem,var(--sab,0px))]${glass ? ' pt-8' : ' pt-4'}`}>
+      {glass && <GlassBand edge="bottom" className="inset-0" />}
       <div
         data-tour={tour}
         role={role}

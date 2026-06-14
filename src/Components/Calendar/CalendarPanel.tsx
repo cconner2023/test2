@@ -373,6 +373,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     daySpan,
     t2tZoom,
     categoryFilter, setCategoryFilter,
+    clusterFilter,
   } = useCalendarStore(useShallow(s => ({
     viewMode: s.currentView,
     setViewMode: s.setView,
@@ -392,6 +393,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     t2tZoom: s.t2tZoom,
     categoryFilter: s.categoryFilter,
     setCategoryFilter: s.setCategoryFilter,
+    clusterFilter: s.clusterFilter,
   })))
 
   const handleEventStatusChange = useCallback(async (id: string, next: import('../../Types/CalendarTypes').EventStatus) => {
@@ -502,6 +504,14 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
         (e.target_clinic_ids?.some(c => reachableClinicIds.has(c)) ?? false)
       )
     }
+    // Render-only cluster narrowing (loaned users). null = all reachable.
+    // An event belongs to a cluster if it was authored there or fanned there.
+    if (clusterFilter !== null && clusterFilter.length > 0) {
+      out = out.filter(e =>
+        clusterFilter.includes(e.clinic_id) ||
+        (e.target_clinic_ids?.some(c => clusterFilter.includes(c)) ?? false)
+      )
+    }
     if (personnelFilter.length > 0) {
       out = out.filter(e =>
         e.assigned_to.length === 0 || e.assigned_to.some(id => personnelFilter.includes(id))
@@ -511,7 +521,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       out = out.filter(e => categoryFilter.includes(e.category))
     }
     return out
-  }, [events, personnelFilter, categoryFilter, reachableClinicIds, userId])
+  }, [events, personnelFilter, categoryFilter, clusterFilter, reachableClinicIds, userId])
 
   const dayEvents = useMemo(() =>
     filteredEvents

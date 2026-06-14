@@ -6,6 +6,7 @@ import { openMailto } from '../../lib/mailto'
 import { useInvalidation, invalidate } from '../../stores/useInvalidationStore'
 import { AdminSummarySkeleton } from './AdminSkeletons'
 import { EmptyState } from '../EmptyState'
+import { SearchInput } from '../SearchInput'
 import { LiftedRowMenu } from '../LiftedRowMenu'
 import { type ContextMenuItem } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -196,6 +197,13 @@ export function AdminSummary({
   const unassignedCount = unassignedUsers.length
   const [showUnassigned, setShowUnassigned] = useState(false)
 
+  // Tree-only search (mobile hierarchy sheet). Filters clusters + user leaves
+  // by name/email; a cluster name match keeps all its users. Matching branches
+  // render force-expanded so hits are visible regardless of collapse state.
+  const [search, setSearch] = useState('')
+  const q = search.trim().toLowerCase()
+  const searching = !!treeOnly && q.length > 0
+
   const { roots } = useMemo(() => {
     function countTotal(clinic: AdminClinic): number {
       let count = usersByClinic.get(clinic.id) ?? 0
@@ -227,6 +235,29 @@ export function AdminSummary({
     return { roots: rootClinics.map(buildNode) }
   }, [clinics, usersByClinic, usersByClinicList, childrenByParent])
 
+  const { displayRoots, displayUnassigned } = useMemo(() => {
+    if (!q) return { displayRoots: roots, displayUnassigned: unassignedUsers }
+    const userMatches = (u: AdminUser) => {
+      const name = `${u.first_name ?? ''} ${u.last_name ?? ''}`.toLowerCase()
+      return name.includes(q) || (u.email ?? '').toLowerCase().includes(q)
+    }
+    const filterNode = (node: ClinicNode): ClinicNode | null => {
+      const selfMatch = node.clinic.name.toLowerCase().includes(q)
+      const matchedUsers = selfMatch ? node.users : node.users.filter(userMatches)
+      const matchedChildren = node.children
+        .map(filterNode)
+        .filter((n): n is ClinicNode => n !== null)
+      if (selfMatch || matchedUsers.length || matchedChildren.length) {
+        return { ...node, users: matchedUsers, children: matchedChildren }
+      }
+      return null
+    }
+    return {
+      displayRoots: roots.map(filterNode).filter((n): n is ClinicNode => n !== null),
+      displayUnassigned: unassignedUsers.filter(userMatches),
+    }
+  }, [q, roots, unassignedUsers])
+
   // Selectable user leaf under a cluster (or unassigned) — shared row renderer.
   function renderUserLeaf(user: AdminUser, depth: number) {
     const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email
@@ -249,11 +280,12 @@ export function AdminSummary({
     )
   }
 
-  function renderClinicRow(node: ClinicNode, depth: number) {
+  function renderClinicRow(node: ClinicNode, depth: number, forceExpand = false) {
     // Expandable when it has sub-clusters OR assigned users (so the chevron can
     // reveal individual members, not just child clusters).
     const hasChildren = node.children.length > 0 || node.users.length > 0
-    const isCollapsed = collapsed.has(node.clinic.id)
+    // forceExpand (active search) overrides the collapse set so matches show.
+    const isCollapsed = !forceExpand && collapsed.has(node.clinic.id)
     const isActive = activeClinicId === node.clinic.id
 
     return (
@@ -302,7 +334,7 @@ export function AdminSummary({
         {hasChildren && !isCollapsed && (
           <>
             {node.users.map(user => renderUserLeaf(user, depth + 1))}
-            {node.children.map(child => renderClinicRow(child, depth + 1))}
+            {node.children.map(child => renderClinicRow(child, depth + 1, forceExpand))}
           </>
         )}
       </div>
@@ -405,8 +437,16 @@ export function AdminSummary({
       </>
       )}
 
+      {/* Search — tree-only (mobile hierarchy sheet). */}
+      {treeOnly && (
+        <div className="shrink-0 px-4 pt-1 pb-2">
+          <SearchInput value={search} onChange={setSearch} placeholder="Search clusters or users…" />
+        </div>
+      )}
+
       {/* Clinic tree */}
       <div className="flex-1 overflow-y-auto">
+        {!searching && (
         <button
           onClick={onSelectAll}
           onKeyDown={e => { if (e.key === 'Enter') onSelectAll() }}
@@ -421,28 +461,34 @@ export function AdminSummary({
           <span className="text-[10pt] font-medium text-primary">All Clusters</span>
           <span className="text-[9pt] md:text-[9pt] font-normal text-tertiary tabular-nums ml-auto">{users.length}</span>
         </button>
+        )}
 
-        {roots.map(node => renderClinicRow(node, 0))}
+        {displayRoots.map(node => renderClinicRow(node, 0, searching))}
 
         {/* Unassigned users — rendered as a tree node in tree-only mode (in
-            the stats variant these live in the summary block above). */}
-        {treeOnly && unassignedCount > 0 && (
+            the stats variant these live in the summary block above). When
+            searching, force-expanded and showing only matched users. */}
+        {treeOnly && displayUnassigned.length > 0 && (
           <div>
             <button
               onClick={() => setShowUnassigned(!showUnassigned)}
-              aria-expanded={showUnassigned}
+              aria-expanded={searching || showUnassigned}
               aria-label={`${showUnassigned ? 'Collapse' : 'Expand'} unassigned users`}
               className="flex items-center gap-2 w-full py-2 pr-4 text-left cursor-pointer transition-all active:scale-[0.98] hover:bg-secondary/5"
               style={{ paddingLeft: '16px' }}
             >
               <span className="p-0.5 text-tertiary shrink-0">
-                {showUnassigned ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                {(searching || showUnassigned) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
               </span>
               <span className="text-[10pt] font-medium text-tertiary italic flex-1">Unassigned</span>
-              <span className="text-[9pt] font-normal text-tertiary tabular-nums shrink-0">{unassignedCount}</span>
+              <span className="text-[9pt] font-normal text-tertiary tabular-nums shrink-0">{displayUnassigned.length}</span>
             </button>
-            {showUnassigned && unassignedUsers.map(u => renderUserLeaf(u, 1))}
+            {(searching || showUnassigned) && displayUnassigned.map(u => renderUserLeaf(u, 1))}
           </div>
+        )}
+
+        {searching && displayRoots.length === 0 && displayUnassigned.length === 0 && (
+          <p className="px-4 py-6 text-center text-[10pt] text-tertiary">No matches</p>
         )}
       </div>
 

@@ -58,6 +58,10 @@ interface CalendarState {
   editingEventId: string | null
   showEventForm: boolean
   categoryFilter: EventCategory[] | null
+  // Render-only cluster filter (loaned users). null = all reachable clusters.
+  // Distinct from supervisingClinicId (operating-as) — this never changes
+  // derived scope, it only narrows which events the calendar shows.
+  clusterFilter: string[] | null
   events: CalendarEvent[]
   rosterSearchQuery: string
   showRosterMobile: boolean
@@ -98,6 +102,7 @@ interface CalendarActions {
   setEditingEvent: (id: string | null) => void
   setShowEventForm: (show: boolean) => void
   setCategoryFilter: (categories: EventCategory[] | null) => void
+  setClusterFilter: (clinicIds: string[] | null) => void
   addEvent: (event: CalendarEvent) => void
   updateEvent: (id: string, updates: Partial<CalendarEvent>) => void
   removeEvent: (id: string) => void
@@ -188,6 +193,7 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   editingEventId: null,
   showEventForm: false,
   categoryFilter: null,
+  clusterFilter: null,
   events: [],
   rosterSearchQuery: '',
   showRosterMobile: false,
@@ -208,6 +214,7 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   setEditingEvent: (id) => set({ editingEventId: id, showEventForm: !!id }),
   setShowEventForm: (show) => set({ showEventForm: show, editingEventId: show ? undefined : null }),
   setCategoryFilter: (categories) => set({ categoryFilter: categories }),
+  setClusterFilter: (clinicIds) => set({ clusterFilter: clinicIds }),
   setRosterSearchQuery: (query) => set({ rosterSearchQuery: query }),
   setShowRosterMobile: (show) => set({ showRosterMobile: show }),
 

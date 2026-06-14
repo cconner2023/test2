@@ -251,8 +251,9 @@ export interface SharedRefContent {
  */
 export interface SharedBundleContent {
   type: 'shared_bundle'
-  /** Which kind of object the bundle holds. */
-  bundleKind: 'calendar-event' | 'map-overlay'
+  /** Which kind of object the bundle holds. ('note-blocks' = text templates /
+   *  order sets / plan tags — config blocks, no vault object, no PHI.) */
+  bundleKind: 'calendar-event' | 'map-overlay' | 'note-blocks'
   /** Storage path of the encrypted bundle blob in message-attachments. */
   path: string
   /** Base64 AES-256-GCM key for the bundle blob (carried inside the E2E msg). */
@@ -378,8 +379,8 @@ interface WireSharedRef {
 /** Cross-cluster shared object bundle (frozen value, ingested into the receiver's vault). */
 interface WireSharedBundle {
   t: 'sb'
-  /** kind: 'ce' calendar event | 'mo' map overlay */
-  k: 'ce' | 'mo'
+  /** kind: 'ce' calendar event | 'mo' map overlay | 'nb' note blocks */
+  k: 'ce' | 'mo' | 'nb'
   /** storage path of the encrypted bundle blob */
   p: string
   /** base64 AES key for the bundle blob */
@@ -539,7 +540,7 @@ export function serializeContent(content: MessageContent): string {
   }
 
   if (content.type === 'shared_bundle') {
-    const kindMap = { 'calendar-event': 'ce', 'map-overlay': 'mo' } as const
+    const kindMap = { 'calendar-event': 'ce', 'map-overlay': 'mo', 'note-blocks': 'nb' } as const
     const wire: WireSharedBundle = {
       t: 'sb',
       k: kindMap[content.bundleKind],
@@ -748,7 +749,7 @@ export function parseMessageContent(raw: string): ParsedContent {
     }
 
     if (wire.t === 'sb') {
-      const bundleKind = wire.k === 'ce' ? 'calendar-event' : 'map-overlay'
+      const bundleKind = wire.k === 'ce' ? 'calendar-event' : wire.k === 'nb' ? 'note-blocks' : 'map-overlay'
       return {
         plaintext: wire.l,
         content: {

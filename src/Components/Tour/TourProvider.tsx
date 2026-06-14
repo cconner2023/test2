@@ -116,6 +116,16 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       return
     }
 
+    // ── dismiss:overlays — close any open ContextMenu / overlay action menu ──
+    // ContextMenu listens for a document-level mousedown outside its pill and
+    // self-closes, so a synthetic mousedown on the body dismisses any open menu
+    // (e.g. an ellipsis action menu opened earlier in the tour via click:).
+    if (action === 'dismiss:overlays') {
+      document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      await new Promise(r => setTimeout(r, 150))
+      return
+    }
+
     // ── click:target — programmatic click on a data-tour element ──
     const clickMatch = action.match(/^click:(.+)$/)
     if (clickMatch) {

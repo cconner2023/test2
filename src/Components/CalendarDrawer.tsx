@@ -18,7 +18,7 @@ import { UserAvatar } from './Settings/UserAvatar'
 import { getDisplayName } from '../Utilities/nameUtils'
 import { ActionPill } from './ActionPill'
 import { CalendarClinicEditor } from './Calendar/CalendarClinicEditor'
-import { SupervisorClinicFilterPanel } from './SupervisorClinicSwitcher'
+import { SupervisorClinicFilterPanel, ClusterFilterPanel } from './SupervisorClinicSwitcher'
 import type { EventCategory } from '../Types/CalendarTypes'
 
 const CATEGORY_GROUPS: { key: 'huddle' | 'calendar'; label: string; categories: EventCategory[] }[] = [
@@ -64,6 +64,11 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         setCategoryFilter: s.setCategoryFilter,
     })))
 
+    // The category filter only splits Huddle vs Calendar. With no huddle-band
+    // events the split degenerates to "all events" — nothing to filter on — so
+    // the panel is hidden entirely.
+    const HUDDLE_CATEGORIES = CATEGORY_GROUPS.find(g => g.key === 'huddle')?.categories ?? []
+    const hasHuddleEvents = events.some(e => HUDDLE_CATEGORIES.includes(e.category))
     const categoryActiveSet = categoryFilter === null ? new Set(ALL_FILTERABLE_CATEGORIES) : new Set(categoryFilter)
     const isCategoryGroupOn = (cats: EventCategory[]) => cats.some(c => categoryActiveSet.has(c))
     const toggleCategoryGroup = (cats: EventCategory[]) => {
@@ -406,7 +411,8 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                             </div>
                             <div className="flex-1 min-h-0 overflow-y-auto">
                                 <SupervisorClinicFilterPanel />
-                                {categoryFilterPanel}
+                                <ClusterFilterPanel />
+                                {hasHuddleEvents && categoryFilterPanel}
                                 {personnelFilterPanel}
                             </div>
                         </div>
@@ -455,7 +461,8 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                         <div data-tour="calendar-controls-drawer" className="pb-[max(1rem,var(--sab,0px))]">
                             {layoutSection}
                             <SupervisorClinicFilterPanel />
-                            {categoryFilterPanel}
+                            <ClusterFilterPanel />
+                            {hasHuddleEvents && categoryFilterPanel}
                             {personnelFilterPanel}
                         </div>
                     </BaseDrawer>

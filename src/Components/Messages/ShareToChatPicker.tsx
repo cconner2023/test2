@@ -156,14 +156,20 @@ export function ShareToChatPicker({ isOpen, content, bundleSource, onClose, zInd
   }
 
   const handleSend = async () => {
-    if (!content || !ctx || selected.size === 0) return
+    if (!ctx || selected.size === 0) return
+    if (!content && !bundleSource) return
     setPhase('sending')
     const targets = roster.filter(m => selected.has(m.id))
 
-    // Pack the bundle ONCE if any recipient is cross-cluster (one ciphertext blob
-    // reused across recipients — each gets the AES key inside their own E2E msg).
+    // Bundle-only share: there's no live `shared_ref` (e.g. note-blocks config),
+    // so EVERY recipient — same- or cross-cluster — receives the frozen bundle.
+    const bundleOnly = !content
+
+    // Pack the bundle ONCE if it's needed (bundle-only, or any cross-cluster
+    // recipient). One ciphertext blob reused across recipients — each gets the
+    // AES key inside their own E2E msg.
     let bundleContent: SharedBundleContent | null = null
-    const needsBundle = targets.some(isCrossCluster)
+    const needsBundle = bundleOnly || targets.some(isCrossCluster)
     if (needsBundle && bundleSource && userId) {
       const packed = await packBundle(
         userId,
@@ -187,15 +193,20 @@ export function ShareToChatPicker({ isOpen, content, bundleSource, onClose, zInd
     for (const medic of targets) {
       const originId = crypto.randomUUID()
       try {
-        if (isCrossCluster(medic)) {
-          // Out-cluster: send the frozen bundle, opening a fresh request thread.
+        const useBundle = bundleOnly || isCrossCluster(medic)
+        if (useBundle) {
           if (!bundleContent) { out.push({ medic, ok: false }); continue }
-          const ok = await ctx.sendStructured(medic.id, bundleContent, originId, bundleContent.label, { openAsRequest: true })
+          // Foreign-cluster recipients open a fresh request thread; same-cluster
+          // bundle-only shares land in the normal conversation.
+          const sendOpts = isCrossCluster(medic) ? { openAsRequest: true } : undefined
+          const ok = await ctx.sendStructured(medic.id, bundleContent, originId, bundleContent.label, sendOpts)
           out.push({ medic, ok })
-        } else {
+        } else if (content) {
           // Same-cluster: the live ref resolves in the shared vault.
           const ok = await ctx.sendStructured(medic.id, content, originId, content.label)
           out.push({ medic, ok })
+        } else {
+          out.push({ medic, ok: false })
         }
       } catch {
         out.push({ medic, ok: false })
@@ -207,6 +218,9 @@ export function ShareToChatPicker({ isOpen, content, bundleSource, onClose, zInd
 
   // ── Render ──────────────────────────────────────────────────────────
   const selfId = selfMedic?.id ?? null
+  // Label for chrome — live ref carries its own; a bundle-only share (note-blocks)
+  // takes it from the source.
+  const shareLabel = content?.label ?? (bundleSource?.kind === 'note-blocks' ? bundleSource.label : '')
 
   const pickList = (q: string) => {
     const trimmed = q.trim()
@@ -312,7 +326,7 @@ export function ShareToChatPicker({ isOpen, content, bundleSource, onClose, zInd
             <p className="text-[11pt] font-medium text-primary">
               Shared with {succeeded.length} {succeeded.length === 1 ? 'recipient' : 'recipients'}
             </p>
-            <p className="text-[9pt] text-tertiary truncate">{content?.label ?? ''}</p>
+            <p className="text-[9pt] text-tertiary truncate">{shareLabel}</p>
           </div>
         </div>
 
@@ -359,11 +373,11 @@ export function ShareToChatPicker({ isOpen, content, bundleSource, onClose, zInd
 
   const title = phase === 'done' ? 'Shared'
     : phase === 'sending' ? 'Sending'
-    : `Share ${content?.label ?? ''}`.trim()
+    : `Share ${shareLabel}`.trim()
 
   return (
     <PreviewOverlay
-      isOpen={isOpen && !!content}
+      isOpen={isOpen && (!!content || !!bundleSource)}
       onClose={onClose}
       anchorRect={null}
       title={title}
@@ -411,11 +425,17 @@ export function useShareToChat(options?: { zIndex?: number }) {
     setContent(next)
     setBundleSource(source ?? null)
   }, [])
+  // Bundle-only share — no live ref. Sends a frozen copy to every selected
+  // recipient (same- AND cross-cluster). Used for note-blocks config.
+  const shareBundle = useCallback((source: BundleSource) => {
+    setContent(null)
+    setBundleSource(source)
+  }, [])
   const close = useCallback(() => { setContent(null); setBundleSource(null) }, [])
   const picker = (
-    <ShareToChatPicker isOpen={!!content} content={content} bundleSource={bundleSource} onClose={close} zIndex={options?.zIndex} />
+    <ShareToChatPicker isOpen={!!content || !!bundleSource} content={content} bundleSource={bundleSource} onClose={close} zIndex={options?.zIndex} />
   )
-  return { share, picker }
+  return { share, shareBundle, picker }
 }
 
 /** Shared icon for "Share to chat" entry points across surfaces. */

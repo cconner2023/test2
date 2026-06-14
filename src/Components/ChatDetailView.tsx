@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
 import { ArrowUp, X, Plus, Mic, Copy, Pencil, Download, Reply, Trash2, Forward, SmilePlus, CalendarPlus, ScanLine } from 'lucide-react'
 import { ConfirmDialog } from './ConfirmDialog'
+import { GlassBand } from './GlassBand'
 import { MessageBubble } from './Settings/MessageBubble'
 import { SharedObjectPicker } from './Messages/SharedObjectPicker'
 import { PreviewOverlay } from './PreviewOverlay'
@@ -561,17 +562,10 @@ export function ChatDetailView({
       // keyboard floats the input up without resizing the message list.
       // Desktop: normal flex child below the scroll area.
       <div className="absolute inset-x-0 bottom-0 z-10 pb-[max(0rem,var(--sab,0px))] md:static md:inset-auto md:bottom-auto md:shrink-0 md:pb-0">
-        {/* Mobile-only frosted backdrop on its own layer so it can feather into
+        {/* Mobile-only frosted footer band on its own layer so it feathers into
             nothing at the top edge (no hard CSS line) without masking the
             composer content above it. Desktop renders a plain flex child. */}
-        <div
-          aria-hidden
-          className="absolute inset-0 -z-10 backdrop-blur-[2px] bg-themewhite3/15 md:hidden"
-          style={{
-            maskImage: 'linear-gradient(to top, black 55%, transparent 100%)',
-            WebkitMaskImage: 'linear-gradient(to top, black 55%, transparent 100%)',
-          }}
-        />
+        <GlassBand edge="bottom" className="inset-0 md:hidden" />
         {someUnavailable && <UnavailableBanner participants={participants} />}
 
         {replyingTo && !activeThreadId && (

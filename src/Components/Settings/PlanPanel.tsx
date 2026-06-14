@@ -14,6 +14,7 @@ import type { LucideIcon } from 'lucide-react';
 import { CATEGORY_META, PlanTagManager } from './PlanTagManager';
 import { OrderSetManager } from './OrderSetManager';
 import { ClusterEditButton } from './ClusterEditPicker';
+import { NoteBlocksTransferMenu } from './NoteBlocksTransferMenu';
 import { ActionPill } from '../ActionPill'
 
 const ALL_KEYS: PlanBlockKey[] = [...PLAN_ORDER_CATEGORIES, 'instructions'];
@@ -202,12 +203,19 @@ export const PlanPanel = () => {
                 />
             </div>
             <div className="px-5 py-4 space-y-5" data-tour="plan-settings-panel">
-                    <p className="text-[10pt] text-tertiary leading-relaxed">
-                        Manage order tags and order sets for the plan section of your notes.
-                        {(clinicPlanOrderTags || (clinicPlanOrderSets?.length ?? 0) > 0) && (
-                            <span className="text-tertiary"> Includes cluster-wide items.</span>
-                        )}
-                    </p>
+                    <div className="flex items-start gap-3">
+                        <p className="flex-1 text-[10pt] text-tertiary leading-relaxed">
+                            Manage order tags and order sets for the plan section of your notes.
+                            {(clinicPlanOrderTags || (clinicPlanOrderSets?.length ?? 0) > 0) && (
+                                <span className="text-tertiary"> Includes cluster-wide items.</span>
+                            )}
+                        </p>
+                        <NoteBlocksTransferMenu
+                            baseName="order sets"
+                            data={{ planOrderSets, planOrderTags, planInstructionTags }}
+                            hasData={planOrderSets.length > 0 || planInstructionTags.length > 0 || Object.values(planOrderTags).some(v => v.length > 0)}
+                        />
+                    </div>
 
                     <OrderSetManager
                         orderSets={activePlanOrderSets}

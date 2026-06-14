@@ -15,6 +15,7 @@ import { ConfirmDialog } from '../ConfirmDialog';
 import { PinKeypad } from '../PinKeypad';
 import { isPinEnabled, verifyPin } from '../../lib/pinService';
 import { ActionButton } from '../ActionButton';
+import { OverlayActionMenu } from '../OverlayActionMenu';
 import { PreviewOverlay } from '../PreviewOverlay';
 import { ActionPill } from '../ActionPill'
 import { LoadingSpinner } from '../LoadingSpinner';
@@ -117,8 +118,8 @@ export const ProfilePage = ({
         setTimeout(() => setIdCopied(false), 2000)
     }, [user?.id])
 
-    // Profile change-request popover (anchored to pencil in ActionPill)
-    const editIconRef = useRef<HTMLButtonElement>(null)
+    // Profile change-request popover (anchored to the corner pill — the pencil
+    // collapses into the ellipsis menu, so anchor to the pill, not the button)
     const [profileEdit, setProfileEdit] = useState<{ anchor: DOMRect } | null>(null)
     const [pFirstName, setPFirstName] = useState('')
     const [pLastName, setPLastName] = useState('')
@@ -135,7 +136,7 @@ export const ProfilePage = ({
     const componentRanks = pComponent ? ranksByComponent[pComponent as Component] : []
 
     const openProfileEdit = useCallback(() => {
-        if (!editIconRef.current) return
+        if (!toolbarRef.current) return
         setPFirstName(profile.firstName ?? '')
         setPLastName(profile.lastName ?? '')
         setPMiddleInitial(profile.middleInitial ?? '')
@@ -146,7 +147,7 @@ export const ProfilePage = ({
         setPNotes('')
         setProfileError(null)
         setProfileSubmitted(false)
-        setProfileEdit({ anchor: editIconRef.current.getBoundingClientRect() })
+        setProfileEdit({ anchor: toolbarRef.current.getBoundingClientRect() })
     }, [profile])
 
     const closeProfileEdit = useCallback(() => {
@@ -352,30 +353,27 @@ export const ProfilePage = ({
                     </div>
                     </div>
                     {user?.id && (
-                        <ActionPill ref={toolbarRef} shadow="sm" placement="overlay">
-                            <button
-                                type="button"
-                                onClick={handleCopyId}
-                                aria-label="Copy user ID"
-                                title="Copy user ID"
-                                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
-                                    idCopied ? 'bg-themegreen/8 text-themegreen' : 'bg-themeblue2/8 text-primary'
-                                }`}
-                            >
-                                {idCopied ? <Check size={16} /> : <Copy size={16} />}
-                            </button>
-                            <ActionButton icon={QrCode} label="Share ID QR" onClick={openShare} />
-                            <button
-                                ref={editIconRef}
-                                type="button"
-                                onClick={openProfileEdit}
-                                aria-label="Request profile change"
-                                title="Request profile change"
-                                className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 bg-themeblue2/8 text-primary"
-                            >
-                                <Pencil size={16} />
-                            </button>
-                        </ActionPill>
+                        <OverlayActionMenu
+                            ref={toolbarRef}
+                            shadow="sm"
+                            items={[
+                                { key: 'copy', label: 'Copy user ID', render: () => (
+                                    <button
+                                        type="button"
+                                        onClick={handleCopyId}
+                                        aria-label="Copy user ID"
+                                        title="Copy user ID"
+                                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
+                                            idCopied ? 'bg-themegreen/8 text-themegreen' : 'bg-themeblue2/8 text-primary'
+                                        }`}
+                                    >
+                                        {idCopied ? <Check size={16} /> : <Copy size={16} />}
+                                    </button>
+                                ) },
+                                { key: 'qr', label: 'Share ID QR', icon: QrCode, onAction: openShare },
+                                { key: 'edit', label: 'Request profile change', icon: Pencil, onAction: openProfileEdit },
+                            ]}
+                        />
                     )}
                     </div>
                 </section>

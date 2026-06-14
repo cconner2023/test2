@@ -8,6 +8,8 @@ export interface ActionButtonProps {
   onClick: () => void
   variant?: ActionButtonVariant
   iconSize?: number
+  /** data-tour attribute for guided-tour anchoring (e.g. an ellipsis trigger). */
+  dataTour?: string
 }
 
 const STYLES: Record<ActionButtonVariant, string> = {
@@ -17,11 +19,12 @@ const STYLES: Record<ActionButtonVariant, string> = {
   success:  'bg-themeblue2 text-white active:scale-95',
 }
 
-export function ActionButton({ icon: Icon, label, onClick, variant = 'default', iconSize = 16 }: ActionButtonProps) {
+export function ActionButton({ icon: Icon, label, onClick, variant = 'default', iconSize = 16, dataTour }: ActionButtonProps) {
   return (
     <button
       disabled={variant === 'disabled'}
       onClick={onClick}
+      data-tour={dataTour}
       aria-label={label}
       title={label}
       className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${STYLES[variant]}`}

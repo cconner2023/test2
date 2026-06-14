@@ -1,15 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
 import { ActionPill } from './ActionPill'
 import { MenuItemButton, contextMenuItemVariant, type ContextMenuItem } from './ContextMenu'
 
-interface LiftedRowMenuProps {
+interface AnchoredMenuProps {
   isOpen: boolean
-  /** Bounding rect of the row that was long-pressed / right-clicked. */
+  /** Bounding rect the menu anchors to — the long-pressed/right-clicked row, or
+   *  the trigger button (ellipsis / selector). */
   anchorRect: DOMRect | null
-  /** Visual clone of the row — rendered floating, lifted off the list. */
-  row: ReactNode
+  /** Visual clone of the row — rendered floating, lifted off the list (iOS peek).
+   *  OMIT for ellipsis / selector menus: with no clone the menu drops straight off
+   *  the anchor like a dropdown (no lift, no dim). */
+  row?: ReactNode
   items: ContextMenuItem[]
   onClose: () => void
   /** Skip the white card wrapper — the clone brings its own surface (e.g. a chat
@@ -23,6 +26,12 @@ interface LiftedRowMenuProps {
   /** Reaction glyphs — rendered as a horizontal icon strip (the icon context
    *  menu) ABOVE the lifted row. List layout only. */
   reactions?: ContextMenuItem[]
+  /** Backdrop. Defaults to 'dim' when a clone is lifted (peek replaces context),
+   *  'plain' otherwise (transparent catcher — keeps surrounding context visible,
+   *  like a dropdown). */
+  backdrop?: 'dim' | 'plain'
+  /** Optional uppercase section header at the top of a list card (selectors). */
+  header?: string
 }
 
 const MENU_H = 52    // ActionPill height (36px button + padding)
@@ -35,6 +44,7 @@ const LIST_W = 216   // fixed card width
 const ROW_H = 40     // approx per-row height (py-2.5 + 10pt line) — geometry estimate
 const LIST_PAD = 0   // card has no extra vertical padding (rows are full-bleed)
 const STRIP_H = 52   // reaction-strip height (pill + reserve)
+const HEADER_H = 30  // section-header height (list layout, when `header` set)
 
 /** A single row in the vertical list-card. Mirrors ActionSheet's option rows
  *  (the calendar add-FAB menu): icon-left, `text-[10pt] font-medium`, divider
@@ -49,15 +59,15 @@ function MenuListRow({ item, onSelect }: { item: ContextMenuItem; onSelect: (ite
       onClick={() => onSelect(item)}
       aria-label={item.label}
       className={`w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors ${
-        isDisabled ? 'cursor-default' : 'active:bg-black/[0.06]'
-      }`}
+        item.selected ? 'bg-themeblue3/8' : ''
+      } ${isDisabled ? 'cursor-default' : 'active:bg-black/[0.06]'}`}
     >
       {item.node ? (
         <span className="shrink-0 flex items-center justify-center w-4 h-4">{item.node}</span>
       ) : (
         Icon && <Icon size={16} className={`shrink-0 ${isDisabled ? 'text-tertiary' : 'text-primary'}`} />
       )}
-      <span className={`text-[10pt] font-medium truncate flex-1 ${isDisabled ? 'text-tertiary' : 'text-primary'}`}>
+      <span className={`text-[10pt] truncate flex-1 ${item.selected ? 'font-semibold' : 'font-medium'} ${isDisabled ? 'text-tertiary' : 'text-primary'}`}>
         {item.label}
       </span>
     </button>
@@ -65,12 +75,19 @@ function MenuListRow({ item, onSelect }: { item: ContextMenuItem; onSelect: (ite
 }
 
 /**
- * iOS-style "peek" context menu. The pressed row lifts off the list — scales up
- * slightly, gains a shadow (reads as selected) — and slides upward just enough to
- * make room for a horizontal action pill that drops in directly beneath it.
- * Shared by mobile (long-press) and desktop (right-click) messaging rows.
+ * Anchored portal menu — the single menu primitive.
+ *
+ * WITH a `row` clone (iOS "peek"): the pressed row lifts off the list — scales up,
+ * gains a shadow (reads as selected) — and slides upward just enough to make room
+ * for the action menu that drops in beneath it, over a dimmed/blurred backdrop.
+ * Shared by mobile (long-press) and desktop (right-click) object rows.
+ *
+ * WITHOUT a `row` (ellipsis menus, selectors): no clone, no lift, no dim — the
+ * menu simply drops off the anchor like a dropdown, keeping context visible.
+ *
+ * `LiftedRowMenu` is a back-compat alias for callers that pass a clone.
  */
-export function LiftedRowMenu({ isOpen, anchorRect, row, items, onClose, bare = false, align = 'left', layout = 'pill', reactions }: LiftedRowMenuProps) {
+export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = false, align = 'left', layout = 'pill', reactions, backdrop, header }: AnchoredMenuProps) {
   const [visible, setVisible] = useState(false)
   const [submenuItems, setSubmenuItems] = useState<ContextMenuItem[] | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -87,62 +104,81 @@ export function LiftedRowMenu({ isOpen, anchorRect, row, items, onClose, bare = 
   const vw = window.innerWidth
   const vh = window.innerHeight
 
+  const hasClone = !!row
+  const dimmed = backdrop ? backdrop === 'dim' : hasClone
+
   const isList = layout === 'list'
   // Reactions ride as the top row of the list-card (horizontal emoji row).
   const showReactRow = isList && !submenuItems && !!reactions?.length
+  const showHeader = isList && !submenuItems && !!header
   const menuH = isList
-    ? activeItems.length * ROW_H + (showReactRow ? STRIP_H : 0) + LIST_PAD
+    ? activeItems.length * ROW_H + (showReactRow ? STRIP_H : 0) + (showHeader ? HEADER_H : 0) + LIST_PAD
     : MENU_H
   const menuW = isList ? LIST_W : activeItems.length * 40 + 12
 
-  // Always pop the row up by a baseline so it visibly detaches; lift further if
-  // needed for the menu to clear the bottom edge. Never let the row top cross the
-  // safe area, and never lift more than the room above allows.
-  const bottomNeed = (anchorRect.bottom + GAP + menuH + SAFE) - vh
-  const desiredLift = Math.max(BASE_LIFT, bottomNeed)
-  const maxLift = Math.max(0, anchorRect.top - SAFE)
-  const lift = Math.min(desiredLift, maxLift)
+  // ── Vertical placement ──
+  let lift = 0
+  let menuTop: number
+  let openUp = false
+  if (hasClone) {
+    // Peek: pop the row up by a baseline so it visibly detaches; lift further if
+    // needed for the menu to clear the bottom edge. Never let the row top cross
+    // the safe area, and never lift more than the room above allows.
+    const bottomNeed = (anchorRect.bottom + GAP + menuH + SAFE) - vh
+    const desiredLift = Math.max(BASE_LIFT, bottomNeed)
+    const maxLift = Math.max(0, anchorRect.top - SAFE)
+    lift = Math.min(desiredLift, maxLift)
+    menuTop = anchorRect.bottom - lift + GAP
+  } else {
+    // Dropdown: drop below the anchor, flip above when there isn't room.
+    const spaceBelow = vh - anchorRect.bottom
+    openUp = spaceBelow < menuH + GAP + SAFE && anchorRect.top > spaceBelow
+    menuTop = openUp ? anchorRect.top - GAP - menuH : anchorRect.bottom + GAP
+    menuTop = Math.max(SAFE, Math.min(menuTop, vh - menuH - SAFE))
+  }
 
-  const menuTop = anchorRect.bottom - lift + GAP
   const rawLeft = align === 'right' ? anchorRect.right - menuW : anchorRect.left
   const menuLeft = Math.max(SAFE, Math.min(rawLeft, vw - menuW - SAFE))
   const cloneOrigin = bare ? (align === 'right' ? 'right bottom' : 'left bottom') : 'center bottom'
-  const menuOrigin = align === 'right' ? 'top right' : 'top left'
+  const vAlign = openUp ? 'bottom' : 'top'
+  const menuOrigin = `${vAlign} ${align === 'right' ? 'right' : 'left'}`
 
   return createPortal(
     <div className="fixed inset-0" style={{ zIndex: 9998 }}>
-      {/* Dimming backdrop — tap anywhere to dismiss */}
+      {/* Backdrop — dim+blur for peek, transparent catcher for dropdowns */}
       <div
-        className="absolute inset-0 bg-black/45 backdrop-blur-[6px]"
-        style={{ opacity: visible ? 1 : 0, transition: 'opacity 200ms ease-out' }}
+        className={`absolute inset-0 ${dimmed ? 'bg-black/45 backdrop-blur-[6px]' : ''}`}
+        style={dimmed ? { opacity: visible ? 1 : 0, transition: 'opacity 200ms ease-out' } : undefined}
         onMouseDown={onClose}
         onTouchStart={onClose}
       />
 
-      {/* Lifted row clone */}
-      <div
-        className={
-          bare
-            ? 'absolute pointer-events-none'
-            : 'absolute rounded-2xl bg-themewhite overflow-hidden pointer-events-none ring-1 ring-black/5'
-        }
-        style={{
-          left: anchorRect.left,
-          top: anchorRect.top,
-          width: anchorRect.width,
-          ...(bare
-            ? { filter: visible ? 'drop-shadow(0 14px 26px rgba(0,0,0,0.30))' : 'none' }
-            : { boxShadow: visible ? '0 18px 44px rgba(0,0,0,0.28)' : '0 0 0 rgba(0,0,0,0)' }),
-          transform: visible ? `translateY(${-lift}px) scale(1.05)` : 'translateY(0) scale(1)',
-          transformOrigin: cloneOrigin,
-          transition:
-            'transform 320ms cubic-bezier(0.2, 1.5, 0.5, 1), filter 320ms ease-out, box-shadow 320ms ease-out',
-        }}
-      >
-        {row}
-      </div>
+      {/* Lifted row clone (peek only) */}
+      {hasClone && (
+        <div
+          className={
+            bare
+              ? 'absolute pointer-events-none'
+              : 'absolute rounded-2xl bg-themewhite overflow-hidden pointer-events-none ring-1 ring-black/5'
+          }
+          style={{
+            left: anchorRect.left,
+            top: anchorRect.top,
+            width: anchorRect.width,
+            ...(bare
+              ? { filter: visible ? 'drop-shadow(0 14px 26px rgba(0,0,0,0.30))' : 'none' }
+              : { boxShadow: visible ? '0 18px 44px rgba(0,0,0,0.28)' : '0 0 0 rgba(0,0,0,0)' }),
+            transform: visible ? `translateY(${-lift}px) scale(1.05)` : 'translateY(0) scale(1)',
+            transformOrigin: cloneOrigin,
+            transition:
+              'transform 320ms cubic-bezier(0.2, 1.5, 0.5, 1), filter 320ms ease-out, box-shadow 320ms ease-out',
+          }}
+        >
+          {row}
+        </div>
+      )}
 
-      {/* Action menu below the lifted row */}
+      {/* Action menu */}
       {isList ? (
         <div
           ref={menuRef}
@@ -163,6 +199,10 @@ export function LiftedRowMenu({ isOpen, anchorRect, row, items, onClose, bare = 
               'transform 260ms cubic-bezier(0.34, 1.45, 0.64, 1) 70ms, opacity 200ms ease-out 70ms, box-shadow 260ms ease-out',
           }}
         >
+          {/* Section header — selectors */}
+          {showHeader && (
+            <p className="px-4 pt-2.5 pb-1.5 text-[9pt] font-semibold text-tertiary uppercase tracking-wider">{header}</p>
+          )}
           {/* React row — horizontal emoji glyphs, top row of the same card */}
           {showReactRow && (
             <div className="flex items-center justify-between px-3" style={{ height: STRIP_H }}>
@@ -179,17 +219,26 @@ export function LiftedRowMenu({ isOpen, anchorRect, row, items, onClose, bare = 
               ))}
             </div>
           )}
-          {activeItems.map((item) => (
-            <MenuListRow
-              key={item.key}
-              item={item}
-              onSelect={(it) => {
-                if (it.submenu) { setSubmenuItems(it.submenu); return }
-                it.onAction?.()
-                onClose()
-              }}
-            />
-          ))}
+          {activeItems.map((item) =>
+            item.render ? (
+              // Custom renderer owns its button + click + status feedback; the menu
+              // does NOT auto-close (dismiss via backdrop tap). Label sits beside it.
+              <div key={item.key} className="w-full flex items-center gap-3 py-1.5 px-3">
+                <span className="shrink-0 flex items-center justify-center">{item.render()}</span>
+                <span className="text-[10pt] font-medium text-primary truncate flex-1">{item.label}</span>
+              </div>
+            ) : (
+              <MenuListRow
+                key={item.key}
+                item={item}
+                onSelect={(it) => {
+                  if (it.submenu) { setSubmenuItems(it.submenu); return }
+                  it.onAction?.()
+                  onClose()
+                }}
+              />
+            ),
+          )}
         </div>
       ) : (
         <ActionPill
@@ -200,25 +249,32 @@ export function LiftedRowMenu({ isOpen, anchorRect, row, items, onClose, bare = 
             top: menuTop,
             transform: visible ? 'scale(1) translateY(0)' : 'scale(0.9) translateY(-8px)',
             opacity: visible ? 1 : 0,
-            transformOrigin: 'top left',
+            transformOrigin: menuOrigin,
             transition:
               'transform 260ms cubic-bezier(0.34, 1.45, 0.64, 1) 70ms, opacity 200ms ease-out 70ms',
           }}
         >
-          {activeItems.map((item) => (
-            <MenuItemButton
-              key={item.key}
-              item={item}
-              onSelect={(it) => {
-                if (it.submenu) { setSubmenuItems(it.submenu); return }
-                it.onAction?.()
-                onClose()
-              }}
-            />
-          ))}
+          {activeItems.map((item) =>
+            item.render ? (
+              <Fragment key={item.key}>{item.render()}</Fragment>
+            ) : (
+              <MenuItemButton
+                key={item.key}
+                item={item}
+                onSelect={(it) => {
+                  if (it.submenu) { setSubmenuItems(it.submenu); return }
+                  it.onAction?.()
+                  onClose()
+                }}
+              />
+            ),
+          )}
         </ActionPill>
       )}
     </div>,
     document.body,
   )
 }
+
+/** Back-compat alias — callers that pass a `row` clone (the iOS peek). */
+export const LiftedRowMenu = AnchoredMenu

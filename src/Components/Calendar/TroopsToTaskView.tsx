@@ -607,9 +607,12 @@ export function TroopsToTaskView({ date, events, medics, rooms, huddleTasks, onS
           {/* Provider row — single "PROVIDER" lane that expands height with all on-shift provider huddle events. */}
           {(() => {
             const positioned = providerLanesAll
+            const isDropTarget = !!armedMedicId && !!onAssignMedicToHuddle
+            // Hide the provider row when empty — mirror the task-row behavior.
+            // Still surface it as a drop target while a medic is armed.
+            if (positioned.length === 0 && !isDropTarget) return null
             const laneCount = positioned.length > 0 ? Math.max(...positioned.map(p => p.lane)) + 1 : 1
             const rowHeight = ROW_PAD * 2 + laneCount * (LANE_HEIGHT_HUDDLE + LANE_GAP)
-            const isDropTarget = !!armedMedicId && !!onAssignMedicToHuddle
             const handleRowClick = isDropTarget
               ? () => {
                   onAssignMedicToHuddle!(armedMedicId!, PROVIDER_HUDDLE_TASK_ID, visibleDateKey || toDateKey(date))

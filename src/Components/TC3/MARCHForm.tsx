@@ -19,19 +19,22 @@ import { TC3BodyDiagramSvg } from './TC3BodyDiagramSvg'
 const cellInput = 'w-full bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-base md:text-sm'
 const cellSelect = 'w-full bg-transparent text-primary focus:outline-none text-base md:text-sm -ml-0.5'
 
-/** Bordered card that hosts a vertical stack of cells inside a popover preview. */
+/** Hosts a vertical stack of cells inside a popover preview. Flat — rows are
+   divided by hairline borders (see CasualtyInfoForm), no enclosing box. */
 function CellCard({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl overflow-hidden border border-primary/6 bg-primary/6 grid grid-cols-1 gap-px">
-      {children}
-    </div>
-  )
+  return <div>{children}</div>
 }
 
-/** One labelled cell — label on top, value below. */
-function Cell({ label, children }: { label: string; children: React.ReactNode }) {
+/** One labelled cell — label on top, value below. Carries its own bottom
+   divider; pass `bare` when the parent row owns the divider (side-by-side cells). */
+function Cell({ label, children, className, bare }: {
+  label: string
+  children: React.ReactNode
+  className?: string
+  bare?: boolean
+}) {
   return (
-    <div className="flex flex-col gap-0.5 px-3 py-2 bg-themewhite">
+    <div className={`flex flex-col gap-0.5 px-3 py-2 ${bare ? '' : 'border-b border-primary/6 last:border-0'} ${className ?? ''}`}>
       <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">{label}</span>
       {children}
     </div>
@@ -72,7 +75,7 @@ function LocationCell({ value, marker, onChange, label = 'Location' }: {
     if (regionLabel) onChange(regionLabel, region)
   }
   return (
-    <div className="flex flex-col gap-1 px-3 py-2 bg-themewhite">
+    <div className="flex flex-col gap-1 px-3 py-2 border-b border-primary/6 last:border-0">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">{label}</span>
         <div className="flex items-center gap-1.5">
@@ -742,13 +745,13 @@ export const MARCHForm = memo(function MARCHForm() {
                 onChange={(e) => setDraftMed(d => ({ ...d, name: e.target.value }))}
                 placeholder="Medication name" className={cellInput} />
             </Cell>
-            <div className="grid grid-cols-2 gap-px bg-primary/6">
-              <Cell label="Dose">
+            <div className="flex items-stretch border-b border-primary/6">
+              <Cell bare className="flex-1 min-w-0" label="Dose">
                 <input type="text" value={draftMed.dose}
                   onChange={(e) => setDraftMed(d => ({ ...d, dose: e.target.value }))}
                   placeholder="Dose" className={cellInput} />
               </Cell>
-              <Cell label="Route">
+              <Cell bare className="flex-1 min-w-0 border-l border-primary/6" label="Route">
                 <select value={draftMed.route}
                   onChange={(e) => setDraftMed(d => ({ ...d, route: e.target.value as MedRoute }))}
                   className={cellSelect}>
@@ -783,13 +786,13 @@ export const MARCHForm = memo(function MARCHForm() {
                 onChange={(e) => setDraftFluid(d => ({ ...d, type: e.target.value }))}
                 placeholder="e.g. Normal Saline" className={cellInput} />
             </Cell>
-            <div className="grid grid-cols-2 gap-px bg-primary/6">
-              <Cell label="Volume">
+            <div className="flex items-stretch border-b border-primary/6">
+              <Cell bare className="flex-1 min-w-0" label="Volume">
                 <input type="text" value={draftFluid.volume}
                   onChange={(e) => setDraftFluid(d => ({ ...d, volume: e.target.value }))}
                   placeholder="Volume" className={cellInput} />
               </Cell>
-              <Cell label="Route">
+              <Cell bare className="flex-1 min-w-0 border-l border-primary/6" label="Route">
                 <select value={draftFluid.route}
                   onChange={(e) => setDraftFluid(d => ({ ...d, route: e.target.value as MedRoute }))}
                   className={cellSelect}>
@@ -815,13 +818,13 @@ export const MARCHForm = memo(function MARCHForm() {
                 onChange={(e) => setDraftBlood(d => ({ ...d, type: e.target.value }))}
                 placeholder="e.g. Whole Blood" className={cellInput} />
             </Cell>
-            <div className="grid grid-cols-2 gap-px bg-primary/6">
-              <Cell label="Volume">
+            <div className="flex items-stretch border-b border-primary/6">
+              <Cell bare className="flex-1 min-w-0" label="Volume">
                 <input type="text" value={draftBlood.volume}
                   onChange={(e) => setDraftBlood(d => ({ ...d, volume: e.target.value }))}
                   placeholder="Volume" className={cellInput} />
               </Cell>
-              <Cell label="Route">
+              <Cell bare className="flex-1 min-w-0 border-l border-primary/6" label="Route">
                 <select value={draftBlood.route}
                   onChange={(e) => setDraftBlood(d => ({ ...d, route: e.target.value as MedRoute }))}
                   className={cellSelect}>
@@ -884,13 +887,13 @@ export const MARCHForm = memo(function MARCHForm() {
                 onChange={(e) => setDraftMed(d => ({ ...d, name: e.target.value }))}
                 placeholder="Medication name" className={cellInput} />
             </Cell>
-            <div className="grid grid-cols-2 gap-px bg-primary/6">
-              <Cell label="Dose">
+            <div className="flex items-stretch border-b border-primary/6">
+              <Cell bare className="flex-1 min-w-0" label="Dose">
                 <input type="text" value={draftMed.dose}
                   onChange={(e) => setDraftMed(d => ({ ...d, dose: e.target.value }))}
                   placeholder="Dose" className={cellInput} />
               </Cell>
-              <Cell label="Route">
+              <Cell bare className="flex-1 min-w-0 border-l border-primary/6" label="Route">
                 <select value={draftMed.route}
                   onChange={(e) => setDraftMed(d => ({ ...d, route: e.target.value as MedRoute }))}
                   className={cellSelect}>

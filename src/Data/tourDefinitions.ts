@@ -429,8 +429,12 @@ const noteLifecycleTour: TourDefinition = {
     },
     {
       target: 'writenote-preview',
-      text: 'Copy the note as plaintext; pastes with formatting.',
+      text: 'Copy the note as plaintext; pastes with formatting. Tap the ⋯ to reveal the note actions.',
       placement: 'bottom',
+      // The preview corner actions collapse into an ellipsis menu (>2 actions).
+      // Open it so the log/copy/export steps below can anchor to the in-menu buttons.
+      beforeStep: 'click:writenote-preview-more',
+      delay: 300,
       duration: 5000,
     },
     // ── Log to calendar (note → calendar bridge) ──
@@ -451,12 +455,18 @@ const noteLifecycleTour: TourDefinition = {
       target: 'writenote-encoded',
       text: 'The encoded note compresses everything into a scannable barcode. A provider can import it instantly.',
       placement: 'top',
+      // Close the preview action menu before moving to the encoded card.
+      beforeStep: 'dismiss:overlays',
+      delay: 300,
       duration: 6000,
     },
     {
       target: 'writenote-encoded',
-      text: 'Share as a barcode image, or copy the encoded text',
+      text: 'Tap the ⋯ to share as a barcode image, copy the encoded text, or export a DD689.',
       placement: 'top',
+      // Open the encoded card's action menu so the DD689 step can anchor in-menu.
+      beforeStep: 'click:writenote-encoded-more',
+      delay: 300,
       duration: 5000,
     },
     // ── DD689 export ──
@@ -1179,23 +1189,16 @@ const clinicManagementTour: TourDefinition = {
   name: 'Cluster Management',
   tier: 'supervisor',
   category: 'advanced',
-  description: 'Edit cluster details, manage associations, rooms, huddle tasks, and personnel.',
+  description: 'Edit cluster details, manage associations, outside contact, and personnel.',
   steps: [
-    // ── Navigate to Settings → Clinic ──
+    // ── Navigate to Settings → Clinic — identity card (merged: identity + tap-to-edit) ──
     {
       target: 'clinic-identity-card',
-      text: 'Your cluster identity — name, location, UICs, and invite code. The QR code lets nearby clusters request association.',
+      text: 'Your cluster identity — name, location, UICs, and invite code. Tap the card to edit; the QR lets nearby clusters request association. Every section below has its own "+" and saves immediately — no batch save.',
       placement: 'bottom',
       beforeStep: 'clinic:open',
       delay: 600,
-      duration: 5500,
-    },
-    // ── Tap-to-edit hint on identity card ──
-    {
-      target: 'clinic-identity-card',
-      text: 'Tap the card to edit name, location, and UICs. Each section below has its own "+" button — every change saves immediately, no batch save.',
-      placement: 'bottom',
-      duration: 6000,
+      duration: 7500,
     },
     // ── Associated Clinics section ──
     {
@@ -1204,26 +1207,19 @@ const clinicManagementTour: TourDefinition = {
       placement: 'bottom',
       duration: 6000,
     },
-    // ── Rooms section ──
+    // ── Outside contact (event intake + on-call) ──
     {
-      target: 'clinic-rooms',
-      text: 'Rooms are the physical spaces in your cluster — exam rooms, triage bays, the SCA. They tag calendar events and notes so the team knows where care happens. Tap "+" to add one.',
+      target: 'clinic-event-intake',
+      text: 'Outside contact — mint a QR + passcode so people outside the cluster can reach you. Each channel is its own toggle: request event coverage, drop a sealed one-way message, or (calls) ring whoever\'s on-call. Rotate or kill the credential from the "+" menu.',
       placement: 'top',
-      duration: 7000,
+      duration: 8500,
     },
-    // ── Huddle Tasks section ──
-    {
-      target: 'clinic-huddle-tasks',
-      text: 'Huddle tasks are the recurring stations on your daily shift — sick call, immunizations, walk-ins. They appear as rows in the calendar\'s huddle band so you can drag medics onto each station every morning. Tap "+" to add one.',
-      placement: 'top',
-      duration: 8000,
-    },
-    // ── Personnel section ──
+    // ── Personnel section (incl. per-member on-call toggle) ──
     {
       target: 'clinic-personnel',
-      text: 'Your assigned personnel. Tap a member to edit their rank and roles (medic / supervisor / provider) or remove them from the clinic.',
+      text: 'Your assigned personnel. Tap a member to edit their rank and roles (medic / supervisor / provider) or remove them. When you allow calls or messaging above, each member gets an on-call toggle here — flip it to put them on the live roster.',
       placement: 'top',
-      duration: 6000,
+      duration: 7000,
     },
     // ── Add member overlay ──
     {

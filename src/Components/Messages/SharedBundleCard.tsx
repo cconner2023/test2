@@ -15,6 +15,8 @@ import { useMapOverlayWrite } from '../../Hooks/useMapOverlayWrite'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useLongPress } from '../../Hooks/useLongPress'
 import { createLogger } from '../../Utilities/Logger'
+import { loadIngested, markIngested } from '../../lib/bundleIngestLog'
+import { NoteBlocksBundleCard } from './NoteBlocksBundleCard'
 
 const logger = createLogger('SharedBundleCard')
 
@@ -24,30 +26,6 @@ interface Props {
   senderName?: string
   messageId: string
   onLongPress?: (x: number, y: number) => void
-}
-
-// ── Device-local idempotency: remember which bundle hashes we've already
-// materialized so re-tapping (or a re-render after sync) shows "Added" instead
-// of creating a duplicate. localStorage so it survives reload on this device.
-const INGEST_KEY = 'beacon_ingested_bundles_v1'
-const INGEST_CAP = 500
-
-function loadIngested(): Set<string> {
-  try {
-    const raw = localStorage.getItem(INGEST_KEY)
-    return new Set(raw ? (JSON.parse(raw) as string[]) : [])
-  } catch {
-    return new Set()
-  }
-}
-
-function markIngested(hash: string): void {
-  try {
-    const list = [...loadIngested(), hash].slice(-INGEST_CAP)
-    localStorage.setItem(INGEST_KEY, JSON.stringify(list))
-  } catch {
-    /* best-effort */
-  }
 }
 
 /** Map a decrypted overlay bundle's features into the OverlayFeature shape the
@@ -76,6 +54,31 @@ function previewFeatures(bundle: ObjectBundle): OverlayFeature[] {
  * bundles decrypt lazily on Add since the label/date already describe them.
  */
 export function SharedBundleCard({ content, isOwn, senderName, messageId, onLongPress }: Props) {
+  // Note-blocks (text templates / order sets / plan tags) ingest into the
+  // receiver's profile/clinic config, not the vault — dedicated card.
+  if (content.bundleKind === 'note-blocks') {
+    return (
+      <NoteBlocksBundleCard
+        content={content}
+        isOwn={isOwn}
+        senderName={senderName}
+        messageId={messageId}
+        onLongPress={onLongPress}
+      />
+    )
+  }
+  return (
+    <ObjectBundleCard
+      content={content}
+      isOwn={isOwn}
+      senderName={senderName}
+      messageId={messageId}
+      onLongPress={onLongPress}
+    />
+  )
+}
+
+function ObjectBundleCard({ content, isOwn, senderName, messageId, onLongPress }: Props) {
   const { user, clinicId } = useAuth()
   const userId = user?.id ?? null
   const { writeEvent } = useCalendarWrite()

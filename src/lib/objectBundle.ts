@@ -22,6 +22,7 @@
 
 import type { CalendarEvent, EventCategory } from '../Types/CalendarTypes'
 import type { MapOverlay, OverlayFeature } from '../Types/MapOverlayTypes'
+import type { TextExpander, PlanOrderSet, PlanOrderTags } from '../Data/User'
 import { uploadEncryptedAttachment, downloadDecryptedAttachment } from './signal/attachmentService'
 import { ok, err, type Result } from './result'
 import { createLogger } from '../Utilities/Logger'
@@ -30,6 +31,7 @@ const logger = createLogger('ObjectBundle')
 
 export const CALENDAR_BUNDLE_SCHEMA = 1
 export const OVERLAY_BUNDLE_SCHEMA = 1
+export const NOTE_BLOCKS_BUNDLE_SCHEMA = 1
 
 // ---- Bundle payloads (the frozen value that travels) ----
 
@@ -86,7 +88,29 @@ export interface MapOverlayBundle {
   }
 }
 
-export type ObjectBundle = CalendarEventBundle | MapOverlayBundle
+/**
+ * Portable note-building blocks — text expanders ("text templates"), plan order
+ * sets, and plan tag lists. Unlike calendar/overlay bundles these are NOT vault
+ * objects: they're personal/clinic config with zero PHI and no cluster-local
+ * refs, so the SAME frozen value works for same- AND cross-cluster recipients
+ * (there is no live `shared_ref` counterpart — always send the bundle).
+ *
+ * A single bundle can carry any mix: one item (row-level "Share to chat") or a
+ * whole panel (bulk "Export"). Order-set ids are remint-able on ingest; text
+ * expanders are keyed by `abbr`, tags by string value — those are the dedup keys.
+ */
+export interface NoteBlocksBundle {
+  schema: number
+  kind: 'note-blocks'
+  exportedAt: string
+  sourceCluster: string
+  textExpanders?: TextExpander[]
+  planOrderSets?: PlanOrderSet[]
+  planOrderTags?: PlanOrderTags
+  planInstructionTags?: string[]
+}
+
+export type ObjectBundle = CalendarEventBundle | MapOverlayBundle | NoteBlocksBundle
 
 /** Source object handed to the share picker so it can build a bundle for a
  *  cross-cluster recipient (the picker still sends a live `shared_ref` to
@@ -94,6 +118,15 @@ export type ObjectBundle = CalendarEventBundle | MapOverlayBundle
 export type BundleSource =
   | { kind: 'calendar-event'; event: CalendarEvent }
   | { kind: 'map-overlay'; overlay: MapOverlay }
+  | { kind: 'note-blocks'; blocks: NoteBlocksData; label: string; subLabel?: string }
+
+/** The raw block payload a caller hands the share picker / file exporter. */
+export interface NoteBlocksData {
+  textExpanders?: TextExpander[]
+  planOrderSets?: PlanOrderSet[]
+  planOrderTags?: PlanOrderTags
+  planInstructionTags?: string[]
+}
 
 // ---- Export projection (object → bundle) ----
 
@@ -153,10 +186,31 @@ function featureToBundled(f: OverlayFeature): BundledFeature {
   return out
 }
 
+/** Project a raw block payload into a self-contained note-blocks bundle. Drops
+ *  empty arrays so the bundle only advertises what it actually carries. */
+export function noteBlocksToBundle(data: NoteBlocksData, sourceCluster: string, exportedAt: string): NoteBlocksBundle {
+  const out: NoteBlocksBundle = { schema: NOTE_BLOCKS_BUNDLE_SCHEMA, kind: 'note-blocks', exportedAt, sourceCluster }
+  if (data.textExpanders && data.textExpanders.length) out.textExpanders = data.textExpanders
+  if (data.planOrderSets && data.planOrderSets.length) out.planOrderSets = data.planOrderSets
+  if (data.planInstructionTags && data.planInstructionTags.length) out.planInstructionTags = data.planInstructionTags
+  if (data.planOrderTags && Object.values(data.planOrderTags).some(v => v.length)) out.planOrderTags = data.planOrderTags
+  return out
+}
+
 export function bundleSourceToBundle(source: BundleSource, sourceCluster: string, exportedAt: string): ObjectBundle {
-  return source.kind === 'calendar-event'
-    ? eventToBundle(source.event, sourceCluster, exportedAt)
-    : overlayToBundle(source.overlay, sourceCluster, exportedAt)
+  switch (source.kind) {
+    case 'calendar-event': return eventToBundle(source.event, sourceCluster, exportedAt)
+    case 'map-overlay':    return overlayToBundle(source.overlay, sourceCluster, exportedAt)
+    case 'note-blocks':    return noteBlocksToBundle(source.blocks, sourceCluster, exportedAt)
+  }
+}
+
+/** Count the discrete blocks a note-blocks bundle carries (for labels/previews). */
+export function noteBlocksCounts(b: NoteBlocksBundle): { templates: number; orderSets: number; tags: number } {
+  const tags =
+    (b.planInstructionTags?.length ?? 0) +
+    (b.planOrderTags ? Object.values(b.planOrderTags).reduce((n, v) => n + v.length, 0) : 0)
+  return { templates: b.textExpanders?.length ?? 0, orderSets: b.planOrderSets?.length ?? 0, tags }
 }
 
 // ---- Import remint (bundle → fresh local object) ----
@@ -243,6 +297,17 @@ export function bundleToOverlay(
 export function bundleLabel(bundle: ObjectBundle): { label: string; subLabel?: string } {
   if (bundle.kind === 'calendar-event') {
     return { label: bundle.event.title || 'Event', subLabel: formatEventSub(bundle.event) }
+  }
+  if (bundle.kind === 'note-blocks') {
+    const c = noteBlocksCounts(bundle)
+    // Single-item shares read naturally ("URI Basic"); mixed/bulk shares summarize.
+    if (c.templates === 1 && !c.orderSets && !c.tags) return { label: bundle.textExpanders![0].abbr, subLabel: 'Text template' }
+    if (c.orderSets === 1 && !c.templates && !c.tags) return { label: bundle.planOrderSets![0].name, subLabel: 'Order set' }
+    const parts: string[] = []
+    if (c.templates) parts.push(`${c.templates} ${c.templates === 1 ? 'template' : 'templates'}`)
+    if (c.orderSets) parts.push(`${c.orderSets} ${c.orderSets === 1 ? 'order set' : 'order sets'}`)
+    if (c.tags) parts.push(`${c.tags} ${c.tags === 1 ? 'tag' : 'tags'}`)
+    return { label: 'Note blocks', subLabel: parts.join(' · ') || 'Empty' }
   }
   const n = bundle.overlay.features.length
   return { label: bundle.overlay.name || 'Overlay', subLabel: `${n} ${n === 1 ? 'feature' : 'features'}` }
@@ -338,6 +403,14 @@ export function parseBundle(json: string): ObjectBundle | null {
     }
     if (raw.kind === 'map-overlay' && (raw as MapOverlayBundle).overlay && Array.isArray((raw as MapOverlayBundle).overlay.features)) {
       return raw as MapOverlayBundle
+    }
+    if (raw.kind === 'note-blocks') {
+      const nb = raw as NoteBlocksBundle
+      const arraysOk =
+        (nb.textExpanders === undefined || Array.isArray(nb.textExpanders)) &&
+        (nb.planOrderSets === undefined || Array.isArray(nb.planOrderSets)) &&
+        (nb.planInstructionTags === undefined || Array.isArray(nb.planInstructionTags))
+      if (arraysOk) return nb
     }
     return null
   } catch {

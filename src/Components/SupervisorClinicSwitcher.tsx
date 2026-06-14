@@ -15,8 +15,10 @@
  */
 
 import { useCallback, useRef, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { ArrowLeftRight, Check } from 'lucide-react'
 import { useAuth } from '../Hooks/useAuth'
+import { useCalendarStore } from '../stores/useCalendarStore'
 import { ActionButton } from './ActionButton'
 import { PreviewOverlay } from './PreviewOverlay'
 
@@ -55,6 +57,68 @@ export function SupervisorClinicFilterPanel() {
           <button
             key={c.id}
             onClick={() => setSupervisingClinic(c.id)}
+            className={`w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 ${
+              active
+                ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
+                : 'hover:bg-secondary/5'
+            }`}
+          >
+            <span className="text-[10pt] font-medium text-primary truncate flex-1">{c.name}</span>
+            {active && <Check size={14} className="text-themeblue2 shrink-0" />}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * Render-only cluster filter — narrows which clusters' events the calendar
+ * shows WITHOUT touching supervisingClinicId (operating-as). Multi-select,
+ * mirrors categoryFilterPanel: "All Clusters" clears to null; toggling rows
+ * builds the selection; selecting every cluster collapses back to null.
+ * Shown only to users with at least one active loan.
+ */
+export function ClusterFilterPanel() {
+  const options = useSupervisorContextOptions()
+  const { clusterFilter, setClusterFilter } = useCalendarStore(useShallow(s => ({
+    clusterFilter: s.clusterFilter,
+    setClusterFilter: s.setClusterFilter,
+  })))
+  if (!options) return null
+
+  const activeSet = clusterFilter === null ? new Set(options.map(c => c.id)) : new Set(clusterFilter)
+  const toggle = (id: string) => {
+    const next = new Set(activeSet)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    const arr = options.map(c => c.id).filter(c => next.has(c))
+    setClusterFilter(arr.length === 0 || arr.length === options.length ? null : arr)
+  }
+
+  return (
+    <div data-tour="cluster-filter" className="flex flex-col min-h-0">
+      <div className="shrink-0 px-4 py-3 border-t border-primary/10">
+        <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Filter Cluster</p>
+      </div>
+
+      <button
+        onClick={() => setClusterFilter(null)}
+        className={`w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 ${
+          clusterFilter === null
+            ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
+            : 'hover:bg-secondary/5'
+        }`}
+      >
+        <span className="text-[10pt] font-medium text-primary truncate flex-1">All Clusters</span>
+      </button>
+
+      {options.map(c => {
+        const active = activeSet.has(c.id)
+        return (
+          <button
+            key={c.id}
+            onClick={() => toggle(c.id)}
             className={`w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 ${
               active
                 ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'

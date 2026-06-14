@@ -8,6 +8,7 @@ import { SearchInput } from '../SearchInput';
 import { TextExpanderManager } from './TextExpanderManager';
 import { TextExpanderEditPopover, type TextExpanderEditState, type ExpanderScope } from './TextExpanderEditPopover';
 import { ClusterEditButton } from './ClusterEditPicker';
+import { NoteBlocksTransferMenu } from './NoteBlocksTransferMenu';
 import { DEMO_EXPANDER_ABBR, DEMO_EXPANDER_BUILDS } from '../../Data/GuidedTourData';
 
 export const TextTemplatesPanel = () => {
@@ -161,12 +162,19 @@ export const TextTemplatesPanel = () => {
                 />
             </div>
             <div data-tour="expander-usage-hint" className="px-5 py-4 space-y-5">
-                    <p data-tour="expander-edit-hint" className="text-[10pt] text-tertiary leading-relaxed">
-                        Autotext shortcuts that expand abbreviations as you type in your notes.
-                        {clinicTextExpanders.length > 0 && (
-                            <span className="text-tertiary"> Includes cluster-wide shortcuts.</span>
-                        )}
-                    </p>
+                    <div className="flex items-start gap-3">
+                        <p data-tour="expander-edit-hint" className="flex-1 text-[10pt] text-tertiary leading-relaxed">
+                            Autotext shortcuts that expand abbreviations as you type in your notes.
+                            {clinicTextExpanders.length > 0 && (
+                                <span className="text-tertiary"> Includes cluster-wide shortcuts.</span>
+                            )}
+                        </p>
+                        <NoteBlocksTransferMenu
+                            baseName="text templates"
+                            data={{ textExpanders }}
+                            hasData={textExpanders.length > 0}
+                        />
+                    </div>
 
                     <TextExpanderManager
                         expanders={allExpanders}

@@ -17,15 +17,16 @@ const MOTOR_LABELS: Record<number, string>  = { 1: 'None', 2: 'Extension', 3: 'F
 
 /* ── Generic value cell — matches the PE-block VitalSignsCalculator grid square
    (label top-left, conversion/hint top-right, value below). ── */
-function VCell({ label, hint, hintClass = 'text-tertiary', span, children }: {
+function VCell({ label, hint, hintClass = 'text-tertiary', className, bare, children }: {
   label: string
   hint?: string | null
   hintClass?: string
-  span?: boolean
+  className?: string
+  bare?: boolean
   children: ReactNode
 }) {
   return (
-    <div className={`flex flex-col gap-0.5 px-3 py-2 bg-themewhite ${span ? 'col-span-2' : ''}`}>
+    <div className={`flex flex-col gap-0.5 px-3 py-2 ${bare ? '' : 'border-b border-primary/6 last:border-0'} ${className ?? ''}`}>
       <div className="flex items-baseline justify-between gap-2 min-w-0">
         <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest shrink-0">{label}</span>
         {hint && <span className={`text-[8.5pt] font-medium truncate ${hintClass}`}>{hint}</span>}
@@ -50,7 +51,7 @@ function GcsCell({ label, value, max, labels, onChange }: {
       active ? 'bg-tertiary/10 text-primary hover:bg-tertiary/15' : 'bg-tertiary/4 text-tertiary/25 cursor-not-allowed'
     }`
   return (
-    <div className="flex items-center gap-3 px-3 py-2 bg-themewhite">
+    <div className="flex items-center gap-3 px-3 py-2 border-b border-primary/6 last:border-0">
       <span className="w-14 text-[9pt] font-semibold text-tertiary uppercase tracking-widest shrink-0">{label}</span>
       <div className="flex-1 min-w-0">
         {value > 0 ? (
@@ -349,140 +350,136 @@ function VitalSetPreviewContent({ id }: { id: string }) {
   })()
 
   return (
-    <div className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-      <div className="rounded-2xl overflow-hidden border border-primary/6 bg-primary/6 space-y-px">
+    <div onClick={(e) => e.stopPropagation()}>
+      {/* Time */}
+      <VCell label="Time">
+        <input type="text" value={vs.time} onChange={(e) => handleChange('time', e.target.value)} placeholder="HH:MM" className={cellInput} />
+      </VCell>
 
-        {/* Time */}
-        <div className="grid grid-cols-1">
-          <VCell label="Time">
-            <input type="text" value={vs.time} onChange={(e) => handleChange('time', e.target.value)} placeholder="HH:MM" className={cellInput} />
-          </VCell>
-        </div>
-
-        {/* AVPU — its own grid (no header); auto-fills GCS */}
-        <div className="grid grid-cols-4 gap-px bg-primary/6">
-          {AVPU_OPTIONS.map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => handleAVPU(opt)}
-              className={`flex flex-col items-center justify-center px-2 py-2 transition-colors ${
-                avpu === opt ? 'bg-themeredred' : 'bg-themewhite active:bg-tertiary/5'
-              }`}
-            >
-              <span className={`text-sm font-bold ${avpu === opt ? 'text-white' : 'text-primary'}`}>{opt}</span>
-              <span className={`text-[8pt] ${avpu === opt ? 'text-white/80' : 'text-tertiary'}`}>{AVPU_LABELS[opt]}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* GCS — full-width rows so the explanation can wrap */}
-        <div className="grid grid-cols-1 gap-px bg-primary/6">
-          <GcsCell label="Eye"    value={gcs?.eye    ?? 0} max={4} labels={EYE_LABELS}    onChange={(v) => handleGCS('eye',    String(v))} />
-          <GcsCell label="Verbal" value={gcs?.verbal ?? 0} max={5} labels={VERBAL_LABELS} onChange={(v) => handleGCS('verbal', String(v))} />
-          <GcsCell label="Motor"  value={gcs?.motor  ?? 0} max={6} labels={MOTOR_LABELS}  onChange={(v) => handleGCS('motor',  String(v))} />
-        </div>
-        {gcsTotal !== null && gcsTotal > 0 && (
-          <div className="bg-themewhite px-3 py-1.5">
-            <span className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">GCS — {gcsTotal}</span>
-          </div>
-        )}
-
-        {/* Ht | Wt | BMI — BMI auto-populated from Ht/Wt */}
-        <div className="grid grid-cols-3 gap-px bg-primary/6">
-          <VCell label="Ht (in)" hint={htHint}>
-            <input type="text" inputMode="decimal" value={ht} onChange={(e) => updateCasualty({ ht: e.target.value })} placeholder="68" className={cellInput} />
-          </VCell>
-          <VCell label="Wt (lbs)" hint={wtHint}>
-            <input type="text" inputMode="decimal" value={wt} onChange={(e) => updateCasualty({ wt: e.target.value })} placeholder="170" className={cellInput} />
-          </VCell>
-          <VCell label="BMI" hint={bmiCat?.label} hintClass={bmiCat?.color}>
-            <span className={`text-base md:text-sm font-medium ${bmiCat ? bmiCat.color : 'text-tertiary/40'}`}>{bmiVal != null ? bmiVal.toFixed(1) : '—'}</span>
-          </VCell>
-        </div>
-
-        {/* LMP — full width with hint */}
-        <div className="flex flex-col bg-themewhite">
-          <div className="flex items-baseline justify-between gap-2 px-3 pt-2 min-w-0">
-            <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest shrink-0">LMP</span>
-            {lmpInfo && <span className={`text-[8.5pt] font-medium truncate ${lmpInfo.color}`}>{lmpInfo.text}</span>}
-          </div>
-          <DatePickerInput value={lmp} onChange={(v) => updateCasualty({ lmp: v })} placeholder="Select date" maxDate={todayIso} />
-        </div>
-
-        {/* Values grid */}
-        <div className="grid grid-cols-2 gap-px bg-primary/6">
-          {/* HR | Location */}
-          <VCell label="HR">
-            <input type="text" inputMode="numeric" value={vs.pulse} onChange={(e) => handleChange('pulse', e.target.value)} placeholder="bpm" className={cellInput} />
-          </VCell>
-          <VCell label="Location">
-            <div className="flex mt-0.5">
-              {PULSE_LOCATION_OPTIONS.map((opt) => (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => {
-                    const newLoc = vs.pulseLocation === opt ? '' : opt
-                    const isAutoDefault = BP_AUTO_VALUES.has(vs.bp)
-                    const updates: Partial<TC3VitalSet> = { pulseLocation: newLoc }
-                    if (newLoc && (!vs.bp || isAutoDefault)) updates.bp = BP_LOCATION_DEFAULTS[newLoc]
-                    else if (!newLoc && isAutoDefault) updates.bp = ''
-                    updateVitalSet(id, updates)
-                  }}
-                  className={`px-3 py-0.5 transition-colors ${vs.pulseLocation === opt ? 'bg-themeblue3' : 'active:bg-tertiary/5'}`}
-                >
-                  <span className={`text-[9pt] ${vs.pulseLocation === opt ? 'text-white font-medium' : 'text-secondary'}`}>{opt}</span>
-                </button>
-              ))}
-            </div>
-          </VCell>
-
-          {/* BP — full width, shared primitive (bare) */}
-          <VCell label="BP (mmHg)" span hint={sbp !== null && sbp < 90 ? 'Hypotensive — possible shock' : null} hintClass="text-themeyellow">
-            <BloodPressureInput
-              bare
-              value={vs.bp}
-              onChange={(v) => handleChange('bp', v)}
-              containerClassName="flex items-center gap-1"
-              inputClassName="w-16 bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-base md:text-sm"
-              separatorClassName="text-tertiary px-1 shrink-0"
-            />
-          </VCell>
-
-          {/* Temp (°C conversion) | Route */}
-          <VCell label="Temp (°F)" hint={tempC ? `${tempC}°C` : null}>
-            <input type="text" inputMode="decimal" value={vs.temp ?? ''} onChange={(e) => handleChange('temp', e.target.value)} placeholder="98.6" className={cellInput} />
-          </VCell>
-          <VCell label="Route">
-            <div className="flex mt-0.5">
-              {TEMP_ROUTE_OPTIONS.map((opt) => (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => updateVitalSet(id, { tempRoute: vs.tempRoute === opt ? '' : opt })}
-                  className={`px-3 py-0.5 transition-colors ${vs.tempRoute === opt ? 'bg-themeblue3' : 'active:bg-tertiary/5'}`}
-                >
-                  <span className={`text-[9pt] capitalize ${vs.tempRoute === opt ? 'text-white font-medium' : 'text-secondary'}`}>{opt}</span>
-                </button>
-              ))}
-            </div>
-          </VCell>
-
-          {/* SpO2 | RR */}
-          <VCell label="SpO2">
-            <input type="text" inputMode="numeric" value={vs.spo2} onChange={(e) => handleChange('spo2', e.target.value)} placeholder="%" className={cellInput} />
-          </VCell>
-          <VCell label="RR">
-            <input type="text" inputMode="numeric" value={vs.rr} onChange={(e) => handleChange('rr', e.target.value)} placeholder="/min" className={cellInput} />
-          </VCell>
-
-          {/* Pain — full width */}
-          <VCell label="Pain" span>
-            <input type="text" inputMode="numeric" value={vs.painScale} onChange={(e) => handleChange('painScale', e.target.value)} placeholder="0-10" className={cellInput} />
-          </VCell>
-        </div>
+      {/* AVPU — no header; auto-fills GCS */}
+      <div className="flex items-stretch border-b border-primary/6">
+        {AVPU_OPTIONS.map((opt, i) => (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => handleAVPU(opt)}
+            className={`flex-1 flex flex-col items-center justify-center px-2 py-2 transition-colors ${
+              i > 0 ? 'border-l border-primary/6' : ''
+            } ${avpu === opt ? 'bg-themeredred' : 'active:bg-tertiary/5'}`}
+          >
+            <span className={`text-sm font-bold ${avpu === opt ? 'text-white' : 'text-primary'}`}>{opt}</span>
+            <span className={`text-[8pt] ${avpu === opt ? 'text-white/80' : 'text-tertiary'}`}>{AVPU_LABELS[opt]}</span>
+          </button>
+        ))}
       </div>
+
+      {/* GCS — full-width rows so the explanation can wrap */}
+      <GcsCell label="Eye"    value={gcs?.eye    ?? 0} max={4} labels={EYE_LABELS}    onChange={(v) => handleGCS('eye',    String(v))} />
+      <GcsCell label="Verbal" value={gcs?.verbal ?? 0} max={5} labels={VERBAL_LABELS} onChange={(v) => handleGCS('verbal', String(v))} />
+      <GcsCell label="Motor"  value={gcs?.motor  ?? 0} max={6} labels={MOTOR_LABELS}  onChange={(v) => handleGCS('motor',  String(v))} />
+      {gcsTotal !== null && gcsTotal > 0 && (
+        <div className="px-3 py-1.5 border-b border-primary/6">
+          <span className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">GCS — {gcsTotal}</span>
+        </div>
+      )}
+
+      {/* Ht | Wt | BMI — BMI auto-populated from Ht/Wt */}
+      <div className="flex items-stretch border-b border-primary/6">
+        <VCell bare className="flex-1 min-w-0" label="Ht (in)" hint={htHint}>
+          <input type="text" inputMode="decimal" value={ht} onChange={(e) => updateCasualty({ ht: e.target.value })} placeholder="68" className={cellInput} />
+        </VCell>
+        <VCell bare className="flex-1 min-w-0 border-l border-primary/6" label="Wt (lbs)" hint={wtHint}>
+          <input type="text" inputMode="decimal" value={wt} onChange={(e) => updateCasualty({ wt: e.target.value })} placeholder="170" className={cellInput} />
+        </VCell>
+        <VCell bare className="flex-1 min-w-0 border-l border-primary/6" label="BMI" hint={bmiCat?.label} hintClass={bmiCat?.color}>
+          <span className={`text-base md:text-sm font-medium ${bmiCat ? bmiCat.color : 'text-tertiary/40'}`}>{bmiVal != null ? bmiVal.toFixed(1) : '—'}</span>
+        </VCell>
+      </div>
+
+      {/* LMP — full width with hint */}
+      <div className="flex flex-col border-b border-primary/6">
+        <div className="flex items-baseline justify-between gap-2 px-3 pt-2 min-w-0">
+          <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest shrink-0">LMP</span>
+          {lmpInfo && <span className={`text-[8.5pt] font-medium truncate ${lmpInfo.color}`}>{lmpInfo.text}</span>}
+        </div>
+        <DatePickerInput value={lmp} onChange={(v) => updateCasualty({ lmp: v })} placeholder="Select date" maxDate={todayIso} />
+      </div>
+
+      {/* HR | Location */}
+      <div className="flex items-stretch border-b border-primary/6">
+        <VCell bare className="flex-1 min-w-0" label="HR">
+          <input type="text" inputMode="numeric" value={vs.pulse} onChange={(e) => handleChange('pulse', e.target.value)} placeholder="bpm" className={cellInput} />
+        </VCell>
+        <VCell bare className="flex-1 min-w-0 border-l border-primary/6" label="Location">
+          <div className="flex mt-0.5">
+            {PULSE_LOCATION_OPTIONS.map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => {
+                  const newLoc = vs.pulseLocation === opt ? '' : opt
+                  const isAutoDefault = BP_AUTO_VALUES.has(vs.bp)
+                  const updates: Partial<TC3VitalSet> = { pulseLocation: newLoc }
+                  if (newLoc && (!vs.bp || isAutoDefault)) updates.bp = BP_LOCATION_DEFAULTS[newLoc]
+                  else if (!newLoc && isAutoDefault) updates.bp = ''
+                  updateVitalSet(id, updates)
+                }}
+                className={`px-3 py-0.5 transition-colors ${vs.pulseLocation === opt ? 'bg-themeblue3' : 'active:bg-tertiary/5'}`}
+              >
+                <span className={`text-[9pt] ${vs.pulseLocation === opt ? 'text-white font-medium' : 'text-secondary'}`}>{opt}</span>
+              </button>
+            ))}
+          </div>
+        </VCell>
+      </div>
+
+      {/* BP — full width, shared primitive (bare) */}
+      <VCell label="BP (mmHg)" hint={sbp !== null && sbp < 90 ? 'Hypotensive — possible shock' : null} hintClass="text-themeyellow">
+        <BloodPressureInput
+          bare
+          value={vs.bp}
+          onChange={(v) => handleChange('bp', v)}
+          containerClassName="flex items-center gap-1"
+          inputClassName="w-16 bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-base md:text-sm"
+          separatorClassName="text-tertiary px-1 shrink-0"
+        />
+      </VCell>
+
+      {/* Temp (°C conversion) | Route */}
+      <div className="flex items-stretch border-b border-primary/6">
+        <VCell bare className="flex-1 min-w-0" label="Temp (°F)" hint={tempC ? `${tempC}°C` : null}>
+          <input type="text" inputMode="decimal" value={vs.temp ?? ''} onChange={(e) => handleChange('temp', e.target.value)} placeholder="98.6" className={cellInput} />
+        </VCell>
+        <VCell bare className="flex-1 min-w-0 border-l border-primary/6" label="Route">
+          <div className="flex mt-0.5">
+            {TEMP_ROUTE_OPTIONS.map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => updateVitalSet(id, { tempRoute: vs.tempRoute === opt ? '' : opt })}
+                className={`px-3 py-0.5 transition-colors ${vs.tempRoute === opt ? 'bg-themeblue3' : 'active:bg-tertiary/5'}`}
+              >
+                <span className={`text-[9pt] capitalize ${vs.tempRoute === opt ? 'text-white font-medium' : 'text-secondary'}`}>{opt}</span>
+              </button>
+            ))}
+          </div>
+        </VCell>
+      </div>
+
+      {/* SpO2 | RR */}
+      <div className="flex items-stretch border-b border-primary/6">
+        <VCell bare className="flex-1 min-w-0" label="SpO2">
+          <input type="text" inputMode="numeric" value={vs.spo2} onChange={(e) => handleChange('spo2', e.target.value)} placeholder="%" className={cellInput} />
+        </VCell>
+        <VCell bare className="flex-1 min-w-0 border-l border-primary/6" label="RR">
+          <input type="text" inputMode="numeric" value={vs.rr} onChange={(e) => handleChange('rr', e.target.value)} placeholder="/min" className={cellInput} />
+        </VCell>
+      </div>
+
+      {/* Pain — full width */}
+      <VCell label="Pain">
+        <input type="text" inputMode="numeric" value={vs.painScale} onChange={(e) => handleChange('painScale', e.target.value)} placeholder="0-10" className={cellInput} />
+      </VCell>
     </div>
   )
 }

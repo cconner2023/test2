@@ -37,6 +37,8 @@ import { supabase } from '../../lib/supabase'
 import { toggleOncallPresence } from '../../lib/oncallService'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionButton } from '../ActionButton'
+import { OverlayActionMenu } from '../OverlayActionMenu'
+import type { ContextMenuItem } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { ActionPill } from '../ActionPill'
 import { ClinicIdentityEditPopover } from '../ClinicAdmin/ClinicIdentityEditPopover'
@@ -727,42 +729,46 @@ export function ClinicPanel({
                 together as a single pill so the QR preview at top-right stays
                 unobstructed. */}
             {isSupervisorRole && (surrogateClinicIds.length > 0 || activeCode) && (
-              <ActionPill shadow="sm" placement="overlay">
-                {surrogateClinicIds.length > 0 && (
-                  <div ref={clusterSwitchBtnRef} className="contents">
-                    <ActionButton
-                      icon={ArrowLeftRight}
-                      label={
-                        clusterOptions.length === 2
-                          ? `Switch to ${clusterOptions.find((c) => c.id !== clinicId)?.name ?? 'other cluster'}`
-                          : 'Switch cluster'
-                      }
-                      onClick={handleClusterSwitch}
-                    />
-                  </div>
-                )}
-                {activeCode && (
-                  <>
-                    {/* Copy: raw button styled to match ActionButton default; flips to themegreen tint on success. */}
-                    <button
-                      type="button"
-                      onClick={handleCopy}
-                      aria-label="Copy invite code"
-                      title="Copy invite code"
-                      className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
-                        copied ? 'bg-themegreen/8 text-themegreen' : 'bg-themeblue2/8 text-primary'
-                      }`}
-                    >
-                      {copied ? <Check size={16} /> : <Copy size={16} />}
-                    </button>
-                    <ActionButton
-                      icon={Share2}
-                      label="Share QR image"
-                      onClick={handleShareInviteImage}
-                    />
-                  </>
-                )}
-              </ActionPill>
+              <OverlayActionMenu
+                ref={clusterSwitchBtnRef}
+                shadow="sm"
+                items={[
+                  ...(surrogateClinicIds.length > 0
+                    ? [{
+                        key: 'switch',
+                        label:
+                          clusterOptions.length === 2
+                            ? `Switch to ${clusterOptions.find((c) => c.id !== clinicId)?.name ?? 'other cluster'}`
+                            : 'Switch cluster',
+                        icon: ArrowLeftRight,
+                        onAction: handleClusterSwitch,
+                      } as ContextMenuItem]
+                    : []),
+                  ...(activeCode
+                    ? [
+                        {
+                          key: 'copy',
+                          label: 'Copy invite code',
+                          // Raw button: flips to themegreen tint on success.
+                          render: () => (
+                            <button
+                              type="button"
+                              onClick={handleCopy}
+                              aria-label="Copy invite code"
+                              title="Copy invite code"
+                              className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
+                                copied ? 'bg-themegreen/8 text-themegreen' : 'bg-themeblue2/8 text-primary'
+                              }`}
+                            >
+                              {copied ? <Check size={16} /> : <Copy size={16} />}
+                            </button>
+                          ),
+                        } as ContextMenuItem,
+                        { key: 'share', label: 'Share QR image', icon: Share2, onAction: handleShareInviteImage } as ContextMenuItem,
+                      ]
+                    : []),
+                ]}
+              />
             )}
             {/* Hidden high-res QR canvas — source for navigator.share / clipboard.write. */}
             {activeCode && <canvas ref={shareCanvasRef} style={{ display: 'none' }} />}

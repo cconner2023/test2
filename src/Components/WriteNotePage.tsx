@@ -25,6 +25,7 @@ import { GUIDED_HPI_EXPANDED, GUIDED_PE_TEXT, GUIDED_PLAN_TEXT } from '../Data/G
 import { PdfPreviewModal } from './PdfPreviewModal';
 import { ActionButton } from './ActionButton';
 import { ActionPill } from './ActionPill'
+import { OverlayActionMenu } from './OverlayActionMenu';
 import { EmptyState } from './EmptyState';
 import type { TextExpander } from '../Data/User';
 import { getBlocksForFocusedExam, getCategoryFromSymptomCode } from '../Data/PhysicalExamData';
@@ -548,28 +549,38 @@ export const WriteNotePage = ({
                                             <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Note Preview</p>
                                         </div>
                                         <div className="relative">
-                                            <ActionPill shadow="sm" placement="overlay">
-                                                <ActionIconButton
-                                                    onClick={handleLog}
-                                                    status={logStatus}
-                                                    variant="calendar"
-                                                    title="Log to calendar"
-                                                    tourTag="writenote-log-calendar"
-                                                />
-                                                <ActionIconButton
-                                                    onClick={() => handleCopy(previewNote, 'preview')}
-                                                    status={copiedTarget === 'preview' ? 'done' : 'idle'}
-                                                    variant="copy"
-                                                    title="Copy note text"
-                                                />
-                                                <ActionIconButton
-                                                    onClick={handleExportSF600}
-                                                    status={exportStatusToIconStatus(sf600ExportStatus)}
-                                                    variant="pdf"
-                                                    title="Export SF600 PDF"
-                                                    tourTag="writenote-export-sf600"
-                                                />
-                                            </ActionPill>
+                                            <OverlayActionMenu
+                                                shadow="sm"
+                                                triggerTourTag="writenote-preview-more"
+                                                items={[
+                                                    { key: 'log', label: 'Log to calendar', render: () => (
+                                                        <ActionIconButton
+                                                            onClick={handleLog}
+                                                            status={logStatus}
+                                                            variant="calendar"
+                                                            title="Log to calendar"
+                                                            tourTag="writenote-log-calendar"
+                                                        />
+                                                    ) },
+                                                    { key: 'copy', label: 'Copy note text', render: () => (
+                                                        <ActionIconButton
+                                                            onClick={() => handleCopy(previewNote, 'preview')}
+                                                            status={copiedTarget === 'preview' ? 'done' : 'idle'}
+                                                            variant="copy"
+                                                            title="Copy note text"
+                                                        />
+                                                    ) },
+                                                    { key: 'export', label: 'Export SF600 PDF', render: () => (
+                                                        <ActionIconButton
+                                                            onClick={handleExportSF600}
+                                                            status={exportStatusToIconStatus(sf600ExportStatus)}
+                                                            variant="pdf"
+                                                            title="Export SF600 PDF"
+                                                            tourTag="writenote-export-sf600"
+                                                        />
+                                                    ) },
+                                                ]}
+                                            />
                                             <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
                                                 <div className="px-4 pt-3 pb-3 text-tertiary text-[9pt] whitespace-pre-wrap max-h-48 overflow-y-auto">
                                                     {previewNote || "No content selected"}
@@ -584,27 +595,37 @@ export const WriteNotePage = ({
                                             <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Encoded Note</p>
                                         </div>
                                         <div className="relative">
-                                            <ActionPill shadow="sm" placement="overlay">
-                                                <ActionIconButton
-                                                    onClick={() => handleCopy(encodedValue, 'encoded')}
-                                                    status={copiedTarget === 'encoded' ? 'done' : 'idle'}
-                                                    variant="copy"
-                                                    title="Copy encoded text"
-                                                />
-                                                <ActionIconButton
-                                                    onClick={handleShare}
-                                                    status={shareStatusToIconStatus(shareStatus)}
-                                                    variant="share"
-                                                    title="Share note as image"
-                                                />
-                                                <ActionIconButton
-                                                    onClick={handleExportDD689}
-                                                    status={exportStatusToIconStatus(exportStatus)}
-                                                    variant="pdf"
-                                                    title="Export DD689 PDF"
-                                                    tourTag="writenote-export-dd689"
-                                                />
-                                            </ActionPill>
+                                            <OverlayActionMenu
+                                                shadow="sm"
+                                                triggerTourTag="writenote-encoded-more"
+                                                items={[
+                                                    { key: 'copy', label: 'Copy encoded text', render: () => (
+                                                        <ActionIconButton
+                                                            onClick={() => handleCopy(encodedValue, 'encoded')}
+                                                            status={copiedTarget === 'encoded' ? 'done' : 'idle'}
+                                                            variant="copy"
+                                                            title="Copy encoded text"
+                                                        />
+                                                    ) },
+                                                    { key: 'share', label: 'Share note as image', render: () => (
+                                                        <ActionIconButton
+                                                            onClick={handleShare}
+                                                            status={shareStatusToIconStatus(shareStatus)}
+                                                            variant="share"
+                                                            title="Share note as image"
+                                                        />
+                                                    ) },
+                                                    { key: 'export', label: 'Export DD689 PDF', render: () => (
+                                                        <ActionIconButton
+                                                            onClick={handleExportDD689}
+                                                            status={exportStatusToIconStatus(exportStatus)}
+                                                            variant="pdf"
+                                                            title="Export DD689 PDF"
+                                                            tourTag="writenote-export-dd689"
+                                                        />
+                                                    ) },
+                                                ]}
+                                            />
                                             <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
                                                 <div className="px-4 pt-3 pb-3">
                                                 <NoteBarcodeGenerator
