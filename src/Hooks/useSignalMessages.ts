@@ -32,6 +32,7 @@ import { parseMessageContent } from '../lib/signal/messageContent'
 import type { OutsideSessionContent, OutsideSessionUpdate } from '../lib/signal/messageContent'
 import { emitCallSignal, type CallSignalBody } from '../lib/webrtc/callSignalBus'
 import { emitOncallRing } from '../lib/webrtc/oncallSignalBus'
+import { emitOutsideCallSignal } from '../lib/webrtc/outsideSessionCallBus'
 import { isCalendarEvent, routeCalendarEvent } from '../lib/calendarRouting'
 import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature } from '../lib/mapOverlayRouting'
 import { errorBus } from '../lib/errorBus'
@@ -200,6 +201,27 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
           ...(row.group_id && { groupId: row.group_id }),
           originId: row.origin_id ?? undefined,
         }
+      }
+      // Ring-back signaling FROM the outside tab to the initiating medic
+      // (answer / decline / hangup). Routes to the call overlay via the bus;
+      // never a chat row. Non-trickle, so 'answer' carries the full SDP.
+      if (maybeIntake && typeof maybeIntake.kind === 'string'
+          && (maybeIntake.kind as string).startsWith('outside-session-call-')) {
+        const k = (maybeIntake.kind as string).slice('outside-session-call-'.length)
+        try {
+          const callId = String(maybeIntake.call_id)
+          const sessionId = String(maybeIntake.session_id)
+          if (k === 'answer') {
+            emitOutsideCallSignal({ kind: 'answer', callId, sessionId, sdp: maybeIntake.sdp as RTCSessionDescriptionInit })
+          } else if (k === 'decline') {
+            emitOutsideCallSignal({ kind: 'decline', callId, sessionId })
+          } else if (k === 'hangup') {
+            emitOutsideCallSignal({ kind: 'hangup', callId, sessionId })
+          }
+        } catch (e) {
+          logger.warn(`Failed to route outside-session call signal ${row.id}:`, e instanceof Error ? e.message : e)
+        }
+        return null
       }
       // NOTE: the resolved CALL card and outside→cluster MESSAGES are no longer
       // plaintext kind rows. They are authored by the oncall-resolve /

@@ -89,15 +89,17 @@ interface MapViewProps {
   tempRoute?: { points: [number, number][]; closed?: boolean } | null;
   /** Called on vertex dragend with the updated point list. */
   onTempRouteChange?: (points: [number, number][]) => void;
-  /** Distinct floor levels present in the active overlay, ascending. When
-   *  length > 1 (or onAddFloor is given) a vertical floor rail is shown. */
+  /** Distinct floor levels present in the active overlay, ascending. The
+   *  vertical floor rail is shown only when the overlay has depth (length > 1);
+   *  flat overlays stay clean. New floors are added elsewhere (tree / feature
+   *  editor), not on the rail. */
   floors?: number[];
   /** Active depth filter; `null` = all floors. Features whose `level` (??0)
    *  doesn't match the active floor are not rendered. */
   activeFloor?: number | null;
   onActiveFloorChange?: (floor: number | null) => void;
-  /** When provided, the floor rail shows a "+" to append a new floor. */
-  onAddFloor?: () => void;
+  /** Delete the active non-base floor (and its features) from the rail. */
+  onDeleteFloor?: (level: number) => void;
 }
 
 const DEFAULT_CENTER: [number, number] = [38.8977, -77.0365];
@@ -187,7 +189,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   floors,
   activeFloor = null,
   onActiveFloorChange,
-  onAddFloor,
+  onDeleteFloor,
 }, ref) {
   const { theme, themeName } = useTheme();
   const bearingReference = useMapPrefsStore(s => s.bearingReference);
@@ -986,13 +988,14 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       )}
 
       {/* Floor rail — Genshin-style depth selector on the right edge. Shown
-          when the overlay has depth (>1 floor) or floor-creation is enabled. */}
-      {floors && (floors.length > 1 || onAddFloor) && onActiveFloorChange && (
+          only once the overlay actually has depth (>1 floor); flat overlays
+          stay clean. New floors are added via the tree / feature editor. */}
+      {floors && floors.length > 1 && onActiveFloorChange && (
         <FloorSelector
           floors={floors}
           activeFloor={activeFloor}
           onSelect={onActiveFloorChange}
-          onAddFloor={onAddFloor}
+          onDeleteFloor={onDeleteFloor}
         />
       )}
 

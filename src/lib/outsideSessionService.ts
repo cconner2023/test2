@@ -35,3 +35,32 @@ export async function sendOutsideSessionReply(
     'sendOutsideSessionReply', logger,
   )
 }
+
+/**
+ * Place a ring-back to an open outside session: the medic is the OFFERER (the
+ * inverse of the outside→on-call leg). `offer` is the full gather-once SDP from
+ * oncallPeer. Server rejects if the session is closed / stale (>30s). The
+ * outside tab's answer arrives back via decryptRow → outsideSessionCallBus.
+ */
+export async function ringOutsideSession(
+  sessionId: string,
+  callId: string,
+  offer: RTCSessionDescriptionInit,
+): Promise<Result<{ ok?: boolean; from_name?: string }>> {
+  return callRpc<{ ok?: boolean; from_name?: string }>(
+    () => supabase.rpc('ring_outside_session', {
+      p_session_id: sessionId,
+      p_call_id: callId,
+      p_offer_sdp: offer,
+    }),
+    'ringOutsideSession', logger,
+  )
+}
+
+/** Medic's outbound call leg: 'hangup' (after connect) or 'cancel' (while ringing). */
+export async function sendOutsideSessionCallSignal(
+  callId: string,
+  kind: 'hangup' | 'cancel',
+): Promise<void> {
+  await supabase.rpc('send_outside_session_call_signal', { p_call_id: callId, p_kind: kind, p_sdp: null })
+}

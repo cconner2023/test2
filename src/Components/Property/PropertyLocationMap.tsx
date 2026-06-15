@@ -190,6 +190,9 @@ export interface MapNavHandle {
   resetZoom: () => void
   /** Deselect the active zone without changing zoom (used to close the right pane). */
   clearSelection: () => void
+  /** Add the next floor to a building (or bootstrap a structural zone into one),
+   *  then activate + zoom to it. Used by the zone/tree "Add level" menu actions. */
+  addFloorTo: (containerId: string) => void
 }
 
 interface PropertyLocationMapProps {
@@ -725,6 +728,25 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   }, [allWorldTags, rootLocationId, store, zoomToTag])
 
   // ── Imperative handle for external navigation (tree clicks, breadcrumbs) ──
+  // ── Floor switcher: activate a level + zoom to it once its tag is live ──
+  // setActiveLevel mutates the suppression set → allWorldTags recomputes to include
+  // the newly-active floor; pendingNavRef lets the deferred-nav effect zoom once it lands.
+  const handleSelectLevel = useCallback((containerId: string, levelId: string) => {
+    if (levelId === store.selectedZoneId) return
+    store.setActiveLevel(containerId, levelId)
+    store.selectZone(levelId)
+    pendingNavRef.current = levelId
+  }, [store])
+
+  const handleAddFloor = useCallback(async (containerId: string) => {
+    const ord = nextFloorOrdinal(getLevels(locationsRef.current, containerId))
+    const created = await store.addLevel(containerId, `Floor ${ord}`, ord)
+    if (!created) return
+    store.setActiveLevel(containerId, created.id)
+    store.selectZone(created.id)
+    pendingNavRef.current = created.id
+  }, [store])
+
   useImperativeHandle(ref, () => ({
     navigateToZone(targetId: string) {
       if (!executeNavigation(targetId)) {
@@ -741,7 +763,10 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     clearSelection() {
       store.selectZone(null)
     },
-  }), [executeNavigation, store, handleResetZoom])
+    addFloorTo(containerId: string) {
+      void handleAddFloor(containerId)
+    },
+  }), [executeNavigation, store, handleResetZoom, handleAddFloor])
 
   // Notify the parent of zone-selection changes so it can drive the right-pane
   // location detail. Ref-indirected so the effect only depends on the selection.
@@ -955,24 +980,6 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     }
   }, [store, locations, allWorldTags, zoomToTag, handleResetZoom])
 
-  // ── Floor switcher: activate a level + zoom to it once its tag is live ──
-  // setActiveLevel mutates the suppression set → allWorldTags recomputes to include
-  // the newly-active floor; pendingNavRef lets the deferred-nav effect zoom once it lands.
-  const handleSelectLevel = useCallback((containerId: string, levelId: string) => {
-    if (levelId === store.selectedZoneId) return
-    store.setActiveLevel(containerId, levelId)
-    store.selectZone(levelId)
-    pendingNavRef.current = levelId
-  }, [store])
-
-  const handleAddFloor = useCallback(async (containerId: string) => {
-    const ord = nextFloorOrdinal(getLevels(locationsRef.current, containerId))
-    const created = await store.addLevel(containerId, `Floor ${ord}`, ord)
-    if (!created) return
-    store.setActiveLevel(containerId, created.id)
-    store.selectZone(created.id)
-    pendingNavRef.current = created.id
-  }, [store])
 
   // ── Click-drag panning ──
   // Desktop: capture pointer for drag-to-pan.
@@ -1498,29 +1505,42 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
           </div>
         )}
 
-        {/* Edit entry — top-right, view mode only. Same chrome/shape/size/position
-            as the map's info button (CTRL_BTN). Mobile clears the floating glass
-            header via --drawer-header-h; desktop's solid header needs no offset. */}
+        {/* Top-right control cluster — view mode only. Horizontal row: an optional
+            Add-floor ＋ (shown when a structural zone / building is in scope) sits
+            left of the Edit ✏ entry. Same chrome/shape/size as the map's info button
+            (CTRL_BTN). Mobile clears the floating glass header via --drawer-header-h;
+            desktop's solid header needs no offset. */}
         {!isEditing && (
-          <button
-            onClick={() => handleEnterEdit()}
-            className={`absolute right-3 z-20 ${CTRL_BTN} ${isMobile ? 'top-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]' : 'top-3'}`}
-            title="Edit layout"
-            aria-label="Edit layout"
-          >
-            <Pencil size={16} />
-          </button>
+          <div className={`absolute right-3 z-20 flex items-center gap-1.5 ${isMobile ? 'top-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]' : 'top-3'}`}>
+            {addFloorTarget && (
+              <button
+                onClick={() => handleAddFloor(addFloorTarget)}
+                className={CTRL_BTN}
+                title="Add floor"
+                aria-label="Add floor"
+              >
+                <Plus size={16} />
+              </button>
+            )}
+            <button
+              onClick={() => handleEnterEdit()}
+              className={CTRL_BTN}
+              title="Edit layout"
+              aria-label="Edit layout"
+            >
+              <Pencil size={16} />
+            </button>
+          </div>
         )}
 
         {/* Floor switcher — Genshin-style vertical level stack, building-local.
-            Shows when a level-container is in scope, or a plain structural zone is
-            selected (bootstrap: add its first floor). View mode only. */}
-        {!isEditing && addFloorTarget && (
+            Pure selector: renders only once the in-scope container actually has
+            floors. Adding a floor lives in the top-right cluster above. View mode only. */}
+        {!isEditing && levelContainerId && containerLevels.length > 0 && (
           <FloorSwitcher
             levels={containerLevels}
             activeLevelId={activeLevelId}
-            onSelect={(levelId) => levelContainerId && handleSelectLevel(levelContainerId, levelId)}
-            onAddFloor={() => handleAddFloor(addFloorTarget)}
+            onSelect={(levelId) => handleSelectLevel(levelContainerId, levelId)}
           />
         )}
 

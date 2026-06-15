@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
-import { Check, RefreshCw, Send, MoreHorizontal } from 'lucide-react'
+import { Check, RefreshCw, Send, Phone, MoreHorizontal } from 'lucide-react'
 import type { OutsideSessionContent } from '../../lib/signal/messageContent'
 import { sendOutsideSessionReply } from '../../lib/outsideSessionService'
+import { requestRingback } from '../../lib/webrtc/outsideSessionCallBus'
 import { useLongPress } from '../../Hooks/useLongPress'
 
 interface Props {
@@ -102,6 +103,15 @@ export function OutsideSessionCard({ content, messageId, onLongPress }: Props) {
         {/* Composer (active only) */}
         {active ? (
           <div className="border-t border-current/10">
+            <div className="flex items-center justify-end px-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => requestRingback({ sessionId: content.session_id, outsidePub: content.outside_pub, requesterName: content.requester_name })}
+                className="h-8 px-3 rounded-full flex items-center gap-1.5 bg-themeblue3/10 text-themeblue2 text-[9pt] font-medium active:scale-95 transition-all"
+              >
+                <Phone size={13} /> Call back
+              </button>
+            </div>
             <div className="px-3.5 pt-1.5 text-[8pt] text-themeyellow leading-relaxed">
               Operational details only — no patient names or medical details.
             </div>

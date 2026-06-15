@@ -10,6 +10,7 @@ import {
   type OutsideSessionReply,
 } from '../../lib/outsideSessionAnonService'
 import { openSealed, type SealedPayload } from '../../lib/outsideSeal'
+import { OutsideSessionCallView } from './OutsideSessionCallView'
 
 interface OutsideSessionViewProps {
   supabase: SupabaseClient
@@ -55,6 +56,7 @@ export function OutsideSessionView({
 }: OutsideSessionViewProps) {
   const [phase, setPhase] = useState<'registering' | 'active' | 'ended' | 'failed'>('registering')
   const [replies, setReplies] = useState<RenderedReply[]>([])
+  const [call, setCall] = useState<{ callId: string; offer: RTCSessionDescriptionInit; fromName: string } | null>(null)
 
   const sessionIdRef = useRef<string | null>(null)
   const privateKeyRef = useRef<CryptoKey | null>(null)
@@ -107,6 +109,12 @@ export function OutsideSessionView({
           const text = await openSealed(key, r.sealed as SealedPayload)
           fresh.push({ id: r.reply_id, fromName: r.from_name ?? 'Medical section', text, at: r.created_at })
         } catch { /* undecryptable — drop */ }
+      } else if (r.kind === 'outside-session-inbox-call-offer' && r.call_id && r.sdp) {
+        const callId = r.call_id, offer = r.sdp, fromName = r.from_name ?? 'Medical section'
+        setCall((cur) => cur ?? { callId, offer, fromName }) // ignore a 2nd ring while one is up
+      } else if ((r.kind === 'outside-session-inbox-call-hangup' || r.kind === 'outside-session-inbox-call-cancel') && r.call_id) {
+        const ended = r.call_id
+        setCall((cur) => (cur && cur.callId === ended ? null : cur))
       }
     }
     if (fresh.length) {
@@ -194,6 +202,16 @@ export function OutsideSessionView({
 
   return (
     <>
+      {call && sessionIdRef.current && (
+        <OutsideSessionCallView
+          supabase={supabase}
+          sessionId={sessionIdRef.current}
+          callId={call.callId}
+          offer={call.offer}
+          fromName={call.fromName}
+          onEnded={() => setCall(null)}
+        />
+      )}
       <div className="pb-2">
         <p className="text-[9pt] font-semibold text-secondary tracking-widest uppercase">Reply session</p>
       </div>

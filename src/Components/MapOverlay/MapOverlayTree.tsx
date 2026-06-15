@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, type ReactNode } from 'react';
-import { ChevronRight, ChevronDown, Eye, EyeOff, Pencil, Trash2, X, Check, ArrowDownToLine, Wifi, Loader2, Plus, CalendarClock, Link2, Link2Off, MessageSquare, MoreHorizontal, Copy } from 'lucide-react';
+import { ChevronRight, ChevronDown, Eye, EyeOff, Pencil, Trash2, X, Check, ArrowDownToLine, Wifi, Loader2, Plus, CalendarClock, Link2, Link2Off, MessageSquare, MoreHorizontal, Copy, Layers } from 'lucide-react';
 import { LiftedRowMenu } from '../LiftedRowMenu';
 import type { ContextMenuItem } from '../ContextMenu';
 import { EmptyState } from '../EmptyState';
@@ -112,6 +112,9 @@ interface MapOverlayTreeProps {
   onDeleteFeature: (overlayId: string, featureId: string) => void;
   /** Duplicate a feature into another overlay (or a brand-new one). Opens the target chooser. */
   onCopyFeatureToOverlay: (overlayId: string, featureId: string) => void;
+  /** Add a new (empty) floor to the active overlay — adds depth so the overlay
+   *  becomes multi-level. Only offered on the active overlay's menu. */
+  onAddFloor?: () => void;
 }
 
 export function MapOverlayTree({
@@ -137,6 +140,7 @@ export function MapOverlayTree({
   onOpenFeatureLinksEditor,
   onDeleteFeature,
   onCopyFeatureToOverlay,
+  onAddFloor,
 }: MapOverlayTreeProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -452,6 +456,9 @@ export function MapOverlayTree({
                     disabled: isDownloading || noFeatures || cacheBusy,
                     onAction: () => onDownloadTiles(overlay),
                   },
+              ...(onAddFloor && overlay.id === activeOverlayId
+                ? [{ key: 'add-floor', label: 'Add floor', icon: Layers, onAction: () => onAddFloor() } as ContextMenuItem]
+                : []),
               { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteOverlay(overlay.id) },
         ];
         return (

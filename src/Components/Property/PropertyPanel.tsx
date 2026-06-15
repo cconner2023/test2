@@ -13,6 +13,7 @@ import { PropertyLocationDetail, buildLocationMenuItems, usePropertyPhotoUpload 
 import { LocationMapLinkPicker } from './LocationMapLinkPicker'
 import { PropertyItemForm, type PropertyItemFormHandle } from './PropertyItemForm'
 import { PropertyLocationMap, type MapNavHandle } from './PropertyLocationMap'
+import { isStructuralZone } from './levelUtils'
 import { Sheet } from '../Sheet'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
@@ -302,6 +303,8 @@ export const PropertyPanel = memo(function PropertyPanel({
     onRename: () => handleEditLocation(loc),
     onNewItem: () => handleAddItemAtLocation(loc.id),
     onNewArea: () => handleAddChildLocation(loc.id),
+    canAddLevel: isStructuralZone(loc),
+    onAddLevel: () => mapRef.current?.addFloorTo(loc.id),
     onPhoto: () => triggerPhoto(loc.id),
     onRemovePhoto: () => store.editLocation(loc.id, { photo_data: null }),
     onLinkMap: () => setMapLinkLoc(loc),
@@ -360,6 +363,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
                 onDeleteItem={onDeleteItem ? (item) => setPendingDeleteItem(item) : undefined}
                 onAddChildLocation={handleAddChildLocation}
+                onAddLevel={(id) => mapRef.current?.addFloorTo(id)}
                 onAddItemAtLocation={handleAddItemAtLocation}
               />
             </div>
@@ -730,6 +734,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
           onDeleteItem={onDeleteItem ? (item) => setPendingDeleteItem(item) : undefined}
           onAddChildLocation={handleAddChildLocation}
+          onAddLevel={(id) => mapRef.current?.addFloorTo(id)}
           onAddItemAtLocation={handleAddItemAtLocation}
         />
       </Sheet>

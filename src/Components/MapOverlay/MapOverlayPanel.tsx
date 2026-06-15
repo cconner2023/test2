@@ -38,7 +38,7 @@ import {
 } from '../../lib/mapTileService';
 import { getClinicDetails } from '../../lib/supervisorService';
 import { listLocations } from '../../lib/adminService';
-import type { OverlayFeature, DrawMode, WaypointType } from '../../Types/MapOverlayTypes';
+import type { OverlayFeature, OverlayFloor, DrawMode, WaypointType } from '../../Types/MapOverlayTypes';
 import type { LocalMapOverlay, MapOverlay } from '../../Types/MapOverlayTypes';
 import { DEFAULT_FEATURE_STYLE, WAYPOINT_LABELS, PIN_GLYPHS } from '../../Types/MapOverlayTypes';
 import { WaypointIcon } from './WaypointIcon';
@@ -52,6 +52,7 @@ import { MGRSConverter } from './MGRSConverter';
 import { MapSettingsDrawer, MapSettingsBody } from './MapSettingsDrawer';
 import { FeatureEditor } from './FeatureEditor';
 import { MapOverlayTree } from './MapOverlayTree';
+import { floorLabel } from './FloorSelector';
 import { OverlayEventPicker } from './OverlayEventPicker';
 import { useCalendarWrite } from '../../Hooks/useCalendarWrite';
 import { addFeatureLink, addOverlayLink, removeFeatureLink, removeOverlayLink } from '../../lib/eventLinks';
@@ -344,10 +345,12 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   const [overlayName, setOverlayName] = useState('');
   const [features, setFeatures] = useState<OverlayFeature[]>([]);
   // Floor / depth (Genshin-style). `activeFloor` null = show all floors.
-  // `extraFloors` holds floors added via the rail that have no features yet —
-  // ephemeral (not persisted; an empty floor has nothing to save).
+  // `overlayFloors` holds the active overlay's PERSISTED floor list (loaded on
+  // open, saved via writeOverlayMetadata) so an empty floor — one added before
+  // any feature lands on it — survives close/reopen and syncs to the clinic.
   const [activeFloor, setActiveFloor] = useState<number | null>(null);
-  const [extraFloors, setExtraFloors] = useState<number[]>([]);
+  const [overlayFloors, setOverlayFloors] = useState<OverlayFloor[]>([]);
+  const [confirmDeleteFloor, setConfirmDeleteFloor] = useState<number | null>(null);
   const [drawMode, setDrawMode] = useState<DrawMode>('pan');
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
   // Read vs. edit mode for the selected-feature panel. Title-in-header is the
@@ -426,7 +429,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   // save we fall back to bulk writeOverlay (one envelope carrying all initial
   // features); subsequent edits go per-feature.
   const lastSavedFeaturesRef = useRef<OverlayFeature[]>([]);
-  const lastSavedMetadataRef = useRef<{ name: string; center: [number, number]; zoom: number } | null>(null);
+  const lastSavedMetadataRef = useRef<{ name: string; center: [number, number]; zoom: number; floors?: OverlayFloor[] } | null>(null);
   const overlayCreatedRef = useRef<Set<string>>(new Set());
   const [confirmDeleteOverlayId, setConfirmDeleteOverlayId] = useState<string | null>(null);
   const [confirmDeleteFeature, setConfirmDeleteFeature] = useState<string | null>(null);
@@ -659,26 +662,51 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   const selectedFeature = features.find(f => f.id === selectedFeatureId) ?? null;
 
   // ── Floors / depth ──
-  // Distinct levels present (features + any empty floors the user added),
-  // ascending. Base floor (0) is always implied so the rail can grow from it.
+  // Distinct levels present, ascending: base (0, always implied) ∪ every
+  // feature's level ∪ the persisted empty floors. The floor rail only appears
+  // once this has ≥2 entries (i.e. the overlay actually has depth).
   const floorLevels = useMemo(() => {
     const s = new Set<number>([0]);
     for (const f of features) s.add(f.level ?? 0);
-    for (const n of extraFloors) s.add(n);
+    for (const fl of overlayFloors) s.add(fl.index);
     return [...s].sort((a, b) => a - b);
-  }, [features, extraFloors]);
+  }, [features, overlayFloors]);
 
-  // If the active floor disappears (its last feature was deleted), fall back to
-  // "All" so the map never renders blank with a dangling filter.
+  // If the active floor disappears (its last feature was deleted AND it isn't a
+  // persisted empty floor), fall back to "All" so the map never renders blank
+  // behind a dangling filter.
   useEffect(() => {
     if (activeFloor != null && !floorLevels.includes(activeFloor)) setActiveFloor(null);
   }, [activeFloor, floorLevels]);
 
+  // Add a new floor as real depth on the overlay — a persisted empty floor the
+  // user can then draw on or move features to. Invoked from the tree's overlay
+  // menu (NOT a rail "+"); marks the draft dirty so the next Save persists it.
   const handleAddFloor = useCallback(() => {
     const next = (floorLevels.length ? Math.max(...floorLevels) : 0) + 1;
-    setExtraFloors(prev => [...prev, next]);
+    setOverlayFloors(prev => prev.some(fl => fl.index === next) ? prev : [...prev, { index: next }]);
     setActiveFloor(next);
+    setIsDirty(true);
   }, [floorLevels]);
+
+  // Delete a floor (destructive) — confirmed via dialog, then performed below.
+  // Base floor (0) is never deletable.
+  const handleDeleteFloor = useCallback((level: number) => {
+    if (level === 0) return;
+    setConfirmDeleteFloor(level);
+  }, []);
+
+  const performDeleteFloor = useCallback(() => {
+    const level = confirmDeleteFloor;
+    if (level == null || level === 0) { setConfirmDeleteFloor(null); return; }
+    // Drop the floor's features (their removal syncs via the diff on Save) and
+    // the persisted floor entry, then fall back to "All".
+    setFeatures(prev => prev.filter(f => (f.level ?? 0) !== level));
+    setOverlayFloors(prev => prev.filter(fl => fl.index !== level));
+    setActiveFloor(null);
+    setIsDirty(true);
+    setConfirmDeleteFloor(null);
+  }, [confirmDeleteFloor]);
 
   // Stamp newly-created features with the active floor. Read via ref so the
   // many creation callbacks don't each need `activeFloor` in their deps.
@@ -887,7 +915,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     setOverlayName('');
     setFeatures([]);
     setActiveFloor(null);
-    setExtraFloors([]);
+    setOverlayFloors([]);
     setDrawMode('pan');
     setSelectedFeatureId(null);
     setSearchQuery('');
@@ -935,7 +963,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     setOverlayName(overlay.name);
     setFeatures(overlay.features);
     setActiveFloor(null);
-    setExtraFloors([]);
+    setOverlayFloors(overlay.floors ?? []);
     setDrawMode('pan');
     setSelectedFeatureId(null);
     setSearchQuery('');
@@ -945,7 +973,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     // so subsequent edits go straight to per-feature envelopes.
     overlayCreatedRef.current.add(overlay.id);
     lastSavedFeaturesRef.current = overlay.features;
-    lastSavedMetadataRef.current = { name: overlay.name, center: overlay.center, zoom: overlay.zoom };
+    lastSavedMetadataRef.current = { name: overlay.name, center: overlay.center, zoom: overlay.zoom, floors: overlay.floors };
     // Seed the live camera-tracking state to the overlay's stored framing so a
     // programmatic moveend (init invalidateSize / async clinic-center setView)
     // can't make metaChanged read true on open and overwrite the saved center.
@@ -1039,7 +1067,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     setMeasurePoints([]);
     setMeasureResult(null);
     setActiveFloor(null);
-    setExtraFloors([]);
+    setOverlayFloors([]);
     resetInProgressDrawing();
     onClose();
   }, [stopWatching, onClose, resetInProgressDrawing]);
@@ -1390,11 +1418,12 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
         center: mapCenter,
         zoom: mapZoom,
         features,
+        floors: overlayFloors,
       });
       if (saved) {
         overlayCreatedRef.current.add(overlayId);
         lastSavedFeaturesRef.current = features;
-        lastSavedMetadataRef.current = { name, center: mapCenter, zoom: mapZoom };
+        lastSavedMetadataRef.current = { name, center: mapCenter, zoom: mapZoom, floors: overlayFloors };
         setOverlays(prev => {
           const idx = prev.findIndex(o => o.id === saved.id);
           if (idx >= 0) {
@@ -1440,7 +1469,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
       || meta.name !== name
       || meta.center[0] !== mapCenter[0]
       || meta.center[1] !== mapCenter[1]
-      || meta.zoom !== mapZoom;
+      || meta.zoom !== mapZoom
+      || JSON.stringify(meta.floors ?? []) !== JSON.stringify(overlayFloors);
     if (metaChanged) {
       await writeOverlayMetadata({
         overlayId,
@@ -1448,17 +1478,18 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
         name,
         center: mapCenter,
         zoom: mapZoom,
+        floors: overlayFloors,
       });
     }
 
     lastSavedFeaturesRef.current = features;
-    lastSavedMetadataRef.current = { name, center: mapCenter, zoom: mapZoom };
+    lastSavedMetadataRef.current = { name, center: mapCenter, zoom: mapZoom, floors: overlayFloors };
     setOverlays(prev => prev.map(o => o.id === overlayId
-      ? { ...o, name, center: mapCenter, zoom: mapZoom, features, updated_at: new Date().toISOString() }
+      ? { ...o, name, center: mapCenter, zoom: mapZoom, features, floors: overlayFloors, updated_at: new Date().toISOString() }
       : o));
     skipDirtyRef.current = true;
     setIsDirty(false);
-  }, [overlayId, user, activeClinicId, overlayName, mapCenter, mapZoom, features, writeOverlay, upsertFeature, removeFeature, writeOverlayMetadata]);
+  }, [overlayId, user, activeClinicId, overlayName, mapCenter, mapZoom, features, overlayFloors, writeOverlay, upsertFeature, removeFeature, writeOverlayMetadata]);
 
   // Dirty watcher: any features change after the initial load flips draft mode
   // on. Save (via handleSaveClick) and Cancel (handleCancelDraft) both arm
@@ -1474,6 +1505,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   const handleCancelDraft = useCallback(() => {
     skipDirtyRef.current = true;
     setFeatures(lastSavedFeaturesRef.current);
+    setOverlayFloors(lastSavedMetadataRef.current?.floors ?? []);
+    setActiveFloor(null);
     setSelectedFeatureId(null);
     setIsDirty(false);
   }, []);
@@ -2040,6 +2073,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 onOpenFeatureLinksEditor={handleOpenFeatureLinksEditor}
                 onDeleteFeature={handleDeleteFeatureFromTree}
                 onCopyFeatureToOverlay={handleCopyFeatureToOverlay}
+                onAddFloor={handleAddFloor}
               />
               <OverlayEventPicker
                 isOpen={!!linkPicker}
@@ -2115,7 +2149,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 floors={floorLevels}
                 activeFloor={activeFloor}
                 onActiveFloorChange={setActiveFloor}
-                onAddFloor={handleAddFloor}
+                onDeleteFloor={handleDeleteFloor}
               />
 
               {/* ── Map settings (overlays + grid) — drawer/preview-overlay, calendar-settings pattern ── */}
@@ -2180,6 +2214,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                         onOpenFeatureLinksEditor={(ov, fid, anchor) => { handleOpenFeatureLinksEditor(ov, fid, anchor); setShowMobileTree(false); }}
                         onDeleteFeature={(ov, fid) => { handleDeleteFeatureFromTree(ov, fid); setShowMobileTree(false); }}
                         onCopyFeatureToOverlay={(ov, fid) => { handleCopyFeatureToOverlay(ov, fid); setShowMobileTree(false); }}
+                        onAddFloor={() => { handleAddFloor(); setShowMobileTree(false); }}
                       />
                     </section>
                   </div>
@@ -2843,6 +2878,24 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
         onCancel={() => setConfirmDeleteFeature(null)}
         // Launched from the selected-feature editor Sheet (body portal at
         // z-[1200], noBackdrop) — bump above it.
+        zIndex={1300}
+      />
+      <ConfirmDialog
+        visible={confirmDeleteFloor != null}
+        title="Delete this floor?"
+        subtitle={
+          confirmDeleteFloor != null
+            ? (() => {
+                const n = features.filter(f => (f.level ?? 0) === confirmDeleteFloor).length;
+                const what = n === 0 ? 'It has no features.' : `Its ${n} ${n === 1 ? 'feature' : 'features'} will be removed too.`;
+                return `Floor ${floorLabel(confirmDeleteFloor)} and everything on it will be deleted. ${what}`;
+              })()
+            : ''
+        }
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={performDeleteFloor}
+        onCancel={() => setConfirmDeleteFloor(null)}
         zIndex={1300}
       />
       <ConfirmDialog

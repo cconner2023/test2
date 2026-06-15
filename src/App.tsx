@@ -39,6 +39,7 @@ import { MessagesProvider, useMessagesContext } from './Hooks/MessagesContext'
 import { CallProvider } from './Hooks/CallContext'
 import { CallOverlay } from './Components/Settings/CallOverlay'
 import { OncallCallModal } from './Components/Messages/OncallCallModal'
+import { OutsideSessionCallHost } from './Components/Messages/OutsideSessionCallHost'
 import { MessageNotificationToast } from './Components/MessageNotificationToast'
 import { TourProvider } from './Components/Tour/TourProvider'
 import { PushNotificationToast } from './Components/PushNotificationToast'
@@ -831,6 +832,7 @@ case 'mapOverlay':
       </div>
       <CallOverlay />
       <OncallCallModal />
+      <OutsideSessionCallHost />
       <MessageToastBridge onTap={handleNotificationTap} />
       <PushToastBridge />
       <FeatureVotePrompt

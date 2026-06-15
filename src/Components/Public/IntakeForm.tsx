@@ -293,7 +293,12 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
           passphrase={passphrase.trim()}
           clinicName={stage1.kind === 'resolved' ? stage1.clinicName : ''}
           onReject={handleCallReject}
-          onClose={() => setCallActive(false)}
+          onClose={(callerName) => {
+            setCallActive(false)
+            // A call actually happened → keep a reply lane open so the cluster
+            // can ring back or text. (undefined = pre-call cancel, just close.)
+            if (callerName !== undefined) { setName(callerName); setReplySession(true) }
+          }}
         />
       ) : messageActive ? (
         <>

@@ -66,7 +66,15 @@ export async function registerOutsideSession(
     p_requester_name: requesterName,
   })
   if (error || !data) return { ok: false }
-  return { ok: true, data: data as RegisterOutsideSessionResult }
+  const result = data as RegisterOutsideSessionResult
+  // Fire the on-call push (fire-and-forget). The edge fn resolves the clinic from
+  // the bcrypt-gated 'outside-session-open' SYSTEM row by session_id (anon can't
+  // forge one) and pings only the on-call roster. No-PHI copy. A push failure
+  // must not fail registration.
+  void supabase.functions
+    .invoke('send-push-notification', { body: { type: 'outside_session', session_id: result.session_id } })
+    .catch(() => {})
+  return { ok: true, data: result }
 }
 
 /** A pending cluster→outside reply, drained by poll. `sealed` (text) / call-signal fields decode in slice 4. */
@@ -77,10 +85,9 @@ export interface OutsideSessionReply {
   created_at: string
   /** Sealed text body (present on '...-text'); decrypted with the session private key. */
   sealed?: unknown
-  /** Ring-back call signaling (present on '...-call-*'). */
+  /** Ring-back call signaling (present on '...-call-*'). Non-trickle: full SDP. */
   call_id?: string
-  sdp?: string
-  candidate?: RTCIceCandidateInit
+  sdp?: RTCSessionDescriptionInit
   /** Cluster member display name (operational, server-stamped — not PHI). */
   from_name?: string
 }
@@ -128,4 +135,24 @@ export async function endOutsideSession(
   sessionId: string,
 ): Promise<void> {
   await supabase.rpc('end_outside_session', { p_session_id: sessionId })
+}
+
+/**
+ * Outside party's leg of a medic-initiated ring-back: 'answer' (with the full
+ * gather-once SDP), 'decline', or 'hangup'. Routed server-side to the initiating
+ * medic. session_id is the capability (must own the call_id).
+ */
+export async function submitOutsideSessionCallSignal(
+  supabase: SupabaseClient,
+  sessionId: string,
+  kind: 'answer' | 'decline' | 'hangup',
+  callId: string,
+  sdp?: RTCSessionDescriptionInit,
+): Promise<void> {
+  await supabase.rpc('submit_outside_session_call_signal', {
+    p_session_id: sessionId,
+    p_kind: kind,
+    p_call_id: callId,
+    p_sdp: sdp ?? null,
+  })
 }

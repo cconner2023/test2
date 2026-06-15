@@ -1,11 +1,12 @@
 import { useState, useMemo, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronRight, ChevronDown, Pencil, Trash2, Eye, FolderPlus, PackagePlus, MoreHorizontal, FolderClosed, Package } from 'lucide-react'
+import { ChevronRight, ChevronDown, Pencil, Trash2, Eye, FolderPlus, PackagePlus, MoreHorizontal, FolderClosed, Package, Layers } from 'lucide-react'
 import { useDrag } from '@use-gesture/react'
 import { type ContextMenuItem } from '../ContextMenu'
 import { LiftedRowMenu } from '../LiftedRowMenu'
 import type { LocalPropertyLocation, LocalPropertyItem, HolderInfo } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
+import { isStructuralZone } from './levelUtils'
 
 interface PropertyLocationTreeProps {
   locations: LocalPropertyLocation[]
@@ -38,6 +39,8 @@ interface PropertyLocationTreeProps {
   onDeleteLocation?: (locId: string) => void
   onDeleteItem?: (item: LocalPropertyItem) => void
   onAddChildLocation?: (parentId: string | null) => void
+  /** Add a building floor (kind='level') to a structural zone. */
+  onAddLevel?: (containerId: string) => void
   onAddItemAtLocation?: (locationId: string | null) => void
 }
 
@@ -74,6 +77,7 @@ export function PropertyLocationTree({
   onDeleteLocation,
   onDeleteItem,
   onAddChildLocation,
+  onAddLevel,
   onAddItemAtLocation,
 }: PropertyLocationTreeProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -557,6 +561,7 @@ export function PropertyLocationTree({
           if (!loc || loc.holder_user_id) return null
           const menuItems: ContextMenuItem[] = [
             ...(onAddChildLocation ? [{ key: 'add-area', label: 'New Area', icon: FolderPlus, onAction: () => onAddChildLocation(loc.id) }] : []),
+            ...(onAddLevel && isStructuralZone(loc) ? [{ key: 'add-level', label: 'Add level', icon: Layers, onAction: () => onAddLevel(loc.id) }] : []),
             ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(loc.id) }] : []),
             ...(onEditLocation ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditLocation(loc) }] : []),
             ...(onDeleteLocation ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteLocation(loc.id) }] : []),

@@ -18,7 +18,7 @@
  */
 
 import type { EventCategory, EventStatus, CategorySwatchId } from '../../Types/CalendarTypes'
-import type { OverlayFeature } from '../../Types/MapOverlayTypes'
+import type { OverlayFeature, OverlayFloor } from '../../Types/MapOverlayTypes'
 
 // ---- Content Types ----
 
@@ -118,6 +118,12 @@ export interface MapOverlayPayload {
   center?: [number, number]
   zoom?: number
   features?: OverlayFeature[]
+  /**
+   * Persisted floor/depth list for multi-level overlays. Carries only the
+   * floor index + optional operational label ("B1", "Roof") — no PHI. Lets an
+   * empty floor (added with no features yet) survive close/reopen and sync.
+   */
+  floors?: OverlayFloor[]
   created_by?: string
   created_at?: string
   updated_at?: string

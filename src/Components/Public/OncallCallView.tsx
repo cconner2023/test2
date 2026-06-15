@@ -15,7 +15,10 @@ interface Props {
   clinicName: string
   /** bad passphrase / on-call disabled → clear credentials back to stage 1 */
   onReject: () => void
-  onClose: () => void
+  /** Closed. `callerName` is set only when a call was actually placed (so the
+   *  caller can keep a reply lane open for ring-back); undefined on a pre-call
+   *  cancel. */
+  onClose: (callerName?: string) => void
 }
 
 type State = 'name' | 'placing' | 'ringing' | 'connecting' | 'connected' | 'voicemail'
@@ -166,7 +169,11 @@ export function OncallCallView({ supabase, passcode, passphrase, clinicName, onR
     }
   }, [name, supabase, passcode, passphrase, onReject, onClose, teardown, goVoicemail, startRingback, beginPolling, onConnected])
 
-  const hangUp = useCallback(() => { teardown(); onClose() }, [teardown, onClose])
+  const hangUp = useCallback(() => {
+    teardown()
+    // Only carry the name forward (→ reply lane) if a call was actually placed.
+    onClose(callIdRef.current ? (name.trim() || 'Outside caller') : undefined)
+  }, [teardown, onClose, name])
 
   const toggleMute = useCallback(() => {
     setMuted((m) => { peerRef.current?.setMuted(!m); return !m })
@@ -175,8 +182,8 @@ export function OncallCallView({ supabase, passcode, passphrase, clinicName, onR
   const closeFromVoicemail = useCallback(() => {
     const callId = callIdRef.current
     if (callId) void markOncallMissedAnon(supabase, passcode, callId)
-    onClose()
-  }, [supabase, passcode, onClose])
+    onClose(name.trim() || 'Outside caller')
+  }, [supabase, passcode, onClose, name])
 
   return (
     <>
@@ -203,7 +210,7 @@ export function OncallCallView({ supabase, passcode, passphrase, clinicName, onR
               />
             </label>
             <div className="flex items-center justify-end gap-2 px-3 py-2">
-              <button type="button" onClick={onClose} className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
+              <button type="button" onClick={() => onClose()} className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
                 <X size={16} />
               </button>
               <button

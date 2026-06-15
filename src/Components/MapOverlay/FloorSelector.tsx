@@ -1,4 +1,4 @@
-import { Layers, Plus } from 'lucide-react';
+import { Layers, Trash2 } from 'lucide-react';
 
 /** Human label for a floor level. 0 = ground, negatives = basements. */
 export function floorLabel(level: number): string {
@@ -13,8 +13,9 @@ interface FloorSelectorProps {
   /** Active floor; `null` = show all floors (no depth filter). */
   activeFloor: number | null;
   onSelect: (floor: number | null) => void;
-  /** When provided, renders a "+" chip that appends a new floor. */
-  onAddFloor?: () => void;
+  /** When provided, the active non-base floor gets a trash chip that deletes
+   *  that floor (and everything on it). Base (0) is never deletable. */
+  onDeleteFloor?: (level: number) => void;
 }
 
 const CHIP =
@@ -23,30 +24,31 @@ const INACTIVE = 'bg-themewhite2/90 dark:bg-themewhite3/90 text-primary';
 const ACTIVE = 'bg-themeblue3 text-white';
 
 /**
- * Genshin-style vertical floor rail on the map's right edge. Tap a floor to
- * target that depth (others hide); tap the layers chip for "All". The "+"
- * chip appends a new floor — new features drawn while it's active get stamped
- * with that level. Higher floors render above lower ones, mirroring a building
- * elevation.
+ * Genshin-style vertical floor rail on the map's right edge. Shown only once an
+ * overlay actually has depth (≥2 floors) — flat overlays stay clean. Tap a
+ * floor to target that depth (others hide); tap the layers chip for "All".
+ * Higher floors render above lower ones, mirroring a building elevation. New
+ * floors are NOT minted here — they're added as real depth on the overlay (tree
+ * "Add floor" / moving a feature to a new floor). When a specific non-base
+ * floor is active, a trash chip deletes that floor and its features.
  */
-export function FloorSelector({ floors, activeFloor, onSelect, onAddFloor }: FloorSelectorProps) {
+export function FloorSelector({ floors, activeFloor, onSelect, onDeleteFloor }: FloorSelectorProps) {
   const descending = [...floors].sort((a, b) => b - a);
+  const canDelete = onDeleteFloor && activeFloor != null && activeFloor !== 0;
   return (
     <div
       data-tour="map-floor-selector"
       className="absolute right-3 top-1/2 -translate-y-1/2 z-[1000] flex flex-col gap-1.5 items-center pointer-events-auto"
     >
-      {floors.length > 1 && (
-        <button
-          type="button"
-          onClick={() => onSelect(null)}
-          className={`${CHIP} ${activeFloor === null ? ACTIVE : INACTIVE}`}
-          aria-label="Show all floors"
-          title="All floors"
-        >
-          <Layers size={16} />
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => onSelect(null)}
+        className={`${CHIP} ${activeFloor === null ? ACTIVE : INACTIVE}`}
+        aria-label="Show all floors"
+        title="All floors"
+      >
+        <Layers size={16} />
+      </button>
       {descending.map((level) => (
         <button
           key={level}
@@ -59,15 +61,15 @@ export function FloorSelector({ floors, activeFloor, onSelect, onAddFloor }: Flo
           {floorLabel(level)}
         </button>
       ))}
-      {onAddFloor && (
+      {canDelete && (
         <button
           type="button"
-          onClick={onAddFloor}
-          className={`${CHIP} ${INACTIVE} text-tertiary`}
-          aria-label="Add floor"
-          title="Add floor"
+          onClick={() => onDeleteFloor(activeFloor)}
+          className={`${CHIP} bg-themewhite2/90 dark:bg-themewhite3/90 text-themered`}
+          aria-label={`Delete floor ${floorLabel(activeFloor)}`}
+          title={`Delete floor ${floorLabel(activeFloor)}`}
         >
-          <Plus size={16} />
+          <Trash2 size={15} />
         </button>
       )}
     </div>

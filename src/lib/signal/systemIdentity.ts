@@ -753,6 +753,23 @@ async function _drainSystemInboxImpl(): Promise<number> {
         continue
       }
 
+      // Outside-session reply lane. ALL 'outside-session*' SYSTEM rows are either
+      // the anon tab's polled inbox (recipient=SYSTEM, drained by
+      // poll_outside_session) or dev-observe copies of the cluster fanout. The
+      // dev/SYSTEM surface is OBSERVE-ONLY — consume without surfacing and WITHOUT
+      // deleting (a clinic-member dev already gets the card via its per-member
+      // row; deleting the inbox rows here would rob the outside tab of its
+      // replies / ring-back). Mirrors the oncall-ring observe-only guard.
+      if (
+        row.message_type === 'system'
+        && maybeIntakePayload
+        && typeof maybeIntakePayload.kind === 'string'
+        && (maybeIntakePayload.kind as string).startsWith('outside-session')
+      ) {
+        processedIds.push(row.id)
+        continue
+      }
+
       // Group sender-key control plane addressed to SYSTEM. SYSTEM is a member
       // of the clinic system group, so every supervisor group reply fans a
       // sender-key-distribution (and sender-key-message) copy at SYSTEM. SYSTEM

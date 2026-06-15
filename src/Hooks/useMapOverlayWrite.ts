@@ -25,7 +25,7 @@ import {
 } from '../lib/mapOverlayEventStore'
 import { getOverlayTombstones } from '../lib/mapOverlayRouting'
 import { invalidate } from '../stores/useInvalidationStore'
-import type { LocalMapOverlay, MapOverlay, OverlayFeature } from '../Types/MapOverlayTypes'
+import type { LocalMapOverlay, MapOverlay, OverlayFeature, OverlayFloor } from '../Types/MapOverlayTypes'
 import type { MapOverlayPayload, MapFeaturePayload } from '../lib/signal/messageContent'
 import { createLogger } from '../Utilities/Logger'
 
@@ -49,6 +49,7 @@ async function queueOverlayResync(overlayId: string): Promise<void> {
     center: o.center,
     zoom: o.zoom,
     features: o.features,
+    floors: o.floors,
     created_by: o.created_by,
     created_at: o.created_at,
     updated_at: o.updated_at,
@@ -63,6 +64,7 @@ export interface WriteOverlayParams {
   center: [number, number]
   zoom: number
   features: OverlayFeature[]
+  floors?: OverlayFloor[]
 }
 
 export interface UpsertFeatureParams {
@@ -84,6 +86,7 @@ export interface WriteOverlayMetadataParams {
   description?: string
   center?: [number, number]
   zoom?: number
+  floors?: OverlayFloor[]
 }
 
 export interface UseMapOverlayWriteResult {
@@ -155,6 +158,7 @@ export function useMapOverlayWrite(): UseMapOverlayWriteResult {
       center: params.center,
       zoom: params.zoom,
       features: params.features,
+      floors: params.floors,
       created_by: existing?.created_by ?? userId,
       created_at: existing?.created_at ?? now,
       updated_at: now,
@@ -182,6 +186,7 @@ export function useMapOverlayWrite(): UseMapOverlayWriteResult {
         center: overlay.center,
         zoom: overlay.zoom,
         features: overlay.features,
+        floors: overlay.floors,
         created_by: overlay.created_by,
         created_at: overlay.created_at,
         updated_at: overlay.updated_at,
@@ -316,6 +321,7 @@ export function useMapOverlayWrite(): UseMapOverlayWriteResult {
       ...(params.description !== undefined && { description: params.description }),
       ...(params.center !== undefined && { center: params.center }),
       ...(params.zoom !== undefined && { zoom: params.zoom }),
+      ...(params.floors !== undefined && { floors: params.floors }),
       updated_at: now,
     })
     invalidate('mapOverlays')
@@ -332,6 +338,7 @@ export function useMapOverlayWrite(): UseMapOverlayWriteResult {
       ...(params.description !== undefined && { description: params.description }),
       ...(params.center !== undefined && { center: params.center }),
       ...(params.zoom !== undefined && { zoom: params.zoom }),
+      ...(params.floors !== undefined && { floors: params.floors }),
       created_by: existing.created_by,
       created_at: existing.created_at,
       updated_at: now,
@@ -396,5 +403,6 @@ export function toWriteParams(o: MapOverlay): WriteOverlayParams {
     center: o.center,
     zoom: o.zoom,
     features: o.features,
+    floors: o.floors,
   }
 }

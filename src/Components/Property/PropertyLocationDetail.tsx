@@ -1,5 +1,5 @@
 import { useRef, useCallback } from 'react'
-import { Pencil, Package, FolderPlus, Camera, X, Trash2, MapPin } from 'lucide-react'
+import { Pencil, Package, FolderPlus, Camera, X, Trash2, MapPin, Layers } from 'lucide-react'
 import type { ContextMenuItem } from '../ContextMenu'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { PropertyLocationTree } from './PropertyLocationTree'
@@ -81,6 +81,10 @@ export function buildLocationMenuItems(opts: {
   onRename: () => void
   onNewItem: () => void
   onNewArea: () => void
+  /** Add a building floor (kind='level') to this zone. Shown only when canAddLevel. */
+  onAddLevel?: () => void
+  /** True when this zone can hold floors (a structural zone, not a person/level/root). */
+  canAddLevel?: boolean
   onPhoto: () => void
   onRemovePhoto: () => void
   onLinkMap: () => void
@@ -92,6 +96,9 @@ export function buildLocationMenuItems(opts: {
     { key: 'rename', label: 'Rename', icon: Pencil, onAction: opts.onRename },
     { key: 'new-item', label: 'New item', icon: Package, onAction: opts.onNewItem },
     { key: 'new-area', label: 'New area', icon: FolderPlus, onAction: opts.onNewArea },
+    ...(opts.canAddLevel && opts.onAddLevel
+      ? [{ key: 'add-level', label: 'Add level', icon: Layers, onAction: opts.onAddLevel } as ContextMenuItem]
+      : []),
     { key: 'link-map', label: hasMapLink ? 'Map link' : 'Link to map', icon: MapPin, onAction: opts.onLinkMap },
     { key: 'photo', label: hasPhoto ? 'Change photo' : 'Add photo', icon: Camera, onAction: opts.onPhoto },
     ...(hasPhoto ? [{ key: 'remove-photo', label: 'Remove photo', icon: X, onAction: opts.onRemovePhoto } as ContextMenuItem] : []),
