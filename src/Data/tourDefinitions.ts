@@ -525,7 +525,7 @@ const textExpanderTour: TourDefinition = {
     },
     {
       target: 'expander-fab',
-      text: "Tap the New Template button (top-right of the list) to open the editor for our shortcut 'ABCCD'.",
+      text: "Open the ⋯ menu (top-right of the list) — it holds New shortcut plus share / export / import. We'll open the editor for our shortcut 'ABCCD'.",
       placement: 'bottom',
       beforeStep: 'expander:demo:open-and-type',
       delay: 600,

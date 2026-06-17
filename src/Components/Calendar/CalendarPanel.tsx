@@ -1149,6 +1149,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           </div>
 
           <BottomIsland
+            glass
             tour="calendar-view-switcher"
             fab={
               <AddFab tour="calendar-add-event" label="Add event" onClick={() => setShowAddSheet(true)} className="absolute right-4" />

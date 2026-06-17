@@ -7,8 +7,8 @@ import { parseFieldText } from '../../Utilities/templateParser';
 import { SearchInput } from '../SearchInput';
 import { TextExpanderManager } from './TextExpanderManager';
 import { TextExpanderEditPopover, type TextExpanderEditState, type ExpanderScope } from './TextExpanderEditPopover';
-import { ClusterEditButton } from './ClusterEditPicker';
-import { NoteBlocksTransferMenu } from './NoteBlocksTransferMenu';
+import { useClusterEditItem } from './ClusterEditPicker';
+import { useNoteBlocksTransferItems } from './NoteBlocksTransferMenu';
 import { useNoteBlocksTransfer } from '../../Hooks/useNoteBlocksTransfer';
 import { DEMO_EXPANDER_ABBR, DEMO_EXPANDER_BUILDS } from '../../Data/GuidedTourData';
 
@@ -34,6 +34,16 @@ export const TextTemplatesPanel = () => {
     );
 
     const [editState, setEditState] = useState<TextExpanderEditState | null>(null);
+
+    // ── Consolidated corner ⋯ actions (cluster picker + Share/Export/Import) ──
+    const clusterItem = useClusterEditItem({ selectedClinicId: editingClinicId, onSelect: setEditingClinicId });
+    const { items: transferItems, overlays: transferOverlays } = useNoteBlocksTransferItems({
+        baseName: 'text templates',
+        kind: 'templates',
+        data: { textExpanders },
+        hasData: textExpanders.length > 0,
+    });
+    const cornerItems = [...(clusterItem ? [clusterItem] : []), ...transferItems];
 
     const handleUpdate = useCallback((fields: Partial<UserTypes>) => {
         updateProfile(fields);
@@ -174,20 +184,7 @@ export const TextTemplatesPanel = () => {
                         }}
                         filter={filter}
                         isSupervisorRole={isSupervisorRole}
-                        clusterPicker={
-                            <ClusterEditButton
-                                selectedClinicId={editingClinicId}
-                                onSelect={setEditingClinicId}
-                            />
-                        }
-                        transferMenu={
-                            <NoteBlocksTransferMenu
-                                baseName="text templates"
-                                kind="templates"
-                                data={{ textExpanders }}
-                                hasData={textExpanders.length > 0}
-                            />
-                        }
+                        cornerItems={cornerItems}
                     />
             </div>
 
@@ -200,6 +197,7 @@ export const TextTemplatesPanel = () => {
             />
 
             {transfer.picker}
+            {transferOverlays}
         </>
     );
 };

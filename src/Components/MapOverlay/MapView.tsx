@@ -63,8 +63,9 @@ interface MapViewProps {
   center?: [number, number];
   zoom?: number;
   onMoveEnd?: (center: [number, number], zoom: number) => void;
-  /** Extra top offset (px) for floating controls when header overlays the map */
-  controlsTopOffset?: number;
+  /** Extra top offset for floating controls when the header overlays the map.
+   *  Number = px; string = any CSS length (e.g. a glass-header calc on mobile). */
+  controlsTopOffset?: number | string;
   measurePoints?: [number, number][];
   measureResult?: { distanceM: number; bearing: number } | null;
   overlayId?: string;

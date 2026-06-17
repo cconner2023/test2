@@ -1,9 +1,8 @@
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Plus, TextCursorInput, Layers, MessageSquare, Download, Trash2 } from 'lucide-react';
 import type { TextExpander } from '../../Data/User';
 import { isFlatTemplate } from '../../Utilities/templateParser';
-import { ActionButton } from '../ActionButton';
-import { ActionPill } from '../ActionPill'
+import { OverlayActionMenu } from '../OverlayActionMenu';
 import { LiftedRowMenu } from '../LiftedRowMenu';
 import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from '../liftPress';
 import type { ContextMenuItem } from '../ContextMenu';
@@ -32,9 +31,9 @@ interface TextExpanderManagerProps {
     filter: string;
     clinicAbbrSet?: Set<string>;
     isSupervisorRole?: boolean;
-    clusterPicker?: ReactNode;
-    /** Panel-wide Share/Export/Import ellipsis, folded into the corner pill. */
-    transferMenu?: ReactNode;
+    /** Cluster picker + Share/Export/Import items, folded into the single corner ⋯
+     *  menu alongside the New action this manager owns. */
+    cornerItems?: ContextMenuItem[];
     /** Per-row actions (long-press / right-click lifted-row menu). */
     onShareItem?: (expander: TextExpander) => void;
     onExportItem?: (expander: TextExpander) => void;
@@ -48,8 +47,7 @@ export const TextExpanderManager = ({
     filter,
     clinicAbbrSet,
     isSupervisorRole = false,
-    clusterPicker,
-    transferMenu,
+    cornerItems,
     onShareItem,
     onExportItem,
     onDeleteItem,
@@ -78,11 +76,15 @@ export const TextExpanderManager = ({
     return (
         <section className="space-y-3">
             <div className="relative">
-                <ActionPill ref={fabRef} data-tour="expander-fab" placement="overlay" shadow="sm">
-                    {clusterPicker}
-                    <ActionButton icon={Plus} label="New shortcut" onClick={() => fabRef.current && onStartNew(fabRef.current)} />
-                    {transferMenu}
-                </ActionPill>
+                <OverlayActionMenu
+                    ref={fabRef}
+                    tourTag="expander-fab"
+                    shadow="sm"
+                    items={[
+                        { key: 'new', label: 'New shortcut', icon: Plus, onAction: () => fabRef.current && onStartNew(fabRef.current) },
+                        ...(cornerItems ?? []),
+                    ]}
+                />
                 <div data-tour="expander-list" className="rounded-xl bg-themewhite2 overflow-hidden">
                 <div className="px-2 py-2">
                     {hasItems ? (

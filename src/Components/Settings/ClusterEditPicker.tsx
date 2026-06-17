@@ -17,10 +17,44 @@ import { useAuth } from '../../Hooks/useAuth'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
 import { PreviewOverlay } from '../PreviewOverlay'
+import type { ContextMenuItem } from '../ContextMenu'
 
 interface ClusterEditPickerProps {
   selectedClinicId: string | null
   onSelect: (clinicId: string) => void
+}
+
+/**
+ * Cluster picker as a single ContextMenuItem with a clinic-list submenu — for
+ * folding into a consolidated corner ⋯ menu (OverlayActionMenu) alongside New /
+ * Share / Export / Import. Returns null when the user has no surrogate clinics
+ * (no scope to switch), so callers spread `clusterItem ? [clusterItem] : []`.
+ */
+export function useClusterEditItem({ selectedClinicId, onSelect }: ClusterEditPickerProps): ContextMenuItem | null {
+  const { profile, clinicId, surrogateClinicIds } = useAuth()
+  if (!clinicId || surrogateClinicIds.length === 0) return null
+
+  const loans = profile.surrogateClinics ?? []
+  const options = [
+    { id: clinicId, name: profile.clinicName ?? 'Assigned' },
+    ...surrogateClinicIds.map((id) => ({
+      id,
+      name: loans.find((c) => c.id === id)?.name ?? 'Surrogate',
+    })),
+  ]
+  const current = options.find(o => o.id === selectedClinicId) ?? options[0]
+
+  return {
+    key: 'cluster',
+    label: `Editing: ${current.name}`,
+    icon: ArrowRightLeft,
+    submenu: options.map(o => ({
+      key: o.id,
+      label: o.name,
+      selected: o.id === current.id,
+      onAction: () => onSelect(o.id),
+    })),
+  }
 }
 
 export function ClusterEditButton({ selectedClinicId, onSelect }: ClusterEditPickerProps) {

@@ -13,8 +13,8 @@ import { PlanAllBlocksPreview, CategoryPicker } from '../PlanBlockPreview';
 import type { LucideIcon } from 'lucide-react';
 import { CATEGORY_META, PlanTagManager } from './PlanTagManager';
 import { OrderSetManager } from './OrderSetManager';
-import { ClusterEditButton } from './ClusterEditPicker';
-import { NoteBlocksTransferMenu } from './NoteBlocksTransferMenu';
+import { useClusterEditItem } from './ClusterEditPicker';
+import { useNoteBlocksTransferItems } from './NoteBlocksTransferMenu';
 import { useNoteBlocksTransfer } from '../../Hooks/useNoteBlocksTransfer';
 import { ActionPill } from '../ActionPill'
 
@@ -195,6 +195,16 @@ export const PlanPanel = () => {
     const [orderSetPopover, setOrderSetPopover] = useState<OrderSetPopover | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
+    // ── Consolidated corner ⋯ actions (cluster picker + Share/Export/Import) ──
+    const clusterItem = useClusterEditItem({ selectedClinicId: editingClinicId, onSelect: setEditingClinicId });
+    const { items: transferItems, overlays: transferOverlays } = useNoteBlocksTransferItems({
+        baseName: 'order sets',
+        kind: 'orderSets',
+        data: { planOrderSets, planOrderTags, planInstructionTags },
+        hasData: planOrderSets.length > 0 || planInstructionTags.length > 0 || Object.values(planOrderTags).some(v => v.length > 0),
+    });
+    const orderSetCornerItems = [...(clusterItem ? [clusterItem] : []), ...transferItems];
+
     return (
         <>
             <div className="px-3 pb-2 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
@@ -227,20 +237,7 @@ export const PlanPanel = () => {
                         onShareItem={(os) => transfer.share({ planOrderSets: [os] }, os.name)}
                         onExportItem={(os) => transfer.exportFile({ planOrderSets: [os] }, os.name)}
                         onDeleteItem={(os) => deleteOrderSet(clinicOrderSetIds.has(os.id) ? 'clinic' : 'personal', os.id)}
-                        clusterPicker={
-                            <ClusterEditButton
-                                selectedClinicId={editingClinicId}
-                                onSelect={setEditingClinicId}
-                            />
-                        }
-                        transferMenu={
-                            <NoteBlocksTransferMenu
-                                baseName="order sets"
-                                kind="orderSets"
-                                data={{ planOrderSets, planOrderTags, planInstructionTags }}
-                                hasData={planOrderSets.length > 0 || planInstructionTags.length > 0 || Object.values(planOrderTags).some(v => v.length > 0)}
-                            />
-                        }
+                        cornerItems={orderSetCornerItems}
                     />
 
                     <PlanTagManager
@@ -283,6 +280,7 @@ export const PlanPanel = () => {
             />
 
             {transfer.picker}
+            {transferOverlays}
         </>
     );
 };

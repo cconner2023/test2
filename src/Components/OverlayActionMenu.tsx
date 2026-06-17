@@ -11,26 +11,29 @@ interface OverlayActionMenuProps {
   items: ContextMenuItem[]
   shadow?: 'sm' | 'lg'
   className?: string
-  /** data-tour anchor placed on the ellipsis trigger (only when collapsed to 3+).
+  /** data-tour anchor placed on the ellipsis trigger (only when collapsed to 2+).
    *  Lets a guided tour `click:` the trigger to reveal the in-menu items. */
   triggerTourTag?: string
+  /** data-tour anchor placed on the pill itself, in BOTH the inline and collapsed
+   *  branches — for tours that merely highlight the corner regardless of count. */
+  tourTag?: string
 }
 
 /**
  * Card corner-action overlay that self-consolidates by count:
- *   - 0 items  → renders nothing
- *   - 1–2 items → inline ActionButton tiles in an overlay ActionPill (the
- *                 long-standing top-edge corner-action pattern)
- *   - 3+ items  → a single MoreHorizontal (ellipsis) button that opens a
- *                 ContextMenu pill with the items
+ *   - 0 items → renders nothing
+ *   - 1 item  → an inline ActionButton tile in an overlay ActionPill (the
+ *               long-standing top-edge corner-action pattern)
+ *   - 2+ items → a single MoreHorizontal (ellipsis) button that opens a
+ *               ContextMenu pill with all the items
  *
- * The "more than 2 → ellipsis" rule lives here so every card passes the same
+ * The "2 or more → single ellipsis" rule lives here so every card passes the same
  * `items` array and the threshold is enforced in one place. forwardRef exposes
  * the pill node so callers can anchor popovers to the corner (e.g. system-message
  * compose, add-option popover).
  */
 export const OverlayActionMenu = forwardRef<HTMLDivElement, OverlayActionMenuProps>(
-  function OverlayActionMenu({ items, shadow = 'sm', className = '', triggerTourTag }, ref) {
+  function OverlayActionMenu({ items, shadow = 'sm', className = '', triggerTourTag, tourTag }, ref) {
     const pillRef = useRef<HTMLDivElement | null>(null)
     const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
 
@@ -48,9 +51,9 @@ export const OverlayActionMenu = forwardRef<HTMLDivElement, OverlayActionMenuPro
 
     if (items.length === 0) return null
 
-    if (items.length <= 2) {
+    if (items.length === 1) {
       return (
-        <ActionPill ref={setRefs} placement="overlay" shadow={shadow} className={className}>
+        <ActionPill ref={setRefs} placement="overlay" shadow={shadow} className={className} data-tour={tourTag}>
           {items.map((item) =>
             item.render ? (
               <Fragment key={item.key}>{item.render()}</Fragment>
@@ -70,7 +73,7 @@ export const OverlayActionMenu = forwardRef<HTMLDivElement, OverlayActionMenuPro
 
     return (
       <>
-        <ActionPill ref={setRefs} placement="overlay" shadow={shadow} className={className}>
+        <ActionPill ref={setRefs} placement="overlay" shadow={shadow} className={className} data-tour={tourTag}>
           <ActionButton icon={MoreHorizontal} label="More actions" onClick={openMenu} dataTour={triggerTourTag} />
         </ActionPill>
         <AnchoredMenu

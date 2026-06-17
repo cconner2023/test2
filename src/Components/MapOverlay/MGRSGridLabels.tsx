@@ -16,8 +16,9 @@ interface MGRSGridLabelsProps {
   theme: GridTheme;
   /** Drives label format: MGRS (truncated 100km square), UTM (absolute km), or LL (decimal degrees). */
   coordDisplay: CoordDisplay;
-  /** Top-edge offset in px to clear floating controls (MGRS pill at top-left). */
-  topOffset?: number;
+  /** Top-edge offset to clear floating controls / the glass header. Number = px;
+   *  string = any CSS length (e.g. a `calc(var(--drawer-header-h)…)` on mobile). */
+  topOffset?: number | string;
 }
 
 interface EdgeLabel {

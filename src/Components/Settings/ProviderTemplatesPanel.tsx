@@ -4,9 +4,8 @@ import { useUserProfile } from '../../Hooks/useUserProfile';
 import { useAuthStore } from '../../stores/useAuthStore';
 import type { UserTypes, ProviderNoteTemplate } from '../../Data/User';
 import { PROVIDER_TOUR_TEMPLATE_PREFIX } from '../../Data/GuidedTourData';
-import { ActionPill } from '../ActionPill';
-import { ActionButton } from '../ActionButton';
-import { CsvActionsMenu } from './CsvActionsMenu';
+import { OverlayActionMenu } from '../OverlayActionMenu';
+import { useCsvActionsItems } from './CsvActionsMenu';
 import { exportProviderTemplatesCSV } from '../../Utilities/noteBlocksCSV';
 import { ProviderTemplateEditPopover, type EditState } from '../Provider/ProviderTemplateEditPopover';
 
@@ -31,6 +30,12 @@ export const ProviderTemplatesPanel = () => {
 
     const [editState, setEditState] = useState<EditState | null>(null);
     const fabRef = useRef<HTMLDivElement>(null);
+
+    const { items: csvItems, importDrawer } = useCsvActionsItems({
+        kind: 'providerTemplates',
+        hasData: templates.length > 0,
+        onExportCsv: () => exportProviderTemplatesCSV(templates, orderSets),
+    });
 
     const handleUpdate = useCallback((next: ProviderNoteTemplate[]) => {
         updateProfile({ providerNoteTemplates: next });
@@ -95,24 +100,27 @@ export const ProviderTemplatesPanel = () => {
                             )}
                         </div>
                         </div>
-                        <ActionPill ref={fabRef} shadow="sm" placement="overlay">
-                            <CsvActionsMenu
-                                kind="providerTemplates"
-                                hasData={templates.length > 0}
-                                onExportCsv={() => exportProviderTemplatesCSV(templates, orderSets)}
-                            />
-                            <ActionButton
-                                icon={Plus}
-                                label="New template"
-                                onClick={() => fabRef.current && setEditState({
-                                    mode: 'new',
-                                    anchor: fabRef.current.getBoundingClientRect(),
-                                })}
-                            />
-                        </ActionPill>
+                        <OverlayActionMenu
+                            ref={fabRef}
+                            shadow="sm"
+                            items={[
+                                {
+                                    key: 'new',
+                                    label: 'New template',
+                                    icon: Plus,
+                                    onAction: () => fabRef.current && setEditState({
+                                        mode: 'new',
+                                        anchor: fabRef.current.getBoundingClientRect(),
+                                    }),
+                                },
+                                ...csvItems,
+                            ]}
+                        />
                     </div>
                 </section>
             </div>
+
+            {importDrawer}
 
             <ProviderTemplateEditPopover
                 state={editState}

@@ -2135,7 +2135,11 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 onMoveEnd={handleMoveEnd}
                 gpsPosition={gpsPosition}
                 showGrid={showGrid}
-                controlsTopOffset={0}
+                // Mobile: the search lives in the floating glass header, so drop
+                // the top-edge grid (easting) labels below it — otherwise they
+                // hide under the header and the user can't read where they're
+                // headed. Matches the other floating controls' header clearance.
+                controlsTopOffset={isMobile ? 'calc(var(--drawer-header-h, 4rem) + 0.5rem)' : 0}
                 measurePoints={measurePoints}
                 measureResult={measureResult}
                 center={initialCenter ?? undefined}
@@ -2200,7 +2204,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                         onToggleVisible={handleToggleVisible}
                         onRenameOverlay={handleRenameOverlay}
                         onDeleteOverlay={handleDeleteOverlay}
-                        onSelectFeature={(id) => { handleSelectFeatureFromTree(id); setShowMobileTree(false); }}
+                        onSelectFeature={(feature, ovId) => { handleSelectFeatureFromTree(feature, ovId); setShowMobileTree(false); }}
                         onNewOverlay={() => { handleNewOverlay(); setShowMobileTree(false); }}
                         tileMeta={tileMetaMap}
                         downloadingId={downloadingId}

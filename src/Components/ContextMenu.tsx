@@ -21,10 +21,12 @@ export interface ContextMenuItem {
   /** Marks the item as the current selection (selector menus) — list rows render
    *  a highlighted/checked state. Ignored by the horizontal pill layout. */
   selected?: boolean
-  /** Fully custom button renderer. When set, the item owns its own button + click; the
-   *  menu renders it verbatim and does NOT wrap it or auto-close on select. Use for
-   *  status-aware buttons (ActionIconButton spinner/done) or stateful copy-tint buttons,
-   *  and for buttons that carry their own data-tour anchor. Wins over icon/node/onAction. */
+  /** Fully custom button renderer. When set, the item owns its own button + click and the
+   *  menu does NOT auto-close on select. Use for status-aware buttons (ActionIconButton
+   *  spinner/done) or stateful copy-tint buttons, and for buttons that carry their own
+   *  data-tour anchor. Wins over icon/node/onAction. Rendered verbatim in horizontal/pill
+   *  layouts; in the vertical list layout the whole row becomes the tap target (a tap
+   *  anywhere forwards to the rendered control) so the label isn't a dead zone. */
   render?: () => ReactNode
 }
 

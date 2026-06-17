@@ -1,9 +1,8 @@
 import { Plus, MessageSquare, Download, Trash2 } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ActionButton } from '../ActionButton';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { PlanOrderSet, PlanBlockKey } from '../../Data/User';
 import { PLAN_ORDER_CATEGORIES } from '../../Data/User';
-import { ActionPill } from '../ActionPill'
+import { OverlayActionMenu } from '../OverlayActionMenu';
 import { LiftedRowMenu } from '../LiftedRowMenu';
 import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from '../liftPress';
 import type { ContextMenuItem } from '../ContextMenu';
@@ -17,9 +16,9 @@ interface OrderSetManagerProps {
     filter?: string;
     onTapRow: (os: PlanOrderSet, anchor: HTMLElement) => void;
     onTapNew: (anchor: HTMLElement) => void;
-    clusterPicker?: ReactNode;
-    /** Panel-wide Share/Export/Import ellipsis, folded into the corner pill. */
-    transferMenu?: ReactNode;
+    /** Cluster picker + Share/Export/Import items, folded into the single corner ⋯
+     *  menu alongside the New action this manager owns. */
+    cornerItems?: ContextMenuItem[];
     /** Per-row actions (long-press / right-click lifted-row menu). When any are
      *  set, editable rows raise a clone-and-menu with Share / Export / Delete. */
     onShareItem?: (os: PlanOrderSet) => void;
@@ -28,7 +27,7 @@ interface OrderSetManagerProps {
 }
 
 export const OrderSetManager = ({
-    orderSets, clinicOrderSetIds, isSupervisorRole, filter = '', onTapRow, onTapNew, clusterPicker, transferMenu,
+    orderSets, clinicOrderSetIds, isSupervisorRole, filter = '', onTapRow, onTapNew, cornerItems,
     onShareItem, onExportItem, onDeleteItem,
 }: OrderSetManagerProps) => {
     const fabRef = useRef<HTMLDivElement>(null);
@@ -97,11 +96,14 @@ export const OrderSetManager = ({
                     )}
                 </div>
                 </div>
-                <ActionPill ref={fabRef} shadow="sm" placement="overlay">
-                    {clusterPicker}
-                    <ActionButton icon={Plus} label="New order set" onClick={() => fabRef.current && onTapNew(fabRef.current)} />
-                    {transferMenu}
-                </ActionPill>
+                <OverlayActionMenu
+                    ref={fabRef}
+                    shadow="sm"
+                    items={[
+                        { key: 'new', label: 'New order set', icon: Plus, onAction: () => fabRef.current && onTapNew(fabRef.current) },
+                        ...(cornerItems ?? []),
+                    ]}
+                />
             </div>
 
             {lifted && (

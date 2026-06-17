@@ -230,10 +230,19 @@ export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = f
           {activeItems.map((item) =>
             item.render ? (
               // Custom renderer owns its button + click + status feedback; the menu
-              // does NOT auto-close (dismiss via backdrop tap). Label sits beside it.
-              <div key={item.key} className="w-full flex items-center gap-3 py-1.5 px-3">
-                <span className="shrink-0 flex items-center justify-center">{item.render()}</span>
-                <span className="text-[10pt] font-medium text-primary truncate flex-1">{item.label}</span>
+              // does NOT auto-close (dismiss via backdrop tap). In the vertical list
+              // the label is NOT a dead sibling — the WHOLE row is the tap target: a
+              // tap anywhere forwards to the rendered control, so the animated icon
+              // still drives the action and shows in-place status. The render() wrapper
+              // is pointer-events-none so a tap can't hit the inner button directly,
+              // which keeps the forward firing exactly once (no double-trigger).
+              <div
+                key={item.key}
+                onClick={(e) => e.currentTarget.querySelector('button')?.click()}
+                className="w-full flex items-center gap-3 py-1.5 px-3 cursor-pointer active:bg-black/[0.06] transition-colors"
+              >
+                <span className="shrink-0 flex items-center justify-center pointer-events-none">{item.render()}</span>
+                <span className="text-[10pt] font-medium text-primary truncate flex-1 pointer-events-none">{item.label}</span>
               </div>
             ) : (
               <MenuListRow
