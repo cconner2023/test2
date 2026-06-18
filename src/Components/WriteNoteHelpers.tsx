@@ -72,7 +72,7 @@ export function createHPIKeyDownHandler(deps: HPIKeyDownDeps) {
 
             if (e.key === 'Escape') {
                 e.preventDefault();
-                if (activeNode.type === 'choice' && deps.templateSession.showDropdown) {
+                if (activeNode.type === 'choice' && !activeNode.noInsert && deps.templateSession.showDropdown) {
                     deps.dismissDropdown();
                 } else {
                     deps.endSession();

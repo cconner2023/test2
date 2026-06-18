@@ -14,6 +14,14 @@ export interface ChoiceNode {
     options: string[];
     /** Pre-selected value when expanded inline (first option used if unset) */
     defaultValue?: string;
+    /**
+     * When true, the chosen value is NOT typed into the note — it is only stored
+     * to drive a linked BranchNode (matched on triggerField). Use for a
+     * branch-only selector (e.g. pick "ENT | MSK" to swap in a path without
+     * inserting the word itself). A no-insert choice is meaningless without a
+     * branch, so it is treated as non-flat (always edited in template mode).
+     */
+    noInsert?: boolean;
 }
 
 export interface BranchNode {

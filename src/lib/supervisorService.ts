@@ -4,6 +4,7 @@ import { succeed, fail, type ServiceResult } from './result'
 import { getErrorMessage } from '../Utilities/errorUtils'
 import { validateRpcResult } from './validators'
 import { validatePasswordComplexity } from './constants'
+import { isValidEmail } from './adminService'
 import { encryptWithRawKey, decryptWithRawKey } from './cryptoService'
 import type { TextExpander, PlanOrderTags, PlanOrderSet } from '../Data/User'
 import type { CategoryColorMap } from '../Types/CalendarTypes'
@@ -253,6 +254,35 @@ export async function supervisorResetUserPassword(
   }
 }
 
+// ─── Update Member Login Email ────────────────────────────────────────────
+
+/**
+ * Change a clinic member's login email. Supervisor surface — the server
+ * (supervisor_update_user_email) gates on caller-supervises-target's-clinic,
+ * mirroring supervisor_reset_password. Email lives in auth.users + identities,
+ * not profiles, so the RPC updates both and preserves the confirmed state.
+ */
+export async function supervisorUpdateUserEmail(
+  userId: string,
+  email: string,
+): Promise<ServiceResult> {
+  try {
+    const trimmed = email.trim()
+    if (!isValidEmail(trimmed)) return fail('Enter a valid email address.')
+
+    const { error } = await supabase.rpc('supervisor_update_user_email', {
+      p_target_user_id: userId,
+      p_new_email: trimmed,
+    })
+
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to update member email:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
 // ─── Disassociate Clinic ──────────────────────────────────────────────────
 
 export async function disassociateClinic(
@@ -476,6 +506,8 @@ export interface MemberProfileData {
   rank: string | null
   uic: string | null
   roles: string[]
+  /** Login email — joined from auth.users by the RPC (not stored on profiles). */
+  email?: string | null
   homeClinicId?: string | null
   homeClinicName?: string | null
 }
@@ -500,6 +532,7 @@ export async function getMemberProfile(
       rank: string | null
       uic: string | null
       roles: string[] | null
+      email?: string | null
       home_clinic_id?: string | null
       home_clinic_name?: string | null
     }
@@ -513,6 +546,7 @@ export async function getMemberProfile(
       rank: row.rank,
       uic: row.uic,
       roles: row.roles ?? ['medic'],
+      email: row.email ?? null,
       homeClinicId: row.home_clinic_id ?? null,
       homeClinicName: row.home_clinic_name ?? null,
     })
@@ -743,6 +777,8 @@ export interface ClinicNoteContent {
   planOrderTags: PlanOrderTags | null
   planInstructionTags: string[]
   planOrderSets: PlanOrderSet[]
+  /** Clinic display name — used to label provenance when merging multiple clinics. */
+  clinicName?: string
 }
 
 export async function getClinicNoteContent(
@@ -751,7 +787,7 @@ export async function getClinicNoteContent(
   try {
     const { data, error } = await supabase
       .from('clinics')
-      .select('text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets')
+      .select('name, text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets')
       .eq('id', clinicId)
       .single()
 
@@ -762,6 +798,7 @@ export async function getClinicNoteContent(
       planOrderTags: (data?.plan_order_tags as PlanOrderTags | null) ?? null,
       planInstructionTags: (data?.plan_instruction_tags as string[] | null) ?? [],
       planOrderSets: (data?.plan_order_sets as PlanOrderSet[] | null) ?? [],
+      clinicName: (data?.name as string | null) ?? undefined,
     })
   } catch (error) {
     logger.error('Failed to get clinic note content:', error)

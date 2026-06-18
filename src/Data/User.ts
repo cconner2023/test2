@@ -119,6 +119,14 @@ export interface UserTypes {
     clinicName?: string;
     /** Clinics the user is currently loaned to (up to 4). Empty when home-only. */
     surrogateClinics?: { id: string; name: string }[];
+    /**
+     * Clinics whose note content (text templates / order sets / plan tags) this
+     * user merges into note-writing, chosen from {home} ∪ surrogateClinics.
+     * null = never configured → defaults to home only (loans are opt-in). The
+     * merge always intersects this with current valid memberships, so a stale id
+     * for an ended loan is harmless. Personal blocks are always merged regardless.
+     */
+    noteTemplateClinicIds?: string[] | null;
     /** Dev-only: login alerts, account requests, feedback */
     notifyDevAlerts?: boolean;
     /** Opt-in: push when assigned to a calendar event */

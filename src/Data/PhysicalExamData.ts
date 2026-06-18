@@ -65,6 +65,23 @@ export function isBackPainCode(code: string): boolean {
     return code === 'B-1';
 }
 
+/** True when an abnormal label asks the examiner to "(specify…)" a detail. */
+export function isSpecifyLabel(label: string): boolean {
+    return /\(specify\b/i.test(label);
+}
+
+/**
+ * Fold a specify detail into an abnormal label: strips the trailing "(specify…)"
+ * parenthetical and appends ": <detail>". Returns the label unchanged when no detail.
+ * e.g. ("Murmur (specify)", "systolic 2/6") -> "Murmur: systolic 2/6"
+ */
+export function applySpecify(label: string, detail?: string): string {
+    const d = detail?.trim();
+    if (!d) return label;
+    const stripped = label.replace(/\s*\(specify[^)]*\)\s*$/i, '');
+    return `${stripped}: ${d}`;
+}
+
 // ══════════════════════════════════════════════════════════════
 // MASTER BLOCKS — consolidated PE with tiered findings
 // ══════════════════════════════════════════════════════════════
@@ -78,18 +95,12 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         { key: 'wnwd', normal: 'WNWD', abnormals: [
                 { key: 'thinAppearing', label: 'Thin appearing' },
                 { key: 'excessiveAbdominalAdiposity', label: 'Excessive abdominal adiposity' },
-                { key: 'cachexia', label: 'Cachexia' },
             ], tier: 'baseline' },
         { key: 'noAcuteDistress', normal: 'No acute distress', abnormals: [
                 { key: 'acuteDistress', label: 'Acute distress' },
                 { key: 'mildDistress', label: 'Mild distress' },
                 { key: 'moderateDistress', label: 'Moderate distress' },
             ], tier: 'baseline' },
-        { key: 'alert', normal: 'Alert', abnormals: [{ key: 'lethargic', label: 'Lethargic' }, { key: 'ams', label: 'AMS' }], tier: 'expanded' },
-        { key: 'wellNourished', normal: 'Well-nourished', abnormals: [{ key: 'appearsIll', label: 'Appears ill' }], tier: 'expanded' },
-        { key: 'noDiaphoresis', normal: 'No diaphoresis', abnormals: [{ key: 'diaphoretic', label: 'Diaphoretic' }], tier: 'expanded' },
-        { key: 'goodColor', normal: 'Good color', abnormals: [{ key: 'pallor', label: 'Pallor' }], tier: 'expanded' },
-        { key: 'improvedFromPrior', normal: 'Improved from prior', abnormals: [{ key: 'worsenedFromPrior', label: 'Worsened from prior' }, { key: 'noChangeFromPrior', label: 'No change from prior' }], tier: 'expanded' },
         ],
     },
 
@@ -230,11 +241,6 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         { key: 'noMurmur', normal: 'No murmur', abnormals: [{ key: 'murmurSpecify', label: 'Murmur (specify)' }], tier: 'baseline' },
         { key: 'noRub', normal: 'No rub', abnormals: [{ key: 'rub', label: 'Rub' }], tier: 'baseline' },
         { key: 'noGallop', normal: 'No gallop', abnormals: [{ key: 'gallopS3', label: 'Gallop (S3)' }, { key: 'gallopS4', label: 'Gallop (S4)' }], tier: 'baseline' },
-        { key: 'pulses2PlusEqualBilaterally', normal: 'Pulses 2+ equal bilaterally', abnormals: [{ key: 'diminishedPulses', label: 'Diminished pulses' }, { key: 'absentPulses', label: 'Absent pulses' }], tier: 'expanded' },
-        { key: 'capRefillLt3Sec', normal: 'Cap refill < 3 sec', abnormals: [{ key: 'delayedCapRefill', label: 'Delayed cap refill' }], tier: 'expanded' },
-        { key: 'noEdemaCV', normal: 'No edema', abnormals: [{ key: 'peripheralEdema', label: 'Peripheral edema' }], tier: 'expanded' },
-        { key: 'warmExtremitiesCV', normal: 'Warm extremities', abnormals: [{ key: 'coolExtremities', label: 'Cool extremities' }, { key: 'cyanosis', label: 'Cyanosis' }], tier: 'expanded' },
-        { key: 's1S2Normal', normal: 'S1/S2 normal', abnormals: [], tier: 'expanded' },
         ],
     },
 
@@ -512,13 +518,7 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         { key: 'cnIiXiiGrosslyIntact', normal: 'CN II-XII grossly intact', abnormals: [{ key: 'cnDeficitSpecify', label: 'CN deficit (specify)' }, { key: 'facialAsymmetry', label: 'Facial asymmetry' }], tier: 'baseline' },
         { key: 'normalGait', normal: 'Normal gait', abnormals: [{ key: 'ataxicGait', label: 'Ataxic gait' }, { key: 'rombergPositive', label: 'Romberg positive' }], tier: 'baseline' },
         { key: 'noFacialAsymmetry', normal: 'No facial asymmetry', abnormals: [{ key: 'facialAsymmetryExp', label: 'Facial asymmetry' }], tier: 'expanded' },
-        { key: 'visualFieldsIntact', normal: 'Visual fields intact', abnormals: [{ key: 'visualFieldDeficitNeuro', label: 'Visual field deficit' }], tier: 'expanded' },
         { key: 'hearingIntact', normal: 'Hearing intact', abnormals: [{ key: 'hearingDeficit', label: 'Hearing deficit' }], tier: 'expanded' },
-        { key: 'tongueMidline', normal: 'Tongue midline', abnormals: [{ key: 'tongueDeviation', label: 'Tongue deviation' }], tier: 'expanded' },
-        { key: 'strength55AllExt', normal: '5/5 strength all extremities', abnormals: [{ key: 'focalWeaknessSpecify', label: 'Focal weakness (specify)' }], tier: 'expanded' },
-        { key: 'normalTone', normal: 'Normal tone', abnormals: [{ key: 'increasedTone', label: 'Increased tone' }, { key: 'decreasedTone', label: 'Decreased tone' }], tier: 'expanded' },
-        { key: 'noFasciculations', normal: 'No fasciculations', abnormals: [{ key: 'fasciculations', label: 'Fasciculations' }], tier: 'expanded' },
-        { key: 'noTremor', normal: 'No tremor', abnormals: [{ key: 'tremor', label: 'Tremor' }], tier: 'expanded' },
         { key: 'intactToLightTouch', normal: 'Intact to light touch', abnormals: [
                 { key: 'decreasedSensationSpecify', label: 'Decreased sensation (specify)' },
                 { key: 'numbnessSensory', label: 'Numbness' },
@@ -531,9 +531,6 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
                 { key: 'areflexiaF', label: 'Areflexia' },
                 { key: 'asymmetricReflexesF', label: 'Asymmetric reflexes' },
             ], tier: 'expanded' },
-        { key: 'babinskiDowngoing', normal: 'Babinski downgoing b/l', abnormals: [{ key: 'babinskiUpgoing', label: 'Babinski upgoing' }, { key: 'clonus', label: 'Clonus' }], tier: 'expanded' },
-        { key: 'fingerToNoseIntact', normal: 'Finger-to-nose intact', abnormals: [{ key: 'dysmetria', label: 'Dysmetria' }, { key: 'dysdiadochokinesia', label: 'Dysdiadochokinesia' }], tier: 'expanded' },
-        { key: 'rombergNegative', normal: 'Romberg negative', abnormals: [{ key: 'rombergPositiveExp', label: 'Romberg positive' }], tier: 'expanded' },
         ],
     },
 
@@ -543,12 +540,6 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         findings: [
         { key: 'appropriateMood', normal: 'Appropriate mood', abnormals: [{ key: 'depressedMood', label: 'Depressed mood' }, { key: 'anxious', label: 'Anxious' }], tier: 'baseline' },
         { key: 'appropriateAffect', normal: 'Appropriate affect', abnormals: [{ key: 'flatAffect', label: 'Flat affect' }, { key: 'labileAffect', label: 'Labile affect' }], tier: 'baseline' },
-        { key: 'intactJudgment', normal: 'Intact judgment', abnormals: [{ key: 'poorJudgment', label: 'Poor judgment' }], tier: 'expanded' },
-        { key: 'intactInsight', normal: 'Intact insight', abnormals: [{ key: 'poorInsight', label: 'Poor insight' }], tier: 'expanded' },
-        { key: 'noSiHi', normal: 'No SI/HI', abnormals: [{ key: 'siHiSpecify', label: 'SI/HI (specify)' }], tier: 'expanded' },
-        { key: 'alertAndOrientedX4Psych', normal: 'Alert and oriented x4', abnormals: [{ key: 'confusedPsych', label: 'Confused' }, { key: 'amsPsych', label: 'AMS' }], tier: 'expanded' },
-        { key: 'gcs15', normal: 'GCS 15', abnormals: [{ key: 'gcsLt15', label: 'GCS < 15 (specify)' }], tier: 'expanded' },
-        { key: 'cooperative', normal: 'Cooperative', abnormals: [{ key: 'lethargicPsych', label: 'Lethargic' }, { key: 'combative', label: 'Combative' }], tier: 'expanded' },
         ],
     },
 
@@ -735,11 +726,13 @@ export function getBlocksForFocusedExam(category: CategoryLetter, symptomCode?: 
 } {
     let expansionKeys = FOCUSED_EXPANSION[category] || [];
 
-    // For category B, resolve the MSK child block from symptom code
+    // For category B, resolve the MSK child block from symptom code.
+    // Show ONLY the affected-limb child block — not the general 'msk' block too.
+    // Falls back to the base ['msk'] when no child resolves.
     if (category === 'B' && symptomCode) {
         const childKey = getMSKChildKey(symptomCode);
         if (childKey) {
-            expansionKeys = [...expansionKeys, childKey];
+            expansionKeys = [childKey];
         }
     }
     const expandedSet = new Set(expansionKeys);

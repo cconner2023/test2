@@ -21,6 +21,7 @@ import {
     getBlocksForTemplate,
     getMasterBlockByKey,
     FOCUSED_EXPANSION,
+    applySpecify,
 } from '../Data/PhysicalExamData';
 import type {
     CategoryLetter,
@@ -41,6 +42,8 @@ interface ItemState {
     status: SystemStatus;
     selectedNormals: string[];
     selectedAbnormals: string[];
+    /** Detail text for "(specify…)" abnormals, keyed by abnormal key. */
+    specifyDetails: Record<string, string>;
     findings: string;
 }
 
@@ -64,7 +67,7 @@ interface PhysicalExamProps {
 // ── Helpers ───────────────────────────────────────────────────
 
 function defaultItemState(): ItemState {
-    return { status: 'not-examined', selectedNormals: [], selectedAbnormals: [], findings: '' };
+    return { status: 'not-examined', selectedNormals: [], selectedAbnormals: [], specifyDetails: {}, findings: '' };
 }
 
 /** Strip tier from MasterPEFinding[] to produce PEFinding[]-compatible shape */
@@ -88,6 +91,7 @@ function allNormalsSelected(findings: PEFinding[]): ItemState {
         status: 'normal',
         selectedNormals: findings.filter(f => f.normal).map(f => f.key),
         selectedAbnormals: [],
+        specifyDetails: {},
         findings: '',
     };
 }
@@ -97,6 +101,7 @@ function allAbnormalsSelected(findings: PEFinding[]): ItemState {
         status: 'abnormal',
         selectedNormals: [],
         selectedAbnormals: findings.flatMap(f => f.abnormals.map(a => a.key)),
+        specifyDetails: {},
         findings: '',
     };
 }
@@ -140,7 +145,7 @@ function parseItemLine(
 
     if (status === 'not-examined' && !rest) return null;
 
-    return { status, selectedNormals, selectedAbnormals, findings: freeTextParts.join('; ') };
+    return { status, selectedNormals, selectedAbnormals, specifyDetails: {}, findings: freeTextParts.join('; ') };
 }
 
 // ── Parse initial text against master blocks ──────────────────
@@ -280,7 +285,7 @@ function formatExamLine(label: string, state: ItemState, findings: PEFinding[]):
         }
         for (const abn of finding.abnormals) {
             if (state.selectedAbnormals.includes(abn.key)) {
-                abnormalParts.push(abn.label);
+                abnormalParts.push(applySpecify(abn.label, state.specifyDetails[abn.key]));
             }
         }
     }
@@ -382,7 +387,7 @@ function summarizeFindings(findings: PEFinding[], state: ItemState): { normals: 
         }
         for (const abn of finding.abnormals) {
             if (state.selectedAbnormals.includes(abn.key)) {
-                abnormals.push(abn.label);
+                abnormals.push(applySpecify(abn.label, state.specifyDetails[abn.key]));
             }
         }
     }
@@ -456,6 +461,7 @@ function toEncodableState(blockStates: Record<string, ItemState>): Record<string
             status: state.status,
             selectedNormals: state.selectedNormals,
             selectedAbnormals: state.selectedAbnormals,
+            specifyDetails: state.specifyDetails,
             findings: state.findings,
         };
     }
@@ -518,6 +524,7 @@ export function PhysicalExam({
                         status: seeded.status,
                         selectedNormals: [...seeded.selectedNormals],
                         selectedAbnormals: [...seeded.selectedAbnormals],
+                        specifyDetails: { ...(seeded.specifyDetails ?? {}) },
                         findings: seeded.findings,
                     }
                     : defaultItemState();
@@ -691,7 +698,7 @@ export function PhysicalExam({
                     .map(f => f.abnormals[0].key);
                 return {
                     ...prev,
-                    [key]: { status: 'abnormal', selectedNormals: [], selectedAbnormals: autoAbnormals, findings: cur.findings },
+                    [key]: { status: 'abnormal', selectedNormals: [], selectedAbnormals: autoAbnormals, specifyDetails: cur.specifyDetails, findings: cur.findings },
                 };
             }
             return { ...prev, [key]: defaultItemState() };
@@ -750,6 +757,16 @@ export function PhysicalExam({
             ...prev,
             [key]: { ...(prev[key] ?? defaultItemState()), findings },
         }));
+    };
+
+    const setSpecifyDetail = (blockKey: string, abnormalKey: string, value: string) => {
+        setBlockStates(prev => {
+            const cur = prev[blockKey] ?? defaultItemState();
+            return {
+                ...prev,
+                [blockKey]: { ...cur, specifyDetails: { ...cur.specifyDetails, [abnormalKey]: value } },
+            };
+        });
     };
 
     // ── Bulk actions ──────────────────────────────────────────
@@ -1188,6 +1205,7 @@ export function PhysicalExam({
                                 filter={filter}
                                 onToggleNormal={(fk) => { toggleNormal(editingEntry.key, fk, augmented); clearFilter(); }}
                                 onToggleAbnormal={(ak) => { toggleAbnormal(editingEntry.key, ak, augmented); clearFilter(); }}
+                                onSpecifyChange={(ak, v) => setSpecifyDetail(editingEntry.key, ak, v)}
                             />
                         );
                     }}

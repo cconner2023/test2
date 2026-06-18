@@ -1,5 +1,6 @@
 import React from 'react';
 import type { PEBlock, PEFinding } from '../Data/PhysicalExamData';
+import { isSpecifyLabel } from '../Data/PhysicalExamData';
 
 type SystemStatus = 'not-examined' | 'normal' | 'abnormal';
 
@@ -7,6 +8,7 @@ interface ItemState {
   status: SystemStatus;
   selectedNormals: string[];
   selectedAbnormals: string[];
+  specifyDetails?: Record<string, string>;
   findings: string;
 }
 
@@ -16,6 +18,7 @@ interface ExamBlockPreviewProps {
   filter?: string;
   onToggleNormal: (findingKey: string) => void;
   onToggleAbnormal: (abnormalKey: string) => void;
+  onSpecifyChange?: (abnormalKey: string, value: string) => void;
 }
 
 export const ExamBlockPreview: React.FC<ExamBlockPreviewProps> = ({
@@ -24,6 +27,7 @@ export const ExamBlockPreview: React.FC<ExamBlockPreviewProps> = ({
   filter = '',
   onToggleNormal,
   onToggleAbnormal,
+  onSpecifyChange,
 }) => {
   const lowerFilter = filter.toLowerCase();
   const filtered = lowerFilter
@@ -77,24 +81,42 @@ export const ExamBlockPreview: React.FC<ExamBlockPreviewProps> = ({
 
                 {/* Abnormal rows */}
                 {finding.abnormals.length > 0 ? (
-                  finding.abnormals.map((ab, j) => (
-                    <button
-                      key={ab.key}
-                      type="button"
-                      onClick={() => onToggleAbnormal(ab.key)}
-                      className={`text-left px-3 py-1.5 border-l border-tertiary/10 transition-colors ${
-                        j > 0 ? 'border-t border-tertiary/10' : ''
-                      } ${
-                        state.selectedAbnormals.includes(ab.key)
-                          ? 'bg-themeredred/10'
-                          : 'active:bg-tertiary/5'
-                      }`}
-                    >
-                      <span className="text-[9pt] text-secondary">
-                        {ab.label}
-                      </span>
-                    </button>
-                  ))
+                  finding.abnormals.map((ab, j) => {
+                    const selected = state.selectedAbnormals.includes(ab.key);
+                    const showSpecify = selected && isSpecifyLabel(ab.label);
+                    return (
+                      <div
+                        key={ab.key}
+                        className={`border-l border-tertiary/10 ${j > 0 ? 'border-t border-tertiary/10' : ''} ${
+                          selected ? 'bg-themeredred/10' : ''
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => onToggleAbnormal(ab.key)}
+                          className={`w-full text-left px-3 py-1.5 transition-colors ${
+                            selected ? '' : 'active:bg-tertiary/5'
+                          }`}
+                        >
+                          <span className="text-[9pt] text-secondary">
+                            {ab.label}
+                          </span>
+                        </button>
+                        {showSpecify && onSpecifyChange && (
+                          <div className="px-3 pb-1.5 -mt-0.5">
+                            <input
+                              type="text"
+                              value={state.specifyDetails?.[ab.key] ?? ''}
+                              onChange={(e) => onSpecifyChange(ab.key, e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              placeholder="Specify…"
+                              className="w-full text-[9pt] text-primary bg-themewhite2 border border-tertiary/20 rounded-md px-2 py-1 focus:outline-none focus:border-themeblue3/40"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
                 ) : (
                   <div className="border-l border-tertiary/10" />
                 )}

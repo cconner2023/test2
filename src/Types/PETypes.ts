@@ -13,6 +13,8 @@ export interface PEItemState {
     selectedNormals: string[];
     /** Keys of selected abnormal chips. */
     selectedAbnormals: string[];
+    /** Detail text for abnormals whose label asks to "(specify…)", keyed by abnormal key. */
+    specifyDetails?: Record<string, string>;
     /** Free-text findings (always available). */
     findings: string;
 }

@@ -159,13 +159,19 @@ export function useTemplateSession() {
             return { newText: result.newText, cursorPosition: result.cursorPosition };
         }
 
-        // Step or Choice — insert value into text
-        cursorAfter = insertPosition + value.length;
-        const existingText = currentText.slice(insertPosition);
-        if (existingText.startsWith(value)) {
+        // No-insert choice — store the value (drives linked branches) but type nothing
+        if (activeNode.type === 'choice' && activeNode.noInsert) {
             newText = currentText;
+            cursorAfter = insertPosition;
         } else {
-            newText = currentText.slice(0, insertPosition) + value + currentText.slice(insertPosition);
+            // Step or Choice — insert value into text
+            cursorAfter = insertPosition + value.length;
+            const existingText = currentText.slice(insertPosition);
+            if (existingText.startsWith(value)) {
+                newText = currentText;
+            } else {
+                newText = currentText.slice(0, insertPosition) + value + currentText.slice(insertPosition);
+            }
         }
 
         const result = advanceQueue(nodeQueue, newFilledValues, newText, cursorAfter);
@@ -192,7 +198,8 @@ export function useTemplateSession() {
         const { activeNode } = state;
         if (!activeNode || !state.showDropdown) return 0;
         if (activeNode.type === 'choice') {
-            return activeNode.options.filter((o) => o.trim() !== '').length + 1; // +1 for "Other"
+            // +1 for "Other" free-text — except a no-insert choice has no free-text path
+            return activeNode.options.filter((o) => o.trim() !== '').length + (activeNode.noInsert ? 0 : 1);
         }
         if (activeNode.type === 'branch' && activeNode.options) {
             return activeNode.options.filter((o) => o.trim() !== '').length; // no "Other"

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { LogOut, ChevronRight, Trash2, Check, Copy, QrCode, Share2, Pencil, RefreshCw, CheckCircle, Plus, KeyRound } from 'lucide-react';
+import { LogOut, ChevronRight, Trash2, Check, Copy, QrCode, Share2, Pencil, RefreshCw, CheckCircle, Plus, KeyRound, Mail } from 'lucide-react';
 import bwipjs from 'bwip-js';
 import { useAuth } from '../../Hooks/useAuth';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -25,6 +25,8 @@ import { emptyCertForm } from '../Certifications/certHelpers';
 import type { CertFormData } from '../Certifications/certHelpers';
 import type { CertInput } from '../../lib/certificationService';
 import { submitProfileChangeRequest } from '../../lib/accountRequestService';
+import { updateOwnEmail } from '../../lib/authService';
+import { isValidEmail } from '../../lib/adminService';
 import { PickerInput } from '../FormInputs';
 import { ErrorDisplay } from '../ErrorDisplay';
 
@@ -194,6 +196,48 @@ export const ProfilePage = ({
         if (result.success) setProfileSubmitted(true)
         else setProfileError(result.error || 'Failed to submit request')
     }
+
+    // Self-service email change — direct edit gated behind a confirm dialog that
+    // echoes the typed address. No verification email is possible (no BAA), so
+    // the confirm is the only typo guard.
+    const emailRowRef = useRef<HTMLButtonElement>(null)
+    const [emailAnchor, setEmailAnchor] = useState<DOMRect | null>(null)
+    const [newEmail, setNewEmail] = useState('')
+    const [emailSubmitting, setEmailSubmitting] = useState(false)
+    const [emailError, setEmailError] = useState<string | null>(null)
+    const [showEmailConfirm, setShowEmailConfirm] = useState(false)
+
+    const emailChanged = newEmail.trim().toLowerCase() !== userEmail.toLowerCase()
+    const emailValid = isValidEmail(newEmail)
+
+    const openEmailEdit = useCallback(() => {
+        if (!emailRowRef.current) return
+        setNewEmail(userEmail)
+        setEmailError(null)
+        setEmailAnchor(emailRowRef.current.getBoundingClientRect())
+    }, [userEmail])
+
+    const closeEmailEdit = useCallback(() => {
+        setEmailAnchor(null)
+        setEmailSubmitting(false)
+        setEmailError(null)
+        setShowEmailConfirm(false)
+    }, [])
+
+    const requestEmailConfirm = useCallback(() => {
+        if (!emailChanged || !emailValid) return
+        setEmailError(null)
+        setShowEmailConfirm(true)
+    }, [emailChanged, emailValid])
+
+    const doEmailChange = useCallback(async () => {
+        setEmailSubmitting(true)
+        const result = await updateOwnEmail(newEmail)
+        setEmailSubmitting(false)
+        setShowEmailConfirm(false)
+        if (result.success) closeEmailEdit()
+        else setEmailError(result.error || 'Failed to change email')
+    }, [newEmail, closeEmailEdit])
 
     // Certifications popovers (inline card)
     const [certForm, setCertForm] = useState<CertFormData>(emptyCertForm)
@@ -454,6 +498,22 @@ export const ProfilePage = ({
                                 <ChevronRight size={16} className="text-tertiary shrink-0" />
                             </button>
                             <button
+                                ref={emailRowRef}
+                                onClick={openEmailEdit}
+                                className="flex items-center gap-3 w-full px-4 py-3.5 border-t border-tertiary/8 transition-all active:scale-95 hover:bg-themeblue2/5"
+                            >
+                                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                                    <Mail size={20} className="text-tertiary" />
+                                </div>
+                                <div className="flex-1 min-w-0 text-left">
+                                    <span className="block text-sm font-medium text-primary">Email</span>
+                                    {userEmail && (
+                                        <span className="block text-[10pt] text-tertiary truncate">{userEmail}</span>
+                                    )}
+                                </div>
+                                <ChevronRight size={16} className="text-tertiary shrink-0" />
+                            </button>
+                            <button
                                 onClick={deviceRole === 'primary' ? () => setShowSignOut(true) : onSignOut}
                                 className="flex items-center gap-3 w-full px-4 py-3.5 border-t border-tertiary/8 transition-all active:scale-95 hover:bg-themeredred/5"
                             >
@@ -637,6 +697,63 @@ export const ProfilePage = ({
                     </div>
                 ) : null}
             </PreviewOverlay>
+
+            {/* Email change popover — direct self-service, confirm-gated */}
+            <PreviewOverlay
+                isOpen={!!emailAnchor}
+                onClose={closeEmailEdit}
+                anchorRect={emailAnchor}
+                title="Change email"
+                maxWidth={360}
+                footer={
+                    emailAnchor ? (
+                        <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+                            <ActionButton
+                                icon={Check}
+                                label="Save"
+                                variant={!emailChanged || !emailValid || emailSubmitting ? 'disabled' : 'success'}
+                                onClick={requestEmailConfirm}
+                            />
+                        </div>
+                    ) : undefined
+                }
+            >
+                {emailAnchor && (
+                    <div>
+                        {emailError && (
+                            <div className="px-4 pt-3">
+                                <ErrorDisplay message={emailError} />
+                            </div>
+                        )}
+                        <div className={`flex items-center border-b border-primary/6 ${isMobile ? 'px-4 py-3' : 'px-3 py-2.5'}`}>
+                            <input
+                                type="email"
+                                value={newEmail}
+                                onChange={(e) => setNewEmail(e.target.value)}
+                                placeholder="name@example.mil"
+                                autoCapitalize="off"
+                                autoCorrect="off"
+                                spellCheck={false}
+                                className={`flex-1 bg-transparent text-primary placeholder:text-tertiary focus:outline-none ${isMobile ? 'text-base' : 'text-sm'}`}
+                            />
+                        </div>
+                        <p className="px-4 py-3 text-[9pt] text-tertiary">
+                            This is the address you sign in with. It changes immediately — there's no confirmation email.
+                        </p>
+                    </div>
+                )}
+            </PreviewOverlay>
+
+            <ConfirmDialog
+                visible={showEmailConfirm}
+                title="Change login email?"
+                subtitle={`You'll sign in with ${newEmail.trim()} from now on.`}
+                confirmLabel="Yes, change email"
+                variant="primary"
+                processing={emailSubmitting}
+                onConfirm={doEmailChange}
+                onCancel={() => setShowEmailConfirm(false)}
+            />
 
             {/* Add certification popover */}
             <PreviewOverlay

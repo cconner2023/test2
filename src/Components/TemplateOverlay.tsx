@@ -20,6 +20,8 @@ export const TemplateOverlay = ({
 }: TemplateOverlayProps) => {
     const isChoice = activeNode.type === 'choice';
     const isBranch = activeNode.type === 'branch';
+    // A no-insert choice behaves like a branch selector: no free-text "Other", no typing fallback.
+    const allowFreeText = isChoice && !(activeNode.type === 'choice' && activeNode.noInsert);
     const hasOptions = isChoice || isBranch;
     const filteredOptions = hasOptions && activeNode.options
         ? activeNode.options.filter((o) => o.trim() !== '')
@@ -38,14 +40,14 @@ export const TemplateOverlay = ({
                     onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        if (isChoice && showDropdown) {
+                        if (allowFreeText && showDropdown) {
                             onDismissDropdown();
                         } else {
                             onEndSession();
                         }
                     }}
                     className="shrink-0 p-0.5 rounded hover:bg-tertiary/10 transition-colors"
-                    aria-label={isChoice && showDropdown ? 'Dismiss options' : 'End template'}
+                    aria-label={allowFreeText && showDropdown ? 'Dismiss options' : 'End template'}
                     tabIndex={-1}
                 >
                     <X size={14} className="text-tertiary" />
@@ -80,8 +82,8 @@ export const TemplateOverlay = ({
                             </button>
                         );
                     })}
-                    {/* "Other" only for choice, not for inline branch */}
-                    {isChoice && (
+                    {/* "Other" only for an inserting choice — not inline branch or no-insert choice */}
+                    {allowFreeText && (
                         <button
                             onClick={(e) => {
                                 e.preventDefault();
@@ -107,7 +109,7 @@ export const TemplateOverlay = ({
                     Type your response, then press Enter to continue
                 </p>
             )}
-            {isChoice && !showDropdown && (
+            {allowFreeText && !showDropdown && (
                 <p className="text-[9pt] text-tertiary">
                     Type your response, then press Enter to continue
                 </p>

@@ -66,6 +66,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   isMobile = true,
   onRegisterAddLocation,
   onRegisterAddItem,
+  onSearchChange,
   searchFocused = false,
   onSearchFocusChange,
   onEnrollItem,
@@ -572,8 +573,8 @@ export const PropertyPanel = memo(function PropertyPanel({
           items={store.items}
           locations={visibleLocations}
           holders={store.holders}
-          onSelectItem={(item) => { handleSelectItem(item); onSearchFocusChange?.(false) }}
-          onOpenLocation={(loc) => { mapRef.current?.navigateToZone(loc.id); onSearchFocusChange?.(false) }}
+          onSelectItem={(item) => { handleSelectItem(item); onSearchChange?.(''); onSearchFocusChange?.(false) }}
+          onOpenLocation={(loc) => { mapRef.current?.navigateToZone(loc.id); onSearchChange?.(''); onSearchFocusChange?.(false) }}
         />
       </div>
 

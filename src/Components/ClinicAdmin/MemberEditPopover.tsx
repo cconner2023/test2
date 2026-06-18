@@ -18,8 +18,10 @@ import {
   setSoldierHomeClinic,
   endLoanFromClinic,
   supervisorResetUserPassword,
+  supervisorUpdateUserEmail,
   type MemberProfileData,
 } from '../../lib/supervisorService'
+import { isValidEmail } from '../../lib/adminService'
 import { getAssociatedClinicCode } from '../../lib/clinicAssociationService'
 import { supabase } from '../../lib/supabase'
 import { useResetPasswordFlow } from '../../Hooks/useResetPasswordFlow'
@@ -97,6 +99,7 @@ export function MemberEditPopover({
   const [saving, setSaving] = useState(false)
   const [rank, setRank] = useState('')
   const [roles, setRoles] = useState<Role[]>(['medic'])
+  const [editEmail, setEditEmail] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ranksByComponent, setRanksByComponent] = useState<Record<string, string[]> | null>(null)
@@ -125,6 +128,7 @@ export function MemberEditPopover({
             rank: result.rank,
             uic: result.uic,
             roles: result.roles,
+            email: result.email ?? fallbackProfile?.email ?? null,
             // Backstop with the cached medic row — the RPC only returns home
             // fields if the home-clinic migration is applied, and even when it
             // is, loaned-in supervisors hit the RPC's clinic-mismatch path.
@@ -140,12 +144,14 @@ export function MemberEditPopover({
             rank: null,
             uic: null,
             roles: ['medic'],
+            email: null,
             homeClinicId: null,
             homeClinicName: null,
           })
       setProfile(next)
       setRank(next.rank ?? '')
       setRoles((next.roles ?? ['medic']) as Role[])
+      setEditEmail(next.email ?? '')
       setLoading(false)
     })
   }, [isOpen, memberId, fallbackProfile])
@@ -166,7 +172,25 @@ export function MemberEditPopover({
     const origRoles = (profile.roles ?? ['medic']).slice().sort().join(',')
     const currRoles = roles.slice().sort().join(',')
     const rolesChanged = origRoles !== currRoles
+    const trimmedEmail = editEmail.trim()
+    const emailChanged = trimmedEmail.toLowerCase() !== (profile.email ?? '').toLowerCase()
 
+    if (emailChanged && !isValidEmail(trimmedEmail)) {
+      setSaving(false)
+      setError('Enter a valid email address.')
+      return
+    }
+
+    // Email first — it touches auth.users (not profiles), so a failure here
+    // shouldn't leave rank/roles half-applied without surfacing.
+    if (emailChanged) {
+      const r = await supervisorUpdateUserEmail(memberId, trimmedEmail)
+      if (!r.success) {
+        setSaving(false)
+        setError(r.error)
+        return
+      }
+    }
     if (rankChanged) {
       const r = await updateMemberProfile(memberId, { rank: rank || undefined })
       if (!r.success) {
@@ -188,7 +212,7 @@ export function MemberEditPopover({
     setSaving(false)
     onChanged()
     handleClose()
-  }, [memberId, profile, rank, roles, onChanged, handleClose])
+  }, [memberId, profile, rank, roles, editEmail, onChanged, handleClose])
 
   const handleConfirmDelete = useCallback(async () => {
     if (!memberId) return
@@ -542,6 +566,25 @@ export function MemberEditPopover({
                   <span className="text-sm text-primary truncate ml-3">{row.value}</span>
                 </div>
               ))}
+
+              {/* Email — login credential; editable in edit mode */}
+              <div className="flex items-center justify-between gap-3 border-b border-primary/6 px-4 py-3">
+                <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">Email</span>
+                {editMode ? (
+                  <input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    placeholder="name@example.mil"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    className="flex-1 min-w-0 bg-transparent text-right text-sm text-primary placeholder:text-tertiary focus:outline-none ml-3"
+                  />
+                ) : (
+                  <span className="text-sm text-primary truncate ml-3">{profile.email || '—'}</span>
+                )}
+              </div>
 
               {/* Rank — editable in edit mode */}
               <div className="flex items-center justify-between gap-3 border-b border-primary/6 px-4 py-3">

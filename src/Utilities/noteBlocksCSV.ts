@@ -16,6 +16,8 @@
  * TemplateNode[]:
  *   [Field]                → fill-in variable        (StepNode)
  *   [Field: a | b | c]     → dropdown, 1st = default (ChoiceNode); *b* marks default
+ *   [?Field: a | b | c]    → no-insert choice: routes a linked branch but its value
+ *                            is NOT typed into the note (ChoiceNode.noInsert)
  *   IF Field = value:      → conditional block, indented body lines (linked branch)
  *   IF [Field: a | b] = b: → inline gate (defines the choice inline; not inserted)
  *
@@ -150,19 +152,28 @@ function matchIf(line: string): IfMatch | null {
   return { field, value }
 }
 
-function parseChoiceMarker(inner: string): { label: string; options?: string[]; defaultValue?: string } {
+function parseChoiceMarker(inner: string): { label: string; options?: string[]; defaultValue?: string; noInsert?: boolean } {
   const colon = inner.indexOf(':')
-  if (colon === -1) return { label: inner.trim() }
-  const label = inner.slice(0, colon).trim()
+  // A leading '?' on the label marks a no-insert choice: it routes a linked
+  // branch but its value is never typed into the note (e.g. [?System: ENT | MSK]).
+  const stripQ = (s: string): { label: string; noInsert: boolean } => {
+    const t = s.trim()
+    return t.startsWith('?') ? { label: t.slice(1).trim(), noInsert: true } : { label: t, noInsert: false }
+  }
+  if (colon === -1) {
+    const { label } = stripQ(inner)
+    return { label }
+  }
+  const { label, noInsert } = stripQ(inner.slice(0, colon))
   const rawOpts = inner.slice(colon + 1).split('|').map(o => o.trim()).filter(Boolean)
-  if (!rawOpts.length) return { label }
+  if (!rawOpts.length) return { label, noInsert }
   let defaultValue: string | undefined
   const options = rawOpts.map(o => {
     const starred = o.match(/^\*(.+)\*$/)
     if (starred) { defaultValue = starred[1].trim(); return starred[1].trim() }
     return o
   })
-  return { label, options, defaultValue: defaultValue ?? options[0] }
+  return { label, options, defaultValue: defaultValue ?? options[0], noInsert }
 }
 
 function parseInline(text: string): TemplateNode[] {
@@ -172,10 +183,11 @@ function parseInline(text: string): TemplateNode[] {
     if (!part) continue
     const marker = part.match(/^\[([^\]]+)\]$/)
     if (marker) {
-      const { label, options, defaultValue } = parseChoiceMarker(marker[1])
+      const { label, options, defaultValue, noInsert } = parseChoiceMarker(marker[1])
       if (options && options.length) {
         const node: ChoiceNode = { type: 'choice', label, options }
         if (defaultValue) node.defaultValue = defaultValue
+        if (noInsert) node.noInsert = true
         nodes.push(node)
       } else {
         nodes.push({ type: 'step', label })
@@ -252,7 +264,7 @@ function renderPreview(nodes: TemplateNode[]): string {
   for (const n of nodes) {
     if (n.type === 'text') out += n.content
     else if (n.type === 'step') out += `[${n.label}]`
-    else if (n.type === 'choice') out += n.defaultValue ?? n.options[0] ?? `[${n.label}]`
+    else if (n.type === 'choice') out += n.noInsert ? '' : (n.defaultValue ?? n.options[0] ?? `[${n.label}]`)
     else if (n.type === 'branch') {
       const first = Object.values(n.branches)[0]
       if (first) out += renderPreview(first)
@@ -268,7 +280,7 @@ function serializeNodes(nodes: TemplateNode[], indent = ''): string {
     else if (n.type === 'step') out += `[${n.label}]`
     else if (n.type === 'choice') {
       const opts = n.options.map(o => (o === n.defaultValue && o !== n.options[0] ? `*${o}*` : o)).join(' | ')
-      out += `[${n.label}: ${opts}]`
+      out += `[${n.noInsert ? '?' : ''}${n.label}: ${opts}]`
     } else if (n.type === 'branch') {
       for (const [value, body] of Object.entries(n.branches)) {
         const gate = n.options ? `[${n.triggerField}: ${n.options.join(' | ')}]` : n.triggerField

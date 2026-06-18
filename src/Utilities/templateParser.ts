@@ -11,7 +11,13 @@ export interface FieldInfo {
  * simple text editor with [field] markers.
  */
 export function isFlatTemplate(nodes: TemplateNode[]): boolean {
-    return nodes.every(n => n.type === 'text' || n.type === 'step' || n.type === 'choice');
+    return nodes.every(n =>
+        n.type === 'text'
+        || n.type === 'step'
+        // A no-insert choice only makes sense paired with a branch and can't be
+        // expressed by the simple [field] editor — keep it in template mode.
+        || (n.type === 'choice' && !n.noInsert),
+    );
 }
 
 /**

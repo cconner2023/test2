@@ -158,6 +158,8 @@ export interface EventFormData {
   clinic_id?: string | null
   /** Per-event to-do list (seeded from a Checklist and/or custom items). */
   subtasks?: EventSubtask[] | null
+  /** ADTMC algorithm id (e.g. "A-1") when this event is an algorithm encounter/training. */
+  encounter_algorithm_id?: string | null
 }
 
 export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: string; solidColor: string; hidden?: boolean; devOnly?: boolean }[] = [
@@ -294,6 +296,7 @@ export function createEmptyFormData(forDateKey?: string): EventFormData {
     linked_features: null,
     medevac_data: null,
     subtasks: [],
+    encounter_algorithm_id: null,
   }
 }
 
@@ -319,6 +322,7 @@ export function eventToFormData(event: CalendarEvent): EventFormData {
     linked_features: event.linked_features ?? null,
     medevac_data: event.medevac_data ?? null,
     subtasks: event.subtasks ?? [],
+    encounter_algorithm_id: event.encounter_algorithm_id ?? null,
   }
 }
 

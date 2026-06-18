@@ -61,7 +61,6 @@ import { useNavigationStore } from '../../stores/useNavigationStore';
 import { resolveSearch } from './searchResolver';
 import { MapSearchOverlay, type SearchOverlaySelection } from './MapSearchOverlay';
 import { useMapSearchStore } from '../../stores/useMapSearchStore';
-import { GotoWaypointCard } from './GotoWaypointCard';
 import { LiftedRowMenu } from '../LiftedRowMenu';
 import { useShareToChat } from '../Messages/ShareToChatPicker';
 import { parseGPX, serializeGPX } from '../../lib/gpx';
@@ -376,7 +375,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     // segment in MapView and swaps the primary save action to "Save area".
     closed: boolean;
   } | null>(null);
-  const [gotoDismissedFor, setGotoDismissedFor] = useState<string | null>(null);
   const [showGrid, setShowGrid] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
@@ -432,7 +430,11 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   const lastSavedMetadataRef = useRef<{ name: string; center: [number, number]; zoom: number; floors?: OverlayFloor[] } | null>(null);
   const overlayCreatedRef = useRef<Set<string>>(new Set());
   const [confirmDeleteOverlayId, setConfirmDeleteOverlayId] = useState<string | null>(null);
-  const [confirmDeleteFeature, setConfirmDeleteFeature] = useState<string | null>(null);
+  // Carries the feature's HOME overlay id (not necessarily the one open in the
+  // editor) so a tree-delete targets the right overlay — mirrors how
+  // confirmDeleteOverlayId threads the overlay id through the overlay-delete
+  // confirm flow.
+  const [confirmDeleteFeature, setConfirmDeleteFeature] = useState<{ overlayId: string; featureId: string } | null>(null);
 
   const mapRef = useRef<MapViewHandle>(null);
   const gpxKmlInputRef = useRef<HTMLInputElement>(null);
@@ -1710,9 +1712,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
 
   // ── Delete selected ──
   const handleDeleteSelected = useCallback(() => {
-    if (!selectedFeatureId) return;
-    setConfirmDeleteFeature(selectedFeatureId);
-  }, [selectedFeatureId]);
+    if (!selectedFeatureId || !overlayId) return;
+    setConfirmDeleteFeature({ overlayId, featureId: selectedFeatureId });
+  }, [selectedFeatureId, overlayId]);
 
   // ── Forward selected feature to chat (opaque ref, no PHI) ──
   const handleForwardSelected = useCallback(() => {
@@ -1751,8 +1753,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     setFeatureMenu({ rect: e.currentTarget.getBoundingClientRect() });
   }, []);
 
-  const handleDeleteFeatureFromTree = useCallback((_overlayId: string, featureId: string) => {
-    setConfirmDeleteFeature(featureId);
+  const handleDeleteFeatureFromTree = useCallback((overlayId: string, featureId: string) => {
+    setConfirmDeleteFeature({ overlayId, featureId });
   }, []);
 
   // ── Copy a feature into another overlay (or a brand-new one) ──
@@ -1819,23 +1821,39 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   }, [copyFeatureTarget, activeClinicId, resolveCopySourceFeature, overlayId, mapCenter, mapZoom, writeOverlay, upsertFeature]);
 
   const handleConfirmDeleteFeature = useCallback(async () => {
-    const targetId = confirmDeleteFeature;
+    const target = confirmDeleteFeature;
     setConfirmDeleteFeature(null);
-    if (!targetId || !overlayId || !activeClinicId) return;
+    if (!target || !activeClinicId) return;
+    const { overlayId: targetOverlayId, featureId: targetId } = target;
+
+    // Delete must target the feature's HOME overlay — which may not be the one
+    // open in the editor (the tree lists features across every overlay). When
+    // it IS the open overlay we also carve it out of the live draft state +
+    // baseline; otherwise removeFeature splices it straight out of IDB and the
+    // tree refreshes via invalidate('mapOverlays').
+    const isOpenOverlay = targetOverlayId === overlayId;
 
     // The delete ConfirmDialog *is* the save ceremony for this batch — commit
-    // the removal now instead of leaving it in draft. Other pending features
-    // stay dirty (lastSavedFeaturesRef carves the deleted id but keeps the
-    // rest of the baseline intact, so a later Save still diffs correctly).
-    const wasSaved = lastSavedFeaturesRef.current.some(f => f.id === targetId);
-    const wasOverlayCreated = overlayCreatedRef.current.has(overlayId);
-    if (wasSaved && wasOverlayCreated) {
-      await removeFeature({ overlayId, clinicId: activeClinicId, featureId: targetId });
+    // the removal now instead of leaving it in draft. For the open overlay we
+    // only fan a 'd' when the feature was already persisted (an unsaved freshly
+    // drawn feature has no prior 'c' to pair against — sending 'd' would orphan
+    // it). Features from a different overlay are persisted by definition.
+    const wasSaved = isOpenOverlay
+      ? lastSavedFeaturesRef.current.some(f => f.id === targetId) && overlayCreatedRef.current.has(targetOverlayId)
+      : true;
+    if (wasSaved) {
+      await removeFeature({ overlayId: targetOverlayId, clinicId: activeClinicId, featureId: targetId });
     }
-    lastSavedFeaturesRef.current = lastSavedFeaturesRef.current.filter(f => f.id !== targetId);
-    skipDirtyRef.current = true;
-    setFeatures(prev => prev.filter(f => f.id !== targetId));
-    setSelectedFeatureId(prev => (prev === targetId ? null : prev));
+
+    if (isOpenOverlay) {
+      // Other pending features stay dirty — lastSavedFeaturesRef carves the
+      // deleted id but keeps the rest of the baseline so a later Save still
+      // diffs correctly.
+      lastSavedFeaturesRef.current = lastSavedFeaturesRef.current.filter(f => f.id !== targetId);
+      skipDirtyRef.current = true;
+      setFeatures(prev => prev.filter(f => f.id !== targetId));
+      setSelectedFeatureId(prev => (prev === targetId ? null : prev));
+    }
   }, [confirmDeleteFeature, overlayId, activeClinicId, removeFeature]);
 
   // ── Undo last vertex (route / area drawing) ──
@@ -2275,19 +2293,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   ) : undefined}
                 >
                   {selectedFeature && (
-                    <>
-                      {selectedFeature.type === 'waypoint'
-                        && selectedFeature.geometry.length > 0
-                        && gotoDismissedFor !== selectedFeature.id
-                        && drawMode !== 'measure' && (
-                        <GotoWaypointCard
-                          variant="inline"
-                          label={selectedFeature.label || 'Waypoint'}
-                          target={selectedFeature.geometry[0]}
-                          gps={gpsPosition ? { lat: gpsPosition.lat, lng: gpsPosition.lng } : null}
-                          onDismiss={() => setGotoDismissedFor(selectedFeature.id)}
-                        />
-                      )}
                       <FeatureEditor
                         feature={selectedFeature}
                         onUpdate={handleUpdateSelectedFeature}
@@ -2303,7 +2308,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                         floors={floorLevels}
                         onChangeFloor={handleChangeFeatureFloor}
                       />
-                    </>
                   )}
                 </Sheet>
               )}
@@ -2332,15 +2336,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   )}
                 >
                   {tempPoint && (
-                    <>
-                      <GotoWaypointCard
-                        variant="inline"
-                        label="Temp point"
-                        target={[tempPoint.lat, tempPoint.lng]}
-                        gps={gpsPosition ? { lat: gpsPosition.lat, lng: gpsPosition.lng } : null}
-                      />
-                      <TempPointBody lat={tempPoint.lat} lng={tempPoint.lng} />
-                    </>
+                    <TempPointBody lat={tempPoint.lat} lng={tempPoint.lng} />
                   )}
                 </Sheet>
               )}
@@ -2731,12 +2727,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                     </HeaderPill>
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto">
-                    <GotoWaypointCard
-                      variant="inline"
-                      label="Temp point"
-                      target={[tempPoint.lat, tempPoint.lng]}
-                      gps={gpsPosition ? { lat: gpsPosition.lat, lng: gpsPosition.lng } : null}
-                    />
                     <TempPointBody lat={tempPoint.lat} lng={tempPoint.lng} />
                   </div>
                 </div>
@@ -2808,18 +2798,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                     </HeaderPill>
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto">
-                    {selectedFeature.type === 'waypoint'
-                      && selectedFeature.geometry.length > 0
-                      && gotoDismissedFor !== selectedFeature.id
-                      && drawMode !== 'measure' && (
-                      <GotoWaypointCard
-                        variant="inline"
-                        label={selectedFeature.label || 'Waypoint'}
-                        target={selectedFeature.geometry[0]}
-                        gps={gpsPosition ? { lat: gpsPosition.lat, lng: gpsPosition.lng } : null}
-                        onDismiss={() => setGotoDismissedFor(selectedFeature.id)}
-                      />
-                    )}
                     <FeatureEditor
                       feature={selectedFeature}
                       onUpdate={handleUpdateSelectedFeature}

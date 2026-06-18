@@ -240,3 +240,41 @@ export async function deleteOwnAccount(): Promise<ServiceResult> {
     return fail(getErrMsg(e))
   }
 }
+
+/** Loose client-side email shape check — the RPC re-validates authoritatively. */
+function isEmailShape(email: string): boolean {
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())
+}
+
+/**
+ * Change the signed-in user's own login email. Direct self-service — the server
+ * (update_own_email) only authenticates the caller (any authenticated user may
+ * change their own). Email lives in auth.users + identities (not profiles), so
+ * the RPC updates both and preserves the confirmed state. There is no email
+ * verification (no BAA → the app can't send mail), so the UI gates this behind
+ * a confirm dialog that echoes the typed address.
+ *
+ * After the change, the local session JWT still carries the OLD email claim, so
+ * we refresh the session — the onAuthStateChange listener repopulates
+ * useAuthStore.user with the new email. The refresh failing doesn't undo the
+ * change; the new email surfaces on the next token refresh regardless.
+ */
+export async function updateOwnEmail(email: string): Promise<ServiceResult> {
+  try {
+    const user = useAuthStore.getState().user
+    if (!user) return fail('Not authenticated')
+
+    const trimmed = email.trim()
+    if (!isEmailShape(trimmed)) return fail('Enter a valid email address.')
+
+    const { error } = await supabase.rpc('update_own_email', { p_new_email: trimmed })
+    if (error) return fail(error.message)
+
+    // Pull a fresh JWT so the new email claim propagates into the store.
+    await supabase.auth.refreshSession().catch(() => {})
+    return succeed()
+  } catch (e) {
+    logger.error('Failed to update own email:', e)
+    return fail(getErrMsg(e))
+  }
+}

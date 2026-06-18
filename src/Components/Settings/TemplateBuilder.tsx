@@ -50,7 +50,7 @@ const nodePreview = (node: TemplateNode): string => {
             return node.label || 'Untitled step';
         case 'choice':
             return node.label
-                ? `${node.label}: ${node.options.filter(o => o.trim()).join(' | ')}`
+                ? `${node.label}: ${node.options.filter(o => o.trim()).join(' | ')}${node.noInsert ? '  ·  no insert' : ''}`
                 : 'Untitled choice';
         case 'branch':
             return node.label
@@ -176,6 +176,23 @@ const ChoiceEditorBody = ({
                 placeholder={'Options (one per line)\nmild\nmoderate\nsevere'}
                 mono
             />
+            <button
+                type="button"
+                onClick={() => onChange({ ...node, noInsert: !node.noInsert })}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left border-b border-primary/6 last:border-b-0 active:bg-themeblue3/5 transition-colors"
+            >
+                <div className="flex-1 min-w-0">
+                    <p className="text-[10pt] font-medium text-primary">Insert chosen word</p>
+                    <p className="text-[9pt] text-tertiary">
+                        {node.noInsert
+                            ? 'Off — selection only routes a linked branch; no text added'
+                            : 'On — the picked option is typed into the note'}
+                    </p>
+                </div>
+                <div className={`w-10 h-6 rounded-full relative transition-colors shrink-0 ${!node.noInsert ? 'bg-themeblue2' : 'bg-tertiary/25'}`}>
+                    <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${!node.noInsert ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                </div>
+            </button>
             {node.options.length <= 1 && (
                 <div className="flex flex-wrap gap-1 px-4 py-3">
                     {Object.entries(CHOICE_SUGGESTIONS).map(([key, vals]) => (

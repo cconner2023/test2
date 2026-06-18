@@ -482,6 +482,12 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
       const vpW = container.clientWidth
       const vpH = container.clientHeight
+      // Mobile's glass header floats over the canvas top (content slides behind it),
+      // so framing the zone flush to the viewport top tucks it under the header. Push
+      // the vertical target down by the header height. Desktop's solid header doesn't
+      // publish --drawer-header-h → var unset → 0, so framing stays top-flush there.
+      const headerH = parseFloat(getComputedStyle(container).getPropertyValue('--drawer-header-h')) || 0
+      const topInset = PADDING + headerH
       const newScale = Math.min(FILL / rect.width, FILL / rect.height, 100)
 
       flushSync(() => setCanvasScale(newScale))
@@ -491,7 +497,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
       container.scrollTo({
         left: vpW + rect.x * contentW - PADDING,
-        top: vpH + rect.y * contentH - PADDING,
+        top: vpH + rect.y * contentH - topInset,
         behavior: smooth ? 'smooth' : 'instant',
       })
     },
@@ -615,6 +621,20 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       }
     },
     [store, allWorldTags, zoomToTag, zoomViaLCA],
+  )
+
+  // Canvas zone tap entry point. On desktop, handlePanEnd has already handled the
+  // tap (and set suppressClickRef) by the time the zone div's own onClick fires —
+  // without this guard that trailing click re-invokes handleZoneTap for the same
+  // id and the targetId===selectedZoneId branch deselects it, so the zone never
+  // stays targeted. Mobile never sets suppressClickRef in view mode, so the zone
+  // onClick drives selection normally.
+  const handleCanvasZoneTap = useCallback(
+    (targetId: string) => {
+      if (suppressClickRef.current) return
+      handleZoneTap(targetId)
+    },
+    [handleZoneTap],
   )
 
   // ── Reset zoom — fit all top-level zones into view ──
@@ -1451,7 +1471,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                 <LocationTagPhoto
                   tags={[...visibleTagsWithPins, ...childZoneAutoTags]}
                   selectedZoneId={store.selectedZoneId}
-                  onZoneTap={handleZoneTap}
+                  onZoneTap={handleCanvasZoneTap}
                   scale={1}
                   photoMap={photoMap}
                   items={items}

@@ -333,6 +333,21 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     }
   }
 
+  // Template-source subscriptions (loaned users pick which clinics' note content
+  // they merge). Read in isolation + error-tolerant so it stays a no-op until the
+  // `note_template_clinic_ids` column is migrated — never breaks the profile load.
+  try {
+    const { data: subData } = await supabase
+      .from('profiles')
+      .select('note_template_clinic_ids')
+      .eq('id', userId)
+      .single()
+    const ids = (subData as { note_template_clinic_ids?: string[] | null } | null)?.note_template_clinic_ids
+    if (ids != null) profile.noteTemplateClinicIds = ids
+  } catch {
+    // column not yet present — leave undefined → home-only default in the merge
+  }
+
   return { profile, roles, clinicId, surrogateClinicIds, needsPasswordSetup, clinicTextExpanders, clinicPlanOrderTags, clinicPlanInstructionTags, clinicPlanOrderSets }
 }
 

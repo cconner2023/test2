@@ -94,7 +94,7 @@ export function ExpandableInput({
 
             if (e.key === 'Escape') {
                 e.preventDefault();
-                if (activeNode.type === 'choice' && templateSession.showDropdown) {
+                if (activeNode.type === 'choice' && !activeNode.noInsert && templateSession.showDropdown) {
                     dismissDropdown();
                 } else {
                     endSession();

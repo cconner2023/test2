@@ -8,6 +8,7 @@ import { CATEGORY_META } from './Settings/PlanTagManager';
 import { ListItemRow } from './ListItemRow';
 import { ExpandableInput } from './ExpandableInput';
 import { EmptyState } from './EmptyState';
+import type { MergedPlanOrderSet } from '../Hooks/useMergedNoteContent';
 import { ActionPill } from './ActionPill';
 import { ActionButton } from './ActionButton';
 
@@ -36,7 +37,7 @@ const BLOCK_LABELS: Record<PlanBlockKey, string> = {
 interface PlanProps {
     orderTags: PlanOrderTags;
     instructionTags: string[];
-    orderSets?: PlanOrderSet[];
+    orderSets?: MergedPlanOrderSet[];
     initialText?: string;
     onChange: (text: string) => void;
     expanders?: TextExpander[];
@@ -592,6 +593,9 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                                                     }`}
                                                 >
                                                     {os.name}
+                                                    {os.sourceCollides && (
+                                                        <span className="ml-1 text-[8pt] text-themeblue2/80">· {os.sourceClinicName ?? 'Personal'}</span>
+                                                    )}
                                                 </button>
                                             );
                                         })}

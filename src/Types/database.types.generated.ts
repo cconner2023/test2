@@ -1034,6 +1034,7 @@ export type Database = {
           needs_password_setup: boolean
           note_include_hpi: boolean | null
           note_include_plan: boolean | null
+          note_template_clinic_ids: string[] | null
           notify_clinic_notes: boolean | null
           notify_dev_alerts: boolean | null
           overview_widgets: Json | null
@@ -1070,6 +1071,7 @@ export type Database = {
           needs_password_setup?: boolean
           note_include_hpi?: boolean | null
           note_include_plan?: boolean | null
+          note_template_clinic_ids?: string[] | null
           notify_clinic_notes?: boolean | null
           notify_dev_alerts?: boolean | null
           overview_widgets?: Json | null
@@ -1106,6 +1108,7 @@ export type Database = {
           needs_password_setup?: boolean
           note_include_hpi?: boolean | null
           note_include_plan?: boolean | null
+          note_template_clinic_ids?: string[] | null
           notify_clinic_notes?: boolean | null
           notify_dev_alerts?: boolean | null
           overview_widgets?: Json | null
@@ -2320,12 +2323,20 @@ export type Database = {
         Args: { p_clinic_id: string; p_workouts: Json }
         Returns: undefined
       }
+      supervisor_update_user_email: {
+        Args: { p_new_email: string; p_target_user_id: string }
+        Returns: Json
+      }
       toggle_oncall_presence: {
         Args: { p_clinic_id: string; p_on: boolean; p_user_id: string }
         Returns: Json
       }
       trim_all_signal_backups: { Args: { p_keep?: number }; Returns: number }
       trim_signal_backups: { Args: { p_keep?: number }; Returns: number }
+      update_own_email: {
+        Args: { p_new_email: string }
+        Returns: Json
+      }
       update_own_security_settings:
         | {
             Args: { p_pin_hash?: string; p_pin_salt?: string }

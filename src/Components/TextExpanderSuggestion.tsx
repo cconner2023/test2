@@ -1,8 +1,9 @@
 import { X, Layers } from 'lucide-react';
 import type { TextExpander } from '../Data/User';
+import type { MergedTextExpander } from '../Hooks/useMergedNoteContent';
 
 interface TextExpanderSuggestionProps {
-    suggestions: TextExpander[];
+    suggestions: MergedTextExpander[];
     selectedIndex: number;
     onDismiss: () => void;
     onAccept?: (expander: TextExpander) => void;
@@ -25,9 +26,11 @@ export const TextExpanderSuggestion = ({ suggestions, selectedIndex, onDismiss, 
                         ? firstLine.slice(0, 77) + '...'
                         : firstLine + (isMultiLine ? ' ...' : '');
 
+                const sourceLabel = s.sourceCollides ? (s.sourceClinicName ?? 'Personal') : null;
+
                 return (
                     <div
-                        key={s.abbr}
+                        key={`${s.abbr}-${i}`}
                         onClick={() => onAccept?.(s)}
                         className={`flex items-center gap-2 px-3 py-2 cursor-pointer active:bg-themeblue2/12 ${isSelected ? 'bg-themeblue2/8' : ''} ${i > 0 ? 'border-t border-tertiary/8' : ''}`}
                     >
@@ -41,6 +44,11 @@ export const TextExpanderSuggestion = ({ suggestions, selectedIndex, onDismiss, 
                         )}
                         <span className="text-tertiary text-[10pt] shrink-0 self-start mt-0.5">&rarr;</span>
                         <span className="text-sm text-tertiary truncate flex-1 min-w-0">{preview}</span>
+                        {sourceLabel && (
+                            <span className="shrink-0 self-start mt-0.5 text-[8pt] font-medium text-themeblue2/80 bg-themeblue2/8 px-1.5 py-0.5 rounded-full max-w-[6rem] truncate">
+                                {sourceLabel}
+                            </span>
+                        )}
                         {isSelected && (
                             <kbd className="shrink-0 text-[9pt] text-tertiary border border-tertiary/15 rounded px-1.5 py-0.5 font-mono self-start mt-0.5">
                                 Enter &crarr;

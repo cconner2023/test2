@@ -1,5 +1,7 @@
-import { ClipboardList, TextCursorInput, ChevronRight, LayoutTemplate, ClipboardCheck } from 'lucide-react';
+import { ClipboardList, TextCursorInput, ChevronRight, LayoutTemplate, ClipboardCheck, Home, Building2 } from 'lucide-react';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useTemplateSubscription } from '../../Hooks/useTemplateSubscription';
+import { SettingsToggleRow } from './SettingsToggleRow';
 
 interface NoteContentPanelProps {
     onNavigate?: (panel: string) => void;
@@ -10,6 +12,7 @@ export const NoteContentPanel = ({ onNavigate }: NoteContentPanelProps) => {
     const isSupervisorRole = useAuthStore((s) => s.isSupervisorRole);
     const isDevRole = useAuthStore((s) => s.isDevRole);
     const canSeeChecklists = isSupervisorRole || isDevRole;
+    const { isLoaned, memberships, toggle } = useTemplateSubscription();
 
     const sections: Array<{
         icon: typeof ClipboardList;
@@ -118,6 +121,29 @@ export const NoteContentPanel = ({ onNavigate }: NoteContentPanelProps) => {
                         </div>
                     )}
                 </div>
+
+                {isLoaned && (
+                    <div className="space-y-2">
+                        <div className="px-1">
+                            <p className="text-sm font-medium text-primary">Template sources</p>
+                            <p className="text-[9pt] text-tertiary mt-0.5">
+                                Which clinics' text templates and order sets to mix into your notes. Your personal blocks are always included.
+                            </p>
+                        </div>
+                        <div className="space-y-2">
+                            {memberships.map((m) => (
+                                <SettingsToggleRow
+                                    key={m.id}
+                                    icon={m.isHome ? Home : Building2}
+                                    label={m.name}
+                                    subtitle={m.isHome ? 'Home clinic' : 'Loaned clinic'}
+                                    checked={m.subscribed}
+                                    onChange={() => toggle(m.id)}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

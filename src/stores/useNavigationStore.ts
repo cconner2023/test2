@@ -8,6 +8,7 @@ import { catData } from '../Data/CatData'
 import type { medListTypes } from '../Data/MedData'
 import type { MedevacRequest } from '../Types/MedevacTypes'
 import type { AlgorithmOptions, dispositionType } from '../Types/AlgorithmTypes'
+import type { EventCategory } from '../Types/CalendarTypes'
 import type { CardState } from '../Hooks/useAlgorithm'
 
 type ViewState = 'main' | 'subcategory' | 'questions'
@@ -18,6 +19,10 @@ export interface CalendarPrefill {
     title?: string
     /** Local datetime string "YYYY-MM-DDTHH:mm" to seed start_time. */
     startISO?: string
+    /** Seed the event category (e.g. 'training' when scheduling an algorithm). */
+    category?: EventCategory
+    /** Tag the event with an ADTMC algorithm id (e.g. "A-1") for encounter rollups. */
+    encounterAlgorithmId?: string
 }
 
 /** Where to send the user back to after a deep-linked calendar event is saved

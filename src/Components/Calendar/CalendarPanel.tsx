@@ -24,6 +24,7 @@ import { useAuthStore } from '../../stores/useAuthStore'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { useNavigationStore } from '../../stores/useNavigationStore'
+import type { CalendarPrefill } from '../../stores/useNavigationStore'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { useClinicZones, defaultZoneId } from '../../Hooks/useClinicZones'
@@ -272,7 +273,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const { share: shareToChat, picker: shareToChatPicker } = useShareToChat()
   const [newEventDateKey, setNewEventDateKey] = useState<string | undefined>(undefined)
   const [newEventHuddleTaskId, setNewEventHuddleTaskId] = useState<string | null>(null)
-  const [newEventPrefill, setNewEventPrefill] = useState<{ title?: string; startISO?: string } | null>(null)
+  const [newEventPrefill, setNewEventPrefill] = useState<CalendarPrefill | null>(null)
 
   const [duplicateHuddle, setDuplicateHuddle] = useState<{ eventId: string; rowName: string; medicLabel: string } | null>(null)
 
@@ -583,7 +584,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     }
   }, [isMobile, selectEvent])
 
-  const handleNewEvent = useCallback((forDateKey?: string, prefill?: { title?: string; startISO?: string } | null) => {
+  const handleNewEvent = useCallback((forDateKey?: string, prefill?: CalendarPrefill | null) => {
     setEditingEvent(null)
     setNewEventDateKey(forDateKey ?? selectedDateStr)
     setNewEventHuddleTaskId(null)
@@ -721,6 +722,12 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     // title and pins start_time to the parsed datetime; end defaults to +1h.
     if (newEventPrefill) {
       if (newEventPrefill.title) base = { ...base, title: newEventPrefill.title }
+      if (newEventPrefill.category) base = { ...base, category: newEventPrefill.category }
+      // Tag the scheduled event with its ADTMC algorithm so it rolls up as an
+      // algorithm encounter (no STP cascade — completion logs the algorithm only).
+      if (newEventPrefill.encounterAlgorithmId) {
+        base = { ...base, encounter_algorithm_id: newEventPrefill.encounterAlgorithmId }
+      }
       if (newEventPrefill.startISO) {
         const start = new Date(newEventPrefill.startISO)
         if (!Number.isNaN(start.getTime())) {
@@ -745,7 +752,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   // changes when a new session opens, so it never clobbers in-progress edits.
   const formKey = editingEvent
     ? `edit-${editingEvent.id}`
-    : `new-${newEventDateKey ?? ''}-${newEventHuddleTaskId ?? ''}-${newEventPrefill?.startISO ?? ''}-${newEventPrefill?.title ?? ''}`
+    : `new-${newEventDateKey ?? ''}-${newEventHuddleTaskId ?? ''}-${newEventPrefill?.startISO ?? ''}-${newEventPrefill?.title ?? ''}-${newEventPrefill?.encounterAlgorithmId ?? ''}`
 
   const handleEditEvent = useCallback((id: string) => {
     const event = events.find(e => e.id === id)
@@ -810,6 +817,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           room_id: data.room_id ?? null,
           huddle_task_id: data.category === 'huddle' ? (data.huddle_task_id ?? null) : null,
           subtasks: data.subtasks ?? [],
+          encounter_algorithm_id: data.encounter_algorithm_id ?? null,
           created_by: user?.id ?? '',
           created_at: now,
           updated_at: now,

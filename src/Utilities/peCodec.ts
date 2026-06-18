@@ -8,6 +8,7 @@ import {
     VITAL_SIGNS,
     MASTER_BLOCK_LIBRARY,
     getBlocksForFocusedExam,
+    applySpecify,
 } from '../Data/PhysicalExamData';
 import type {
     CategoryLetter,
@@ -149,6 +150,19 @@ export function encodePEState(state: PEState, symptomCode?: string): string {
             entry += '.' + compressText(itemState.findings.trim());
         }
 
+        // Specify details for "(specify…)" abnormals, keyed by flattened abnormal index.
+        // Appended last as *{compressed JSON} — '*' never appears in base64 free text.
+        if (itemState.specifyDetails) {
+            const specifyObj: Record<string, string> = {};
+            for (const ai of abnormalIndices) {
+                const detail = itemState.specifyDetails[allAbnormals[ai].key]?.trim();
+                if (detail) specifyObj[ai] = detail;
+            }
+            if (Object.keys(specifyObj).length > 0) {
+                entry += '*' + compressText(JSON.stringify(specifyObj));
+            }
+        }
+
         entries.push(entry);
     }
 
@@ -234,7 +248,12 @@ function decodePEStateV8(data: string, symptomCode: string): PEState | null {
     const explicitBlocks = new Set<number>();
 
     if (bodyRest) {
-        for (const entry of bodyRest.split('-').filter(Boolean)) {
+        for (const rawEntry of bodyRest.split('-').filter(Boolean)) {
+            // Split off the trailing *{compressed specify JSON} segment, if present.
+            const starIdx = rawEntry.indexOf('*');
+            const entry = starIdx >= 0 ? rawEntry.substring(0, starIdx) : rawEntry;
+            const specifyStr = starIdx >= 0 ? rawEntry.substring(starIdx + 1) : '';
+
             let pos = 0;
             const blockIdx = charToIdx(entry[pos]);
             pos++;
@@ -299,8 +318,22 @@ function decodePEStateV8(data: string, symptomCode: string): PEState | null {
                 }
             }
 
+            // Decode specify details ({ abnormalIndex: detail }) back to abnormal keys.
+            const specifyDetails: Record<string, string> = {};
+            if (specifyStr) {
+                try {
+                    const obj = JSON.parse(decompressText(specifyStr)) as Record<string, string>;
+                    for (const [idxStr, detail] of Object.entries(obj)) {
+                        const ai = parseInt(idxStr, 10);
+                        if (ai >= 0 && ai < allAbnormals.length) {
+                            specifyDetails[allAbnormals[ai].key] = String(detail);
+                        }
+                    }
+                } catch { /* ignore malformed specify blob */ }
+            }
+
             const status = selectedAbnormals.length > 0 ? 'abnormal' : 'normal';
-            items[canonBlock.key] = { status, selectedNormals, selectedAbnormals, findings: freeText };
+            items[canonBlock.key] = { status, selectedNormals, selectedAbnormals, specifyDetails, findings: freeText };
         }
     }
 
@@ -435,7 +468,7 @@ function formatItemLineMaster(block: { label: string; findings: MasterPEFinding[
         const allAbnormals = flattenMasterAbnormals(block.findings);
         for (const opt of allAbnormals) {
             if (itemState.selectedAbnormals.includes(opt.key)) {
-                abnormalLabels.push(opt.label);
+                abnormalLabels.push(applySpecify(opt.label, itemState.specifyDetails?.[opt.key]));
             }
         }
     }
