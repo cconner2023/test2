@@ -1,12 +1,9 @@
 // Components/CategoryList.tsx - Updated
-import { useMemo } from 'react'
-import { Check, ShieldCheck, CalendarPlus } from 'lucide-react'
+import { CalendarPlus } from 'lucide-react'
 import type { catDataTypes, subCatDataTypes, SearchResultType } from '../Types/CatTypes'
 import { catData } from '../Data/CatData'
 import { useAppAnimate } from '../Utilities/AnimationConfig'
 import { useNavigationStore } from '../stores/useNavigationStore'
-import { useAlgorithmTraining } from '../Hooks/useAlgorithmTraining'
-import type { AlgorithmTrainingStatus, AlgorithmStpStatus } from '../Hooks/useAlgorithmTraining'
 import { SectionHeader, SectionCard } from './Section'
 
 // Shared shape for guideline-like items (DDX, medcom, stp, gen all have text + optional id)
@@ -14,36 +11,6 @@ export interface GuidelineItemData {
     text?: string
     id?: number
     icon?: string
-}
-
-// Algorithm-level two-tier training summary, shown beside the "STP Training" header.
-// validated tier = all mapped STPs have a supervisor `test` GO; self tier = `read`.
-function AlgorithmTrainingBadge({ training }: { training: AlgorithmTrainingStatus }) {
-    if (training.validated) {
-        return (
-            <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 text-green-600 px-2 py-0.5 text-[8pt] font-semibold">
-                <ShieldCheck className="w-3 h-3" /> Trained
-            </span>
-        )
-    }
-    return (
-        <span className="inline-flex items-center gap-1.5 text-[8pt] text-secondary whitespace-nowrap">
-            <span>Validated {training.validatedDone}/{training.total}</span>
-            <span className="text-tertiary/50">·</span>
-            <span>Read {training.selfDone}/{training.total}</span>
-        </span>
-    )
-}
-
-// Per-STP-row indicator: validated (green shield) > self/read (blue check) > untrained (empty ring).
-function StpStatusIcon({ stat }: { stat: AlgorithmStpStatus }) {
-    if (stat.validated) {
-        return <ShieldCheck className="w-4 h-4 text-green-600 shrink-0 ml-2" />
-    }
-    if (stat.self) {
-        return <Check className="w-4 h-4 text-themeblue3 shrink-0 ml-2" />
-    }
-    return <span className="w-4 h-4 shrink-0 ml-2 rounded-full border border-tertiary/30" />
 }
 
 // Extracted: Symptom header + guideline sections (shared between desktop and mobile)
@@ -65,14 +32,6 @@ export function SymptomGuidelines({
         category: catDataTypes
     ) => SearchResultType
 }) {
-    // Two-tier training status for THIS algorithm (symptom.icon === algorithm id),
-    // keyed by STP task number for per-row lookup.
-    const training = useAlgorithmTraining(symptom.icon)
-    const statusByTask = useMemo(
-        () => new Map(training.perTask.map((t) => [t.taskNumber, t])),
-        [training.perTask]
-    )
-
     // Schedule a future training session for this algorithm: opens the calendar
     // new-event form prefilled as a 'training' event tagged with this algorithm.
     const requestNewCalendarEvent = useNavigationStore((s) => s.requestNewCalendarEvent)
@@ -155,34 +114,27 @@ export function SymptomGuidelines({
                         <div className="mb-2 flex items-center justify-between gap-2 flex-wrap">
                             <SectionHeader>{section.label}</SectionHeader>
                             {isStp && (
-                                <div className="flex items-center gap-2">
-                                    {training.total > 0 && <AlgorithmTrainingBadge training={training} />}
-                                    <button
-                                        onClick={scheduleTraining}
-                                        className="inline-flex items-center gap-1 rounded-full bg-themeblue3 text-white px-2.5 py-1 text-[8pt] font-semibold active:scale-95 transition-all"
-                                    >
-                                        <CalendarPlus className="w-3 h-3" /> Schedule
-                                    </button>
-                                </div>
+                                <button
+                                    onClick={scheduleTraining}
+                                    className="inline-flex items-center gap-1 rounded-full bg-themeblue3 text-white px-2.5 py-1 text-[8pt] font-semibold active:scale-95 transition-all"
+                                >
+                                    <CalendarPlus className="w-3 h-3" /> Schedule
+                                </button>
                             )}
                         </div>
                         <SectionCard>
-                            {section.items.map((item, index) => {
-                                const stat = isStp && item.icon ? statusByTask.get(item.icon) : undefined
-                                return (
-                                    <div
-                                        key={`${section.key}-${item.id || index}`}
-                                        {...(!isDDX ? { onClick: () => onNavigate(guidelineToResult(section.type, item, index, symptom, category)) } : {})}
-                                        className={`flex items-center px-4 py-3.5 text-[10pt] text-tertiary transition-all ${isDDX ? '' : 'cursor-pointer active:scale-95 hover:bg-themeblue2/5'}`}
-                                    >
-                                        {isTraining && item.icon && (
-                                            <span className="text-tertiary mr-1.5 text-[9pt]">{item.icon}</span>
-                                        )}
-                                        <span className="flex-1">{item.text}</span>
-                                        {stat && <StpStatusIcon stat={stat} />}
-                                    </div>
-                                )
-                            })}
+                            {section.items.map((item, index) => (
+                                <div
+                                    key={`${section.key}-${item.id || index}`}
+                                    {...(!isDDX ? { onClick: () => onNavigate(guidelineToResult(section.type, item, index, symptom, category)) } : {})}
+                                    className={`flex items-center px-4 py-3.5 text-[10pt] text-tertiary transition-all ${isDDX ? '' : 'cursor-pointer active:scale-95 hover:bg-themeblue2/5'}`}
+                                >
+                                    {isTraining && item.icon && (
+                                        <span className="text-tertiary mr-1.5 text-[9pt]">{item.icon}</span>
+                                    )}
+                                    <span className="flex-1">{item.text}</span>
+                                </div>
+                            ))}
                         </SectionCard>
                     </div>
                 )
