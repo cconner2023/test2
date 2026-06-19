@@ -1,5 +1,4 @@
 // Components/CategoryList.tsx - Updated
-import { CalendarPlus } from 'lucide-react'
 import type { catDataTypes, subCatDataTypes, SearchResultType } from '../Types/CatTypes'
 import { catData } from '../Data/CatData'
 import { useAppAnimate } from '../Utilities/AnimationConfig'
@@ -32,16 +31,6 @@ export function SymptomGuidelines({
         category: catDataTypes
     ) => SearchResultType
 }) {
-    // Schedule a future training session for this algorithm: opens the calendar
-    // new-event form prefilled as a 'training' event tagged with this algorithm.
-    const requestNewCalendarEvent = useNavigationStore((s) => s.requestNewCalendarEvent)
-    const scheduleTraining = () =>
-        requestNewCalendarEvent({
-            category: 'training',
-            encounterAlgorithmId: symptom.icon,
-            title: `ADTMC ${symptom.icon} — ${symptom.text.trim()}`,
-        })
-
     // General info rendered in the header card
     const genItems = symptom.gen as GuidelineItemData[] | undefined
     const genText = genItems?.filter(item => item.text)
@@ -107,20 +96,11 @@ export function SymptomGuidelines({
             {sections.map((section) => {
                 const isTraining = section.type === 'medcom' || section.type === 'stp'
                 const isDDX = section.type === 'DDX'
-                const isStp = section.type === 'stp'
 
                 return (
                     <div key={section.key}>
-                        <div className="mb-2 flex items-center justify-between gap-2 flex-wrap">
+                        <div className="mb-2">
                             <SectionHeader>{section.label}</SectionHeader>
-                            {isStp && (
-                                <button
-                                    onClick={scheduleTraining}
-                                    className="inline-flex items-center gap-1 rounded-full bg-themeblue3 text-white px-2.5 py-1 text-[8pt] font-semibold active:scale-95 transition-all"
-                                >
-                                    <CalendarPlus className="w-3 h-3" /> Schedule
-                                </button>
-                            )}
                         </div>
                         <SectionCard>
                             {section.items.map((item, index) => (

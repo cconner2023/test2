@@ -14,7 +14,7 @@ import {
 } from '../../../lib/certificationService'
 import { CertOverlayFields } from '../../Certifications/CertOverlayFields'
 import { useIsMobile } from '../../../Hooks/useIsMobile'
-import { formatMedicName, getLatestTestByTask, groupEncounters } from './supervisorHelpers'
+import { formatMedicName, getLatestTestByTask, groupEncounters, buildAlgorithmTrainedStatus } from './supervisorHelpers'
 import { getExpirationStatus, emptyCertForm, type CertFormData } from '../../Certifications/certHelpers'
 import type { FlatTask } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
@@ -238,6 +238,13 @@ export function SoldierProfile({
 
   const encounterGroups = useMemo(() => groupEncounters(encounterEvents), [encounterEvents])
 
+  /** Per-algorithm trained status for this soldier (from their test completions). */
+  const algorithmTrained = useMemo(() => buildAlgorithmTrainedStatus(tests), [tests])
+  const algorithmTrainedCount = useMemo(
+    () => algorithmTrained.filter(a => a.status === 'trained').length,
+    [algorithmTrained],
+  )
+
   const sortedTests = useMemo(() => {
     return [...tests].sort((a, b) => {
       if (a.result !== b.result) return a.result === 'NO_GO' ? -1 : 1
@@ -444,6 +451,35 @@ export function SoldierProfile({
                 </div>
                 <span className="text-[9pt] font-semibold text-themeblue2 bg-themeblue3/10 px-2 py-0.5 rounded-full shrink-0">
                   ×{g.count}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Algorithm Training — trained-or-not per algorithm (distinct from Encounter Log counts) */}
+      <div>
+        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
+          Algorithm Training{algorithmTrained.length > 0 && ` · ${algorithmTrainedCount}/${algorithmTrained.length} trained`}
+        </p>
+        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          {algorithmTrained.length === 0 ? (
+            <p className="text-[10pt] text-tertiary px-4 py-4">No algorithms map to STP tasks</p>
+          ) : (
+            algorithmTrained.map((a, idx) => (
+              <div
+                key={a.id}
+                className={`flex items-center gap-3 px-4 py-3 ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
+              >
+                <span className="text-[9pt] font-bold text-white bg-themeblue3 px-1.5 py-0.5 rounded shrink-0 w-10 text-center">
+                  {a.id}
+                </span>
+                <p className="flex-1 min-w-0 text-sm font-medium text-primary truncate">{a.name}</p>
+                <span className={`text-[9pt] font-semibold shrink-0 ${
+                  a.status === 'trained' ? 'text-themegreen' : a.status === 'partial' ? 'text-themeyellow' : 'text-tertiary'
+                }`}>
+                  {a.status === 'trained' ? 'Trained' : a.status === 'partial' ? `${a.validated}/${a.total} STPs` : 'Untrained'}
                 </span>
               </div>
             ))

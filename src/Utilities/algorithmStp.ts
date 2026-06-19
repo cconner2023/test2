@@ -29,3 +29,34 @@ export function getAlgorithmStpTasks(algorithmId: string): subjectAreaArrayOptio
 export function getAlgorithmStpTaskNumbers(algorithmId: string): string[] {
   return getAlgorithmStpTasks(algorithmId).map((t) => t.icon)
 }
+
+export interface AlgorithmStpEntry {
+  /** Algorithm id (e.g. "A-1"). */
+  id: string
+  /** Display name (the algorithm's `text`). */
+  name: string
+  /** Mapped STP task numbers. */
+  taskNumbers: string[]
+}
+
+/**
+ * Every algorithm that maps to at least one STP task, in catData render order.
+ * Deduped by id (first occurrence wins, matching getAlgorithmStpTasks' find).
+ * Used by supervisor surfaces to show trained-or-not per algorithm.
+ */
+export function listAlgorithmsWithStp(): AlgorithmStpEntry[] {
+  const out: AlgorithmStpEntry[] = []
+  const seen = new Set<string>()
+  for (const category of catData) {
+    for (const c of category.contents) {
+      if (seen.has(c.icon)) continue
+      const taskNumbers = (c.stp as subjectAreaArrayOptions[] | undefined)
+        ?.filter(Boolean)
+        .map((t) => t.icon) ?? []
+      if (taskNumbers.length === 0) continue
+      seen.add(c.icon)
+      out.push({ id: c.icon, name: (c.text ?? '').trim() || c.icon, taskNumbers })
+    }
+  }
+  return out
+}

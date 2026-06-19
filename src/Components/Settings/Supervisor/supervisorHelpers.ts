@@ -6,6 +6,7 @@ import type { TrainingCompletionUI } from '../../../lib/trainingService'
 import type { Certification } from '../../../Data/User'
 import type { CalendarEvent } from '../../../Types/CalendarTypes'
 import { getExpirationStatus } from '../../Certifications/certHelpers'
+import { listAlgorithmsWithStp } from '../../../Utilities/algorithmStp'
 
 // ─── Encounter Log (algorithm completions) ───────────────────────────────────
 // Algorithm "log to calendar" writes a calendar event tagged with
@@ -62,6 +63,46 @@ export function groupEncounters(events: CalendarEvent[]): EncounterGroup[] {
     }
   }
   return Array.from(byAlgo.values()).sort((a, b) => b.lastAt.localeCompare(a.lastAt))
+}
+
+// ─── Algorithm Trained Status ────────────────────────────────────────────────
+// Distinct from the Encounter Log (which counts how often an algorithm was LOGGED).
+// "Trained" = the soldier has a supervisor `test` completion with result GO for
+// every STP the algorithm maps to (the validated tier; same signal the medic-side
+// useAlgorithmTraining hook derives, but computed here for ANY soldier's tests).
+
+export type AlgorithmTrainedLevel = 'trained' | 'partial' | 'untrained'
+
+export interface AlgorithmTrainedStatus {
+  id: string
+  name: string
+  /** Mapped STP count. */
+  total: number
+  /** Mapped STPs with a latest `test` GO. */
+  validated: number
+  status: AlgorithmTrainedLevel
+}
+
+/**
+ * Per-algorithm trained status for one soldier, derived from their test
+ * completions. Covers every algorithm that maps to STPs (incl. never-logged).
+ * Sorted trained → partial → untrained, then by name.
+ */
+export function buildAlgorithmTrainedStatus(
+  tests: TrainingCompletionUI[]
+): AlgorithmTrainedStatus[] {
+  const latestByTask = getLatestTestByTask(tests)
+  const rows = listAlgorithmsWithStp().map((a): AlgorithmTrainedStatus => {
+    const validated = a.taskNumbers.filter(
+      (tn) => latestByTask.get(tn)?.result === 'GO'
+    ).length
+    const total = a.taskNumbers.length
+    const status: AlgorithmTrainedLevel =
+      validated >= total ? 'trained' : validated > 0 ? 'partial' : 'untrained'
+    return { id: a.id, name: a.name, total, validated, status }
+  })
+  const order: Record<AlgorithmTrainedLevel, number> = { trained: 0, partial: 1, untrained: 2 }
+  return rows.sort((a, b) => order[a.status] - order[b.status] || a.name.localeCompare(b.name))
 }
 
 // ─── Name Formatting ─────────────────────────────────────────────────────────
