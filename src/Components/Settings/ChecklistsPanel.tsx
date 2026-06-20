@@ -2,8 +2,7 @@ import { useMemo } from 'react';
 import { useAuth } from '../../Hooks/useAuth';
 import { useClinicPreCombatChecks } from '../../Hooks/useClinicPreCombatChecks';
 import { useClinicPropertyPickers } from '../../Hooks/useClinicPropertyPickers';
-import { ActionPill } from '../ActionPill';
-import { CsvActionsMenu } from './CsvActionsMenu';
+import { useCsvActionsItems } from './CsvActionsMenu';
 import { exportChecklistsCSV } from '../../Utilities/noteBlocksCSV';
 import { PreCombatChecksSection } from '../Calendar/PreCombatChecksSection';
 
@@ -22,23 +21,21 @@ export const ChecklistsPanel = () => {
     const itemNameById = useMemo(() => new Map(items.map(p => [p.id, p.name])), [items]);
     const locationNameById = useMemo(() => new Map(locations.map(p => [p.id, p.name])), [locations]);
 
+    const { items: csvItems, importDrawer } = useCsvActionsItems({
+        kind: 'checklists',
+        hasData: checklists.length > 0,
+        onExportCsv: () => exportChecklistsCSV(checklists, itemNameById, locationNameById),
+    });
+
     return (
         <div className="h-full overflow-y-auto">
             <div className="px-5 pb-4 space-y-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
-                <div className="flex items-start gap-3">
-                    <p className="flex-1 text-[10pt] text-tertiary leading-relaxed">
-                        Reusable checklists supervisors can attach to calendar events.
-                    </p>
-                    <ActionPill shadow="sm">
-                        <CsvActionsMenu
-                            kind="checklists"
-                            hasData={checklists.length > 0}
-                            onExportCsv={() => exportChecklistsCSV(checklists, itemNameById, locationNameById)}
-                        />
-                    </ActionPill>
-                </div>
-                <PreCombatChecksSection />
+                <p className="text-[10pt] text-tertiary leading-relaxed">
+                    Reusable checklists supervisors can attach to calendar events.
+                </p>
+                <PreCombatChecksSection cornerItems={csvItems} />
             </div>
+            {importDrawer}
         </div>
     );
 };

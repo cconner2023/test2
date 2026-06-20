@@ -159,17 +159,19 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         label: 'Ears',
         findings: [
         { key: 'pinnaNormalNontender', normal: 'Pinna normal, nontender', abnormals: [{ key: 'pinnaTenderness', label: 'Pinna tenderness' }, { key: 'tragalTenderness', label: 'Tragal tenderness' }], tier: 'baseline' },
-        { key: 'mastoidNontender', normal: 'Mastoid nontender', abnormals: [{ key: 'mastoidTtp', label: 'Mastoid TTP' }], tier: 'baseline' },
+        { key: 'mastoidNontender', normal: 'Mastoid nontender', abnormals: [{ key: 'mastoidTtp', label: 'Mastoid TTP' }, { key: 'mastoidErythema', label: 'Mastoid erythema' }], tier: 'baseline' },
         { key: 'eacClear', normal: 'EAC clear', abnormals: [
                 { key: 'eacErythema', label: 'EAC erythema' },
                 { key: 'canalEdema', label: 'Canal edema' },
                 { key: 'cerumenImpaction', label: 'Cerumen impaction' },
+                { key: 'eacForeignBody', label: 'Foreign body' },
             ], tier: 'baseline' },
         { key: 'tmIntact', normal: 'TM intact', abnormals: [
                 { key: 'tmErythema', label: 'TM erythema' },
                 { key: 'tmBulging', label: 'TM bulging' },
                 { key: 'tmPerforation', label: 'TM perforation' },
                 { key: 'tmEffusion', label: 'TM effusion' },
+                { key: 'tmOpacification', label: 'TM opacification' },
             ], tier: 'expanded' },
         { key: 'normalLightReflex', normal: 'Normal light reflex', abnormals: [{ key: 'landmarksDistorted', label: 'Landmarks distorted' }], tier: 'expanded' },
         { key: 'tmMobile', normal: 'TM mobile', abnormals: [{ key: 'tmImmobile', label: 'TM immobile' }], tier: 'expanded' },
@@ -182,7 +184,7 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         key: 'nose',
         label: 'Nose',
         findings: [
-        { key: 'noExternalDeformities', normal: 'No external deformities', abnormals: [], tier: 'baseline' },
+        { key: 'noExternalDeformities', normal: 'No external deformities', abnormals: [{ key: 'externalNasalDeformity', label: 'External deformity' }], tier: 'baseline' },
         { key: 'noNasalDischarge', normal: 'No nasal discharge', abnormals: [
                 { key: 'purulentDischarge', label: 'Purulent discharge' },
                 { key: 'clearRhinorrhea', label: 'Clear rhinorrhea' },

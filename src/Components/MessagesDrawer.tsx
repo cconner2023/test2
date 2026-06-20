@@ -7,6 +7,7 @@ import { HeaderPill, PillButton } from './HeaderPill'
 import { PreviewOverlay } from './PreviewOverlay'
 import { VoicemailGreetingSection } from './Settings/VoicemailGreetingSection'
 import { MessagingOncallSettings } from './Settings/MessagingOncallSettings'
+import { SwipeActionsSection } from './Settings/SwipeActionsSection'
 import { MessagesPanel, type MessagesView, type MessagesPanelHandle, type MessagingLens } from './Settings/MessagesPanel'
 import { useMessagesContext } from '../Hooks/MessagesContext'
 import { useAuth } from '../Hooks/useAuth'
@@ -217,6 +218,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
         >
             <div className="px-5 py-4 max-h-[70vh] overflow-y-auto space-y-6">
                 <MessagingOncallSettings />
+                <SwipeActionsSection />
                 <VoicemailGreetingSection />
             </div>
         </PreviewOverlay>

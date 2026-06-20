@@ -76,7 +76,10 @@ async function sendDeliveryReceipt(
 interface UseSignalMessagesOptions {
   userId: string | null
   localDeviceId: string | null
+  /** Primary/home clinic. */
   clinicId: string | null
+  /** Loan (surrogate) clinics. Realtime + catch-up cover home ∪ these. */
+  surrogateClinicIds: string[]
   clinicDeviceId: string | null
   /** Dev-only: subscribe to SYSTEM-recipient rows and kick `drainSystemInbox`. */
   isDevRole: boolean
@@ -507,6 +510,7 @@ export function useSignalMessages({
   userId,
   localDeviceId,
   clinicId,
+  surrogateClinicIds,
   clinicDeviceId,
   isDevRole,
   isAuthenticated,
@@ -535,10 +539,20 @@ export function useSignalMessages({
     userIdRef.current = userId
   }, [userId])
 
-  const clinicIdRef = useRef(clinicId)
+  // All clinics this device belongs to (home ∪ loans), deduped. Keyed by a
+  // joined string so the memo identity is stable across renders when the set is
+  // unchanged — otherwise a fresh surrogateClinicIds array each render would
+  // churn the realtime subscription.
+  const surrogateKey = surrogateClinicIds.join(',')
+  const clinicIds = useMemo(
+    () => Array.from(new Set([clinicId, ...surrogateClinicIds].filter((x): x is string => !!x))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [clinicId, surrogateKey],
+  )
+  const clinicIdsRef = useRef(clinicIds)
   useEffect(() => {
-    clinicIdRef.current = clinicId
-  }, [clinicId])
+    clinicIdsRef.current = clinicIds
+  }, [clinicIds])
 
   const clinicDeviceIdRef = useRef(clinicDeviceId)
   useEffect(() => {
@@ -713,45 +727,53 @@ export function useSignalMessages({
     })()
   }, [isAuthenticated, userId, localDeviceId, catchUpTrigger])
 
-  // Clinic device offline catch-up: fetch unread messages for this clinic device
+  // Clinic device offline catch-up: drain unread messages for EVERY clinic the
+  // user belongs to (home ∪ loans). Each clinic's inbox is addressed to the same
+  // clinicDeviceId; only recipient_id (the clinic) differs, so fetch per clinic
+  // and decrypt with that clinic's id. Delta-only (fetchUnread = read_at IS NULL,
+  // within horizon, then marked read), so re-firing stays egress-bounded.
   useEffect(() => {
-    if (!isAuthenticated || !userId || !clinicId || !clinicDeviceId || clinicCatchUpDone.current) return
+    if (!isAuthenticated || !userId || clinicIds.length === 0 || !clinicDeviceId || clinicCatchUpDone.current) return
 
     ;(async () => {
-      const result = await fetchUnreadMessages(clinicId, clinicDeviceId)
-      if (!result.ok) {
-        logger.warn('Clinic catch-up failed:', result.error)
-        return
-      }
+      const results = await Promise.all(
+        clinicIds.map(cId => fetchUnreadMessages(cId, clinicDeviceId).then(r => ({ cId, r }))),
+      )
 
-      // Mark done only after a successful fetch so transient failures retry.
-      clinicCatchUpDone.current = true
-
-      logger.info(`Clinic catch-up: ${result.data.length} unread messages`)
+      // Mark done only when every clinic drained cleanly — a partial failure
+      // leaves the flag false so the next trigger retries the failed clinic(s).
+      // The succeeded clinics still process below; their rows get marked read, so
+      // the retry re-fetches only the genuinely-missing delta.
+      if (results.every(({ r }) => r.ok)) clinicCatchUpDone.current = true
+      else logger.warn('Clinic catch-up: one or more clinics failed; will retry on next trigger')
 
       const processedRowIds: string[] = []
 
-      for (const row of result.data) {
-        if (processedIds.current.has(row.id)) continue
-        trackProcessed(row.id)
-        try {
-          const envelope = row.payload as unknown as import('../lib/signal/sealedSender').SealedEnvelope
-          const senderDeviceId = row.sender_device_id ?? 'unknown'
-          const { plaintext: rawPlaintext } = await processClinicIncomingMessage(
-            senderDeviceId, envelope, clinicId
-          )
-          processedRowIds.push(row.id)
-          const { plaintext, content } = parseMessageContent(rawPlaintext)
-          if (isCalendarEvent(content)) {
-            routeCalendarEvent(content)
-          } else if (isMapOverlay(content)) {
-            // Serial await — overlay/feature routes share a single IDB row under RMW.
-            await routeMapOverlay(content).catch(() => {})
-          } else if (isMapFeature(content)) {
-            await routeMapFeature(content).catch(() => {})
+      for (const { cId, r } of results) {
+        if (!r.ok) continue
+        logger.info(`Clinic catch-up ${cId}: ${r.data.length} unread messages`)
+        for (const row of r.data) {
+          if (processedIds.current.has(row.id)) continue
+          trackProcessed(row.id)
+          try {
+            const envelope = row.payload as unknown as import('../lib/signal/sealedSender').SealedEnvelope
+            const senderDeviceId = row.sender_device_id ?? 'unknown'
+            const { plaintext: rawPlaintext } = await processClinicIncomingMessage(
+              senderDeviceId, envelope, cId
+            )
+            processedRowIds.push(row.id)
+            const { content } = parseMessageContent(rawPlaintext)
+            if (isCalendarEvent(content)) {
+              routeCalendarEvent(content)
+            } else if (isMapOverlay(content)) {
+              // Serial await — overlay/feature routes share a single IDB row under RMW.
+              await routeMapOverlay(content).catch(() => {})
+            } else if (isMapFeature(content)) {
+              await routeMapFeature(content).catch(() => {})
+            }
+          } catch (e) {
+            logger.warn(`Failed to decrypt clinic message ${row.id}:`, e instanceof Error ? e.message : e)
           }
-        } catch (e) {
-          logger.warn(`Failed to decrypt clinic message ${row.id}:`, e instanceof Error ? e.message : e)
         }
       }
 
@@ -759,7 +781,7 @@ export function useSignalMessages({
         markMessagesRead(processedRowIds).catch(() => {})
       }
     })()
-  }, [isAuthenticated, userId, clinicId, clinicDeviceId, catchUpTrigger])
+  }, [isAuthenticated, userId, clinicIds, clinicDeviceId, catchUpTrigger])
 
   // LoRa push subscription — process messages arriving via LoRa mesh
   useEffect(() => {
@@ -930,8 +952,14 @@ export function useSignalMessages({
 
       const row = payload.new as SignalMessageRow
       const myClinicDeviceId = clinicDeviceIdRef.current
-      const myClinicId = clinicIdRef.current
-      if (!myClinicId || !myClinicDeviceId) return
+      if (!myClinicDeviceId) return
+
+      // The clinic this row was addressed to (home or a loan). The eq/in filter
+      // already scopes recipient_id to our clinics; re-check defensively and use
+      // THIS clinic's id to decrypt — never the primary, or a loan message would
+      // decrypt under the wrong clinic session.
+      const rowClinicId = row.recipient_id
+      if (!rowClinicId || !clinicIdsRef.current.includes(rowClinicId)) return
 
       // Only process messages for this clinic device
       if (row.recipient_device_id && row.recipient_device_id !== myClinicDeviceId) return
@@ -944,7 +972,7 @@ export function useSignalMessages({
           const envelope = row.payload as unknown as SealedEnvelope
           const senderDeviceId = row.sender_device_id ?? 'unknown'
           const { plaintext: rawPlaintext } = await processClinicIncomingMessage(
-            senderDeviceId, envelope, myClinicId
+            senderDeviceId, envelope, rowClinicId
           )
           const { content } = parseMessageContent(rawPlaintext)
           if (isCalendarEvent(content)) {
@@ -967,15 +995,20 @@ export function useSignalMessages({
   const clinicPostgresFilter = useMemo(
     () => ({
       table: 'signal_messages',
-      filter: `recipient_id=eq.${clinicId}`,
+      // One clinic → proven eq path (the common case). Home + loans → in.(...) so
+      // a single subscription covers every clinic the user belongs to. (Realtime
+      // postgres_changes supports the `in` filter.)
+      filter: clinicIds.length === 1
+        ? `recipient_id=eq.${clinicIds[0]}`
+        : `recipient_id=in.(${clinicIds.join(',')})`,
       event: 'INSERT' as const,
     }),
-    [clinicId],
+    [clinicIds],
   )
 
   useSupabaseSubscription<SignalMessageRow>({
-    shouldSubscribe: isAuthenticated && !!clinicId && !!clinicDeviceId && isPageVisible,
-    channelName: `clinic-signal:${clinicId}`,
+    shouldSubscribe: isAuthenticated && clinicIds.length > 0 && !!clinicDeviceId && isPageVisible,
+    channelName: `clinic-signal:${clinicIds.join('-')}`,
     postgresFilter: clinicPostgresFilter,
     onPayload: handleClinicPayload,
     logger,

@@ -2,14 +2,11 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { profileAvatars } from '../Data/ProfileAvatars';
 import type { ProfileAvatar } from '../Data/ProfileAvatars';
 import { supabase } from '../lib/supabase';
-import { usePageVisibility } from './usePageVisibility';
-import { useSupabaseSubscription } from './useSupabaseSubscription';
+import { useAuthStore } from '../stores/useAuthStore';
 import { createLogger } from '../Utilities/Logger';
-import type { AvatarBlob } from '../Types/SupervisorTestTypes';
 import {
     saveOwnAvatarBlob,
     clearOwnAvatarBlob,
-    fetchOwnAvatarBlob,
     decryptAvatarToUrl,
     seedAvatarCache,
 } from '../lib/avatarBlobService';
@@ -87,14 +84,26 @@ export function resizeImage(file: File, maxSize = 160): Promise<string> {
 }
 
 /**
- * Manages profile avatar selection, custom image upload, localStorage persistence,
- * and cross-device sync via Supabase realtime.
+ * Manages the signed-in user's avatar: selection, custom-image upload/encryption,
+ * and localStorage persistence. Cross-device sync is now sourced from the profile
+ * cache (PROFILE_SELECT pulls avatar_id/avatar_blob; useProfileRealtime applies
+ * live deltas) — this hook no longer owns a Supabase fetch or realtime channel.
+ * Self-only: localStorage keys are device-global, so `userId` is the signed-in
+ * user (also the cache-seed key), not an arbitrary profile.
  */
 export function useProfileAvatar(userId?: string) {
     const [avatarId, setAvatarId] = useState<string>(loadAvatarId);
     const [customImage, setCustomImageState] = useState<string | null>(loadCustomImage);
-    const hasSyncedRef = useRef<string | null>(null);
-    const isPageVisible = usePageVisibility();
+    const pushedRef = useRef(false);
+    const lastBlobKeyRef = useRef<string | null>(null);
+
+    // Avatar now lives on the profile cache: PROFILE_SELECT pulls avatar_id /
+    // avatar_blob and useProfileRealtime applies cross-device deltas. This hook
+    // reads from the store instead of owning a Supabase fetch + realtime channel
+    // (the channel moved to useProfileRealtime; owning it here, mounted twice,
+    // was the duplicate-topic "binding mismatch" source).
+    const storeAvatarId = useAuthStore(s => s.profile.avatarId);
+    const storeAvatarBlob = useAuthStore(s => s.profile.avatarBlob);
 
     const isCustom = avatarId === 'custom' && customImage !== null;
     const isInitials = avatarId === 'initials';
@@ -110,98 +119,53 @@ export function useProfileAvatar(userId?: string) {
         }
     }, [userId, customImage, avatarId]);
 
-    // On login, fetch avatar_id from Supabase and apply it (once per userId)
+    // Adopt the avatar from the profile cache whenever it resolves or changes
+    // cross-device. storeAvatarId is undefined until the profile loads, null when
+    // nothing is set remotely, else a valid id. The single profiles-row sub
+    // (useProfileRealtime) feeds cross-device deltas here; the login fetch lands
+    // via PROFILE_SELECT. No per-hook fetch or channel anymore.
     useEffect(() => {
-        if (!userId || hasSyncedRef.current === userId) return;
-        hasSyncedRef.current = userId;
-
-        supabase
-            .from('profiles')
-            .select('avatar_id, avatar_blob')
-            .eq('id', userId)
-            .single()
-            .then(({ data }) => {
-                const remoteId = data?.avatar_id;
-                if (!remoteId) {
-                    // No avatar saved remotely yet — push the local one up. A local
-                    // custom photo persists its encrypted blob; everything else is
-                    // just the avatar_id string.
-                    if (avatarId === 'custom' && customImage) {
-                        void saveOwnAvatarBlob(customImage);
-                    } else {
-                        syncAvatarToSupabase(userId, avatarId);
-                    }
-                    return;
-                }
-                // Custom photo: adopt 'custom' and rehydrate the image from the
-                // encrypted blob when this device has none (e.g. a fresh device).
-                if (remoteId === 'custom') {
-                    setAvatarId('custom');
-                    try { localStorage.setItem(STORAGE_KEY, 'custom'); } catch { /* */ }
-                    const blob = (data?.avatar_blob as AvatarBlob | null | undefined) ?? null;
-                    if (customImage) {
-                        seedAvatarCache(`user:${userId}`, customImage);
-                    } else if (blob) {
-                        decryptAvatarToUrl(blob).then(url => {
-                            if (!url) return;
-                            setCustomImageState(url);
-                            try { localStorage.setItem(CUSTOM_IMAGE_KEY, url); } catch { /* */ }
-                            seedAvatarCache(`user:${userId}`, url);
-                        });
-                    }
-                    return;
-                }
-                // Apply remote avatar if it's a valid pre-made avatar or 'initials'
-                if (remoteId === 'initials' || profileAvatars.some(a => a.id === remoteId)) {
-                    setAvatarId(remoteId);
-                    try { localStorage.setItem(STORAGE_KEY, remoteId); } catch { /* */ }
-                }
-            });
-    }, [userId, avatarId]);
-
-    // Realtime: subscribe to avatar_id changes on the user's own profile row
-    // so that changing avatar on one device updates all other logged-in devices.
-    // Pauses when the page is backgrounded to reduce battery drain.
-    useSupabaseSubscription<{ avatar_id: string | null; avatar_blob?: AvatarBlob | null }>({
-        shouldSubscribe: !!userId && isPageVisible,
-        channelName: `profile-avatar:${userId ?? ''}`,
-        postgresFilter: { table: 'profiles', filter: `id=eq.${userId}` },
-        onPayload: (payload) => {
-            if (payload.eventType !== 'UPDATE') return;
-            const newRow = payload.new as { avatar_id: string | null; avatar_blob?: AvatarBlob | null };
-            const remoteId = newRow.avatar_id;
-            if (!remoteId) return;
-
-            // Only apply if it differs from the current local state
-            // Accept 'initials' as a valid remote avatar value
-            setAvatarId(prev => {
-                if (prev === remoteId) return prev;
-                if (remoteId !== 'initials' && remoteId !== 'custom' && !profileAvatars.some(a => a.id === remoteId)) return prev;
-                try { localStorage.setItem(STORAGE_KEY, remoteId); } catch { /* */ }
-                // If switching away from custom, clear the custom image locally
-                if (remoteId !== 'custom') {
-                    try { localStorage.removeItem(CUSTOM_IMAGE_KEY); } catch { /* */ }
-                    setCustomImageState(null);
-                }
-                return remoteId;
-            });
-
-            // Custom photo set/changed on another device — decrypt the new blob
-            // (carried inline on the realtime row; fall back to a fetch) and adopt it.
-            if (remoteId === 'custom') {
-                const apply = (url: string | null) => {
+        if (storeAvatarId === undefined || storeAvatarId === null) return;
+        setAvatarId(prev => {
+            if (prev === storeAvatarId) return prev;
+            if (storeAvatarId !== 'initials' && storeAvatarId !== 'custom' && !profileAvatars.some(a => a.id === storeAvatarId)) return prev;
+            try { localStorage.setItem(STORAGE_KEY, storeAvatarId); } catch { /* */ }
+            if (storeAvatarId !== 'custom') {
+                try { localStorage.removeItem(CUSTOM_IMAGE_KEY); } catch { /* */ }
+                setCustomImageState(null);
+            }
+            return storeAvatarId;
+        });
+        // Custom photo set/changed elsewhere — decrypt the cached blob when it's
+        // new (keyed by blob content so a cross-device photo change is picked up,
+        // and the same blob is never re-decrypted in a loop).
+        if (storeAvatarId === 'custom' && storeAvatarBlob) {
+            const blobKey = JSON.stringify(storeAvatarBlob);
+            // Decrypt when the blob is new/changed, OR when we're on 'custom' with
+            // no local image (covers custom→initials→same-custom, where the key is
+            // unchanged but the image was cleared).
+            if (lastBlobKeyRef.current !== blobKey || !customImage) {
+                lastBlobKeyRef.current = blobKey;
+                void decryptAvatarToUrl(storeAvatarBlob).then(url => {
                     if (!url) return;
                     setCustomImageState(url);
                     try { localStorage.setItem(CUSTOM_IMAGE_KEY, url); } catch { /* */ }
                     if (userId) seedAvatarCache(`user:${userId}`, url);
-                };
-                const blob = newRow.avatar_blob ?? null;
-                if (blob) void decryptAvatarToUrl(blob).then(apply);
-                else void fetchOwnAvatarBlob().then(b => { if (b) void decryptAvatarToUrl(b).then(apply); });
+                });
             }
-        },
-        logger,
-    });
+        }
+    }, [storeAvatarId, storeAvatarBlob, userId, customImage]);
+
+    // First login with nothing saved remotely: push this device's local choice
+    // up once (mirrors the old fetch effect's null-remote branch).
+    useEffect(() => {
+        if (!userId || pushedRef.current || storeAvatarId === undefined) return;
+        pushedRef.current = true;
+        if (storeAvatarId === null) {
+            if (avatarId === 'custom' && customImage) void saveOwnAvatarBlob(customImage);
+            else if (avatarId !== 'initials') syncAvatarToSupabase(userId, avatarId);
+        }
+    }, [userId, storeAvatarId, avatarId, customImage]);
 
     const setAvatar = useCallback((id: string) => {
         setAvatarId(id);

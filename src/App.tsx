@@ -31,6 +31,7 @@ import type { MedevacRequest } from './Types/MedevacTypes'
 import { useBarcodeImport } from './Hooks/useBarcodeImport'
 import { ImportResultPopover } from './Components/ImportResultPopover'
 import { useProfileAvatar } from './Hooks/useProfileAvatar'
+import { useProfileRealtime } from './Hooks/useProfileRealtime'
 import { useAuth } from './Hooks/useAuth'
 import { useAuthStore } from './stores/useAuthStore'
 import { LockGate } from './Components/LockGate'
@@ -87,6 +88,9 @@ function AppContent() {
   const navigation = useNavigation()
   const search = useSearch()
   const { user } = useAuth()
+  // Single owner of live profile sync (avatar deltas + role/clinic refresh).
+  // Mounted once here so useProfileAvatar no longer opens its own channel.
+  useProfileRealtime(user?.id)
   const avatarState = useProfileAvatar(user?.id)
   const tc3Mode = useAuthStore((s) => s.profile.tc3Mode) ?? false
   const showTC3Export = useTC3Store((s) => s.showExport)

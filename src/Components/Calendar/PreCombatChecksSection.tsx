@@ -11,10 +11,12 @@ import {
 import { patchClinicConfig } from '../../Hooks/useClinicConfig'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
+import { OverlayActionMenu } from '../OverlayActionMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { ErrorPill } from '../ErrorPill'
 import { PreviewOverlay, type ContextMenuAction } from '../PreviewOverlay'
 import { TextInput } from '../FormInputs'
+import type { ContextMenuItem } from '../ContextMenu'
 
 type ItemKind = PCCItem['kind']
 
@@ -30,9 +32,17 @@ interface PCCEditorState {
   anchor: DOMRect
 }
 
-export function PreCombatChecksSection() {
-  const { clinicId: assignedClinicId, supervisingClinicId, isSupervisorRole } = useAuth()
-  const canEditTemplates = isSupervisorRole
+interface PreCombatChecksSectionProps {
+  /** Extra corner actions (e.g. CSV import/export) folded into the single
+   *  consolidated corner ⋯ alongside the New checklist action this section owns. */
+  cornerItems?: ContextMenuItem[]
+}
+
+export function PreCombatChecksSection({ cornerItems }: PreCombatChecksSectionProps = {}) {
+  // No role gate here — the sole entry (Settings → App Content → Checklists) is
+  // already supervisor/dev-gated (NoteContentPanel canSeeChecklists). One blocker,
+  // not two: this section assumes whoever reached it may edit.
+  const { clinicId: assignedClinicId, supervisingClinicId } = useAuth()
   const clinicId = supervisingClinicId ?? assignedClinicId
   const templates = useClinicPreCombatChecks(clinicId)
   const { items: propertyItems, locations: propertyLocations } = useClinicPropertyPickers(clinicId)
@@ -189,9 +199,8 @@ export function PreCombatChecksSection() {
                     <button
                       key={tpl.id}
                       type="button"
-                      onClick={(e) => canEditTemplates && openEdit(tpl, e.currentTarget)}
-                      disabled={!canEditTemplates}
-                      className="w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left hover:bg-secondary/5 active:scale-95 disabled:active:scale-100 transition-all"
+                      onClick={(e) => openEdit(tpl, e.currentTarget)}
+                      className="w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left hover:bg-secondary/5 active:scale-95 transition-all"
                     >
                       <div className="w-8 h-8 rounded-full flex items-center justify-center bg-tertiary/10 shrink-0">
                         <ClipboardCheck size={14} className="text-tertiary" />
@@ -206,11 +215,14 @@ export function PreCombatChecksSection() {
               )}
             </div>
           </div>
-          {canEditTemplates && (
-            <ActionPill ref={fabRef} shadow="sm" placement="overlay">
-              <ActionButton icon={Plus} label="New checklist" onClick={openNew} />
-            </ActionPill>
-          )}
+          <OverlayActionMenu
+            ref={fabRef}
+            shadow="sm"
+            items={[
+              { key: 'new', label: 'New checklist', icon: Plus, onAction: openNew },
+              ...(cornerItems ?? []),
+            ]}
+          />
         </div>
       </section>
 

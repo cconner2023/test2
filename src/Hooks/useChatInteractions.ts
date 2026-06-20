@@ -24,7 +24,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import type { DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
-import type { SwipeAction } from '../Components/Settings/MessageBubble'
+import type { SwipeAction } from '../Utilities/swipeActions'
 
 export interface PendingDelete {
   peerId: string
@@ -254,12 +254,20 @@ export function useChatInteractions({
 
   const closePendingDelete = useCallback(() => setPendingDelete(null), [])
 
-  // ── Swipe action handler (Gmail-style: right=reply, left=delete) ──
+  // ── Swipe action handler ──
+  // Fires the immediate-action bindings (reply / forward / delete). The `menu`
+  // and `off` bindings never reach here — `menu` is routed through onLongPress
+  // (opens the lifted-clone context menu) and `off` is a no-op, both resolved in
+  // MessageBubble. Direction→action mapping is the user's swipeActions pref.
   const handleSwipeAction = useCallback((msg: DecryptedSignalMessage, action: SwipeAction) => {
     switch (action) {
       case 'reply':
         setReplyingTo(msg)
         inputRef.current?.focus()
+        break
+      case 'forward':
+        setForwardingMessage(msg)
+        setShowForwardPicker(true)
         break
       case 'delete':
         if (msg.senderId === userId) {

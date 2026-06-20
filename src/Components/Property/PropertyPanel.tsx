@@ -15,7 +15,7 @@ import { PropertyItemForm, type PropertyItemFormHandle } from './PropertyItemFor
 import { PropertyLocationMap, type MapNavHandle } from './PropertyLocationMap'
 import { isStructuralZone } from './levelUtils'
 import { Sheet } from '../Sheet'
-import { LoadingSpinner } from '../LoadingSpinner'
+import { LoadingOverlay } from '../LoadingOverlay'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useClinicName } from '../../Hooks/useClinicNameResolver'
 import type { LocalPropertyItem, LocalPropertyLocation } from '../../Types/PropertyTypes'
@@ -260,14 +260,6 @@ export const PropertyPanel = memo(function PropertyPanel({
     setPendingDeleteLocId(null)
   }, [pendingDeleteLocId, store, selectedLocationId])
 
-  if (showLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <LoadingSpinner className="text-tertiary" />
-      </div>
-    )
-  }
-
   // The canvas/zone "map" — the single navigation surface, mirrored from the map
   // overlay shell. Center pane on desktop, full-screen on mobile. onSelectZone is
   // wired on BOTH platforms so the inline canvas popover is always suppressed; the
@@ -373,6 +365,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           <div className="flex-1 min-w-0 relative">
             {mapEl}
             {addFab}
+            <LoadingOverlay visible={showLoading} />
           </div>
 
           <div className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-all duration-300 relative ${
@@ -565,6 +558,7 @@ export const PropertyPanel = memo(function PropertyPanel({
       <div data-tour="property-locations" className="h-full relative">
         {mapEl}
         {addFab}
+        <LoadingOverlay visible={showLoading} />
         {/* Search results page — mirrors the map overlay's MapSearchOverlay:
             focusing the header search reveals this over the full-screen canvas. */}
         <PropertySearchOverlay

@@ -39,6 +39,7 @@ import { registerSessionCleanup, updateCleanupToken, updateCleanupDeviceId, upda
 import { attemptSilentRestore } from '../lib/sessionRestore'
 import type { User } from '@supabase/supabase-js'
 import type { UserTypes, TextExpander } from '../Data/User'
+import type { AvatarBlob } from '../Types/SupervisorTestTypes'
 import type { DeviceRole } from '../lib/signal/transportTypes'
 
 const STORAGE_KEY = 'adtmc_user_profile'
@@ -238,7 +239,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   // Disambiguate the embedded clinic relation by FK name — profiles now has
   // two FKs to clinics (clinic_id + surrogate_clinic_id) and PostgREST
   // refuses to resolve `clinics(name)` when multiple FKs target the same table.
-  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, surrogate_clinic_id, clinic:clinics!profiles_clinic_id_fkey(name), pin_hash, pin_salt, notify_dev_alerts, notify_calendar_assignments, text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets, needs_password_setup, favorite_medications, provider_note_templates, overview_widgets, theme'
+  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, surrogate_clinic_id, clinic:clinics!profiles_clinic_id_fkey(name), pin_hash, pin_salt, notify_dev_alerts, notify_calendar_assignments, text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets, needs_password_setup, favorite_medications, provider_note_templates, overview_widgets, theme, swipe_actions, avatar_id, avatar_blob'
   const { data, error: fetchError } = await supabase
     .from('profiles')
     .select(PROFILE_SELECT)
@@ -262,6 +263,10 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     profile.rank = data.rank ?? undefined
     profile.uic = data.uic ?? undefined
     profile.clinicName = clinicRow?.name ?? undefined
+    // Avatar lives on the same row. Map with ?? null (not undefined) so a loaded
+    // profile with no avatar is distinguishable from "not loaded yet" (undefined).
+    profile.avatarId = ((data as Record<string, unknown>).avatar_id as string | null) ?? null
+    profile.avatarBlob = ((data as Record<string, unknown>).avatar_blob as AvatarBlob | null) ?? null
 
     // Resolve all active loan clinics in one join select on the new table.
     // Falls back to the legacy single-slot profiles.surrogate_clinic_id if the
@@ -314,6 +319,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     if (sec.provider_note_templates != null) profile.providerNoteTemplates = sec.provider_note_templates as UserTypes['providerNoteTemplates']
     if ('overview_widgets' in sec) profile.overviewWidgets = sec.overview_widgets as UserTypes['overviewWidgets']
     if (typeof sec.theme === 'string') profile.theme = sec.theme
+    if (sec.swipe_actions != null) profile.swipeActions = sec.swipe_actions as UserTypes['swipeActions']
     if (sec.needs_password_setup === true) needsPasswordSetup = true
   }
 

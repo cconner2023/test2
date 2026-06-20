@@ -96,27 +96,32 @@ export function composeAlgorithmNoteRouting(
         if (!state || !state.isVisible || !card.questionOptions) return;
 
         card.questionOptions.forEach((option, optionIndex) => {
-            const tag = option.noteTag;
-            if (!tag) return;
+            if (!option.noteTag) return;
             const text = option.text?.trim();
             const isYes = state.selectedOptions.includes(optionIndex);
 
-            if (tag.target === 'hpi') {
-                const phrase = (tag.label ?? text)?.trim().toLowerCase();
-                if (!phrase) return;
-                const positive = tag.invert ? !isYes : isYes;
-                (positive ? hpiPositives : hpiNegatives).push(phrase);
-                return;
-            }
+            // A compound option carries an array — YES means yes to every part, so
+            // each tag routes independently (e.g. one half → HPI, the other → PE).
+            const tags = Array.isArray(option.noteTag) ? option.noteTag : [option.noteTag];
 
-            // PE: link YES → abnormal, NO → normal on the finding's block.
-            const blockKey = FINDING_TO_BLOCK[tag.findingKey];
-            if (!blockKey) return;
-            const bucket = ensureBlock(blockKey);
-            if (isYes) {
-                bucket.abnormals.add(tag.abnormalKey ?? tag.findingKey);
-            } else {
-                bucket.normals.add(tag.findingKey);
+            for (const tag of tags) {
+                if (tag.target === 'hpi') {
+                    const phrase = (tag.label ?? text)?.trim().toLowerCase();
+                    if (!phrase) continue;
+                    const positive = tag.invert ? !isYes : isYes;
+                    (positive ? hpiPositives : hpiNegatives).push(phrase);
+                    continue;
+                }
+
+                // PE: link YES → abnormal, NO → normal on the finding's block.
+                const blockKey = FINDING_TO_BLOCK[tag.findingKey];
+                if (!blockKey) continue;
+                const bucket = ensureBlock(blockKey);
+                if (isYes) {
+                    bucket.abnormals.add(tag.abnormalKey ?? tag.findingKey);
+                } else {
+                    bucket.normals.add(tag.findingKey);
+                }
             }
         });
     });

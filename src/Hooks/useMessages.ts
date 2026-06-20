@@ -552,7 +552,7 @@ export interface UseMessagesReturn {
 const store = useMessagingStore.getState
 
 export function useMessages(): UseMessagesReturn {
-  const { user, isAuthenticated, clinicId, isDevRole } = useAuth()
+  const { user, isAuthenticated, clinicId, surrogateClinicIds, isDevRole } = useAuth()
   const userId = user?.id ?? null
   const isPageVisible = usePageVisibility()
 
@@ -782,6 +782,7 @@ export function useMessages(): UseMessagesReturn {
     userId,
     localDeviceId: useMessagingStore.getState().localDeviceId,
     clinicId: clinicId ?? null,
+    surrogateClinicIds,
     clinicDeviceId: useMessagingStore.getState().clinicDeviceId,
     isDevRole,
     isAuthenticated: isAuthenticated && !!useMessagingStore.getState().localDeviceId,

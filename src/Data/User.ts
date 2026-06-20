@@ -1,4 +1,6 @@
 import type { TemplateNode } from './TemplateTypes';
+import type { AvatarBlob } from '../Types/SupervisorTestTypes';
+import type { SwipeActions } from '../Utilities/swipeActions';
 
 export type Credential =
     | 'EMT-B' | 'EMT-A' | 'EMT-P'
@@ -155,6 +157,17 @@ export interface UserTypes {
     overviewWidgets?: OverviewWidgetId[] | null
     /** Appearance theme ID, e.g. "default-dark". Synced to Supabase for cross-device persistence. */
     theme?: string
+    /** Chat-message swipe bindings (per direction). Synced to Supabase (profiles.swipe_actions) for cross-device persistence — same train as `theme`. */
+    swipeActions?: SwipeActions | null
+    /**
+     * Avatar selector: a preset avatar id, 'initials', or 'custom'. Lives on the
+     * profiles row; the single profiles-row realtime sub (useProfileRealtime)
+     * applies cross-device changes as a delta. undefined = profile not loaded
+     * yet; null = nothing set remotely. Consumed by useProfileAvatar.
+     */
+    avatarId?: string | null
+    /** Encrypted custom photo blob, present when avatarId === 'custom'. */
+    avatarBlob?: AvatarBlob | null
 }
 
 export type OverviewWidgetId = 'task-list' | 'map-overlay' | 'kanban' | 'week-view' | 'messages' | 'weather' | 'huddle'

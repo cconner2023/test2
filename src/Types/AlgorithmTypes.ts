@@ -23,8 +23,12 @@ export interface questionOptions {
      *   - pe:  YES → abnormal finding (abnormalKey), NO → normal finding.
      * Untagged options behave exactly as before. Plan is already structured via
      * decisionMaking (ancillaryFind / medFind / specLim).
+     *
+     * An array routes one option to multiple sections at once — for compound
+     * criteria where YES means yes to all parts (e.g. "Stiff Neck AND Fever" →
+     * stiff neck to HPI, fever to PE). A single object behaves as before.
      */
-    noteTag?: NoteTag
+    noteTag?: NoteTag | NoteTag[]
 }
 
 export type NoteTag =

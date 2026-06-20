@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Clock, Users2, CalendarDays, X, Check, Pencil, Trash2, CalendarPlus, Play, CheckCircle2, Ban, Share2, CircleDashed, Move, MessageSquare } from 'lucide-react'
+import { Clock, Users2, CalendarDays, X, Check, Pencil, Trash2, CalendarPlus, Play, CheckCircle2, Ban, CircleDashed, Move, MessageSquare } from 'lucide-react'
 import { type ContextMenuItem } from '../ContextMenu'
 import { LiftedRowMenu } from '../LiftedRowMenu'
 import { useShallow } from 'zustand/react/shallow'
@@ -15,6 +15,7 @@ import { useShareToChat } from '../Messages/ShareToChatPicker'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { ActionSheet } from '../ActionSheet'
 import { BaseDrawer } from '../BaseDrawer'
+import { Sheet } from '../Sheet'
 import { BottomIsland, IslandButton } from '../BottomIsland'
 import { AddFab } from '../AddFab'
 import { CalendarCSVImportDrawer } from './CalendarCSVImportDrawer'
@@ -46,7 +47,7 @@ import {
 } from '../../Types/CalendarTypes'
 import { useClinicAppointmentTypes } from '../../Hooks/useClinicAppointmentTypes'
 import { useClinicCategoryColorsSync } from '../../Hooks/useClinicCategoryColors'
-import { shareCalendar, shareSingleEvent, shareTroopsToTaskCsv } from '../../lib/calendarExport'
+import { shareCalendar, shareTroopsToTaskCsv } from '../../lib/calendarExport'
 
 type PanelView = 'calendar' | 'detail' | 'form' | 'template' | 'block'
 type DayDrawerView = 'detail' | 'edit'
@@ -1300,14 +1301,51 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             </BaseDrawer>
           )}
 
-          {/* Mobile event drawer — tap an event to view/edit */}
+          {/* Mobile event detail — Sheet mirroring the map feature editor:
+              EventDetailPanel renders its own ellipsis-left / close-right header,
+              content sits flat (no nested card) and scrolls, backdrop-none keeps
+              the calendar live underneath. The edit form is a separate drawer. */}
+          <Sheet
+            isOpen={showDayDrawer && dayDrawerView === 'detail'}
+            onClose={handleDayDrawerDetailBack}
+            height="fit"
+            maxHeight={60}
+            backdrop="none"
+            zIndex={1200}
+            hideClose
+          >
+            {dayDrawerEvent && (
+              <EventDetailPanel
+                event={dayDrawerEvent}
+                onClose={handleDayDrawerDetailBack}
+                onEdit={handleDayDrawerEdit}
+                onDelete={(id) => {
+                  handleDeleteEvent(id)
+                  handleDayDrawerClose()
+                }}
+                onCancelTemplate={handleCancelTemplate}
+                apptTypeNames={apptTypeNames}
+                canDeleteTemplate={isSupervisor}
+                onStatusChange={handleEventStatusChange}
+                onUpdateSubtasks={handleUpdateEventSubtasks}
+                checklistTemplates={sortedPccTemplates}
+                assignedNames={resolveAssigned(dayDrawerEvent.assigned_to)}
+                linkedPropertyItems={resolvePropertyItems(dayDrawerEvent.property_item_ids ?? [])}
+                overlayOptions={overlayOptions}
+                roomAnchor={roomAnchorFor(dayDrawerEvent.room_id)}
+                inSheet
+              />
+            )}
+          </Sheet>
+
+          {/* Mobile event edit — kept as a full drawer (the form is a modal action). */}
           <BaseDrawer
-            isVisible={showDayDrawer}
+            isVisible={showDayDrawer && dayDrawerView === 'edit'}
             onClose={handleDayDrawerClose}
             mobileOnly
             fullHeight="85dvh"
             zIndex="z-50"
-            header={dayDrawerView === 'edit' ? {
+            header={{
               title: 'Edit Event',
               rightContent: (
                 <HeaderPill>
@@ -1325,43 +1363,10 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 </HeaderPill>
               ),
               hideDefaultClose: true,
-            } : {
-              title: dayDrawerEvent?.title ?? '',
-              rightContent: dayDrawerEvent ? (
-                <HeaderPill>
-                  <PillButton icon={Share2} iconSize={16} onClick={() => shareSingleEvent(dayDrawerEvent).catch(() => {})} label="Add to phone calendar" />
-                  <PillButton icon={Pencil} iconSize={16} onClick={() => handleDayDrawerEdit(dayDrawerEvent.id)} label="Edit" />
-                  <PillButton icon={X} iconSize={16} onClick={handleDayDrawerDetailBack} label="Close" />
-                </HeaderPill>
-              ) : undefined,
-              hideDefaultClose: true,
             }}
           >
             <div className="relative h-full">
-              {dayDrawerView === 'detail' && dayDrawerEvent && (
-                <EventDetailPanel
-                  event={dayDrawerEvent}
-                  onClose={handleDayDrawerDetailBack}
-                  onEdit={handleDayDrawerEdit}
-                  onDelete={(id) => {
-                    handleDeleteEvent(id)
-                    handleDayDrawerClose()
-                  }}
-                  onCancelTemplate={handleCancelTemplate}
-                  apptTypeNames={apptTypeNames}
-                  canDeleteTemplate={isSupervisor}
-                  onStatusChange={handleEventStatusChange}
-                  onUpdateSubtasks={handleUpdateEventSubtasks}
-                  checklistTemplates={sortedPccTemplates}
-                  assignedNames={resolveAssigned(dayDrawerEvent.assigned_to)}
-                  linkedPropertyItems={resolvePropertyItems(dayDrawerEvent.property_item_ids ?? [])}
-                  overlayOptions={overlayOptions}
-                  roomAnchor={roomAnchorFor(dayDrawerEvent.room_id)}
-                  hideHeader
-                />
-              )}
-
-              {dayDrawerView === 'edit' && editingEvent && (
+              {editingEvent && (
                 <EventForm
                   ref={eventFormRef}
                   initialData={eventToFormData(editingEvent)}

@@ -1,5 +1,5 @@
 import { useRef, useCallback, useState, useEffect, useMemo } from 'react'
-import { Check, CheckCheck, X, Reply, Trash2, Clock, Play, Pause, Copy, Download, CalendarPlus, Calendar, Map as MapIcon, Package, ChevronRight, MoreHorizontal, ScanLine } from 'lucide-react'
+import { Check, CheckCheck, X, Reply, Forward, Trash2, Clock, Play, Pause, Copy, Download, CalendarPlus, Calendar, Map as MapIcon, Package, ChevronRight, MoreHorizontal, ScanLine } from 'lucide-react'
 import { ActionButton } from '../ActionButton'
 import { GESTURE_THRESHOLDS, isInteractiveTarget } from '../../Utilities/GestureUtils'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
@@ -18,8 +18,16 @@ import { calendarArgsForMessage } from '../../Utilities/messageCalendar'
 import { DecodedNotePreview } from '../DecodedNotePreview'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useAuthStore } from '../../stores/useAuthStore'
+import { resolveSwipeActions, type SwipeBinding, type SwipeAction } from '../../Utilities/swipeActions'
+export type { SwipeAction }
 
-export type SwipeAction = 'reply' | 'delete'
+/** Reveal-icon + tint for each non-disabled swipe binding (mobile swipe affordance). */
+const SWIPE_ICON: Record<Exclude<SwipeBinding, 'off'>, { icon: LucideIcon; danger?: boolean }> = {
+  reply: { icon: Reply },
+  forward: { icon: Forward },
+  delete: { icon: Trash2, danger: true },
+  menu: { icon: MoreHorizontal },
+}
 
 interface MessageBubbleProps {
   message: DecryptedSignalMessage
@@ -163,8 +171,12 @@ export function MessageBubble({
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressFiredRef = useRef(false)
   const rowRef = useRef<HTMLDivElement>(null)
-  const replyIconRef = useRef<HTMLDivElement>(null)
-  const deleteIconRef = useRef<HTMLDivElement>(null)
+  // Bubble snapshot (rect + static HTML clone) captured at touch-start, so a
+  // swipe bound to `menu` can lift the same pixel-perfect clone the long-press
+  // path uses, even though the live bubble is mid-translate when the swipe ends.
+  const snapRef = useRef<{ rect?: DOMRect; html?: string }>({})
+  const leftIconRef = useRef<HTMLDivElement>(null)
+  const rightIconRef = useRef<HTMLDivElement>(null)
   const [showFullImage, setShowFullImage] = useState(false)
   const [decodeOpen, setDecodeOpen] = useState(false)
   const decodeAnchorRef = useRef<DOMRect | null>(null)
@@ -262,6 +274,18 @@ export function MessageBubble({
     ) : null
 
   const swipeEnabled = !isEditing
+
+  // ── Per-direction swipe bindings (user preference, cross-device) ──
+  // ltr = "swipe right" (dx > 0); rtl = "swipe left" (dx < 0). A `delete` binding
+  // is only meaningful on a message the user can actually delete (own message);
+  // on any other bubble it degrades to disabled so the swipe just rubber-bands.
+  const swipePrefs = useAuthStore(s => s.profile?.swipeActions)
+  const resolved = resolveSwipeActions(swipePrefs)
+  const gate = (b: SwipeBinding): SwipeBinding => (b === 'delete' && !isOwn ? 'off' : b)
+  const ltrBinding = gate(resolved.ltr)
+  const rtlBinding = gate(resolved.rtl)
+  const ltrEnabled = swipeEnabled && ltrBinding !== 'off'
+  const rtlEnabled = swipeEnabled && rtlBinding !== 'off'
 
   // request-accepted is an invisible signal — don't render
   if (message.messageType === 'request-accepted') return null
@@ -366,15 +390,15 @@ export function MessageBubble({
   }, [])
 
   const updateIcons = useCallback((dx: number) => {
-    if (replyIconRef.current) {
+    if (leftIconRef.current) {
       const progress = Math.min(1, Math.max(0, dx) / SWIPE_THRESHOLD)
-      replyIconRef.current.style.opacity = String(progress)
-      replyIconRef.current.style.transform = `translateY(-50%) scale(${progress})`
+      leftIconRef.current.style.opacity = String(progress)
+      leftIconRef.current.style.transform = `translateY(-50%) scale(${progress})`
     }
-    if (deleteIconRef.current) {
+    if (rightIconRef.current) {
       const progress = Math.min(1, Math.max(0, -dx) / SWIPE_THRESHOLD)
-      deleteIconRef.current.style.opacity = String(progress)
-      deleteIconRef.current.style.transform = `translateY(-50%) scale(${progress})`
+      rightIconRef.current.style.opacity = String(progress)
+      rightIconRef.current.style.transform = `translateY(-50%) scale(${progress})`
     }
   }, [])
 
@@ -386,8 +410,8 @@ export function MessageBubble({
       ref.current.style.transform = 'translateY(-50%) scale(0)'
       setTimeout(() => { if (ref.current) ref.current.style.transition = 'none' }, 200)
     }
-    reset(replyIconRef)
-    reset(deleteIconRef)
+    reset(leftIconRef)
+    reset(rightIconRef)
   }, [])
 
   // Snapshot the bubble's rect + a static HTML clone so the context menu can lift
@@ -409,6 +433,7 @@ export function MessageBubble({
     if (t.clientX < GESTURE_THRESHOLDS.EDGE_ZONE) return
 
     const snap = captureBubble()
+    snapRef.current = snap
     touchRef.current = { startX: t.clientX, startY: t.clientY, swiping: false, dirDecided: false }
     longPressFiredRef.current = false
     setTapped(true)
@@ -446,11 +471,12 @@ export function MessageBubble({
     }
     if (!state.swiping) return
 
+    // Full swipe only in an enabled direction; a disabled direction rubber-bands.
     let offset: number
     if (dx > 0) {
-      offset = Math.min(SWIPE_MAX, dx)
+      offset = ltrEnabled ? Math.min(SWIPE_MAX, dx) : Math.min(12, dx * 0.1)
     } else {
-      offset = isOwn ? Math.max(-SWIPE_MAX, dx) : Math.max(-12, dx * 0.1)
+      offset = rtlEnabled ? Math.max(-SWIPE_MAX, dx) : Math.max(-12, dx * 0.1)
     }
 
     const el = rowRef.current
@@ -459,7 +485,22 @@ export function MessageBubble({
       el.style.transform = `translateX(${offset}px)`
     }
     updateIcons(offset)
-  }, [swipeEnabled, isOwn, updateIcons])
+  }, [swipeEnabled, ltrEnabled, rtlEnabled, updateIcons])
+
+  // Run a resolved swipe binding. Immediate actions (reply/forward/delete) fire
+  // through onSwipeAction; `menu` lifts the captured clone into the context menu
+  // (reusing the long-press pipeline); `off` is a no-op.
+  const fireSwipe = useCallback((binding: SwipeBinding) => {
+    if (binding === 'off') return
+    if (binding === 'menu') {
+      const { rect, html } = snapRef.current
+      const cx = rect ? rect.left + rect.width / 2 : 0
+      const cy = rect ? rect.top + rect.height / 2 : 0
+      onLongPress?.(message, cx, cy, rect, html)
+      return
+    }
+    onSwipeAction?.(message, binding)
+  }, [message, onLongPress, onSwipeAction])
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     setTapped(false)
@@ -477,15 +518,12 @@ export function MessageBubble({
 
     const dx = e.changedTouches[0].clientX - state.startX
 
-    if (dx > SWIPE_THRESHOLD) {
-      onSwipeAction?.(message, 'reply')
-    } else if (dx < -SWIPE_THRESHOLD && isOwn) {
-      onSwipeAction?.(message, 'delete')
-    }
+    if (dx > SWIPE_THRESHOLD && ltrEnabled) fireSwipe(ltrBinding)
+    else if (dx < -SWIPE_THRESHOLD && rtlEnabled) fireSwipe(rtlBinding)
 
     snapTo(0)
     resetIcons()
-  }, [snapTo, resetIcons, onSwipeAction, message, isOwn])
+  }, [snapTo, resetIcons, fireSwipe, ltrEnabled, rtlEnabled, ltrBinding, rtlBinding])
 
   const handleTouchCancel = useCallback(() => {
     setTapped(false)
@@ -759,28 +797,36 @@ export function MessageBubble({
           className="relative max-w-[65%]"
           style={{ touchAction: 'pan-y' }}
         >
-          {/* Reply icon — starts at left edge behind bubble, parallaxes outward on swipe right */}
-          {swipeEnabled && (
-            <div
-              ref={replyIconRef}
-              className="absolute left-0 top-1/2 z-0
-                         w-7 h-7 rounded-full bg-themeblue2/15 flex items-center justify-center md:hidden pointer-events-none"
-              style={{ opacity: 0, transform: 'translateY(-50%) scale(0)', transition: 'none' }}
-            >
-              <Reply size={14} className="text-themeblue2" />
-            </div>
-          )}
-          {/* Delete icon — starts at right edge behind bubble, scales in on swipe left */}
-          {swipeEnabled && isOwn && (
-            <div
-              ref={deleteIconRef}
-              className="absolute right-0 top-1/2 z-0
-                         w-7 h-7 rounded-full bg-themeredred/15 flex items-center justify-center md:hidden pointer-events-none"
-              style={{ opacity: 0, transform: 'translateY(-50%) scale(0)', transition: 'none' }}
-            >
-              <Trash2 size={14} className="text-themeredred" />
-            </div>
-          )}
+          {/* Left reveal icon — behind the bubble's left edge, parallaxes out on a
+              swipe-right (dx>0). Shows the ltr ("swipe right") binding's icon. */}
+          {ltrEnabled && ltrBinding !== 'off' && (() => {
+            const meta = SWIPE_ICON[ltrBinding]
+            const Icon = meta.icon
+            return (
+              <div
+                ref={leftIconRef}
+                className={`absolute left-0 top-1/2 z-0 w-7 h-7 rounded-full flex items-center justify-center md:hidden pointer-events-none ${meta.danger ? 'bg-themeredred/15' : 'bg-themeblue2/15'}`}
+                style={{ opacity: 0, transform: 'translateY(-50%) scale(0)', transition: 'none' }}
+              >
+                <Icon size={14} className={meta.danger ? 'text-themeredred' : 'text-themeblue2'} />
+              </div>
+            )
+          })()}
+          {/* Right reveal icon — behind the bubble's right edge, scales in on a
+              swipe-left (dx<0). Shows the rtl ("swipe left") binding's icon. */}
+          {rtlEnabled && rtlBinding !== 'off' && (() => {
+            const meta = SWIPE_ICON[rtlBinding]
+            const Icon = meta.icon
+            return (
+              <div
+                ref={rightIconRef}
+                className={`absolute right-0 top-1/2 z-0 w-7 h-7 rounded-full flex items-center justify-center md:hidden pointer-events-none ${meta.danger ? 'bg-themeredred/15' : 'bg-themeblue2/15'}`}
+                style={{ opacity: 0, transform: 'translateY(-50%) scale(0)', transition: 'none' }}
+              >
+                <Icon size={14} className={meta.danger ? 'text-themeredred' : 'text-themeblue2'} />
+              </div>
+            )
+          })()}
 
           {/* Slidable bubble — translates on swipe, sits above icons */}
           <div

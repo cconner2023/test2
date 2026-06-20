@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from 'react'
+import { useEffect, useState, useRef, useMemo, type ElementType } from 'react'
 import { Pencil, X, Share2, Map as MapIcon, Copy, Check, Printer, Image, Ban, CircleDashed, Play, CheckCircle2, Clock, MessageSquare, FileText, MoreHorizontal } from 'lucide-react'
 import { reverseGeocode } from '../MapOverlay/searchResolver'
 import { latLngToUTM } from '../MapOverlay/utmProjection'
@@ -74,7 +74,10 @@ interface EventDetailPanelProps {
    *  linked to an overlay (Phase 2 zone↔overlay link). Surfaces the zone's map
    *  in Where alongside any event-specific linked overlays/features. */
   roomAnchor?: { name: string; overlay_id: string; overlay_feature_id: string | null }
-  hideHeader?: boolean
+  /** Rendered inside the mobile event Sheet (mirrors the map feature editor):
+   *  header is ellipsis-left / close-right and sticky, content sits flat on the
+   *  sheet background (no nested SectionCard), and the Sheet owns the scroll. */
+  inSheet?: boolean
 }
 
 function formatDateTime(iso: string, allDay: boolean): string {
@@ -93,7 +96,7 @@ const STATUS_TRIGGER_ICON: Record<EventStatus, LucideIcon> = {
   cancelled:   Ban,
 }
 
-export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, onCancelTemplate, apptTypeNames = [], canDeleteTemplate, onStatusChange, onUpdateSubtasks, checklistTemplates = [], assignedNames = [], linkedPropertyItems = [], overlayOptions, roomAnchor, hideHeader }: EventDetailPanelProps) {
+export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, onCancelTemplate, apptTypeNames = [], canDeleteTemplate, onStatusChange, onUpdateSubtasks, checklistTemplates = [], assignedNames = [], linkedPropertyItems = [], overlayOptions, roomAnchor, inSheet }: EventDetailPanelProps) {
   const isMobile = useIsMobile()
   const txt = isMobile ? 'text-sm' : 'text-[10pt]'
   const rowPad = isMobile ? 'px-4 py-3' : 'px-3 py-2.5'
@@ -234,28 +237,48 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
   if (canExportConop) moreItems.push({ key: 'conop', label: 'CONOP PDF', icon: FileText, onAction: handleExportConop })
   if (editable) moreItems.push({ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEdit(event.id) })
 
-  return (
-    <div className="flex flex-col h-full">
-      {!hideHeader && (
-        <div className="flex items-center justify-between px-3 py-2 border-b border-primary/10 shrink-0">
-          <div />
-          <HeaderPill>
-            {moreItems.length > 0 && (
-              <div ref={moreBtnRef}>
-                <PillButton icon={MoreHorizontal} iconSize={16} onClick={openMoreMenu} label="More" />
-              </div>
-            )}
-            <PillButton icon={X} iconSize={16} onClick={onClose} label="Close" />
-          </HeaderPill>
-        </div>
-      )}
+  // Flat on the sheet's themewhite3 (no nested card) inside the mobile Sheet;
+  // the desktop side-panel keeps the SectionCard chrome.
+  const Wrapper = (inSheet ? 'div' : SectionCard) as ElementType
 
-      <div className={`${hideHeader ? '' : 'flex-1 overflow-y-auto'} ${isMobile ? 'px-4 py-4 space-y-4' : 'px-3 py-3 space-y-3'}`}>
+  return (
+    <div className={inSheet ? '' : 'flex flex-col h-full'}>
+      <div className={`flex items-center justify-between px-3 py-2 border-b border-primary/10 ${inSheet ? 'sticky top-0 z-10 bg-themewhite3' : 'shrink-0'}`}>
+        {inSheet ? (
+          <>
+            {/* Map-feature-sheet match: ellipsis (More) on the left, Close on the right. */}
+            {moreItems.length > 0 ? (
+              <HeaderPill>
+                <div ref={moreBtnRef}>
+                  <PillButton icon={MoreHorizontal} iconSize={16} onClick={openMoreMenu} label="More actions" />
+                </div>
+              </HeaderPill>
+            ) : <div />}
+            <HeaderPill>
+              <PillButton icon={X} iconSize={16} onClick={onClose} label="Close" />
+            </HeaderPill>
+          </>
+        ) : (
+          <>
+            <div />
+            <HeaderPill>
+              {moreItems.length > 0 && (
+                <div ref={moreBtnRef}>
+                  <PillButton icon={MoreHorizontal} iconSize={16} onClick={openMoreMenu} label="More" />
+                </div>
+              )}
+              <PillButton icon={X} iconSize={16} onClick={onClose} label="Close" />
+            </HeaderPill>
+          </>
+        )}
+      </div>
+
+      <div className={`${inSheet ? '' : 'flex-1 overflow-y-auto'} ${isMobile ? 'px-4 py-4 space-y-4' : 'px-3 py-3 space-y-3'}`}>
         {/* Event read-out */}
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-primary">{event.title}</h2>
 
-          <SectionCard className="divide-y divide-themeblue3/10">
+          <Wrapper className="divide-y divide-themeblue3/10">
             <div className={rowPad}>
               <SectionHeader>Date</SectionHeader>
               <p className={`text-primary ${txt}`}>
@@ -484,7 +507,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
                 </div>
               </div>
             )}
-          </SectionCard>
+          </Wrapper>
         </div>
 
         <div className={isMobile ? 'h-16 shrink-0' : 'h-8 shrink-0'} />
@@ -496,7 +519,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
           anchorRect={moreMenu.rect}
           onClose={() => setMoreMenu(null)}
           layout="list"
-          align="right"
+          align={inSheet ? 'left' : 'right'}
           items={moreItems}
         />
       )}

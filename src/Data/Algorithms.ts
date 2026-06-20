@@ -244,8 +244,8 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
-                    { text: "Stiff Neck AND Fever" },
-                    { text: "Posterior ear pain and/or mastoid erythema" }
+                    { text: "Stiff Neck AND Fever", noteTag: [{ target: 'hpi', label: 'stiff neck' }, { target: 'pe', findingKey: 'genAfebrile', abnormalKey: 'genFebrile' }] },
+                    { text: "Posterior ear pain and/or mastoid erythema", noteTag: [{ target: 'hpi', label: 'posterior ear pain' }, { target: 'pe', findingKey: 'mastoidNontender', abnormalKey: 'mastoidErythema' }] }
                 ],
                 answerOptions: []
             },
@@ -286,9 +286,9 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Severe Ear pain" },
-                    { text: "Ear drainage" },
-                    { text: "Fever" },
+                    { text: "Severe Ear pain", noteTag: { target: 'hpi', label: 'severe ear pain' } },
+                    { text: "Ear drainage", noteTag: { target: 'hpi', label: 'ear drainage' } },
+                    { text: "Fever", noteTag: { target: 'pe', findingKey: 'genAfebrile', abnormalKey: 'genFebrile' } },
                 ],
                 answerOptions: [
                     {
@@ -365,11 +365,11 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Vertigo" },
-                    { text: "Going on for > 7 days" },
-                    { text: "Decreased hearing" },
-                    { text: "Foreign body in ear" },
-                    { text: "Visual trauma to ear" }],
+                    { text: "Vertigo", noteTag: { target: 'hpi' } },
+                    { text: "Going on for > 7 days", noteTag: { target: 'hpi', label: 'symptoms > 7 days' } },
+                    { text: "Decreased hearing", noteTag: { target: 'hpi', label: 'decreased hearing' } },
+                    { text: "Foreign body in ear", noteTag: { target: 'hpi', label: 'foreign body sensation in ear' } },
+                    { text: "Visual trauma to ear", noteTag: { target: 'hpi', label: 'visible ear trauma' } }],
                 answerOptions: [
                     {
                         text: "Yes",
@@ -434,7 +434,13 @@ export const Algorithm: AlgorithmType[] = [
                                             modifier: 'hydrocortisone ear drops'
                                         }
                                     ],
-                                    medFind: [medList[0], medList[23]]
+                                    medFind: [medList[0], medList[23]],
+                                    planInstructions: [
+                                        'keep the ear canal dry',
+                                        'cotton wick with ear drops for 24 hours, then continue drops for 1 week',
+                                        'no swimming / avoid situations requiring ear plugs',
+                                        'follow-up in 3 days if not improving'
+                                    ]
                                 }
                             },
                             {
@@ -450,6 +456,13 @@ export const Algorithm: AlgorithmType[] = [
                                             type: 'refer',
                                             modifier: 'Dental if history of teeth grinding'
                                         }
+                                    ],
+                                    planInstructions: [
+                                        'ibuprofen as needed for pain',
+                                        'avoid excessive chewing / chewing gum',
+                                        'jaw isometric exercises 3 times daily',
+                                        'refer to dental if history of teeth grinding',
+                                        'follow-up in 3 days if not improving'
                                     ]
                                 }
                             },
@@ -487,7 +500,13 @@ export const Algorithm: AlgorithmType[] = [
                                             modifier: 'hydrocortisone ear drops'
                                         }
                                     ],
-                                    medFind: [medList[0], medList[23]]
+                                    medFind: [medList[0], medList[23]],
+                                    planInstructions: [
+                                        'keep the ear canal dry',
+                                        'cotton wick with ear drops for 24 hours, then continue drops for 1 week',
+                                        'no swimming / avoid situations requiring ear plugs',
+                                        'follow-up in 3 days if not improving'
+                                    ]
                                 }
                             },
                             {
@@ -503,6 +522,13 @@ export const Algorithm: AlgorithmType[] = [
                                             type: 'refer',
                                             modifier: 'Dental if history of teeth grinding'
                                         }
+                                    ],
+                                    planInstructions: [
+                                        'ibuprofen as needed for pain',
+                                        'avoid excessive chewing / chewing gum',
+                                        'jaw isometric exercises 3 times daily',
+                                        'refer to dental if history of teeth grinding',
+                                        'follow-up in 3 days if not improving'
                                     ]
                                 }
                             },
@@ -527,10 +553,10 @@ export const Algorithm: AlgorithmType[] = [
                 type: "rf",
                 questionOptions: [
                     { text: "Abnormal Vital Signs" },
-                    { text: "Shortness of Breath" },
-                    { text: "Stiff Neck" },
-                    { text: "Altered Mental Status" },
-                    { text: "Coughing up blood clots or frank blood" }
+                    { text: "Shortness of Breath", noteTag: { target: 'hpi' } },
+                    { text: "Stiff Neck", noteTag: { target: 'hpi' } },
+                    { text: "Altered Mental Status", noteTag: { target: 'pe', findingKey: 'aoX4', abnormalKey: 'confused' } },
+                    { text: "Coughing up blood clots or frank blood", noteTag: { target: 'hpi', label: 'hemoptysis' } }
                 ],
                 answerOptions: []
             },
@@ -578,9 +604,9 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Productive cough" },
-                    { text: "Symptoms > 7 days" },
-                    { text: "Severe sinus or dental pain" }
+                    { text: "Productive cough", noteTag: { target: 'hpi' } },
+                    { text: "Symptoms > 7 days", noteTag: { target: 'hpi' } },
+                    { text: "Severe sinus or dental pain", noteTag: { target: 'hpi', label: 'severe sinus or dental pain' } }
                 ],
                 answerOptions: [
                     {
@@ -615,9 +641,9 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Symptoms > 7 days" },
-                    { text: "Rebound symptoms" },
-                    { text: "Purulent discharge" }
+                    { text: "Symptoms > 7 days", noteTag: { target: 'hpi' } },
+                    { text: "Rebound symptoms", noteTag: { target: 'hpi' } },
+                    { text: "Purulent discharge", noteTag: { target: 'pe', findingKey: 'noNasalDischarge', abnormalKey: 'purulentDischarge' } }
                 ],
                 answerOptions: [
                     {
@@ -659,6 +685,13 @@ export const Algorithm: AlgorithmType[] = [
                                         { ...medList[20] }
                                     ],
                                     specLim: ['Consider quarters/ contagious precautions while febrile'
+                                    ],
+                                    planInstructions: [
+                                        'drink plenty of fluids',
+                                        'rest',
+                                        'cover mouth when coughing and wash hands',
+                                        'stop or limit smoking',
+                                        'return in 7 days if not improving, or with sinus/neck pain or fever'
                                     ]
                                 },
                             }
@@ -677,9 +710,9 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
-                    { text: "Altered Mental Status" },
-                    { text: "Focal Neurological Symptom or Sign" },
-                    { text: "Dizziness" }
+                    { text: "Altered Mental Status", noteTag: { target: 'pe', findingKey: 'aoX4', abnormalKey: 'confused' } },
+                    { text: "Focal Neurological Symptom or Sign", noteTag: { target: 'pe', findingKey: 'cnIiXiiGrosslyIntact', abnormalKey: 'cnDeficitSpecify' } },
+                    { text: "Dizziness", noteTag: { target: 'hpi' } }
                 ],
                 answerOptions: []
             },
@@ -722,11 +755,11 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Ringing > 24 hours" },
-                    { text: "Ringing without MOI" },
-                    { text: "Dizziness" },
-                    { text: "Visual Trauma" },
-                    { text: "Decreased hearing" }
+                    { text: "Ringing > 24 hours", noteTag: { target: 'hpi', label: 'tinnitus > 24 hours' } },
+                    { text: "Ringing without MOI", noteTag: { target: 'hpi', label: 'tinnitus without injury mechanism' } },
+                    { text: "Dizziness", noteTag: { target: 'hpi' } },
+                    { text: "Visual Trauma", noteTag: { target: 'hpi', label: 'visible trauma' } },
+                    { text: "Decreased hearing", noteTag: { target: 'hpi', label: 'decreased hearing' } }
                 ],
                 answerOptions: [
                     {
@@ -763,9 +796,9 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Loud noise exposure or trauma within 24 hours" },
-                    { text: "Ear drainage" },
-                    { text: "Ear pain" }
+                    { text: "Loud noise exposure or trauma within 24 hours", noteTag: { target: 'hpi', label: 'loud noise exposure or trauma within 24 hours' } },
+                    { text: "Ear drainage", noteTag: { target: 'hpi', label: 'ear drainage' } },
+                    { text: "Ear pain", noteTag: { target: 'hpi', label: 'ear pain' } }
                 ],
                 answerOptions: [
                     {
@@ -791,7 +824,13 @@ export const Algorithm: AlgorithmType[] = [
             {
                 text: "Are any of the following present?",
                 type: "choice",
-                questionOptions: [{ text: 'TM opacification' }, { text: 'immobility' }, { text: 'rupture' }, { text: 'Ear canal foreign body' }, { text: 'wax buildup' }],
+                questionOptions: [
+                    { text: 'TM opacification', noteTag: { target: 'pe', findingKey: 'tmIntact', abnormalKey: 'tmOpacification' } },
+                    { text: 'immobility', noteTag: { target: 'pe', findingKey: 'tmMobile', abnormalKey: 'tmImmobile' } },
+                    { text: 'rupture', noteTag: { target: 'pe', findingKey: 'tmIntact', abnormalKey: 'tmPerforation' } },
+                    { text: 'Ear canal foreign body', noteTag: { target: 'pe', findingKey: 'eacClear', abnormalKey: 'eacForeignBody' } },
+                    { text: 'wax buildup', noteTag: { target: 'pe', findingKey: 'eacClear', abnormalKey: 'cerumenImpaction' } }
+                ],
                 answerOptions: [
                     {
                         text: "Yes",
@@ -823,9 +862,11 @@ export const Algorithm: AlgorithmType[] = [
                 questionOptions: [
                     {
                         text: "Ear pain",
+                        noteTag: { target: 'hpi', label: 'ear pain' },
                     },
                     {
                         text: "Cold symptoms",
+                        noteTag: { target: 'hpi', label: 'cold symptoms' },
                     }
                 ],
                 answerOptions: [
@@ -875,6 +916,11 @@ export const Algorithm: AlgorithmType[] = [
                                     text: 'Ringing sound after exposure to excessive noise exposure should resolve within 24 hours. Return to clinic if the ringing does not resolve after 24 hours. Return if associated with dizziness (spinning sensation) or worsening symptoms',
                                     medFind: [],
                                     specLim: ['Avoid loud noise exposure x 48 hours'
+                                    ],
+                                    planInstructions: [
+                                        'use properly fitted hearing protection',
+                                        'avoid loud noise exposure for 48 hours',
+                                        'return if ringing persists beyond 24 hours or dizziness, ear pain, or hearing loss develops'
                                     ]
                                 },
                             }
@@ -893,10 +939,10 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
-                    { text: "Airway Compromise" },
-                    { text: "Orthostatic Hypotension" },
-                    { text: "Bleeding from Gums" },
-                    { text: "Inability to Move Eye" }
+                    { text: "Airway Compromise", noteTag: { target: 'hpi', label: 'airway compromise' } },
+                    { text: "Orthostatic Hypotension", noteTag: { target: 'hpi', label: 'orthostatic hypotension' } },
+                    { text: "Bleeding from Gums", noteTag: { target: 'hpi', label: 'gum bleeding' } },
+                    { text: "Inability to Move Eye", noteTag: { target: 'hpi', label: 'restricted eye movement' } }
                 ],
                 answerOptions: []
             },
@@ -943,12 +989,12 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Cut or deformity" },
-                    { text: "Patient is on anticoagulants" },
-                    { text: "Patient is using intra-nasal medication" },
-                    { text: "Patient has high blood pressure ( > 140/80)" },
-                    { text: "Purulent discharge present" },
-                    { text: "Recurrent bleed w/o cold" }
+                    { text: "Cut or deformity", noteTag: { target: 'pe', findingKey: 'noExternalDeformities', abnormalKey: 'externalNasalDeformity' } },
+                    { text: "Patient is on anticoagulants", noteTag: { target: 'hpi', label: 'anticoagulant use' } },
+                    { text: "Patient is using intra-nasal medication", noteTag: { target: 'hpi', label: 'intra-nasal medication use' } },
+                    { text: "Patient has high blood pressure ( > 140/80)", noteTag: { target: 'hpi', label: 'elevated blood pressure' } },
+                    { text: "Purulent discharge present", noteTag: { target: 'pe', findingKey: 'noNasalDischarge', abnormalKey: 'purulentDischarge' } },
+                    { text: "Recurrent bleed w/o cold", noteTag: { target: 'hpi', label: 'recurrent epistaxis without cold symptoms' } }
                 ],
                 answerOptions: [
                     {
@@ -1005,9 +1051,9 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Current cold or cold symptoms" },
-                    { text: "Runny nose" },
-                    { text: "Allergy symptoms" }
+                    { text: "Current cold or cold symptoms", noteTag: { target: 'hpi', label: 'current cold symptoms' } },
+                    { text: "Runny nose", noteTag: { target: 'hpi', label: 'rhinorrhea' } },
+                    { text: "Allergy symptoms", noteTag: { target: 'hpi', label: 'allergy symptoms' } }
                 ],
                 answerOptions: [
                     {
@@ -1047,7 +1093,14 @@ export const Algorithm: AlgorithmType[] = [
                                     medFind: [
                                         { ...medList[32] },
                                     ],
-                                    specLim: []
+                                    specLim: [],
+                                    planInstructions: [
+                                        'avoid vigorous nose blowing or wiping the mid-septum',
+                                        'nasal saline for prevention if the air is dry',
+                                        'use a humidifier if the air is dry',
+                                        'if bleeding recurs, tilt head forward and pinch the nose for 5 minutes',
+                                        'return for uncontrolled bleeding, bleeding from other sites, lightheadedness, or significant blood loss'
+                                    ]
                                 }
                             }
                         ],

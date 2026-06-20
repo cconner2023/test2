@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Plus, TextCursorInput, Layers, MessageSquare, Trash2 } from 'lucide-react';
+import { Plus, TextCursorInput, Layers, MessageSquare, Trash2, Building2 } from 'lucide-react';
 import type { TextExpander } from '../../Data/User';
 import { isFlatTemplate } from '../../Utilities/templateParser';
 import { OverlayActionMenu } from '../OverlayActionMenu';
@@ -111,9 +111,7 @@ export const TextExpanderManager = ({
                                             <div className="flex items-center gap-1.5">
                                                 <p className="text-sm font-medium text-primary truncate">{e.abbr}</p>
                                                 {isClinic && (
-                                                    <span className="text-[9pt] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary shrink-0">
-                                                        Clinic
-                                                    </span>
+                                                    <Building2 size={12} className="text-themeblue2 shrink-0" aria-label="Cluster" />
                                                 )}
                                             </div>
                                             <p className="text-[9pt] text-tertiary mt-0.5 leading-relaxed">
