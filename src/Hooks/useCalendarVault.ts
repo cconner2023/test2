@@ -21,6 +21,7 @@ import {
   createClinicOutboundSession,
   encryptClinicMessage,
   deleteClinicSession,
+  pruneClinicSessions,
 } from '../lib/signal/clinicSession'
 import { serializeContent } from '../lib/signal/messageContent'
 import type { CalendarEventContent, CalendarEventPayload } from '../lib/signal/messageContent'
@@ -194,6 +195,12 @@ export function useCalendarVault(): UseCalendarVaultResult {
           logger.warn(`No clinic devices found for fan-out to ${targetClinicId}`)
           continue
         }
+
+        // Drop any local session to a device that has left the registry, so we
+        // never chain a ratchet to a dead device (its packets would be
+        // undecryptable forever on the gone recipient). Safe: this fetch already
+        // succeeded and is non-empty (guarded above).
+        await pruneClinicSessions(targetClinicId, new Set(devicesResult.data.map(d => d.deviceId)))
 
         // Filter out our own clinic device — we don't send to ourselves.
         // The vault is a peer device that receives every action, including 'd':

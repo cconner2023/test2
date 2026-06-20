@@ -327,3 +327,36 @@ export async function deleteClinicSession(clinicId: string, deviceId: string): P
   sessionCache.delete(key)
   await store.deleteSession(key)
 }
+
+/**
+ * Drop outbound clinic sessions to devices that have left the clinic's device
+ * registry (user_devices). A peer that deregistered — a replaced/reset device,
+ * an old clinic identity after a regen — must never be fanned to again: a ratchet
+ * sent to it is undecryptable forever on the (gone) recipient, and the sender
+ * keeps advancing a chain no live device can follow. That is exactly how a dead
+ * device's leftover packets end up spamming "No clinic session" on a sibling
+ * device. Call before a fan-out with the CURRENT live device-id set.
+ *
+ * Only ever called with a SUCCESSFUL, non-empty fetch (an empty/failed device
+ * list must not be treated as "everyone left") — caller enforces that. Outbound
+ * clinic sessions are keyed peerId=clinicId, so this only touches send-side
+ * sessions for this clinic; inbound sessions (keyed by senderUuid) are untouched.
+ * Returns the number pruned.
+ */
+export async function pruneClinicSessions(
+  clinicId: string,
+  liveDeviceIds: ReadonlySet<string>,
+): Promise<number> {
+  if (liveDeviceIds.size === 0) return 0
+  const sessions = await store.loadSessionsForPeer(clinicId)
+  let pruned = 0
+  for (const s of sessions) {
+    if (liveDeviceIds.has(s.peerDeviceId)) continue
+    await deleteClinicSession(clinicId, s.peerDeviceId)
+    pruned++
+  }
+  if (pruned > 0) {
+    logger.info(`Pruned ${pruned} clinic session(s) to deregistered device(s) in ${clinicId}`)
+  }
+  return pruned
+}

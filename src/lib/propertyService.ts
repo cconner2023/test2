@@ -285,6 +285,106 @@ export async function updateItem(
   }
 }
 
+/** Property subjects a fault/PMCS can attach to: a stock item OR a property
+ *  location (a kind='vehicle' zone carries its own 5988). */
+export type PropertyFaultSubject = 'item' | 'location'
+
+/**
+ * Raise a maintenance fault against any property subject — a stock item (vehicle
+ * 5988 fault, broken med fridge, unserviceable monitor) OR a property location
+ * (a vehicle's own 5988). Emits an append-only `fault.opened` event; it never
+ * mutates the subject. The free-text description rides in the encrypted payload
+ * so no PHI touches the cleartext spine. Returns the event id so a later
+ * correction can point back at it. clinicId is the subject's clinic (the caller
+ * has it; the active property clinic).
+ */
+export async function raiseFault(
+  subjectType: PropertyFaultSubject,
+  subjectId: string,
+  clinicId: string,
+  description: string,
+  userId: string,
+): Promise<ServiceResult<{ faultId: string }>> {
+  try {
+    const event = await emitAudit(
+      {
+        clinicId, actorId: userId, domain: 'property',
+        eventType: 'fault.opened', subjectType, subjectId,
+        payload: { description },
+      },
+      userId,
+    )
+    if (!event) return fail('Could not record fault')
+
+    immediateSync(userId)
+    return succeed({ faultId: event.id })
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
+/**
+ * Mark a previously-raised fault corrected. Emits an append-only
+ * `fault.corrected` event whose payload points back at the opened event's id
+ * (`corrects`) so the timeline pairs found→fixed. The opened event is left
+ * intact — the full history stays visible ("found 02 JUN, corrected 14 JUN").
+ */
+export async function correctFault(
+  subjectType: PropertyFaultSubject,
+  subjectId: string,
+  clinicId: string,
+  faultId: string,
+  userId: string,
+  note?: string,
+): Promise<ServiceResult> {
+  try {
+    const event = await emitAudit(
+      {
+        clinicId, actorId: userId, domain: 'property',
+        eventType: 'fault.corrected', subjectType, subjectId,
+        payload: note ? { corrects: faultId, note } : { corrects: faultId },
+      },
+      userId,
+    )
+    if (!event) return fail('Could not record correction')
+
+    immediateSync(userId)
+    return succeed()
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
+/**
+ * Record a PMCS (preventive-maintenance check) that found NO new faults. Emits a
+ * spine-only `pmcs.clear` event so a clean check still leaves a paper-trail entry
+ * — proof the subject was inspected on this date even when nothing was wrong.
+ * Reporting faults is raiseFault; this is the "no new faults" path.
+ */
+export async function recordPmcs(
+  subjectType: PropertyFaultSubject,
+  subjectId: string,
+  clinicId: string,
+  userId: string,
+): Promise<ServiceResult> {
+  try {
+    const event = await emitAudit(
+      {
+        clinicId, actorId: userId, domain: 'property',
+        eventType: 'pmcs.clear', subjectType, subjectId,
+        // spine-only — no payload to encrypt, so it never defers on a missing key
+      },
+      userId,
+    )
+    if (!event) return fail('Could not record PMCS')
+
+    immediateSync(userId)
+    return succeed()
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
 export async function deleteItem(
   id: string,
   userId: string,

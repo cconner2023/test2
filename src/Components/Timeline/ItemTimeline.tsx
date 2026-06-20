@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Plus, ArrowRightLeft, UserCheck, Pencil, Minus, Loader2, type LucideIcon } from 'lucide-react'
+import { Plus, ArrowRightLeft, UserCheck, Pencil, Minus, AlertTriangle, Wrench, ClipboardCheck, Loader2, type LucideIcon } from 'lucide-react'
 import { getAuditBySubjectLocal, fetchAuditBySubject } from '../../lib/auditService'
+import { useInvalidation } from '../../stores/useInvalidationStore'
 import type { AuditEvent } from '../../lib/auditTypes'
 import type { LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { createLogger } from '../../Utilities/Logger'
@@ -18,9 +19,10 @@ const logger = createLogger('ItemTimeline')
  */
 
 interface ItemTimelineProps {
-  /** The property item this timeline is about. */
-  itemId: string
-  /** Item's clinic — scopes the server read + payload decryption. */
+  /** The audit subject this timeline is about — a property item, or a property
+   *  location (a kind='vehicle' zone with its own 5988 paper trail). */
+  subjectId: string
+  /** Subject's clinic — scopes the server read + payload decryption. */
   clinicId: string
   /** For resolving location ids in move events to names. */
   locations: LocalPropertyLocation[]
@@ -36,6 +38,9 @@ const EVENT_ICON: Record<string, LucideIcon> = {
   'item.transferred': UserCheck,
   'item.edited': Pencil,
   'item.expended': Minus,
+  'fault.opened': AlertTriangle,
+  'fault.corrected': Wrench,
+  'pmcs.clear': ClipboardCheck,
 }
 
 /** Human labels for the field keys carried in an item.edited payload. */
@@ -52,19 +57,20 @@ const FIELD_LABELS: Record<string, string> = {
   parent_item_id: 'parent',
 }
 
-export function ItemTimeline({ itemId, clinicId, locations, holders, title = 'History' }: ItemTimelineProps) {
+export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 'History' }: ItemTimelineProps) {
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [loading, setLoading] = useState(true)
+  const propGen = useInvalidation('properties')
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     ;(async () => {
       const [local, server] = await Promise.all([
-        getAuditBySubjectLocal(itemId).catch((err) => {
+        getAuditBySubjectLocal(subjectId).catch((err) => {
           logger.warn('local item timeline read failed:', err); return [] as AuditEvent[]
         }),
-        fetchAuditBySubject(itemId, { clinicId }).catch(() => [] as AuditEvent[]),
+        fetchAuditBySubject(subjectId, { clinicId }).catch(() => [] as AuditEvent[]),
       ])
       if (cancelled) return
       const byId = new Map<string, AuditEvent>()
@@ -77,7 +83,7 @@ export function ItemTimeline({ itemId, clinicId, locations, holders, title = 'Hi
       setLoading(false)
     })()
     return () => { cancelled = true }
-  }, [itemId, clinicId])
+  }, [subjectId, clinicId, propGen])
 
   const locName = (id: unknown) =>
     typeof id === 'string' ? (locations.find((l) => l.id === id)?.name ?? 'a location') : 'unassigned'
@@ -106,10 +112,29 @@ export function ItemTimeline({ itemId, clinicId, locations, holders, title = 'Hi
       }
       case 'item.expended':
         return `Expended${p.quantity_delta ? ` ×${p.quantity_delta}` : ''}`
+      case 'fault.opened':
+        return typeof p.description === 'string' && p.description
+          ? `Fault: ${p.description}` : 'Fault reported'
+      case 'fault.corrected':
+        return typeof p.note === 'string' && p.note
+          ? `Fault corrected — ${p.note}` : 'Fault corrected'
+      case 'pmcs.clear':
+        return 'PMCS — no new faults'
       default:
         return e.eventType
     }
   }
+
+  // Fold faults: a fault.opened is still OPEN unless some fault.corrected points
+  // back at it via payload.corrects. Open faults get a red accent in the list.
+  const correctedFaultIds = new Set(
+    events
+      .filter((e) => e.eventType === 'fault.corrected')
+      .map((e) => e.payload?.corrects)
+      .filter((id): id is string => typeof id === 'string'),
+  )
+  const isOpenFault = (e: AuditEvent) =>
+    e.eventType === 'fault.opened' && !correctedFaultIds.has(e.id)
 
   return (
     <div>
@@ -127,12 +152,13 @@ export function ItemTimeline({ itemId, clinicId, locations, holders, title = 'Hi
           <div className="divide-y divide-tertiary/8">
             {events.map((e) => {
               const Icon = EVENT_ICON[e.eventType] ?? Pencil
+              const open = isOpenFault(e)
               return (
                 <div key={e.id} className="flex items-center gap-3 px-4 py-3">
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-themeblue3/10 text-themeblue2">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${open ? 'bg-themered/10 text-themered' : 'bg-themeblue3/10 text-themeblue2'}`}>
                     <Icon size={14} />
                   </div>
-                  <p className="flex-1 min-w-0 text-sm font-medium text-primary truncate">{describe(e)}</p>
+                  <p className={`flex-1 min-w-0 text-sm font-medium truncate ${open ? 'text-themered' : 'text-primary'}`}>{describe(e)}</p>
                   <span className="text-[9pt] text-tertiary shrink-0">{fmtDate(e.occurredAt)}</span>
                 </div>
               )

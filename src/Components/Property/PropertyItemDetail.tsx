@@ -1,15 +1,17 @@
-import { useState, useMemo, forwardRef, useImperativeHandle } from 'react'
-import { createPortal } from 'react-dom'
-import { ScanLine, ArrowRightLeft, GitMerge, Plus, Minus, Check, X, MessageSquare, Pencil, Trash2 } from 'lucide-react'
+import { useState, useMemo, forwardRef, useImperativeHandle, type RefObject } from 'react'
+import { ScanLine, ArrowRightLeft, GitMerge, Plus, Minus, Check, MessageSquare, Pencil, Trash2 } from 'lucide-react'
 import { SectionCard } from '../Section'
 import { type ContextMenuItem } from '../ContextMenu'
 import { LiftedRowMenu } from '../LiftedRowMenu'
+import { Sheet } from '../Sheet'
+import { PreviewOverlay } from '../PreviewOverlay'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useShareToChat } from '../Messages/ShareToChatPicker'
 import { ItemTimeline } from '../Timeline/ItemTimeline'
+import { ItemPmcs } from './ItemPmcs'
 
 export interface PropertyItemDetailHandle {
   /** Open the action menu (Edit / Move / Merge / Share / Enroll / Delete) anchored to the
@@ -27,6 +29,10 @@ interface PropertyItemDetailProps {
   onEdit?: () => void
   onDelete?: () => void
   canDelete?: boolean
+  /** Desktop only — the right-pane element the split/merge PreviewOverlay scopes
+   *  to (dims/centers within the pane instead of a viewport-wide bottom drawer).
+   *  Omitted on mobile, where split/merge render as bottom Sheets. */
+  containerRef?: RefObject<HTMLElement | null>
 }
 
 function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
@@ -39,20 +45,13 @@ function DetailRow({ label, value }: { label: string; value: string | null | und
   )
 }
 
-const CONDITION_LABELS: Record<string, { label: string; color: string }> = {
-  serviceable: { label: 'Serviceable', color: 'bg-themegreen' },
-  unserviceable: { label: 'Unserviceable', color: 'bg-themered' },
-  damaged: { label: 'Damaged', color: 'bg-themeyellow' },
-  missing: { label: 'Missing', color: 'bg-themeredred' },
-}
-
 const EXPIRY_LABELS = {
   expired: { label: 'EXPIRED', dot: 'bg-themeredred', text: 'text-themeredred' },
   expiring: { label: 'EXPIRING SOON', dot: 'bg-themeyellow', text: 'text-themeyellow' },
 } as const
 
 export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyItemDetailProps>(
-  function PropertyItemDetail({ item, locations, holders, items, onEnroll, onEdit, onDelete, canDelete }, ref) {
+  function PropertyItemDetail({ item, locations, holders, items, onEnroll, onEdit, onDelete, canDelete, containerRef }, ref) {
   const isMobile = useIsMobile()
   const splitItem = usePropertyStore(s => s.splitItem)
   const mergeItems = usePropertyStore(s => s.mergeItems)
@@ -115,19 +114,113 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
   const holder = item.current_holder_id ? holders.get(item.current_holder_id) : null
   const parentItem = item.parent_item_id ? items.find(i => i.id === item.parent_item_id) : null
   const subItems = items.filter(i => i.parent_item_id === item.id)
-  const condition = CONDITION_LABELS[item.condition_code] ?? CONDITION_LABELS.serviceable
+  const isMissing = item.condition_code === 'missing'
   const expiry = expiryStatus(item.expiry_date ?? null)
   const expiryLabel = expiry ? EXPIRY_LABELS[expiry] : null
+
+  // ── Shared split/move + merge body pieces. Rendered inside a bottom Sheet on
+  //    mobile and a pane-scoped PreviewOverlay on desktop — bare rows so each
+  //    primitive supplies its own card chrome. ────────────────────────────────
+  const splitTitle = item.quantity > 1 ? 'Split / Move' : 'Move to Location'
+  const otherLocations = locations.filter(l => l.id !== item.location_id)
+
+  const qtyStepper = (
+    <div className="flex items-center gap-4">
+      <button
+        onClick={() => setSplitQty(q => Math.max(1, q - 1))}
+        className="w-10 h-10 rounded-full border border-tertiary/20 flex items-center justify-center text-secondary active:scale-95 transition-all"
+      >
+        <Minus size={16} />
+      </button>
+      <span className="text-2xl font-semibold text-primary w-12 text-center">{splitQty}</span>
+      <button
+        onClick={() => setSplitQty(q => Math.min(item.quantity, q + 1))}
+        className="w-10 h-10 rounded-full border border-tertiary/20 flex items-center justify-center text-secondary active:scale-95 transition-all"
+      >
+        <Plus size={16} />
+      </button>
+      <span className="text-[10pt] text-tertiary">of {item.quantity}</span>
+    </div>
+  )
+
+  const destinationRows = (
+    <>
+      {otherLocations.map(loc => (
+        <button
+          key={loc.id}
+          onClick={() => setSplitTargetId(loc.id === splitTargetId ? null : loc.id)}
+          className={`w-full flex items-center justify-between px-4 py-3 text-left border-b border-primary/5 last:border-b-0 transition-colors ${
+            splitTargetId === loc.id ? 'bg-themeblue3/10' : 'active:bg-secondary/5'
+          }`}
+        >
+          <span className="text-sm text-primary">{loc.name}</span>
+          {splitTargetId === loc.id && <Check size={16} className="text-themeblue2 shrink-0" />}
+        </button>
+      ))}
+      {otherLocations.length === 0 && (
+        <p className="text-[10pt] text-tertiary px-4 py-3">No other locations</p>
+      )}
+    </>
+  )
+
+  const mergeHint = splitMergeTarget ? (
+    <p className="text-[10pt] text-secondary">
+      Will merge into existing <span className="font-medium">{splitMergeTarget.name}</span> (×{splitMergeTarget.quantity}) at that location
+    </p>
+  ) : null
+
+  const confirmButton = (
+    <button
+      onClick={handleSplit}
+      disabled={!splitTargetId}
+      className="w-full flex items-center justify-center gap-2 rounded-2xl bg-themeblue3 text-white font-medium py-3 text-sm disabled:opacity-30 active:scale-[0.98] transition-all duration-200"
+    >
+      <ArrowRightLeft size={16} />
+      {splitQty >= item.quantity ? 'Move All' : `Move ${splitQty}`}
+    </button>
+  )
+
+  const mergeIntro = (
+    <p className="text-[10pt] text-secondary">
+      Select an item to absorb into <span className="font-medium">{item.name}</span> (×{item.quantity}). The selected item will be deleted.
+    </p>
+  )
+
+  const mergeRows = (
+    <>
+      {mergeCandidates.map(candidate => {
+        const candidateLoc = candidate.location_id ? locations.find(l => l.id === candidate.location_id) : null
+        return (
+          <button
+            key={candidate.id}
+            onClick={() => handleMerge(candidate.id)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left border-b border-primary/5 last:border-b-0 active:bg-secondary/5 transition-colors"
+          >
+            <div>
+              <p className="text-sm text-primary">{candidate.name}</p>
+              {candidateLoc && <p className="text-[10pt] text-tertiary">{candidateLoc.name}</p>}
+            </div>
+            <span className="text-sm font-medium px-2 py-1 rounded-full bg-tertiary/10 text-tertiary shrink-0 ml-2">
+              ×{candidate.quantity}
+            </span>
+          </button>
+        )
+      })}
+    </>
+  )
 
   return (
     <div className={`flex flex-col h-full ${isMobile ? 'px-4 py-4 space-y-4' : 'px-3 py-3 space-y-3'}`}>
       {/* Main info card */}
       <SectionCard>
         <div className={isMobile ? 'p-4 space-y-1' : 'p-3 space-y-1'}>
-          <div className="flex items-center gap-2 mb-2">
-            <span className={`h-2 w-2 rounded-full ${condition.color}`} />
-            <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">{condition.label}</span>
-          </div>
+          {/* Accountability flag only — health/serviceability now lives in PMCS. */}
+          {isMissing && (
+            <div className="flex items-center gap-2 mb-2">
+              <span className="h-2 w-2 rounded-full bg-themeredred" />
+              <span className="text-[9pt] font-semibold text-themeredred tracking-widest uppercase">Missing</span>
+            </div>
+          )}
 
           <h2 className={`font-bold text-primary ${isMobile ? 'text-lg' : 'text-sm'}`}>{item.name}</h2>
 
@@ -194,9 +287,12 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
         </div>
       )}
 
-      {/* Lifecycle timeline (creation, move, assign/transfer, edit, expend) */}
+      {/* PMCS — open faults + clean-check logging (replaces condition chips). */}
+      <ItemPmcs subjectId={item.id} clinicId={item.clinic_id} />
+
+      {/* Lifecycle timeline (creation, move, assign/transfer, edit, expend, faults) */}
       <ItemTimeline
-        itemId={item.id}
+        subjectId={item.id}
         clinicId={item.clinic_id}
         locations={locations}
         holders={holders}
@@ -231,125 +327,84 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
         />
       )}
 
-      {/* Split / Move sheet */}
-      {showSplitSheet && createPortal((
+      {/* Split / Move + Merge — bottom Sheet on mobile, pane-scoped PreviewOverlay
+          on desktop (so it surfaces within the right pane, not a viewport drawer). */}
+      {isMobile ? (
         <>
-          <div className="fixed inset-0 z-[1450] bg-black/40" onClick={() => setShowSplitSheet(false)} />
-          <div className="fixed left-0 right-0 bottom-0 z-[1450] bg-themewhite3 rounded-t-[1.25rem] flex flex-col gap-4 p-5" style={{ maxHeight: '75dvh' }}>
-            <div className="w-9 h-1 rounded-full bg-tertiary/25 self-center shrink-0" />
-            <div className="flex items-center justify-between shrink-0">
-              <h2 className="text-lg font-medium text-primary">
-                {item.quantity > 1 ? 'Split / Move' : 'Move to Location'}
-              </h2>
-              <button onClick={() => setShowSplitSheet(false)} className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary active:scale-95">
-                <X size={18} />
-              </button>
-            </div>
-
-            {item.quantity > 1 && (
-              <div className="shrink-0">
-                <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">Quantity to move</p>
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={() => setSplitQty(q => Math.max(1, q - 1))}
-                    className="w-10 h-10 rounded-full border border-tertiary/20 flex items-center justify-center text-secondary active:scale-95 transition-all"
-                  >
-                    <Minus size={16} />
-                  </button>
-                  <span className="text-2xl font-semibold text-primary w-12 text-center">{splitQty}</span>
-                  <button
-                    onClick={() => setSplitQty(q => Math.min(item.quantity, q + 1))}
-                    className="w-10 h-10 rounded-full border border-tertiary/20 flex items-center justify-center text-secondary active:scale-95 transition-all"
-                  >
-                    <Plus size={16} />
-                  </button>
-                  <span className="text-[10pt] text-tertiary">of {item.quantity}</span>
+          <Sheet
+            isOpen={showSplitSheet}
+            onClose={() => setShowSplitSheet(false)}
+            title={splitTitle}
+            height="fit"
+            maxHeight={75}
+            zIndex={1450}
+          >
+            <div className="px-5 pt-3 pb-5 flex flex-col gap-4">
+              {item.quantity > 1 && (
+                <div>
+                  <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">Quantity to move</p>
+                  {qtyStepper}
                 </div>
+              )}
+              <div>
+                <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">Destination</p>
+                <SectionCard>{destinationRows}</SectionCard>
               </div>
-            )}
-
-            <div className="flex-1 overflow-y-auto min-h-0">
-              <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">Destination</p>
-              <SectionCard>
-                {locations
-                  .filter(l => l.id !== item.location_id)
-                  .map(loc => (
-                    <button
-                      key={loc.id}
-                      onClick={() => setSplitTargetId(loc.id === splitTargetId ? null : loc.id)}
-                      className={`w-full flex items-center justify-between px-4 py-3 text-left border-b border-primary/5 last:border-b-0 transition-colors ${
-                        splitTargetId === loc.id ? 'bg-themeblue3/10' : 'active:bg-secondary/5'
-                      }`}
-                    >
-                      <span className="text-sm text-primary">{loc.name}</span>
-                      {splitTargetId === loc.id && <Check size={16} className="text-themeblue2 shrink-0" />}
-                    </button>
-                  ))
-                }
-                {locations.filter(l => l.id !== item.location_id).length === 0 && (
-                  <p className="text-[10pt] text-tertiary px-4 py-3">No other locations</p>
-                )}
-              </SectionCard>
+              {mergeHint}
+              {confirmButton}
             </div>
+          </Sheet>
 
-            {splitMergeTarget && (
-              <p className="text-[10pt] text-secondary shrink-0">
-                Will merge into existing <span className="font-medium">{splitMergeTarget.name}</span> (×{splitMergeTarget.quantity}) at that location
-              </p>
-            )}
-
-            <button
-              onClick={handleSplit}
-              disabled={!splitTargetId}
-              className="w-full flex items-center justify-center gap-2 rounded-2xl bg-themeblue3 text-white font-medium py-3 text-sm disabled:opacity-30 active:scale-[0.98] transition-all duration-200 shrink-0"
-            >
-              <ArrowRightLeft size={16} />
-              {splitQty >= item.quantity ? 'Move All' : `Move ${splitQty}`}
-            </button>
-          </div>
+          <Sheet
+            isOpen={showMergeSheet}
+            onClose={() => setShowMergeSheet(false)}
+            title="Merge Like Items"
+            height="fit"
+            maxHeight={60}
+            zIndex={1450}
+          >
+            <div className="px-5 pt-3 pb-5 flex flex-col gap-4">
+              {mergeIntro}
+              <SectionCard>{mergeRows}</SectionCard>
+            </div>
+          </Sheet>
         </>
-      ), document.body)}
-
-      {/* Merge sheet */}
-      {showMergeSheet && createPortal((
+      ) : (
         <>
-          <div className="fixed inset-0 z-[1450] bg-black/40" onClick={() => setShowMergeSheet(false)} />
-          <div className="fixed left-0 right-0 bottom-0 z-[1450] bg-themewhite3 rounded-t-[1.25rem] flex flex-col gap-4 p-5" style={{ maxHeight: '60dvh' }}>
-            <div className="w-9 h-1 rounded-full bg-tertiary/25 self-center shrink-0" />
-            <div className="flex items-center justify-between shrink-0">
-              <h2 className="text-lg font-medium text-primary">Merge Like Items</h2>
-              <button onClick={() => setShowMergeSheet(false)} className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary active:scale-95">
-                <X size={18} />
-              </button>
-            </div>
-            <p className="text-[10pt] text-secondary shrink-0">
-              Select an item to absorb into <span className="font-medium">{item.name}</span> (×{item.quantity}). The selected item will be deleted.
-            </p>
-            <div className="flex-1 overflow-y-auto min-h-0">
-              <SectionCard>
-                {mergeCandidates.map(candidate => {
-                  const candidateLoc = candidate.location_id ? locations.find(l => l.id === candidate.location_id) : null
-                  return (
-                    <button
-                      key={candidate.id}
-                      onClick={() => handleMerge(candidate.id)}
-                      className="w-full flex items-center justify-between px-4 py-3 text-left border-b border-primary/5 last:border-b-0 active:bg-secondary/5 transition-colors"
-                    >
-                      <div>
-                        <p className="text-sm text-primary">{candidate.name}</p>
-                        {candidateLoc && <p className="text-[10pt] text-tertiary">{candidateLoc.name}</p>}
-                      </div>
-                      <span className="text-sm font-medium px-2 py-1 rounded-full bg-tertiary/10 text-tertiary shrink-0 ml-2">
-                        ×{candidate.quantity}
-                      </span>
-                    </button>
-                  )
-                })}
-              </SectionCard>
-            </div>
-          </div>
+          <PreviewOverlay
+            isOpen={showSplitSheet}
+            onClose={() => setShowSplitSheet(false)}
+            anchorRect={null}
+            containerRef={containerRef}
+            title={splitTitle}
+            maxWidth={340}
+            previewMaxHeight="34dvh"
+            headerCard={item.quantity > 1 ? (
+              <div className="bg-themewhite rounded-2xl px-4 py-3">
+                <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">Quantity to move</p>
+                {qtyStepper}
+              </div>
+            ) : undefined}
+            supplemental={mergeHint ? <div className="px-1">{mergeHint}</div> : undefined}
+            footer={<div className="flex-1">{confirmButton}</div>}
+          >
+            <div className="px-1.5 pb-1.5">{destinationRows}</div>
+          </PreviewOverlay>
+
+          <PreviewOverlay
+            isOpen={showMergeSheet}
+            onClose={() => setShowMergeSheet(false)}
+            anchorRect={null}
+            containerRef={containerRef}
+            title="Merge Like Items"
+            maxWidth={340}
+            previewMaxHeight="34dvh"
+            headerCard={<div className="bg-themewhite rounded-2xl px-4 py-3">{mergeIntro}</div>}
+          >
+            <div className="px-1.5 pb-1.5">{mergeRows}</div>
+          </PreviewOverlay>
         </>
-      ), document.body)}
+      )}
 
       {shareToChatPicker}
     </div>

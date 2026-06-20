@@ -20,8 +20,9 @@
 /** Domains tracked in the unified audit_log. */
 export type AuditDomain = 'property' | 'personnel' | 'training' | 'cert'
 
-/** What an event is about. */
-export type AuditSubjectType = 'user' | 'item' | 'algorithm'
+/** What an event is about. `location` covers property zones incl. vehicles
+ *  (a vehicle is a kind='vehicle' property_location that carries its own 5988). */
+export type AuditSubjectType = 'user' | 'item' | 'algorithm' | 'location'
 
 /**
  * Event vocabulary, namespaced `<noun>.<verb>`. Stored as text server-side
@@ -45,6 +46,18 @@ export type AuditEventType =
   | 'item.moved'
   | 'item.assigned'
   | 'item.edited'
+  // property faults — a fault can belong to ANY property item (vehicle 5988
+  // faults, a broken med fridge, an unserviceable monitor). Append-only:
+  // correcting never removes the opened event, so the full found→fixed history
+  // stays in the item timeline. Free-text lives in the encrypted payload.
+  //  opened:    { description }
+  //  corrected: { corrects, note? }   // `corrects` = the fault.opened event id
+  | 'fault.opened'
+  | 'fault.corrected'
+  // property PMCS — a preventive-maintenance check that found NO new faults.
+  // Logged so a clean PMCS still leaves a paper-trail entry (proof it was done).
+  // Spine-only, payload = null.
+  | 'pmcs.clear'
   // training — payload: { training_item_id, result?, step_results?, supervisor_notes?, due_date?, supersedes? }
   | 'read.recorded'
   | 'test.graded'

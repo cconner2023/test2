@@ -247,6 +247,10 @@ export interface TeamMetrics {
   evaluationsLastPeriod: number
   soldierReadiness: SoldierReadinessEntry[]
   subjectAreaGaps: SubjectAreaGap[]
+  /** Per-algorithm team coverage — algorithms surfaced as a peer of subject-area
+   *  gaps in the Coverage Gaps surface. Item-weighted across the composite
+   *  competency dimensions (STP + red flags + ddx + run). */
+  algorithmGaps: AlgorithmGap[]
 }
 
 export interface SoldierReadinessEntry {
@@ -259,6 +263,14 @@ export interface SoldierReadinessEntry {
 export interface SubjectAreaGap {
   areaName: string
   coveragePercent: number
+  deficientSoldierIds: string[]
+}
+
+export interface AlgorithmGap {
+  algorithmId: string
+  name: string
+  coveragePercent: number
+  /** Soldiers not yet fully trained on this algorithm. */
   deficientSoldierIds: string[]
 }
 
@@ -374,6 +386,49 @@ export function buildCompetencyMatrix(
   )
 }
 
+/**
+ * Per-algorithm team coverage. Runs the per-soldier composite competency for
+ * each medic and aggregates item-weighted across the team (sum of validated
+ * dimension items / sum of total dimension items), mirroring how subject-area
+ * gaps aggregate STP passes. A soldier is "deficient" until fully trained.
+ */
+export function buildAlgorithmGaps(
+  medics: ClinicMedic[],
+  tests: TrainingCompletionUI[]
+): AlgorithmGap[] {
+  const testsByUser = new Map<string, TrainingCompletionUI[]>()
+  for (const t of tests) {
+    if (t.completionType !== 'test') continue
+    const arr = testsByUser.get(t.userId) ?? []
+    arr.push(t)
+    testsByUser.set(t.userId, arr)
+  }
+
+  // algorithmId -> { name, validated, total, deficient }
+  const agg = new Map<string, { name: string; validated: number; total: number; deficient: string[] }>()
+  for (const m of medics) {
+    const comps = buildAlgorithmCompetency(testsByUser.get(m.id) ?? [])
+    for (const c of comps) {
+      const entry = agg.get(c.id) ?? { name: c.name, validated: 0, total: 0, deficient: [] }
+      for (const d of c.dims) {
+        entry.validated += d.validated
+        entry.total += d.total
+      }
+      if (c.status !== 'trained') entry.deficient.push(m.id)
+      agg.set(c.id, entry)
+    }
+  }
+
+  const gaps: AlgorithmGap[] = [...agg.entries()].map(([algorithmId, e]) => ({
+    algorithmId,
+    name: e.name,
+    coveragePercent: e.total > 0 ? Math.round((e.validated / e.total) * 100) : 0,
+    deficientSoldierIds: e.deficient,
+  }))
+  gaps.sort((a, b) => a.coveragePercent - b.coveragePercent || a.name.localeCompare(b.name))
+  return gaps
+}
+
 /** Compute aggregate team metrics. */
 export function computeTeamMetrics(
   medics: ClinicMedic[],
@@ -470,6 +525,7 @@ export function computeTeamMetrics(
     evaluationsLastPeriod,
     soldierReadiness,
     subjectAreaGaps,
+    algorithmGaps: buildAlgorithmGaps(medics, tests),
   }
 }
 

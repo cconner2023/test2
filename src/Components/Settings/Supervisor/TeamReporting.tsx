@@ -33,6 +33,8 @@ interface TeamReportingProps {
   testableTaskMap: Map<string, { taskId: string }[]>
   onNavigateToTask?: (taskId: string) => void
   onNavigateToArea?: (areaName: string) => void
+  /** Drill into a single algorithm's team coverage (peer of subject-area gaps). */
+  onNavigateToAlgorithm?: (algorithmId: string, algorithmName: string) => void
   clinicName?: string | null
   teamEvents: CalendarEvent[]
   /** Per-soldier count of logged algorithm encounters (full history). */
@@ -68,6 +70,7 @@ export function TeamReporting({
   testableTaskMap,
   onNavigateToTask,
   onNavigateToArea,
+  onNavigateToAlgorithm,
   clinicName,
   teamEvents,
   encounterCountBySoldier,
@@ -93,6 +96,10 @@ export function TeamReporting({
   const sortedGaps = useMemo(() => {
     return [...metrics.subjectAreaGaps].sort((a, b) => a.coveragePercent - b.coveragePercent)
   }, [metrics.subjectAreaGaps])
+
+  const sortedAlgorithmGaps = useMemo(() => {
+    return [...metrics.algorithmGaps].sort((a, b) => a.coveragePercent - b.coveragePercent)
+  }, [metrics.algorithmGaps])
 
   if (metrics.totalMedics === 0) {
     return (
@@ -296,6 +303,11 @@ export function TeamReporting({
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Coverage Gaps
         </p>
+        {sortedAlgorithmGaps.length > 0 && (
+          <p className="text-[8pt] font-semibold text-tertiary uppercase tracking-wider mb-1.5">
+            Subject Areas
+          </p>
+        )}
         <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
           {sortedGaps.map((gap, index) => (
             <button
@@ -334,6 +346,47 @@ export function TeamReporting({
             </button>
           ))}
         </div>
+
+        {/* Algorithms — composite competency, peer of subject-area gaps but with
+            its own drill-down (soldier-by-algorithm, Evaluate cascades to STPs). */}
+        {sortedAlgorithmGaps.length > 0 && (
+          <>
+            <p className="text-[8pt] font-semibold text-tertiary uppercase tracking-wider mt-3 mb-1.5">
+              Algorithms
+            </p>
+            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+              {sortedAlgorithmGaps.map((gap) => (
+                <button
+                  key={gap.algorithmId}
+                  onClick={() => onNavigateToAlgorithm?.(gap.algorithmId, gap.name)}
+                  disabled={!onNavigateToAlgorithm}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-themeblue2/5 text-left active:scale-95 transition-all disabled:active:scale-100"
+                >
+                  <span className="text-sm text-primary min-w-0 truncate shrink-0 w-36">
+                    {gap.name}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div
+                      className="h-1.5 rounded-full bg-tertiary/10 overflow-hidden"
+                      role="progressbar"
+                      aria-valuenow={gap.coveragePercent}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
+                      <div
+                        className={`h-full rounded-full transition-all ${metricBarColor(gap.coveragePercent)}`}
+                        style={{ width: `${gap.coveragePercent}%` }}
+                      />
+                    </div>
+                  </div>
+                  <span className={`text-[9pt] font-medium w-8 text-right ${metricTextColor(gap.coveragePercent)}`}>
+                    {gap.coveragePercent}%
+                  </span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
     </div>

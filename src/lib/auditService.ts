@@ -25,6 +25,17 @@ import type { AuditDomain, AuditEvent, EmitAuditInput } from './auditTypes'
 
 const logger = createLogger('AuditService')
 
+/**
+ * Subject/clinic ids must be real UUIDs. During the auth token-refresh window
+ * `user` is briefly null and callers fall back to the literal 'guest' — sending
+ * that to a uuid-typed RPC param throws "invalid input syntax for type uuid".
+ * Guard reads so a transient guest id quietly yields no events instead of a 400.
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+function isUuid(v: string | null | undefined): v is string {
+  return !!v && UUID_RE.test(v)
+}
+
 /** Raw server row shape returned by the read_audit RPC / a direct select. */
 interface AuditRow {
   seq: number | null
@@ -175,6 +186,7 @@ export async function toAuditEvent(row: AuditRow | LocalAuditLog): Promise<Audit
 
 /** Read a subject's events from the local IDB store (offline-first), decrypted. */
 export async function getAuditBySubjectLocal(subjectId: string): Promise<AuditEvent[]> {
+  if (!isUuid(subjectId)) return []
   const rows = await getLocalAuditLogsBySubject(subjectId)
   return Promise.all(rows.map(toAuditEvent))
 }
@@ -190,6 +202,7 @@ export async function fetchAuditBySubject(
   subjectId: string,
   opts: { clinicId?: string; since?: number; limit?: number } = {},
 ): Promise<AuditEvent[]> {
+  if (!isUuid(subjectId)) return []
   const { data, error } = await supabase.rpc('read_audit', {
     p_subject_id: subjectId,
     p_domain: null,
@@ -215,6 +228,7 @@ export async function fetchAuditByClinicDomain(
   domain: AuditDomain,
   opts: { since?: number; limit?: number } = {},
 ): Promise<AuditEvent[]> {
+  if (!isUuid(clinicId)) return []
   const { data, error } = await supabase.rpc('read_audit', {
     p_subject_id: null,
     p_domain: domain,

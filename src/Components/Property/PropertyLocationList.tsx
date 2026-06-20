@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, forwardRef, useImperativeHandle } from 'react'
-import { ChevronRight, Pencil, Trash2, Map as MapIcon, FolderPlus, PackagePlus, FolderClosed, User, MoreHorizontal, Eye } from 'lucide-react'
+import { ChevronRight, Pencil, Trash2, Map as MapIcon, FolderPlus, PackagePlus, FolderClosed, User, MoreHorizontal, Eye, Truck } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { Section, SectionCard } from '../Section'
 import { type ContextMenuItem } from '../ContextMenu'
@@ -311,7 +311,9 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
         <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isMember ? 'bg-themeblue3/10' : 'bg-tertiary/8'}`}>
           {isMember
             ? <User size={18} className="text-themeblue2" />
-            : <FolderClosed size={18} className="text-tertiary" />
+            : loc.kind === 'vehicle'
+              ? <Truck size={18} className="text-tertiary" />
+              : <FolderClosed size={18} className="text-tertiary" />
           }
         </div>
         <div className="flex-1 min-w-0">

@@ -42,7 +42,11 @@ function fetchZones(clinicId: string, key: string): Promise<ClinicZone[]> {
   const p = fetchClinicLocations(clinicId)
     .then((locs) => {
       inflight.delete(key)
-      const structural = locs.filter((l) => l.holder_user_id == null && l.name !== ROOT_LOCATION_NAME)
+      // Vehicles are property containers, not schedulable rooms — exclude them
+      // from the calendar-room subtree even if drawn under BAS.
+      const structural = locs.filter(
+        (l) => l.holder_user_id == null && l.name !== ROOT_LOCATION_NAME && l.kind !== 'vehicle',
+      )
       const bas = structural.find((l) => l.is_default_zone)
 
       let zones: ClinicZone[] = EMPTY

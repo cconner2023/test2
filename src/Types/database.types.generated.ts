@@ -1308,6 +1308,7 @@ export type Database = {
           nsn: string | null
           parent_item_id: string | null
           photo_url: string | null
+          quantity: number
           serial_number: string | null
           updated_at: string
           visual_fingerprint: Json | null
@@ -1329,6 +1330,7 @@ export type Database = {
           nsn?: string | null
           parent_item_id?: string | null
           photo_url?: string | null
+          quantity?: number
           serial_number?: string | null
           updated_at?: string
           visual_fingerprint?: Json | null
@@ -1350,6 +1352,7 @@ export type Database = {
           nsn?: string | null
           parent_item_id?: string | null
           photo_url?: string | null
+          quantity?: number
           serial_number?: string | null
           updated_at?: string
           visual_fingerprint?: Json | null

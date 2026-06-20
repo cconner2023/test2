@@ -1314,7 +1314,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             isOpen={showDayDrawer && (dayDrawerView === 'detail' || dayDrawerView === 'edit')}
             onClose={dayDrawerView === 'edit' ? handleDayDrawerEditCancel : handleDayDrawerDetailBack}
             height="fit"
-            maxHeight={dayDrawerView === 'edit' ? 85 : 60}
+            maxHeight={60}
             backdrop="block"
             zIndex={1200}
             hideClose={dayDrawerView === 'detail'}

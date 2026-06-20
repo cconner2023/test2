@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronRight, ChevronDown, Pencil, Trash2, Eye, FolderPlus, PackagePlus, MoreHorizontal, FolderClosed, Package, Layers } from 'lucide-react'
+import { ChevronRight, ChevronDown, Pencil, Trash2, Eye, FolderPlus, PackagePlus, MoreHorizontal, FolderClosed, Package, Layers, Truck } from 'lucide-react'
 import { useDrag } from '@use-gesture/react'
 import { type ContextMenuItem } from '../ContextMenu'
 import { LiftedRowMenu } from '../LiftedRowMenu'
@@ -444,6 +444,9 @@ export function PropertyLocationTree({
             onClick={() => onSelectLocation(node.location)}
             onKeyDown={(e) => { if (e.key === 'Enter') onSelectLocation(node.location) }}
           >
+            {node.location.kind === 'vehicle' && (
+              <Truck size={14} className="text-tertiary shrink-0" />
+            )}
             <span className="text-[10pt] font-medium text-primary truncate">{node.location.name}</span>
           </div>
 

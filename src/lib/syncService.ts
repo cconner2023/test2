@@ -310,13 +310,26 @@ async function markPropertyRecordSynced(
 // CRUD Handlers
 // ============================================================
 
+/**
+ * Append-only tables have no UPDATE policy by design (immutable event store).
+ * An upsert's `ON CONFLICT DO UPDATE` branch would hit the missing UPDATE
+ * policy and fail with "violates RLS policy (USING expression)" on any re-sync
+ * of an already-synced row. These must use `ON CONFLICT DO NOTHING` instead.
+ */
+const APPEND_ONLY_TABLES: ReadonlySet<string> = new Set(['audit_log'])
+
 async function handleCreate(tableName: SyncableTable, payload: Record<string, unknown>): Promise<void> {
-  // Use upsert to handle the case where the note was already created
+  // Use upsert to handle the case where the record was already created
   // on the server (e.g., from another device). This prevents duplicate
-  // key errors when retrying a create that partially succeeded.
+  // key errors when retrying a create that partially succeeded. For
+  // append-only tables we ignore duplicates (DO NOTHING) so the conflict
+  // never takes the UPDATE branch — which RLS forbids on those tables.
   const { error } = await supabase
     .from(tableName as any)
-    .upsert(payload as never, { onConflict: 'id' })
+    .upsert(payload as never, {
+      onConflict: 'id',
+      ignoreDuplicates: APPEND_ONLY_TABLES.has(tableName),
+    })
 
   if (error) throw new Error(`Create failed: ${error.message}`)
 }

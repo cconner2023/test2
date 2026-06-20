@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { Building2, Package, ClipboardCheck, Award, Activity, Loader2 } from 'lucide-react'
+import { Building2, Package, ClipboardCheck, Award, Activity, Calendar, Loader2 } from 'lucide-react'
 import { getAuditBySubjectLocal, fetchAuditBySubject } from '../../lib/auditService'
 import type { AuditEvent, AuditDomain } from '../../lib/auditTypes'
 import { createLogger } from '../../Utilities/Logger'
@@ -19,6 +19,20 @@ const logger = createLogger('UserTimeline')
  * surfaces — same component, different subject.
  */
 
+/**
+ * A calendar-sourced timeline row. Calendar events are NOT audit_log rows
+ * (they live in the clinic vault), so callers map them into this shape and feed
+ * them alongside the audit spine. Used to fold the supervisor's separate
+ * "Schedule" (future) and "Encounter Log" (past) sections into the one timeline.
+ */
+export interface TimelineCalendarEntry {
+  id: string
+  /** ISO start time — drives the past/future split and the displayed date. */
+  occurredAt: string
+  title: string
+  kind: 'scheduled' | 'encounter'
+}
+
 interface UserTimelineProps {
   /** The user this timeline is about (soldier / member). */
   subjectId: string
@@ -27,7 +41,23 @@ interface UserTimelineProps {
   /** Optional synthetic events to seed the spine (e.g. a "joined" marker from
    *  profiles.created_at, which is not itself an audit event). */
   seedEvents?: AuditEvent[]
+  /** Optional calendar-sourced rows (schedule + encounters) merged into the spine. */
+  calendarEntries?: TimelineCalendarEntry[]
+  /** Tap handler for a calendar row — opens the event in the calendar. */
+  onOpenEvent?: (eventId: string) => void
   title?: string
+}
+
+/** Normalized row rendered by the timeline — from an audit event or a calendar entry. */
+interface TimelineRowData {
+  id: string
+  occurredAt: string
+  seq: number | null
+  label: string
+  sublabel: string
+  Icon: typeof Building2
+  tint: string
+  onClick?: () => void
 }
 
 const DOMAIN_ICON: Record<AuditDomain, typeof Building2> = {
@@ -75,23 +105,55 @@ function fmtDate(iso: string): string {
   })
 }
 
-function TimelineRow({ e, future }: { e: AuditEvent; future: boolean }) {
-  const Icon = DOMAIN_ICON[e.domain] ?? Activity
-  return (
-    <div className={`flex items-center gap-3 px-4 py-3 ${future ? 'opacity-70' : ''}`}>
-      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${DOMAIN_TINT[e.domain]}`}>
+/** Map an audit event to a render row. */
+function auditToRow(e: AuditEvent): TimelineRowData {
+  return {
+    id: e.id,
+    occurredAt: e.occurredAt,
+    seq: e.seq,
+    label: describeEvent(e),
+    sublabel: e.domain,
+    Icon: DOMAIN_ICON[e.domain] ?? Activity,
+    tint: DOMAIN_TINT[e.domain] ?? 'bg-themeblue3/10 text-themeblue2',
+  }
+}
+
+/** Map a calendar entry to a render row. */
+function calendarToRow(c: TimelineCalendarEntry, onOpenEvent?: (id: string) => void): TimelineRowData {
+  const encounter = c.kind === 'encounter'
+  return {
+    id: c.id,
+    occurredAt: c.occurredAt,
+    seq: null,
+    label: c.title,
+    sublabel: encounter ? 'Encounter' : 'Scheduled',
+    Icon: encounter ? Activity : Calendar,
+    tint: 'bg-themeblue3/10 text-themeblue2',
+    onClick: onOpenEvent ? () => onOpenEvent(c.id) : undefined,
+  }
+}
+
+function TimelineRow({ row, future }: { row: TimelineRowData; future: boolean }) {
+  const { Icon } = row
+  const body = (
+    <>
+      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${row.tint}`}>
         <Icon size={14} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-primary truncate">{describeEvent(e)}</p>
-        <p className="text-[9pt] text-tertiary capitalize">{e.domain}</p>
+        <p className="text-sm font-medium text-primary truncate">{row.label}</p>
+        <p className="text-[9pt] text-tertiary capitalize">{row.sublabel}</p>
       </div>
-      <span className="text-[9pt] text-tertiary shrink-0">{fmtDate(e.occurredAt)}</span>
-    </div>
+      <span className="text-[9pt] text-tertiary shrink-0">{fmtDate(row.occurredAt)}</span>
+    </>
   )
+  const cls = `w-full text-left flex items-center gap-3 px-4 py-3 ${future ? 'opacity-70' : ''}`
+  return row.onClick
+    ? <button type="button" onClick={row.onClick} className={`${cls} transition-colors hover:bg-themeblue3/5`}>{body}</button>
+    : <div className={cls}>{body}</div>
 }
 
-export function UserTimeline({ subjectId, clinicId, seedEvents, title = 'Timeline' }: UserTimelineProps) {
+export function UserTimeline({ subjectId, clinicId, seedEvents, calendarEntries, onOpenEvent, title = 'Timeline' }: UserTimelineProps) {
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -115,36 +177,42 @@ export function UserTimeline({ subjectId, clinicId, seedEvents, title = 'Timelin
     return () => { cancelled = true }
   }, [subjectId, clinicId, seedEvents])
 
-  const { past, future } = useMemo(() => {
+  const { past, future, total } = useMemo(() => {
+    // Merge audit rows with calendar rows, dedupe by id (audit wins on collision).
+    const byId = new Map<string, TimelineRowData>()
+    for (const c of calendarEntries ?? []) byId.set(c.id, calendarToRow(c, onOpenEvent))
+    for (const e of events) byId.set(e.id, auditToRow(e))
+    const rows = [...byId.values()]
     const now = Date.now()
     // Newest-first within each half; future shown above the now-divider.
-    const sorted = [...events].sort((a, b) => {
+    const sorted = rows.sort((a, b) => {
       if (a.seq != null && b.seq != null) return b.seq - a.seq
       return new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()
     })
     return {
-      future: sorted.filter((e) => new Date(e.occurredAt).getTime() > now),
-      past: sorted.filter((e) => new Date(e.occurredAt).getTime() <= now),
+      future: sorted.filter((r) => new Date(r.occurredAt).getTime() > now),
+      past: sorted.filter((r) => new Date(r.occurredAt).getTime() <= now),
+      total: sorted.length,
     }
-  }, [events])
+  }, [events, calendarEntries, onOpenEvent])
 
   return (
     <div>
       <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
-        {title}{events.length > 0 && ` · ${events.length}`}
+        {title}{total > 0 && ` · ${total}`}
       </p>
       <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center px-4 py-6">
             <Loader2 size={16} className="animate-spin text-tertiary" />
           </div>
-        ) : events.length === 0 ? (
+        ) : total === 0 ? (
           <p className="text-[10pt] text-tertiary px-4 py-4">No timeline events yet</p>
         ) : (
           <div className="divide-y divide-tertiary/8">
             {future.length > 0 && (
               <div className="divide-y divide-tertiary/8">
-                {future.map((e) => <TimelineRow key={e.id} e={e} future />)}
+                {future.map((r) => <TimelineRow key={r.id} row={r} future />)}
               </div>
             )}
             <div className="flex items-center gap-2 px-4 py-1.5 bg-themeblue3/5">
@@ -152,7 +220,7 @@ export function UserTimeline({ subjectId, clinicId, seedEvents, title = 'Timelin
               <div className="flex-1 h-px bg-themeblue3/20" />
             </div>
             <div className="divide-y divide-tertiary/8">
-              {past.map((e) => <TimelineRow key={e.id} e={e} future={false} />)}
+              {past.map((r) => <TimelineRow key={r.id} row={r} future={false} />)}
             </div>
           </div>
         )}

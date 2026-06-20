@@ -22,6 +22,7 @@ import {
   createClinicOutboundSession,
   encryptClinicMessage,
   deleteClinicSession,
+  pruneClinicSessions,
 } from '../lib/signal/clinicSession'
 import { serializeContent } from '../lib/signal/messageContent'
 import type { MapOverlayContent, MapOverlayPayload, MapFeatureContent, MapFeaturePayload } from '../lib/signal/messageContent'
@@ -157,6 +158,11 @@ export function useMapOverlayVault(): UseMapOverlayVaultResult {
         return null
       }
 
+      // Never chain a ratchet to a dead device — drop sessions to any device
+      // that has left the registry before fanning out (fetch already succeeded
+      // and is non-empty, guarded above).
+      await pruneClinicSessions(targetClinicId, new Set(devicesResult.data.map(d => d.deviceId)))
+
       // Filter out our own clinic device — we don't send to ourselves.
       // The vault is a peer device that receives every action, including 'd':
       // cooperative cleanup during processClinicVaultMessages pairs 'c'/'d'
@@ -205,7 +211,8 @@ export function useMapOverlayVault(): UseMapOverlayVaultResult {
         return null
       }
 
-      // Same self-filter as sendOverlay — never fan out to our own clinic device.
+      // Drop sessions to deregistered devices, then self-filter (as sendOverlay).
+      await pruneClinicSessions(targetClinicId, new Set(devicesResult.data.map(d => d.deviceId)))
       const targetDevices = devicesResult.data.filter(d => d.deviceId !== clinicDeviceId)
       if (targetDevices.length === 0) {
         logger.warn('No target clinic devices for feature fan-out (only self)')

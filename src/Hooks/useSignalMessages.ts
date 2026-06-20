@@ -40,6 +40,22 @@ import { ErrorCode } from '../lib/errorCodes'
 
 const logger = createLogger('RealtimeSignal')
 
+/**
+ * A clinic message that can NEVER be decrypted on this device: the sender device
+ * is gone (no bundle) or we never got the bootstrapping X3DH initial, so a ratchet
+ * packet has no session to open — or the signed pre-key it targets was rotated
+ * away. Such a row must be marked read so it drops out of the unread catch-up
+ * delta; otherwise every reconnect re-fetches and re-logs it forever (the dead-
+ * device "No clinic session" spam). Clinic STATE is authoritative via the clinic
+ * vault snapshot, so dropping a member↔member packet loses no data.
+ */
+function isUnrecoverableClinicDecrypt(e: unknown): boolean {
+  const m = e instanceof Error ? e.message : String(e)
+  return m.includes('No clinic session') ||
+    m.includes('has no peerIdentityDhKey') ||
+    /pre-key\b.*not found/i.test(m)
+}
+
 // Minimum gap between 'online'-triggered catch-ups. A flapping connection fires
 // discrete online events per flap; without this a bad link could spam the
 // unread-delta fetch. Visibility/backup triggers stay unthrottled (user-paced).
@@ -772,7 +788,14 @@ export function useSignalMessages({
               await routeMapFeature(content).catch(() => {})
             }
           } catch (e) {
-            logger.warn(`Failed to decrypt clinic message ${row.id}:`, e instanceof Error ? e.message : e)
+            if (isUnrecoverableClinicDecrypt(e)) {
+              // Undeliverable forever — mark read so it leaves the unread delta
+              // instead of re-draining (and re-logging) on every reconnect.
+              processedRowIds.push(row.id)
+              logger.warn(`Dropping undecryptable clinic message ${row.id} (marking read):`, e instanceof Error ? e.message : e)
+            } else {
+              logger.warn(`Failed to decrypt clinic message ${row.id}:`, e instanceof Error ? e.message : e)
+            }
           }
         }
       }
@@ -985,7 +1008,13 @@ export function useSignalMessages({
           }
           markMessagesRead([row.id]).catch(() => {})
         } catch (e) {
-          logger.warn(`Failed to decrypt clinic realtime message ${row.id}:`, e instanceof Error ? e.message : e)
+          if (isUnrecoverableClinicDecrypt(e)) {
+            // Undeliverable forever — mark read so catch-up doesn't re-drain it.
+            markMessagesRead([row.id]).catch(() => {})
+            logger.warn(`Dropping undecryptable clinic realtime message ${row.id} (marking read):`, e instanceof Error ? e.message : e)
+          } else {
+            logger.warn(`Failed to decrypt clinic realtime message ${row.id}:`, e instanceof Error ? e.message : e)
+          }
         }
       })()
     },

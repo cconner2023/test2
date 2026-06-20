@@ -59,7 +59,10 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   const [expiryDate, setExpiryDate] = useState(editingItem?.expiry_date ?? '')
   const [, setIsSaving] = useState(false)
   const [isSerialized, setIsSerialized] = useState(editingItem?.is_serialized ?? true)
-  const [conditionCode, setConditionCode] = useState<'serviceable' | 'unserviceable' | 'damaged' | 'missing'>(
+  // Health/serviceability is expressed by PMCS faults now (no manual chips). The
+  // value still round-trips: 'serviceable' default on create, and an edit preserves
+  // whatever's there (e.g. 'missing' set by the transfer accountability check).
+  const [conditionCode] = useState<'serviceable' | 'unserviceable' | 'damaged' | 'missing'>(
     editingItem?.condition_code ?? 'serviceable'
   )
 
@@ -216,28 +219,6 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
         Track individually (serialized)
       </button>
 
-      <div className="px-4 py-3 border-b border-primary/6">
-        <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">Condition</span>
-        <div className="mt-1.5 flex overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-          {(['serviceable', 'unserviceable', 'damaged', 'missing'] as const).map((code) => (
-            <button
-              key={code}
-              type="button"
-              onClick={() => setConditionCode(code)}
-              className={`shrink-0 px-4 py-1.5 transition-colors ${
-                conditionCode === code ? 'bg-themeblue3' : 'active:bg-tertiary/5'
-              }`}
-              title={`Condition: ${code}`}
-            >
-              <span className={`text-[9pt] capitalize transition-colors ${
-                conditionCode === code ? 'text-white font-medium' : 'text-secondary'
-              }`}>
-                {code}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
 
       {isSerialized ? (
         <div>

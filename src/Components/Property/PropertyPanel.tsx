@@ -105,6 +105,9 @@ export const PropertyPanel = memo(function PropertyPanel({
   const itemFormRef = useRef<PropertyItemFormHandle>(null)
   const locationFormRef = useRef<PropertyLocationFormHandle>(null)
   const itemDetailRef = useRef<PropertyItemDetailHandle>(null)
+  // Desktop right pane — scopes the item's split/merge PreviewOverlay so it dims
+  // and centers within the pane rather than spanning the whole viewport.
+  const detailPaneRef = useRef<HTMLDivElement>(null)
   // Set when we programmatically navigate the canvas to an item's zone (item
   // select), so the resulting onSelectZone doesn't close the item we just opened.
   const pendingItemZoneRef = useRef<string | null>(null)
@@ -304,16 +307,13 @@ export const PropertyPanel = memo(function PropertyPanel({
     onDelete: () => setPendingDeleteLocId(loc.id),
   })
 
-  // Bare lg FAB in a positioning wrapper — mirrors MapOverlayPanel's add FAB.
-  // The SAB padding rides the wrapper (not a tray), so the button stays a clean
-  // circle instead of the old tray stretching vertically.
+  // Trayed FAB in a positioning wrapper — matches Calendar/Admin's add FAB
+  // (bordered translucent tray, md size). The SAB padding rides the wrapper.
   const addFab = onOpenAddSheet ? (
     <div className="absolute bottom-4 right-4 z-30 pb-[max(0rem,var(--sab,0px))] pointer-events-none">
       <AddFab
         tour="property-add-fab"
         label="Add"
-        size="lg"
-        tray={false}
         onClick={onOpenAddSheet}
       />
     </div>
@@ -368,7 +368,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             <LoadingOverlay visible={showLoading} />
           </div>
 
-          <div className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-all duration-300 relative ${
+          <div ref={detailPaneRef} className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-all duration-300 relative ${
             railCollapsed ? 'w-[380px] opacity-100' : 'w-0 opacity-0 overflow-hidden border-l-0'
           }`}>
             {editLocationTarget && (
@@ -432,6 +432,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                     onEdit={onEditItem}
                     onDelete={onDeleteItem ? () => onDeleteItem(selectedItem) : undefined}
                     canDelete={!!onDeleteItem}
+                    containerRef={detailPaneRef}
                   />
                 </div>
               </>

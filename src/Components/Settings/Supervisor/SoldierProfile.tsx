@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from 'react'
-import { Building2, ChevronRight, ClipboardList, Calendar, CalendarPlus, ClipboardCheck, Plus, Check, Trash2, Loader2, Activity } from 'lucide-react'
+import { Building2, ChevronRight, ClipboardList, Calendar, CalendarPlus, ClipboardCheck, Plus, Check, Trash2, Loader2 } from 'lucide-react'
 import { ActionButton } from '../../ActionButton'
 import { ConfirmDialog } from '../../ConfirmDialog'
 import { PreviewOverlay } from '../../PreviewOverlay'
@@ -14,7 +14,7 @@ import {
 } from '../../../lib/certificationService'
 import { CertOverlayFields } from '../../Certifications/CertOverlayFields'
 import { useIsMobile } from '../../../Hooks/useIsMobile'
-import { formatMedicName, getLatestTestByTask, groupEncounters, buildAlgorithmCompetency } from './supervisorHelpers'
+import { formatMedicName, getLatestTestByTask, buildAlgorithmCompetency } from './supervisorHelpers'
 import { getExpirationStatus, emptyCertForm, type CertFormData } from '../../Certifications/certHelpers'
 import type { FlatTask, AlgorithmCompetency } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
@@ -23,25 +23,8 @@ import type { TrainingCompletionUI } from '../../../lib/trainingService'
 import type { CalendarEvent } from '../../../Types/CalendarTypes'
 import { createLogger } from '../../../Utilities/Logger'
 import { ActionPill } from '../../ActionPill'
-import { UserTimeline } from '../../Timeline/UserTimeline'
+import { UserTimeline, type TimelineCalendarEntry } from '../../Timeline/UserTimeline'
 import { useAuthStore } from '../../../stores/useAuthStore'
-
-function formatEventDate(evt: CalendarEvent): string {
-  const start = new Date(evt.start_time)
-  const today = new Date(); today.setHours(0, 0, 0, 0)
-  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1)
-  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1)
-  const eventDay = new Date(start); eventDay.setHours(0, 0, 0, 0)
-
-  let dayLabel: string
-  if (eventDay.getTime() === today.getTime()) dayLabel = 'Today'
-  else if (eventDay.getTime() === yesterday.getTime()) dayLabel = 'Yesterday'
-  else if (eventDay.getTime() === tomorrow.getTime()) dayLabel = 'Tomorrow'
-  else dayLabel = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-
-  if (evt.all_day) return dayLabel
-  return `${dayLabel} · ${start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
-}
 
 const logger = createLogger('SoldierProfile')
 
@@ -111,13 +94,22 @@ export function SoldierProfile({
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [algoDetail, setAlgoDetail] = useState<{ comp: AlgorithmCompetency; anchor: DOMRect } | null>(null)
 
-  const upcomingEvents = useMemo(
-    () => calendarEvents.filter(e => new Date(e.end_time) >= now),
-    [calendarEvents, now],
-  )
-  const SCHEDULE_LIMIT = 5
-  const scheduleHidden = Math.max(0, upcomingEvents.length - SCHEDULE_LIMIT)
-  const scheduleShown = upcomingEvents.slice(0, SCHEDULE_LIMIT)
+  // Schedule (upcoming calendar events) + Encounter Log (logged algorithm
+  // completions) are folded into the one Timeline as calendar-sourced rows.
+  // The timeline's now-divider gives "schedule above / history below" for free.
+  const timelineCalendarEntries = useMemo<TimelineCalendarEntry[]>(() => {
+    const byId = new Map<string, TimelineCalendarEntry>()
+    for (const e of calendarEvents) {
+      if (new Date(e.end_time) >= now) {
+        byId.set(e.id, { id: e.id, occurredAt: e.start_time, title: e.title, kind: 'scheduled' })
+      }
+    }
+    // Encounters are past, logged events; they win on any id collision.
+    for (const e of encounterEvents) {
+      byId.set(e.id, { id: e.id, occurredAt: e.start_time, title: e.title, kind: 'encounter' })
+    }
+    return [...byId.values()]
+  }, [calendarEvents, encounterEvents, now])
 
   // ─── Cert popover state (tap-to-edit, immediate save) ────────────────
   const certFabRef = useRef<HTMLDivElement | null>(null)
@@ -245,8 +237,6 @@ export function SoldierProfile({
       return (priority[aStatus] ?? 3) - (priority[bStatus] ?? 3)
     })
   }, [certs])
-
-  const encounterGroups = useMemo(() => groupEncounters(encounterEvents), [encounterEvents])
 
   /** Per-algorithm composite competency for this soldier (STP + red flags + ddx + run). */
   const algorithmCompetency = useMemo(() => buildAlgorithmCompetency(tests), [tests])
@@ -394,84 +384,22 @@ export function SoldierProfile({
         </div>
       )}
 
-      {/* Schedule */}
-      <div>
-        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
-          Schedule
-        </p>
+      {/* Timeline — the single time-ordered spine: audit_log lifecycle (training,
+          cluster moves, certs) merged with calendar-sourced rows — upcoming
+          events (the old "Schedule") above the now-divider, logged algorithm
+          encounters (the old "Encounter Log") below. */}
+      {viewerClinicId && (
         <div className="relative">
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-            {scheduleShown.length === 0 ? (
-              <p className="text-sm text-tertiary px-4 py-3">No upcoming events in the next 14 days</p>
-            ) : (
-              <>
-                {scheduleShown.map((evt, idx) => (
-                  <button
-                    type="button"
-                    key={evt.id}
-                    onClick={() => onOpenEvent(evt.id)}
-                    className={`w-full text-left flex items-center gap-3 px-4 py-3 transition-colors hover:bg-themeblue3/5 ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-primary truncate">{evt.title}</p>
-                      <p className="text-[9pt] text-tertiary">{formatEventDate(evt)}</p>
-                    </div>
-                  </button>
-                ))}
-                {scheduleHidden > 0 && (
-                  <button
-                    type="button"
-                    onClick={onOpenCalendar}
-                    className="w-full text-left text-[9pt] text-tertiary px-4 py-2 border-t border-tertiary/8 hover:bg-themeblue3/5"
-                  >
-                    +{scheduleHidden} more in calendar
-                  </button>
-                )}
-              </>
-            )}
-          </div>
+          <UserTimeline
+            subjectId={soldier.id}
+            clinicId={viewerClinicId}
+            calendarEntries={timelineCalendarEntries}
+            onOpenEvent={onOpenEvent}
+          />
           <ActionPill shadow="sm" placement="overlay">
             <ActionButton icon={Calendar} label="View in calendar" onClick={onOpenCalendar} />
           </ActionPill>
         </div>
-      </div>
-
-      {/* Encounter Log — algorithm completions logged to calendar */}
-      <div>
-        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
-          Encounter Log{encounterEvents.length > 0 && ` · ${encounterEvents.length}`}
-        </p>
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-          {encounterGroups.length === 0 ? (
-            <p className="text-[10pt] text-tertiary px-4 py-4">No algorithm encounters logged yet</p>
-          ) : (
-            encounterGroups.map((g, idx) => (
-              <div
-                key={g.algorithmId}
-                className={`flex items-center gap-3 px-4 py-3 ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
-              >
-                <div className="w-7 h-7 rounded-lg bg-themeblue3/10 flex items-center justify-center shrink-0">
-                  <Activity size={14} className="text-themeblue2" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-primary truncate">{g.label}</p>
-                  <p className="text-[9pt] text-tertiary">
-                    Last {new Date(g.lastAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </p>
-                </div>
-                <span className="text-[9pt] font-semibold text-themeblue2 bg-themeblue3/10 px-2 py-0.5 rounded-full shrink-0">
-                  ×{g.count}
-                </span>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* Timeline — unified lifecycle spine from audit_log: training, cluster
-          moves, certs (past + future, now-divider). Replaces the team-calendar voice. */}
-      {viewerClinicId && (
-        <UserTimeline subjectId={soldier.id} clinicId={viewerClinicId} />
       )}
 
       {/* Algorithm Competency — composite category (STP + red flags + ddx + run).

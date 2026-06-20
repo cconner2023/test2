@@ -3,6 +3,11 @@ import { Pencil, Package, FolderPlus, Camera, X, Trash2, MapPin, Layers } from '
 import type { ContextMenuItem } from '../ContextMenu'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { PropertyLocationTree } from './PropertyLocationTree'
+import { ItemPmcs } from './ItemPmcs'
+import { ItemTimeline } from '../Timeline/ItemTimeline'
+
+/** Stable empty holders map for vehicle timelines (no custody/move events). */
+const EMPTY_HOLDERS: Map<string, HolderInfo> = new Map()
 
 interface PropertyLocationDetailProps {
   location: LocalPropertyLocation
@@ -51,6 +56,20 @@ export function PropertyLocationDetail({
       {location.photo_data && (
         <div className="px-4 pb-1">
           <img src={location.photo_data} alt={location.name} className="w-full h-40 object-cover rounded-xl border border-tertiary/15" />
+        </div>
+      )}
+
+      {/* A vehicle is property too — its own 5988: PMCS faults + paper trail,
+          above the BII/components it holds (the tree below). */}
+      {location.kind === 'vehicle' && (
+        <div className="px-4 pt-1 pb-3 space-y-4">
+          <ItemPmcs subjectType="location" subjectId={location.id} clinicId={location.clinic_id} />
+          <ItemTimeline
+            subjectId={location.id}
+            clinicId={location.clinic_id}
+            locations={locations}
+            holders={holders ?? EMPTY_HOLDERS}
+          />
         </div>
       )}
 

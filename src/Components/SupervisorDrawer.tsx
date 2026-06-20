@@ -21,6 +21,7 @@ import { AlgorithmEvaluateFlow } from './Settings/Supervisor/AlgorithmEvaluateFl
 import { AssignTaskFlow } from './Settings/Supervisor/AssignTaskFlow'
 import { TeamReporting } from './Settings/Supervisor/TeamReporting'
 import { CoverageTasksView } from './Settings/Supervisor/CoverageTasksView'
+import { AlgorithmCoverageView } from './Settings/Supervisor/AlgorithmCoverageView'
 import { SupervisorTree, type TreeSelection } from './Settings/Supervisor/SupervisorTree'
 import { LoadingSpinner } from './LoadingSpinner'
 import { useMinLoadTime } from '../Hooks/useMinLoadTime'
@@ -43,6 +44,7 @@ type SupervisorView =
   | { screen: 'evaluate-algorithm'; soldier: ClinicMedic; algorithmId: string; algorithmName: string }
   | { screen: 'coverage-tasks'; areaName: string; soldier?: ClinicMedic }
   | { screen: 'coverage-task-evaluate'; areaName: string; soldier: ClinicMedic; taskNumber: string; taskTitle: string }
+  | { screen: 'coverage-algorithm'; algorithmId: string; algorithmName: string }
   | { screen: 'assign-task'; soldier: ClinicMedic; preSelectedTask?: { id: string; title: string } }
 
 interface SupervisorDrawerProps {
@@ -306,6 +308,11 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     setView({ screen: 'coverage-tasks', areaName })
   }, [handleSlideAnimation])
 
+  const handleNavigateToAlgorithm = useCallback((algorithmId: string, algorithmName: string) => {
+    handleSlideAnimation('left')
+    setView({ screen: 'coverage-algorithm', algorithmId, algorithmName })
+  }, [handleSlideAnimation])
+
   const handleCoverageEvaluate = useCallback((soldier: ClinicMedic, taskId: string, taskTitle: string) => {
     if (view.screen !== 'coverage-tasks') return
     handleSlideAnimation('left')
@@ -539,6 +546,18 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
           showBack: true,
           onBack: handleBack,
         }
+      case 'coverage-algorithm':
+        return {
+          title: view.algorithmName,
+          showBack: true,
+          onBack: handleBack,
+          rightContent: (
+            <HeaderPill>
+              <PillButton icon={X} onClick={handleClose} label="Close" />
+            </HeaderPill>
+          ),
+          hideDefaultClose: true,
+        }
       case 'assign-task':
         return {
           title: 'Assign Training',
@@ -570,6 +589,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
               testableTaskMap={testableTaskMap}
               clinicName={clinicName}
               onNavigateToArea={handleNavigateToArea}
+              onNavigateToAlgorithm={handleNavigateToAlgorithm}
               teamEvents={windowedEvents}
               encounterCountBySoldier={encounterCountBySoldier}
               onOpenCalendar={handleOpenCalendar}
@@ -727,6 +747,20 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
               searchQuery=""
               onSelectTask={() => {}}
               onSubmit={handleSubmitEvaluation}
+            />
+          </ScrollPane>
+        )
+
+      case 'coverage-algorithm':
+        return (
+          <ScrollPane className={scrollPaneCls}>
+            <AlgorithmCoverageView
+              algorithmId={view.algorithmId}
+              algorithmName={view.algorithmName}
+              medics={medics}
+              testsForSoldier={testsForSoldier}
+              onEvaluate={handleEvaluateAlgorithm}
+              onSchedule={handleScheduleAlgorithm}
             />
           </ScrollPane>
         )

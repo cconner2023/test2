@@ -244,7 +244,10 @@ export function Sheet({
 
     if (!isMounted && !isOpen) return null;
 
-    const resolvedBackdropOpacity = backdropOpacity ?? (backdrop === 'block' ? 0.4 : 0.5);
+    // Frosted dim — mirrors LiftedRowMenu's clone scrim (bg-black/45 + 6px blur)
+    // so block/dismiss sheets soft-blur what's underneath (e.g. a calendar
+    // BottomIsland/FAB) instead of leaving it visible through a weak flat dim.
+    const resolvedBackdropOpacity = backdropOpacity ?? 0.45;
     const heightDvh = isSnap ? (isFull ? expanded : peek) : undefined;
 
     // Slide transform. Fit mode adds the live drag offset (px) on top of the
@@ -263,7 +266,7 @@ export function Sheet({
                 interactive. 'dismiss' closes on tap; 'block' is non-dismissing. */}
             {backdrop !== 'none' && (
                 <div
-                    className="fixed inset-0 bg-black transition-opacity duration-300 ease-out"
+                    className="fixed inset-0 bg-black backdrop-blur-[6px] transition-opacity duration-300 ease-out"
                     style={{
                         zIndex,
                         opacity: shown ? resolvedBackdropOpacity : 0,

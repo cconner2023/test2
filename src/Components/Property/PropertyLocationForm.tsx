@@ -40,7 +40,13 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
   const isEdit = !!editingLocation
   const [name, setName] = useState(editingLocation?.name ?? '')
   const [parentId, setParentId] = useState<string>(editingLocation?.parent_id ?? defaultParentId ?? '')
+  const [kind, setKind] = useState<'area' | 'vehicle'>(
+    editingLocation?.kind === 'vehicle' ? 'vehicle' : 'area',
+  )
   const [, setIsSaving] = useState(false)
+  // Levels are created/managed via the floor switcher, not this form — don't
+  // expose the area/vehicle toggle for them (it would clobber kind='level').
+  const isLevel = editingLocation?.kind === 'level'
 
   // Parent options: real (non-member) locations, excluding self + descendants
   // (can't re-home a location under itself) and the hidden ROOT node.
@@ -75,7 +81,11 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
     setIsSaving(true)
     try {
       if (isEdit && editingLocation) {
-        await store.editLocation(editingLocation.id, { name: trimmed, parent_id: parentId || null })
+        await store.editLocation(editingLocation.id, {
+          name: trimmed,
+          parent_id: parentId || null,
+          ...(isLevel ? {} : { kind }),
+        })
         onClose()
         return
       }
@@ -83,6 +93,7 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
         clinic_id: store.clinicId,
         parent_id: parentId || null,
         name: trimmed,
+        kind,
         photo_data: null,
         holder_user_id: null,
         created_by: '',
@@ -116,7 +127,7 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
     } finally {
       setIsSaving(false)
     }
-  }, [name, parentId, isEdit, editingLocation, store, onClose])
+  }, [name, parentId, kind, isLevel, isEdit, editingLocation, store, onClose])
 
   useImperativeHandle(ref, () => ({ submit: handleSave }), [handleSave])
 
@@ -130,6 +141,17 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
             onChange={setParentId}
             options={parentOptions}
             placeholder="Parent location (top-level)"
+          />
+        )}
+        {!isLevel && (
+          <PickerInput
+            value={kind}
+            onChange={(v) => setKind(v as 'area' | 'vehicle')}
+            options={[
+              { value: 'area', label: 'Area' },
+              { value: 'vehicle', label: 'Vehicle' },
+            ]}
+            placeholder="Type"
           />
         )}
       </div>

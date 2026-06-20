@@ -88,12 +88,15 @@ export interface PropertyLocation {
   holder_user_id: string | null  // set on member-locations; null for physical locations
   /**
    * Sub-zone shape discriminator:
-   * - 'area'  (default) — a drawn rectangle on its parent's canvas (existing behaviour).
-   * - 'level' — a full-size sub-zone (e.g. a building floor). Occupies its parent's
+   * - 'area'    (default) — a drawn rectangle on its parent's canvas (existing behaviour).
+   * - 'level'   — a full-size sub-zone (e.g. a building floor). Occupies its parent's
    *   whole footprint via a 0..1 full-extent tag; sibling levels stack on the same
    *   footprint and only the active one renders (Genshin-style floor switcher).
+   * - 'vehicle' — a container that both HOLDS property (child items = BII/components)
+   *   and IS property (signed for via holder_user_id). Drawn like an 'area' on the
+   *   parent canvas; distinguished by a vehicle marker in the book views.
    */
-  kind?: 'area' | 'level'
+  kind?: 'area' | 'level' | 'vehicle'
   /** Stack order among sibling levels (floor number; basements negative). Unused for 'area'. */
   ordinal?: number
   /** Optional real-world map anchor — links this zone to a map OverlayFeature (geo coords). */
